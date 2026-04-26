@@ -25,7 +25,7 @@
 /* global window, document */
 
 import {
-    SDATA, SDATA_END, data_type_t, event_flag_t,
+    SDATA, SDATA_END, data_type_t, event_flag_t, gclass_flag_t,
     gclass_create, log_error, log_warning,
     gobj_create, gobj_destroy,
     gobj_start, gobj_stop,
@@ -862,11 +862,15 @@ function handle_toolbar_action(gobj, item)
                 close_drawer(gobj, menu_id);
             }
             else {
-                 { toggle_drawer(gobj, menu_id); }
+                toggle_drawer(gobj, menu_id);
             }
             break;
         }
         case "event":
+            /*  Publish whatever event name the JSON requested.  The shell
+             *  is created with gcflag_no_check_output_events so it acts as
+             *  an intermediate that forwards arbitrary user-defined events
+             *  without each app having to extend our event_types table. */
             if(!empty_string(action.event)) {
                 gobj_publish_event(gobj, action.event, action.kw || {});
             }
@@ -1212,10 +1216,13 @@ function create_gclass(gclass_name)
         event_types,
         states,
         gmt,
-        0,
+        0,                          /* lmt */
         attrs_table,
         PRIVATE_DATA,
-        0, 0, 0, 0
+        0,                          /* authz_table */
+        0,                          /* command_table */
+        0,                          /* s_user_trace_level */
+        gclass_flag_t.gcflag_no_check_output_events
     );
     if(!__gclass__) {
         return -1;

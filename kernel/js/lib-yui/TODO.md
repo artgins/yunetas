@@ -4,30 +4,38 @@ Living TODO for the declarative shell refactor on branch
 `claude/refactor-gui-system-qptVn`.  Numbered roughly by dependency
 order; do not skip ahead without reading the rationale on each item.
 
+**Scope decision (2026-04):** existing GUIs will **not** be migrated
+to the new shell.  `C_YUI_MAIN` and `C_YUI_ROUTING` stay shipped and
+supported so legacy apps keep working unchanged.  The new shell
+(`C_YUI_SHELL` + `C_YUI_NAV`) targets **new** GUIs only.  The
+migration of legacy apps is captured as an optional, gated track at
+the end of this file (#8) for whoever decides to take it on later.
+
 The arc this list closes:
 
-> The original review scope (10 findings, 4 blockers) is **done**.  What
-> remains is the migration plan documented in [`SHELL.md` §10](./SHELL.md)
-> ("Status and retirement plan") plus the polish items spilled out of
-> the iteration.  When this list is empty, `C_YUI_MAIN` and
-> `C_YUI_ROUTING` can be deleted from `lib-yui`.
+> The original review scope (10 findings, 4 blockers) is **done**.
+> What remains is the polish needed to make the new shell a
+> first-class option for new GUIs (modals, escape stack, secondary-
+> nav generalisation, e2e smoke), plus the release cut on top of
+> which new apps can ride.  Legacy `C_YUI_MAIN` / `C_YUI_ROUTING`
+> are explicitly out of scope here.
 
-Order rationale (revised after review):
+Order rationale (revised after the "no legacy migration" decision):
 
 - #1 + #2 close the original review scope and let us cut a `7.4.0`
-  release on top of which the migration can ride.
+  release that new GUIs can adopt.
 - #3 (Escape stack) lands **before** #4 (modals) on purpose: any
   modal/popup component will register itself on the stack, retro-
   fitting it after the fact is much more painful.
-- #4 → #5 → #6 are the migration spine: shell-side helpers, then
-  one consumer (`C_YUI_TABS`) end-to-end, then the rest of the
-  inventory.
-- #7 (real-world test on `estadodelaire/gui`) gates #8 (deletion of
-  legacy classes).
-- #9 / #10 are independent improvements that can land at any time
-  but are most useful **before** #6 / #7 (smoke coverage during the
-  risky migration).
-- #11 closes the branch.
+- #4 (Modal/notification API) makes the new shell self-sufficient
+  for new GUIs — they don't need to import `c_yui_main.js` for
+  toasts/dialogs.
+- #5 (secondary-nav generalisation) removes the `menu.primary`-only
+  limitation so new GUIs with multiple primary-style menus work.
+- #6 (Playwright e2e) gates regressions on the shell itself.
+- #7 closes the branch.
+- #8 is the **optional** legacy-migration track, kept here as a
+  reference checklist if the decision is ever revisited.
 
 ---
 
@@ -80,10 +88,10 @@ publish:
       drawer staying open after navigation, vite alias matching
       sub-paths, missing drawer helper re-exports, ugly
       `secondary.<id>` heading via the new `nav_label` attribute.
-    - **Note**: `C_YUI_MAIN` and `C_YUI_ROUTING` are still shipped
-      and not deprecated yet.  Migration is tracked in
-      `kernel/js/lib-yui/TODO.md` and `kernel/js/lib-yui/SHELL.md`
-      §10.
+    - **Note**: `C_YUI_MAIN` and `C_YUI_ROUTING` remain shipped and
+      fully supported.  The new shell is the recommended path for
+      **new** GUIs only; legacy GUIs keep using the old classes.
+      Optional migration tasks tracked in `TODO.md` §8.
 
 **Done when:** version bumped, CHANGELOG entry merged.
 
@@ -108,7 +116,7 @@ stack.
 - Refactor `open_drawer` / `close_drawer` / `toggle_drawer` to use
   the stack instead of calling `close_all_drawers` directly.
 - Document the order in `SHELL.md` §11 and add a regression test in
-  the e2e suite once #10 is up.
+  the e2e suite once #6 is up.
 
 **Done when:** with a modal open over a drawer, Escape closes the
 modal first; second Escape closes the drawer.
@@ -119,10 +127,13 @@ modal first; second Escape closes the drawer.
 
 Today the shell creates `priv.layers.modal`, `priv.layers.notification`
 and `priv.layers.loading` in `build_ui` but exposes no API for them.
-The legacy entry points still live in `c_yui_main.js`:
-`display_volatil_modal`, `display_info_message`,
-`display_warning_message`, `display_error_message`,
-`get_yesnocancel`, `get_yesno`, `get_ok`.
+New GUIs built on the shell should be able to render modals and
+toasts **without** importing `c_yui_main.js`.
+
+The legacy entry points (`display_volatil_modal`, `display_info_message`,
+`display_warning_message`, `display_error_message`, `get_yesnocancel`,
+`get_yesno`, `get_ok`) stay in `c_yui_main.js` for legacy apps and
+are **not** removed.  The new shell exposes a parallel API instead.
 
 - **Generalise** the drawer focus-trap (`activate_focus_trap` /
   `release_focus_trap` / `FOCUSABLE_SELECTOR`) into a generic
@@ -131,149 +142,38 @@ The legacy entry points still live in `c_yui_main.js`:
   `shell_show_on.js`.  Add a small `tests/shell_focus_trap.test.mjs`
   using happy-dom (or a tiny stub) so the runner gets its second
   client.
-- Port each `display_*` / `get_yes*` helper to a shell-level function
-  that paints into the corresponding layer.  Keep the same exported
-  names (drop-in replacement) and re-export them from `index.js`.
+- Add shell-level helpers — distinct names from the legacy ones to
+  avoid ambiguity for consumers that might import both.  Naming
+  convention: `yui_shell_show_*` for non-blocking notifications
+  (no answer expected from the user), `yui_shell_confirm_*` for
+  blocking dialogs (the helper resolves with the user's choice).
+    - Non-blocking: `yui_shell_show_modal`, `yui_shell_show_info`,
+      `yui_shell_show_warning`, `yui_shell_show_error`.
+    - Blocking: `yui_shell_confirm_yesnocancel`,
+      `yui_shell_confirm_yesno`, `yui_shell_confirm_ok` (single OK
+      button — still a dialog the user has to dismiss, hence
+      `confirm_*`, not `show_*`).
+  Re-export from `index.js`.
 - Reuse Bulma's `.modal` / `.notification` markup verbatim for visual
   parity with the legacy implementation.
 - Each modal/popup that grabs focus must register a close handler on
   the Escape stack from #3.
 - Add a smoke entry in `test-app/app_config.json`: a toolbar item
-  that fires `display_info_message("Hello")` so the toast renders
-  without any view doing it.
+  that fires `yui_shell_show_info(shell, "Hello")` so the toast
+  renders without any view doing it.
 
-**Done when:** every existing call to `display_*` / `get_yes*` from
-`c_yui_main.js` can be served from the shell, and `c_yui_main.js` is
-no longer the authority for modals/toasts.
+**Drift policy** between the new helpers and the legacy `display_*`
+/ `get_yes*` / `get_ok` is documented in
+[`SHELL.md` §10](./SHELL.md): legacy bug fixes are not back-ported,
+shell improvements stay on the shell.
 
----
-
-## 5. Migrate `C_YUI_TABS` from `EV_ROUTING_CHANGED` to `EV_ROUTE_CHANGED`
-
-`C_YUI_TABS.ac_show` / `ac_hide` listen to `EV_ROUTING_CHANGED` of
-`C_YUI_ROUTING`.  Move that subscription to the shell's
-`EV_ROUTE_CHANGED`:
-
-- Add an attr `shell` (DTP_POINTER, optional) on `C_YUI_TABS`.
-- In `mt_start`, if `shell` is set: `gobj_subscribe_event(shell,
-  "EV_ROUTE_CHANGED", {}, gobj)`.  In `mt_stop`: unsubscribe.
-- Keep the legacy `C_YUI_ROUTING` path as a fallback when `shell` is
-  not set, so the migration can land before consumers are converted.
-  Mark the fallback `// transitional — remove after TODO #6` and link
-  to this TODO.
-- Add a small test-app stage that uses tabs to confirm.
-
-**Done when:** the test-app + `estadodelaire/gui` (after #7) work
-without registering `C_YUI_ROUTING`.
+**Done when:** new GUIs can render every modal/toast variant through
+shell helpers without importing `c_yui_main.js`; the legacy helpers
+remain untouched.
 
 ---
 
-## 6. Inventory and migrate the remaining `C_YUI_ROUTING` / `C_YUI_MAIN` consumers
-
-```
-grep -r register_c_yui_main      kernel/ utils/ yunos/
-grep -r register_c_yui_routing   kernel/ utils/ yunos/
-grep -rl EV_ROUTING_CHANGED      kernel/ utils/ yunos/
-grep -rlE 'display_(error|info|warning|volatil)|get_yes|get_ok' kernel/ utils/ yunos/
-```
-
-For every hit that is not the migration itself, open a sub-task here.
-Likely consumers inside `lib-yui`:
-
-- `c_yui_treedb_topics.js`
-- `c_yui_treedb_topic_with_form.js`
-- `c_yui_treedb_graph.js`
-- `c_g6_nodes_tree.js`
-- `c_yui_form.js` (uses `display_*`)
-- `yui_dev.js` (developer panel)
-
-Each consumer:
-
-- Replace `EV_ROUTING_CHANGED` subscription with `EV_ROUTE_CHANGED`
-  (via the shell, see #5).
-- Replace `display_*` / `get_yes*` calls with the shell-helper
-  version (#4).
-- Drop the dependency on the old gclasses from its imports.
-
-**Done when:** the four `grep`s above return empty inside `lib-yui`
-itself.
-
----
-
-## 7. Migrate `estadodelaire/gui` to the shell — first real-world test
-
-The companion repo `artgins/estadodelaire` is the canonical app on
-top of `lib-yui`.  Replace its bootstrap:
-
-- `gui/src/main.js`: drop `register_c_yui_main / register_c_yui_routing`,
-  add `register_c_yui_shell / register_c_yui_nav` and registrations
-  for every `c_ui_*` gclass.
-- `gui/src/c_yuneta_gui.js`: replace its custom shell wiring with a
-  declarative `app_config.json` next to it.  Each `c_ui_*` gclass
-  becomes a `target.gclass` with the appropriate `lifecycle`:
-    - `c_ui_alarms` → `keep_alive` (subscribes to live data).
-    - `c_ui_device_sonda` / `c_ui_device_termod` → `keep_alive` per
-      device id.
-    - `c_ui_historical_chart` → `lazy_destroy` (heavy, infrequent).
-    - `c_ui_monitoring` / `c_ui_monitoring_group` → `keep_alive`.
-    - `c_ui_todo` / `c_yui_gobj_tree_js` → `lazy_destroy`.
-- **Verify CSS class scope.**  `c_yui_shell.css` defines generic
-  selectors (`.yui-toolbar`, `.yui-stage > *`, `.yui-zone-center > *`,
-  `.yui-nav-iconbar .yui-nav-item.is-active`, etc.).  Confirm none
-  of them collide with classes used by the `c_ui_*` views.  If they
-  do, add the `.yui-shell` ancestor selector to scope shell rules.
-- Verify on real screen sizes:
-    - Mobile (<769): primary as `icon-bar` at `bottom`, submenu as
-      `tabs` at `top-sub`, drawer for the user/account menu.
-    - Tablet (769-1023): same primary placement + toolbar appears at
-      `top`.
-    - Desktop (≥1024): primary at `left` (vertical), submenu at
-      `right` (vertical), full toolbar.
-- Confirm the live language switch using existing locales/flags
-  (`gui/src/locales/`).
-- **If a feature gap appears** (a layout the current GUI does that
-  the new shell doesn't), capture it as a follow-up here **before
-  continuing**.  Do not patch around it ad-hoc inside `gui/`.
-
-**Done when:** `cd gui && npm run dev` boots EstadoDelAire on the new
-shell and the smoke flows (alarms, monitoring, history) work.
-
----
-
-## 8. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `lib-yui`
-
-Gated on tasks #4, #5, #6 and #7.  The retirement checklist
-documented in `SHELL.md` §10 must be empty:
-
-```
-grep -r register_c_yui_main      kernel/ utils/ yunos/   # empty
-grep -r register_c_yui_routing   kernel/ utils/ yunos/   # empty
-grep -rl EV_ROUTING_CHANGED      kernel/ utils/ yunos/   # empty
-grep -rlE 'display_(error|info|warning|volatil)|get_yes|get_ok' kernel/ utils/ yunos/  # empty
-```
-
-Then:
-
-- Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
-  `src/c_yui_routing.js`, `src/c_yui_routing.css`.
-- Remove their exports from `index.js`.
-- Drop `import "@yuneta/lib-yui/src/c_yui_main.css"` /
-  `c_yui_routing.css` from any remaining `main.js` (test-app should
-  not need them).
-- Update `SHELL.md` §11 to remove the "Do not import `c_yui_main.css`
-  and `c_yui_shell.css` together" item (and renumber).  Update
-  `SHELL.md` §10 to mark the retirement plan as completed.
-- Update `README.md` of `lib-yui` to drop the `C_YUI_MAIN` /
-  `C_YUI_ROUTING` mentions.
-- Bump `lib-yui` to `7.5.0` (breaking change).  Add CHANGELOG entry
-  with the removal and link to this TODO.
-
-**Done when:** `lib-yui` no longer ships either gclass and no
-consumer inside the org references them.
-
----
-
-## 9. Generalise the secondary-nav loop beyond `menu.primary`
+## 5. Generalise the secondary-nav loop beyond `menu.primary`
 
 `instantiate_menus()` in `c_yui_shell.js` walks only
 `menus.primary.items[*].submenu` to build level-2 navs.  See
@@ -295,19 +195,15 @@ with submenus and both render their secondary navs correctly.
 
 ---
 
-## 10. End-to-end smoke with Playwright
+## 6. End-to-end smoke with Playwright
 
 Today there is **no automated smoke** of the shell — only the 13
 `shell_show_on` parser tests run in CI.  Add a thin Playwright
 suite.
 
-**Land at least the "boot + navigate primary" subset BEFORE #6**
-so the migration of consumers in #6 is caught instantly when it
-breaks something.  The full catalogue can grow incrementally.
-
 - Boot the test-app via `vite preview` against the built bundle.
 - Two presets, two browsers (chromium + firefox at minimum).
-- Tests, in order of priority (the first two are the gate for #6):
+- Tests, in order of priority:
     1. **boot**: `/dash/ov` renders, the card title is "Overview".
     2. **navigation**: clicking each primary item changes the
        active highlight and the centre stage.
@@ -333,13 +229,13 @@ PR.
 
 ---
 
-## 11. Open PR + run `/ultrareview` before merging to `main`
+## 7. Open PR + run `/ultrareview` before merging to `main`
 
 Convention: feature branches are independently reviewed before
 they land.
 
 - Open the PR `claude/refactor-gui-system-qptVn → main` once tasks
-  #1–#10 are at a place where merging is desirable (does not
+  #1–#6 are at a place where merging is desirable (does not
   require every task to be done — at minimum #1 + #2 close the
   original review scope).
 - The user runs `/ultrareview <PR#>` for a multi-agent independent
@@ -351,3 +247,102 @@ they land.
 - Delete the feature branch after merge.
 
 **Done when:** the PR is merged and the branch is deleted.
+
+---
+
+## 8. (Optional, deferred) Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING`
+
+> **Status: not planned.**  Captured here as a reference checklist
+> for whoever decides to take it on later.  Until that decision is
+> made, `C_YUI_MAIN` and `C_YUI_ROUTING` stay shipped and supported.
+> Do **not** start any sub-task below without an explicit go-ahead.
+
+The work needed if the decision is reversed:
+
+### 8.1. Migrate `C_YUI_TABS` from `EV_ROUTING_CHANGED` to `EV_ROUTE_CHANGED`
+
+`C_YUI_TABS.ac_show` / `ac_hide` listen to `EV_ROUTING_CHANGED` of
+`C_YUI_ROUTING`.  Move that subscription to the shell's
+`EV_ROUTE_CHANGED`:
+
+- Add an attr `shell` (DTP_POINTER, optional) on `C_YUI_TABS`.
+- In `mt_start`, if `shell` is set: `gobj_subscribe_event(shell,
+  "EV_ROUTE_CHANGED", {}, gobj)`.  In `mt_stop`: unsubscribe.
+- Keep the legacy `C_YUI_ROUTING` path as a fallback when `shell` is
+  not set, so the migration can land before consumers are converted.
+- Add a small test-app stage that uses tabs to confirm.
+
+### 8.2. Inventory the remaining `C_YUI_ROUTING` / `C_YUI_MAIN` consumers
+
+```
+grep -r register_c_yui_main      kernel/ utils/ yunos/
+grep -r register_c_yui_routing   kernel/ utils/ yunos/
+grep -rl EV_ROUTING_CHANGED      kernel/ utils/ yunos/
+grep -rlE 'display_(error|info|warning|volatil)|get_yes|get_ok' kernel/ utils/ yunos/
+```
+
+Likely consumers inside `lib-yui`:
+
+- `c_yui_treedb_topics.js`
+- `c_yui_treedb_topic_with_form.js`
+- `c_yui_treedb_graph.js`
+- `c_g6_nodes_tree.js`
+- `c_yui_form.js` (uses `display_*`)
+- `yui_dev.js` (developer panel)
+
+For each consumer:
+
+- Replace `EV_ROUTING_CHANGED` subscription with `EV_ROUTE_CHANGED`
+  via the shell (see 8.1).
+- Replace `display_*` / `get_yes*` calls with the shell-helper
+  version (#4: `yui_shell_show_*` / `yui_shell_confirm_*`).
+- Drop the dependency on the old gclasses from imports.
+
+### 8.3. Migrate `estadodelaire/gui` to the shell — first real-world test
+
+The companion repo `artgins/estadodelaire` is the canonical app on
+top of `lib-yui`.  Replace its bootstrap:
+
+- `gui/src/main.js`: drop `register_c_yui_main / register_c_yui_routing`,
+  add `register_c_yui_shell / register_c_yui_nav` and registrations
+  for every `c_ui_*` gclass.
+- `gui/src/c_yuneta_gui.js`: replace its custom shell wiring with a
+  declarative `app_config.json` next to it.  Each `c_ui_*` gclass
+  becomes a `target.gclass` with the appropriate `lifecycle`:
+    - `c_ui_alarms` → `keep_alive`.
+    - `c_ui_device_sonda` / `c_ui_device_termod` → `keep_alive` per
+      device id.
+    - `c_ui_historical_chart` → `lazy_destroy`.
+    - `c_ui_monitoring` / `c_ui_monitoring_group` → `keep_alive`.
+    - `c_ui_todo` / `c_yui_gobj_tree_js` → `lazy_destroy`.
+- **Verify CSS class scope.**  `c_yui_shell.css` defines generic
+  selectors (`.yui-toolbar`, `.yui-stage > *`, `.yui-zone-center > *`,
+  `.yui-nav-iconbar .yui-nav-item.is-active`, etc.).  Confirm none
+  collide with classes used by the `c_ui_*` views.  If they do, add
+  the `.yui-shell` ancestor selector to scope shell rules.
+- Verify on real screen sizes (mobile / tablet / desktop) per the
+  layout matrix in `SHELL.md`.
+- Confirm the live language switch using existing locales/flags
+  (`gui/src/locales/`).
+- **If a feature gap appears**, capture it as a follow-up here
+  **before continuing**.  Do not patch around it ad-hoc inside
+  `gui/`.
+
+### 8.4. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `lib-yui`
+
+Gated on 8.1, 8.2, 8.3.  All four greps above must return empty.
+
+- Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
+  `src/c_yui_routing.js`, `src/c_yui_routing.css`.
+- Remove their exports from `index.js`.
+- Drop `import "@yuneta/lib-yui/src/c_yui_main.css"` /
+  `c_yui_routing.css` from any remaining `main.js`.
+- Update `SHELL.md` §11 to remove the "Do not import `c_yui_main.css`
+  and `c_yui_shell.css` together" item (and renumber).
+- Update `README.md` of `lib-yui` to drop the `C_YUI_MAIN` /
+  `C_YUI_ROUTING` mentions.
+- Bump `lib-yui` to `8.0.0` (breaking change).  Add CHANGELOG entry
+  with the removal and link to this TODO.
+
+**Done when (8 as a whole):** `lib-yui` no longer ships either
+gclass and no consumer inside the org references them.

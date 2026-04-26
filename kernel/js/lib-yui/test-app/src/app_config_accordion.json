@@ -25,7 +25,11 @@
               "aria_label": "Open quick menu",
               "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" } },
             { "id": "home",   "icon": "icon-home", "name": "Home",
-              "action": { "type": "navigate", "route": "/dash/ov" } }
+              "action": { "type": "navigate", "route": "/dash/ov" } },
+            { "id": "lang",   "icon": "icon-translate", "name": "ES/EN",
+              "align": "end",
+              "aria_label": "Toggle language",
+              "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" } }
         ]
     },
 

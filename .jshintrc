@@ -1,5 +1,7 @@
 {
-    "esversion": 6,
+    "esversion": 11,
     "laxbreak": true,
+    "forin": false,
+    "loopfunc": true,
     "sub": true
 }

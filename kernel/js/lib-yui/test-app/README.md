@@ -44,6 +44,14 @@ Between both presets every one of the six supported layouts runs at least once.
   off-canvas quick menu. Click the backdrop or press `Escape` to close it.
 - **Toolbar** is fully declarative — `burger` triggers a drawer, `home`
   navigates, `help` navigates and sits on the right (`align: "end"`).
+- **Live i18n**: the `ES/EN` button on the right of the toolbar fires
+  `EV_TOGGLE_LANGUAGE` (a custom user event); a tiny side controller
+  (`C_TEST_LANG`) listens for it and calls `yui_shell_set_translate`
+  with one of two trivial dictionaries. Click it and watch every menu
+  label, the secondary-nav heading, and every toolbar `<button>` label
+  swap to Spanish, then back to English. The active item highlight
+  is preserved across the swap because the shell re-publishes
+  `EV_ROUTE_CHANGED`.
 
 ## What to look at (accordion preset)
 
@@ -55,6 +63,18 @@ Open `?preset=accordion`:
   `aria-expanded` / `aria-controls` update accordingly.
 - Keyboard: `Tab` walks the items, `Enter` / `Space` activates them, and
   `:focus-visible` outlines the active control.
+
+## Caveat — `yui_shell_set_translate` and the active highlight
+
+`yui_shell_set_translate` re-publishes `EV_ROUTE_CHANGED` so navs
+re-mark the active item under the new labels. That re-publish is
+gated on `current_route` being non-empty: if you click the ES/EN
+button **before** the first navigation has succeeded (e.g. the hash
+is empty and there is no `default_route`), the navs are rebuilt
+correctly but no highlight appears until you navigate. Production
+configs always have a `default_route`, so this is only visible in
+custom edge cases — surfaced here so it does not surprise
+integrators.
 
 ## Accessibility spot-checks
 
@@ -77,3 +97,7 @@ Open `?preset=accordion`:
   + drawer).
 - `src/c_test_view.js` — minimal view gobj exposing `$container`; used
   as the `target.gclass` for every menu item.
+- `src/c_test_lang.js` — small CHILD gobj that subscribes to the
+  shell's `EV_TOGGLE_LANGUAGE` and applies a dictionary via
+  `yui_shell_set_translate`. Canonical pattern for any app that needs
+  to react to custom toolbar events.

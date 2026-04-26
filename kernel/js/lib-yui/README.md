@@ -4,13 +4,33 @@ Reusable GUI components for building Yuneta-based web applications. Every
 component is a GClass (from [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js))
 that plugs into the GObject tree and communicates via events.
 
-The library provides:
+## Which app shell to use?
 
-- **App shell** (`C_YUI_MAIN`) — layered layout with toolbar, modals, and notifications.
+`lib-yui` ships two app-shell stacks. They coexist; pick one per app.
+
+- **New GUIs → `C_YUI_SHELL` + `C_YUI_NAV`** (declarative shell, since
+  v7.4.0). JSON-driven layout, routed stages, drawer overlay with
+  focus-trap, hot-swap i18n. See [`SHELL.md`](./SHELL.md).
+- **Existing GUIs → keep `C_YUI_MAIN` + `C_YUI_ROUTING`.** Both are
+  still shipped and supported. Migrating is opt-in, not mandated;
+  there is no scheduled removal.
+
+The two stacks **do not share CSS** — do not import
+`c_yui_main.css` and `c_yui_shell.css` together. One app picks one
+stack.
+
+## Components
+
+- **App shell (declarative)** (`C_YUI_SHELL` + `C_YUI_NAV`) — JSON-driven
+  zones, menus, toolbar, drawers, lifecycle. Recommended for new GUIs.
+- **App shell (legacy)** (`C_YUI_MAIN`) — layered layout with toolbar,
+  modals, and notifications. Still supported for existing GUIs.
 - **Window manager** (`C_YUI_WINDOW`) — draggable/resizable floating windows.
 - **Tabs** (`C_YUI_TABS`) — tab container for sub-components.
 - **Form builder** (`C_YUI_FORM`) — dynamic forms backed by Tabulator and TomSelect.
-- **Routing** (`C_YUI_ROUTING`) — hash-based menu/content routing.
+- **Routing (legacy)** (`C_YUI_ROUTING`) — hash-based menu/content
+  routing. Used by `C_YUI_MAIN`-based apps. New apps route through
+  `C_YUI_SHELL` instead.
 - **Map** (`C_YUI_MAP`) — MapLibre GL map wrapper.
 - **Charts** (`C_YUI_UPLOT`) — uPlot chart wrapper.
 - **JSON viewer** (`C_YUI_JSON_GRAPH`) — JSON visualization with AntV/G6.
