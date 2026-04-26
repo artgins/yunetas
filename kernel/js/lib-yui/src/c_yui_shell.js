@@ -347,25 +347,36 @@ function build_item_index(gobj, config)
         let items = (menu && menu.items) || [];
         for(let item of items) {
             if(item.route) {
-                priv.item_index[item.route] = {
-                    item: item,
-                    parent_item: null,
-                    stage: item.target && item.target.stage || null,
-                    target: item.target || null,
-                    menu_id: menu_id
-                };
+                /*  A later menu must NOT clobber an earlier entry that
+                 *  has a valid target with one that has none.  This is
+                 *  the common case where a `quick` drawer just reuses
+                 *  routes declared (with target) in `primary.submenu`.
+                 *  Rule: prefer the first entry with a target. */
+                let prev = priv.item_index[item.route];
+                if(!prev || (!prev.target && item.target)) {
+                    priv.item_index[item.route] = {
+                        item: item,
+                        parent_item: null,
+                        stage: item.target && item.target.stage || null,
+                        target: item.target || null,
+                        menu_id: menu_id
+                    };
+                }
             }
             let sub = item.submenu;
             if(sub && is_array(sub.items)) {
                 for(let sub_item of sub.items) {
                     if(sub_item.route) {
-                        priv.item_index[sub_item.route] = {
-                            item: sub_item,
-                            parent_item: item,
-                            stage: sub_item.target && sub_item.target.stage || null,
-                            target: sub_item.target || null,
-                            menu_id: menu_id
-                        };
+                        let prev = priv.item_index[sub_item.route];
+                        if(!prev || (!prev.target && sub_item.target)) {
+                            priv.item_index[sub_item.route] = {
+                                item: sub_item,
+                                parent_item: item,
+                                stage: sub_item.target && sub_item.target.stage || null,
+                                target: sub_item.target || null,
+                                menu_id: menu_id
+                            };
+                        }
                     }
                 }
             }
@@ -614,6 +625,11 @@ function navigate_to(gobj, route)
 
     /*  Show/hide secondary navs according to parent item */
     update_secondary_nav_visibility(gobj, entry);
+
+    /*  Any drawer that triggered (or merely sits open during) the navigation
+     *  is a transient overlay — closing it after the route change avoids it
+     *  sitting on top of the new view. */
+    close_all_drawers(gobj);
 
     /*  Update hash silently */
     if(gobj_read_attr(gobj, "use_hash")) {
