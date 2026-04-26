@@ -308,7 +308,16 @@ Public helpers (import from `@yuneta/lib-yui`):
   `yui_shell_toggle_drawer(shell, menu_id?)` — act on the
   `C_YUI_NAV` with `layout:"drawer"` whose `menu_id` matches (all of
   them when `menu_id` is omitted). The shell also closes them on
-  `Escape` by default.
+  `Escape` by default. While a drawer is open the shell installs a
+  focus-trap on its panel: `Tab` / `Shift+Tab` cycle inside, and on
+  close the focus is restored to whichever element triggered the
+  open.
+- `yui_shell_set_translate(shell, fn)` — hot-swap the i18n resolver.
+  Replaces the `translate` attr on the shell and on every nav,
+  rebuilds the nav DOMs and the toolbar, then re-publishes
+  `EV_ROUTE_CHANGED` so navs re-mark the active item under the new
+  labels. Use this to switch languages without destroying the
+  shell.
 
 ### `C_YUI_NAV`
 
@@ -322,7 +331,16 @@ Published events:
   `navigate_to` directly.
 
 Notable attributes: `menu_items`, `zone`, `layout`, `icon_pos`,
-`show_label`, `level` (`primary` | `secondary`), `shell`, `translate`.
+`show_label`, `level` (`primary` | `secondary`), `shell`, `translate`,
+`nav_label` (human-readable label used by the secondary navs as their
+heading and `aria-label`; the shell fills it from the parent item's
+`name`).
+
+Public helpers:
+- `yui_nav_rebuild(nav)` — tear the nav's DOM down and re-render it
+  in place, preserving the host parent and the visibility state.
+  Called by `yui_shell_set_translate`; you typically don't need it
+  directly.
 
 ---
 
@@ -458,24 +476,16 @@ These are intentional gaps, documented so they don't surface as
 review nits.  Each one has a clear path forward when it becomes
 worth the work.
 
-1. **No focus-trap inside an open drawer.**  The drawer is
-   `role="dialog" aria-modal="true"`, but Tab can still leave it for
-   the page behind.  Acceptable for v1 because the drawer mirrors
-   the primary menu (its items are also reachable from `left`/
-   `bottom`); real modal dialogs (when the shell ships its own)
-   will need a focus-trap and ESC-to-restore-focus pass.
-2. **`translate` is applied once, at mount.**  The hook is read
-   when each `C_YUI_NAV` renders its DOM and when each toolbar item
-   is built; there is no listener for hot language switches.
-   Switching languages on the fly today requires destroying the
-   shell and re-creating it.
-3. **Secondary navs are auto-instantiated only from `menu.primary`.**
+1. **Secondary navs are auto-instantiated only from `menu.primary`.**
    `instantiate_menus` walks `menus.primary.items[*].submenu` to
    build the level-2 navs.  If you declare additional "primary-style"
    menus elsewhere with their own `submenu`, those submenus will
    not get a nav unless they are mounted manually.  Drawer overlays
    (`render[zone].layout === "drawer"`) are detected for any menu
    id and are not subject to this limitation.
-4. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
+2. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
    `c_yui_main.css` defines its own `.top-layer` / `.content-layer` /
    `.bottom-layer` with `position:fixed` and CSS variables that
+   collide with the shell's full-screen grid.  Pick one: the new
+   shell while the migration is in progress, or the legacy main while
+   you have not switched.  Apps mixing both will see double layout.

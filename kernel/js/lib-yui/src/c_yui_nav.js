@@ -661,4 +661,44 @@ function register_c_yui_nav()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_nav };
+/***************************************************************
+ *  Rebuild the nav DOM in place.  Used by the shell when the
+ *  `translate` attr changes at runtime: the DOM has to be torn
+ *  down and re-rendered with the new label resolver, but the
+ *  parent and the visibility state must be preserved so the
+ *  layout does not flicker.  Active-item highlight is NOT
+ *  re-applied here — the shell is expected to re-publish
+ *  EV_ROUTE_CHANGED right after, which the nav handles via its
+ *  existing ac_route_changed action.
+ ***************************************************************/
+function yui_nav_rebuild(nav)
+{
+    let $old = gobj_read_attr(nav, "$container");
+    let priv = gobj_read_attr(nav, "priv");
+    let $parent = ($old && $old.parentNode) || null;
+    let was_hidden = !!($old && $old.classList.contains("is-hidden"));
+    let was_active_drawer = !!($old && $old.classList.contains("is-active"));
+
+    if($old && priv && priv.click_handler) {
+        $old.removeEventListener("click", priv.click_handler);
+    }
+
+    build_ui(nav);
+
+    let $new = gobj_read_attr(nav, "$container");
+    if($parent && $new) {
+        if($old && $old.parentNode === $parent) {
+            $parent.replaceChild($new, $old);
+        } else {
+            $parent.appendChild($new);
+        }
+        if(was_hidden) {
+            $new.classList.add("is-hidden");
+        }
+        if(was_active_drawer) {
+            $new.classList.add("is-active");
+        }
+    }
+}
+
+export { register_c_yui_nav, yui_nav_rebuild };
