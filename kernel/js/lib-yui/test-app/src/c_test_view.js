@@ -61,11 +61,13 @@ function build_ui(gobj)
 
     let $c = createElement2(
         ["div", {class: "view-card", style: `background:${hex_alpha(color, 0.08)};`},
-            ["h1", {class: "title is-4", style: `color:${color};`}, title],
-            ["p", {class: "is-size-7"},
-                `gobj: ${gobj_name(gobj)}  ·  instance #${id}`
-            ],
-            ["div", {class: "bg", style: `border-color:${color};`}, title]
+            [
+                ["h1", {class: "title is-4", style: `color:${color};`}, title],
+                ["p", {class: "is-size-7"},
+                    `gobj: ${gobj_name(gobj)}  ·  instance #${id}`
+                ],
+                ["div", {class: "bg", style: `border-color:${color};`}, title]
+            ]
         ]
     );
     gobj_write_attr(gobj, "$container", $c);

@@ -176,19 +176,28 @@ function translate_of(gobj, s)
 
 /************************************************************
  *  Layouts
+ *
+ *  IMPORTANT: createElement2 destructures node descriptors as
+ *  [tag, attrs, content, events] positionally, so multiple
+ *  children MUST be wrapped in a single array (otherwise the
+ *  third sibling would be interpreted as an event-listener map
+ *  and addEventListener would crash).  In short:
+ *
+ *      OK:    ["ul", {}, [li1, li2, li3]]
+ *      WRONG: ["ul", {}, li1, li2, li3]
  ************************************************************/
 function render_vertical(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
     let icon_pos = gobj_read_attr(gobj, "icon_pos");
 
-    let $ul = ["ul", {class: "menu-list"}];
+    let lis = [];
     for(let it of items) {
-        $ul.push(item_li(gobj, it, { icon_pos, show_label, stacked: false }));
+        lis.push(item_li(gobj, it, { icon_pos, show_label, stacked: false }));
     }
     return createElement2(
         ["aside", {class: "menu p-3"},
-            $ul
+            ["ul", {class: "menu-list"}, lis]
         ]
     );
 }
@@ -198,18 +207,20 @@ function render_icon_bar(gobj, items)
     let show_label = gobj_read_attr(gobj, "show_label");
     let icon_pos = gobj_read_attr(gobj, "icon_pos");   /* typically "top" */
 
-    let $bar = ["div", {class: "yui-nav-iconbar level is-mobile"}];
+    let bar_items = [];
     for(let it of items) {
-        $bar.push(item_iconbar(gobj, it, { icon_pos, show_label }));
+        bar_items.push(item_iconbar(gobj, it, { icon_pos, show_label }));
     }
-    return createElement2($bar);
+    return createElement2(
+        ["div", {class: "yui-nav-iconbar level is-mobile"}, bar_items]
+    );
 }
 
 function render_tabs(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
 
-    let $ul = ["ul", {}];
+    let lis = [];
     for(let it of items) {
         let children = [];
         if(!empty_string(it.icon)) {
@@ -219,17 +230,19 @@ function render_tabs(gobj, items)
         if(show_label && !empty_string(it.name)) {
             children.push(["span", {}, translate_of(gobj, it.name)]);
         }
-        $ul.push(
+        lis.push(
             ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
                 ["a", {href: it.route ? "#" + it.route : "#",
                        "data-item-id": it.id,
                        "data-route":   it.route || ""},
-                 ...children]
+                 children]
             ]
         );
     }
     return createElement2(
-        ["div", {class: "tabs is-boxed"}, $ul]
+        ["div", {class: "tabs is-boxed"},
+            ["ul", {}, lis]
+        ]
     );
 }
 
@@ -268,14 +281,16 @@ function render_submenu(gobj, items)
     let icon_pos = gobj_read_attr(gobj, "icon_pos");
     let menu_id = gobj_read_attr(gobj, "menu_id") || "";
 
-    let $ul = ["ul", {class: "menu-list"}];
+    let lis = [];
     for(let it of items) {
-        $ul.push(item_li(gobj, it, { icon_pos, show_label, stacked: false, compact: true }));
+        lis.push(item_li(gobj, it, { icon_pos, show_label, stacked: false, compact: true }));
     }
     return createElement2(
         ["aside", {class: "menu p-2"},
-            ["p", {class: "menu-label"}, translate_of(gobj, menu_id) || "—"],
-            $ul
+            [
+                ["p", {class: "menu-label"}, translate_of(gobj, menu_id) || "—"],
+                ["ul", {class: "menu-list"}, lis]
+            ]
         ]
     );
 }
@@ -368,7 +383,7 @@ function item_li(gobj, it, opts)
     }
 
     return ["li", {},
-        ["a", a_attrs, ...children]
+        ["a", a_attrs, children]
     ];
 }
 
@@ -399,7 +414,7 @@ function item_iconbar(gobj, it, opts)
                "data-item-id": it.id,
                "data-route":   it.route || "",
                "aria-label":   label || it.id},
-         ...children]
+         children]
     ];
 }
 

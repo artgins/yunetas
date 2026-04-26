@@ -715,8 +715,10 @@ function build_toolbar(gobj, config)
         ["nav", {class: "yui-toolbar navbar",
                  role: "navigation",
                  "aria-label": tb.aria_label || "Toolbar"},
-            ["div", {class: "navbar-brand yui-toolbar-start"}],
-            ["div", {class: "navbar-end   yui-toolbar-end"}]
+            [
+                ["div", {class: "navbar-brand yui-toolbar-start"}],
+                ["div", {class: "navbar-end   yui-toolbar-end"}]
+            ]
         ]
     );
     let $start = $bar.querySelector(".yui-toolbar-start");
@@ -738,7 +740,7 @@ function build_toolbar(gobj, config)
                         type: "button",
                         "data-toolbar-item-id": it.id || "",
                         "aria-label": translate(it.aria_label || it.name || it.id || "")},
-             ...children]
+             children]
         );
         $item.addEventListener("click", ev => {
             ev.preventDefault();
