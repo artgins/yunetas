@@ -449,3 +449,33 @@ Checklist before deleting either gclass:
       shell.
 - [ ] Consumers of `EV_ROUTING_CHANGED` migrated to the shell's
       `EV_ROUTE_CHANGED`.
+
+---
+
+## 11. Known limitations
+
+These are intentional gaps, documented so they don't surface as
+review nits.  Each one has a clear path forward when it becomes
+worth the work.
+
+1. **No focus-trap inside an open drawer.**  The drawer is
+   `role="dialog" aria-modal="true"`, but Tab can still leave it for
+   the page behind.  Acceptable for v1 because the drawer mirrors
+   the primary menu (its items are also reachable from `left`/
+   `bottom`); real modal dialogs (when the shell ships its own)
+   will need a focus-trap and ESC-to-restore-focus pass.
+2. **`translate` is applied once, at mount.**  The hook is read
+   when each `C_YUI_NAV` renders its DOM and when each toolbar item
+   is built; there is no listener for hot language switches.
+   Switching languages on the fly today requires destroying the
+   shell and re-creating it.
+3. **Secondary navs are auto-instantiated only from `menu.primary`.**
+   `instantiate_menus` walks `menus.primary.items[*].submenu` to
+   build the level-2 navs.  If you declare additional "primary-style"
+   menus elsewhere with their own `submenu`, those submenus will
+   not get a nav unless they are mounted manually.  Drawer overlays
+   (`render[zone].layout === "drawer"`) are detected for any menu
+   id and are not subject to this limitation.
+4. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
+   `c_yui_main.css` defines its own `.top-layer` / `.content-layer` /
+   `.bottom-layer` with `position:fixed` and CSS variables that
