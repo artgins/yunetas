@@ -20,6 +20,8 @@ import {
     gobj_start_up,
     gobj_create_yuno,
     gobj_create_default_service,
+    gobj_create_pure_child,
+    gobj_find_service,
     gobj_start, gobj_play,
     register_c_yuno,
     register_c_timer,
@@ -31,6 +33,7 @@ import {
 } from "@yuneta/lib-yui";
 
 import {register_c_test_view} from "./c_test_view.js";
+import {register_c_test_lang} from "./c_test_lang.js";
 
 import "bulma/css/bulma.css";
 import "@yuneta/lib-yui/src/c_yui_shell.css";
@@ -40,8 +43,9 @@ import app_config_accordion from "./app_config_accordion.json";
 
 
 /*  Identity i18n resolver — shows the SHELL translate hook without
- *  doing any actual translation. Swap for a real resolver to see
- *  labels change across the whole UI. */
+ *  doing any actual translation. The C_TEST_LANG controller swaps
+ *  this for a Spanish dictionary on every click of the toolbar's
+ *  ES/EN button (see c_test_lang.js). */
 function identity_translate(key) {
     return key;
 }
@@ -67,8 +71,9 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
 
-    /*  App views  */
+    /*  App views + language controller  */
     register_c_test_view();
+    register_c_test_lang();
 
     gobj_start_up(null, null, null, null, null, null, null);
 
@@ -86,6 +91,17 @@ function main()
             use_hash:  true,
             translate: identity_translate
         },
+        yuno
+    );
+
+    /*  Side controller: subscribes to the shell's EV_TOGGLE_LANGUAGE
+     *  (published by the toolbar's lang button) and swaps the shell's
+     *  translate hook on each click. */
+    let shell = gobj_find_service("shell", false);
+    gobj_create_pure_child(
+        "test_lang",
+        "C_TEST_LANG",
+        { shell: shell },
         yuno
     );
 
