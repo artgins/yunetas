@@ -28,8 +28,9 @@ export {
     yui_shell_open_drawer,
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,
+    yui_shell_set_translate,
 } from "./src/c_yui_shell.js";
-export { register_c_yui_nav } from "./src/c_yui_nav.js";
+export { register_c_yui_nav, yui_nav_rebuild } from "./src/c_yui_nav.js";
 
 /*
  *  TreeDB components
