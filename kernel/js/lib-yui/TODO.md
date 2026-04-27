@@ -90,29 +90,37 @@ publish:
 
 ---
 
-## 3. Escape priority chain (modal > drawer > popup)
+## 3. Escape priority chain (modal > drawer > popup) — DONE
 
-The shell's global `keydown` listener unconditionally closes any
-open drawer on `Escape`.  Once modals (#4) and any future popup
-component land, this becomes wrong — closing the modal first,
-*then* the drawer, *then* the popup is the universal expectation.
+`priv.escape_stack` is a LIFO of `{ layer, handler }` records
+pushed by every overlay when it opens and popped when it closes.
+The window-level `keydown` listener calls only the top entry and
+consumes the event (preventDefault + stopPropagation).
 
-**Land this BEFORE #4** so modals are born already aware of the
-stack.
+- `open_drawer` / `close_drawer` / `toggle_drawer` /
+  `close_all_drawers` go through `open_drawer_one` /
+  `close_drawer_one`, which keep DOM (`is-active`), focus-trap,
+  and escape-stack in sync.
+- The backdrop click in `c_yui_nav.js` no longer mutates the DOM
+  directly; it publishes the new `EV_DRAWER_CLOSE_REQUESTED`
+  output event with `{menu_id}`. The shell's
+  `ac_drawer_close_requested` calls the canonical close path —
+  closing the focus-trap leak that was open since the drawer
+  landed.
+- Public API for non-drawer overlays (used by #4 modals and any
+  future popup): `yui_shell_push_escape(shell, layer, handler)` /
+  `yui_shell_pop_escape(shell, handler)`. Both re-exported from
+  `@yuneta/lib-yui`.
+- `SHELL.md` §11 documents the LIFO ordering, the z-index
+  rationale (loading > modal > popup > overlay), and the public
+  API.
+- `tests-e2e/drawer.spec.mjs` covers: burger opens / Escape
+  closes / focus restored; backdrop click closes via the
+  canonical path; Escape with the stack empty is a no-op.
 
-- Refactor `priv.keydown_handler` into a stack `priv.escape_stack`:
-  an array of close handlers.  Each interactive overlay pushes its
-  handler when it opens and pops it when it closes.  Escape calls
-  the **top** handler only and consumes the event.
-- Order of priority by `z-index` of the layer the overlay lives in:
-  `loading` (no Escape) > `modal` > `popup` > `overlay` (drawer).
-- Refactor `open_drawer` / `close_drawer` / `toggle_drawer` to use
-  the stack instead of calling `close_all_drawers` directly.
-- Document the order in `SHELL.md` §11 and add a regression test in
-  the e2e suite once #6 is up.
-
-**Done when:** with a modal open over a drawer, Escape closes the
-modal first; second Escape closes the drawer.
+The cross-overlay test (modal over drawer → first Escape closes
+the modal, second Escape closes the drawer) lands with #4 once
+modals exist.
 
 ---
 

@@ -481,13 +481,16 @@ function wire_clicks(gobj, $root)
             return;
         }
 
-        /*  Drawer backdrop close. */
+        /*  Drawer backdrop close.  Don't mutate the DOM directly —
+         *  the shell owns the drawer state (focus-trap, escape
+         *  stack) and must run its full close path.  Publish the
+         *  intent and let the shell handle it through
+         *  ac_drawer_close_requested. */
         let $bk = target.closest("[data-close-drawer]");
         if($bk) {
-            let $drawer = $bk.closest(".yui-drawer");
-            if($drawer) {
-                $drawer.classList.remove("is-active");
-            }
+            gobj_publish_event(gobj, "EV_DRAWER_CLOSE_REQUESTED", {
+                menu_id: gobj_read_attr(gobj, "menu_id") || ""
+            });
             ev.preventDefault();
             return;
         }
@@ -645,8 +648,9 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_ROUTE_CHANGED", 0],
-        ["EV_NAV_CLICKED",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
+        ["EV_ROUTE_CHANGED",          0],
+        ["EV_NAV_CLICKED",            event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_DRAWER_CLOSE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
     ];
 
     __gclass__ = gclass_create(

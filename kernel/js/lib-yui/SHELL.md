@@ -502,7 +502,54 @@ Until that decision is made, do **not** start any of those sub-tasks.
 
 ---
 
-## 11. Known limitations
+## 11. Escape priority chain
+
+The shell maintains a **single, ordered stack** of close handlers,
+one entry per open overlay (drawer today, modal/popup when #4
+lands, custom app overlays via the public API). `Escape` calls the
+**top** entry only and consumes the event (preventDefault +
+stopPropagation), so a modal opened over a drawer closes first;
+the second `Escape` closes the drawer.
+
+LIFO ordering naturally matches the z-index layering most apps
+use:
+
+```
+loading       (no Escape — full-screen blocking spinner)
+modal         (z-index 99)
+popup         (z-index 20)
+overlay       (z-index 15)  ← drawer lives here
+base          (z-index  1)  ← never on the Escape stack
+```
+
+The drawer integration is built in: `yui_shell_open_drawer` /
+`toggle_drawer` push their close handler; `yui_shell_close_drawer`,
+the backdrop click, and `Escape` itself all funnel through the
+same close path (`close_drawer_one`) which removes
+`is-active`, releases the focus-trap, and pops the stack entry.
+
+The backdrop click is routed via `EV_DRAWER_CLOSE_REQUESTED` from
+the nav to the shell, not by mutating the DOM directly — that
+guarantees the focus-trap and stack stay in sync regardless of
+which path closed the drawer.
+
+### Public API (for custom overlays)
+
+```js
+import { yui_shell_push_escape, yui_shell_pop_escape } from "@yuneta/lib-yui";
+
+let close_modal = () => my_modal.close();
+yui_shell_push_escape(shell, "modal", close_modal);
+//   ... when the modal closes by any path (Escape, overlay click,
+//   programmatic close, ...) the same handler must also pop:
+yui_shell_pop_escape(shell, close_modal);
+```
+
+`layer` is a free-form tag (e.g. `"modal"`, `"popup"`,
+`"overlay"`). It is informational today (the LIFO ordering is what
+drives priority); keep it accurate so the FSM trace is readable.
+
+## 12. Known limitations
 
 These are intentional gaps, documented so they don't surface as
 review nits.  Each one has a clear path forward when it becomes

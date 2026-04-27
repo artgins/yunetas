@@ -111,7 +111,12 @@ function mt_create(gobj)
         navs:            [],
         item_index:      {},
         hash_handler:    null,
-        keydown_handler: null
+        keydown_handler: null,
+        /*  Escape priority chain: array of { layer, handler }.  Each
+         *  interactive overlay (drawer today, modal/popup tomorrow)
+         *  pushes its close handler when it opens and pops it when
+         *  it closes.  Escape calls the top handler only — LIFO. */
+        escape_stack:    []
     });
 
     build_ui(gobj);
@@ -157,11 +162,21 @@ function mt_start(gobj)
         window.addEventListener("hashchange", priv.hash_handler);
     }
 
-    /*  Global Escape to close any open drawer. */
+    /*  Global Escape: route to the top handler of the escape stack,
+     *  not to a hardcoded "close all drawers".  Modals and popups
+     *  push themselves on top of drawers, so Escape closes them
+     *  first; second Escape closes the drawer underneath; etc. */
     priv.keydown_handler = ev => {
-        if(ev.key === "Escape" || ev.keyCode === 27) {
-            close_all_drawers(gobj);
+        if(ev.key !== "Escape" && ev.keyCode !== 27) {
+            return;
         }
+        if(priv.escape_stack.length === 0) {
+            return;
+        }
+        let top = priv.escape_stack[priv.escape_stack.length - 1];
+        ev.preventDefault();
+        ev.stopPropagation();
+        top.handler();
     };
     window.addEventListener("keydown", priv.keydown_handler);
 
@@ -1111,38 +1126,84 @@ function release_focus_trap(gobj, $drawer)
     }
 }
 
+/************************************************************
+ *  Escape priority chain helpers — push/pop a {layer, handler}
+ *  record on `priv.escape_stack`.  Escape calls the top entry
+ *  only and consumes the event; LIFO ordering naturally matches
+ *  the z-index layering most apps use (drawer at the bottom,
+ *  modal on top, popup on top of that).
+ ************************************************************/
+function push_escape(gobj, layer, handler)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.escape_stack) {
+        return;
+    }
+    priv.escape_stack.push({ layer: layer, handler: handler });
+}
+
+function pop_escape(gobj, handler)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.escape_stack) {
+        return;
+    }
+    let idx = priv.escape_stack.findIndex(e => e.handler === handler);
+    if(idx >= 0) {
+        priv.escape_stack.splice(idx, 1);
+    }
+}
+
+/*  Per-drawer open/close.  The handler reference is parked on the
+ *  $drawer DOM element so any close path (Escape, backdrop click,
+ *  toolbar action, public yui_shell_close_drawer) ends up popping
+ *  the correct stack entry. */
+function open_drawer_one(gobj, $c)
+{
+    if($c.classList.contains("is-active")) {
+        return;
+    }
+    let close_fn = () => close_drawer_one(gobj, $c);
+    $c.__yui_close_handler__ = close_fn;
+    push_escape(gobj, "overlay", close_fn);
+    $c.classList.add("is-active");
+    activate_focus_trap(gobj, $c);
+}
+
+function close_drawer_one(gobj, $c)
+{
+    if(!$c.classList.contains("is-active")) {
+        return;
+    }
+    $c.classList.remove("is-active");
+    release_focus_trap(gobj, $c);
+    if($c.__yui_close_handler__) {
+        pop_escape(gobj, $c.__yui_close_handler__);
+        $c.__yui_close_handler__ = null;
+    }
+}
+
 function open_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        if($c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.add("is-active");
-        activate_focus_trap(gobj, $c);
+        open_drawer_one(gobj, $c);
     }
 }
 
 function close_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        if(!$c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.remove("is-active");
-        release_focus_trap(gobj, $c);
+        close_drawer_one(gobj, $c);
     }
 }
 
 function toggle_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        let was = $c.classList.contains("is-active");
-        $c.classList.toggle("is-active");
-        let now = $c.classList.contains("is-active");
-        if(now && !was) {
-            activate_focus_trap(gobj, $c);
-        } else if(!now && was) {
-            release_focus_trap(gobj, $c);
+        if($c.classList.contains("is-active")) {
+            close_drawer_one(gobj, $c);
+        } else {
+            open_drawer_one(gobj, $c);
         }
     }
 }
@@ -1161,11 +1222,7 @@ function close_all_drawers(gobj)
         if(!$c) {
             continue;
         }
-        if(!$c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.remove("is-active");
-        release_focus_trap(gobj, $c);
+        close_drawer_one(gobj, $c);
     }
 }
 
@@ -1268,6 +1325,19 @@ function ac_nav_clicked(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  Drawer backdrop click on a C_YUI_NAV child: the nav publishes
+ *  this so the shell can close the drawer through the canonical
+ *  flow (DOM + focus-trap + escape-stack pop) instead of mutating
+ *  the DOM directly from the nav.
+ ************************************************************/
+function ac_drawer_close_requested(gobj, event, kw, src)
+{
+    let menu_id = (kw && kw.menu_id) || "";
+    close_drawer(gobj, menu_id);
+    return 0;
+}
+
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -1293,22 +1363,26 @@ function create_gclass(gclass_name)
             /*  Navigation requests flow through EV_NAV_CLICKED (emitted
              *  by child C_YUI_NAVs) and through the window.hashchange
              *  listener (see mt_start).  The shell is the sole router.  */
-            ["EV_NAV_CLICKED", ac_nav_clicked, null]
+            ["EV_NAV_CLICKED",            ac_nav_clicked,            null],
+            /*  Drawer backdrop close (from a C_YUI_NAV child whose
+             *  layout is "drawer"). */
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested, null]
         ]]
     ];
 
     const event_types = [
-        ["EV_NAV_CLICKED",     0],
+        ["EV_NAV_CLICKED",            0],
+        ["EV_DRAWER_CLOSE_REQUESTED", 0],
         /*  Audit witness: every navigation attempt publishes this BEFORE
          *  any work is done, so the FSM trace records intent regardless
          *  of whether the route resolves successfully.  Pairs with
          *  EV_ROUTE_CHANGED (the corresponding fact event). */
-        ["EV_ROUTE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT
-                              |event_flag_t.EVF_PUBLIC_EVENT
-                              |event_flag_t.EVF_NO_WARN_SUBS],
-        ["EV_ROUTE_CHANGED",   event_flag_t.EVF_OUTPUT_EVENT
-                              |event_flag_t.EVF_PUBLIC_EVENT
-                              |event_flag_t.EVF_NO_WARN_SUBS]
+        ["EV_ROUTE_REQUESTED",        event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ROUTE_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(
@@ -1355,6 +1429,28 @@ function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj,
 function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
 function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
 
+/*  Escape priority chain — public API used by overlays that the
+ *  shell does not own (modals from #4, future popups, custom
+ *  app-level overlays).  Drawer integration is built in.
+ *
+ *      let close_fn = () => my_modal.close();
+ *      yui_shell_push_escape(shell, "modal", close_fn);
+ *      // ... when the modal closes by any path, also call:
+ *      yui_shell_pop_escape(shell, close_fn);
+ *
+ *  `layer` is a free-form tag (e.g. "modal", "popup", "overlay").
+ *  Today it is informational; the LIFO ordering of the stack is
+ *  what determines Escape priority — and naturally matches the
+ *  z-index layering most apps use (drawer < popup < modal). */
+function yui_shell_push_escape(shell_gobj, layer, handler)
+{
+    push_escape(shell_gobj, layer, handler);
+}
+function yui_shell_pop_escape(shell_gobj, handler)
+{
+    pop_escape(shell_gobj, handler);
+}
+
 /*  Note: there is no shell-level language switch helper.  Every
  *  translatable text node rendered by the shell and its navs is
  *  tagged with `data-i18n` (the canonical English key).  Apps swap
@@ -1368,5 +1464,7 @@ export {
     yui_shell_navigate,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
-    yui_shell_toggle_drawer
+    yui_shell_toggle_drawer,
+    yui_shell_push_escape,
+    yui_shell_pop_escape
 };
