@@ -69,12 +69,15 @@
         `stage.<id>`), stage zones declared in `shell.zones`, and
         cross-menu route-target uniqueness (warn when two menus claim
         the same target).
-      - **Playwright e2e harness**: 22 spec files × 2 browsers
-        (chromium + firefox) covering boot / navigation / drawer /
-        modals / multimenu / validator / lifecycle / breakpoint /
-        live-i18n.  CI workflow `.github/workflows/lib-yui.yml` runs
-        unit + e2e on PRs and pushes touching `kernel/js/lib-yui/**`
-        or `kernel/js/gobj-js/**`.
+      - **Playwright e2e harness**: 22 spec files × 3 browsers
+        (chromium + firefox + webkit) = 69 tests covering boot /
+        navigation / drawer / modals / multimenu / validator /
+        lifecycle / breakpoint / live-i18n.  CI workflow
+        `.github/workflows/lib-yui.yml` runs unit + e2e on PRs and
+        pushes touching `kernel/js/lib-yui/**` or
+        `kernel/js/gobj-js/**`.  `kernel/js/lib-yui/install-e2e-deps.sh`
+        helper installs the apt packages WebKit links against
+        (`libgstreamer-plugins-bad1.0-0`, `libavif16`).
       - **Test-app**: standalone harness in `kernel/js/lib-yui/test-app/`
         with three presets (`default`, `?preset=accordion`,
         `?preset=multimenu`) plus a deliberately-broken `?preset=invalid`

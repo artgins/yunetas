@@ -22,11 +22,18 @@ runs against chromium and firefox.
 
 ```bash
 cd kernel/js/lib-yui
-npm install                              # installs @playwright/test
-npx playwright install chromium firefox  # one-off browser download
-npm run test:e2e                         # headless, both browsers
-npm run test:e2e:ui                      # Playwright UI mode (debug)
+npm install                # installs @playwright/test
+./install-e2e-deps.sh      # downloads browser binaries + apt deps for webkit
+npm run test:e2e           # headless, all three browsers (chromium/firefox/webkit)
+npm run test:e2e:ui        # Playwright UI mode (debug)
 ```
+
+> **Linux only**: `install-e2e-deps.sh` runs `sudo npx playwright
+> install-deps webkit` once to install the system libraries WebKit
+> links against (`libgstreamer-plugins-bad1.0-0`, `libavif16`, …).
+> Chromium and Firefox bundle their own deps and need no apt
+> packages.  CI does the same step via `npx playwright install
+> --with-deps chromium firefox webkit` (no manual sudo there).
 
 `npm run test:all` runs the parser unit tests and the e2e suite back
 to back. CI runs the same combination via

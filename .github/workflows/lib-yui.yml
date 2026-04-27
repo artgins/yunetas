@@ -31,7 +31,7 @@ jobs:
       - run: npm test
 
   e2e:
-    name: e2e (Playwright — chromium + firefox)
+    name: e2e (Playwright — chromium + firefox + webkit)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,7 +47,7 @@ jobs:
         working-directory: kernel/js/lib-yui/test-app
         run: npm install
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Run e2e
         run: npm run test:e2e
       - name: Upload Playwright report on failure

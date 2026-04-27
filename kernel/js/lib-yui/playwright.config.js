@@ -7,11 +7,11 @@
  *      under `tests-e2e/` against chromium and firefox.
  *
  *      Run locally:
- *          npm run test:e2e           # headless, both browsers
+ *          npm run test:e2e           # headless, all three browsers
  *          npm run test:e2e:ui        # Playwright UI mode
  *
  *      The first run downloads the browser binaries:
- *          npx playwright install chromium firefox
+ *          npx playwright install chromium firefox webkit
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -42,6 +42,10 @@ export default defineConfig({
         {
             name: "firefox",
             use: { ...devices["Desktop Firefox"] }
+        },
+        {
+            name: "webkit",
+            use: { ...devices["Desktop Safari"] }
         }
     ],
 

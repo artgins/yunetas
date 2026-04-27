@@ -236,8 +236,8 @@ parser tests — Playwright wraps the actual UI.
 
 ### Done in the first pass
 - `playwright.config.js` boots the test-app via `vite preview`
-  against the built bundle on port 5181 (chromium + firefox,
-  `webServer` auto-starts before tests).
+  against the built bundle on port 5181 (chromium + firefox +
+  webkit, `webServer` auto-starts before tests).
 - `npm run test:e2e` / `npm run test:e2e:ui` / `npm run test:all`
   wired up.
 - `.github/workflows/lib-yui.yml` runs unit + e2e on PRs and on
@@ -275,7 +275,18 @@ parser tests — Playwright wraps the actual UI.
   translatable label and preserves the active highlight.
 
 **Done when:** CI green on the branch with every spec above.
-22 specs × 2 browsers = 44 e2e tests, all green locally.
+22 specs × 3 browsers (chromium + firefox + webkit) = 69 e2e tests,
+all green locally on Linux after running
+`./install-e2e-deps.sh`.
+
+### Acknowledged debt (not blocking the merge)
+
+- **Focus-trap unit tests use hand-rolled DOM stubs.**  Acceptable
+  while the trap stays simple and the stubs cover every branch
+  (Tab / Shift+Tab / non-Tab key / focus-from-outside / release
+  idempotency / missing panel / empty panel).  Switch to `jsdom`
+  or `happy-dom` if a real edge case appears (Shadow DOM, `inert`,
+  native `<dialog>`, `tabindex` derived from CSS, etc.).
 
 ---
 
