@@ -317,9 +317,16 @@ function validate_config(config)
         log_error("C_YUI_SHELL: config.menu must be an object");
         ok = false;
     }
-    if(config.toolbar !== undefined && !is_array(config.toolbar)) {
-        log_error("C_YUI_SHELL: config.toolbar must be an array");
-        ok = false;
+    if(config.toolbar !== undefined) {
+        /*  toolbar = { zone?, aria_label?, items[] } — see SHELL.md §3.4. */
+        if(!is_object(config.toolbar)) {
+            log_error("C_YUI_SHELL: config.toolbar must be an object");
+            ok = false;
+        } else if(config.toolbar.items !== undefined &&
+                  !is_array(config.toolbar.items)) {
+            log_error("C_YUI_SHELL: config.toolbar.items must be an array");
+            ok = false;
+        }
     }
 
     return ok;
@@ -696,7 +703,7 @@ function navigate_to(gobj, route)
      *  validation or DOM work. This guarantees that the FSM trace and
      *  any subscribed auditor see every requested route — including
      *  rerouted submenu defaults and routes that ultimately fail. */
-    gobj_publish_event(gobj, "EV_NAVIGATION_REQUESTED", {
+    gobj_publish_event(gobj, "EV_ROUTE_REQUESTED", {
         route: route,
         from:  gobj_read_attr(gobj, "current_route") || ""
     });
@@ -1291,16 +1298,17 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_NAV_CLICKED",          0],
+        ["EV_NAV_CLICKED",     0],
         /*  Audit witness: every navigation attempt publishes this BEFORE
          *  any work is done, so the FSM trace records intent regardless
-         *  of whether the route resolves successfully. */
-        ["EV_NAVIGATION_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT
-                                   |event_flag_t.EVF_PUBLIC_EVENT
-                                   |event_flag_t.EVF_NO_WARN_SUBS],
-        ["EV_ROUTE_CHANGED",        event_flag_t.EVF_OUTPUT_EVENT
-                                   |event_flag_t.EVF_PUBLIC_EVENT
-                                   |event_flag_t.EVF_NO_WARN_SUBS]
+         *  of whether the route resolves successfully.  Pairs with
+         *  EV_ROUTE_CHANGED (the corresponding fact event). */
+        ["EV_ROUTE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT
+                              |event_flag_t.EVF_PUBLIC_EVENT
+                              |event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ROUTE_CHANGED",   event_flag_t.EVF_OUTPUT_EVENT
+                              |event_flag_t.EVF_PUBLIC_EVENT
+                              |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(

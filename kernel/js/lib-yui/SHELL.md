@@ -298,7 +298,20 @@ Recommended default: `keep_alive`.
 | `$container`     | HTMLElement | Shell root                                               |
 
 Published events:
-- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`.
+- `EV_ROUTE_REQUESTED` — `{ route, from }`. **Audit witness**:
+  published as the very first thing in `navigate_to()`, **before**
+  any validation or DOM work, so the FSM trace and any external
+  auditor see every navigation intent — including rerouted submenu
+  defaults and routes that ultimately fail. Subscribers are
+  optional (the event carries `EVF_NO_WARN_SUBS`).
+- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`. The
+  fact event, published after a navigation has fully succeeded:
+  the previous view is hidden, the new view is mounted/shown, the
+  stage's `active_route` is updated.
+
+The pair *requested ↔ changed* is the canonical Yuneta way to
+audit a gobj's behaviour: every intent is recorded regardless of
+outcome, and every successful state transition has its own event.
 
 Public helpers (import from `@yuneta/lib-yui`):
 - `yui_shell_navigate(shell, route)` — programmatic navigation.
