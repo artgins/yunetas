@@ -80,4 +80,35 @@ test.describe("live i18n", () => {
         await expect(toolbar_ask).toHaveText("Ask");
     });
 
+    test("modals/toasts opened AFTER a language toggle render in the active language", async ({ page }) => {
+        await page.goto("/");
+        await expect(page).toHaveURL(/#\/dash\/ov$/);
+
+        /*  Toggle to Spanish. */
+        await page.locator('[data-toolbar-item-id="lang"]').click();
+
+        /*  Open the toast — it must be in Spanish on the first frame
+         *  (caller passes opts.t, helper applies refresh_language to
+         *  the new node before returning). */
+        await page.locator('[data-toolbar-item-id="say-hello"]').click();
+        let toast = page.locator(".yui-layer-notification .notification");
+        await expect(toast).toContainText("¡Hola desde el shell!");
+        await toast.locator(".delete").click();
+
+        /*  Open the dialog.  Title, body and buttons in Spanish. */
+        await page.locator('[data-toolbar-item-id="ask-question"]').click();
+        let modal = page.locator(".yui-layer-modal .modal.is-active");
+        await expect(modal.locator(".modal-card-title")).toHaveText("Una pequeña comprobación");
+        await expect(modal.locator(".modal-card-body")).toContainText(
+            "¿Funciona el nuevo shell como esperabas?"
+        );
+        await expect(modal.locator('button[data-modal-button-value="yes"]')).toHaveText("Sí");
+        await expect(modal.locator('button[data-modal-button-value="no"]')).toHaveText("No");
+
+        /*  Click "Sí" — the follow-up toast is also in Spanish. */
+        await modal.locator('button[data-modal-button-value="yes"]').click();
+        let follow = page.locator(".yui-layer-notification .notification").last();
+        await expect(follow).toContainText("¡Me alegro!");
+    });
+
 });

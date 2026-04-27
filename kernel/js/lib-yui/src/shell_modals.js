@@ -29,6 +29,8 @@
 import {
     gobj_read_attr,
     createElement2,
+    refresh_language,
+    empty_string,
     log_warning,
 } from "@yuneta/gobj-js";
 
@@ -59,6 +61,26 @@ function modal_layer(shell)
 
 
 /***************************************************************
+ *  i18n bridge:
+ *      - `text` is rendered as the canonical English key.
+ *      - The hosting element is tagged with `data-i18n="<key>"`,
+ *        so a later `refresh_language(shell.$container, t)` call
+ *        retranslates the modal even if it was created BEFORE the
+ *        language was switched.
+ *      - If `opts.t` is a function, the helper translates the
+ *        node right after creating it — so a modal opened AFTER
+ *        the user has already toggled to ES renders in ES on the
+ *        first frame, not the canonical English key.
+ ***************************************************************/
+function maybe_apply_translator($node, opts)
+{
+    if(opts && typeof opts.t === "function") {
+        refresh_language($node, opts.t);
+    }
+}
+
+
+/***************************************************************
  *              Notifications (Bulma .notification)
  *
  *      Non-blocking, auto-dismiss after `opts.timeout` ms (default
@@ -73,16 +95,20 @@ function show_notification(shell, kind, message, opts)
         return { close: () => {} };
     }
 
+    let p_attrs = (typeof message === "string")
+        ? {i18n: message}
+        : {};
     let $note = createElement2(
         ["div", {class: `notification yui-notification is-${kind} is-light`,
                  role: kind === "danger" ? "alert" : "status"},
             [
                 ["button", {class: "delete", "aria-label": "close"}],
-                ["p", {}, message]
+                ["p", p_attrs, message]
             ]
         ]
     );
     $layer.appendChild($note);
+    maybe_apply_translator($note, opts);
 
     let timeout_id = null;
     let closed = false;
@@ -147,7 +173,7 @@ export function yui_shell_show_modal(shell, content, opts)
     }
 
     let inner = (typeof content === "string")
-        ? ["div", {class: "box"}, [["p", {}, content]]]
+        ? ["div", {class: "box"}, [["p", {i18n: content}, content]]]
         : null;
 
     let $modal = createElement2(
@@ -169,6 +195,8 @@ export function yui_shell_show_modal(shell, content, opts)
         let $content = $modal.querySelector(".modal-content");
         $content.appendChild(content);
     }
+
+    maybe_apply_translator($modal, opts);
 
     let closed = false;
     let close_fn = null;
@@ -227,8 +255,12 @@ function build_dialog(shell, message, buttons, opts)
     let dismiss_value = buttons[buttons.length - 1].value;
 
     let $body_children = (typeof message === "string")
-        ? [["p", {}, message]]
+        ? [["p", {i18n: message}, message]]
         : [message];
+
+    let title_attrs = !empty_string(title)
+        ? {class: "modal-card-title", i18n: title}
+        : {class: "modal-card-title"};
 
     let $footer_children = buttons.map(b => {
         let cls = "button";
@@ -237,9 +269,12 @@ function build_dialog(shell, message, buttons, opts)
         } else if(b.kind === "danger") {
             cls += " is-danger";
         }
-        return ["button", {class: cls, type: "button",
-                           "data-modal-button-value": b.value},
-                b.label];
+        let btn_attrs = {class: cls, type: "button",
+                         "data-modal-button-value": b.value};
+        if(typeof b.label === "string") {
+            btn_attrs.i18n = b.label;
+        }
+        return ["button", btn_attrs, b.label];
     });
 
     let $modal = createElement2(
@@ -251,7 +286,7 @@ function build_dialog(shell, message, buttons, opts)
                     [
                         ["header", {class: "modal-card-head"},
                             [
-                                ["p", {class: "modal-card-title"}, title],
+                                ["p", title_attrs, title],
                                 ["button", {class: "delete",
                                             "aria-label": "close"}]
                             ]
@@ -264,6 +299,7 @@ function build_dialog(shell, message, buttons, opts)
         ]
     );
     $layer.appendChild($modal);
+    maybe_apply_translator($modal, opts);
 
     return new Promise(resolve => {
         let resolved = false;
