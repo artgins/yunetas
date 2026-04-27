@@ -142,7 +142,7 @@ function mt_start(gobj)
         if($base) {
             $base.appendChild(createElement2(
                 ["div", {class: "notification is-danger m-4"},
-                    ["p", "C_YUI_SHELL: invalid config — see browser console for details"]
+                    ["p", {}, "C_YUI_SHELL: invalid config — see browser console for details"]
                 ]
             ));
         }
@@ -305,11 +305,24 @@ function validate_config(config)
     }
 
     let zones_cfg = is_object(shell_cfg.zones) ? shell_cfg.zones : {};
+    /*  host syntax: must be one of "toolbar", "menu.<id>", "stage.<id>". */
+    let HOST_RE = /^(?:toolbar|menu\.\S+|stage\.\S+)$/;
     for(let zid in zones_cfg) {
         if(ZONE_IDS.indexOf(zid) < 0) {
             log_error(
                 `C_YUI_SHELL: unknown zone '${zid}' in config.shell.zones; ` +
                 `valid zones: ${ZONE_IDS.join(", ")}`
+            );
+            ok = false;
+            continue;
+        }
+        let z = zones_cfg[zid];
+        if(z && typeof z.host === "string" && z.host.length > 0 &&
+                !HOST_RE.test(z.host))
+        {
+            log_error(
+                `C_YUI_SHELL: zone '${zid}' has invalid host '${z.host}'; ` +
+                `must match 'toolbar', 'menu.<id>' or 'stage.<id>'`
             );
             ok = false;
         }
@@ -329,6 +342,17 @@ function validate_config(config)
                 `C_YUI_SHELL: stage '${sname}' references unknown zone '${zone}'`
             );
             ok = false;
+            continue;
+        }
+        /*  zone must actually be declared in shell.zones — catches typos
+         *  like stages.main.zone = "centre" that pass the ZONE_IDS test
+         *  by accident. */
+        if(!Object.prototype.hasOwnProperty.call(zones_cfg, zone)) {
+            log_warning(
+                `C_YUI_SHELL: stage '${sname}' references zone '${zone}' ` +
+                `which is not declared in config.shell.zones — it will be ` +
+                `created with default attributes`
+            );
         }
     }
 
@@ -348,7 +372,58 @@ function validate_config(config)
         }
     }
 
+    /*  Route uniqueness: a route declared in two different menus is a
+     *  source of subtle bugs (build_item_index has a "first wins"
+     *  rule, so the second declaration is silently shadowed).  Warn
+     *  loudly. */
+    if(is_object(config.menu)) {
+        let route_owner = {};
+        for(let menu_id in config.menu) {
+            let m = config.menu[menu_id];
+            if(!m || !is_array(m.items)) {
+                continue;
+            }
+            for(let it of m.items) {
+                check_route_unique(route_owner, it, menu_id);
+                if(it.submenu && is_array(it.submenu.items)) {
+                    for(let sub of it.submenu.items) {
+                        check_route_unique(route_owner, sub, menu_id);
+                    }
+                }
+            }
+        }
+    }
+
     return ok;
+}
+
+/************************************************************
+ *  Helper for validate_config — only warn when TWO different
+ *  menus both declare a `target` for the same route.  Items
+ *  without a `target` are just navigators (they delegate to
+ *  whichever menu owns the route) and do not compete, so the
+ *  legitimate "menu A navigates / menu B owns" pattern stays
+ *  silent.
+ ************************************************************/
+function check_route_unique(route_owner, item, menu_id)
+{
+    if(!item || empty_string(item.route)) {
+        return;
+    }
+    if(!item.target) {
+        return;
+    }
+    let route = item.route;
+    if(route_owner[route] !== undefined && route_owner[route] !== menu_id) {
+        log_warning(
+            `C_YUI_SHELL: route '${route}' has a target in menu ` +
+            `'${menu_id}' AND in menu '${route_owner[route]}' — the ` +
+            `second target is shadowed (build_item_index keeps the ` +
+            `first entry that owns a target)`
+        );
+        return;
+    }
+    route_owner[route] = menu_id;
 }
 
 /************************************************************

@@ -1,0 +1,14 @@
+{
+    "_comment": "Deliberately invalid config used by tests-e2e/validator.spec.mjs to exercise validate_config().  Two breakage modes are encoded: an unknown zone id ('centre' instead of 'center') and an invalid host ('window.foo').",
+
+    "shell": {
+        "zones": {
+            "top":     { "host": "toolbar",      "show_on": ">=tablet" },
+            "centre":  { "host": "stage.main" },
+            "bottom":  { "host": "window.foo" }
+        },
+        "stages": {
+            "main": { "zone": "centre" }
+        }
+    }
+}

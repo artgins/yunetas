@@ -40,6 +40,7 @@ import "@yuneta/lib-yui/src/c_yui_shell.css";
 import app_config           from "./app_config.json";
 import app_config_accordion from "./app_config_accordion.json";
 import app_config_multimenu from "./app_config_multimenu.json";
+import app_config_invalid   from "./app_config_invalid.json";
 
 
 function pick_config()
@@ -48,6 +49,7 @@ function pick_config()
     switch(q.get("preset")) {
         case "accordion": return app_config_accordion;
         case "multimenu": return app_config_multimenu;
+        case "invalid":   return app_config_invalid;
         default:          return app_config;
     }
 }
