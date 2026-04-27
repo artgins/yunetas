@@ -26,10 +26,11 @@ import {
     register_c_timer,
 } from "@yuneta/gobj-js";
 
-import {
+import * as yuneta_lib_yui from "@yuneta/lib-yui";
+const {
     register_c_yui_shell,
     register_c_yui_nav,
-} from "@yuneta/lib-yui";
+} = yuneta_lib_yui;
 
 import {register_c_test_view} from "./c_test_view.js";
 import {register_c_test_lang} from "./c_test_lang.js";
@@ -110,6 +111,14 @@ function main()
      *  the EV_TOGGLE_LANGUAGE subscription is registered before the
      *  user can click the toolbar button. */
     gobj_start(test_lang);
+
+    /*  Test bridge — the e2e suite drives helpers like
+     *  yui_shell_show_modal that have no toolbar entry.  Exposing
+     *  them on `window` lets Playwright's page.evaluate() reach
+     *  them in `vite preview` mode (where /@fs imports are not
+     *  served).  Test-app only — don't ship in production. */
+    window.__lib_yui__ = yuneta_lib_yui;
+    window.__shell__   = shell;
 }
 
 window.addEventListener("load", () => {

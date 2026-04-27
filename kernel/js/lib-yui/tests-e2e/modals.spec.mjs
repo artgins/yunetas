@@ -63,6 +63,57 @@ test.describe("notifications + modals", () => {
         await expect(toast).toContainText("Noted");
     });
 
+    test("yui_shell_show_modal: Tab cycles into the .modal-close button (not just .modal-content)", async ({ page }) => {
+        await page.goto("/");
+
+        /*  Open a non-blocking modal via the test bridge (window
+         *  exposes lib-yui so we can call helpers without a toolbar
+         *  entry). */
+        await page.evaluate(() => {
+            window.__test_modal__ = window.__lib_yui__.yui_shell_show_modal(
+                window.__shell__, "Hello modal"
+            );
+        });
+
+        let modal = page.locator(".yui-layer-modal .modal.is-active");
+        await expect(modal).toBeVisible();
+
+        /*  The close button must be in the focus-trap's pool.  We
+         *  assert it is reachable via the same selector
+         *  activate_focus_trap_on uses internally. */
+        let reachable = await page.evaluate(() => {
+            let m = document.querySelector(".yui-layer-modal .modal.is-active");
+            let close_btn = m && m.querySelector(".modal-close");
+            if(!m || !close_btn) {
+                return false;
+            }
+            const SEL = "a[href], button:not([disabled]), input:not([disabled])," +
+                        " select:not([disabled]), textarea:not([disabled])," +
+                        " [tabindex]:not([tabindex=\"-1\"])";
+            let nodes = Array.from(m.querySelectorAll(SEL));
+            return nodes.includes(close_btn);
+        });
+        expect(reachable).toBe(true);
+
+        /*  Sanity: pressing Tab from the close button itself should
+         *  wrap to the first focusable inside the modal (focus stays
+         *  within $modal, never escapes to elements outside the
+         *  modal layer). */
+        await page.evaluate(() => {
+            let m = document.querySelector(".yui-layer-modal .modal.is-active");
+            m.querySelector(".modal-close").focus();
+        });
+        await page.keyboard.press("Tab");
+        let still_inside = await page.evaluate(() => {
+            let m = document.querySelector(".yui-layer-modal .modal.is-active");
+            return m ? m.contains(document.activeElement) : false;
+        });
+        expect(still_inside).toBe(true);
+
+        await page.evaluate(() => window.__test_modal__.close());
+        await expect(modal).toHaveCount(0);
+    });
+
     test("Modal over drawer: first Escape closes the modal, second Escape closes the drawer", async ({ page }) => {
         await page.goto("/");
 

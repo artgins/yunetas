@@ -222,9 +222,12 @@ export function yui_shell_show_modal(shell, content, opts)
     close_fn = close;
 
     yui_shell_push_escape(shell, "modal", close);
-    release_focus = activate_focus_trap_on(
-        $modal.querySelector(".modal-content")
-    );
+    /*  Trap on $modal (not on .modal-content) so the .modal-close
+     *  button — rendered as a SIBLING of .modal-content — is
+     *  reachable via Tab.  Without this, Tab/Shift+Tab can only
+     *  cycle among focusables that the caller put inside
+     *  .modal-content; the X button can only be clicked. */
+    release_focus = activate_focus_trap_on($modal);
 
     if((opts == null || opts.dismiss_on_background !== false)) {
         $modal.querySelector(".modal-background").addEventListener("click", close);
