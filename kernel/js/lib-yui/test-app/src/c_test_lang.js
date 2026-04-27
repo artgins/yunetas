@@ -59,6 +59,8 @@ const DICT_ES = {
     "Quick: Alerts":     "Rápido: Alertas",
     "Quick: Settings":   "Rápido: Ajustes",
     "Home":              "Inicio",
+    "Hello":             "Hola",
+    "Ask":               "Preguntar",
     "Open menu":         "Abrir menú",
     "Open quick menu":   "Abrir menú rápido",
     "ES/EN":             "EN/ES",

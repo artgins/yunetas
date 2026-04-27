@@ -32,6 +32,12 @@ test.describe("live i18n", () => {
         let toolbar_home = page.locator(
             '[data-toolbar-item-id="home"] span[data-i18n="Home"]'
         );
+        let toolbar_hello = page.locator(
+            '[data-toolbar-item-id="say-hello"] span[data-i18n="Hello"]'
+        );
+        let toolbar_ask = page.locator(
+            '[data-toolbar-item-id="ask-question"] span[data-i18n="Ask"]'
+        );
         let secondary_heading = page.locator(
             '[data-nav-zone="right"][aria-label="Dashboard"] .menu-label'
         );
@@ -39,6 +45,8 @@ test.describe("live i18n", () => {
         /*  Initial language: English. */
         await expect(primary_dash).toHaveText("Dashboard");
         await expect(toolbar_home).toHaveText("Home");
+        await expect(toolbar_hello).toHaveText("Hello");
+        await expect(toolbar_ask).toHaveText("Ask");
         await expect(secondary_heading).toHaveText("Dashboard");
 
         /*  Snapshot the active highlight before the swap. */
@@ -52,6 +60,8 @@ test.describe("live i18n", () => {
         /*  Spanish dictionary applied. */
         await expect(primary_dash).toHaveText("Panel");
         await expect(toolbar_home).toHaveText("Inicio");
+        await expect(toolbar_hello).toHaveText("Hola");
+        await expect(toolbar_ask).toHaveText("Preguntar");
         await expect(secondary_heading).toHaveText("Panel");
 
         /*  Active highlight unchanged — refresh_language only touches
@@ -66,6 +76,8 @@ test.describe("live i18n", () => {
         await page.locator('[data-toolbar-item-id="lang"]').click();
         await expect(primary_dash).toHaveText("Dashboard");
         await expect(toolbar_home).toHaveText("Home");
+        await expect(toolbar_hello).toHaveText("Hello");
+        await expect(toolbar_ask).toHaveText("Ask");
     });
 
 });
