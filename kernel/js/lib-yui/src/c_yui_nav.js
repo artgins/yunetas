@@ -23,7 +23,7 @@
 
 import {
     SDATA, SDATA_END, data_type_t, event_flag_t,
-    gclass_create, log_error,
+    gclass_create, log_error, log_warning,
     gobj_subscribe_event,
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
@@ -109,7 +109,9 @@ function mt_start(gobj)
          *  the active item. */
         try {
             gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
-        } catch(e) { /* already subscribed, ignore */ }
+        } catch(e) {
+            log_warning(`C_YUI_NAV: subscribe to EV_ROUTE_CHANGED failed: ${e}`);
+        }
     }
 }
 
@@ -479,13 +481,16 @@ function wire_clicks(gobj, $root)
             return;
         }
 
-        /*  Drawer backdrop close. */
+        /*  Drawer backdrop close.  Don't mutate the DOM directly —
+         *  the shell owns the drawer state (focus-trap, escape
+         *  stack) and must run its full close path.  Publish the
+         *  intent and let the shell handle it through
+         *  ac_drawer_close_requested. */
         let $bk = target.closest("[data-close-drawer]");
         if($bk) {
-            let $drawer = $bk.closest(".yui-drawer");
-            if($drawer) {
-                $drawer.classList.remove("is-active");
-            }
+            gobj_publish_event(gobj, "EV_DRAWER_CLOSE_REQUESTED", {
+                menu_id: gobj_read_attr(gobj, "menu_id") || ""
+            });
             ev.preventDefault();
             return;
         }
@@ -568,9 +573,19 @@ function ac_route_changed(gobj, event, kw, src)
     /*  Decide which id we highlight:
      *      primary nav highlights parent_item (or item if top-level)
      *      secondary nav highlights the leaf item
-     */
+     *
+     *  Multi-menu scoping: primary navs short-circuit when the
+     *  route's owning menu differs from this nav's menu — two
+     *  primary-style menus that share an item id (legitimate per
+     *  TODO #5) must NOT cross-highlight.  Treat empty kw.menu_id
+     *  as a permissive match for backwards compatibility with
+     *  pre-TODO #5 callers. */
     let id_to_mark = null;
     if(level === "primary") {
+        let nav_menu_id = gobj_read_attr(gobj, "menu_id") || "";
+        if(kw.menu_id && nav_menu_id && nav_menu_id !== kw.menu_id) {
+            return 0;
+        }
         id_to_mark = parent_item ? parent_item.id : (item && item.id);
     } else {
         id_to_mark = item && item.id;
@@ -643,8 +658,9 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_ROUTE_CHANGED", 0],
-        ["EV_NAV_CLICKED",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
+        ["EV_ROUTE_CHANGED",          0],
+        ["EV_NAV_CLICKED",            event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_DRAWER_CLOSE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
     ];
 
     __gclass__ = gclass_create(

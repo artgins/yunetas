@@ -1,5 +1,101 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(lib-yui): declarative app shell `C_YUI_SHELL` + `C_YUI_NAV`**.
+      A JSON-driven replacement for `C_YUI_MAIN` + `C_YUI_ROUTING`, shipped
+      alongside the legacy stack (no migration planned — see
+      [`SHELL.md` §10](kernel/js/lib-yui/SHELL.md)).  New GUIs can adopt
+      the new shell; existing GUIs keep using the old one unchanged.
+      - **Layered grid**: 6 z-stacked layers (`base`, `overlay`, `popup`,
+        `modal`, `notification`, `loading`) and 7 zones (`top`, `top-sub`,
+        `left`, `center`, `right`, `bottom-sub`, `bottom`) inside `base`,
+        all driven by a single declarative JSON config.
+      - **Six menu layouts**: `vertical`, `icon-bar`, `tabs`, `drawer`,
+        `submenu`, `accordion`.  Same menu may render differently per
+        zone via `render[zone]`.  Auto-expand of the active branch on
+        accordion when the route changes.
+      - **`show_on` parser**: zone visibility per Bulma breakpoint with
+        the operators `>=`, `<=`, `<`, `>`, enumeration and `|`.  Pure
+        module (`shell_show_on.js`), 13 `node --test` unit tests.
+      - **Three lifecycle modes per item** (`eager` / `keep_alive` /
+        `lazy_destroy`) decide when the routed view is created and
+        destroyed.
+      - **Single router**: `C_YUI_NAV` publishes `EV_NAV_CLICKED`; the
+        shell publishes `EV_ROUTE_REQUESTED` (intent, audit witness)
+        and `EV_ROUTE_CHANGED` (fact).  Hash-based 2-level routing,
+        no dependency on `C_YUI_ROUTING`.
+      - **Drawer overlay** on the `overlay` layer with focus-trap
+        (Tab/Shift+Tab cycling, focus restoration on close), backdrop
+        click closes via `EV_DRAWER_CLOSE_REQUESTED` (canonical close
+        path with focus-trap release + escape-stack pop).
+      - **Escape priority chain**: `priv.escape_stack` is a LIFO of
+        `{layer, handler}`; the global `keydown` listener calls only
+        the top entry.  Modal-over-drawer closes the modal first.
+        Public API `yui_shell_push_escape` / `yui_shell_pop_escape`
+        for app-level overlays.
+      - **Modal / notification API** on top of the shell layers
+        (`yui_shell_show_info` / `show_warning` / `show_error` /
+        `show_modal` for non-blocking; `yui_shell_confirm_ok` /
+        `confirm_yesno` / `confirm_yesnocancel` for blocking dialogs
+        that resolve a Promise).  Each modal/dialog auto-pushes onto
+        the Escape stack and installs a focus-trap.  Bulma `.modal-card`
+        / `.notification` markup verbatim.  Generic focus-trap moved
+        to `shell_focus_trap.js` with 10 unit tests.
+      - **Canonical i18n via `data-i18n` + `refresh_language`**: every
+        translatable text node carries `data-i18n="<canonical key>"`;
+        apps switch language by calling
+        `refresh_language(shell.$container, t)` from `@yuneta/gobj-js`,
+        the same flow `c_yui_main.js` uses in `change_language()`.
+        Modals/dialogs accept `opts.t` so they render in the active
+        language at open time AND retranslate live afterwards.
+      - **Generalised secondary-nav loop**: `instantiate_menus()` walks
+        every menu mounted via a `"menu.<id>"` host whose items declare
+        a `submenu` (not just `menu.primary`).  Synthesised menu_id is
+        `secondary.<owning_menu_id>.<item.id>`, scoped so two
+        primary-style menus can share item ids without colliding.
+      - **`gcflag_no_check_output_events`** on the shell so the toolbar
+        can publish arbitrary user-defined events
+        (`action.type:"event"`) without each app having to extend the
+        shell's `event_types` table.
+      - **Hard contracts**: every view gclass MUST expose `$container`
+        in `mt_create`; every navigation through an empty/unknown route
+        logs `log_error` and surfaces a placeholder banner; every
+        try/catch logs via `log_warning` (no silent swallow).
+      - **`validate_config()`**: system-boundary guard run at the top
+        of `mt_start`.  Rejects malformed configs with a visible
+        "invalid config" banner instead of producing a half-built
+        shell.  Checks: object/array shapes, zone-id membership in the
+        7 valid zones, `host` syntax (`toolbar` | `menu.<id>` |
+        `stage.<id>`), stage zones declared in `shell.zones`, and
+        cross-menu route-target uniqueness (warn when two menus claim
+        the same target).
+      - **Playwright e2e harness**: 22 spec files × 3 browsers
+        (chromium + firefox + webkit) = 69 tests covering boot /
+        navigation / drawer / modals / multimenu / validator /
+        lifecycle / breakpoint / live-i18n.  CI workflow
+        `.github/workflows/lib-yui.yml` runs unit + e2e on PRs and
+        pushes touching `kernel/js/lib-yui/**` or
+        `kernel/js/gobj-js/**`.  `kernel/js/lib-yui/install-e2e-deps.sh`
+        helper installs the apt packages WebKit links against
+        (`libgstreamer-plugins-bad1.0-0`, `libavif16`).
+      - **Test-app**: standalone harness in `kernel/js/lib-yui/test-app/`
+        with three presets (`default`, `?preset=accordion`,
+        `?preset=multimenu`) plus a deliberately-broken `?preset=invalid`
+        used by the validator regression test.  `C_TEST_LANG`
+        controller demonstrates the canonical pattern for reacting to
+        custom toolbar events (language toggle, hello toast, ask
+        dialog).
+      - **Docs**: [`SHELL.md`](kernel/js/lib-yui/SHELL.md) (design,
+        configuration JSON, GClasses + events, modal/notification API,
+        Escape chain, internationalisation),
+        [`TODO.md`](kernel/js/lib-yui/TODO.md) (status of every task on
+        the new shell), updated `lib-yui/README.md` with the
+        "Which app shell to use?" decision tree.
+      - **CLAUDE.md**: new "GClass section layout" addendum (JS skeleton
+        banners + canonical CHILD/SERVICE subscription model + Always
+        braces rule + EVF_NO_WARN_SUBS) so future agents stay on the
+        rails the user established for this work.
+
 ## v7.3.0 -- 18/Apr/2026
     - **feat(ytls, c_yuno, c_agent): TLS certificate hot-reload with
       three-layer defence-in-depth**. Lets a Yuneta host keep thousands of

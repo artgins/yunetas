@@ -1,0 +1,80 @@
+{
+    "_comment": "Regression preset for TODO #5: two primary-style menus mounted side-by-side. Each declares submenu items with their own render block; the shell auto-instantiates a level-2 nav per (menu_id, item.id) pair, scoped via secondary.<menu_id>.<item.id> so the two trees can never collide.",
+
+    "shell": {
+        "breakpoints": "bulma",
+
+        "zones": {
+            "top":        { "host": "toolbar",       "show_on": ">=tablet" },
+            "left":       { "host": "menu.primary",  "show_on": ">=desktop" },
+            "right":      { "host": "menu.admin",    "show_on": ">=desktop" },
+            "top-sub":    {},
+            "bottom":     { "host": "menu.primary",  "show_on": "<desktop"  },
+            "bottom-sub": { "host": "menu.admin",    "show_on": "<desktop"  },
+            "center":     { "host": "stage.main" }
+        },
+
+        "stages": {
+            "main": { "zone": "center", "default_route": "/dash/ov" }
+        }
+    },
+
+    "toolbar": {
+        "zone": "top",
+        "items": [
+            { "id": "home", "icon": "icon-home", "name": "Home",
+              "action": { "type": "navigate", "route": "/dash/ov" } }
+        ]
+    },
+
+    "menu": {
+        "primary": {
+            "render": {
+                "left":   { "layout": "vertical", "icon_pos": "left" },
+                "bottom": { "layout": "icon-bar", "icon_pos": "top" }
+            },
+            "items": [
+                {
+                    "id": "dash", "name": "Dashboard", "icon": "icon-dash",
+                    "route": "/dash",
+                    "submenu": {
+                        "render": { "top-sub": "tabs" },
+                        "items": [
+                            { "id": "ov",      "name": "Overview", "route": "/dash/ov",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title": "Overview", "color": "#2A9D8F" } } },
+                            { "id": "alerts",  "name": "Alerts",   "route": "/dash/alerts",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title": "Alerts", "color": "#E9C46A" } } }
+                        ]
+                    }
+                }
+            ]
+        },
+
+        "admin": {
+            "render": {
+                "right":      { "layout": "vertical", "icon_pos": "left" },
+                "bottom-sub": { "layout": "icon-bar", "icon_pos": "top" }
+            },
+            "items": [
+                {
+                    "id": "dash", "name": "Admin: Dashboard", "icon": "icon-gear",
+                    "route": "/admin/dash",
+                    "submenu": {
+                        "_comment": "Same item id ('dash') as menu.primary above — the regression test verifies the two secondary navs do not collide.",
+                        "render": { "top-sub": "tabs" },
+                        "items": [
+                            { "id": "users",   "name": "Users",   "route": "/admin/dash/users",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title": "Admin / Users", "color": "#6D597A" } } },
+                            { "id": "billing", "name": "Billing", "route": "/admin/dash/billing",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title": "Admin / Billing", "color": "#264653" } } }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

@@ -41,6 +41,10 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 
+import {
+    activate_focus_trap_on,
+} from "./shell_focus_trap.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -111,7 +115,12 @@ function mt_create(gobj)
         navs:            [],
         item_index:      {},
         hash_handler:    null,
-        keydown_handler: null
+        keydown_handler: null,
+        /*  Escape priority chain: array of { layer, handler }.  Each
+         *  interactive overlay (drawer today, modal/popup tomorrow)
+         *  pushes its close handler when it opens and pops it when
+         *  it closes.  Escape calls the top handler only — LIFO. */
+        escape_stack:    []
     });
 
     build_ui(gobj);
@@ -124,6 +133,21 @@ function mt_start(gobj)
 {
     let config = gobj_read_attr(gobj, "config") || {};
     let priv = gobj_read_attr(gobj, "priv");
+
+    /*  Validate the declarative config before anything reads it. This is a
+     *  system boundary (app-supplied JSON); validation makes shape errors
+     *  visible loudly instead of producing a half-built shell. */
+    if(!validate_config(config)) {
+        let $base = priv.layers && priv.layers.base;
+        if($base) {
+            $base.appendChild(createElement2(
+                ["div", {class: "notification is-danger m-4"},
+                    ["p", {}, "C_YUI_SHELL: invalid config — see browser console for details"]
+                ]
+            ));
+        }
+        return;
+    }
 
     build_item_index(gobj, config);
     instantiate_menus(gobj, config);
@@ -142,11 +166,21 @@ function mt_start(gobj)
         window.addEventListener("hashchange", priv.hash_handler);
     }
 
-    /*  Global Escape to close any open drawer. */
+    /*  Global Escape: route to the top handler of the escape stack,
+     *  not to a hardcoded "close all drawers".  Modals and popups
+     *  push themselves on top of drawers, so Escape closes them
+     *  first; second Escape closes the drawer underneath; etc. */
     priv.keydown_handler = ev => {
-        if(ev.key === "Escape" || ev.keyCode === 27) {
-            close_all_drawers(gobj);
+        if(ev.key !== "Escape" && ev.keyCode !== 27) {
+            return;
         }
+        if(priv.escape_stack.length === 0) {
+            return;
+        }
+        let top = priv.escape_stack[priv.escape_stack.length - 1];
+        ev.preventDefault();
+        ev.stopPropagation();
+        top.handler();
     };
     window.addEventListener("keydown", priv.keydown_handler);
 
@@ -192,7 +226,12 @@ function mt_stop(gobj)
     }
 
     for(let nav of priv.navs) {
-        try { gobj_stop(nav); gobj_destroy(nav); } catch(e) { /* ignore */ }
+        try {
+            gobj_stop(nav);
+            gobj_destroy(nav);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: stop/destroy nav failed: ${e}`);
+        }
     }
     priv.navs = [];
 
@@ -200,7 +239,12 @@ function mt_stop(gobj)
         let st = priv.stages[name];
         for(let route in st.items) {
             let g = st.items[route];
-            try { gobj_stop(g); gobj_destroy(g); } catch(e) { /* ignore */ }
+            try {
+                gobj_stop(g);
+                gobj_destroy(g);
+            } catch(e) {
+                log_warning(`C_YUI_SHELL: stop/destroy view '${route}' failed: ${e}`);
+            }
         }
         st.items = {};
         st.active_route = null;
@@ -229,6 +273,158 @@ function mt_destroy(gobj)
 
 
 
+
+/************************************************************
+ *  Validate the declarative config (system boundary: app JSON).
+ *
+ *  Reports every missing/wrong field via log_error so a malformed
+ *  config fails loudly instead of producing an empty/broken shell.
+ *  Returns true iff the config is structurally usable.
+ ************************************************************/
+function validate_config(config)
+{
+    let ok = true;
+
+    if(!is_object(config)) {
+        log_error("C_YUI_SHELL: config must be a JSON object");
+        return false;
+    }
+    if(!is_object(config.shell)) {
+        log_error("C_YUI_SHELL: config.shell is missing or not an object");
+        return false;
+    }
+
+    let shell_cfg = config.shell;
+    if(shell_cfg.zones !== undefined && !is_object(shell_cfg.zones)) {
+        log_error("C_YUI_SHELL: config.shell.zones must be an object");
+        ok = false;
+    }
+    if(shell_cfg.stages !== undefined && !is_object(shell_cfg.stages)) {
+        log_error("C_YUI_SHELL: config.shell.stages must be an object");
+        ok = false;
+    }
+
+    let zones_cfg = is_object(shell_cfg.zones) ? shell_cfg.zones : {};
+    /*  host syntax: must be one of "toolbar", "menu.<id>", "stage.<id>". */
+    let HOST_RE = /^(?:toolbar|menu\.\S+|stage\.\S+)$/;
+    for(let zid in zones_cfg) {
+        if(ZONE_IDS.indexOf(zid) < 0) {
+            log_error(
+                `C_YUI_SHELL: unknown zone '${zid}' in config.shell.zones; ` +
+                `valid zones: ${ZONE_IDS.join(", ")}`
+            );
+            ok = false;
+            continue;
+        }
+        let z = zones_cfg[zid];
+        if(z && typeof z.host === "string" && z.host.length > 0 &&
+                !HOST_RE.test(z.host))
+        {
+            log_error(
+                `C_YUI_SHELL: zone '${zid}' has invalid host '${z.host}'; ` +
+                `must match 'toolbar', 'menu.<id>' or 'stage.<id>'`
+            );
+            ok = false;
+        }
+    }
+
+    let stages_cfg = is_object(shell_cfg.stages) ? shell_cfg.stages : {};
+    for(let sname in stages_cfg) {
+        let st = stages_cfg[sname];
+        if(!is_object(st)) {
+            log_error(`C_YUI_SHELL: config.shell.stages.${sname} must be an object`);
+            ok = false;
+            continue;
+        }
+        let zone = st.zone || "center";
+        if(ZONE_IDS.indexOf(zone) < 0) {
+            log_error(
+                `C_YUI_SHELL: stage '${sname}' references unknown zone '${zone}'`
+            );
+            ok = false;
+            continue;
+        }
+        /*  zone must actually be declared in shell.zones — catches typos
+         *  like stages.main.zone = "centre" that pass the ZONE_IDS test
+         *  by accident. */
+        if(!Object.prototype.hasOwnProperty.call(zones_cfg, zone)) {
+            log_warning(
+                `C_YUI_SHELL: stage '${sname}' references zone '${zone}' ` +
+                `which is not declared in config.shell.zones — it will be ` +
+                `created with default attributes`
+            );
+        }
+    }
+
+    if(config.menu !== undefined && !is_object(config.menu)) {
+        log_error("C_YUI_SHELL: config.menu must be an object");
+        ok = false;
+    }
+    if(config.toolbar !== undefined) {
+        /*  toolbar = { zone?, aria_label?, items[] } — see SHELL.md §3.4. */
+        if(!is_object(config.toolbar)) {
+            log_error("C_YUI_SHELL: config.toolbar must be an object");
+            ok = false;
+        } else if(config.toolbar.items !== undefined &&
+                  !is_array(config.toolbar.items)) {
+            log_error("C_YUI_SHELL: config.toolbar.items must be an array");
+            ok = false;
+        }
+    }
+
+    /*  Route uniqueness: a route declared in two different menus is a
+     *  source of subtle bugs (build_item_index has a "first wins"
+     *  rule, so the second declaration is silently shadowed).  Warn
+     *  loudly. */
+    if(is_object(config.menu)) {
+        let route_owner = {};
+        for(let menu_id in config.menu) {
+            let m = config.menu[menu_id];
+            if(!m || !is_array(m.items)) {
+                continue;
+            }
+            for(let it of m.items) {
+                check_route_unique(route_owner, it, menu_id);
+                if(it.submenu && is_array(it.submenu.items)) {
+                    for(let sub of it.submenu.items) {
+                        check_route_unique(route_owner, sub, menu_id);
+                    }
+                }
+            }
+        }
+    }
+
+    return ok;
+}
+
+/************************************************************
+ *  Helper for validate_config — only warn when TWO different
+ *  menus both declare a `target` for the same route.  Items
+ *  without a `target` are just navigators (they delegate to
+ *  whichever menu owns the route) and do not compete, so the
+ *  legitimate "menu A navigates / menu B owns" pattern stays
+ *  silent.
+ ************************************************************/
+function check_route_unique(route_owner, item, menu_id)
+{
+    if(!item || empty_string(item.route)) {
+        return;
+    }
+    if(!item.target) {
+        return;
+    }
+    let route = item.route;
+    if(route_owner[route] !== undefined && route_owner[route] !== menu_id) {
+        log_warning(
+            `C_YUI_SHELL: route '${route}' has a target in menu ` +
+            `'${menu_id}' AND in menu '${route_owner[route]}' — the ` +
+            `second target is shadowed (build_item_index keeps the ` +
+            `first entry that owns a target)`
+        );
+        return;
+    }
+    route_owner[route] = menu_id;
+}
 
 /************************************************************
  *  Build the DOM: layers → base → zones
@@ -450,13 +646,21 @@ function instantiate_menus(gobj, config)
         }
     }
 
-    /*  Secondary navs: create one per primary item that has a submenu,
-     *  for each zone listed in submenu.render. Initially hidden, shown
-     *  when the primary item becomes active.
-     */
-    let primary = menus.primary;
-    if(primary && is_array(primary.items)) {
-        for(let item of primary.items) {
+    /*  Secondary navs: create one per primary-style menu item that
+     *  declares a submenu with its own render block, for every zone
+     *  listed in `submenu.render`.  Initially hidden, shown when the
+     *  owning primary item becomes active.
+     *
+     *  We walk every menu mounted via a zone host of the form
+     *  "menu.<id>" — not just menus.primary.  The synthesized
+     *  sub_menu_id is `secondary.<menu_id>.<item.id>` so two
+     *  menus can have items with the same id without colliding. */
+    for(let menu_id in zones_for_menu) {
+        let menu = menus[menu_id];
+        if(!menu || !is_array(menu.items)) {
+            continue;
+        }
+        for(let item of menu.items) {
             let sub = item.submenu;
             if(!sub || !is_array(sub.items)) {
                 continue;
@@ -468,19 +672,22 @@ function instantiate_menus(gobj, config)
                 }
                 let layout = render_by_zone[zone_id];
                 if(!priv.zones[zone_id]) {
-                    log_warning(`C_YUI_SHELL: submenu renders in unknown zone '${zone_id}'`);
+                    log_warning(
+                        `C_YUI_SHELL: submenu of '${menu_id}.${item.id}' ` +
+                        `renders in unknown zone '${zone_id}'`
+                    );
                     continue;
                 }
                 let submenu_def = {
                     items: sub.items,
                     render: { [zone_id]: render_to_obj(layout) }
                 };
-                let sub_menu_id = `secondary.${item.id}`;
+                let sub_menu_id = `secondary.${menu_id}.${item.id}`;
                 let nav = instantiate_nav_in_zone(
                     gobj, submenu_def, sub_menu_id, zone_id, "secondary",
                     item.name || ""
                 );
-                /*  Hidden until primary is active. */
+                /*  Hidden until owning primary is active. */
                 let $c = gobj_read_attr(nav, "$container");
                 if($c) {
                     $c.classList.add("is-hidden");
@@ -596,6 +803,16 @@ function route_to_hash(route)
 function navigate_to(gobj, route)
 {
     let priv = gobj_read_attr(gobj, "priv");
+
+    /*  Audit witness: publish the navigation intent FIRST, before any
+     *  validation or DOM work. This guarantees that the FSM trace and
+     *  any subscribed auditor see every requested route — including
+     *  rerouted submenu defaults and routes that ultimately fail. */
+    gobj_publish_event(gobj, "EV_ROUTE_REQUESTED", {
+        route: route,
+        from:  gobj_read_attr(gobj, "current_route") || ""
+    });
+
     if(empty_string(route)) {
         log_error("C_YUI_SHELL: navigate_to called with empty route");
         return;
@@ -643,7 +860,12 @@ function navigate_to(gobj, route)
         /*  lazy_destroy: drop previous on exit */
         let prev_entry = priv.item_index[prev_route];
         if(prev_entry && prev_entry.target && prev_entry.target.lifecycle === "lazy_destroy") {
-            try { gobj_stop(prev_gobj); gobj_destroy(prev_gobj); } catch(e) {}
+            try {
+                gobj_stop(prev_gobj);
+                gobj_destroy(prev_gobj);
+            } catch(e) {
+                log_warning(`C_YUI_SHELL: lazy_destroy of '${prev_route}' failed: ${e}`);
+            }
             delete stage.items[prev_route];
         }
     }
@@ -686,12 +908,17 @@ function navigate_to(gobj, route)
         }
     }
 
-    /*  Broadcast */
+    /*  Broadcast.  `menu_id` carries the owning primary menu so
+     *  primary navs can short-circuit when the route belongs to a
+     *  different menu — without it, two primary-style menus that
+     *  share an item id (legitimate per TODO #5) cross-highlight
+     *  each other. */
     gobj_publish_event(gobj, "EV_ROUTE_CHANGED", {
         route: route,
         item: entry.item,
         parent_item: entry.parent_item,
-        stage: stage_name
+        stage: stage_name,
+        menu_id: entry.menu_id || ""
     });
 }
 
@@ -718,7 +945,11 @@ function build_view_gobj(gobj, entry, route, stage)
             `C_YUI_SHELL: gclass '${target.gclass}' does not expose $container; ` +
             `the view is unusable — check its mt_create`
         );
-        try { gobj_destroy(view); } catch(e) {}
+        try {
+            gobj_destroy(view);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: cleanup gobj_destroy failed for ${target.gclass}: ${e}`);
+        }
         return null;
     }
     stage.el.appendChild($view);
@@ -913,115 +1144,90 @@ function drawers(gobj, menu_id)
 }
 
 /************************************************************
- *  Focus-trap for an open drawer:
- *      - on activate: save document.activeElement, install a
- *        keydown trap that cycles Tab/Shift+Tab inside the
- *        panel, move focus to the first focusable child.
- *      - on release: remove the trap and restore focus.
- *  State is kept per-drawer in priv.drawer_focus_states so
- *  multiple drawers (rare but legal) work independently.
+ *  Escape priority chain helpers — push/pop a {layer, handler}
+ *  record on `priv.escape_stack`.  Escape calls the top entry
+ *  only and consumes the event; LIFO ordering naturally matches
+ *  the z-index layering most apps use (drawer at the bottom,
+ *  modal on top, popup on top of that).
  ************************************************************/
-const FOCUSABLE_SELECTOR =
-    'a[href], button:not([disabled]), input:not([disabled]),' +
-    ' select:not([disabled]), textarea:not([disabled]),' +
-    ' [tabindex]:not([tabindex="-1"])';
-
-function activate_focus_trap(gobj, $drawer)
+function push_escape(gobj, layer, handler)
 {
     let priv = gobj_read_attr(gobj, "priv");
-    if(!priv) {
+    if(!priv || !priv.escape_stack) {
         return;
     }
-    if(!priv.drawer_focus_states) {
-        priv.drawer_focus_states = new Map();
-    }
-    if(priv.drawer_focus_states.has($drawer)) {
+    priv.escape_stack.push({ layer: layer, handler: handler });
+}
+
+function pop_escape(gobj, handler)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.escape_stack) {
         return;
     }
-    let saved = document.activeElement;
-    let panel = $drawer.querySelector(".yui-drawer-panel") || $drawer;
-
-    let trap = ev => {
-        if(ev.key !== "Tab") {
-            return;
-        }
-        let nodes = panel.querySelectorAll(FOCUSABLE_SELECTOR);
-        if(nodes.length === 0) {
-            return;
-        }
-        let first = nodes[0];
-        let last = nodes[nodes.length - 1];
-        let inside = panel.contains(document.activeElement);
-        if(ev.shiftKey) {
-            if(!inside || document.activeElement === first) {
-                last.focus();
-                ev.preventDefault();
-            }
-        } else {
-            if(!inside || document.activeElement === last) {
-                first.focus();
-                ev.preventDefault();
-            }
-        }
-    };
-    document.addEventListener("keydown", trap, true);
-    priv.drawer_focus_states.set($drawer, { saved: saved, trap: trap, panel: panel });
-
-    let first = panel.querySelector(FOCUSABLE_SELECTOR);
-    if(first && typeof first.focus === "function") {
-        first.focus();
+    let idx = priv.escape_stack.findIndex(e => e.handler === handler);
+    if(idx >= 0) {
+        priv.escape_stack.splice(idx, 1);
     }
 }
 
-function release_focus_trap(gobj, $drawer)
+/*  Per-drawer open/close.  The escape-stack entry and the focus-
+ *  trap release function are parked on the $drawer DOM element so
+ *  any close path (Escape, backdrop click, toolbar action, public
+ *  yui_shell_close_drawer) tears them down through the same code.
+ *
+ *  The actual focus-trap is the generic helper from
+ *  shell_focus_trap.js — same module modals/popups use. */
+function open_drawer_one(gobj, $c)
 {
-    let priv = gobj_read_attr(gobj, "priv");
-    if(!priv || !priv.drawer_focus_states) {
+    if($c.classList.contains("is-active")) {
         return;
     }
-    let st = priv.drawer_focus_states.get($drawer);
-    if(!st) {
+    let close_fn = () => close_drawer_one(gobj, $c);
+    $c.__yui_close_handler__ = close_fn;
+    push_escape(gobj, "overlay", close_fn);
+    $c.classList.add("is-active");
+    let panel = $c.querySelector(".yui-drawer-panel") || $c;
+    $c.__yui_focus_release__ = activate_focus_trap_on(panel);
+}
+
+function close_drawer_one(gobj, $c)
+{
+    if(!$c.classList.contains("is-active")) {
         return;
     }
-    document.removeEventListener("keydown", st.trap, true);
-    priv.drawer_focus_states.delete($drawer);
-    if(st.saved && typeof st.saved.focus === "function" && document.body.contains(st.saved)) {
-        st.saved.focus();
+    $c.classList.remove("is-active");
+    if($c.__yui_focus_release__) {
+        $c.__yui_focus_release__();
+        $c.__yui_focus_release__ = null;
+    }
+    if($c.__yui_close_handler__) {
+        pop_escape(gobj, $c.__yui_close_handler__);
+        $c.__yui_close_handler__ = null;
     }
 }
 
 function open_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        if($c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.add("is-active");
-        activate_focus_trap(gobj, $c);
+        open_drawer_one(gobj, $c);
     }
 }
 
 function close_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        if(!$c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.remove("is-active");
-        release_focus_trap(gobj, $c);
+        close_drawer_one(gobj, $c);
     }
 }
 
 function toggle_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
-        let was = $c.classList.contains("is-active");
-        $c.classList.toggle("is-active");
-        let now = $c.classList.contains("is-active");
-        if(now && !was) {
-            activate_focus_trap(gobj, $c);
-        } else if(!now && was) {
-            release_focus_trap(gobj, $c);
+        if($c.classList.contains("is-active")) {
+            close_drawer_one(gobj, $c);
+        } else {
+            open_drawer_one(gobj, $c);
         }
     }
 }
@@ -1040,11 +1246,7 @@ function close_all_drawers(gobj)
         if(!$c) {
             continue;
         }
-        if(!$c.classList.contains("is-active")) {
-            continue;
-        }
-        $c.classList.remove("is-active");
-        release_focus_trap(gobj, $c);
+        close_drawer_one(gobj, $c);
     }
 }
 
@@ -1087,22 +1289,23 @@ function update_secondary_nav_visibility(gobj, entry)
     let active_primary_id = entry.parent_item
         ? entry.parent_item.id
         : entry.item.id;
+    let owning_menu_id = entry.menu_id || "";
+    let target_secondary_id = `secondary.${owning_menu_id}.${active_primary_id}`;
 
     for(let nav of priv.navs) {
         let level = gobj_read_attr(nav, "level");
         if(level !== "secondary") {
             continue;
         }
-        let menu_id = gobj_read_attr(nav, "menu_id") || "";
-        let m = /^secondary\.(.+)$/.exec(menu_id);
-        if(!m) {
+        let nav_menu_id = gobj_read_attr(nav, "menu_id") || "";
+        if(!nav_menu_id.startsWith("secondary.")) {
             continue;
         }
         let $c = gobj_read_attr(nav, "$container");
         if(!$c) {
             continue;
         }
-        if(m[1] === active_primary_id) {
+        if(nav_menu_id === target_secondary_id) {
             $c.classList.remove("is-hidden");
         } else {
             $c.classList.add("is-hidden");
@@ -1147,6 +1350,19 @@ function ac_nav_clicked(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  Drawer backdrop click on a C_YUI_NAV child: the nav publishes
+ *  this so the shell can close the drawer through the canonical
+ *  flow (DOM + focus-trap + escape-stack pop) instead of mutating
+ *  the DOM directly from the nav.
+ ************************************************************/
+function ac_drawer_close_requested(gobj, event, kw, src)
+{
+    let menu_id = (kw && kw.menu_id) || "";
+    close_drawer(gobj, menu_id);
+    return 0;
+}
+
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -1172,15 +1388,26 @@ function create_gclass(gclass_name)
             /*  Navigation requests flow through EV_NAV_CLICKED (emitted
              *  by child C_YUI_NAVs) and through the window.hashchange
              *  listener (see mt_start).  The shell is the sole router.  */
-            ["EV_NAV_CLICKED", ac_nav_clicked, null]
+            ["EV_NAV_CLICKED",            ac_nav_clicked,            null],
+            /*  Drawer backdrop close (from a C_YUI_NAV child whose
+             *  layout is "drawer"). */
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested, null]
         ]]
     ];
 
     const event_types = [
-        ["EV_NAV_CLICKED",   0],
-        ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT
-                            |event_flag_t.EVF_PUBLIC_EVENT
-                            |event_flag_t.EVF_NO_WARN_SUBS]
+        ["EV_NAV_CLICKED",            0],
+        ["EV_DRAWER_CLOSE_REQUESTED", 0],
+        /*  Audit witness: every navigation attempt publishes this BEFORE
+         *  any work is done, so the FSM trace records intent regardless
+         *  of whether the route resolves successfully.  Pairs with
+         *  EV_ROUTE_CHANGED (the corresponding fact event). */
+        ["EV_ROUTE_REQUESTED",        event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ROUTE_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(
@@ -1227,6 +1454,28 @@ function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj,
 function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
 function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
 
+/*  Escape priority chain — public API used by overlays that the
+ *  shell does not own (modals from #4, future popups, custom
+ *  app-level overlays).  Drawer integration is built in.
+ *
+ *      let close_fn = () => my_modal.close();
+ *      yui_shell_push_escape(shell, "modal", close_fn);
+ *      // ... when the modal closes by any path, also call:
+ *      yui_shell_pop_escape(shell, close_fn);
+ *
+ *  `layer` is a free-form tag (e.g. "modal", "popup", "overlay").
+ *  Today it is informational; the LIFO ordering of the stack is
+ *  what determines Escape priority — and naturally matches the
+ *  z-index layering most apps use (drawer < popup < modal). */
+function yui_shell_push_escape(shell_gobj, layer, handler)
+{
+    push_escape(shell_gobj, layer, handler);
+}
+function yui_shell_pop_escape(shell_gobj, handler)
+{
+    pop_escape(shell_gobj, handler);
+}
+
 /*  Note: there is no shell-level language switch helper.  Every
  *  translatable text node rendered by the shell and its navs is
  *  tagged with `data-i18n` (the canonical English key).  Apps swap
@@ -1240,5 +1489,7 @@ export {
     yui_shell_navigate,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
-    yui_shell_toggle_drawer
+    yui_shell_toggle_drawer,
+    yui_shell_push_escape,
+    yui_shell_pop_escape
 };

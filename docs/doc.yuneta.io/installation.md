@@ -73,6 +73,21 @@ pipx install kconfiglib
 - `telnet`                  — required by tests
 ```
 
+### Optional: lib-yui end-to-end tests (Playwright)
+
+If you intend to run the JS UI library's e2e suite locally, the
+WebKit browser links against two extra apt packages on Debian/Ubuntu:
+
+```bash
+sudo apt -y install --no-install-recommends \
+    libgstreamer-plugins-bad1.0-0 libavif16
+```
+
+The `kernel/js/lib-yui/install-e2e-deps.sh` helper installs them
+along with all three Playwright browsers (Chromium, Firefox,
+WebKit).  Chromium and Firefox bundle their own deps and don't
+need anything from apt.
+
 ## Install `yunetas`
 
 ::::{tab-set}

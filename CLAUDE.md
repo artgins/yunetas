@@ -218,6 +218,28 @@ npm run test:watch     # vitest --watch
 npm run test:coverage  # vitest --coverage
 ```
 
+### lib-yui (kernel/js/lib-yui/)
+
+```bash
+cd kernel/js/lib-yui
+npm install
+npm test               # node --test (parser + focus-trap unit tests)
+
+# Optional: end-to-end Playwright suite (chromium + firefox + webkit)
+./install-e2e-deps.sh  # one-off: downloads browsers + sudo apts for webkit
+npm run test:e2e       # headless full matrix
+npm run test:e2e:ui    # Playwright UI mode (debug)
+```
+
+The `install-e2e-deps.sh` helper is a thin wrapper around
+`npx playwright install` plus the `sudo apt` packages WebKit links
+against (`libgstreamer-plugins-bad1.0-0`, `libavif16` on
+Debian/Ubuntu).  Chromium and Firefox bundle their own deps and
+don't need apt.
+
+CI runs the same matrix on every PR touching `kernel/js/lib-yui/**`
+or `kernel/js/gobj-js/**` via `.github/workflows/lib-yui.yml`.
+
 ### When to re-run `yunetas init`
 
 `yunetas init` must be run:

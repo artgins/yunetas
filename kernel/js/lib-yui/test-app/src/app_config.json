@@ -43,6 +43,22 @@
                 "action": { "type": "navigate", "route": "/help" }
             },
             {
+                "id": "say-hello",
+                "icon": "icon-bell",
+                "name": "Hello",
+                "align": "end",
+                "aria_label": "Show a hello toast",
+                "action": { "type": "event", "event": "EV_SHOW_HELLO" }
+            },
+            {
+                "id": "ask-question",
+                "icon": "icon-question",
+                "name": "Ask",
+                "align": "end",
+                "aria_label": "Open a yes/no dialog",
+                "action": { "type": "event", "event": "EV_ASK_QUESTION" }
+            },
+            {
                 "id": "lang",
                 "icon": "icon-translate",
                 "name": "ES/EN",

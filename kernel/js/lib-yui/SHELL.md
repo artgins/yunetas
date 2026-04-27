@@ -298,7 +298,20 @@ Recommended default: `keep_alive`.
 | `$container`     | HTMLElement | Shell root                                               |
 
 Published events:
-- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`.
+- `EV_ROUTE_REQUESTED` — `{ route, from }`. **Audit witness**:
+  published as the very first thing in `navigate_to()`, **before**
+  any validation or DOM work, so the FSM trace and any external
+  auditor see every navigation intent — including rerouted submenu
+  defaults and routes that ultimately fail. Subscribers are
+  optional (the event carries `EVF_NO_WARN_SUBS`).
+- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`. The
+  fact event, published after a navigation has fully succeeded:
+  the previous view is hidden, the new view is mounted/shown, the
+  stage's `active_route` is updated.
+
+The pair *requested ↔ changed* is the canonical Yuneta way to
+audit a gobj's behaviour: every intent is recorded regardless of
+outcome, and every successful state transition has its own event.
 
 Public helpers (import from `@yuneta/lib-yui`):
 - `yui_shell_navigate(shell, route)` — programmatic navigation.
@@ -311,6 +324,51 @@ Public helpers (import from `@yuneta/lib-yui`):
   focus-trap on its panel: `Tab` / `Shift+Tab` cycle inside, and on
   close the focus is restored to whichever element triggered the
   open.
+
+### Modal / notification API
+
+The shell paints into `priv.layers.notification` and
+`priv.layers.modal`. Two naming conventions:
+
+- `yui_shell_show_*` — non-blocking notifications/modal. Returns a
+  `{ close() }` handle so the caller can dismiss programmatically.
+- `yui_shell_confirm_*` — blocking dialog. Returns a Promise that
+  resolves with the user's choice.
+
+```js
+import {
+    yui_shell_show_info, yui_shell_show_warning, yui_shell_show_error,
+    yui_shell_show_modal,
+    yui_shell_confirm_ok, yui_shell_confirm_yesno, yui_shell_confirm_yesnocancel,
+} from "@yuneta/lib-yui";
+
+/*  Toasts (Bulma .notification, auto-dismiss after 5 s). */
+yui_shell_show_info(shell,    "Hello");
+yui_shell_show_warning(shell, "Watch out");
+yui_shell_show_error(shell,   "Boom");
+
+/*  Non-blocking modal (Bulma .modal-content + .box).  Click on
+ *  background, the close button or Escape close it. */
+let { close } = yui_shell_show_modal(shell, "Some inline content");
+
+/*  Blocking dialogs.  Escape, the close button, and click on the
+ *  background all resolve with the LAST button's value (cancel/no/
+ *  ok by convention — the safe-default action). */
+await yui_shell_confirm_ok(shell, "Saved.");
+let yes = await yui_shell_confirm_yesno(shell, "Discard changes?");
+let r   = await yui_shell_confirm_yesnocancel(shell, "Save before close?");
+//   r === "yes" | "no" | "cancel"
+```
+
+Every modal/dialog automatically:
+- pushes a close handler onto the Escape priority chain (§11),
+- installs a focus-trap on the modal card (Tab cycles inside,
+  Shift+Tab cycles backwards, focus is restored on close),
+- removes itself from the DOM when closed.
+
+The legacy `display_*` / `get_yes*` helpers in `c_yui_main.js`
+remain unchanged; see §10 *drift policy*. Apps importing one stack
+should not import the other.
 
 ### Internationalisation
 
@@ -343,12 +401,27 @@ Published events:
 - `EV_NAV_CLICKED` — `{ route, item_id, zone, level }`. The shell is
   subscribed and decides whether to change the hash or call
   `navigate_to` directly.
+- `EV_DRAWER_CLOSE_REQUESTED` — `{ menu_id }`. Published by drawer
+  navs when the backdrop is clicked; the shell's
+  `ac_drawer_close_requested` runs the canonical close path.
 
 Notable attributes: `menu_items`, `zone`, `layout`, `icon_pos`,
 `show_label`, `level` (`primary` | `secondary`), `shell`,
 `nav_label` (human-readable label used by the secondary navs as
 their heading and `aria-label`; the shell fills it from the parent
 item's `name`).
+
+### Secondary nav `menu_id`
+
+The shell auto-instantiates a level-2 nav for every primary-style
+menu item that declares a `submenu` with its own `render` block —
+not just `menu.primary`. The synthesised `menu_id` for a secondary
+nav is `secondary.<owning_menu_id>.<item.id>`, so two primary-style
+menus may have items with the same id without colliding (e.g.
+`secondary.primary.dash` and `secondary.admin.dash` are independent
+navs that flip visibility based on the active route's owning menu).
+
+### i18n
 
 The nav has no `translate` attr — it does not translate text
 itself. Labels are emitted with `data-i18n` and a single
@@ -489,20 +562,60 @@ Until that decision is made, do **not** start any of those sub-tasks.
 
 ---
 
-## 11. Known limitations
+## 11. Escape priority chain
+
+The shell maintains a **single, ordered stack** of close handlers,
+one entry per open overlay (drawer today, modal/popup when #4
+lands, custom app overlays via the public API). `Escape` calls the
+**top** entry only and consumes the event (preventDefault +
+stopPropagation), so a modal opened over a drawer closes first;
+the second `Escape` closes the drawer.
+
+LIFO ordering naturally matches the z-index layering most apps
+use:
+
+```
+loading       (no Escape — full-screen blocking spinner)
+modal         (z-index 99)
+popup         (z-index 20)
+overlay       (z-index 15)  ← drawer lives here
+base          (z-index  1)  ← never on the Escape stack
+```
+
+The drawer integration is built in: `yui_shell_open_drawer` /
+`toggle_drawer` push their close handler; `yui_shell_close_drawer`,
+the backdrop click, and `Escape` itself all funnel through the
+same close path (`close_drawer_one`) which removes
+`is-active`, releases the focus-trap, and pops the stack entry.
+
+The backdrop click is routed via `EV_DRAWER_CLOSE_REQUESTED` from
+the nav to the shell, not by mutating the DOM directly — that
+guarantees the focus-trap and stack stay in sync regardless of
+which path closed the drawer.
+
+### Public API (for custom overlays)
+
+```js
+import { yui_shell_push_escape, yui_shell_pop_escape } from "@yuneta/lib-yui";
+
+let close_modal = () => my_modal.close();
+yui_shell_push_escape(shell, "modal", close_modal);
+//   ... when the modal closes by any path (Escape, overlay click,
+//   programmatic close, ...) the same handler must also pop:
+yui_shell_pop_escape(shell, close_modal);
+```
+
+`layer` is a free-form tag (e.g. `"modal"`, `"popup"`,
+`"overlay"`). It is informational today (the LIFO ordering is what
+drives priority); keep it accurate so the FSM trace is readable.
+
+## 12. Known limitations
 
 These are intentional gaps, documented so they don't surface as
 review nits.  Each one has a clear path forward when it becomes
 worth the work.
 
-1. **Secondary navs are auto-instantiated only from `menu.primary`.**
-   `instantiate_menus` walks `menus.primary.items[*].submenu` to
-   build the level-2 navs.  If you declare additional "primary-style"
-   menus elsewhere with their own `submenu`, those submenus will
-   not get a nav unless they are mounted manually.  Drawer overlays
-   (`render[zone].layout === "drawer"`) are detected for any menu
-   id and are not subject to this limitation.
-2. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
+1. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
    `c_yui_main.css` defines its own `.top-layer` / `.content-layer` /
    `.bottom-layer` with `position:fixed` and CSS variables that
    collide with the shell's full-screen grid.  Pick one: the new

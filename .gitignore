@@ -125,3 +125,8 @@ docs/doc.yuneta.io/.myst/
 *.xcodeproj
 *.xcworkspace
 yunos/c/mqtt_broker/tests/mqtt-cli.jar
+
+# Playwright (any sub-tree)
+test-results/
+playwright-report/
+playwright/.cache/

@@ -26,6 +26,11 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
+import {
+    yui_shell_show_info,
+    yui_shell_confirm_yesno,
+} from "@yuneta/lib-yui";
+
 
 /***************************************************************
  *              Constants
@@ -54,10 +59,31 @@ const DICT_ES = {
     "Quick: Alerts":     "Rápido: Alertas",
     "Quick: Settings":   "Rápido: Ajustes",
     "Home":              "Inicio",
+    "Hello":             "Hola",
+    "Ask":               "Preguntar",
     "Open menu":         "Abrir menú",
     "Open quick menu":   "Abrir menú rápido",
     "ES/EN":             "EN/ES",
     "App toolbar":       "Barra de herramientas",
+
+    /*  Strings that show up inside modals/toasts the test-app fires
+     *  from C_TEST_LANG.ac_show_hello / ac_ask_question.  Helpers are
+     *  passed `opts.t` so they render in the active language at
+     *  open time AND still respond to refresh_language afterwards. */
+    "Hello from the shell!":             "¡Hola desde el shell!",
+    "A small smoke check":               "Una pequeña comprobación",
+    "Is the new shell working as expected?":
+        "¿Funciona el nuevo shell como esperabas?",
+    "Glad to hear it!":                  "¡Me alegro!",
+    "Noted — check the console.":        "Tomo nota — revisa la consola.",
+
+    /*  Default modal button labels (Yes/No/Cancel/OK).  The shell
+     *  helpers render these literally; refresh_language picks them
+     *  up via `data-i18n="<canonical key>"`. */
+    "Yes":    "Sí",
+    "No":     "No",
+    "Cancel": "Cancelar",
+    "OK":     "Aceptar"
 };
 
 
@@ -116,8 +142,10 @@ function mt_start(gobj)
      *  event_types table. */
     try {
         gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+        gobj_subscribe_event(shell, "EV_SHOW_HELLO",      {}, gobj);
+        gobj_subscribe_event(shell, "EV_ASK_QUESTION",    {}, gobj);
     } catch(e) {
-        log_error(`C_TEST_LANG: subscribe to shell EV_TOGGLE_LANGUAGE failed: ${e}`);
+        log_error(`C_TEST_LANG: subscribe to shell events failed: ${e}`);
     }
 }
 
@@ -194,6 +222,57 @@ function ac_toggle_language(gobj, event, kw, src)
     return 0;
 }
 
+/*  Build a translator for the active language.  Used both by
+ *  ac_toggle_language (to refresh the whole DOM) and by the
+ *  show_hello / ask_question handlers (to render their modals in
+ *  the current language at open time, not the canonical English
+ *  key). */
+function current_translator(gobj)
+{
+    let is_es = gobj_read_attr(gobj, "is_es");
+    return make_translator(is_es ? DICT_ES : DICT_EN);
+}
+
+/***************************************************************
+ *  Toolbar fired EV_SHOW_HELLO — paints a Bulma .notification
+ *  via the shell helper, no view code involved.  Smoke test for
+ *  yui_shell_show_info.
+ ***************************************************************/
+function ac_show_hello(gobj, event, kw, src)
+{
+    let shell = gobj_read_pointer_attr(gobj, "shell");
+    if(!shell) {
+        return 0;
+    }
+    yui_shell_show_info(shell, "Hello from the shell!", {
+        t: current_translator(gobj)
+    });
+    return 0;
+}
+
+/***************************************************************
+ *  Toolbar fired EV_ASK_QUESTION — opens a yes/no dialog and
+ *  reports the answer via a follow-up info toast.  Smoke test
+ *  for yui_shell_confirm_yesno + Escape stack.
+ ***************************************************************/
+function ac_ask_question(gobj, event, kw, src)
+{
+    let shell = gobj_read_pointer_attr(gobj, "shell");
+    if(!shell) {
+        return 0;
+    }
+    let t = current_translator(gobj);
+    yui_shell_confirm_yesno(
+        shell,
+        "Is the new shell working as expected?",
+        { title: "A small smoke check", t: t }
+    ).then(answer => {
+        let msg = answer ? "Glad to hear it!" : "Noted — check the console.";
+        yui_shell_show_info(shell, msg, { t: current_translator(gobj) });
+    });
+    return 0;
+}
+
 
 
 
@@ -225,7 +304,9 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_TOGGLE_LANGUAGE", ac_toggle_language, null]
+            ["EV_TOGGLE_LANGUAGE", ac_toggle_language, null],
+            ["EV_SHOW_HELLO",      ac_show_hello,      null],
+            ["EV_ASK_QUESTION",    ac_ask_question,    null]
         ]]
     ];
 
@@ -233,7 +314,9 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TOGGLE_LANGUAGE", 0]
+        ["EV_TOGGLE_LANGUAGE", 0],
+        ["EV_SHOW_HELLO",      0],
+        ["EV_ASK_QUESTION",    0]
     ];
 
     __gclass__ = gclass_create(
