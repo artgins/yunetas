@@ -325,6 +325,51 @@ Public helpers (import from `@yuneta/lib-yui`):
   close the focus is restored to whichever element triggered the
   open.
 
+### Modal / notification API
+
+The shell paints into `priv.layers.notification` and
+`priv.layers.modal`. Two naming conventions:
+
+- `yui_shell_show_*` — non-blocking notifications/modal. Returns a
+  `{ close() }` handle so the caller can dismiss programmatically.
+- `yui_shell_confirm_*` — blocking dialog. Returns a Promise that
+  resolves with the user's choice.
+
+```js
+import {
+    yui_shell_show_info, yui_shell_show_warning, yui_shell_show_error,
+    yui_shell_show_modal,
+    yui_shell_confirm_ok, yui_shell_confirm_yesno, yui_shell_confirm_yesnocancel,
+} from "@yuneta/lib-yui";
+
+/*  Toasts (Bulma .notification, auto-dismiss after 5 s). */
+yui_shell_show_info(shell,    "Hello");
+yui_shell_show_warning(shell, "Watch out");
+yui_shell_show_error(shell,   "Boom");
+
+/*  Non-blocking modal (Bulma .modal-content + .box).  Click on
+ *  background, the close button or Escape close it. */
+let { close } = yui_shell_show_modal(shell, "Some inline content");
+
+/*  Blocking dialogs.  Escape, the close button, and click on the
+ *  background all resolve with the LAST button's value (cancel/no/
+ *  ok by convention — the safe-default action). */
+await yui_shell_confirm_ok(shell, "Saved.");
+let yes = await yui_shell_confirm_yesno(shell, "Discard changes?");
+let r   = await yui_shell_confirm_yesnocancel(shell, "Save before close?");
+//   r === "yes" | "no" | "cancel"
+```
+
+Every modal/dialog automatically:
+- pushes a close handler onto the Escape priority chain (§11),
+- installs a focus-trap on the modal card (Tab cycles inside,
+  Shift+Tab cycles backwards, focus is restored on close),
+- removes itself from the DOM when closed.
+
+The legacy `display_*` / `get_yes*` helpers in `c_yui_main.js`
+remain unchanged; see §10 *drift policy*. Apps importing one stack
+should not import the other.
+
 ### Internationalisation
 
 The shell does **not** own i18n. Every translatable text node it

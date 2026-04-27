@@ -124,53 +124,70 @@ modals exist.
 
 ---
 
-## 4. Modal / notification API on top of the shell layers
+## 4. Modal / notification API on top of the shell layers — DONE
 
-Today the shell creates `priv.layers.modal`, `priv.layers.notification`
-and `priv.layers.loading` in `build_ui` but exposes no API for them.
-New GUIs built on the shell should be able to render modals and
-toasts **without** importing `c_yui_main.js`.
+Two new modules, one inline refactor, seven public helpers.
 
-The legacy entry points (`display_volatil_modal`, `display_info_message`,
-`display_warning_message`, `display_error_message`, `get_yesnocancel`,
-`get_yesno`, `get_ok`) stay in `c_yui_main.js` for legacy apps and
-are **not** removed.  The new shell exposes a parallel API instead.
+### Generic focus-trap → `src/shell_focus_trap.js`
+- `FOCUSABLE_SELECTOR` constant + `activate_focus_trap_on($panel,
+  doc?)` returning a `release()` function. Pure module, no Yuneta
+  deps. The optional `doc` arg lets unit tests inject a stub.
+- The drawer's inline focus-trap in `c_yui_shell.js` is gone;
+  `open_drawer_one` now calls `activate_focus_trap_on(panel)` and
+  parks the returned release fn on `$drawer.__yui_focus_release__`.
+  `close_drawer_one` invokes it. The `priv.drawer_focus_states` Map
+  is gone too.
+- `tests/shell_focus_trap.test.mjs`: 10 unit tests with hand-rolled
+  DOM stubs (no extra devDep). Brings the parser+focus-trap unit
+  total to 23/23.
 
-- **Generalise** the drawer focus-trap (`activate_focus_trap` /
-  `release_focus_trap` / `FOCUSABLE_SELECTOR`) into a generic
-  `activate_focus_trap_on($element)` and move it to
-  `src/shell_focus_trap.js` for unit-testability alongside
-  `shell_show_on.js`.  Add a small `tests/shell_focus_trap.test.mjs`
-  using happy-dom (or a tiny stub) so the runner gets its second
-  client.
-- Add shell-level helpers — distinct names from the legacy ones to
-  avoid ambiguity for consumers that might import both.  Naming
-  convention: `yui_shell_show_*` for non-blocking notifications
-  (no answer expected from the user), `yui_shell_confirm_*` for
-  blocking dialogs (the helper resolves with the user's choice).
-    - Non-blocking: `yui_shell_show_modal`, `yui_shell_show_info`,
-      `yui_shell_show_warning`, `yui_shell_show_error`.
-    - Blocking: `yui_shell_confirm_yesnocancel`,
-      `yui_shell_confirm_yesno`, `yui_shell_confirm_ok` (single OK
-      button — still a dialog the user has to dismiss, hence
-      `confirm_*`, not `show_*`).
-  Re-export from `index.js`.
-- Reuse Bulma's `.modal` / `.notification` markup verbatim for visual
-  parity with the legacy implementation.
-- Each modal/popup that grabs focus must register a close handler on
-  the Escape stack from #3.
-- Add a smoke entry in `test-app/app_config.json`: a toolbar item
-  that fires `yui_shell_show_info(shell, "Hello")` so the toast
-  renders without any view doing it.
+### Shell-level helpers → `src/shell_modals.js`
+Naming convention: `yui_shell_show_*` for non-blocking,
+`yui_shell_confirm_*` for blocking dialogs that resolve a Promise.
+- **Non-blocking**: `yui_shell_show_info`, `yui_shell_show_warning`,
+  `yui_shell_show_error`, `yui_shell_show_modal`. Toasts auto-
+  dismiss after `opts.timeout` ms (default 5000; `0` disables).
+  Each returns a `{ close() }` handle.
+- **Blocking**: `yui_shell_confirm_ok`, `yui_shell_confirm_yesno`,
+  `yui_shell_confirm_yesnocancel`. Each returns a Promise that
+  resolves with the user's choice (`undefined` / boolean /
+  `"yes"|"no"|"cancel"` respectively). Escape, the close button
+  and click on the background all resolve with the LAST button's
+  value (cancel/no/ok — safe-default convention).
+- Every modal/dialog automatically pushes a close handler onto the
+  Escape priority chain (§11) and installs a focus-trap on the
+  modal card. `Tab`/`Shift+Tab` cycle inside, focus is restored on
+  close.
+- All seven re-exported from `@yuneta/lib-yui`.
 
-**Drift policy** between the new helpers and the legacy `display_*`
-/ `get_yes*` / `get_ok` is documented in
-[`SHELL.md` §10](./SHELL.md): legacy bug fixes are not back-ported,
-shell improvements stay on the shell.
+### Smoke entries in the test-app
+`app_config.json` toolbar grew two items: `Hello` (fires
+`EV_SHOW_HELLO` → `yui_shell_show_info`) and `Ask` (fires
+`EV_ASK_QUESTION` → `yui_shell_confirm_yesno` + a follow-up info
+toast). The `c_test_lang` controller picked up the two new
+actions/events. No new gobj.
 
-**Done when:** new GUIs can render every modal/toast variant through
-shell helpers without importing `c_yui_main.js`; the legacy helpers
-remain untouched.
+### e2e (`tests-e2e/modals.spec.mjs`)
+Four tests × 2 browsers = 8 new e2e tests:
+- Hello toolbar item paints a `.notification` on the notification
+  layer; clicking the `.delete` button dismisses.
+- Ask toolbar item opens a yes/no dialog; clicking *Yes* resolves
+  the Promise and shows the follow-up toast.
+- Escape on an open dialog dismisses with the last button's value
+  (= the *No* answer in this case).
+- **Modal over drawer**: open the drawer, then open a modal on top
+  of it (synthetic click bypasses the drawer's pointer occlusion);
+  first Escape closes the modal, the drawer remains open; second
+  Escape closes the drawer. This is the cross-overlay test that
+  was deferred from #3.
+
+### Drift policy
+Documented in `SHELL.md §10`: legacy `display_*` / `get_yes*` /
+`get_ok` bug fixes are NOT back-ported to `yui_shell_show_*` /
+`yui_shell_confirm_*` and vice versa. The two stacks are
+parallel.
+
+Tests: parser + focus-trap 23/23, e2e 26/26 (chromium + firefox).
 
 ---
 

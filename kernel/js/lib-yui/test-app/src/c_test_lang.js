@@ -26,6 +26,11 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
+import {
+    yui_shell_show_info,
+    yui_shell_confirm_yesno,
+} from "@yuneta/lib-yui";
+
 
 /***************************************************************
  *              Constants
@@ -116,8 +121,10 @@ function mt_start(gobj)
      *  event_types table. */
     try {
         gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+        gobj_subscribe_event(shell, "EV_SHOW_HELLO",      {}, gobj);
+        gobj_subscribe_event(shell, "EV_ASK_QUESTION",    {}, gobj);
     } catch(e) {
-        log_error(`C_TEST_LANG: subscribe to shell EV_TOGGLE_LANGUAGE failed: ${e}`);
+        log_error(`C_TEST_LANG: subscribe to shell events failed: ${e}`);
     }
 }
 
@@ -194,6 +201,43 @@ function ac_toggle_language(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Toolbar fired EV_SHOW_HELLO — paints a Bulma .notification
+ *  via the shell helper, no view code involved.  Smoke test for
+ *  yui_shell_show_info.
+ ***************************************************************/
+function ac_show_hello(gobj, event, kw, src)
+{
+    let shell = gobj_read_pointer_attr(gobj, "shell");
+    if(!shell) {
+        return 0;
+    }
+    yui_shell_show_info(shell, "Hello from the shell!");
+    return 0;
+}
+
+/***************************************************************
+ *  Toolbar fired EV_ASK_QUESTION — opens a yes/no dialog and
+ *  reports the answer via a follow-up info toast.  Smoke test
+ *  for yui_shell_confirm_yesno + Escape stack.
+ ***************************************************************/
+function ac_ask_question(gobj, event, kw, src)
+{
+    let shell = gobj_read_pointer_attr(gobj, "shell");
+    if(!shell) {
+        return 0;
+    }
+    yui_shell_confirm_yesno(
+        shell,
+        "Is the new shell working as expected?",
+        { title: "A small smoke check" }
+    ).then(answer => {
+        let msg = answer ? "Glad to hear it!" : "Noted — check the console.";
+        yui_shell_show_info(shell, msg);
+    });
+    return 0;
+}
+
 
 
 
@@ -225,7 +269,9 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_TOGGLE_LANGUAGE", ac_toggle_language, null]
+            ["EV_TOGGLE_LANGUAGE", ac_toggle_language, null],
+            ["EV_SHOW_HELLO",      ac_show_hello,      null],
+            ["EV_ASK_QUESTION",    ac_ask_question,    null]
         ]]
     ];
 
@@ -233,7 +279,9 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TOGGLE_LANGUAGE", 0]
+        ["EV_TOGGLE_LANGUAGE", 0],
+        ["EV_SHOW_HELLO",      0],
+        ["EV_ASK_QUESTION",    0]
     ];
 
     __gclass__ = gclass_create(

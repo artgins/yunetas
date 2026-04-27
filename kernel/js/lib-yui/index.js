@@ -32,6 +32,15 @@ export {
     yui_shell_pop_escape,
 } from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
+export {
+    yui_shell_show_info,
+    yui_shell_show_warning,
+    yui_shell_show_error,
+    yui_shell_show_modal,
+    yui_shell_confirm_ok,
+    yui_shell_confirm_yesno,
+    yui_shell_confirm_yesnocancel,
+} from "./src/shell_modals.js";
 
 /*
  *  TreeDB components

@@ -41,6 +41,10 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 
+import {
+    activate_focus_trap_on,
+} from "./shell_focus_trap.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -1049,84 +1053,6 @@ function drawers(gobj, menu_id)
 }
 
 /************************************************************
- *  Focus-trap for an open drawer:
- *      - on activate: save document.activeElement, install a
- *        keydown trap that cycles Tab/Shift+Tab inside the
- *        panel, move focus to the first focusable child.
- *      - on release: remove the trap and restore focus.
- *  State is kept per-drawer in priv.drawer_focus_states so
- *  multiple drawers (rare but legal) work independently.
- ************************************************************/
-const FOCUSABLE_SELECTOR =
-    'a[href], button:not([disabled]), input:not([disabled]),' +
-    ' select:not([disabled]), textarea:not([disabled]),' +
-    ' [tabindex]:not([tabindex="-1"])';
-
-function activate_focus_trap(gobj, $drawer)
-{
-    let priv = gobj_read_attr(gobj, "priv");
-    if(!priv) {
-        return;
-    }
-    if(!priv.drawer_focus_states) {
-        priv.drawer_focus_states = new Map();
-    }
-    if(priv.drawer_focus_states.has($drawer)) {
-        return;
-    }
-    let saved = document.activeElement;
-    let panel = $drawer.querySelector(".yui-drawer-panel") || $drawer;
-
-    let trap = ev => {
-        if(ev.key !== "Tab") {
-            return;
-        }
-        let nodes = panel.querySelectorAll(FOCUSABLE_SELECTOR);
-        if(nodes.length === 0) {
-            return;
-        }
-        let first = nodes[0];
-        let last = nodes[nodes.length - 1];
-        let inside = panel.contains(document.activeElement);
-        if(ev.shiftKey) {
-            if(!inside || document.activeElement === first) {
-                last.focus();
-                ev.preventDefault();
-            }
-        } else {
-            if(!inside || document.activeElement === last) {
-                first.focus();
-                ev.preventDefault();
-            }
-        }
-    };
-    document.addEventListener("keydown", trap, true);
-    priv.drawer_focus_states.set($drawer, { saved: saved, trap: trap, panel: panel });
-
-    let first = panel.querySelector(FOCUSABLE_SELECTOR);
-    if(first && typeof first.focus === "function") {
-        first.focus();
-    }
-}
-
-function release_focus_trap(gobj, $drawer)
-{
-    let priv = gobj_read_attr(gobj, "priv");
-    if(!priv || !priv.drawer_focus_states) {
-        return;
-    }
-    let st = priv.drawer_focus_states.get($drawer);
-    if(!st) {
-        return;
-    }
-    document.removeEventListener("keydown", st.trap, true);
-    priv.drawer_focus_states.delete($drawer);
-    if(st.saved && typeof st.saved.focus === "function" && document.body.contains(st.saved)) {
-        st.saved.focus();
-    }
-}
-
-/************************************************************
  *  Escape priority chain helpers — push/pop a {layer, handler}
  *  record on `priv.escape_stack`.  Escape calls the top entry
  *  only and consumes the event; LIFO ordering naturally matches
@@ -1154,10 +1080,13 @@ function pop_escape(gobj, handler)
     }
 }
 
-/*  Per-drawer open/close.  The handler reference is parked on the
- *  $drawer DOM element so any close path (Escape, backdrop click,
- *  toolbar action, public yui_shell_close_drawer) ends up popping
- *  the correct stack entry. */
+/*  Per-drawer open/close.  The escape-stack entry and the focus-
+ *  trap release function are parked on the $drawer DOM element so
+ *  any close path (Escape, backdrop click, toolbar action, public
+ *  yui_shell_close_drawer) tears them down through the same code.
+ *
+ *  The actual focus-trap is the generic helper from
+ *  shell_focus_trap.js — same module modals/popups use. */
 function open_drawer_one(gobj, $c)
 {
     if($c.classList.contains("is-active")) {
@@ -1167,7 +1096,8 @@ function open_drawer_one(gobj, $c)
     $c.__yui_close_handler__ = close_fn;
     push_escape(gobj, "overlay", close_fn);
     $c.classList.add("is-active");
-    activate_focus_trap(gobj, $c);
+    let panel = $c.querySelector(".yui-drawer-panel") || $c;
+    $c.__yui_focus_release__ = activate_focus_trap_on(panel);
 }
 
 function close_drawer_one(gobj, $c)
@@ -1176,7 +1106,10 @@ function close_drawer_one(gobj, $c)
         return;
     }
     $c.classList.remove("is-active");
-    release_focus_trap(gobj, $c);
+    if($c.__yui_focus_release__) {
+        $c.__yui_focus_release__();
+        $c.__yui_focus_release__ = null;
+    }
     if($c.__yui_close_handler__) {
         pop_escape(gobj, $c.__yui_close_handler__);
         $c.__yui_close_handler__ = null;
