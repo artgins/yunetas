@@ -571,13 +571,21 @@ function instantiate_menus(gobj, config)
         }
     }
 
-    /*  Secondary navs: create one per primary item that has a submenu,
-     *  for each zone listed in submenu.render. Initially hidden, shown
-     *  when the primary item becomes active.
-     */
-    let primary = menus.primary;
-    if(primary && is_array(primary.items)) {
-        for(let item of primary.items) {
+    /*  Secondary navs: create one per primary-style menu item that
+     *  declares a submenu with its own render block, for every zone
+     *  listed in `submenu.render`.  Initially hidden, shown when the
+     *  owning primary item becomes active.
+     *
+     *  We walk every menu mounted via a zone host of the form
+     *  "menu.<id>" — not just menus.primary.  The synthesized
+     *  sub_menu_id is `secondary.<menu_id>.<item.id>` so two
+     *  menus can have items with the same id without colliding. */
+    for(let menu_id in zones_for_menu) {
+        let menu = menus[menu_id];
+        if(!menu || !is_array(menu.items)) {
+            continue;
+        }
+        for(let item of menu.items) {
             let sub = item.submenu;
             if(!sub || !is_array(sub.items)) {
                 continue;
@@ -589,19 +597,22 @@ function instantiate_menus(gobj, config)
                 }
                 let layout = render_by_zone[zone_id];
                 if(!priv.zones[zone_id]) {
-                    log_warning(`C_YUI_SHELL: submenu renders in unknown zone '${zone_id}'`);
+                    log_warning(
+                        `C_YUI_SHELL: submenu of '${menu_id}.${item.id}' ` +
+                        `renders in unknown zone '${zone_id}'`
+                    );
                     continue;
                 }
                 let submenu_def = {
                     items: sub.items,
                     render: { [zone_id]: render_to_obj(layout) }
                 };
-                let sub_menu_id = `secondary.${item.id}`;
+                let sub_menu_id = `secondary.${menu_id}.${item.id}`;
                 let nav = instantiate_nav_in_zone(
                     gobj, submenu_def, sub_menu_id, zone_id, "secondary",
                     item.name || ""
                 );
-                /*  Hidden until primary is active. */
+                /*  Hidden until owning primary is active. */
                 let $c = gobj_read_attr(nav, "$container");
                 if($c) {
                     $c.classList.add("is-hidden");
@@ -1198,22 +1209,23 @@ function update_secondary_nav_visibility(gobj, entry)
     let active_primary_id = entry.parent_item
         ? entry.parent_item.id
         : entry.item.id;
+    let owning_menu_id = entry.menu_id || "";
+    let target_secondary_id = `secondary.${owning_menu_id}.${active_primary_id}`;
 
     for(let nav of priv.navs) {
         let level = gobj_read_attr(nav, "level");
         if(level !== "secondary") {
             continue;
         }
-        let menu_id = gobj_read_attr(nav, "menu_id") || "";
-        let m = /^secondary\.(.+)$/.exec(menu_id);
-        if(!m) {
+        let nav_menu_id = gobj_read_attr(nav, "menu_id") || "";
+        if(!nav_menu_id.startsWith("secondary.")) {
             continue;
         }
         let $c = gobj_read_attr(nav, "$container");
         if(!$c) {
             continue;
         }
-        if(m[1] === active_primary_id) {
+        if(nav_menu_id === target_secondary_id) {
             $c.classList.remove("is-hidden");
         } else {
             $c.classList.add("is-hidden");

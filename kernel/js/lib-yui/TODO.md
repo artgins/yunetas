@@ -191,25 +191,41 @@ Tests: parser + focus-trap 23/23, e2e 26/26 (chromium + firefox).
 
 ---
 
-## 5. Generalise the secondary-nav loop beyond `menu.primary`
+## 5. Generalise the secondary-nav loop beyond `menu.primary` — DONE
 
-`instantiate_menus()` in `c_yui_shell.js` walks only
-`menus.primary.items[*].submenu` to build level-2 navs.  See
-[`SHELL.md` §11.1](./SHELL.md).
+`instantiate_menus` now walks every menu mounted via a `"menu.<id>"`
+host whose items declare a `submenu` with its own `render`. The
+synthesised secondary `menu_id` is
+`secondary.<owning_menu_id>.<item.id>`, scoped to the owning menu so
+two primary-style menus can share item ids without colliding.
 
-- Walk every menu mounted via a zone host of the form `"menu.<id>"`
-  whose items declare a `submenu`, not just `primary`.  The
-  `secondary.<item.id>` synthesised id stays unique because item
-  ids are scoped to their parent menu — but if collisions across
-  menus become a concern, switch to
-  `secondary.<menu_id>.<item.id>`.
-- Update `SHELL.md` §11 to drop limitation #1 (and renumber).
-- Add a regression case to the test-app: a second primary-style
-  menu (e.g. `menu.admin`) with its own submenus, and verify the
-  right secondary nav surfaces under the right primary.
+`update_secondary_nav_visibility` reads `entry.menu_id` (the route
+owner) and computes `target_secondary_id =
+secondary.<entry.menu_id>.<active_primary_id>`. The matching nav
+shows; every other secondary hides. Cross-menu duplicates of the
+same item id are independent.
 
-**Done when:** the test-app has at least two primary-style menus
-with submenus and both render their secondary navs correctly.
+The previous limitation in `SHELL.md` §11.1 has been removed; §6
+gained a small "Secondary nav `menu_id`" subsection documenting the
+synthesised id.
+
+A new preset `app_config_multimenu.json` declares two primary-style
+menus side-by-side (`menu.primary` in `left/bottom`, `menu.admin` in
+`right/bottom-sub`) with the same item id (`dash`) in each; the e2e
+test `tests-e2e/multimenu.spec.mjs` boots that preset and verifies:
+
+- Both primary navs are rendered, each with its own `aria-label`.
+- The shell auto-instantiates one secondary nav per (menu × item
+  with submenu.render).
+- On the default route (`/dash/ov`, owned by `menu.primary`),
+  `menu.primary`'s secondary nav is visible; `menu.admin`'s is
+  hidden.
+- Navigating to `/admin/dash/users` flips the visibility — strictly
+  by `menu_id`, not by the duplicated `dash` item id.
+- The active secondary's items belong to the right tree and the
+  other tree's routes are absent.
+
+Tests: parser + focus-trap 23/23, e2e 28/28 (chromium + firefox).
 
 ---
 

@@ -37,8 +37,9 @@ import {register_c_test_lang} from "./c_test_lang.js";
 import "bulma/css/bulma.css";
 import "@yuneta/lib-yui/src/c_yui_shell.css";
 
-import app_config          from "./app_config.json";
+import app_config           from "./app_config.json";
 import app_config_accordion from "./app_config_accordion.json";
+import app_config_multimenu from "./app_config_multimenu.json";
 
 
 function pick_config()
@@ -46,6 +47,7 @@ function pick_config()
     let q = new URLSearchParams(window.location.search);
     switch(q.get("preset")) {
         case "accordion": return app_config_accordion;
+        case "multimenu": return app_config_multimenu;
         default:          return app_config;
     }
 }

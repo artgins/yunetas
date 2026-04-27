@@ -401,12 +401,27 @@ Published events:
 - `EV_NAV_CLICKED` — `{ route, item_id, zone, level }`. The shell is
   subscribed and decides whether to change the hash or call
   `navigate_to` directly.
+- `EV_DRAWER_CLOSE_REQUESTED` — `{ menu_id }`. Published by drawer
+  navs when the backdrop is clicked; the shell's
+  `ac_drawer_close_requested` runs the canonical close path.
 
 Notable attributes: `menu_items`, `zone`, `layout`, `icon_pos`,
 `show_label`, `level` (`primary` | `secondary`), `shell`,
 `nav_label` (human-readable label used by the secondary navs as
 their heading and `aria-label`; the shell fills it from the parent
 item's `name`).
+
+### Secondary nav `menu_id`
+
+The shell auto-instantiates a level-2 nav for every primary-style
+menu item that declares a `submenu` with its own `render` block —
+not just `menu.primary`. The synthesised `menu_id` for a secondary
+nav is `secondary.<owning_menu_id>.<item.id>`, so two primary-style
+menus may have items with the same id without colliding (e.g.
+`secondary.primary.dash` and `secondary.admin.dash` are independent
+navs that flip visibility based on the active route's owning menu).
+
+### i18n
 
 The nav has no `translate` attr — it does not translate text
 itself. Labels are emitted with `data-i18n` and a single
@@ -600,14 +615,7 @@ These are intentional gaps, documented so they don't surface as
 review nits.  Each one has a clear path forward when it becomes
 worth the work.
 
-1. **Secondary navs are auto-instantiated only from `menu.primary`.**
-   `instantiate_menus` walks `menus.primary.items[*].submenu` to
-   build the level-2 navs.  If you declare additional "primary-style"
-   menus elsewhere with their own `submenu`, those submenus will
-   not get a nav unless they are mounted manually.  Drawer overlays
-   (`render[zone].layout === "drawer"`) are detected for any menu
-   id and are not subject to this limitation.
-2. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
+1. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
    `c_yui_main.css` defines its own `.top-layer` / `.content-layer` /
    `.bottom-layer` with `position:fixed` and CSS variables that
    collide with the shell's full-screen grid.  Pick one: the new
