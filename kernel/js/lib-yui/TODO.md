@@ -190,35 +190,48 @@ with submenus and both render their secondary navs correctly.
 
 ## 6. End-to-end smoke with Playwright
 
-Today there is **no automated smoke** of the shell — only the 13
-`shell_show_on` parser tests run in CI.  Add a thin Playwright
-suite.
+Today the only automated coverage is the 13 `shell_show_on`
+parser tests — Playwright wraps the actual UI.
 
-- Boot the test-app via `vite preview` against the built bundle.
-- Two presets, two browsers (chromium + firefox at minimum).
-- Tests, in order of priority:
-    1. **boot**: `/dash/ov` renders, the card title is "Overview".
-    2. **navigation**: clicking each primary item changes the
-       active highlight and the centre stage.
-    3. **breakpoint**: viewport at 800 px shows the bottom
-       icon-bar; at 1280 px shows the left vertical menu.
-    4. **drawer**: hamburger opens drawer, focus moves into the
-       panel, `Tab` cycles inside, `Escape` closes and restores
-       focus to the burger button.
-    5. **escape stack** (after #3): modal over drawer, Escape
-       closes the modal first, then the drawer.
-    6. **lifecycle**: visiting `/dash/alerts` (`lazy_destroy`)
-       twice increments the `instance #` counter; `/dash/ov`
-       (`keep_alive`) does not.
-    7. **live-translate**: clicking the ES/EN button (#1) flips
-       labels everywhere.
-- Wire `npm run test:e2e` from `kernel/js/lib-yui/`.
-- Add a CI workflow stub (`.github/workflows/lib-yui.yml`) that
-  runs `npm test` (parser) + `npm run test:e2e` on PRs touching
-  `kernel/js/lib-yui/**`.
+### Done in the first pass
+- `playwright.config.js` boots the test-app via `vite preview`
+  against the built bundle on port 5181 (chromium + firefox,
+  `webServer` auto-starts before tests).
+- `npm run test:e2e` / `npm run test:e2e:ui` / `npm run test:all`
+  wired up.
+- `.github/workflows/lib-yui.yml` runs unit + e2e on PRs and on
+  `main` touching `kernel/js/lib-yui/**` or `kernel/js/gobj-js/**`.
+  Uploads the Playwright HTML report on failure.
+- `tests-e2e/boot.spec.mjs`:
+    * default preset lands on `/dash/ov` with the Overview card,
+      the URL hash mirrors the route, the primary nav has its
+      active item, and the boot is console-error-clean.
+    * accordion preset auto-expands the Dashboard branch
+      (`aria-expanded="true"`) and lands on Overview.
+- `tests-e2e/navigation.spec.mjs`:
+    * clicks each primary item, asserts the URL hash and the
+      centre-stage card title.
+    * typed-URL hash navigation lands on the right card.
+    * back/forward replays the route history.
+    * submenu container `/dash` redirects to `/dash/ov`.
 
-**Done when:** CI green on the branch and the workflow gates the
-PR.
+### Pending — to be added as the corresponding feature lands
+- **breakpoint**: viewport at 800 px shows the bottom icon-bar;
+  at 1280 px shows the left vertical menu.
+- **drawer**: hamburger opens drawer, focus moves into the panel,
+  `Tab` cycles inside, `Escape` closes and restores focus to the
+  burger button.
+- **escape stack** (after #3): modal over drawer, Escape closes
+  the modal first, then the drawer.
+- **modal** (after #4): toolbar item triggers
+  `yui_shell_show_info`; the toast is in the notification layer.
+- **lifecycle**: visiting `/dash/alerts` (`lazy_destroy`) twice
+  increments the `instance #` counter; `/dash/ov` (`keep_alive`)
+  does not.
+- **live-translate**: clicking the ES/EN button flips labels
+  everywhere; the active highlight is preserved.
+
+**Done when:** CI green on the branch with all bullets above.
 
 ---
 

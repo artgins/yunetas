@@ -3,7 +3,7 @@
 Standalone harness to exercise `C_YUI_SHELL` + `C_YUI_NAV` in isolation
 (no backend, no auth, no treedb).
 
-## Run
+## Run (interactive)
 
 ```bash
 cd kernel/js/lib-yui/test-app
@@ -12,6 +12,26 @@ npm run dev
 ```
 
 Then open http://localhost:5180 (Vite auto-opens it).
+
+## Run (Playwright smoke — automated)
+
+The library ships an end-to-end suite in
+`kernel/js/lib-yui/tests-e2e/` driven by Playwright. It boots the
+test-app via `vite preview` against the built bundle (port 5181) and
+runs against chromium and firefox.
+
+```bash
+cd kernel/js/lib-yui
+npm install                              # installs @playwright/test
+npx playwright install chromium firefox  # one-off browser download
+npm run test:e2e                         # headless, both browsers
+npm run test:e2e:ui                      # Playwright UI mode (debug)
+```
+
+`npm run test:all` runs the parser unit tests and the e2e suite back
+to back. CI runs the same combination via
+`.github/workflows/lib-yui.yml` on every PR touching
+`kernel/js/lib-yui/**`.
 
 ## Presets
 
