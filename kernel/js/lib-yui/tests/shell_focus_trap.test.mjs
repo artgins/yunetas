@@ -218,6 +218,70 @@ test("missing $panel returns a no-op release function", () => {
     release();   /*  must not throw */
 });
 
+test("LIFO stacking: only the topmost trap acts on Tab", () => {
+    /*  Two panels active simultaneously.  Pressing Tab must use
+     *  the SECOND trap's panel, not the first — even though both
+     *  listeners fire (capture phase). */
+    let panel_a_first = make_focusable("a-first");
+    let panel_a_last  = make_focusable("a-last");
+    let panel_a = make_panel([panel_a_first, panel_a_last]);
+
+    let panel_b_first = make_focusable("b-first");
+    let panel_b_last  = make_focusable("b-last");
+    let panel_b = make_panel([panel_b_first, panel_b_last]);
+
+    let doc = make_doc(null);
+    activate_focus_trap_on(panel_a, doc);
+    activate_focus_trap_on(panel_b, doc);
+
+    /*  Both listeners are attached. */
+    assert.equal(doc.listeners.length, 2);
+
+    /*  Reset focus_calls so we only see the Tab response. */
+    panel_a_first.focus_calls.length = 0;
+    panel_b_first.focus_calls.length = 0;
+
+    /*  Pretend focus is "outside" both panels.  Press Tab. */
+    doc.activeElement = make_focusable("outside");
+    let ev = {
+        key: "Tab",
+        shiftKey: false,
+        preventDefault() {}
+    };
+    /*  Listeners run in registration order. */
+    doc.listeners[0](ev);
+    doc.listeners[1](ev);
+
+    /*  Only panel_b (the topmost) should have grabbed focus. */
+    assert.deepEqual(panel_a_first.focus_calls, []);
+    assert.deepEqual(panel_b_first.focus_calls, ["b-first.focus"]);
+});
+
+test("LIFO stacking: releasing the top trap re-empowers the one underneath", () => {
+    let panel_a_first = make_focusable("a-first");
+    let panel_a = make_panel([panel_a_first]);
+    let panel_b_first = make_focusable("b-first");
+    let panel_b = make_panel([panel_b_first]);
+
+    let doc = make_doc(null);
+    activate_focus_trap_on(panel_a, doc);
+    let release_b = activate_focus_trap_on(panel_b, doc);
+
+    release_b();
+    assert.equal(doc.listeners.length, 1);
+
+    /*  Now Tab should drive panel_a — it is again the top. */
+    panel_a_first.focus_calls.length = 0;
+    doc.activeElement = make_focusable("outside");
+    let ev = {
+        key: "Tab",
+        shiftKey: false,
+        preventDefault() {}
+    };
+    doc.listeners[0](ev);
+    assert.deepEqual(panel_a_first.focus_calls, ["a-first.focus"]);
+});
+
 test("an empty panel installs the listener but does nothing on Tab", () => {
     let panel = make_panel([]);
     let doc   = make_doc(null);

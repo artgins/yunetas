@@ -114,6 +114,52 @@ test.describe("notifications + modals", () => {
         await expect(modal).toHaveCount(0);
     });
 
+    test("Modal over drawer: Tab cycles WITHIN the modal only (drawer's trap defers)", async ({ page }) => {
+        await page.goto("/");
+
+        /*  1. Open the drawer via the burger. */
+        await page.locator('[data-toolbar-item-id="burger"]').click();
+        let drawer = page.locator(".yui-drawer");
+        await expect(drawer).toHaveClass(/is-active/);
+
+        /*  2. Open a yes/no/cancel dialog programmatically (the
+         *  drawer occludes the toolbar so we can't click Ask). */
+        await page.evaluate(async () => {
+            window.__lib_yui__.yui_shell_confirm_yesnocancel(
+                window.__shell__,
+                "Save changes?",
+                { title: "Confirm" }
+            );
+        });
+
+        let modal = page.locator(".yui-layer-modal .modal.is-active");
+        await expect(modal).toBeVisible();
+        let no_btn = modal.locator('button[data-modal-button-value="no"]');
+        let cancel_btn = modal.locator('button[data-modal-button-value="cancel"]');
+
+        /*  3. Focus the middle "No" button.  Press Tab — it must
+         *  land on Cancel (the next focusable inside the modal),
+         *  not snap back to the modal's first focusable.  Without
+         *  the LIFO trap-stack fix, the drawer's trap also fires
+         *  and forces focus to its first item before the modal
+         *  trap runs, which then snaps back to "Yes" every time. */
+        await no_btn.focus();
+        let active_before = await page.evaluate(() => document.activeElement.getAttribute("data-modal-button-value"));
+        expect(active_before).toBe("no");
+
+        await page.keyboard.press("Tab");
+
+        let active_after = await page.evaluate(() => document.activeElement.getAttribute("data-modal-button-value"));
+        expect(active_after).toBe("cancel");
+
+        /*  Cleanup: dismiss with Escape (resolves with cancel) and
+         *  then close the drawer. */
+        await page.keyboard.press("Escape");
+        await expect(modal).toHaveCount(0);
+        await page.keyboard.press("Escape");
+        await expect(drawer).not.toHaveClass(/is-active/);
+    });
+
     test("Modal over drawer: first Escape closes the modal, second Escape closes the drawer", async ({ page }) => {
         await page.goto("/");
 

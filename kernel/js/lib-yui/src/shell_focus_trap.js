@@ -33,6 +33,16 @@ export const FOCUSABLE_SELECTOR =
     " [tabindex]:not([tabindex=\"-1\"])";
 
 
+/*  Module-local LIFO stack of active traps.  Multiple overlays can
+ *  be open simultaneously (modal over drawer, popup over modal, …)
+ *  and each registers its own document-level keydown listener.
+ *  Without arbitration every Tab fires every listener, which forces
+ *  focus to the deepest trap's first/last on every press and makes
+ *  middle elements unreachable.  We keep one stack and only run the
+ *  topmost trap; the rest short-circuit. */
+const __trap_stack__ = [];
+
+
 /***************************************************************
  *  Activate the focus-trap on $panel.
  *
@@ -58,6 +68,13 @@ export function activate_focus_trap_on($panel, doc)
         if(ev.key !== "Tab" && ev.keyCode !== 9) {
             return;
         }
+        /*  LIFO arbitration: only the topmost active trap acts.
+         *  Earlier-registered listeners fire too (capture phase),
+         *  but they short-circuit unless they own the top of the
+         *  stack. */
+        if(__trap_stack__[__trap_stack__.length - 1] !== trap) {
+            return;
+        }
         let nodes = $panel.querySelectorAll(FOCUSABLE_SELECTOR);
         if(nodes.length === 0) {
             return;
@@ -79,6 +96,7 @@ export function activate_focus_trap_on($panel, doc)
         }
     };
     doc.addEventListener("keydown", trap, true);
+    __trap_stack__.push(trap);
 
     /*  Move focus to the first focusable child of the panel. */
     let firstFocusable = $panel.querySelector(FOCUSABLE_SELECTOR);
@@ -92,6 +110,10 @@ export function activate_focus_trap_on($panel, doc)
         }
         released = true;
         doc.removeEventListener("keydown", trap, true);
+        let idx = __trap_stack__.indexOf(trap);
+        if(idx >= 0) {
+            __trap_stack__.splice(idx, 1);
+        }
         if(saved && typeof saved.focus === "function" &&
            (!doc.body || !doc.body.contains || doc.body.contains(saved)))
         {
