@@ -256,23 +256,26 @@ parser tests — Playwright wraps the actual UI.
     * back/forward replays the route history.
     * submenu container `/dash` redirects to `/dash/ov`.
 
-### Pending — to be added as the corresponding feature lands
-- **breakpoint**: viewport at 800 px shows the bottom icon-bar;
-  at 1280 px shows the left vertical menu.
-- **drawer**: hamburger opens drawer, focus moves into the panel,
-  `Tab` cycles inside, `Escape` closes and restores focus to the
-  burger button.
-- **escape stack** (after #3): modal over drawer, Escape closes
-  the modal first, then the drawer.
-- **modal** (after #4): toolbar item triggers
-  `yui_shell_show_info`; the toast is in the notification layer.
-- **lifecycle**: visiting `/dash/alerts` (`lazy_destroy`) twice
-  increments the `instance #` counter; `/dash/ov` (`keep_alive`)
-  does not.
-- **live-translate**: clicking the ES/EN button flips labels
-  everywhere; the active highlight is preserved.
+### Done in the second pass (this branch)
+- `tests-e2e/drawer.spec.mjs` (3) — burger+Escape+focus restore;
+  backdrop closes via canonical path; Escape with stack empty.
+- `tests-e2e/modals.spec.mjs` (4) — info toast; yes/no dialog;
+  Escape dismisses; modal-over-drawer escape order.
+- `tests-e2e/multimenu.spec.mjs` (1) — two primary-style menus,
+  cross-menu secondary scoping.
+- `tests-e2e/validator.spec.mjs` (1) — invalid preset surfaces
+  the banner and the matching console errors.
+- `tests-e2e/lifecycle.spec.mjs` (3) — keep_alive reuses
+  instance, lazy_destroy mints a new one, eager is
+  preinstantiated.
+- `tests-e2e/breakpoint.spec.mjs` (3) — desktop: left vertical
+  + no bottom; mobile: bottom icon-bar + no left; tablet:
+  toolbar appears.
+- `tests-e2e/i18n.spec.mjs` (1) — ES/EN button flips every
+  translatable label and preserves the active highlight.
 
-**Done when:** CI green on the branch with all bullets above.
+**Done when:** CI green on the branch with every spec above.
+22 specs × 2 browsers = 44 e2e tests, all green locally.
 
 ---
 
