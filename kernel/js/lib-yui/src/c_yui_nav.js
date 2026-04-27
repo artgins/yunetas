@@ -573,9 +573,19 @@ function ac_route_changed(gobj, event, kw, src)
     /*  Decide which id we highlight:
      *      primary nav highlights parent_item (or item if top-level)
      *      secondary nav highlights the leaf item
-     */
+     *
+     *  Multi-menu scoping: primary navs short-circuit when the
+     *  route's owning menu differs from this nav's menu — two
+     *  primary-style menus that share an item id (legitimate per
+     *  TODO #5) must NOT cross-highlight.  Treat empty kw.menu_id
+     *  as a permissive match for backwards compatibility with
+     *  pre-TODO #5 callers. */
     let id_to_mark = null;
     if(level === "primary") {
+        let nav_menu_id = gobj_read_attr(gobj, "menu_id") || "";
+        if(kw.menu_id && nav_menu_id && nav_menu_id !== kw.menu_id) {
+            return 0;
+        }
         id_to_mark = parent_item ? parent_item.id : (item && item.id);
     } else {
         id_to_mark = item && item.id;

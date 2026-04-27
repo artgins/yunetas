@@ -908,12 +908,17 @@ function navigate_to(gobj, route)
         }
     }
 
-    /*  Broadcast */
+    /*  Broadcast.  `menu_id` carries the owning primary menu so
+     *  primary navs can short-circuit when the route belongs to a
+     *  different menu — without it, two primary-style menus that
+     *  share an item id (legitimate per TODO #5) cross-highlight
+     *  each other. */
     gobj_publish_event(gobj, "EV_ROUTE_CHANGED", {
         route: route,
         item: entry.item,
         parent_item: entry.parent_item,
-        stage: stage_name
+        stage: stage_name,
+        menu_id: entry.menu_id || ""
     });
 }
 
