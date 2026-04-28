@@ -180,8 +180,11 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
-SDATA (DTP_STRING,      "idp_url",         SDF_RD|SDF_REQUIRED, "", "IdP base URL"),
-SDATA (DTP_STRING,      "realm",                SDF_RD|SDF_REQUIRED, "", "IdP realm"),
+SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
+SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
+SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
+SDATA (DTP_STRING,      "idp_url",              SDF_RD, "",     "DEPRECATED: use 'issuer' or explicit endpoints. IdP base URL (Keycloak path scheme)"),
+SDATA (DTP_STRING,      "realm",                SDF_RD, "",     "DEPRECATED: use 'issuer' or explicit endpoints. IdP realm (Keycloak-only)"),
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
@@ -248,11 +251,19 @@ typedef struct _PRIVATE_DATA {
      */
     BOOL            task_valid;
 
-    /* Parsed IdP token endpoint URL parts */
-    char schema[32];
-    char host[256];
-    char port[16];
-    char path[1024];
+    /*
+     *  OIDC endpoints (full URLs).  Resolved in mt_create from one of:
+     *    1. Explicit token_endpoint + end_session_endpoint attrs
+     *    2. OIDC discovery (<issuer>/.well-known/openid-configuration)
+     *    3. Legacy idp_url + realm (Keycloak path scheme — deprecated)
+     *  process_next gates on discovery_done so requests queue while
+     *  discovery is in flight.
+     */
+    char    issuer[512];                /* copy of attr; "" if not configured */
+    char    token_url[PATH_MAX];        /* full URL — empty until discovery resolves it */
+    char    end_session_url[PATH_MAX];  /* full URL — empty until discovery resolves it */
+    BOOL    discovery_done;             /* TRUE once endpoints are usable */
+    hgobj   gobj_discovery_task;        /* one-shot OIDC discovery task; NULL when idle */
 
     /*
      *  Statistics — plain counters in PRIVATE_DATA, NOT SDF_*STATS
@@ -314,44 +325,72 @@ PRIVATE void mt_create(hgobj gobj)
      */
     snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
 
-    /* Pre-parse IdProvider base URL for re-use in every outbound call */
-    char idp_base[PATH_MAX];
-    const char *idp_base_url  = gobj_read_str_attr(gobj, "idp_url");
-    const char *realm   = gobj_read_str_attr(gobj, "realm");
+    /*
+     *  OIDC endpoint resolution priority:
+     *    1. Explicit token_endpoint + end_session_endpoint    -> use directly
+     *    2. issuer                                            -> discover at startup
+     *    3. Legacy idp_url + realm (Keycloak path scheme)     -> deprecated, warn
+     *    4. None                                              -> error, BFF unusable
+     *
+     *  http_url is the URL passed to C_PROT_HTTP_CL/C_TCP for the
+     *  outbound connection (only host/port matter; the path of each
+     *  request is set per-call via the `resource` field).
+     */
+    const char *token_endpoint       = gobj_read_str_attr(gobj, "token_endpoint");
+    const char *end_session_endpoint = gobj_read_str_attr(gobj, "end_session_endpoint");
+    const char *issuer               = gobj_read_str_attr(gobj, "issuer");
+    const char *idp_base_url         = gobj_read_str_attr(gobj, "idp_url");
+    const char *realm                = gobj_read_str_attr(gobj, "realm");
 
-    build_path(idp_base, sizeof(idp_base),
-        idp_base_url,
-        "realms",
-        realm,
-        "protocol",
-        "openid-connect",
-        NULL
-    );
+    const char *http_url = NULL;
 
-    if(parse_url(gobj,
-        idp_base,
-        priv->schema, sizeof(priv->schema),
-        priv->host,   sizeof(priv->host),
-        priv->port,   sizeof(priv->port),
-        priv->path,   sizeof(priv->path),   // HACK important
-        NULL, 0,
-        FALSE
-    )<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    if(!empty_string(token_endpoint) && !empty_string(end_session_endpoint)) {
+        snprintf(priv->token_url, sizeof(priv->token_url), "%s",
+            token_endpoint);
+        snprintf(priv->end_session_url, sizeof(priv->end_session_url), "%s",
+            end_session_endpoint);
+        priv->discovery_done = TRUE;
+        http_url = token_endpoint;
+    } else if(!empty_string(issuer)) {
+        snprintf(priv->issuer, sizeof(priv->issuer), "%s", issuer);
+        priv->discovery_done = FALSE;
+        http_url = issuer;
+    } else if(!empty_string(idp_base_url) && !empty_string(realm)) {
+        char legacy_base[PATH_MAX];
+        build_path(legacy_base, sizeof(legacy_base),
+            idp_base_url, "realms", realm, "protocol", "openid-connect", NULL);
+        snprintf(priv->token_url, sizeof(priv->token_url),
+            "%s/token", legacy_base);
+        snprintf(priv->end_session_url, sizeof(priv->end_session_url),
+            "%s/logout", legacy_base);
+        priv->discovery_done = TRUE;
+        http_url = idp_base_url;
+        gobj_log_warning(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_SYSTEM,
-            "msg",      "%s", "idp url parse failed",
-            "url",      "%s", idp_base,
+            "msgset",   "%s", MSGSET_PARAMETER,
+            "msg",      "%s", "👤BFF idp_url+realm are deprecated; use 'issuer' or explicit endpoints",
+            "idp_url",  "%s", idp_base_url,
+            "realm",    "%s", realm,
             NULL
         );
     } else {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PARAMETER,
+            "msg",      "%s", "👤BFF no IdP configured: set 'issuer' or 'token_endpoint'+'end_session_endpoint'",
+            NULL
+        );
+        priv->discovery_done = FALSE;
+    }
+
+    if(http_url) {
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
         priv->gobj_idprovider = gobj_create(
             priv->idp_name,
             C_PROT_HTTP_CL,
             json_pack("{s:s}",
-                "url", idp_base_url
+                "url", http_url
             ),
             gobj
         );
@@ -366,7 +405,7 @@ PRIVATE void mt_create(hgobj gobj)
                 priv->idp_name,
                 C_TCP,
                 json_pack("{s:s, s:O, s:i}",
-                    "url", idp_base_url,
+                    "url", http_url,
                     "crypto", jn_crypto,
                     /*
                      *  Aggressive reconnect cadence (100 ms vs the 2 s default).
@@ -405,6 +444,51 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  If `issuer` was configured (and the operator did not override
+     *  the endpoints explicitly), fetch /.well-known/openid-configuration
+     *  before serving any browser request.  Browser requests that arrive
+     *  before discovery completes queue in dl_pending; process_next gates
+     *  on priv->discovery_done so they're held until the endpoints are
+     *  cached.
+     */
+    if(!priv->discovery_done && !empty_string(priv->issuer) && priv->gobj_idprovider) {
+        json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
+        if(idp_timeout_ms <= 0) {
+            idp_timeout_ms = 30000;
+        }
+
+        json_t *kw_task = json_pack(
+            "{s:o, s:o, s:o, s:["
+                "{s:s, s:s, s:I}"
+            "]}",
+            "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
+            "output_data",  json_object(),
+            "jobs",
+                "exec_action",  "discover_oidc",
+                "exec_result",  "save_oidc_discovery",
+                "exec_timeout", idp_timeout_ms
+        );
+
+        priv->gobj_discovery_task = gobj_create(
+            priv->idp_name, C_TASK, kw_task, gobj);
+        gobj_subscribe_event(priv->gobj_discovery_task, EV_END_TASK, NULL, gobj);
+        gobj_set_volatil(priv->gobj_discovery_task, TRUE);
+
+        gobj_start(priv->gobj_discovery_task);
+        if(!gobj_is_running(priv->gobj_idprovider)) {
+            gobj_start(priv->gobj_idprovider);
+        }
+
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "👤BFF OIDC discovery started: issuer=%s",
+                priv->issuer);
+        }
+    }
     return 0;
 }
 
@@ -414,6 +498,11 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_discovery_task && gobj_is_running(priv->gobj_discovery_task)) {
+        gobj_stop(priv->gobj_discovery_task);
+    }
+    priv->gobj_discovery_task = NULL;
 
     if(priv->gobj_task && gobj_is_running(priv->gobj_task)) {
         gobj_stop(priv->gobj_task);
@@ -563,15 +652,19 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_array_append_new(jn_queue, jn_entry);
     }
 
-    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:I, s:i, s:o}",
-        "name",             gobj_name(gobj),
-        "full_name",        gobj_short_name(gobj),
-        "processing",       priv->processing ? 1 : 0,
-        "has_active_http",  priv->gobj_idprovider ? 1 : 0,
-        "active_http",      priv->gobj_idprovider ? gobj_short_name(priv->gobj_idprovider) : "",
-        "q_count",          (json_int_t)dl_size(&priv->dl_pending),
-        "q_max",            priv->queue_size_max,
-        "queue",            jn_queue
+    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:I, s:i, s:o, s:b, s:s, s:s, s:s}",
+        "name",                 gobj_name(gobj),
+        "full_name",            gobj_short_name(gobj),
+        "processing",           priv->processing ? 1 : 0,
+        "has_active_http",      priv->gobj_idprovider ? 1 : 0,
+        "active_http",          priv->gobj_idprovider ? gobj_short_name(priv->gobj_idprovider) : "",
+        "q_count",              (json_int_t)dl_size(&priv->dl_pending),
+        "q_max",                priv->queue_size_max,
+        "queue",                jn_queue,
+        "discovery_done",       priv->discovery_done ? 1 : 0,
+        "issuer",               priv->issuer,
+        "token_endpoint",       priv->token_url,
+        "end_session_endpoint", priv->end_session_url
     );
 
     return msg_iev_build_response(
@@ -1305,7 +1398,27 @@ PRIVATE json_t *get_token_from_idp(
         gobj, output_data, "_action", 0, KW_REQUIRED);
 
     char resource[PATH_MAX];
-    build_path(resource, sizeof(resource), priv->path, "token", NULL);
+    {
+        char ep_schema[32], ep_host[256], ep_port[16];
+        if(parse_url(gobj,
+                priv->token_url,
+                ep_schema, sizeof(ep_schema),
+                ep_host,   sizeof(ep_host),
+                ep_port,   sizeof(ep_port),
+                resource,  sizeof(resource),
+                NULL, 0,
+                FALSE) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",  "%s", __FUNCTION__,
+                "msgset",    "%s", MSGSET_PROTOCOL,
+                "msg",       "%s", "👤BFF invalid token_endpoint URL",
+                "token_url", "%s", priv->token_url,
+                NULL
+            );
+            KW_DECREF(kw)
+            STOP_TASK()
+        }
+    }
 
     json_t *jn_headers = json_pack("{s:s}",
         "Content-Type", "application/x-www-form-urlencoded"
@@ -1405,7 +1518,27 @@ PRIVATE json_t *get_logout_from_idp(
     const char *cs        = gobj_read_str_attr(gobj, "client_secret");
 
     char resource[PATH_MAX];
-    build_path(resource, sizeof(resource), priv->path, "logout", NULL);
+    {
+        char ep_schema[32], ep_host[256], ep_port[16];
+        if(parse_url(gobj,
+                priv->end_session_url,
+                ep_schema, sizeof(ep_schema),
+                ep_host,   sizeof(ep_host),
+                ep_port,   sizeof(ep_port),
+                resource,  sizeof(resource),
+                NULL, 0,
+                FALSE) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",        "%s", __FUNCTION__,
+                "msgset",          "%s", MSGSET_PROTOCOL,
+                "msg",             "%s", "👤BFF invalid end_session_endpoint URL",
+                "end_session_url", "%s", priv->end_session_url,
+                NULL
+            );
+            KW_DECREF(kw)
+            STOP_TASK()
+        }
+    }
 
     json_t *jn_headers = json_pack("{s:s}", "Content-Type",
         "application/x-www-form-urlencoded");
@@ -1538,6 +1671,124 @@ PRIVATE json_t *send_logout_to_browser(
 }
 
 /***************************************************************************
+ *  OIDC discovery: GET <issuer>/.well-known/openid-configuration.
+ *  Action job of the discovery task fired in mt_start.
+ ***************************************************************************/
+PRIVATE json_t *discover_oidc(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src_task
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char ep_schema[32], ep_host[256], ep_port[16], ep_path[1024];
+    if(parse_url(gobj,
+            priv->issuer,
+            ep_schema, sizeof(ep_schema),
+            ep_host,   sizeof(ep_host),
+            ep_port,   sizeof(ep_port),
+            ep_path,   sizeof(ep_path),
+            NULL, 0,
+            FALSE) < 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PROTOCOL,
+            "msg",      "%s", "👤BFF discovery: invalid issuer URL",
+            "issuer",   "%s", priv->issuer,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    char resource[PATH_MAX];
+    build_path(resource, sizeof(resource),
+        ep_path, ".well-known", "openid-configuration", NULL);
+
+    json_t *jn_headers = json_pack("{s:s}",
+        "Accept", "application/json"
+    );
+    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
+        "method",   "GET",
+        "resource", resource,
+        "query",    "",
+        "headers",  jn_headers,
+        "data",     json_object()
+    );
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "👤BFF ⏩ discovery: GET %s", resource);
+    }
+
+    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
+ *  OIDC discovery: parse response body, cache token_endpoint and
+ *  end_session_endpoint, drain pending requests via process_next.
+ ***************************************************************************/
+PRIVATE json_t *save_oidc_discovery(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src_task
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    if(status != 200) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PROTOCOL,
+            "msg",      "%s", "👤BFF OIDC discovery failed",
+            "status",   "%d", status,
+            "issuer",   "%s", priv->issuer,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+    const char *token_ep = jn_body ?
+        kw_get_str(gobj, jn_body, "token_endpoint", "", 0) : "";
+    const char *end_session_ep = jn_body ?
+        kw_get_str(gobj, jn_body, "end_session_endpoint", "", 0) : "";
+
+    if(empty_string(token_ep) || empty_string(end_session_ep)) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_PROTOCOL,
+            "msg",                  "%s", "👤BFF OIDC discovery: missing required endpoints in response",
+            "token_endpoint",       "%s", token_ep,
+            "end_session_endpoint", "%s", end_session_ep,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    snprintf(priv->token_url, sizeof(priv->token_url), "%s", token_ep);
+    snprintf(priv->end_session_url, sizeof(priv->end_session_url), "%s", end_session_ep);
+    priv->discovery_done = TRUE;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "👤BFF ⏪ discovery OK: token=%s end_session=%s",
+            priv->token_url, priv->end_session_url);
+    }
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
  *  Start processing the next pending auth request.
  ***************************************************************************/
 PRIVATE void process_next(hgobj gobj)
@@ -1545,6 +1796,14 @@ PRIVATE void process_next(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->processing || dl_size(&priv->dl_pending) == 0) {
+        return;
+    }
+    if(!priv->discovery_done) {
+        /*
+         *  OIDC endpoints not yet resolved (discovery in flight or no
+         *  IdP configured).  Keep requests queued; this function will
+         *  be re-driven from ac_end_task once discovery completes.
+         */
         return;
     }
 
@@ -1556,25 +1815,15 @@ PRIVATE void process_next(hgobj gobj)
     priv->processing = TRUE;
     priv->task_valid = TRUE;
 
-    /* Build IdP URL from parsed parts */
-    char idp_token_url[PATH_MAX * 2];
-    char idp_token_path[PATH_MAX];
-    build_path(idp_token_path, sizeof(idp_token_path), priv->path, "token", NULL);
-    snprintf(idp_token_url, sizeof(idp_token_url),
-        "%s://%s%s%s%s",
-        priv->schema,
-        priv->host,
-        empty_string(priv->port) ? "" : ":",
-        empty_string(priv->port) ? "" : priv->port,
-        idp_token_path
-    );
+    const char *target_url =
+        (pa->action == BFF_LOGOUT) ? priv->end_session_url : priv->token_url;
 
     priv->st_idp_calls++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
             "👤BFF ⏩ IdP: action=%s url=%s queue_after=%d",
-            action_name(pa->action), idp_token_url, (int)dl_size(&priv->dl_pending)
+            action_name(pa->action), target_url, (int)dl_size(&priv->dl_pending)
         );
     }
 
@@ -2024,6 +2273,27 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Discovery task ends separately from the auth tasks: it never
+     *  has a browser waiting, doesn't move the idp_* counters, and
+     *  must drain the pending queue once the endpoints are cached.
+     */
+    if(src == priv->gobj_discovery_task) {
+        priv->gobj_discovery_task = NULL;  /* ac_stopped will destroy it */
+        int discovery_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "👤BFF discovery task ended (result=%d, discovery_done=%d)",
+                discovery_result, priv->discovery_done ? 1 : 0
+            );
+        }
+        KW_DECREF(kw)
+        if(priv->discovery_done) {
+            process_next(gobj);
+        }
+        return 0;
+    }
+
     priv->gobj_task = NULL;  /* ac_stopped will destroy it */
     priv->processing = FALSE;
 
@@ -2109,6 +2379,8 @@ PRIVATE const GMETHODS gmt = {
 };
 
 PRIVATE LMETHOD lmt[] = {
+    {"discover_oidc",           discover_oidc,          0},
+    {"save_oidc_discovery",     save_oidc_discovery,    0},
     {"get_token_from_idp",      get_token_from_idp,     0},
     {"send_token_to_browser",   send_token_to_browser,  0},
     {"get_logout_from_idp",     get_logout_from_idp,    0},

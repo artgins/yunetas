@@ -93,6 +93,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t    st_responses_sent;
     uint64_t    st_token_requests;
     uint64_t    st_logout_requests;
+    uint64_t    st_discovery_requests;
     uint64_t    st_unknown_requests;
     uint64_t    st_deferred_responses;
     uint64_t    st_pending_cancelled;
@@ -209,16 +210,18 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->st_responses_sent     = 0;
         priv->st_token_requests     = 0;
         priv->st_logout_requests    = 0;
+        priv->st_discovery_requests = 0;
         priv->st_unknown_requests   = 0;
         priv->st_deferred_responses = 0;
         priv->st_pending_cancelled  = 0;
     }
 
-    json_t *jn_data = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
+    json_t *jn_data = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
         "requests_received",    (json_int_t)priv->st_requests_received,
         "responses_sent",       (json_int_t)priv->st_responses_sent,
         "token_requests",       (json_int_t)priv->st_token_requests,
         "logout_requests",      (json_int_t)priv->st_logout_requests,
+        "discovery_requests",   (json_int_t)priv->st_discovery_requests,
         "unknown_requests",     (json_int_t)priv->st_unknown_requests,
         "deferred_responses",   (json_int_t)priv->st_deferred_responses,
         "pending_cancelled",    (json_int_t)priv->st_pending_cancelled
@@ -542,9 +545,38 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Route by url suffix.  The BFF posts to
      *    /realms/<realm>/protocol/openid-connect/token
      *    /realms/<realm>/protocol/openid-connect/logout
+     *  and GETs
+     *    /realms/<realm>/.well-known/openid-configuration
      *  so a plain strstr is enough for the test.
      */
-    if(strstr(url, "/token")) {
+    if(strstr(url, "/.well-known/openid-configuration")) {
+        priv->st_discovery_requests++;
+        /*
+         *  OIDC discovery: derive issuer + endpoints from the request's
+         *  Host header so the BFF can reach us back on the same socket.
+         */
+        json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
+        const char *host_hdr = jn_headers ?
+            kw_get_str(gobj, jn_headers, "HOST", "127.0.0.1", 0) : "127.0.0.1";
+
+        char issuer_url[512];
+        char token_url[512];
+        char logout_url[512];
+        snprintf(issuer_url, sizeof(issuer_url),
+            "http://%s/realms/test", host_hdr);
+        snprintf(token_url, sizeof(token_url),
+            "http://%s/realms/test/protocol/openid-connect/token", host_hdr);
+        snprintf(logout_url, sizeof(logout_url),
+            "http://%s/realms/test/protocol/openid-connect/logout", host_hdr);
+
+        json_t *jn_body = json_pack("{s:s, s:s, s:s}",
+            "issuer",               issuer_url,
+            "token_endpoint",       token_url,
+            "end_session_endpoint", logout_url
+        );
+        respond_or_defer(gobj, src, 200, "200 OK", jn_body);
+
+    } else if(strstr(url, "/token")) {
         priv->st_token_requests++;
 
         int status            = (int)gobj_read_integer_attr(gobj, "return_status");

@@ -52,8 +52,7 @@
                             "name": "bff-(^^__range__^^)",
                             "gclass": "C_AUTH_BFF",
                             "kw": {
-                                "idp_url": "https://auth.artgins.com/",
-                                "realm": "yunetas.com",
+                                "issuer": "https://auth.artgins.com/realms/yunetas.com/",
                                 "client_id": "treedb.yunetas.com",
                                 "client_secret": "",
                                 "cookie_domain": "",

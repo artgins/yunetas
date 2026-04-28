@@ -13,6 +13,25 @@
  *  httpOnly; Secure; SameSite=Strict cookies so the browser forwards
  *  them automatically with every WebSocket HTTP Upgrade to port 1800.
  *
+ *  IdP configuration (priority order):
+ *
+ *    1. Explicit endpoints — set both `token_endpoint` and
+ *       `end_session_endpoint` to the full URLs.  Skips discovery.
+ *
+ *    2. OIDC discovery — set `issuer` to the IdP issuer URL
+ *       (e.g. https://auth.example.com/realms/foo/).  At mt_start the
+ *       BFF GETs <issuer>/.well-known/openid-configuration and caches
+ *       the resolved endpoints.  Standard OIDC, IdP-agnostic.
+ *
+ *    3. Legacy Keycloak path scheme — `idp_url` + `realm` (DEPRECATED).
+ *       Builds <idp_url>/realms/<realm>/protocol/openid-connect/token
+ *       and .../logout.  Emits a warning at startup; will be removed
+ *       in a future release.  Migrate to (1) or (2).
+ *
+ *  The `iss` claim of every JWT validated by c_authz must match the
+ *  `issuer` value returned by the discovery document (or the issuer of
+ *  the IdP backing the explicit endpoints).
+ *
  *  Copyright (c) 2026, ArtGins.
  *  All Rights Reserved.
  ****************************************************************************/
