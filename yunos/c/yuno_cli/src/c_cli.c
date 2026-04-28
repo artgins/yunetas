@@ -3485,6 +3485,29 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_on_id_nak(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(!gobj_is_running(gobj)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    hgobj wn_display_console = get_display_window(gobj, "console");
+    display_webix_result(
+        gobj,
+        wn_display_console,
+        kw_incref(kw)
+    );
+
+    // set_top_window(gobj, "console");
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  Response from agent mt_stats
  *  Response from agent mt_command
  *  Response to asynchronous queries
@@ -4078,6 +4101,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_NEXT_WINDOW,            ac_next_window,         0},
         {EV_ON_OPEN,                ac_on_open,             0},
         {EV_ON_CLOSE,               ac_on_close,            0},
+        {EV_ON_ID_NAK,              ac_on_id_nak,           0},
         {EV_MT_STATS_ANSWER,        ac_mt_command_answer,   0},
         {EV_MT_COMMAND_ANSWER,      ac_mt_command_answer,   0},
         {EV_EDIT_CONFIG,            ac_edit_config,         0},
@@ -4127,6 +4151,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,              0},
         {EV_ON_CLOSE,             0},
         {EV_ON_TOKEN,             0},
+        {EV_ON_ID_NAK,            0},
         {EV_STOPPED,              0},
         {NULL, 0}
     };
