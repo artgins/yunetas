@@ -112,7 +112,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'bff-1',                        \n\
                             'gclass': 'C_AUTH_BFF',                 \n\
                             'kw': {                                 \n\
-                                'issuer': 'http://127.0.0.1:"KC_PORT"/realms/test/', \n\
+                                'token_endpoint': 'http://127.0.0.1:"KC_PORT"/realms/test/protocol/openid-connect/token', \n\
+                                'end_session_endpoint': 'http://127.0.0.1:"KC_PORT"/realms/test/protocol/openid-connect/logout', \n\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
                                 'cookie_domain': '',                \n\

@@ -554,6 +554,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  OIDC discovery: derive issuer + endpoints from the request's
          *  Host header so the BFF can reach us back on the same socket.
+         *
+         *  Always answered synchronously, regardless of latency_ms.
+         *  latency_ms emulates a slow /token endpoint (the test's
+         *  subject-under-test); discovery is BFF startup wiring and
+         *  must not contend for the single pending-response slot, or
+         *  the real flow would race against it (test7: bumps
+         *  responses_sent/deferred_responses; test8: holds the BFF in
+         *  !discovery_done while POSTs pile up in dl_pending).
          */
         json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
         const char *host_hdr = jn_headers ?
@@ -574,7 +582,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "token_endpoint",       token_url,
             "end_session_endpoint", logout_url
         );
-        respond_or_defer(gobj, src, 200, "200 OK", jn_body);
+        /*
+         *  Send inline (not via mk_send_json) so the discovery exchange
+         *  does NOT increment st_responses_sent — every test's mock-KC
+         *  assertions count token+logout responses only; discovery has
+         *  its own st_discovery_requests counter.
+         */
+        json_t *kw_resp = json_pack("{s:s, s:s, s:o}",
+            "code",     "200 OK",
+            "headers",  "",
+            "body",     jn_body
+        );
+        gobj_send_event(src, EV_SEND_MESSAGE, kw_resp, gobj);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "mock-kc → %s: discovery 200", gobj_short_name(src)
+            );
+        }
 
     } else if(strstr(url, "/token")) {
         priv->st_token_requests++;
