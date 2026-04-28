@@ -527,7 +527,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t 
         NULL
     );
 
-    ws_close(gobj, -1);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -725,7 +725,7 @@ PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t 
         NULL
     );
 
-    ws_close(gobj, -1);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
