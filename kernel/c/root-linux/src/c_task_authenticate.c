@@ -2,7 +2,26 @@
  *          c_task_authenticate.c
  *          Task_authenticate GClass.
  *
- *          Task to authenticate with OAuth2 against keycloak (WARNING by now only tested in keycloak)
+ *          Task to authenticate with OAuth2 against an OIDC IdP.
+ *
+ *  IdP configuration (priority order — same scheme as c_auth_bff):
+ *
+ *    1. Explicit endpoints — set both 'token_endpoint' and
+ *       'end_session_endpoint' to the full URLs.  Skips discovery.
+ *
+ *    2. OIDC discovery — set 'issuer' to the IdP issuer URL
+ *       (e.g. https://auth.example.com/realms/foo/).  At mt_start the
+ *       task chain prepends a discovery GET of
+ *       <issuer>/.well-known/openid-configuration; resolved endpoints
+ *       are cached in priv before action_get_token runs.
+ *
+ *    3. Legacy 'auth_url' (DEPRECATED).  Builds
+ *       <auth_url>/protocol/openid-connect/{token,logout}.  Emits a
+ *       warning at startup; will be removed in a future release.
+ *
+ *  The 'auth_system' attr no longer routes flow selection (the
+ *  SWITCHS body falls through identically for any value).  It is
+ *  preserved for back-compat but documented as deprecated.
 
 Example of id_token
 -------------------
@@ -176,8 +195,11 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
 SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{}",           "Crypto config"),
-SDATA (DTP_STRING,      "auth_system",      SDF_RD,         "keycloak",     "OpenID System(interactive jwt)"),
-SDATA (DTP_STRING,      "auth_url",         SDF_RD,         "",             "OpenID Endpoint (interactive jwt)"),
+SDATA (DTP_STRING,      "issuer",           SDF_RD,         "",             "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
+SDATA (DTP_STRING,      "token_endpoint",   SDF_RD,         "",             "Explicit OAuth2 token endpoint URL. Overrides discovery"),
+SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD,     "",             "Explicit OIDC end_session endpoint URL. Overrides discovery"),
+SDATA (DTP_STRING,      "auth_system",      SDF_RD,         "keycloak",     "DEPRECATED: no longer routes flow selection. Kept for back-compat"),
+SDATA (DTP_STRING,      "auth_url",         SDF_RD,         "",             "DEPRECATED: use 'issuer' or explicit endpoints. Legacy Keycloak base URL <auth_url>/protocol/openid-connect/{token,logout}"),
 SDATA (DTP_STRING,      "user_id",          SDF_RD,         "",             "OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,              "",             "OAuth2 User Password (interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              SDF_RD,         "",             "OAuth2 Authorized Party  (jwt's azp field - interactive jwt)"),
@@ -207,11 +229,18 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    char schema[32];
-    char host[120];
-    char port[40];
-    char path[2*1024];
-    char query[4*1024];
+    /*
+     *  OIDC endpoints (full URLs).  Resolved in mt_start from one of:
+     *    1. Explicit token_endpoint + end_session_endpoint attrs
+     *    2. OIDC discovery (<issuer>/.well-known/openid-configuration)
+     *    3. Legacy auth_url (Keycloak path scheme — deprecated)
+     *  The discovery flow chains action_discover/result_save_discovery
+     *  in front of action_get_token in the C_TASK jobs array.
+     */
+    char    issuer[512];                 /* copy of attr; "" if not configured */
+    char    token_url[PATH_MAX];         /* full URL — empty until discovery resolves it */
+    char    end_session_url[PATH_MAX];   /* full URL — empty until discovery resolves it */
+    BOOL    discovery_done;              /* TRUE once endpoints are usable */
 
     hgobj gobj_http;
 } PRIVATE_DATA;
@@ -278,30 +307,72 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*-----------------------------*
-     *      Create http
+     *  OIDC endpoint resolution priority:
+     *    1. Explicit token_endpoint + end_session_endpoint    -> use directly
+     *    2. issuer                                            -> discover at startup
+     *    3. Legacy auth_url (Keycloak path scheme)            -> deprecated, warn
+     *    4. None                                              -> error, refuse to start
+     *
+     *  http_url is the URL passed to C_PROT_HTTP_CL/C_TCP for the
+     *  outbound connection (only host/port matter; the path of each
+     *  request is set per-call via the `resource` field).
      *-----------------------------*/
-    const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
-    int r = parse_url(gobj,
-        auth_url,
-        priv->schema, sizeof(priv->schema),
-        priv->host, sizeof(priv->host),
-        priv->port, sizeof(priv->port),
-        priv->path, sizeof(priv->path),
-        priv->query, sizeof(priv->query),
-        FALSE
-    );
-    if(r < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK,
-            "msg",          "%s", "BAD url parsing",
-            "url",          "%s", auth_url,
+    const char *token_endpoint       = gobj_read_str_attr(gobj, "token_endpoint");
+    const char *end_session_endpoint = gobj_read_str_attr(gobj, "end_session_endpoint");
+    const char *issuer               = gobj_read_str_attr(gobj, "issuer");
+    const char *auth_url             = gobj_read_str_attr(gobj, "auth_url");
+
+    const char *http_url = NULL;
+
+    if(!empty_string(token_endpoint) && !empty_string(end_session_endpoint)) {
+        snprintf(priv->token_url, sizeof(priv->token_url), "%s",
+            token_endpoint);
+        snprintf(priv->end_session_url, sizeof(priv->end_session_url), "%s",
+            end_session_endpoint);
+        priv->discovery_done = TRUE;
+        http_url = token_endpoint;
+    } else if(!empty_string(issuer)) {
+        snprintf(priv->issuer, sizeof(priv->issuer), "%s", issuer);
+        priv->discovery_done = FALSE;
+        http_url = issuer;
+    } else if(!empty_string(auth_url)) {
+        /*
+         *  Legacy Keycloak path scheme.  Strip a trailing slash from
+         *  auth_url before composing so we don't end up with a double
+         *  slash in "<auth_url>//protocol/...".
+         */
+        size_t len = strlen(auth_url);
+        char base[PATH_MAX];
+        snprintf(base, sizeof(base), "%s", auth_url);
+        if(len > 0 && base[len-1] == '/') {
+            base[len-1] = 0;
+        }
+        snprintf(priv->token_url, sizeof(priv->token_url),
+            "%s/protocol/openid-connect/token", base);
+        snprintf(priv->end_session_url, sizeof(priv->end_session_url),
+            "%s/protocol/openid-connect/logout", base);
+        priv->discovery_done = TRUE;
+        http_url = auth_url;
+        gobj_log_warning(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PARAMETER,
+            "msg",      "%s", "task_authenticate: 'auth_url' is deprecated; use 'issuer' or explicit endpoints",
+            "auth_url", "%s", auth_url,
             NULL
         );
+    } else {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PARAMETER,
+            "msg",      "%s", "task_authenticate: no IdP configured: set 'issuer' or 'token_endpoint'+'end_session_endpoint'",
+            NULL
+        );
+        return -1;
     }
-    if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
-        priv->path[strlen(priv->path)-1] = 0;
-    }
+
+    /*-----------------------------*
+     *      Create http
+     *-----------------------------*/
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
     priv->gobj_http = gobj_create(
@@ -309,7 +380,7 @@ PRIVATE int mt_start(hgobj gobj)
         C_PROT_HTTP_CL,
         json_pack("{s:I, s:s}",
             "subscriber", (json_int_t)0,
-            "url", auth_url
+            "url", http_url
         ),
         gobj
     );
@@ -323,27 +394,41 @@ PRIVATE int mt_start(hgobj gobj)
        gobj_create_pure_child(
            gobj_name(gobj),
            C_TCP,
-           json_pack("{s:s, s:O}", "url", auth_url, "crypto", jn_crypto),
+           json_pack("{s:s, s:O}", "url", http_url, "crypto", jn_crypto),
            priv->gobj_http
        )
    );
 
     /*-----------------------------*
      *      Create the task
+     *
+     *  When discovery is needed, prepend [action_discover,
+     *  result_save_discovery] to the existing token/logout chain so
+     *  endpoints are resolved on the same connection before the auth
+     *  flow runs.
      *-----------------------------*/
+    json_t *jobs = json_array();
+    if(!priv->discovery_done) {
+        json_array_append_new(jobs, json_pack("{s:s, s:s}",
+            "exec_action", "action_discover",
+            "exec_result", "result_save_discovery"
+        ));
+    }
+    json_array_append_new(jobs, json_pack("{s:s, s:s}",
+        "exec_action", "action_get_token",
+        "exec_result", "result_get_token"
+    ));
+    json_array_append_new(jobs, json_pack("{s:s, s:s}",
+        "exec_action", "action_logout",
+        "exec_result", "result_logout"
+    ));
+
     json_t *kw_task = json_pack(
-        "{s:o, s:o, s:o, s:["
-            "{s:s, s:s},"
-            "{s:s, s:s}"
-        "]}",
-        "gobj_jobs", json_integer((json_int_t)(uintptr_t)gobj),
+        "{s:o, s:o, s:o, s:o}",
+        "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
         "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
-        "output_data", json_object(),
-        "jobs",
-            "exec_action", "action_get_token",
-            "exec_result", "result_get_token",
-            "exec_action", "action_logout",
-            "exec_result", "result_logout"
+        "output_data",  json_object(),
+        "jobs",         jobs
     );
 
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
@@ -440,6 +525,126 @@ PRIVATE int publish_token(
 
 
 /***************************************************************************
+ *  OIDC discovery: GET <issuer>/.well-known/openid-configuration.
+ *  Prepended to the task chain when 'issuer' is configured and no
+ *  explicit endpoint override is provided.
+ ***************************************************************************/
+PRIVATE json_t *action_discover(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src // Source is the GCLASS_TASK
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char ep_schema[32], ep_host[256], ep_port[16], ep_path[1024];
+    if(parse_url(gobj,
+            priv->issuer,
+            ep_schema, sizeof(ep_schema),
+            ep_host,   sizeof(ep_host),
+            ep_port,   sizeof(ep_port),
+            ep_path,   sizeof(ep_path),
+            NULL, 0,
+            FALSE) < 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_TASK,
+            "msg",      "%s", "task_authenticate: invalid issuer URL",
+            "issuer",   "%s", priv->issuer,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    char resource[PATH_MAX];
+    build_path(resource, sizeof(resource),
+        ep_path, ".well-known", "openid-configuration", NULL);
+
+    json_t *jn_headers = json_pack("{s:s}",
+        "Accept", "application/json"
+    );
+    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
+        "method",   "GET",
+        "resource", resource,
+        "query",    "",
+        "headers",  jn_headers,
+        "data",     json_object()
+    );
+
+    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
+ *  OIDC discovery: parse the response body, cache token_endpoint and
+ *  end_session_endpoint in priv.  Failure publishes EV_ON_TOKEN with
+ *  result=-1 so the caller doesn't hang waiting for it.
+ ***************************************************************************/
+PRIVATE json_t *result_save_discovery(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src // Source is the GCLASS_TASK
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *output_data_ = gobj_read_json_attr(src, "output_data");
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    if(status != 200) {
+        json_object_set_new(output_data_, "comment",
+            json_sprintf("OIDC discovery failed: status=%d", status)
+        );
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_TASK,
+            "msg",      "%s", "task_authenticate: OIDC discovery failed",
+            "status",   "%d", status,
+            "issuer",   "%s", priv->issuer,
+            NULL
+        );
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+    const char *token_ep = jn_body ?
+        kw_get_str(gobj, jn_body, "token_endpoint", "", 0) : "";
+    const char *end_session_ep = jn_body ?
+        kw_get_str(gobj, jn_body, "end_session_endpoint", "", 0) : "";
+
+    if(empty_string(token_ep) || empty_string(end_session_ep)) {
+        json_object_set_new(output_data_, "comment",
+            json_string("OIDC discovery: missing required endpoints in response")
+        );
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TASK,
+            "msg",                  "%s", "task_authenticate: OIDC discovery missing endpoints",
+            "token_endpoint",       "%s", token_ep,
+            "end_session_endpoint", "%s", end_session_ep,
+            NULL
+        );
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    snprintf(priv->token_url, sizeof(priv->token_url), "%s", token_ep);
+    snprintf(priv->end_session_url, sizeof(priv->end_session_url),
+        "%s", end_session_ep);
+    priv->discovery_done = TRUE;
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *action_get_token(
@@ -459,8 +664,27 @@ PRIVATE json_t *action_get_token(
     SWITCHS(auth_system) {
         CASES("keycloak")
         DEFAULTS
+        {
             char resource[PATH_MAX];
-            build_path(resource, sizeof(resource), priv->path, "protocol/openid-connect/token", NULL);
+            char ep_schema[32], ep_host[256], ep_port[16];
+            if(parse_url(gobj,
+                    priv->token_url,
+                    ep_schema, sizeof(ep_schema),
+                    ep_host,   sizeof(ep_host),
+                    ep_port,   sizeof(ep_port),
+                    resource,  sizeof(resource),
+                    NULL, 0,
+                    FALSE) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",  "%s", __FUNCTION__,
+                    "msgset",    "%s", MSGSET_TASK,
+                    "msg",       "%s", "task_authenticate: invalid token_endpoint URL",
+                    "token_url", "%s", priv->token_url,
+                    NULL
+                );
+                KW_DECREF(kw)
+                STOP_TASK()
+            }
 
             json_t *jn_headers = json_pack("{s:s}",
                 "Content-Type", "application/x-www-form-urlencoded"
@@ -485,6 +709,7 @@ PRIVATE json_t *action_get_token(
             );
             gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
             break;
+        }
     } SWITCHS_END
 
     KW_DECREF(kw)
@@ -634,12 +859,27 @@ PRIVATE json_t *action_logout(
     SWITCHS(auth_system) {
         CASES("keycloak")
         DEFAULTS
+        {
             char resource[PATH_MAX];
-            snprintf(
-                resource, sizeof(resource),
-                "%s/protocol/openid-connect/logout",
-                priv->path
-            );
+            char ep_schema[32], ep_host[256], ep_port[16];
+            if(parse_url(gobj,
+                    priv->end_session_url,
+                    ep_schema, sizeof(ep_schema),
+                    ep_host,   sizeof(ep_host),
+                    ep_port,   sizeof(ep_port),
+                    resource,  sizeof(resource),
+                    NULL, 0,
+                    FALSE) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",        "%s", __FUNCTION__,
+                    "msgset",          "%s", MSGSET_TASK,
+                    "msg",             "%s", "task_authenticate: invalid end_session_endpoint URL",
+                    "end_session_url", "%s", priv->end_session_url,
+                    NULL
+                );
+                KW_DECREF(kw)
+                STOP_TASK()
+            }
 
             char authorization[1024];
             snprintf(authorization, sizeof(authorization), "Bearer %s", access_token);
@@ -664,6 +904,7 @@ PRIVATE json_t *action_logout(
             );
             gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
             break;
+        }
     } SWITCHS_END
 
 
@@ -782,10 +1023,12 @@ PRIVATE const GMETHODS gmt = {
  *              Local methods table
  *---------------------------------------------*/
 PRIVATE LMETHOD lmt[] = {
-    {"action_get_token",            action_get_token,   0},
-    {"result_get_token",            result_get_token,   0},
-    {"action_logout",               action_logout,      0},
-    {"result_logout",               result_logout,      0},
+    {"action_discover",             action_discover,        0},
+    {"result_save_discovery",       result_save_discovery,  0},
+    {"action_get_token",            action_get_token,       0},
+    {"result_get_token",            result_get_token,       0},
+    {"action_logout",               action_logout,          0},
+    {"result_logout",               result_logout,          0},
     {0, 0, 0}
 };
 
