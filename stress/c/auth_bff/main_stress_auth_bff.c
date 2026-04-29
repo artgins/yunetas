@@ -119,8 +119,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'bff-(^^__range__^^)',          \n\
                             'gclass': 'C_AUTH_BFF',                 \n\
                             'kw': {                                 \n\
-                                'keycloak_url': 'http://127.0.0.1:"KC_PORT"/', \n\
-                                'realm':        'test',             \n\
+                                'issuer': 'http://127.0.0.1:"KC_PORT"/realms/test/', \n\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
                                 'cookie_domain': '',                \n\
