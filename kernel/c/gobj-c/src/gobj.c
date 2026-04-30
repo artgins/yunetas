@@ -2730,6 +2730,16 @@ PRIVATE int json2sdata(
         if(!(flag == -1 || (it->flag & flag))) {
             continue;
         }
+        if(it->flag & SDF_DEPRECATED) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Deprecated attribute used in gobj creation",
+                "gclass",       "%s", gobj_gclass_name(gobj),
+                "attr",         "%s", key,
+                NULL
+            );
+        }
         ret += json2item(gobj, hsdata, it, jn_value);
     }
 

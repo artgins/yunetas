@@ -1338,6 +1338,9 @@ function json2sdata(
         if(!(flag === -1 || (it.flag & flag))) {
             continue;
         }
+        if(it.flag & sdata_flag_t.SDF_DEPRECATED) {
+            log_warning(`${gobj_short_name(gobj)}: Deprecated attribute used in gobj creation: ${key}`);
+        }
         ret += json2item(gobj, hsdata, it, jn_value);
     }
 
