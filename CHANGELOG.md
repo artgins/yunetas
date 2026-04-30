@@ -1,6 +1,54 @@
 # **Changelog**
 
 ## Unreleased
+    - **breaking(auth): standard OIDC migration of `c_auth_bff` and
+      `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints
+      in the same priority order:
+
+        1. Explicit `token_endpoint` + `end_session_endpoint` attrs
+           (full URLs, skips discovery — one fewer round-trip).
+        2. `issuer` attr — task chain prepends a GET of
+           `<issuer>/.well-known/openid-configuration` and caches the
+           resolved endpoints in priv before the auth flow runs.
+        3. Refuse to start.
+
+      Any conformant OIDC IdP works (Keycloak, Auth0, Cognito, Azure AD,
+      Authentik, ...).  Hardcoded Keycloak path scheme removed.
+
+      - **`c_task_authenticate` and its 6 callers** (`c_cli`, `c_mqtt_tui`,
+        `c_ycommand`, `c_ystats`, `c_ytests`, `c_ybatch`) had their
+        legacy `auth_url`+`auth_system` attrs **removed outright** and
+        the `azp` attr **renamed to `client_id`** to match the form
+        parameter actually sent on `/token` and `/logout`.
+      - **CLI flag set** in `ycommand` / `ystats` / `ytests` / `ybatch` /
+        `mqtt_tui` is now `-I/--issuer`, `-T/--token-endpoint`,
+        `-E/--end-session-endpoint`, `-Z/--client-id`.  Old `-K/--auth_system`,
+        `-k/--auth_url` and `-Z/--azp` (renamed) are gone.
+      - **`c_auth_bff` keeps `idp_url`+`realm`** as a deprecated path
+        (warning fired at `mt_create`); removal scheduled once one
+        release has shipped with the warning in place.  See
+        [`TODO.md`](TODO.md) for the remaining smoke tests against
+        non-Keycloak IdPs and the open ROPC-vs-PKCE question.
+
+    - **feat(gobj, gobj-js): `SDF_DEPRECATED` attribute flag**.  New
+      sdata flag (`0x00000100`) to mark a gclass attribute as deprecated.
+      Both the C runtime and the JS runtime emit a warning when a
+      deprecated attribute is set during gobj creation, naming the
+      gclass and the attr.  First adopter: `c_authz::authz_yuno_role`
+      (use `authz_service` instead).
+
+    - **test(c_task_authenticate)**: new self-contained suite under
+      `tests/c/c_task_authenticate/` (`test1_discovery`,
+      `test2_explicit_endpoints`, `test4_discovery_failure`).  Mock IdP
+      gclass with `override_*_body` knobs for failure injection;
+      shared `test_main.c` boilerplate; the driver subscribes to
+      `EV_ON_TOKEN`, asserts the result code, and dies.
+
+    - **test(c_auth_bff)**: new `test17_legacy_idp_url` covers the
+      `idp_url`+`realm` deprecation path that tests 1–16 missed.
+      Captures the deprecation warning at `LOG_OPT_UP_WARNING` and
+      drives the full login flow against the same mock-Keycloak.
+
     - **feat(lib-yui): declarative app shell `C_YUI_SHELL` + `C_YUI_NAV`**.
       A JSON-driven replacement for `C_YUI_MAIN` + `C_YUI_ROUTING`, shipped
       alongside the legacy stack (no migration planned — see
