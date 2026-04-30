@@ -73,6 +73,7 @@ SET(TESTS
     test14_method_not_allowed
     test15_missing_body
     test16_unknown_endpoint
+    test17_legacy_idp_url
 )
 
 foreach(test ${TESTS})
