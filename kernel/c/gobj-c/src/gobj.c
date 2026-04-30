@@ -240,7 +240,7 @@ PRIVATE const char *sdata_flag_names[] = {
     "SDF_VOLATIL",
     "SDF_RESOURCE",
     "SDF_PKEY",
-    "SDF_FUTURE1",
+    "SDF_DEPRECATED",
     "SDF_FUTURE2",
     "SDF_WILD_CMD",
     "SDF_STATS",

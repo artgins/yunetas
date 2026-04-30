@@ -115,7 +115,7 @@ const sdata_flag_t = Object.freeze({
     SDF_VOLATIL:    0x00000020,
     SDF_RESOURCE:   0x00000040,
     SDF_PKEY:       0x00000080,
-    SDF_FUTURE1:    0x00000100,
+    SDF_DEPRECATED: 0x00000100,
     SDF_FUTURE2:    0x00000200,
     SDF_WILD_CMD:   0x00000400,
     SDF_STATS:      0x00000800,
