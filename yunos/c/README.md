@@ -329,10 +329,11 @@ MQTT:
   --will-retain RETAIN               Last Will retain
   --will-properties JSON             Last Will properties (v5)
 
-OAuth2:
-  -K, --auth_system SYSTEM           OpenID system (default: keycloak)
-  -k, --auth_url URL                 OpenID endpoint
-  -Z, --azp AZP                      Authorized Party
+OAuth2 / OIDC:
+  -I, --issuer URL                   OIDC issuer URL (triggers discovery)
+  -T, --token-endpoint URL           Explicit OAuth2 token endpoint
+  -E, --end-session-endpoint URL     Explicit OIDC end_session endpoint
+  -Z, --client-id CLIENT_ID          OAuth2 client_id
   -u, --user_id USER_ID              Username or OAuth2 user ID
   -U, --user_passw PASSWORD          OAuth2 password
   -P, --mqtt_passw PASSWORD          MQTT password

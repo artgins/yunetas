@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(test_c_auth_bff C)
+project(test_c_task_authenticate C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -49,39 +49,24 @@ endif()
 #   Shared sources used by every test binary
 ##############################################
 SET(SHARED_SRCS
-    c_mock_keycloak.c
-    test_helpers.c
+    c_mock_idp.c
+    c_test_driver.c
+    test_main.c
 )
 
 ##############################################
-#   Tests — one binary per { main_<name>.c, c_<name>.c } pair
+#   Tests — one binary per main_<name>.c
 ##############################################
 SET(TESTS
-    test1_login
-    test2_kc_401
-    test3_callback
-    test4_refresh
-    test5_logout
-    test6_invalid_body
-    test7_slow_login
-    test8_queue_full
-    test9_browser_cancel
-    test10_kc_silence
-    test11_cancel_retry
-    test12_stale_reply
-    test13_refresh_expired
-    test14_method_not_allowed
-    test15_missing_body
-    test16_unknown_endpoint
-    test17_legacy_idp_url
-    test18_discovery_failure
+    test1_discovery
+    test2_explicit_endpoints
+    test4_discovery_failure
 )
 
 foreach(test ${TESTS})
-    set(binary "test_auth_bff_${test}")
+    set(binary "test_task_authenticate_${test}")
     add_yuno_executable(${binary}
         "main_${test}.c"
-        "c_${test}.c"
         ${SHARED_SRCS}
     )
 

@@ -7,21 +7,14 @@
  *  IdP configuration (priority order — same scheme as c_auth_bff):
  *
  *    1. Explicit endpoints — set both 'token_endpoint' and
- *       'end_session_endpoint' to the full URLs.  Skips discovery.
+ *       'end_session_endpoint' to the full URLs.  Skips discovery
+ *       (one fewer round-trip to the IdP at startup).
  *
  *    2. OIDC discovery — set 'issuer' to the IdP issuer URL
  *       (e.g. https://auth.example.com/realms/foo/).  At mt_start the
  *       task chain prepends a discovery GET of
  *       <issuer>/.well-known/openid-configuration; resolved endpoints
  *       are cached in priv before action_get_token runs.
- *
- *    3. Legacy 'auth_url' (DEPRECATED).  Builds
- *       <auth_url>/protocol/openid-connect/{token,logout}.  Emits a
- *       warning at startup; will be removed in a future release.
- *
- *  The 'auth_system' attr no longer routes flow selection (the
- *  SWITCHS body falls through identically for any value).  It is
- *  preserved for back-compat but documented as deprecated.
 
 Example of id_token
 -------------------
@@ -195,14 +188,12 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
 SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{}",           "Crypto config"),
-SDATA (DTP_STRING,      "issuer",           SDF_RD,         "",             "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
-SDATA (DTP_STRING,      "token_endpoint",   SDF_RD,         "",             "Explicit OAuth2 token endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD,     "",             "Explicit OIDC end_session endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "auth_system",      SDF_RD,         "keycloak",     "DEPRECATED: no longer routes flow selection. Kept for back-compat"),
-SDATA (DTP_STRING,      "auth_url",         SDF_RD,         "",             "DEPRECATED: use 'issuer' or explicit endpoints. Legacy Keycloak base URL <auth_url>/protocol/openid-connect/{token,logout}"),
+SDATA (DTP_STRING,      "issuer",           SDF_RD,         "",             "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration. Overridden by token_endpoint+end_session_endpoint when both are set"),
+SDATA (DTP_STRING,      "token_endpoint",   SDF_RD,         "",             "Explicit OAuth2 token endpoint URL. Skips discovery when set together with end_session_endpoint"),
+SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD,     "",             "Explicit OIDC end_session endpoint URL. Skips discovery when set together with token_endpoint"),
 SDATA (DTP_STRING,      "user_id",          SDF_RD,         "",             "OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,              "",             "OAuth2 User Password (interactive jwt)"),
-SDATA (DTP_STRING,      "azp",              SDF_RD,         "",             "OAuth2 Authorized Party  (jwt's azp field - interactive jwt)"),
+SDATA (DTP_STRING,      "client_id",        SDF_RD,         "",             "OAuth2 client_id (Keycloak/Auth0/Azure AD/...). Sent verbatim as the client_id form parameter on /token and /logout. Also matches the JWT 'azp' claim"),
 SDATA (DTP_STRING,      "access_token",     0,              "",             "Access token"),
 SDATA (DTP_STRING,      "refresh_token",    0,              "",             "Refresh token"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
@@ -230,12 +221,13 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     /*
-     *  OIDC endpoints (full URLs).  Resolved in mt_start from one of:
+     *  OIDC endpoints (full URLs).  Resolved in mt_start from either:
      *    1. Explicit token_endpoint + end_session_endpoint attrs
      *    2. OIDC discovery (<issuer>/.well-known/openid-configuration)
-     *    3. Legacy auth_url (Keycloak path scheme — deprecated)
-     *  The discovery flow chains action_discover/result_save_discovery
-     *  in front of action_get_token in the C_TASK jobs array.
+     *  When (1) applies, no discovery round-trip is issued and
+     *  discovery_done starts TRUE.  Otherwise the discovery flow
+     *  prepends action_discover/result_save_discovery to the C_TASK
+     *  jobs array in front of action_get_token.
      */
     char    issuer[512];                 /* copy of attr; "" if not configured */
     char    token_url[PATH_MAX];         /* full URL — empty until discovery resolves it */
@@ -308,10 +300,10 @@ PRIVATE int mt_start(hgobj gobj)
 
     /*-----------------------------*
      *  OIDC endpoint resolution priority:
-     *    1. Explicit token_endpoint + end_session_endpoint    -> use directly
+     *    1. Explicit token_endpoint + end_session_endpoint    -> use directly,
+     *                                                            discovery skipped
      *    2. issuer                                            -> discover at startup
-     *    3. Legacy auth_url (Keycloak path scheme)            -> deprecated, warn
-     *    4. None                                              -> error, refuse to start
+     *    3. None                                              -> error, refuse to start
      *
      *  http_url is the URL passed to C_PROT_HTTP_CL/C_TCP for the
      *  outbound connection (only host/port matter; the path of each
@@ -320,7 +312,6 @@ PRIVATE int mt_start(hgobj gobj)
     const char *token_endpoint       = gobj_read_str_attr(gobj, "token_endpoint");
     const char *end_session_endpoint = gobj_read_str_attr(gobj, "end_session_endpoint");
     const char *issuer               = gobj_read_str_attr(gobj, "issuer");
-    const char *auth_url             = gobj_read_str_attr(gobj, "auth_url");
 
     const char *http_url = NULL;
 
@@ -335,31 +326,6 @@ PRIVATE int mt_start(hgobj gobj)
         snprintf(priv->issuer, sizeof(priv->issuer), "%s", issuer);
         priv->discovery_done = FALSE;
         http_url = issuer;
-    } else if(!empty_string(auth_url)) {
-        /*
-         *  Legacy Keycloak path scheme.  Strip a trailing slash from
-         *  auth_url before composing so we don't end up with a double
-         *  slash in "<auth_url>//protocol/...".
-         */
-        size_t len = strlen(auth_url);
-        char base[PATH_MAX];
-        snprintf(base, sizeof(base), "%s", auth_url);
-        if(len > 0 && base[len-1] == '/') {
-            base[len-1] = 0;
-        }
-        snprintf(priv->token_url, sizeof(priv->token_url),
-            "%s/protocol/openid-connect/token", base);
-        snprintf(priv->end_session_url, sizeof(priv->end_session_url),
-            "%s/protocol/openid-connect/logout", base);
-        priv->discovery_done = TRUE;
-        http_url = auth_url;
-        gobj_log_warning(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_PARAMETER,
-            "msg",      "%s", "task_authenticate: 'auth_url' is deprecated; use 'issuer' or explicit endpoints",
-            "auth_url", "%s", auth_url,
-            NULL
-        );
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
@@ -657,60 +623,53 @@ PRIVATE json_t *action_get_token(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     BOOL offline_access = gobj_read_bool_attr(gobj, "offline_access");
-    const char *azp= gobj_read_str_attr(gobj, "azp");
+    const char *client_id = gobj_read_str_attr(gobj, "client_id");
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
     const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
-    const char *auth_system = gobj_read_str_attr(gobj, "auth_system");
-    SWITCHS(auth_system) {
-        CASES("keycloak")
-        DEFAULTS
-        {
-            char resource[PATH_MAX];
-            char ep_schema[32], ep_host[256], ep_port[16];
-            if(parse_url(gobj,
-                    priv->token_url,
-                    ep_schema, sizeof(ep_schema),
-                    ep_host,   sizeof(ep_host),
-                    ep_port,   sizeof(ep_port),
-                    resource,  sizeof(resource),
-                    NULL, 0,
-                    FALSE) < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",  "%s", __FUNCTION__,
-                    "msgset",    "%s", MSGSET_TASK,
-                    "msg",       "%s", "task_authenticate: invalid token_endpoint URL",
-                    "token_url", "%s", priv->token_url,
-                    NULL
-                );
-                KW_DECREF(kw)
-                STOP_TASK()
-            }
 
-            json_t *jn_headers = json_pack("{s:s}",
-                "Content-Type", "application/x-www-form-urlencoded"
-            );
+    char resource[PATH_MAX];
+    char ep_schema[32], ep_host[256], ep_port[16];
+    if(parse_url(gobj,
+            priv->token_url,
+            ep_schema, sizeof(ep_schema),
+            ep_host,   sizeof(ep_host),
+            ep_port,   sizeof(ep_port),
+            resource,  sizeof(resource),
+            NULL, 0,
+            FALSE) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",  "%s", __FUNCTION__,
+            "msgset",    "%s", MSGSET_TASK,
+            "msg",       "%s", "task_authenticate: invalid token_endpoint URL",
+            "token_url", "%s", priv->token_url,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
-            json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
-                "username", user_id,
-                "password", user_passw,
-                "grant_type", "password",
-                "client_id", azp
-            );
-            if (offline_access) {
-                json_object_set_new(jn_data, "scope", json_string( "openid offline_access"));
-            }
+    json_t *jn_headers = json_pack("{s:s}",
+        "Content-Type", "application/x-www-form-urlencoded"
+    );
 
-            json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
-                "method", "POST",
-                "resource", resource,
-                "query", "",
-                "headers", jn_headers,
-                "data", jn_data
-            );
-            gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
-            break;
-        }
-    } SWITCHS_END
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
+        "username", user_id,
+        "password", user_passw,
+        "grant_type", "password",
+        "client_id", client_id
+    );
+    if(offline_access) {
+        json_object_set_new(jn_data, "scope", json_string("openid offline_access"));
+    }
+
+    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
+        "method", "POST",
+        "resource", resource,
+        "query", "",
+        "headers", jn_headers,
+        "data", jn_data
+    );
+    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -851,87 +810,53 @@ PRIVATE json_t *action_logout(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *auth_system = gobj_read_str_attr(gobj, "auth_system");
-    const char *azp = gobj_read_str_attr(gobj, "azp");
+    const char *client_id = gobj_read_str_attr(gobj, "client_id");
     const char *access_token = gobj_read_str_attr(gobj, "access_token");
     const char *refresh_token = gobj_read_str_attr(gobj, "refresh_token");
 
-    SWITCHS(auth_system) {
-        CASES("keycloak")
-        DEFAULTS
-        {
-            char resource[PATH_MAX];
-            char ep_schema[32], ep_host[256], ep_port[16];
-            if(parse_url(gobj,
-                    priv->end_session_url,
-                    ep_schema, sizeof(ep_schema),
-                    ep_host,   sizeof(ep_host),
-                    ep_port,   sizeof(ep_port),
-                    resource,  sizeof(resource),
-                    NULL, 0,
-                    FALSE) < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",        "%s", __FUNCTION__,
-                    "msgset",          "%s", MSGSET_TASK,
-                    "msg",             "%s", "task_authenticate: invalid end_session_endpoint URL",
-                    "end_session_url", "%s", priv->end_session_url,
-                    NULL
-                );
-                KW_DECREF(kw)
-                STOP_TASK()
-            }
+    char resource[PATH_MAX];
+    char ep_schema[32], ep_host[256], ep_port[16];
+    if(parse_url(gobj,
+            priv->end_session_url,
+            ep_schema, sizeof(ep_schema),
+            ep_host,   sizeof(ep_host),
+            ep_port,   sizeof(ep_port),
+            resource,  sizeof(resource),
+            NULL, 0,
+            FALSE) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",        "%s", __FUNCTION__,
+            "msgset",          "%s", MSGSET_TASK,
+            "msg",             "%s", "task_authenticate: invalid end_session_endpoint URL",
+            "end_session_url", "%s", priv->end_session_url,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
-            char authorization[1024];
-            snprintf(authorization, sizeof(authorization), "Bearer %s", access_token);
+    char authorization[1024];
+    snprintf(authorization, sizeof(authorization), "Bearer %s", access_token);
 
-            json_t *jn_headers = json_pack("{s:s, s:s, s:s}",
-                "Content-Type", "application/x-www-form-urlencoded",
-                "Authorization", authorization,
-                "Connection", "close"
-            );
+    json_t *jn_headers = json_pack("{s:s, s:s, s:s}",
+        "Content-Type", "application/x-www-form-urlencoded",
+        "Authorization", authorization,
+        "Connection", "close"
+    );
 
-            json_t *jn_data = json_pack("{s:s, s:s}",
-                "refresh_token", refresh_token,
-                "client_id",  azp
-            );
+    json_t *jn_data = json_pack("{s:s, s:s}",
+        "refresh_token", refresh_token,
+        "client_id",     client_id
+    );
 
-            json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
-                "method", "POST",
-                "resource", resource,
-                "query", "",
-                "headers", jn_headers,
-                "data", jn_data
-            );
-            gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
-            break;
-        }
-    } SWITCHS_END
-
-
-    /*
-        url = keycloak_base_url + "/auth/realms/" + keycloak_realm_name + "/protocol/openid-connect/logout"
-
-        cmd = "Logout ==> POST " + url
-
-        headers = CaseInsensitiveDict()
-        headers["Authorization"] = "Bearer " + access_token
-        headers["Connection"] = "close"
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-        data = ""
-        form_data = {
-            "refresh_token": refresh_token,
-            "client_id": client_id
-        }
-        for k in form_data:
-            v = form_data[k]
-            if not data:
-                data += """%s=%s""" % (k,v)
-            else:
-                data += """&%s=%s""" % (k,v)
-
-        resp = requests.post(url, headers=headers, data=data, verify=False)
-    */
+    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
+        "method", "POST",
+        "resource", resource,
+        "query", "",
+        "headers", jn_headers,
+        "data", jn_data
+    );
+    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()

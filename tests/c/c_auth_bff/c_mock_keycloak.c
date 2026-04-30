@@ -69,6 +69,7 @@ SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "ema
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
+SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
 SDATA_END()
 };
@@ -563,25 +564,34 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  responses_sent/deferred_responses; test8: holds the BFF in
          *  !discovery_done while POSTs pile up in dl_pending).
          */
-        json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
-        const char *host_hdr = jn_headers ?
-            kw_get_str(gobj, jn_headers, "HOST", "127.0.0.1", 0) : "127.0.0.1";
+        json_t *jn_body;
+        json_t *override_discovery = gobj_read_json_attr(gobj, "override_discovery_body");
+        if(json_is_object(override_discovery) && json_object_size(override_discovery) > 0) {
+            /* Tests use this to return a discovery body that omits one
+             * of the required endpoints, exercising the
+             * save_oidc_discovery failure path. */
+            jn_body = json_deep_copy(override_discovery);
+        } else {
+            json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
+            const char *host_hdr = jn_headers ?
+                kw_get_str(gobj, jn_headers, "HOST", "127.0.0.1", 0) : "127.0.0.1";
 
-        char issuer_url[512];
-        char token_url[512];
-        char logout_url[512];
-        snprintf(issuer_url, sizeof(issuer_url),
-            "http://%s/realms/test", host_hdr);
-        snprintf(token_url, sizeof(token_url),
-            "http://%s/realms/test/protocol/openid-connect/token", host_hdr);
-        snprintf(logout_url, sizeof(logout_url),
-            "http://%s/realms/test/protocol/openid-connect/logout", host_hdr);
+            char issuer_url[512];
+            char token_url[512];
+            char logout_url[512];
+            snprintf(issuer_url, sizeof(issuer_url),
+                "http://%s/realms/test", host_hdr);
+            snprintf(token_url, sizeof(token_url),
+                "http://%s/realms/test/protocol/openid-connect/token", host_hdr);
+            snprintf(logout_url, sizeof(logout_url),
+                "http://%s/realms/test/protocol/openid-connect/logout", host_hdr);
 
-        json_t *jn_body = json_pack("{s:s, s:s, s:s}",
-            "issuer",               issuer_url,
-            "token_endpoint",       token_url,
-            "end_session_endpoint", logout_url
-        );
+            jn_body = json_pack("{s:s, s:s, s:s}",
+                "issuer",               issuer_url,
+                "token_endpoint",       token_url,
+                "end_session_endpoint", logout_url
+            );
+        }
         /*
          *  Send inline (not via mk_send_json) so the discovery exchange
          *  does NOT increment st_responses_sent — every test's mock-KC

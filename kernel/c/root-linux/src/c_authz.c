@@ -297,7 +297,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
 
-SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno. DEPRECATED: use authz_service"),
+SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD|SDF_DEPRECATED, "", "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno. DEPRECATED: use authz_service"),
 
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),

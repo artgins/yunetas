@@ -50,10 +50,11 @@ Remote Service:
   -i, --interactive          Interactive mode (ncurses UI)
   -w, --wait SECONDS         Wait time before exit (default: 2)
 
-OAuth2:
-  -K, --auth_system SYSTEM   OpenID system (default: keycloak)
-  -k, --auth_url URL         OpenID endpoint
-  -Z, --azp AZP              Authorized Party (client_id)
+OAuth2 / OIDC:
+  -I, --issuer URL           OIDC issuer URL (triggers discovery)
+  -T, --token-endpoint URL   Explicit OAuth2 token endpoint
+  -E, --end-session-endpoint URL  Explicit OIDC end_session endpoint
+  -Z, --client-id CLIENT_ID  OAuth2 client_id
   -x, --user_id USER_ID      OAuth2 user ID
   -X, --user_passw PASSWORD  OAuth2 user password
   -j, --jwt JWT              Pre-obtained JWT token
@@ -90,10 +91,11 @@ Execute batch command files against remote yunos.
 ```
 ybatch [OPTIONS] [FILE]
 
-OAuth2:
-  -K, --auth_system SYSTEM   OpenID system (default: keycloak)
-  -k, --auth_url URL         OpenID endpoint
-  -Z, --azp AZP              Authorized Party (client_id)
+OAuth2 / OIDC:
+  -I, --issuer URL           OIDC issuer URL (triggers discovery)
+  -T, --token-endpoint URL   Explicit OAuth2 token endpoint
+  -E, --end-session-endpoint URL  Explicit OIDC end_session endpoint
+  -Z, --client-id CLIENT_ID  OAuth2 client_id
   -x, --user_id USER_ID      OAuth2 user ID
   -X, --user_passw PASSWORD  OAuth2 user password
   -j, --jwt JWT              Pre-obtained JWT token

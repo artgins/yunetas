@@ -277,9 +277,10 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authenticate[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "auth_system",  0,              "",         "OpenID System(interactive jwt)"),
-SDATAPM (DTP_STRING,    "auth_url",     0,              "",         "OpenID Endpoint (interactive jwt)"),
-SDATAPM (DTP_STRING,    "azp",          0,              "",         "azp (OAuth2 Authorized Party)"),
+SDATAPM (DTP_STRING,    "issuer",               0,      "",         "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery"),
+SDATAPM (DTP_STRING,    "token_endpoint",       0,      "",         "Explicit OAuth2 token endpoint URL. Skips discovery when set together with --end-session-endpoint"),
+SDATAPM (DTP_STRING,    "end_session_endpoint", 0,      "",         "Explicit OIDC end_session endpoint URL. Skips discovery when set together with --token-endpoint"),
+SDATAPM (DTP_STRING,    "client_id",    0,              "",         "OAuth2 client_id (Keycloak/Auth0/Azure AD/...)"),
 SDATAPM (DTP_STRING,    "user_id",      0,              "",         "OAuth2 User Id (interactive jwt)"),
 SDATAPM (DTP_STRING,    "user_passw",   0,              "",         "OAuth2 User password (interactive jwt)"),
 SDATA_END()
@@ -1720,27 +1721,28 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
     /*-----------------------------*
      *      Get parameters
      *-----------------------------*/
-    const char *auth_system = kw_get_str(gobj, kw, "auth_system", "", 0); // "keycloak" by default
-    const char *auth_url = kw_get_str(gobj, kw, "auth_url", "", 0);
+    const char *issuer = kw_get_str(gobj, kw, "issuer", "", 0);
+    const char *token_endpoint = kw_get_str(gobj, kw, "token_endpoint", "", 0);
+    const char *end_session_endpoint = kw_get_str(gobj, kw, "end_session_endpoint", "", 0);
     const char *user_id = kw_get_str(gobj, kw, "user_id", "", 0);
     const char *user_passw = kw_get_str(gobj, kw, "user_passw", "", 0);
-    const char *azp = kw_get_str(gobj, kw, "azp", "", 0);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
 
-    if(empty_string(auth_url)) {
+    if(empty_string(issuer) && empty_string(token_endpoint)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What auth_url? (OpenID Endpoint)"),
+            json_sprintf("What IdP? (set --issuer, or --token-endpoint and --end-session-endpoint)"),
             0,
             0,
             kw
         );
     }
-    if(empty_string(azp)) {
+    if(empty_string(client_id)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What 'azp'? (Oauth2 Authorized Party, client_id in keycloak)"),
+            json_sprintf("What client_id? (OAuth2 client_id)"),
             0,
             0,
             kw
@@ -1772,20 +1774,22 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
      *-----------------------------*/
     hgobj gobj_task = gobj_find_service("task-authenticate", FALSE);
     if(!gobj_task) {
-        json_t *kw_task = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-            "auth_system", auth_system,
-            "auth_url", auth_url,
+        json_t *kw_task = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+            "issuer", issuer,
+            "token_endpoint", token_endpoint,
+            "end_session_endpoint", end_session_endpoint,
             "user_id", user_id,
             "user_passw", user_passw,
-            "azp", azp
+            "client_id", client_id
         );
         gobj_task = gobj_create_service("task-authenticate", C_TASK_AUTHENTICATE, kw_task, gobj);
     } else {
-        gobj_write_str_attr(gobj_task, "auth_system", auth_system);
-        gobj_write_str_attr(gobj_task, "auth_url", auth_url);
+        gobj_write_str_attr(gobj_task, "issuer", issuer);
+        gobj_write_str_attr(gobj_task, "token_endpoint", token_endpoint);
+        gobj_write_str_attr(gobj_task, "end_session_endpoint", end_session_endpoint);
         gobj_write_str_attr(gobj_task, "user_id", user_id);
         gobj_write_str_attr(gobj_task, "user_passw", user_passw);
-        gobj_write_str_attr(gobj_task, "azp", azp);
+        gobj_write_str_attr(gobj_task, "client_id", client_id);
     }
     if(gobj_task) {
         gobj_subscribe_event(gobj_task, EV_ON_TOKEN, 0, gobj);
