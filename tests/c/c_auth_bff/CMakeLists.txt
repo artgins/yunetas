@@ -74,6 +74,7 @@ SET(TESTS
     test15_missing_body
     test16_unknown_endpoint
     test17_legacy_idp_url
+    test18_discovery_failure
 )
 
 foreach(test ${TESTS})

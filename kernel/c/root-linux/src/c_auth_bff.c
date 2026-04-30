@@ -183,8 +183,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "idp_url",              SDF_RD, "",     "DEPRECATED: use 'issuer' or explicit endpoints. IdP base URL (Keycloak path scheme)"),
-SDATA (DTP_STRING,      "realm",                SDF_RD, "",     "DEPRECATED: use 'issuer' or explicit endpoints. IdP realm (Keycloak-only)"),
+SDATA (DTP_STRING,      "idp_url",              SDF_RD|SDF_DEPRECATED, "", "DEPRECATED: use 'issuer' or explicit endpoints. IdP base URL (Keycloak path scheme)"),
+SDATA (DTP_STRING,      "realm",                SDF_RD|SDF_DEPRECATED, "", "DEPRECATED: use 'issuer' or explicit endpoints. IdP realm (Keycloak-only)"),
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
@@ -356,6 +356,12 @@ PRIVATE void mt_create(hgobj gobj)
         priv->discovery_done = FALSE;
         http_url = issuer;
     } else if(!empty_string(idp_base_url) && !empty_string(realm)) {
+        /*
+         *  Legacy Keycloak path scheme.  The deprecation warning for
+         *  the idp_url / realm attrs is emitted by the framework
+         *  (gobj.c json2sdata, SDF_DEPRECATED flag) at gobj_create
+         *  time; no extra gclass-level warning needed here.
+         */
         char legacy_base[PATH_MAX];
         build_path(legacy_base, sizeof(legacy_base),
             idp_base_url, "realms", realm, "protocol", "openid-connect", NULL);
@@ -365,14 +371,6 @@ PRIVATE void mt_create(hgobj gobj)
             "%s/logout", legacy_base);
         priv->discovery_done = TRUE;
         http_url = idp_base_url;
-        gobj_log_warning(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_PARAMETER,
-            "msg",      "%s", "👤BFF idp_url+realm are deprecated; use 'issuer' or explicit endpoints",
-            "idp_url",  "%s", idp_base_url,
-            "realm",    "%s", realm,
-            NULL
-        );
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,

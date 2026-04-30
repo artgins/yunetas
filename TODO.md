@@ -14,9 +14,11 @@ discovery + explicit endpoint override.
 remained), and the `azp` attr was renamed to `client_id` to match the
 form parameter actually sent on `/token` and `/logout`.
 
-`c_auth_bff` still keeps its own `idp_url` + `realm` legacy pair
-(emits a deprecation warning at `mt_create`); removal is scheduled
-once one release has shipped with the warning in place.
+`c_auth_bff` still keeps its own `idp_url` + `realm` legacy pair,
+now flagged with `SDF_DEPRECATED` so the framework emits the
+standard "Deprecated attribute used in gobj creation" warning at
+`gobj_create` time (one per attr).  Removal is scheduled once one
+release has shipped with the warning in place.
 
 ### Smoke tests against real IdPs
 
