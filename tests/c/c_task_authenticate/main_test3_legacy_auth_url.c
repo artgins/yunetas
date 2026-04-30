@@ -34,17 +34,13 @@ int main(int argc, char *argv[])
     /* kw_match_simple is a subset match — only the `msg` field is
      * required to match.  Other fields ("function", "auth_url", …) do
      * not need to be enumerated here. */
-    json_t *expected_logs = json_pack("[{s:s}]",
-        "msg", "task_authenticate: 'auth_url' is deprecated; use 'issuer' or explicit endpoints"
-    );
-
     return run_task_authenticate_test(
         argc, argv,
         APP_NAME, APP_DOC,
         task_kw_snippet,
         "{}",           // default mock IdP behaviour
         0,              // expected_result: success
-        expected_logs,
+        "task_authenticate: 'auth_url' is deprecated; use 'issuer' or explicit endpoints",
         TRUE            // capture warnings: the deprecation must be visible
     );
 }

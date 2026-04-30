@@ -45,17 +45,13 @@ PRIVATE char mock_idp_kw_snippet[] =
 
 int main(int argc, char *argv[])
 {
-    json_t *expected_logs = json_pack("[{s:s}]",
-        "msg", "task_authenticate: OIDC discovery missing endpoints"
-    );
-
     return run_task_authenticate_test(
         argc, argv,
         APP_NAME, APP_DOC,
         task_kw_snippet,
         mock_idp_kw_snippet,
         -1,             // expected_result: failure
-        expected_logs,
+        "task_authenticate: OIDC discovery missing endpoints",
         FALSE           // capture errors only — the log is at ERROR level
     );
 }

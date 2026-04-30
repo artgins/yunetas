@@ -195,20 +195,20 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     KW_DECREF(kw)
 
     /*
-     *  Stop the task service now (while io_uring is still spinning) and
-     *  arm a 100 ms death-timer so close events propagate before the
-     *  framework destroys the still-RUNNING server-side stacks.
+     *  EV_ON_TOKEN is fired from inside C_TASK::ac_on_message, which is
+     *  still iterating priv->jobs.  Synchronously stopping the task tree
+     *  here would clear C_TASK_AUTHENTICATE's priv->gobj_http (in its
+     *  mt_stop) AND reset C_TASK's priv->idx_job to 0 — when ac_on_message
+     *  resumes, it does idx_job++ (0->1) and re-runs action_get_token
+     *  with a NULL http client.
+     *
+     *  So just arm the death-timer and let the post-token actions
+     *  (action_logout on the happy path, or nothing on error) drain
+     *  naturally.  The yuno teardown on set_yuno_must_die stops everything
+     *  in the right order.
      */
-    if(priv->gobj_task && gobj_is_running(priv->gobj_task)) {
-        gobj_stop_tree(priv->gobj_task);
-    }
-    hgobj idp_side = gobj_find_service("__idp_side__", FALSE);
-    if(idp_side) {
-        gobj_stop_tree(idp_side);
-    }
-
     priv->dying = TRUE;
-    set_timeout(priv->timer, 100);
+    set_timeout(priv->timer, 200);
     return 0;
 }
 

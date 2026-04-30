@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
         task_kw_snippet,
         "{}",           // default mock IdP behaviour
         0,              // expected_result: success
-        NULL,           // no expected logs
+        NULL,           // no expected log
         FALSE           // capture errors only
     );
 }

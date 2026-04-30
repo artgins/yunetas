@@ -158,7 +158,7 @@ PRIVATE void send_resp(hgobj gobj, hgobj http_sr, int status,
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int method = (int)kw_get_int(gobj, kw, "request_method", 0, 0);
-    const char *url = kw_get_str(gobj, kw, "request_url", "", 0);
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,

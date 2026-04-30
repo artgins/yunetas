@@ -152,9 +152,12 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 PRIVATE time_measure_t s_time_measure;
 PRIVATE int s_extra_result = 0;
 PRIVATE const char *s_app_name = "";
+PRIVATE const char *s_expected_log_msg = NULL;
 
 /***************************************************************************
  *  HACK: runs on yunetas environment BEFORE creating the yuno
+ *  (called from yuneta_entry_point AFTER json_set_alloc_funcs has
+ *  installed the gbmem allocators in jansson)
  ***************************************************************************/
 PRIVATE int register_yuno_and_more(void)
 {
@@ -170,6 +173,23 @@ PRIVATE int register_yuno_and_more(void)
 
     /* Safety: kill the yuno after 10 s if stuck */
     set_auto_kill_time(10);
+
+    /*
+     *  Build expected_log_messages here (now that jansson uses gbmem) and
+     *  hand ownership to set_expected_results.  test_json(NULL) in
+     *  cleaning() will JSON_DECREF it.
+     */
+    json_t *expected_log_messages = s_expected_log_msg
+        ? json_pack("[{s:s}]", "msg", s_expected_log_msg)
+        : json_array();
+
+    set_expected_results(
+        s_app_name,
+        expected_log_messages,
+        NULL,           // no JSON comparison
+        NULL,           // no ignore_keys
+        TRUE            // verbose
+    );
 
     MT_START_TIME(s_time_measure)
 
@@ -197,11 +217,12 @@ PUBLIC int run_task_authenticate_test(
     const char *task_kw_snippet,
     const char *mock_idp_kw_snippet,
     int expected_result,
-    json_t *expected_log_messages,
+    const char *expected_log_msg,
     BOOL capture_warnings
 )
 {
     s_app_name = app_name;
+    s_expected_log_msg = expected_log_msg;
 
     /*------------------------------*
      *  Init logger
@@ -226,15 +247,6 @@ PUBLIC int run_task_authenticate_test(
     /* Memory leak check */
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
-
-    /* Capture log expectations */
-    set_expected_results(
-        app_name,
-        expected_log_messages ? expected_log_messages : json_array(),
-        NULL,           // no JSON comparison
-        NULL,           // no ignore_keys
-        TRUE            // verbose
-    );
 
     /*------------------------------------------------*
      *          Render fixed + variable config

@@ -34,9 +34,14 @@ extern "C" {
  *                        user_passw) so the task can run.
  *  expected_result       expected EV_ON_TOKEN result field passed to
  *                        the C_TEST_DRIVER service.
- *  expected_log_messages JSON array of expected log messages (consumed
- *                        FIFO by capture_log_write).  May be NULL — an
- *                        empty array is used in that case.  Owned.
+ *  expected_log_msg      single expected log message string (matched as
+ *                        a `msg` field, kw_match_simple subset semantics).
+ *                        May be NULL — no warning/error is expected.
+ *                        We accept a string (not json_t) so the json_pack
+ *                        can run AFTER yuneta_entry_point has installed
+ *                        the gbmem allocators in jansson; otherwise the
+ *                        array would be libc-allocated and test_json's
+ *                        JSON_DECREF would later free it through gbmem.
  *  capture_warnings      if TRUE, the test_capture handler is at
  *                        LOG_OPT_UP_WARNING (else LOG_OPT_UP_ERROR).
  *
@@ -50,7 +55,7 @@ PUBLIC int run_task_authenticate_test(
     const char *task_kw_snippet,
     const char *mock_idp_kw_snippet,    /* "{}" for the default mock */
     int expected_result,
-    json_t *expected_log_messages,
+    const char *expected_log_msg,
     BOOL capture_warnings
 );
 
