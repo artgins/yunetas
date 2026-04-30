@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints
       in the same priority order:

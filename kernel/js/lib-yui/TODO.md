@@ -3,25 +3,22 @@
 Living TODO for the declarative shell.  Everything originally on
 this list (the new shell + nav, escape stack, modal/notification
 API, generalised secondary-nav loop, validator, Playwright e2e on
-three browsers) is **done** and currently riding on PR #105.
+three browsers) is **done** and shipped in `7.3.1`.
 
-`CHANGELOG.md` carries the full feature list under `## Unreleased`.
+`CHANGELOG.md` carries the full feature list under `## v7.3.1`.
 
 ---
 
-## 1. Cut the `7.4.0` release
+## 1. Publish `@yuneta/lib-yui@7.3.1` to npm
 
-`kernel/js/lib-yui/package.json` is still at `7.3.0`.  Once PR #105
-merges and we want to publish to npm:
+`kernel/js/lib-yui/package.json` is bumped to `7.3.1` and the
+top-level `CHANGELOG.md` has the dated `## v7.3.1` block.  Remaining
+step:
 
-- Bump `kernel/js/lib-yui/package.json` to `7.4.0`.
-- Move the `## Unreleased` block in the top-level `CHANGELOG.md` to
-  `## v7.4.0 -- <date>`.
 - `npm publish --access public` from `kernel/js/lib-yui/` (the
   `prepublishOnly` script runs `vite build` automatically).
 
-**Done when:** `@yuneta/lib-yui@7.4.0` is on npmjs.com and the
-CHANGELOG has the dated section instead of `## Unreleased`.
+**Done when:** `@yuneta/lib-yui@7.3.1` is on npmjs.com.
 
 ---
 
