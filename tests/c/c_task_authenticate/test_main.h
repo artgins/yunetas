@@ -27,11 +27,11 @@ extern "C" {
  *  app_doc               APP_DOC for yuneta_entry_point
  *  task_kw_snippet       JSON object literal (single-quoted, will be
  *                        normalised) used as the `kw` of the
- *                        task-authenticate service.  Must include
- *                        whatever IdP attrs the test exercises (issuer
- *                        / token_endpoint+end_session_endpoint /
- *                        auth_url) plus credentials (azp/user_id/
- *                        user_passw) so the task can run.
+ *                        task-authenticate service.  Must include the
+ *                        IdP attrs the test exercises (issuer or
+ *                        token_endpoint+end_session_endpoint) plus
+ *                        credentials (client_id/user_id/user_passw)
+ *                        so the task can run.
  *  expected_result       expected EV_ON_TOKEN result field passed to
  *                        the C_TEST_DRIVER service.
  *  expected_log_msg      single expected log message string (matched as

@@ -2,63 +2,21 @@
 
 Tracks API renames, removals and additions between versions.
 
-## Auth: complete OIDC migration
+## Auth: OIDC migration follow-ups
 
 The `c_auth_bff` (BFF) and `c_task_authenticate` (ROPC task) gclasses
 were migrated from a Keycloak-only path scheme to standard OIDC
-discovery + explicit endpoint override (commits `b916096`, `1e9a543`).
-Items below close out the migration.
+discovery + explicit endpoint override.
 
-### Deprecated, scheduled for removal
+`c_task_authenticate` and its six callers (`c_cli`, `c_mqtt_tui`,
+`c_ycommand`, `c_ystats`, `c_ytests`, `c_ybatch`) had their legacy
+`auth_url` and `auth_system` attrs **removed** outright (no users
+remained), and the `azp` attr was renamed to `client_id` to match the
+form parameter actually sent on `/token` and `/logout`.
 
-Targeted for removal once all callers are migrated and one release
-has shipped with the deprecation warning in place.
-
-- **`c_auth_bff` attrs `idp_url` and `realm`** — replaced by `issuer`
-  (with discovery) or `token_endpoint`+`end_session_endpoint`
-  (explicit). `mt_create` already emits a warning when these are
-  used. Production batch `auth_bff.1801.json` already migrated to
-  `issuer`.
-
-- **`c_task_authenticate` attr `auth_url`** — replaced by `issuer`
-  or explicit endpoints. `mt_start` already emits a warning. Six
-  callers below still set this attr.
-
-- **`c_task_authenticate` attr `auth_system`** — was a no-op since
-  at least 2024 (the `SWITCHS` body falls through identically for
-  any value). Kept only for back-compat of the six callers below.
-
-### Callers to migrate
-
-Six gclasses still pass `auth_url`+`auth_system` to
-`C_TASK_AUTHENTICATE` from CLI args / batch JSON. Each needs a new
-`--issuer` (and/or `--token-endpoint` / `--end-session-endpoint`)
-option, the existing `--auth-url` flag wired to the legacy attr,
-and a deprecation note in the help text.
-
-- `yunos/c/yuno_cli/src/c_cli.c` (lines 280–281, 1723–1785)
-- `yunos/c/mqtt_tui/src/c_mqtt_tui.c` (lines 177–178, 447–449, 913–914)
-- `utils/c/ycommand/src/c_ycommand.c` (lines 211–212, 428–430, 748–749)
-- `utils/c/ystats/src/c_ystats.c` (lines 48–49, 141–143, 185–186)
-- `utils/c/ytests/src/c_ytests.c` (lines 60–61, 170–172, 222–223)
-- `utils/c/ybatch/src/c_ybatch.c` (lines 61–62, 167–169, 219–220)
-
-### Test coverage gaps
-
-- **No tests for `c_task_authenticate`.** No unit tests at all
-  exist under `tests/c/c_task_authenticate/`. A mock-IdP harness
-  similar to `tests/c/c_auth_bff/c_mock_keycloak.c` would let us
-  exercise the discovery + token + logout chain, the legacy
-  `auth_url` deprecation warning, and the
-  `result_save_discovery` failure path that publishes
-  `EV_ON_TOKEN` with result=-1.
-
-- **No regression test for the BFF legacy path.** Tests 1–7 and
-  10 use `issuer`; 8/9/11/12 use explicit endpoints. The
-  `idp_url`+`realm` deprecation warning emitted by `mt_create`
-  is not covered by any test. A 17th test that sets the legacy
-  attrs and asserts the warning fires (and the flow still
-  works) would close this gap before the attrs are removed.
+`c_auth_bff` still keeps its own `idp_url` + `realm` legacy pair
+(emits a deprecation warning at `mt_create`); removal is scheduled
+once one release has shipped with the warning in place.
 
 ### Smoke tests against real IdPs
 

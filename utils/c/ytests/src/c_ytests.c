@@ -58,11 +58,9 @@ SDATA (DTP_INTEGER,     "repeat",           0,          "1",            "Repeat 
 SDATA (DTP_INTEGER,     "pause",            0,          0,              "Pause between executions"),
 
 SDATA (DTP_STRING,      "issuer",           0,          "",             "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery"),
-SDATA (DTP_STRING,      "token_endpoint",   0,          "",             "Explicit OAuth2 token endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "end_session_endpoint",0,       "",             "Explicit OIDC end_session endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "auth_system",      0,          "",             "DEPRECATED: no longer routes flow selection. Kept for back-compat"),
-SDATA (DTP_STRING,      "auth_url",         0,          "",             "DEPRECATED: use --issuer or --token-endpoint/--end-session-endpoint. Legacy Keycloak base URL"),
-SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
+SDATA (DTP_STRING,      "token_endpoint",   0,          "",             "Explicit OAuth2 token endpoint URL. Skips discovery when set together with --end-session-endpoint"),
+SDATA (DTP_STRING,      "end_session_endpoint",0,       "",             "Explicit OIDC end_session endpoint URL. Skips discovery when set together with --token-endpoint"),
+SDATA (DTP_STRING,      "client_id",        0,          "",             "OAuth2 client_id (Keycloak/Auth0/Azure AD/...)"),
 SDATA (DTP_STRING,      "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
@@ -170,13 +168,10 @@ PRIVATE int mt_start(hgobj gobj)
     extrae_json(gobj);
     gobj_start(priv->timer);
 
-    const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
     const char *issuer = gobj_read_str_attr(gobj, "issuer");
     const char *token_endpoint = gobj_read_str_attr(gobj, "token_endpoint");
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
-    BOOL has_idp = !empty_string(issuer)
-        || !empty_string(token_endpoint)
-        || !empty_string(auth_url);
+    BOOL has_idp = !empty_string(issuer) || !empty_string(token_endpoint);
     if(has_idp && !empty_string(user_id)) {
         /*
          *  HACK if there are user_id and endpoint
@@ -226,15 +221,13 @@ PRIVATE int do_authenticate_task(hgobj gobj)
     /*-----------------------------*
      *      Create the task
      *-----------------------------*/
-    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
         "issuer", gobj_read_str_attr(gobj, "issuer"),
         "token_endpoint", gobj_read_str_attr(gobj, "token_endpoint"),
         "end_session_endpoint", gobj_read_str_attr(gobj, "end_session_endpoint"),
-        "auth_system", gobj_read_str_attr(gobj, "auth_system"),
-        "auth_url", gobj_read_str_attr(gobj, "auth_url"),
         "user_id", gobj_read_str_attr(gobj, "user_id"),
         "user_passw", gobj_read_str_attr(gobj, "user_passw"),
-        "azp", gobj_read_str_attr(gobj, "azp")
+        "client_id", gobj_read_str_attr(gobj, "client_id")
     );
 
     hgobj gobj_task = gobj_create_service(

@@ -30,10 +30,11 @@ struct arguments
     int print_role;
     char *url_broker;
     char *url_mqtt;
-    char *azp;
+    char *client_id;
 
-    char *auth_system;
-    char *auth_url;
+    char *issuer;
+    char *token_endpoint;
+    char *end_session_endpoint;
     char *mqtt_client_id;
     int mqtt_persistent_session;
     int mqtt_persistent_client_db;
@@ -177,9 +178,10 @@ static struct argp_option options[] = {
 {"will-properties", 6,    "JSON",       0,      "MQTT Will properties as JSON string (MQTT v5 only). E.g. '{\"will-delay-interval\":30,\"message-expiry-interval\":60}'.", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
-{"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
-{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt). If empty it will be used MQTT username/password", 20},
-{"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
+{"issuer",          'I',    "ISSUER",   0,      "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). If empty MQTT username/password is used. Triggers discovery", 20},
+{"token-endpoint",  'T',    "URL",      0,      "Explicit OAuth2 token endpoint URL. Skips discovery when set together with --end-session-endpoint", 20},
+{"end-session-endpoint", 'E', "URL",    0,      "Explicit OIDC end_session endpoint URL. Skips discovery when set together with --token-endpoint", 20},
+{"client-id",       'Z',    "CLIENT_ID",0,      "OAuth2 client_id (Keycloak/Auth0/Azure AD/...)", 20},
 {"user_id",         'u',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
 {"user_passw",      'U',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
 {"mqtt_passw",      'P',    "MQTT_PASSW",0,     "MQTT Password", 20},
@@ -221,11 +223,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'K':
-        arguments->auth_system = arg;
+    case 'I':
+        arguments->issuer = arg;
         break;
-    case 'k':
-        arguments->auth_url = arg;
+    case 'T':
+        arguments->token_endpoint = arg;
+        break;
+    case 'E':
+        arguments->end_session_endpoint = arg;
         break;
 
     case 'd':
@@ -289,7 +294,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
 
     case 'Z':
-        arguments->azp = arg;
+        arguments->client_id = arg;
         break;
 
     case 'v':
@@ -449,9 +454,10 @@ int main(int argc, char *argv[])
     memset(&arguments, 0, sizeof(arguments));
     arguments.url_mqtt = "mqtt://127.0.0.1:1810";
     arguments.url_broker = "ws://127.0.0.1:1800";
-    arguments.azp = "";
-    arguments.auth_system = "keycloak";
-    arguments.auth_url = "";
+    arguments.client_id = "";
+    arguments.issuer = "";
+    arguments.token_endpoint = "";
+    arguments.end_session_endpoint = "";
     arguments.mqtt_protocol = "mqttv5";
     arguments.mqtt_client_id = "";
     arguments.mqtt_persistent_client_db = 0;
@@ -533,11 +539,12 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
-            "C_MQTT_TUI.auth_system", arguments.auth_system,
-            "C_MQTT_TUI.auth_url", arguments.auth_url,
+            "C_MQTT_TUI.issuer", arguments.issuer,
+            "C_MQTT_TUI.token_endpoint", arguments.token_endpoint,
+            "C_MQTT_TUI.end_session_endpoint", arguments.end_session_endpoint,
             "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
             "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
             "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_persistent_session?"0":"1",
@@ -557,7 +564,7 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.jwt", arguments.jwt,
             "C_MQTT_TUI.url_mqtt", arguments.url_mqtt,
             "C_MQTT_TUI.url_broker", arguments.url_broker,
-            "C_MQTT_TUI.azp", arguments.azp,
+            "C_MQTT_TUI.client_id", arguments.client_id,
             "C_MQTT_TUI.print_with_metadata", arguments.print_with_metadata
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);

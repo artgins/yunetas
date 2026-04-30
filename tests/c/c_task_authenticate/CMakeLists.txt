@@ -60,7 +60,6 @@ SET(SHARED_SRCS
 SET(TESTS
     test1_discovery
     test2_explicit_endpoints
-    test3_legacy_auth_url
     test4_discovery_failure
 )
 

@@ -17,7 +17,6 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 |---|---|
 | `test1_discovery` | Happy path with `issuer` only — exercises `action_discover` + `result_save_discovery` + `action_get_token` + `action_logout`. |
 | `test2_explicit_endpoints` | `token_endpoint` + `end_session_endpoint` set explicitly — discovery is skipped, the chain runs `action_get_token` + `action_logout` directly. |
-| `test3_legacy_auth_url` | Legacy `auth_url` Keycloak path scheme — asserts the deprecation warning fires once at `mt_start` and the flow still works end to end. |
 | `test4_discovery_failure` | Discovery body omits `token_endpoint` — `result_save_discovery` rejects it, logs an error, and publishes `EV_ON_TOKEN` with `result=-1`. |
 
 ## Mock IdP (`C_MOCK_IDP`)

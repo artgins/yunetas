@@ -28,13 +28,14 @@ struct arguments
     int print_role;
     int repeat;                 /* repeat time, in seconds (0 remove subscription) */
     char *url;
-    char *azp;
+    char *client_id;
     char *yuno_role;
     char *yuno_name;
     char *yuno_service;
 
-    char *auth_system;
-    char *auth_url;
+    char *issuer;
+    char *token_endpoint;
+    char *end_session_endpoint;
     char *user_id;
     char *user_passw;
     char *jwt;
@@ -149,9 +150,10 @@ static char args_doc[] = "FILE";
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
-{"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
-{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt)", 20},
-{"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
+{"issuer",          'I',    "ISSUER",   0,      "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery", 20},
+{"token-endpoint",  'T',    "URL",      0,      "Explicit OAuth2 token endpoint URL. Skips discovery when set together with --end-session-endpoint", 20},
+{"end-session-endpoint", 'E', "URL",    0,      "Explicit OIDC end_session endpoint URL. Skips discovery when set together with --token-endpoint", 20},
+{"client-id",       'Z',    "CLIENT_ID",0,      "OAuth2 client_id (Keycloak/Auth0/Azure AD/...)", 20},
 {"user_id",         'x',    "USER_ID",  0,      "OAuth2 User Id (to get now a jwt)", 20},
 {"user_passw",      'X',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
@@ -196,11 +198,14 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'K':
-        arguments->auth_system = arg;
+    case 'I':
+        arguments->issuer = arg;
         break;
-    case 'k':
-        arguments->auth_url = arg;
+    case 'T':
+        arguments->token_endpoint = arg;
+        break;
+    case 'E':
+        arguments->end_session_endpoint = arg;
         break;
 
     case 'x':
@@ -224,7 +229,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
 
     case 'Z':
-        arguments->azp = arg;
+        arguments->client_id = arg;
         break;
     case 'O':
         arguments->yuno_role = arg;
@@ -331,12 +336,13 @@ int main(int argc, char *argv[])
     memset(&arguments, 0, sizeof(arguments));
     arguments.repeat = 1;
     arguments.url = "ws://127.0.0.1:1991";
-    arguments.azp = "";
+    arguments.client_id = "";
     arguments.yuno_role = "yuneta_agent";
     arguments.yuno_name = "";
     arguments.yuno_service = "__default_service__";
-    arguments.auth_system = "keycloak";
-    arguments.auth_url = "";
+    arguments.issuer = "";
+    arguments.token_endpoint = "";
+    arguments.end_session_endpoint = "";
     arguments.user_id = "";
     arguments.user_passw = "";
     arguments.jwt = "";
@@ -381,18 +387,19 @@ int main(int argc, char *argv[])
         argvs[idx++] = param2;
     } else {
         json_t *kw_utility = json_pack(
-            "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
+            "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
             "global",
             "C_YTESTS.repeat", arguments.repeat,
             "C_YTESTS.verbose", arguments.verbose,
             "C_YTESTS.path", path,
-            "C_YTESTS.auth_system", arguments.auth_system,
-            "C_YTESTS.auth_url", arguments.auth_url,
+            "C_YTESTS.issuer", arguments.issuer,
+            "C_YTESTS.token_endpoint", arguments.token_endpoint,
+            "C_YTESTS.end_session_endpoint", arguments.end_session_endpoint,
             "C_YTESTS.user_id", arguments.user_id,
             "C_YTESTS.user_passw", arguments.user_passw,
             "C_YTESTS.jwt", arguments.jwt,
             "C_YTESTS.url", arguments.url,
-            "C_YTESTS.azp", arguments.azp,
+            "C_YTESTS.client_id", arguments.client_id,
             "C_YTESTS.yuno_role", arguments.yuno_role,
             "C_YTESTS.yuno_name", arguments.yuno_name,
             "C_YTESTS.yuno_service", arguments.yuno_service
