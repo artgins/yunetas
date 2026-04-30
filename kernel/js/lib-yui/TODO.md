@@ -3,26 +3,15 @@
 Living TODO for the declarative shell.  Everything originally on
 this list (the new shell + nav, escape stack, modal/notification
 API, generalised secondary-nav loop, validator, Playwright e2e on
-three browsers) is **done** and shipped in `7.3.1`.
+three browsers) is **done**, shipped in `7.3.1` (2026-04-30) and
+published as `@yuneta/lib-yui@7.3.1` and `@yuneta/gobj-js@7.3.1`
+on npmjs.com.
 
 `CHANGELOG.md` carries the full feature list under `## v7.3.1`.
 
 ---
 
-## 1. Publish `@yuneta/lib-yui@7.3.1` to npm
-
-`kernel/js/lib-yui/package.json` is bumped to `7.3.1` and the
-top-level `CHANGELOG.md` has the dated `## v7.3.1` block.  Remaining
-step:
-
-- `npm publish --access public` from `kernel/js/lib-yui/` (the
-  `prepublishOnly` script runs `vite build` automatically).
-
-**Done when:** `@yuneta/lib-yui@7.3.1` is on npmjs.com.
-
----
-
-## 2. (Optional, deferred) Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING`
+## 1. (Optional, deferred) Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING`
 
 > **Status: not planned.**  Captured here as a reference checklist
 > for whoever decides to take it on later.  Until that decision is
@@ -31,7 +20,7 @@ step:
 
 The work needed if the decision is reversed:
 
-### 2.1. Migrate `C_YUI_TABS` from `EV_ROUTING_CHANGED` to `EV_ROUTE_CHANGED`
+### 1.1. Migrate `C_YUI_TABS` from `EV_ROUTING_CHANGED` to `EV_ROUTE_CHANGED`
 
 `C_YUI_TABS.ac_show` / `ac_hide` listen to `EV_ROUTING_CHANGED` of
 `C_YUI_ROUTING`.  Move that subscription to the shell's
@@ -44,7 +33,7 @@ The work needed if the decision is reversed:
   not set, so the migration can land before consumers are converted.
 - Add a small test-app stage that uses tabs to confirm.
 
-### 2.2. Inventory the remaining `C_YUI_ROUTING` / `C_YUI_MAIN` consumers
+### 1.2. Inventory the remaining `C_YUI_ROUTING` / `C_YUI_MAIN` consumers
 
 ```
 grep -r register_c_yui_main      kernel/ utils/ yunos/
@@ -65,12 +54,12 @@ Likely consumers inside `lib-yui`:
 For each consumer:
 
 - Replace `EV_ROUTING_CHANGED` subscription with `EV_ROUTE_CHANGED`
-  via the shell (see 2.1).
+  via the shell (see 1.1).
 - Replace `display_*` / `get_yes*` calls with the shell-helper
   version (`yui_shell_show_*` / `yui_shell_confirm_*`).
 - Drop the dependency on the old gclasses from imports.
 
-### 2.3. Migrate `estadodelaire/gui` to the shell — first real-world test
+### 1.3. Migrate `estadodelaire/gui` to the shell — first real-world test
 
 The companion repo `artgins/estadodelaire` is the canonical app on
 top of `lib-yui`.  Replace its bootstrap:
@@ -100,9 +89,9 @@ top of `lib-yui`.  Replace its bootstrap:
   **before continuing**.  Do not patch around it ad-hoc inside
   `gui/`.
 
-### 2.4. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `lib-yui`
+### 1.4. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `lib-yui`
 
-Gated on 2.1, 2.2, 2.3.  All four greps above must return empty.
+Gated on 1.1, 1.2, 1.3.  All four greps above must return empty.
 
 - Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
   `src/c_yui_routing.js`, `src/c_yui_routing.css`.
@@ -116,7 +105,7 @@ Gated on 2.1, 2.2, 2.3.  All four greps above must return empty.
 - Bump `lib-yui` to `8.0.0` (breaking change).  Add CHANGELOG entry
   with the removal and link to this TODO.
 
-**Done when (2 as a whole):** `lib-yui` no longer ships either
+**Done when (1 as a whole):** `lib-yui` no longer ships either
 gclass and no consumer inside the org references them.
 
 ---
