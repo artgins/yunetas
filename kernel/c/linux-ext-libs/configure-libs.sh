@@ -54,6 +54,13 @@
 #         - drop --with-zlib=../zlib (already gone)
 #         - drop the verify_static_linking block (its premise was that
 #           libssl/libpcre/libz must NOT appear in ldd; that was wrong)
+#       drop --enable-widec from ncurses. The 1.9 sweep enabled
+#       wide-character ncurses, which installs as ncursesw (headers
+#       in include/ncursesw/, lib as libncursesw.a). Yuneta's consumers
+#       (modules/c/console, utils/c/ycommand, yunos/c/{yuno_cli,mqtt_tui})
+#       all include <ncurses/ncurses.h> and link ncurses.a (narrow API),
+#       so the flag broke the whole console/CLI layer. Nobody uses the
+#       wide API yet, so just drop the flag.
 
 VERSION="1.10"
 
@@ -300,7 +307,6 @@ git checkout "$TAG_NCURSES"
     --without-progs \
     --without-debug \
     --with-pic \
-    --enable-widec \
     --enable-sp-funcs
 make
 make install
