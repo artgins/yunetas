@@ -328,7 +328,7 @@ git checkout "$TAG_NGINX"
     --with-pcre=../pcre2 \
     --with-pcre-jit \
     --with-openssl=../openssl \
-    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs" \
+    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
     --with-zlib=../zlib
 make
 make install
@@ -361,7 +361,7 @@ cd "openresty-$TAG_OPENRESTY"
     --with-pcre=../../pcre2 \
     --with-pcre-jit \
     --with-openssl=../../openssl \
-    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs" \
+    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
     --with-zlib=../../zlib
 
 gmake
