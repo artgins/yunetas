@@ -40,8 +40,13 @@
 #       nginx: add http_v2 / realip / stub_status / gzip_static so it
 #              matches openresty's module set
 #       nginx + openresty: add --with-threads and --with-file-aio
+#   version 1.10
+#       drop vendored zlib — nginx and openresty now link against the
+#       system libz.so (the previous --with-zlib=../zlib trampled the
+#       prefix in build/zlib/Makefile during the openresty build, which
+#       made re-install-libs.sh unable to re-install zlib cleanly)
 
-VERSION="1.9"
+VERSION="1.10"
 
 
 source ./repos2clone.sh
@@ -233,19 +238,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   zlib
-#------------------------------------------
-echo "===================== ZLIB ======================="
-cd build/zlib
-
-git checkout "$TAG_ZLIB"
-
-./configure --prefix="${YUNETA_INSTALL_PREFIX}" --static
-make
-make install
-cd ../..
-
-#------------------------------------------
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
@@ -328,8 +320,7 @@ git checkout "$TAG_NGINX"
     --with-pcre=../pcre2 \
     --with-pcre-jit \
     --with-openssl=../openssl \
-    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
-    --with-zlib=../zlib
+    --with-openssl-opt="no-shared no-dso no-tests no-docs"
 make
 make install
 cd ../..
@@ -361,8 +352,7 @@ cd "openresty-$TAG_OPENRESTY"
     --with-pcre=../../pcre2 \
     --with-pcre-jit \
     --with-openssl=../../openssl \
-    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
-    --with-zlib=../../zlib
+    --with-openssl-opt="no-shared no-dso no-tests no-docs"
 
 gmake
 gmake install
@@ -372,7 +362,9 @@ cd ../..
 
 #------------------------------------------
 #   Verify nginx / openresty are statically linked
-#   against the builtin OpenSSL / PCRE2 / zlib
+#   against the builtin OpenSSL / PCRE2.
+#   zlib is intentionally taken from the system, so libz.so is
+#   expected to appear in ldd and is not flagged.
 #------------------------------------------
 echo "===================== VERIFY STATIC LINKING ======================="
 
@@ -386,10 +378,10 @@ verify_static_linking() {
     fi
 
     local leaks
-    leaks=$(ldd "$bin" 2>/dev/null | grep -E 'libssl|libcrypto|libpcre|libz\.so' || true)
+    leaks=$(ldd "$bin" 2>/dev/null | grep -E 'libssl|libcrypto|libpcre' || true)
 
     if [ -z "$leaks" ]; then
-        echo "[$label] OK — no dynamic ssl/crypto/pcre/z dependency"
+        echo "[$label] OK — no dynamic ssl/crypto/pcre dependency"
     else
         echo "[$label] WARNING — dynamic system libs detected:"
         echo "$leaks" | sed 's/^/    /'
