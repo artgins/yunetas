@@ -41,10 +41,19 @@
 #              matches openresty's module set
 #       nginx + openresty: add --with-threads and --with-file-aio
 #   version 1.10
-#       drop vendored zlib — nginx and openresty now link against the
-#       system libz.so (the previous --with-zlib=../zlib trampled the
-#       prefix in build/zlib/Makefile during the openresty build, which
-#       made re-install-libs.sh unable to re-install zlib cleanly)
+#       revert the 1.8 "vendor everything into nginx/openresty" change.
+#       The internal openssl + pcre2 builds are for yuneta only (yuneta
+#       binaries link statically against outputs_ext/lib/*.a). nginx and
+#       openresty are *separate* binaries shipped alongside yuneta, and
+#       must link dynamically against the host's libssl / libcrypto /
+#       libpcre / libz — same way every distro nginx package does.
+#       Concretely:
+#         - drop --with-openssl=../openssl + --with-openssl-opt=...
+#         - drop --with-pcre=../pcre2 (was added for openresty in 1.8;
+#           nginx had it earlier — both removed)
+#         - drop --with-zlib=../zlib (already gone)
+#         - drop the verify_static_linking block (its premise was that
+#           libssl/libpcre/libz must NOT appear in ldd; that was wrong)
 
 VERSION="1.10"
 
@@ -317,10 +326,7 @@ git checkout "$TAG_NGINX"
     --with-stream_ssl_module \
     --with-threads \
     --with-file-aio \
-    --with-pcre=../pcre2 \
-    --with-pcre-jit \
-    --with-openssl=../openssl \
-    --with-openssl-opt="no-shared no-dso no-tests no-docs"
+    --with-pcre-jit
 make
 make install
 cd ../..
@@ -349,47 +355,12 @@ cd "openresty-$TAG_OPENRESTY"
     --with-stream_ssl_module \
     --with-threads \
     --with-file-aio \
-    --with-pcre=../../pcre2 \
-    --with-pcre-jit \
-    --with-openssl=../../openssl \
-    --with-openssl-opt="no-shared no-dso no-tests no-docs"
+    --with-pcre-jit
 
 gmake
 gmake install
 cd ..
 cd ../..
-
-
-#------------------------------------------
-#   Verify nginx / openresty are statically linked
-#   against the builtin OpenSSL / PCRE2.
-#   zlib is intentionally taken from the system, so libz.so is
-#   expected to appear in ldd and is not flagged.
-#------------------------------------------
-echo "===================== VERIFY STATIC LINKING ======================="
-
-verify_static_linking() {
-    local label="$1"
-    local bin="$2"
-
-    if [ ! -x "$bin" ]; then
-        echo "[$label] skipped — binary not found at $bin"
-        return
-    fi
-
-    local leaks
-    leaks=$(ldd "$bin" 2>/dev/null | grep -E 'libssl|libcrypto|libpcre' || true)
-
-    if [ -z "$leaks" ]; then
-        echo "[$label] OK — no dynamic ssl/crypto/pcre dependency"
-    else
-        echo "[$label] WARNING — dynamic system libs detected:"
-        echo "$leaks" | sed 's/^/    /'
-    fi
-}
-
-verify_static_linking "nginx"     "/yuneta/bin/nginx/sbin/nginx"
-verify_static_linking "openresty" "/yuneta/bin/openresty/nginx/sbin/nginx"
 
 
 #------------------------------------------
