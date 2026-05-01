@@ -31,8 +31,11 @@
 #   version 1.10
 #       verify with ldd that nginx/openresty don't pull libssl/libcrypto/
 #       libpcre/libz from the host at runtime; warn if they do
+#   version 1.11
+#       drop the legacy `set +e` before the openresty block — openresty
+#       builds reliably now, and silencing failures hid real errors
 
-VERSION="1.10"
+VERSION="1.11"
 
 
 source ./repos2clone.sh
