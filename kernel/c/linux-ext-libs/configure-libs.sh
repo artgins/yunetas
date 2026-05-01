@@ -23,19 +23,14 @@
 #   version 1.7
 #       upgrade to mbedtls v4.1.0
 #   version 1.8
-#       nginx and openresty now link against the builtin OpenSSL and PCRE2
-#       (build/openssl, build/pcre2) instead of the system libraries
-#   version 1.9
-#       add zlib v1.3.1; nginx and openresty now also link against
-#       the builtin zlib instead of the system one
-#   version 1.10
-#       verify with ldd that nginx/openresty don't pull libssl/libcrypto/
-#       libpcre/libz from the host at runtime; warn if they do
-#   version 1.11
-#       drop the legacy `set +e` before the openresty block — openresty
-#       builds reliably now, and silencing failures hid real errors
+#       add zlib v1.3.1
+#       nginx and openresty now link statically against the builtin
+#       OpenSSL, PCRE2 and zlib (build/) instead of the system libs
+#       verify with ldd that no libssl/libcrypto/libpcre/libz comes
+#       from the host
+#       drop the legacy `set +e` before the openresty block
 
-VERSION="1.11"
+VERSION="1.8"
 
 
 source ./repos2clone.sh
