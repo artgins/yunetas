@@ -25,8 +25,11 @@
 #   version 1.8
 #       nginx and openresty now link against the builtin OpenSSL and PCRE2
 #       (build/openssl, build/pcre2) instead of the system libraries
+#   version 1.9
+#       add zlib v1.3.1; nginx and openresty now also link against
+#       the builtin zlib instead of the system one
 
-VERSION="1.8"
+VERSION="1.9"
 
 
 source ./repos2clone.sh
@@ -201,6 +204,19 @@ cd ..
 cd ../..
 
 #------------------------------------------
+#   zlib
+#------------------------------------------
+echo "===================== ZLIB ======================="
+cd build/zlib
+
+git checkout "$TAG_ZLIB"
+
+./configure --prefix="${YUNETA_INSTALL_PREFIX}" --static
+make
+make install
+cd ../..
+
+#------------------------------------------
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
@@ -264,7 +280,8 @@ git checkout "$TAG_NGINX"
     --with-pcre=../pcre2 \
     --with-pcre-jit \
     --with-openssl=../openssl \
-    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs"
+    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs" \
+    --with-zlib=../zlib
 make
 make install
 cd ../..
@@ -299,7 +316,8 @@ cd "openresty-$TAG_OPENRESTY"
     --with-http_v2_module \
     --with-http_gzip_static_module \
     --with-openssl=../../openssl \
-    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs"
+    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs" \
+    --with-zlib=../../zlib
 
 gmake
 gmake install
