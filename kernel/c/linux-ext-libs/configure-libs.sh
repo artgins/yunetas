@@ -22,13 +22,32 @@
 #
 #   version 1.7
 #       upgrade to mbedtls v4.1.0
+#   version 1.8
+#       add zlib v1.3.1
+#       nginx and openresty now link statically against the builtin
+#       OpenSSL, PCRE2 and zlib (build/) instead of the system libs
+#       verify with ldd that no libssl/libcrypto/libpcre/libz comes
+#       from the host
+#       drop the legacy `set +e` before the openresty block
+#   version 1.9
+#       parallelise builds with MAKEFLAGS=-j$(nproc)
+#       mbedtls: Debug -> Release, drop ENABLE_PROGRAMS, force PIC
+#       jansson / pcre2 / argp-standalone: explicit Release + static + PIC
+#       pcre2: drop pcre2grep and tests
+#              (16-bit and 32-bit variants kept for downstream apps)
+#       libbacktrace: --disable-shared --with-pic
+#       ncurses: drop tests/progs/ada/debug, enable widec, force PIC
+#       nginx: add http_v2 / realip / stub_status / gzip_static so it
+#              matches openresty's module set
+#       nginx + openresty: add --with-threads and --with-file-aio
 
-VERSION="1.7"
+VERSION="1.9"
 
 
 source ./repos2clone.sh
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export CC=cc
+export MAKEFLAGS="-j$(nproc)"
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 
@@ -93,7 +112,14 @@ git checkout "$TAG_JANSSON"
 mkdir -p build
 cd build
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DJANSSON_BUILD_DOCS=OFF \
+    -DJANSSON_EXAMPLES=OFF \
+    -DJANSSON_WITHOUT_TESTS=ON \
+    ..
 make
 make install
 cd ..
@@ -141,7 +167,13 @@ mkdir -p build
 cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-  -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DUSE_SHARED_MBEDTLS_LIBRARY=Off \
+    -DUSE_STATIC_MBEDTLS_LIBRARY=On \
+    -DENABLE_TESTING=Off \
+    -DENABLE_PROGRAMS=Off \
+    ..
 make
 make install
 cd ..
@@ -184,12 +216,15 @@ git submodule update --init
 mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_STATIC_LIBS=ON \
     -DBUILD_SHARED_LIBS=OFF \
     -DPCRE2_BUILD_PCRE2_16=ON \
     -DPCRE2_BUILD_PCRE2_32=ON \
     -DPCRE2_STATIC_PIC=ON \
     -DPCRE2_SUPPORT_JIT=ON \
+    -DPCRE2_BUILD_PCRE2GREP=OFF \
+    -DPCRE2_BUILD_TESTS=OFF \
     ..
 
 make
@@ -198,12 +233,27 @@ cd ..
 cd ../..
 
 #------------------------------------------
+#   zlib
+#------------------------------------------
+echo "===================== ZLIB ======================="
+cd build/zlib
+
+git checkout "$TAG_ZLIB"
+
+./configure --prefix="${YUNETA_INSTALL_PREFIX}" --static
+make
+make install
+cd ../..
+
+#------------------------------------------
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
 cd build/libbacktrace
 
-./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+./configure --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --disable-shared \
+    --with-pic
 make
 make install
 cd ../..
@@ -219,7 +269,11 @@ git checkout "$TAG_ARGP_STANDALONE"
 mkdir -p build
 cd build
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
 make
 make install
 cd ..
@@ -237,8 +291,15 @@ git checkout "$TAG_NCURSES"
 ./configure \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
     --datarootdir=/yuneta/bin/ncurses \
+    --with-default-terminfo-dir=/yuneta/bin/ncurses/terminfo \
     --without-cxx --without-cxx-binding \
+    --without-ada \
     --without-manpages \
+    --without-tests \
+    --without-progs \
+    --without-debug \
+    --with-pic \
+    --enable-widec \
     --enable-sp-funcs
 make
 make install
@@ -256,19 +317,23 @@ git checkout "$TAG_NGINX"
 ./auto/configure \
     --prefix=/yuneta/bin/nginx \
     --with-http_ssl_module \
+    --with-http_v2_module \
+    --with-http_realip_module \
+    --with-http_stub_status_module \
+    --with-http_gzip_static_module \
     --with-stream \
     --with-stream_ssl_module \
+    --with-threads \
+    --with-file-aio \
     --with-pcre=../pcre2 \
-    --with-pcre-jit
+    --with-pcre-jit \
+    --with-openssl=../openssl \
+    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
+    --with-zlib=../zlib
 make
 make install
 cd ../..
 
-
-#------------------------------------------
-#   Commands below can fail
-#------------------------------------------
-set +e
 
 #------------------------------------------
 #   openresty
@@ -285,18 +350,54 @@ cd "openresty-$TAG_OPENRESTY"
 ./configure \
     --prefix=/yuneta/bin/openresty \
     --with-http_ssl_module \
+    --with-http_v2_module \
     --with-http_realip_module \
+    --with-http_stub_status_module \
+    --with-http_gzip_static_module \
     --with-stream \
     --with-stream_ssl_module \
-    --with-http_stub_status_module \
+    --with-threads \
+    --with-file-aio \
+    --with-pcre=../../pcre2 \
     --with-pcre-jit \
-    --with-http_v2_module \
-    --with-http_gzip_static_module
+    --with-openssl=../../openssl \
+    --with-openssl-opt="no-shared no-dso no-tests no-docs" \
+    --with-zlib=../../zlib
 
 gmake
 gmake install
 cd ..
 cd ../..
+
+
+#------------------------------------------
+#   Verify nginx / openresty are statically linked
+#   against the builtin OpenSSL / PCRE2 / zlib
+#------------------------------------------
+echo "===================== VERIFY STATIC LINKING ======================="
+
+verify_static_linking() {
+    local label="$1"
+    local bin="$2"
+
+    if [ ! -x "$bin" ]; then
+        echo "[$label] skipped — binary not found at $bin"
+        return
+    fi
+
+    local leaks
+    leaks=$(ldd "$bin" 2>/dev/null | grep -E 'libssl|libcrypto|libpcre|libz\.so' || true)
+
+    if [ -z "$leaks" ]; then
+        echo "[$label] OK — no dynamic ssl/crypto/pcre/z dependency"
+    else
+        echo "[$label] WARNING — dynamic system libs detected:"
+        echo "$leaks" | sed 's/^/    /'
+    fi
+}
+
+verify_static_linking "nginx"     "/yuneta/bin/nginx/sbin/nginx"
+verify_static_linking "openresty" "/yuneta/bin/openresty/nginx/sbin/nginx"
 
 
 #------------------------------------------
