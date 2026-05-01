@@ -33,8 +33,8 @@
 #       parallelise builds with MAKEFLAGS=-j$(nproc)
 #       mbedtls: Debug -> Release, drop ENABLE_PROGRAMS, force PIC
 #       jansson / pcre2 / argp-standalone: explicit Release + static + PIC
-#       pcre2: drop pcre2grep, tests, and the 16-bit / 32-bit variants
-#              (yunetas only uses PCRE2_CODE_UNIT_WIDTH=8)
+#       pcre2: drop pcre2grep and tests
+#              (16-bit and 32-bit variants kept for downstream apps)
 #       libbacktrace: --disable-shared --with-pic
 #       ncurses: drop tests/progs/ada/debug, enable widec, force PIC
 #       nginx: add http_v2 / realip / stub_status / gzip_static so it
@@ -219,6 +219,8 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_STATIC_LIBS=ON \
     -DBUILD_SHARED_LIBS=OFF \
+    -DPCRE2_BUILD_PCRE2_16=ON \
+    -DPCRE2_BUILD_PCRE2_32=ON \
     -DPCRE2_STATIC_PIC=ON \
     -DPCRE2_SUPPORT_JIT=ON \
     -DPCRE2_BUILD_PCRE2GREP=OFF \
