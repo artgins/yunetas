@@ -22,8 +22,11 @@
 #
 #   version 1.7
 #       upgrade to mbedtls v4.1.0
+#   version 1.8
+#       nginx and openresty now link against the builtin OpenSSL and PCRE2
+#       (build/openssl, build/pcre2) instead of the system libraries
 
-VERSION="1.7"
+VERSION="1.8"
 
 
 source ./repos2clone.sh
@@ -259,7 +262,9 @@ git checkout "$TAG_NGINX"
     --with-stream \
     --with-stream_ssl_module \
     --with-pcre=../pcre2 \
-    --with-pcre-jit
+    --with-pcre-jit \
+    --with-openssl=../openssl \
+    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs"
 make
 make install
 cd ../..
@@ -289,9 +294,12 @@ cd "openresty-$TAG_OPENRESTY"
     --with-stream \
     --with-stream_ssl_module \
     --with-http_stub_status_module \
+    --with-pcre=../../pcre2 \
     --with-pcre-jit \
     --with-http_v2_module \
-    --with-http_gzip_static_module
+    --with-http_gzip_static_module \
+    --with-openssl=../../openssl \
+    --with-openssl-opt="no-shared no-dso no-sock no-tests no-docs"
 
 gmake
 gmake install
