@@ -28,8 +28,11 @@
 #   version 1.9
 #       add zlib v1.3.1; nginx and openresty now also link against
 #       the builtin zlib instead of the system one
+#   version 1.10
+#       verify with ldd that nginx/openresty don't pull libssl/libcrypto/
+#       libpcre/libz from the host at runtime; warn if they do
 
-VERSION="1.9"
+VERSION="1.10"
 
 
 source ./repos2clone.sh
@@ -323,6 +326,36 @@ gmake
 gmake install
 cd ..
 cd ../..
+
+
+#------------------------------------------
+#   Verify nginx / openresty are statically linked
+#   against the builtin OpenSSL / PCRE2 / zlib
+#------------------------------------------
+echo "===================== VERIFY STATIC LINKING ======================="
+
+verify_static_linking() {
+    local label="$1"
+    local bin="$2"
+
+    if [ ! -x "$bin" ]; then
+        echo "[$label] skipped — binary not found at $bin"
+        return
+    fi
+
+    local leaks
+    leaks=$(ldd "$bin" 2>/dev/null | grep -E 'libssl|libcrypto|libpcre|libz\.so' || true)
+
+    if [ -z "$leaks" ]; then
+        echo "[$label] OK — no dynamic ssl/crypto/pcre/z dependency"
+    else
+        echo "[$label] WARNING — dynamic system libs detected:"
+        echo "$leaks" | sed 's/^/    /'
+    fi
+}
+
+verify_static_linking "nginx"     "/yuneta/bin/nginx/sbin/nginx"
+verify_static_linking "openresty" "/yuneta/bin/openresty/nginx/sbin/nginx"
 
 
 #------------------------------------------
