@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ Yunetas es un proyecto consolidado
+
+Antes de proponer o aplicar cualquier cambio:
+
+1. **Leer en profundidad** el código afectado y su contexto — no solo el fragmento puntual.
+2. **Identificar invariantes y convenciones** del módulo (patrones de gclass, FSM, memoria `gbmem_*`, layout de banners, etc.).
+3. **Analizar efectos colaterales**: quién llama, quién depende, qué tests cubren la zona, qué pasa en builds estáticos / con distintos backends TLS.
+4. **Justificar el cambio** y esperar aprobación antes de tocar nada.
+
+Cambios "obvios" o "pequeños" en código consolidado han causado regresiones. La velocidad no compensa romper invariantes establecidos.
+
 ## ⚠️ CRITICAL: Memory allocation in C code
 
 **NEVER use raw `malloc` / `calloc` / `realloc` / `free` / `strdup` / `strndup` in Yuneta C code.**
