@@ -2203,9 +2203,9 @@ PRIVATE int framehead_consume(
                     "msg",          "%s", "First mqtt command must be CONNECT",
                     NULL
                 );
+                gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
                 return -1;
             }
-            gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
         }
     }
 

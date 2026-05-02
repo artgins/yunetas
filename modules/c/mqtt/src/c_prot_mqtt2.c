@@ -804,7 +804,7 @@ PRIVATE int message__out_update(
     if(qmsg) {
         int msg_qos = msg_flag_get_qos_level(qmsg);
         if(msg_qos != qos) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "QoS mismatch",
@@ -7825,9 +7825,9 @@ PRIVATE int framehead_consume(
                     "msg",          "%s", "First mqtt command must be CONNECT",
                     NULL
                 );
+                gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
                 return -1;
             }
-            gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
         }
     }
 
