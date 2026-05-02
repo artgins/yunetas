@@ -2,16 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## ⚠️ Yunetas es un proyecto consolidado
+## ⚠️ Yunetas is a consolidated project
 
-Antes de proponer o aplicar cualquier cambio:
+Before proposing or applying any change:
 
-1. **Leer en profundidad** el código afectado y su contexto — no solo el fragmento puntual.
-2. **Identificar invariantes y convenciones** del módulo (patrones de gclass, FSM, memoria `gbmem_*`, layout de banners, etc.).
-3. **Analizar efectos colaterales**: quién llama, quién depende, qué tests cubren la zona, qué pasa en builds estáticos / con distintos backends TLS.
-4. **Justificar el cambio** y esperar aprobación antes de tocar nada.
+1. **Read in depth** the affected code and its context — not just the specific fragment.
+2. **Identify invariants and conventions** of the module (gclass patterns, FSM, `gbmem_*` memory, banner layout, etc.).
+3. **Analyze side effects**: who calls it, who depends on it, which tests cover the area, what happens in static builds / with different TLS backends.
+4. **Justify the change** and wait for approval before touching anything.
 
-Cambios "obvios" o "pequeños" en código consolidado han causado regresiones. La velocidad no compensa romper invariantes establecidos.
+"Obvious" or "small" changes in consolidated code have caused regressions. Speed does not compensate for breaking established invariants.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
 
@@ -120,6 +120,38 @@ each occurrence:
   braces all collapsed onto a single line). Expand it.
 
 Yes, this is a verbose style. It is intentional. Visibility wins.
+
+## ⚠️ Documentation language: English only
+
+**Every text artifact that lands in this repo must be written in English**,
+regardless of the language of the conversation with the user (which is
+often Spanish). This rule applies equally to claudia console (Claude
+Code CLI) and claudia gui (claude.ai web).
+
+In English (always):
+
+- `.md` files of any kind: READMEs, design docs, this `CLAUDE.md`,
+  in-tree guides, skill outputs (Plan markdown, etc.) checked into
+  the repo.
+- **Section headings** inside those files — a Spanish heading inside
+  an otherwise English doc still counts as a violation.
+- Code comments in C / JS / Python / shell.
+- Commit messages and PR titles / descriptions.
+- Log messages, error strings, and any other strings shipped in the
+  binary.
+
+What stays in the user's language: the live chat / terminal output
+between the user and the assistant. Only artifacts that get committed
+to the repo must be in English.
+
+**Why:** the codebase is read by an international audience; mixed-
+language docs/headings/comments are an inconsistency that has to be
+cleaned up later, and have repeatedly leaked in via sessions where the
+rule was not surfaced.
+
+When editing an existing doc that has Spanish content (body or
+headings), translate it directly when the user asks for any cleanup of
+that file; otherwise propose the translation before touching the rest.
 
 ## System Prerequisites
 
