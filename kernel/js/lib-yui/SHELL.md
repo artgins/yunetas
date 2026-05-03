@@ -13,6 +13,39 @@ Yuneta configuration style.
 
 ---
 
+## 0. Philosophy — declarative first
+
+The shell is the practical expression of a wider Yuneta-side stance:
+**apps describe what they want; the framework decides how to paint
+it.**
+
+  1. **The application declares** in `app_config.json`: zones, menus,
+     toolbar items, view bindings, breakpoints, hover tooltips.
+  2. **`lib-yui` materialises** the DOM and owns *all* CSS for shell
+     chrome (toolbar, drawers, dropdowns, navs).  Apps do not poke
+     into the shell's elements; they do not ship media queries that
+     target shell selectors.
+  3. **Imperative helpers are escape hatches** — `yui_shell_set_avatar_provider`,
+     `yui_shell_refresh_avatars`, `yui_shell_close_dropdown`, etc.
+     They exist for the cases the declarative shape can't reach
+     (e.g. host-owned data like the user's initials).  They are not
+     the default path.
+
+When you reach for a feature, climb this ladder in order:
+
+  a. Can it be expressed by extending the JSON contract (a new field
+     or a new `type`/`action.type` value)?  Do that.
+  b. If not, can a small public helper in `lib-yui` cover it without
+     leaking DOM details to the host?  Add the helper.
+  c. Touching app DOM/CSS directly is a last resort and signals a
+     gap in (a) or (b) that should be filed back upstream.
+
+The reverse migration is the litmus test: every time wattyzer or
+another consumer can delete an `install_*()` patch or a CSS selector
+keyed on `data-toolbar-item-id`, the shell got better at its job.
+
+---
+
 ## 1. Goals
 
 1. **Declarative**: the screen split and the menu tree are described in
@@ -179,6 +212,19 @@ is only one main stage named `main` in `center`.
 - `items[]` — options.
 
 ### 3.4 `toolbar`
+
+**Cheatsheet — three orthogonal axes per item:**
+
+| Axis | Field | Values | Effect |
+|---|---|---|---|
+| Form | `type` | `"brand"` · `"avatar"` · *omitted (action)* | Renderer kind |
+| Behaviour | `action.type` | `"navigate"` · `"drawer"` · `"event"` · `"dropdown"` | What the click does |
+| Visibility | `show_on` | `">=tablet"` · `"<desktop"` · `"*"` · ... | Per-item breakpoint |
+
+Compose freely — `type:"avatar"` + `action:{type:"dropdown",items:[…]}`
+is the canonical user menu.  Dropdown sub-items reuse the same
+`action.type` set (no nested dropdowns).  Brand items default
+`action.type` to `"navigate"` if omitted.
 
 ```json
 "toolbar": {

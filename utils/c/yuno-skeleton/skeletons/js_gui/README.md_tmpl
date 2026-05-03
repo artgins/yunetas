@@ -45,6 +45,23 @@ npm run dev    # http://localhost:5173
         └── locales.js   — i18next bootstrap
 ```
 
+## Gotchas
+
+- **Inline `<script>` is blocked by CSP.**  `yunetaHtmlPlugin` emits
+  `script-src 'self'`, so anything that needs to run before the
+  bundle (anti-FOUC, theme bootstrap, feature detection) must live
+  in `public/<name>.js` and be referenced with
+  `<script src="/<name>.js">`.  `eval()` and `new Function()` are
+  also forbidden by the policy.
+
+- **Don't restyle lib-yui internals.**  The shell owns its own DOM
+  and CSS (toolbar, drawers, dropdowns, navs).  Before adding a
+  selector that targets a framework hook in app CSS, see whether
+  the need can be expressed by extending `app_config.json` (a new
+  `type` / `action.type` / `show_on` value) or by a small public
+  helper upstream in `lib-yui`.  See `lib-yui`'s `SHELL.md` §0 for
+  the declarative-first order of preference.
+
 ## Add a real view
 
 1. Implement the view as a Yuneta GClass exposing a `$container`

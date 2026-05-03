@@ -64,6 +64,24 @@ export function yunetaHtmlPlugin(options = {}) {
                  *  csp_connect_src is an array of origins.
                  *  Entries starting with "_comment" are
                  *  ignored (documentation hints).
+                 *
+                 *  ⚠ The emitted policy pins `script-src 'self'` —
+                 *  *no* inline <script>, no eval, no `data:` script
+                 *  imports, no Function() constructor.  Consumers
+                 *  that need to run JS before the bundle (anti-FOUC,
+                 *  theme bootstrap, feature detection) must put the
+                 *  script in `gui/public/<name>.js` and reference it
+                 *  with `<script src="/<name>.js">`.  Same-origin URL
+                 *  satisfies 'self'; an inline block does not.
+                 *
+                 *  See `wattyzer/gui/public/anti-fouc.js` for the
+                 *  canonical pre-paint pattern (theme bootstrap from
+                 *  localStorage + matchMedia fallback).
+                 *
+                 *  Style is more permissive ('unsafe-inline'): Bulma
+                 *  / view templates need it for inline `style=` and
+                 *  injected style blocks.  Don't loosen the script
+                 *  side without a strong reason.
                  *------------------------------------------*/
                 let cspHtml = "";
                 if (config.csp_connect_src) {
