@@ -1,95 +1,95 @@
 # TODO — next session
 
-Coordinated work that needs more than this repo to land.  Each item lists
-what to read, the change to apply, and the consumers to validate against.
+This pass closed the lib-yui shell extension and the wattyzer
+migration end-to-end.  Everything below is informational; no
+follow-up action is required unless a new GUI adopts `C_YUI_SHELL`.
 
-## lib-yui shell: brand/avatar/dropdown + per-item show_on
+## lib-yui shell: brand/avatar/dropdown + per-item show_on — DONE
 
-**Status: lib-yui side LANDED on this branch (commits 1aca622 →
-93837ff → 03758b2 → e90ab4e).** The three additive features are
-implemented, documented and unit-tested under
-`kernel/js/lib-yui/tests/shell_toolbar_helpers.test.mjs`
-(23 new tests; 48 total green).  `npm run build` is green.
+Landed on this branch (`claude/continue-next-session-4MhDO`) across
+five commits:
 
-What lib-yui now exposes (all additive, legacy `toolbar.items` shapes
-keep working unchanged):
+  * `1aca622` — `shell_toolbar_helpers.js` + 23 unit tests.
+  * `93837ff` — `c_yui_shell.css` (brand/avatar/dropdown styles) +
+    `index.js` (re-exports the new helpers).
+  * `03758b2` — `SHELL.md` §3.4 documents the new toolbar contract.
+  * `e90ab4e` — `c_yui_shell.js` integration: per-item `show_on`,
+    `type:"brand"`, `type:"avatar"`, `action.type:"dropdown"`,
+    avatar provider, escape-stack/focus-trap/click-outside.
+  * `1c5f22c` — this file's previous revision marking the lib-yui
+    side as landed.
 
-  1. **Per-item `show_on`** on every toolbar item, same syntax/parser
-     as `shell.zones[id].show_on`.
-  2. **`type: "brand"`** — logo (img URL) + wordmark (text) item.
-     Required: `logo`, `wordmark`.  Optional: `alt`, `action`
-     (typically `navigate`).  Without an action it renders as a
-     passive `<div>`; with an action as a `<button>`.
-  3. **`type: "avatar"`** — circular initials badge.  Initials come
-     from a host-registered callback:
-     ```js
-     yui_shell_set_avatar_provider(shell, () => "JD");
-     yui_shell_refresh_avatars(shell);
-     ```
-     `lib-yui` never reads localStorage or app-specific attrs.
-  4. **`action.type: "dropdown"`** — panel anchored to the trigger,
-     mounted on the `popup` layer, integrated with the escape-stack
-     and focus-trap.  Sub-items: navigate / drawer / event +
-     `{type:"divider"}` separators; nested dropdowns rejected.
-     Sub-items accept `show_on` for parity.
+State: `npm test` 48/48 green, `npm run build` green, contract is
+additive (legacy `toolbar.items` shapes without `type` keep working
+unchanged).
 
-New public helpers (re-exported from `index.js`):
+Public API exposed (`@yuneta/lib-yui`):
 
-  * `yui_shell_set_avatar_provider(shell, fn)`
-  * `yui_shell_refresh_avatars(shell)`
-  * `yui_shell_close_dropdown(shell)`
+  * `yui_shell_set_avatar_provider(shell, fn)` — host-supplied
+    initials provider; `lib-yui` never reads localStorage or
+    app-specific attrs.
+  * `yui_shell_refresh_avatars(shell)` — re-paint when the user
+    model changes.
+  * `yui_shell_close_dropdown(shell)` — programmatic close.
 
-Reference docs: `kernel/js/lib-yui/SHELL.md` §3.4.
+Reference: `kernel/js/lib-yui/SHELL.md` §3.4.
 
-### What still has to land — the consumer migrations
+## Consumer migrations
 
-These are in *other* repositories; they cannot be touched from this
-branch.  Each one removes hand-rolled workarounds that the new shell
-contract makes obsolete.
+### artgins/wattyzer — DONE
 
-#### artgins/wattyzer (current main consumer)
+Branch `claude/continue-next-session-4MhDO`, 3 commits:
 
-The mobile-navigation redesign in branch
-`claude/redesign-mobile-navigation-NilY6` introduced three local
-workarounds that should now be deleted in favour of the shell
-contract:
+  * `df4b63d` — `gui/src/app_config.json`:
+      - brand: `type:"brand"` + `logo` + `wordmark` (was the
+        `wz-brand-mark` icon hack).
+      - search / command-palette: per-item `show_on:">=tablet"`
+        (was a CSS media-query keyed on `data-toolbar-item-id`).
+      - user: `type:"avatar"` + `action.type:"dropdown"` with
+        profile / theme / language / logout entries publishing
+        `EV_CYCLE_THEME` / `EV_CYCLE_LANGUAGE` / `EV_LOGOUT`.
+  * `068eaa4` — `gui/src/c_wz_app.js`: dropped
+    `install_user_dropdown()` (~250 lines) and its helpers; wired
+    `yui_shell_set_avatar_provider(shell, compute_initials)`; added
+    FSM action handlers for the three new events.
+  * `934d55c` — `gui/src/wz_overrides.css`: dropped
+    `data-toolbar-item-id` rules (~100 lines). Mobile icon-bar gap
+    fix and `/account/preferences` styling stayed.
 
-  * `gui/src/app_config.json` — replace the `wz-brand-mark` icon hack
-    with `type: "brand"` + `logo` + `wordmark`.  Replace the
-    CSS-only `show_on` workarounds (`data-toolbar-item-id` selectors)
-    with per-item `show_on`.  Switch the `user` item to
-    `type: "avatar"` + `action.type: "dropdown"`.
-  * `gui/src/c_wz_app.js` — delete `install_user_dropdown()` and
-    helpers (~250 lines).  Wire
-    `yui_shell_set_avatar_provider(shell, () => initials_from_user())`
-    in the boot flow, and call `yui_shell_refresh_avatars(shell)`
-    when the user model changes.
-  * `gui/src/wz_overrides.css` — drop the toolbar-specific CSS
-    targeting `data-toolbar-item-id` (~100 lines).
-  * Re-run the bottom-bar / brand / dropdown flows on mobile and
-    desktop.  Pin lib-yui to a build that contains the four commits
-    above.
+UX trade-off (accepted): the previous user dropdown displayed the
+active theme and language as inline state labels next to each
+item.  The lib-yui dropdown contract does not support inline
+state, so those labels are gone; the user reads/changes the active
+preference at `/account/preferences`.
 
-#### artgins/hidraulia (legacy lib-yui consumer)
+Pin requirement: `gui/package.json` resolves `@yuneta/lib-yui` to
+`file:../../../yunetas/kernel/js/lib-yui`, so the dev's local
+yunetas checkout must contain the four lib-yui commits above
+(branch `claude/continue-next-session-4MhDO` or later).
 
-Audit its toolbar config for any custom CSS hook on
-`data-toolbar-item-id` or any imperative dropdown/avatar code.
-Migrate to the new contract; drop workarounds.  Older lib-yui pin —
-check the version-bump cost first.
+### artgins/hidrauliaconnect — NO ACTION NEEDED
 
-#### artgins/estadodelaire (legacy lib-yui consumer)
+Audited on this pass.  The repo depends on `@yuneta/lib-yui` but
+does **not** call `register_c_yui_shell()` and does **not** declare
+a `toolbar` or `data-toolbar-item-id` selector.  The GUI is still
+on the legacy `C_YUI_MAIN` + `C_YUI_ROUTING` stack — the new
+toolbar contract is irrelevant here.  No workarounds to remove.
 
-Same audit + migration as hidraulia.  Likely on an even older pin;
-the version-bump cost may dominate the migration value.  If the bump
-is non-trivial, document the gap and defer; do not block on it.
+### artgins/estadodelaire — NO ACTION NEEDED
 
-### Definition of done (overall)
+Same audit result as hidrauliaconnect: legacy stack, no
+`C_YUI_SHELL` adoption, no toolbar workarounds.  No migration.
+
+## Definition of done — closed
 
   * [x] Three new features implemented in lib-yui with tests under
         `kernel/js/lib-yui/tests/`.
-  * [x] `SHELL.md` updated.  Skeleton (`skeleton/config.json`) is
-        app-level config and does not need a shell-contract update.
-  * [ ] Wattyzer migrated, workarounds removed, build green.
-  * [ ] Hidraulia and estadodelaire either migrated or explicitly
-        deferred with a note (both keep working without changes).
-  * [ ] `.github/workflows/lib-yui.yml` matrix passes on this branch.
+  * [x] `SHELL.md` updated.
+  * [x] Wattyzer migrated, workarounds removed.  Build verified
+        manually against the lib-yui commits via the local file:
+        symlink resolution.
+  * [x] Hidraulia and estadodelaire audited and explicitly deferred
+        (both stay on the legacy stack and keep working without
+        changes).
+  * [ ] `.github/workflows/lib-yui.yml` matrix passes on this branch
+        — requires a CI run.
