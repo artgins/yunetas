@@ -1,0 +1,10 @@
+{
+    "short_name": "{{Yunorole}}",
+    "name": "{{Yunorole}}",
+    "description": "{{description}}",
+    "icons": [],
+    "start_url": "/?utm_source=homescreen",
+    "display": "standalone",
+    "background_color": "#FFFFFF",
+    "theme_color": "#1F3A5F"
+}

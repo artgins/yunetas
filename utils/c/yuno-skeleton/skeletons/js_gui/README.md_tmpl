@@ -1,0 +1,64 @@
+# {{Yunorole}} GUI
+
+Web frontend scaffolded by `yuno-skeleton js_gui {{yunorole}}`.
+
+Built with [Vite](https://vitejs.dev/) and the Yunetas
+`@yuneta/gobj-js` framework on top of the declarative shell
+(`C_YUI_SHELL` + `C_YUI_NAV`) from `@yuneta/lib-yui`.
+
+{{description}}
+
+## Status
+
+Skeleton.  Every menu route resolves to the placeholder gclass
+`C_{{ROOTNAME}}_VIEW`.  Replace it with real views as you build them.
+
+## Run
+
+```bash
+npm install
+npm run dev    # http://localhost:5173
+```
+
+## Layout
+
+```
+{{yunorole}}/
+├── config.json          — title, metadata, CSP origins (consumed by Vite plugin)
+├── index.html
+├── vite.config.js       — alias @yuneta/* → kernel sources
+├── package.json
+├── public/              — static assets served at the site root
+│   ├── 404.html
+│   ├── browserconfig.xml
+│   ├── humans.txt
+│   ├── robots.txt
+│   └── site.webmanifest
+└── src/
+    ├── app_config.json  — declarative shell + menu tree
+    ├── c_{{rootname}}_view.js — placeholder view gclass
+    ├── main.js          — registers gclasses, sets up i18n, starts the yuno
+    └── locales/
+        ├── en.js        — English translations
+        ├── es.js        — Spanish translations
+        ├── flags.js     — SVG flags for the language switcher
+        └── locales.js   — i18next bootstrap
+```
+
+## Add a real view
+
+1. Implement the view as a Yuneta GClass exposing a `$container`
+   `HTMLElement` attribute (see `c_{{rootname}}_view.js` for the
+   contract).
+2. Register it in `main.js`.
+3. Replace the relevant `target.gclass` in `app_config.json` and pass
+   any initial attributes via `target.kw`.  Setting
+   `target.kw.subtitle` also seeds the hover tooltip for free.
+
+## Author
+
+{{author}}{{author_email}}
+
+## License
+
+{{license_name}}

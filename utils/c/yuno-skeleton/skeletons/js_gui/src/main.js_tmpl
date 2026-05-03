@@ -1,0 +1,155 @@
+/***********************************************************************
+ *          main.js
+ *
+ *          {{Yunorole}} GUI — entry point.
+ *
+ *          The GUI is built on the declarative shell + nav stack
+ *          (C_YUI_SHELL + C_YUI_NAV) from @yuneta/lib-yui.  All menu
+ *          structure lives in src/app_config.json; this file only wires
+ *          the GClasses and starts the yuno.
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+import {
+    gobj_start_up,
+    gobj_create_yuno,
+    gobj_create_default_service,
+    gobj_start, gobj_play,
+    register_c_yuno,
+    register_c_timer,
+} from "@yuneta/gobj-js";
+
+/*
+ *  Import the shell + nav directly from their source files instead of
+ *  the lib-yui package index.  The index re-exports every component
+ *  (maps, charts, treedb, ...) and would force their npm peer deps on
+ *  this skeleton, even though we only use the declarative shell.
+ */
+import {register_c_yui_shell} from "@yuneta/lib-yui/src/c_yui_shell.js";
+import {register_c_yui_nav}   from "@yuneta/lib-yui/src/c_yui_nav.js";
+
+import {register_c_{{rootname}}_view} from "./c_{{rootname}}_view.js";
+
+import {setup_locale} from "./locales/locales.js";
+
+import "bulma/css/bulma.css";
+import "@yuneta/lib-yui/src/c_yui_shell.css";
+import "@yuneta/lib-yui/src/yui_icons.css";
+
+import app_config from "./app_config.json";
+
+
+/************************************************
+ *          Yuno identity
+ ************************************************/
+const yuno_name    = "{{Yunorole}} GUI";
+const yuno_role    = "{{yunorole}}";
+const yuno_version = "{{version}}";
+
+
+/***************************************************************
+ *          Startup checks
+ ***************************************************************/
+if(!("WebSocket" in window)) {
+    window.alert("This app cannot run without WebSockets!");
+}
+
+
+/***************************************************************
+ *          main()
+ ***************************************************************/
+function main()
+{
+    /*----------------------------*
+     *      Register gclasses
+     *----------------------------*/
+    /*  Yunetas-js kernel  */
+    register_c_yuno();
+    register_c_timer();
+
+    /*  Shell + nav stack  */
+    register_c_yui_shell();
+    register_c_yui_nav();
+
+    /*  App-level views  */
+    register_c_{{rootname}}_view();
+
+    /*------------------------------------------------*
+     *          Start yuneta
+     *------------------------------------------------*/
+    gobj_start_up(
+        null,   // jn_global_settings
+        null,   // load_persistent_attrs_fn
+        null,   // save_persistent_attrs_fn
+        null,   // remove_persistent_attrs_fn
+        null,   // list_persistent_attrs_fn
+        null,   // global_command_parser_fn
+        null    // global_stats_parser_fn
+    );
+
+    /*------------------------------------------------*
+     *          Create the __yuno__
+     *------------------------------------------------*/
+    let yuno = gobj_create_yuno(
+        "{{yunorole}}_yuno",
+        "C_YUNO",
+        {
+            yuno_name:    yuno_name,
+            yuno_role:    yuno_role,
+            yuno_version: yuno_version
+        }
+    );
+
+    /*------------------------------------------------*
+     *      Initialise i18n (i18next) with the bundled
+     *      en / es resource bundles.  Honours the user's
+     *      saved choice in localStorage (default: "es").
+     *
+     *      The toolbar's "EV_TOGGLE_LANGUAGE" event is
+     *      not yet wired — when it is, call
+     *          switch_locale(other);
+     *          refresh_language(shell_$container, i18next.t);
+     *      from a small handler subscribed to the shell.
+     *------------------------------------------------*/
+    setup_locale();
+
+    /*------------------------------------------------*
+     *      The shell IS the default service.
+     *      It builds the whole UI from app_config.
+     *------------------------------------------------*/
+    gobj_create_default_service(
+        "shell",
+        "C_YUI_SHELL",
+        {
+            config:   app_config,
+            use_hash: true
+        },
+        yuno
+    );
+
+    /*------------------------------------------------*
+     *      Play
+     *------------------------------------------------*/
+    gobj_start(yuno);
+    gobj_play(yuno);
+}
+
+
+/***************************************************************
+ *          Bootstrap on window load
+ ***************************************************************/
+window.addEventListener("load", function() {
+    /*  Remove the static loading banner injected by index.html  */
+    let loading = document.getElementById("loading-message");
+    if(loading) {
+        loading.remove();
+    }
+
+    /*  Clean any leftover hash from a previous session  */
+    if(!window.location.hash) {
+        window.location.hash = "";
+    }
+
+    main();
+});

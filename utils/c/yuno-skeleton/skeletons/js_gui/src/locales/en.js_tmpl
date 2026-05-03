@@ -1,0 +1,57 @@
+/***********************************************************************
+ *          en.js
+ *
+ *          English translations.  Keys follow the lower-case English
+ *          phrasing that lib-yui's `data-i18n` attributes carry by
+ *          default; a missing key falls through to the key itself.
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+const en = {
+    name: "English",
+
+    translation: {
+        /* dialogs */
+        "yes":               "Yes",
+        "no":                "No",
+        "ok":                "OK",
+        "cancel":            "Cancel",
+        "accept":            "Accept",
+        "close":             "Close",
+        "save":              "Save",
+        "delete":            "Delete",
+        "edit":              "Edit",
+        "add":               "Add",
+        "new":               "New",
+        "refresh":           "Refresh",
+        "search":            "Search",
+        "select":            "Select",
+        "are you sure":      "Are you sure?",
+        "this field is required": "This field is required",
+
+        /* messages */
+        "error":             "Error",
+        "warning":           "Warning",
+        "info":              "Information",
+
+        /* auth */
+        "login":             "Sign In",
+        "logout":            "Sign Out",
+        "user":              "User",
+        "email":             "Email",
+        "password":          "Password",
+
+        /* prefs */
+        "select language":   "Select Language",
+        "select theme":      "Select Theme",
+        "dark theme":        "Dark theme",
+        "light theme":       "Light theme",
+        "system theme":      "System theme",
+
+        /* keep this last so adding new keys above never hits the comma trap */
+        "_xxx":              "last key — insert new ones above"
+    }
+};
+
+export {en};

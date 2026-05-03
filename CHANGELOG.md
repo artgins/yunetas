@@ -5,6 +5,13 @@
       `tooltip` field (fallback: `aria_label`); rendered as the HTML
       `title` attribute on the generated `<a>`/`<button>`.
 
+    - **feat(yuno-skeleton): `js_gui` template**.  New skeleton type for
+      JS GUI yunos — Vite + lib-yui declarative shell with locales/
+      (en+es), public/ web assets, 5 placeholder primary areas, and a
+      burger drawer hosting Account + Help.  Registered in
+      `__skeletons__.json` (type: Yuno; vars: version, description,
+      author, author_email, license_name).
+
 ## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints

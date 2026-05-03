@@ -1,0 +1,53 @@
+import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
+import { yunetaHtmlPlugin } from "@yuneta/lib-yui/vite-plugin-yuneta-html.js";
+
+/*
+ *  Resolve `@yuneta/lib-yui` and `@yuneta/gobj-js` directly to their
+ *  source so the GUI runs without first building the libraries (their
+ *  package.json points to dist/* which does not exist in a fresh checkout).
+ *
+ *  Sub-path imports of lib-yui (e.g. "@yuneta/lib-yui/src/c_yui_shell.js")
+ *  ALSO get aliased to the absolute source dir.  If they instead resolved
+ *  through node_modules, Vite's optimizeDeps would pre-bundle them with
+ *  esbuild, and esbuild would inline lib-yui's nested
+ *  `node_modules/@yuneta/gobj-js` (the dist copy), giving us TWO gobj-js
+ *  registry instances — `register_c_yui_shell()` would register into the
+ *  bundled-in copy, and `gobj_create_default_service` would look up
+ *  C_YUI_SHELL in the source copy, find nothing, and fail with
+ *  "GClass not registered: C_YUI_SHELL".  CSS sub-paths route through
+ *  the same alias, which is fine: the .css files exist next to the .js.
+ */
+const libYuiDir = fileURLToPath(
+    new URL("../../../yunetas/kernel/js/lib-yui", import.meta.url)
+);
+const libYuiSrc = `${libYuiDir}/index.js`;
+const gobjJsSrc = fileURLToPath(
+    new URL("../../../yunetas/kernel/js/gobj-js/src/index.js", import.meta.url)
+);
+
+export default defineConfig({
+    resolve: {
+        preserveSymlinks: true,
+        dedupe: ["@yuneta/gobj-js"],
+        alias: [
+            { find: /^@yuneta\/lib-yui$/, replacement: libYuiSrc },
+            { find: /^@yuneta\/lib-yui\/(.+)$/, replacement: `${libYuiDir}/$1` },
+            { find: /^@yuneta\/gobj-js$/, replacement: gobjJsSrc }
+        ]
+    },
+    build: {
+        sourcemap: true,
+        chunkSizeWarningLimit: 6000
+    },
+    server: {
+        port: 5173,
+        watch: {
+            usePolling: true,
+            interval: 300
+        }
+    },
+    plugins: [
+        yunetaHtmlPlugin({ defaultTitle: "{{Yunorole}}" })
+    ]
+});
