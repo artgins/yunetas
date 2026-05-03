@@ -277,6 +277,14 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    /*  Defensive: tests sometimes call gobj_destroy without a prior
+     *  gobj_stop.  In normal lifecycle mt_stop already closed the
+     *  dropdown; calling close_toolbar_dropdown here is idempotent
+     *  (it returns early when nothing is open) and prevents a
+     *  dangling document mousedown listener / escape-stack entry
+     *  when stop is skipped. */
+    close_toolbar_dropdown(gobj);
+
     let $container = gobj_read_attr(gobj, "$container");
     if($container && $container.parentNode) {
         $container.parentNode.removeChild($container);
@@ -1034,6 +1042,13 @@ function build_toolbar(gobj, config)
         log_warning(`C_YUI_SHELL: toolbar target zone '${zone_id}' not found`);
         return;
     }
+
+    /*  Drop any avatar-node references from a previous build.  Today
+     *  build_toolbar runs once per shell, but resetting here keeps
+     *  avatar_nodes in sync if a future rebuild path is added (mt_start
+     *  is the only caller now; a hot-reload helper would stale-leak
+     *  every span without this). */
+    priv.avatar_nodes = [];
 
     /*  Toolbar labels follow the same i18n contract as nav labels:
      *  every translatable text node carries `i18n: <canonical key>`,
