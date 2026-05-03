@@ -13,6 +13,29 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
+### Exception: `kernel/js/lib-yui/` is in active growth
+
+The C kernel, `kernel/js/gobj-js/` and the runtime gclasses are consolidated:
+treat them as described above.
+
+`kernel/js/lib-yui/` is different. It is still maturing as more apps adopt it
+(currently wattyzer, hidraulia, estadodelaire) and the declarative shell, nav,
+window and form contracts are expected to grow. **Improvements are welcome**:
+new toolbar item types, new `action.type` values, finer-grained `show_on`,
+nav layouts, CSS hooks, etc. The bar is correctness, not conservatism.
+
+Still applies to lib-yui:
+- read the code in depth before editing,
+- preserve backwards compatibility for existing consumers (wattyzer +
+  hidraulia + estadodelaire) — additive changes preferred,
+- run the lib-yui CI matrix (`.github/workflows/lib-yui.yml`),
+- update `kernel/js/lib-yui/SHELL.md` and the corresponding skeleton when
+  the contract changes.
+
+What no longer applies:
+- the "wait for approval before touching anything" gate. Propose, implement,
+  test, then surface the diff for review.
+
 ## ⚠️ CRITICAL: Memory allocation in C code
 
 **NEVER use raw `malloc` / `calloc` / `realloc` / `free` / `strdup` / `strndup` in Yuneta C code.**
