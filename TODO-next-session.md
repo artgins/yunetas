@@ -3,140 +3,93 @@
 Coordinated work that needs more than this repo to land.  Each item lists
 what to read, the change to apply, and the consumers to validate against.
 
-## lib-yui shell: absorb the wattyzer toolbar workarounds
+## lib-yui shell: brand/avatar/dropdown + per-item show_on
 
-**Context.** The mobile-navigation redesign in
-`artgins/wattyzer` (branch `claude/redesign-mobile-navigation-NilY6`)
-needed three features the declarative shell does not yet expose:
+**Status: lib-yui side LANDED on this branch (commits 1aca622 →
+93837ff → 03758b2 → e90ab4e).** The three additive features are
+implemented, documented and unit-tested under
+`kernel/js/lib-yui/tests/shell_toolbar_helpers.test.mjs`
+(23 new tests; 48 total green).  `npm run build` is green.
 
-  1. **Per-item `show_on`** — hide individual toolbar items per
-     breakpoint, not just whole zones.
-  2. **A brand item type** — render a logo image plus a wordmark
-     with its own typography, not a font icon glyph.
-  3. **A dropdown action type** — open a panel with menu entries
-     instead of navigating / firing an event / toggling a drawer.
+What lib-yui now exposes (all additive, legacy `toolbar.items` shapes
+keep working unchanged):
 
-Wattyzer ships with workarounds (CSS attribute selectors on
-`data-toolbar-item-id`, `icon: "wz-brand-mark"` repurposed as a CSS
-class, an imperative `install_user_dropdown()` in `c_wz_app.js` that
-mutates the rendered DOM).  See
-`artgins/wattyzer:gui/src/wz_overrides.css`,
-`artgins/wattyzer:gui/src/c_wz_app.js` and the tail of
-`artgins/wattyzer:gui/src/app_config.json` for the current state.
+  1. **Per-item `show_on`** on every toolbar item, same syntax/parser
+     as `shell.zones[id].show_on`.
+  2. **`type: "brand"`** — logo (img URL) + wordmark (text) item.
+     Required: `logo`, `wordmark`.  Optional: `alt`, `action`
+     (typically `navigate`).  Without an action it renders as a
+     passive `<div>`; with an action as a `<button>`.
+  3. **`type: "avatar"`** — circular initials badge.  Initials come
+     from a host-registered callback:
+     ```js
+     yui_shell_set_avatar_provider(shell, () => "JD");
+     yui_shell_refresh_avatars(shell);
+     ```
+     `lib-yui` never reads localStorage or app-specific attrs.
+  4. **`action.type: "dropdown"`** — panel anchored to the trigger,
+     mounted on the `popup` layer, integrated with the escape-stack
+     and focus-trap.  Sub-items: navigate / drawer / event +
+     `{type:"divider"}` separators; nested dropdowns rejected.
+     Sub-items accept `show_on` for parity.
 
-**Goal.** Bring those three features into `kernel/js/lib-yui/` as
-first-class config so wattyzer (and the legacy consumers below) can
-delete the workarounds.
+New public helpers (re-exported from `index.js`):
 
-### Files to read first
+  * `yui_shell_set_avatar_provider(shell, fn)`
+  * `yui_shell_refresh_avatars(shell)`
+  * `yui_shell_close_dropdown(shell)`
 
-  * `kernel/js/lib-yui/src/c_yui_shell.js`
-      - `build_toolbar()` (renderer)
-      - `build_zones()` and `apply_show_on()`
-      - `handle_toolbar_action()` (current `action.type` switch)
-  * `kernel/js/lib-yui/src/shell_show_on.js`
-      - `breakpoints_from_expr()` already parses the same syntax we
-        want at item level; reuse it.
-  * `kernel/js/lib-yui/SHELL.md`
-      - declarative contract; **must be updated** alongside the code.
-  * `kernel/js/lib-yui/src/c_yui_shell.css`
-      - `yui-hidden-*` helpers, toolbar / navbar classes.
+Reference docs: `kernel/js/lib-yui/SHELL.md` §3.4.
 
-### Proposed API (review with the user before coding)
+### What still has to land — the consumer migrations
 
-```jsonc
-{
-    "toolbar": {
-        "items": [
-            { "id": "burger", "icon": "yi-bars", ... },
+These are in *other* repositories; they cannot be touched from this
+branch.  Each one removes hand-rolled workarounds that the new shell
+contract makes obsolete.
 
-            // 1. Brand item — new type
-            { "id": "brand", "type": "brand",
-              "logo": "/wattyzer-mark.svg",
-              "wordmark": "Wattyzer",
-              "action": { "type": "navigate", "route": "/welcome" } },
+#### artgins/wattyzer (current main consumer)
 
-            // 2. Per-item show_on
-            { "id": "search", "icon": "yi-magnifying-glass",
-              "show_on": ">=tablet", ... },
+The mobile-navigation redesign in branch
+`claude/redesign-mobile-navigation-NilY6` introduced three local
+workarounds that should now be deleted in favour of the shell
+contract:
 
-            // 3. Dropdown action type
-            { "id": "user", "type": "avatar",
-              "initials_from": "wz.user.name",
-              "action": { "type": "dropdown",
-                          "items": [
-                              { "id": "profile", "name": "My profile",
-                                "icon": "yi-user",
-                                "action": { "type": "navigate",
-                                            "route": "/account/profile" } },
-                              { "type": "divider" },
-                              { "id": "theme", "name": "Theme",
-                                "icon": "yi-moon",
-                                "action": { "type": "event",
-                                            "event": "EV_CYCLE_THEME" } },
-                              { "id": "lang", "name": "Language",
-                                "icon": "yi-language",
-                                "action": { "type": "event",
-                                            "event": "EV_CYCLE_LANGUAGE" } },
-                              { "type": "divider" },
-                              { "id": "logout", "name": "logout",
-                                "icon": "yi-right-from-bracket",
-                                "action": { "type": "event",
-                                            "event": "EV_LOGOUT" } }
-                          ] } }
-        ]
-    }
-}
-```
+  * `gui/src/app_config.json` — replace the `wz-brand-mark` icon hack
+    with `type: "brand"` + `logo` + `wordmark`.  Replace the
+    CSS-only `show_on` workarounds (`data-toolbar-item-id` selectors)
+    with per-item `show_on`.  Switch the `user` item to
+    `type: "avatar"` + `action.type: "dropdown"`.
+  * `gui/src/c_wz_app.js` — delete `install_user_dropdown()` and
+    helpers (~250 lines).  Wire
+    `yui_shell_set_avatar_provider(shell, () => initials_from_user())`
+    in the boot flow, and call `yui_shell_refresh_avatars(shell)`
+    when the user model changes.
+  * `gui/src/wz_overrides.css` — drop the toolbar-specific CSS
+    targeting `data-toolbar-item-id` (~100 lines).
+  * Re-run the bottom-bar / brand / dropdown flows on mobile and
+    desktop.  Pin lib-yui to a build that contains the four commits
+    above.
 
-Open questions for the design pass:
-  * Should `brand` also accept a font-icon variant (no logo file) or
-    is it always image + text?
-  * Do dropdown items need their own `show_on`?  Probably yes for
-    parity with toolbar items.
-  * Avatar with initials — separate type (`avatar`) or a flag on the
-    user item?  Initials source: localStorage key, an attr on the
-    shell, or a callback registered by the host?
+#### artgins/hidraulia (legacy lib-yui consumer)
 
-### Consumers to validate (access to be granted next session)
+Audit its toolbar config for any custom CSS hook on
+`data-toolbar-item-id` or any imperative dropdown/avatar code.
+Migrate to the new contract; drop workarounds.  Older lib-yui pin —
+check the version-bump cost first.
 
-The existing toolbar config in each consumer is the regression
-surface for the additive change.  Re-render each app and confirm the
-workaround removal does not break it.
+#### artgins/estadodelaire (legacy lib-yui consumer)
 
-  * **artgins/wattyzer** (current main consumer)
-      - `gui/src/app_config.json` — replace `icon: "wz-brand-mark"`
-        with `type: "brand"`, drop the CSS-only `show_on` workaround,
-        switch the `user` item to `action.type: "dropdown"`.
-      - Delete `install_user_dropdown()` and friends from
-        `gui/src/c_wz_app.js` (~250 lines).
-      - Trim toolbar-specific rules from `gui/src/wz_overrides.css`
-        (~100 lines).
-      - Re-test the bottom-bar / brand / dropdown flows on mobile and
-        desktop.
-  * **hidraulia** (legacy lib-yui consumer)
-      - Audit its toolbar config; flag any custom CSS hook on
-        `data-toolbar-item-id` that the new contract subsumes.
-      - Migrate to the new config, drop workarounds.
-  * **estadodelaire** (legacy lib-yui consumer)
-      - Same audit + migration as hidraulia.
-      - This one is likely on an older lib-yui pin; check the
-        version bump cost before promising the migration.
+Same audit + migration as hidraulia.  Likely on an even older pin;
+the version-bump cost may dominate the migration value.  If the bump
+is non-trivial, document the gap and defer; do not block on it.
 
-### Scope guard
+### Definition of done (overall)
 
-`kernel/js/lib-yui/` is now flagged as "in active growth" in `CLAUDE.md`,
-so the strict approval gate does not apply here — but the additive-only
-rule does.  Existing `toolbar.items` shapes (no `type`, no `show_on`,
-no `action.type: dropdown`) **must keep working unchanged** for any
-consumer that hasn't migrated yet.
-
-### Definition of done
-
-  * Three new features implemented in lib-yui with tests under
-    `kernel/js/lib-yui/tests/`.
-  * `SHELL.md` updated, plus the `skeleton/` if applicable.
-  * Wattyzer migrated, workarounds removed, build green.
-  * Hidraulia and estadodelaire either migrated or explicitly
-    deferred with a note (both keep working without changes).
-  * `.github/workflows/lib-yui.yml` matrix passes.
+  * [x] Three new features implemented in lib-yui with tests under
+        `kernel/js/lib-yui/tests/`.
+  * [x] `SHELL.md` updated.  Skeleton (`skeleton/config.json`) is
+        app-level config and does not need a shell-contract update.
+  * [ ] Wattyzer migrated, workarounds removed, build green.
+  * [ ] Hidraulia and estadodelaire either migrated or explicitly
+        deferred with a note (both keep working without changes).
+  * [ ] `.github/workflows/lib-yui.yml` matrix passes on this branch.
