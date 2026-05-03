@@ -45,6 +45,11 @@ import {
     activate_focus_trap_on,
 } from "./shell_focus_trap.js";
 
+import {
+    classify_toolbar_item,
+    validate_toolbar_item,
+} from "./shell_toolbar_helpers.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -120,7 +125,18 @@ function mt_create(gobj)
          *  interactive overlay (drawer today, modal/popup tomorrow)
          *  pushes its close handler when it opens and pops it when
          *  it closes.  Escape calls the top handler only — LIFO. */
-        escape_stack:    []
+        escape_stack:    [],
+        /*  Avatar item support — every toolbar item with type:"avatar"
+         *  registers its <span> here so refresh_avatars() can repaint
+         *  the initials when the host (wattyzer, hidraulia, …) calls
+         *  yui_shell_set_avatar_provider() / yui_shell_refresh_avatars().
+         *  The provider is a () => string callback owned by the host. */
+        avatar_provider: null,
+        avatar_nodes:    [],
+        /*  Currently open toolbar dropdown panel, if any.  Tracked here
+         *  so a second click on any trigger (or programmatic close) can
+         *  tear down the previous one through the same code path. */
+        active_dropdown: null
     });
 
     build_ui(gobj);
@@ -215,6 +231,11 @@ function mt_stop(gobj)
     if(!priv) {
         return;
     }
+
+    /*  Tear down any toolbar dropdown that was open at stop time so its
+     *  document-level mousedown listener and escape-stack entry don't
+     *  outlive the shell. */
+    close_toolbar_dropdown(gobj);
 
     if(priv.hash_handler) {
         window.removeEventListener("hashchange", priv.hash_handler);
@@ -369,6 +390,19 @@ function validate_config(config)
                   !is_array(config.toolbar.items)) {
             log_error("C_YUI_SHELL: config.toolbar.items must be an array");
             ok = false;
+        } else if(is_array(config.toolbar.items)) {
+            /*  Per-item shape check: brand needs logo+wordmark, dropdown
+             *  needs items[], action.type must be one of the known set,
+             *  etc.  Surfaced as warnings (additive contract: legacy
+             *  configs without `type` keep working as type:"action"). */
+            for(let it of config.toolbar.items) {
+                let r = validate_toolbar_item(it);
+                if(!r.ok) {
+                    for(let w of r.warnings) {
+                        log_warning(`C_YUI_SHELL: ${w}`);
+                    }
+                }
+            }
         }
     }
 
@@ -895,6 +929,10 @@ function navigate_to(gobj, route)
      *  sitting on top of the new view. */
     close_all_drawers(gobj);
 
+    /*  Same logic for an open toolbar dropdown — once the navigation lands
+     *  on a new view, the panel is stale.  No-op when nothing is open. */
+    close_toolbar_dropdown(gobj);
+
     /*  Update hash silently */
     if(gobj_read_attr(gobj, "use_hash")) {
         let target_hash = route_to_hash(route);
@@ -964,10 +1002,23 @@ function safe_id(s)
 
 /************************************************************
  *  Toolbar — a small declarative bar mounted in whichever zone
- *  declares `host: "toolbar"`.  Items support three action types:
+ *  declares `host: "toolbar"`.
+ *
+ *  Item kinds (`type`):
+ *      "brand"  — logo (img) + wordmark (text); typically anchors a
+ *                 navigate action to the home route.
+ *      "avatar" — circular initials populated by an app-registered
+ *                 provider callback (yui_shell_set_avatar_provider).
+ *      "action" — default; icon and/or label that triggers an action.
+ *
+ *  Action types (item.action.type):
  *      navigate { type:"navigate", route }
  *      drawer   { type:"drawer",   op:"toggle"|"open"|"close", menu_id? }
  *      event    { type:"event",    event, kw? }
+ *      dropdown { type:"dropdown", items[] }    (toolbar-only)
+ *
+ *  Per-item `show_on` is honoured: each rendered item is wrapped with
+ *  the same Bulma-helper logic as zones.
  ************************************************************/
 function build_toolbar(gobj, config)
 {
@@ -1004,43 +1055,191 @@ function build_toolbar(gobj, config)
 
     for(let it of tb.items) {
         let parent = (it.align === "end") ? $end : $start;
-        let children = [];
-        if(!empty_string(it.icon)) {
-            children.push(["span", {class: "icon"},
-                ["i", {class: it.icon, "aria-hidden": "true"}]]);
-        }
-        if(!empty_string(it.name)) {
-            children.push(["span", {i18n: it.name}, it.name]);
-        }
+        let kind = classify_toolbar_item(it);
 
-        let aria_key = it.aria_label || it.name || it.id || "";
-        let btn_attrs = {
-            class: "navbar-item yui-toolbar-item is-unselectable",
-            type: "button",
-            "data-toolbar-item-id": it.id || "",
-            "aria-label": aria_key
-        };
-        /*  Hover tooltip: prefer explicit `tooltip`, fall back to
-         *  `aria_label` (usually the same intent — e.g. "Search (Ctrl+F)").
-         *  Skip when both empty so we don't emit `title=""` noise.
-         *  Mirror the value in `data-i18n-title` so refresh_language()
-         *  can re-translate the tooltip on language switch. */
-        let tip = it.tooltip || it.aria_label;
-        if(tip) {
-            btn_attrs.title = tip;
-            btn_attrs["data-i18n-title"] = tip;
+        let $item;
+        if(kind === "brand") {
+            $item = build_toolbar_brand_item(gobj, it);
+        } else if(kind === "avatar") {
+            $item = build_toolbar_avatar_item(gobj, it);
+        } else {
+            $item = build_toolbar_action_item(gobj, it);
         }
-        let $item = createElement2(
-            ["button", btn_attrs, children]
-        );
-        $item.addEventListener("click", ev => {
-            ev.preventDefault();
-            handle_toolbar_action(gobj, it);
-        });
+        if(!$item) {
+            continue;
+        }
+        /*  Per-item visibility: same syntax/parser as zones. */
+        apply_show_on($item, it.show_on || "");
         parent.appendChild($item);
     }
 
     $zone.appendChild($bar);
+}
+
+/************************************************************
+ *  Renderer for the default ("action") item kind.
+ ************************************************************/
+function build_toolbar_action_item(gobj, it)
+{
+    let children = [];
+    if(!empty_string(it.icon)) {
+        children.push(["span", {class: "icon"},
+            ["i", {class: it.icon, "aria-hidden": "true"}]]);
+    }
+    if(!empty_string(it.name)) {
+        children.push(["span", {i18n: it.name}, it.name]);
+    }
+
+    let aria_key = it.aria_label || it.name || it.id || "";
+    let btn_attrs = {
+        class: "navbar-item yui-toolbar-item is-unselectable",
+        type: "button",
+        "data-toolbar-item-id": it.id || "",
+        "aria-label": aria_key
+    };
+    let action_type = (it.action && it.action.type) || "";
+    if(action_type === "dropdown") {
+        btn_attrs["aria-haspopup"] = "menu";
+        btn_attrs["aria-expanded"] = "false";
+    }
+    /*  Hover tooltip: prefer explicit `tooltip`, fall back to
+     *  `aria_label` (usually the same intent — e.g. "Search (Ctrl+F)").
+     *  Skip when both empty so we don't emit `title=""` noise.
+     *  Mirror the value in `data-i18n-title` so refresh_language()
+     *  can re-translate the tooltip on language switch. */
+    let tip = it.tooltip || it.aria_label;
+    if(tip) {
+        btn_attrs.title = tip;
+        btn_attrs["data-i18n-title"] = tip;
+    }
+    let $item = createElement2(
+        ["button", btn_attrs, children]
+    );
+    $item.addEventListener("click", ev => {
+        ev.preventDefault();
+        handle_toolbar_action(gobj, it, $item);
+    });
+    return $item;
+}
+
+/************************************************************
+ *  Renderer for type:"brand".  Always logo (img) + wordmark
+ *  (text).  Action defaults to navigate to the host's home
+ *  route; if missing, the brand is a passive label.
+ ************************************************************/
+function build_toolbar_brand_item(gobj, it)
+{
+    if(empty_string(it.logo) || empty_string(it.wordmark)) {
+        log_warning(
+            `C_YUI_SHELL: toolbar brand item '${it.id||"?"}' missing ` +
+            `logo and/or wordmark — skipped`
+        );
+        return null;
+    }
+    let alt = it.alt || it.wordmark || "";
+    let aria_key = it.aria_label || it.wordmark || it.id || "";
+    let attrs = {
+        class: "navbar-item yui-toolbar-item yui-toolbar-brand is-unselectable",
+        "data-toolbar-item-id": it.id || "",
+        "aria-label": aria_key
+    };
+    let action_type = (it.action && it.action.type) || "";
+    let tag = "button";
+    if(action_type === "dropdown") {
+        attrs["aria-haspopup"] = "menu";
+        attrs["aria-expanded"] = "false";
+    }
+    if(action_type === "") {
+        /*  Passive brand: no action — render a div so it is not
+         *  keyboard-focused and screen readers don't announce a
+         *  pressable control. */
+        tag = "div";
+    } else {
+        attrs.type = "button";
+    }
+    let $item = createElement2([tag, attrs, [
+        ["img", {class: "yui-toolbar-brand-logo",
+                 src: it.logo, alt: alt}],
+        ["span", {class: "yui-toolbar-brand-wordmark", i18n: it.wordmark},
+            it.wordmark]
+    ]]);
+    if(action_type !== "") {
+        $item.addEventListener("click", ev => {
+            ev.preventDefault();
+            handle_toolbar_action(gobj, it, $item);
+        });
+    }
+    return $item;
+}
+
+/************************************************************
+ *  Renderer for type:"avatar".  The <span> that holds the
+ *  initials is registered in priv.avatar_nodes so a single
+ *  refresh_avatars() call repaints every avatar after the host
+ *  swaps the provider.
+ ************************************************************/
+function build_toolbar_avatar_item(gobj, it)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    let aria_key = it.aria_label || it.name || it.id || "User menu";
+    let action_type = (it.action && it.action.type) || "";
+    let attrs = {
+        class: "navbar-item yui-toolbar-item yui-toolbar-avatar is-unselectable",
+        type: "button",
+        "data-toolbar-item-id": it.id || "",
+        "aria-label": aria_key
+    };
+    if(action_type === "dropdown") {
+        attrs["aria-haspopup"] = "menu";
+        attrs["aria-expanded"] = "false";
+    }
+    let tip = it.tooltip || it.aria_label;
+    if(tip) {
+        attrs.title = tip;
+        attrs["data-i18n-title"] = tip;
+    }
+    let $initials = createElement2(["span", {class: "yui-avatar"}, ""]);
+    let $item = createElement2(["button", attrs, [$initials]]);
+    if(action_type !== "") {
+        $item.addEventListener("click", ev => {
+            ev.preventDefault();
+            handle_toolbar_action(gobj, it, $item);
+        });
+    }
+    /*  Register and paint once with whatever provider exists today
+     *  (host may register it later via yui_shell_set_avatar_provider). */
+    priv.avatar_nodes.push($initials);
+    paint_avatar(priv, $initials);
+    return $item;
+}
+
+/*  Read initials from the registered provider (if any) and write them
+ *  into a single avatar node.  The provider is a host-supplied callback
+ *  () => string; lib-yui never reaches into localStorage or app attrs. */
+function paint_avatar(priv, $node)
+{
+    let provider = priv && priv.avatar_provider;
+    let s = "";
+    if(typeof provider === "function") {
+        try {
+            s = String(provider() || "");
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: avatar provider threw: ${e}`);
+            s = "";
+        }
+    }
+    $node.textContent = s;
+}
+
+function refresh_avatars(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !is_array(priv.avatar_nodes)) {
+        return;
+    }
+    for(let $n of priv.avatar_nodes) {
+        paint_avatar(priv, $n);
+    }
 }
 
 function find_toolbar_zone(config)
@@ -1054,7 +1253,7 @@ function find_toolbar_zone(config)
     return "top";
 }
 
-function handle_toolbar_action(gobj, item)
+function handle_toolbar_action(gobj, item, $trigger)
 {
     let action = (item && item.action) || {};
     switch(action.type) {
@@ -1090,11 +1289,189 @@ function handle_toolbar_action(gobj, item)
                 gobj_publish_event(gobj, action.event, action.kw || {});
             }
             break;
+        case "dropdown":
+            toggle_toolbar_dropdown(gobj, item, action, $trigger);
+            break;
         default:
             log_warning(
                 `C_YUI_SHELL: toolbar item '${item.id||"?"}' has no/unknown action.type`
             );
     }
+}
+
+/************************************************************
+ *  Toolbar dropdown — open/close a panel anchored to the
+ *  trigger button.  One dropdown at a time: a second click on
+ *  any trigger first closes whatever was open, even if the
+ *  trigger differs.
+ ************************************************************/
+function toggle_toolbar_dropdown(gobj, item, action, $trigger)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    let already_open = priv.active_dropdown &&
+                       priv.active_dropdown.__yui_trigger__ === $trigger;
+    close_toolbar_dropdown(gobj);
+    if(already_open) {
+        return;
+    }
+    open_toolbar_dropdown(gobj, item, action, $trigger);
+}
+
+function open_toolbar_dropdown(gobj, item, action, $trigger)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.layers || !priv.layers.popup) {
+        return;
+    }
+
+    let aria_key = item && (item.aria_label || item.name || item.id) || "Menu";
+    let $panel = createElement2(["div", {
+        class: "yui-toolbar-dropdown-panel",
+        role: "menu",
+        "aria-label": aria_key,
+        "data-toolbar-dropdown-for": (item && item.id) || ""
+    }]);
+
+    let raw_items = is_array(action.items) ? action.items : [];
+    for(let i = 0; i < raw_items.length; i++) {
+        let sub = raw_items[i];
+        let $row = build_dropdown_row(gobj, sub, i);
+        if(!$row) {
+            continue;
+        }
+        apply_show_on($row, (sub && sub.show_on) || "");
+        $panel.appendChild($row);
+    }
+
+    /*  Position fixed-anchored to the trigger.  Right-aligned when the
+     *  trigger sits in the navbar-end half of the bar (heuristic:
+     *  .navbar-end ancestor); otherwise left-aligned.  This keeps the
+     *  panel inside the viewport for both burger-side and user-side
+     *  triggers without app-level CSS hacks. */
+    let rect = $trigger.getBoundingClientRect();
+    let style_parts = ["position:fixed",
+                       `top:${Math.round(rect.bottom)}px`];
+    let in_end = !!$trigger.closest(".navbar-end");
+    if(in_end) {
+        let right = window.innerWidth - rect.right;
+        style_parts.push(`right:${Math.max(0, Math.round(right))}px`);
+    } else {
+        style_parts.push(`left:${Math.max(0, Math.round(rect.left))}px`);
+    }
+    $panel.setAttribute("style", style_parts.join(";"));
+
+    priv.layers.popup.appendChild($panel);
+
+    /*  Click-outside (capture-phase mousedown) closes the dropdown.
+     *  Capture phase so a click on a sibling toolbar trigger lands
+     *  here BEFORE that trigger's own handler runs and reopens us. */
+    let backdrop = ev => {
+        if($panel.contains(ev.target)) {
+            return;
+        }
+        if($trigger && $trigger.contains(ev.target)) {
+            return;     /*  trigger click toggles via its own handler  */
+        }
+        close_toolbar_dropdown(gobj);
+    };
+    document.addEventListener("mousedown", backdrop, true);
+
+    let close_fn = () => close_toolbar_dropdown(gobj);
+    $panel.__yui_close_handler__   = close_fn;
+    $panel.__yui_backdrop_handler__ = backdrop;
+    $panel.__yui_trigger__          = $trigger || null;
+    push_escape(gobj, "popup", close_fn);
+
+    /*  Focus trap inside the panel — same module modals/drawers use. */
+    $panel.__yui_focus_release__ = activate_focus_trap_on($panel);
+
+    if($trigger) {
+        $trigger.setAttribute("aria-expanded", "true");
+    }
+    priv.active_dropdown = $panel;
+}
+
+function close_toolbar_dropdown(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    let $panel = priv.active_dropdown;
+    if(!$panel) {
+        return;
+    }
+    if($panel.__yui_focus_release__) {
+        $panel.__yui_focus_release__();
+        $panel.__yui_focus_release__ = null;
+    }
+    if($panel.__yui_close_handler__) {
+        pop_escape(gobj, $panel.__yui_close_handler__);
+        $panel.__yui_close_handler__ = null;
+    }
+    if($panel.__yui_backdrop_handler__) {
+        document.removeEventListener("mousedown",
+                                     $panel.__yui_backdrop_handler__, true);
+        $panel.__yui_backdrop_handler__ = null;
+    }
+    if($panel.__yui_trigger__) {
+        $panel.__yui_trigger__.setAttribute("aria-expanded", "false");
+        $panel.__yui_trigger__ = null;
+    }
+    if($panel.parentNode) {
+        $panel.parentNode.removeChild($panel);
+    }
+    priv.active_dropdown = null;
+}
+
+function build_dropdown_row(gobj, sub, idx)
+{
+    if(!sub || typeof sub !== "object") {
+        return null;
+    }
+    if(sub.type === "divider") {
+        return createElement2(["div", {
+            class: "yui-toolbar-dropdown-divider",
+            role: "separator"
+        }]);
+    }
+    if(!sub.action || typeof sub.action !== "object") {
+        log_warning(
+            `C_YUI_SHELL: dropdown item [${idx}] '${sub.id||"?"}' has no action — skipped`
+        );
+        return null;
+    }
+    let children = [];
+    if(!empty_string(sub.icon)) {
+        children.push(["span", {class: "icon"},
+            ["i", {class: sub.icon, "aria-hidden": "true"}]]);
+    }
+    if(!empty_string(sub.name)) {
+        children.push(["span", {class: "yui-toolbar-dropdown-label",
+                                i18n: sub.name}, sub.name]);
+    }
+    let aria_key = sub.aria_label || sub.name || sub.id || "";
+    let attrs = {
+        class: "yui-toolbar-dropdown-item",
+        type: "button",
+        role: "menuitem",
+        "data-dropdown-item-id": sub.id || "",
+        "aria-label": aria_key
+    };
+    let $btn = createElement2(["button", attrs, children]);
+    $btn.addEventListener("click", ev => {
+        ev.preventDefault();
+        /*  Close BEFORE dispatching: navigate may rebuild stage,
+         *  event may open a modal — either way the dropdown should
+         *  not linger on top.  Nested dropdowns are rejected by
+         *  validate_dropdown_action so we don't recurse here. */
+        close_toolbar_dropdown(gobj);
+        handle_toolbar_action(gobj, sub, $btn);
+    });
+    return $btn;
 }
 
 /************************************************************
@@ -1488,6 +1865,41 @@ function yui_shell_pop_escape(shell_gobj, handler)
     pop_escape(shell_gobj, handler);
 }
 
+/************************************************************
+ *  Avatar provider — toolbar items with type:"avatar" call the
+ *  registered provider whenever the shell paints initials.  The
+ *  provider is a free-form () => string callback owned by the
+ *  host (wattyzer/hidraulia/estadodelaire), so lib-yui never
+ *  reaches into localStorage or app-specific attrs.  Setting the
+ *  provider repaints existing avatars in-place; calling
+ *  yui_shell_refresh_avatars() repaints without changing the
+ *  provider (e.g. after the user updates their profile name).
+ ************************************************************/
+function yui_shell_set_avatar_provider(shell_gobj, provider)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    priv.avatar_provider = (typeof provider === "function") ? provider : null;
+    refresh_avatars(shell_gobj);
+}
+
+function yui_shell_refresh_avatars(shell_gobj)
+{
+    refresh_avatars(shell_gobj);
+}
+
+/************************************************************
+ *  Programmatic close of any open toolbar dropdown.  Useful for
+ *  external triggers (e.g. EV_LOGOUT firing from elsewhere) that
+ *  want to dismiss whatever menu is on screen.
+ ************************************************************/
+function yui_shell_close_dropdown(shell_gobj)
+{
+    close_toolbar_dropdown(shell_gobj);
+}
+
 /*  Note: there is no shell-level language switch helper.  Every
  *  translatable text node rendered by the shell and its navs is
  *  tagged with `data-i18n` (the canonical English key).  Apps swap
@@ -1503,5 +1915,8 @@ export {
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,
     yui_shell_push_escape,
-    yui_shell_pop_escape
+    yui_shell_pop_escape,
+    yui_shell_set_avatar_provider,
+    yui_shell_refresh_avatars,
+    yui_shell_close_dropdown
 };
