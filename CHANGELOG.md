@@ -1,5 +1,10 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(lib-yui): item tooltips**.  Nav and toolbar items accept a
+      `tooltip` field (fallback: `aria_label`); rendered as the HTML
+      `title` attribute on the generated `<a>`/`<button>`.
+
 ## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints
