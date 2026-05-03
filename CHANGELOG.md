@@ -12,6 +12,13 @@
       `__skeletons__.json` (type: Yuno; vars: version, description,
       author, author_email, license_name).
 
+    - **feat(gobj-js, lib-yui): translatable tooltips**.  Nav and toolbar
+      items rendered by lib-yui now also emit `data-i18n-title="<key>"`
+      next to their `title` attribute, and `refresh_language()` in
+      gobj-js gained a second pass that walks `[data-i18n-title]` and
+      re-translates the `title`.  Hover tooltips swap language alongside
+      the visible labels.
+
 ## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints

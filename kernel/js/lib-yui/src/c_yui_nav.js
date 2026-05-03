@@ -266,6 +266,7 @@ function render_tabs(gobj, items)
         let tip = it.tooltip || it.aria_label;
         if(tip) {
             a_attrs.title = tip;
+            a_attrs["data-i18n-title"] = tip;
         }
         lis.push(
             ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
@@ -430,10 +431,13 @@ function item_li(gobj, it, opts)
     };
     /*  Hover tooltip: prefer explicit `tooltip`, fall back to
      *  `aria_label` (typically equivalent, e.g. "Search (Ctrl+F)").
-     *  Skip when both empty so we don't emit `title=""` noise. */
+     *  Skip when both empty so we don't emit `title=""` noise.
+     *  Mirror the value in `data-i18n-title` so refresh_language()
+     *  can re-translate the tooltip on language switch. */
     let tip = it.tooltip || it.aria_label;
     if(tip) {
         a_attrs.title = tip;
+        a_attrs["data-i18n-title"] = tip;
     }
     if(it.disabled) {
         a_attrs["aria-disabled"] = "true";
@@ -484,6 +488,7 @@ function item_iconbar(gobj, it, opts)
     let tip = it.tooltip || it.aria_label;
     if(tip) {
         a_attrs.title = tip;
+        a_attrs["data-i18n-title"] = tip;
     }
     return ["div", {class: "level-item"},
         ["a", a_attrs, children]

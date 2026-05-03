@@ -1022,10 +1022,13 @@ function build_toolbar(gobj, config)
         };
         /*  Hover tooltip: prefer explicit `tooltip`, fall back to
          *  `aria_label` (usually the same intent — e.g. "Search (Ctrl+F)").
-         *  Skip when both empty so we don't emit `title=""` noise. */
+         *  Skip when both empty so we don't emit `title=""` noise.
+         *  Mirror the value in `data-i18n-title` so refresh_language()
+         *  can re-translate the tooltip on language switch. */
         let tip = it.tooltip || it.aria_label;
         if(tip) {
             btn_attrs.title = tip;
+            btn_attrs["data-i18n-title"] = tip;
         }
         let $item = createElement2(
             ["button", btn_attrs, children]

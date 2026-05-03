@@ -3072,15 +3072,17 @@ function refresh_language(element, t)
         }
     });
 
-    // element.querySelectorAll('[data-i18n]').forEach(function(elem) {
-    //     let value = elem.getAttribute('data-i18n');
-    //     if(!value) {
-    //         value = elem.textContent;
-    //     }
-    //     elem.textContent = t(
-    //         value
-    //     );
-    // });
+    /*  Translate the `title` attribute (hover tooltip) for any element
+     *  carrying `data-i18n-title="<canonical key>"`.  Used by lib-yui's
+     *  nav and toolbar renderers to keep tooltips in sync with the
+     *  active language, since refresh_language() above only touches
+     *  text-node content. */
+    element.querySelectorAll('[data-i18n-title]').forEach(function(elem) {
+        let value = elem.getAttribute('data-i18n-title');
+        if(value) {
+            elem.setAttribute('title', t(value));
+        }
+    });
 }
 
 /************************************************************
