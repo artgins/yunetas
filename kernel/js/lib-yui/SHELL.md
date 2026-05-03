@@ -223,8 +223,12 @@ is only one main stage named `main` in `center`.
 
 Compose freely — `type:"avatar"` + `action:{type:"dropdown",items:[…]}`
 is the canonical user menu.  Dropdown sub-items reuse the same
-`action.type` set (no nested dropdowns).  Brand items default
-`action.type` to `"navigate"` if omitted.
+`action.type` set (no nested dropdowns).  Brand items render as a
+passive `<div>` when `action` is omitted (focus-skipped, no click);
+include an `action` (typically `navigate`) to make the brand
+clickable.  Avatar items ignore `icon` and `name` — the badge text
+comes from the host-registered provider; use `aria_label` for the
+menu label.
 
 ```json
 "toolbar": {
