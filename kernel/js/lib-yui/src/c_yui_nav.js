@@ -258,12 +258,18 @@ function render_tabs(gobj, items)
         if(show_label && !empty_string(it.name)) {
             children.push(["span", {i18n: it.name}, it.name]);
         }
+        let a_attrs = {
+            href: it.route ? "#" + it.route : "#",
+            "data-item-id": it.id,
+            "data-route":   it.route || ""
+        };
+        let tip = it.tooltip || it.aria_label;
+        if(tip) {
+            a_attrs.title = tip;
+        }
         lis.push(
             ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
-                ["a", {href: it.route ? "#" + it.route : "#",
-                       "data-item-id": it.id,
-                       "data-route":   it.route || ""},
-                 children]
+                ["a", a_attrs, children]
             ]
         );
     }
@@ -422,6 +428,13 @@ function item_li(gobj, it, opts)
         "data-disabled": it.disabled ? "1" : "0",
         "aria-label":   label || it.id
     };
+    /*  Hover tooltip: prefer explicit `tooltip`, fall back to
+     *  `aria_label` (typically equivalent, e.g. "Search (Ctrl+F)").
+     *  Skip when both empty so we don't emit `title=""` noise. */
+    let tip = it.tooltip || it.aria_label;
+    if(tip) {
+        a_attrs.title = tip;
+    }
     if(it.disabled) {
         a_attrs["aria-disabled"] = "true";
         a_attrs["tabindex"] = "-1";
@@ -461,13 +474,19 @@ function item_iconbar(gobj, it, opts)
         }
     }
 
+    let a_attrs = {
+        class: "yui-nav-item yui-nav-stacked",
+        href: it.route ? "#" + it.route : "#",
+        "data-item-id": it.id,
+        "data-route":   it.route || "",
+        "aria-label":   label || it.id
+    };
+    let tip = it.tooltip || it.aria_label;
+    if(tip) {
+        a_attrs.title = tip;
+    }
     return ["div", {class: "level-item"},
-        ["a", {class: "yui-nav-item yui-nav-stacked",
-               href: it.route ? "#" + it.route : "#",
-               "data-item-id": it.id,
-               "data-route":   it.route || "",
-               "aria-label":   label || it.id},
-         children]
+        ["a", a_attrs, children]
     ];
 }
 

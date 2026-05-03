@@ -1014,12 +1014,21 @@ function build_toolbar(gobj, config)
         }
 
         let aria_key = it.aria_label || it.name || it.id || "";
+        let btn_attrs = {
+            class: "navbar-item yui-toolbar-item is-unselectable",
+            type: "button",
+            "data-toolbar-item-id": it.id || "",
+            "aria-label": aria_key
+        };
+        /*  Hover tooltip: prefer explicit `tooltip`, fall back to
+         *  `aria_label` (usually the same intent — e.g. "Search (Ctrl+F)").
+         *  Skip when both empty so we don't emit `title=""` noise. */
+        let tip = it.tooltip || it.aria_label;
+        if(tip) {
+            btn_attrs.title = tip;
+        }
         let $item = createElement2(
-            ["button", {class: "navbar-item yui-toolbar-item is-unselectable",
-                        type: "button",
-                        "data-toolbar-item-id": it.id || "",
-                        "aria-label": aria_key},
-             children]
+            ["button", btn_attrs, children]
         );
         $item.addEventListener("click", ev => {
             ev.preventDefault();
