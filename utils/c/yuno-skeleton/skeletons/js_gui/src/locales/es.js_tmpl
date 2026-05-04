@@ -1,9 +1,15 @@
 /***********************************************************************
  *          es.js
  *
- *          Traducciones al español.  Las claves siguen el texto inglés
- *          que lib-yui pone por defecto en los `data-i18n`; si no
- *          existe la clave aquí, se muestra la propia clave.
+ *          Traducciones al español.
+ *
+ *          Convention (all locale files share these rules):
+ *            1. Keys are lower-case ASCII English.
+ *            2. Values are sentence-case in their target language —
+ *               a missing translation falls through to the lower-case
+ *               key, making the gap visible to the user at a glance.
+ *            3. Every locale file must carry the *same* key set; see
+ *               scripts/validate-locales.mjs.
  *
  *          Copyright (c) {{__year__}}, {{author}}.
  *          All Rights Reserved.

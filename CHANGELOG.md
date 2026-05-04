@@ -26,6 +26,20 @@
       `refresh_language()` walks `[data-i18n-aria-label]` to rewrite
       `aria-label`.  Screen-reader names now follow the active locale.
 
+    - **fix(lib-yui): toolbar dropdown anchor drift on scroll/resize**.
+      The `position:fixed` panel coordinates are frozen at open time
+      from `getBoundingClientRect()`; any layout shift previously left
+      the panel detached from its trigger.  Match native `<select>` UX
+      and dismiss the dropdown on scroll (capture, passive — catches
+      every ancestor scroller) and on window resize.
+
+    - **feat(yuno-skeleton): locale convention + validator**.  The
+      `js_gui` template now ships `scripts/validate-locales.mjs`
+      (asserts every i18n key is ASCII + lower-case + present in every
+      locale) wired as `npm run validate-locales` and `prebuild`.
+      en.js/es.js header banners spell out the convention so new
+      yunos inherit it from day one.
+
 ## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints
