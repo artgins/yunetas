@@ -7,6 +7,8 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
+        "validate-locales": "node scripts/validate-locales.mjs",
+        "prebuild": "npm run validate-locales",
         "test": "vitest",
         "test:watch": "vitest --watch",
         "test:coverage": "vitest --coverage"

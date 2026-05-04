@@ -1,210 +1,56 @@
-let es = {
-    nombre: 'Español',
+/***********************************************************************
+ *          es.js
+ *
+ *          Traducciones al español.
+ *
+ *          Convention (all locale files share these rules):
+ *            1. Keys are lower-case ASCII English.
+ *            2. Values are sentence-case in their target language —
+ *               a missing translation falls through to the lower-case
+ *               key, making the gap visible to the user at a glance.
+ *            3. Every locale file must carry the *same* key set; see
+ *               scripts/validate-locales.mjs.
+ *
+ *          Two key shapes coexist on purpose:
+ *            - Free-text UI keys use spaces ("connection to backend
+ *              refused").
+ *            - Backend protocol IDs (auth_bff error_code values, see
+ *              kernel/c/root-linux/src/c_auth_bff.c) keep their
+ *              snake_case form so they match the wire format
+ *              one-to-one.  Both forms are still ASCII lower-case.
+ *
+ *          Copyright (c) 2025, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+const es = {
+    name: "Español",
 
-    translation:
-    {
-        'year': 'Año',
-        'month': 'Mes',
-        'day': 'Día',
-        'hour': 'Hora',
-        'week': 'Semana',
-        'today': 'Hoy',
-        'ene': 'Ene',
-        'feb': 'Feb',
-        'mar': 'Mar',
-        'abr': 'Abr',
-        'may': 'May',
-        'jun': 'Jun',
-        'jul': 'Jul',
-        'ago': 'Ago',
-        'sep': 'Sep',
-        'oct': 'Oct',
-        'nov': 'Nov',
-        'dic': 'Dic',
-        'yes': 'Sí',
-        'no': 'No',
-        'are you sure': 'Está seguro?',
-        'error': 'Error',
-        'warning': 'Atención',
-        'info': 'Información',
-        'forgot password?': '¿Olvidó la contraseña?',
-        'not a member?': '¿Usuario nuevo?',
-        'register': 'Regístrese',
-        'user': 'Usuario',
-        'email': 'Correo electrónico',
-        'password': 'Contraseña',
-        'login': 'Inicio Sesión',
-        'logout': 'Cerrar Sesión',
-        'submit': 'Enviar',
+    translation: {
+        /* etiquetas de UI (llamadas vía t() en c_yuneta_gui.js) */
+        "cause":                              "Motivo",
+        "user":                               "Usuario",
+        "url":                                "URL",
+        "remote service":                     "Servicio remoto",
+        "connection to backend refused":      "Conexión al backend rechazada",
+        "no yuneta backend url available":    "No hay URL de Yuneta backend disponible",
+        "no registered url for remote service": "No hay URL registrada para este servicio remoto",
 
-        "password recovery": "Recuperación de contraseña",
-        "instructions password recovery": "Ingresa tu correo electrónico para restablecer tu contraseña.",
+        /* códigos auth_bff — IDs de protocolo, ver c_auth_bff.c */
+        "invalid_credentials":                "Usuario o contraseña incorrectos",
+        "session_expired":                    "Su sesión ha caducado. Por favor, inicie sesión de nuevo.",
+        "account_disabled":                   "Cuenta deshabilitada o no configurada. Contacte con el administrador.",
+        "auth_rate_limited":                  "Demasiados intentos. Espere un momento e inténtelo de nuevo.",
+        "auth_service_unavailable":           "Servicio de autenticación no disponible. Inténtelo más tarde.",
+        "auth_config_error":                  "No se pudo iniciar sesión. Inténtelo más tarde o contacte con el administrador.",
+        "auth_unexpected_error":              "No se pudo iniciar sesión. Si el problema persiste, contacte con el administrador.",
+        "auth_empty_response":                "No se pudo iniciar sesión. Inténtelo más tarde.",
+        "auth_timeout":                       "No se pudo iniciar sesión. Inténtelo más tarde.",
+        "network_error":                      "Error de red. Compruebe la conexión e inténtelo de nuevo.",
+        "refresh_denied":                     "Su sesión ha caducado. Por favor, inicie sesión de nuevo.",
+        "server_busy":                        "El servidor está ocupado. Inténtelo en un momento.",
 
-        'select language': 'Seleccionar Lenguaje',
-        'login denied': 'Acceso denegado',
-        'invalid-username-password': 'Usuario o password inválidos',
-
-        // --- auth_bff error codes (ver kernel/c/root-linux/src/c_auth_bff.h)
-        'invalid_credentials':      'Usuario o contraseña incorrectos',
-        'session_expired':          'Su sesión ha caducado. Por favor, inicie sesión de nuevo.',
-        'account_disabled':         'Cuenta deshabilitada o no configurada. Contacte con el administrador.',
-        'auth_rate_limited':        'Demasiados intentos. Espere un momento e inténtelo de nuevo.',
-        'auth_service_unavailable': 'Servicio de autenticación no disponible. Inténtelo más tarde.',
-        'auth_config_error':        'No se pudo iniciar sesión. Inténtelo más tarde o contacte con el administrador.',
-        'auth_unexpected_error':    'No se pudo iniciar sesión. Si el problema persiste, contacte con el administrador.',
-        'auth_empty_response':      'No se pudo iniciar sesión. Inténtelo más tarde.',
-        'auth_timeout':             'No se pudo iniciar sesión. Inténtelo más tarde.',
-        'network_error':            'Error de red. Compruebe la conexión e inténtelo de nuevo.',
-        'refresh_denied':           'Su sesión ha caducado. Por favor, inicie sesión de nuevo.',
-        'server_busy':              'Servidor ocupado. Inténtelo en unos segundos.',
-
-        'no yuneta backend url available': 'No hay yuneta backend url disponible',
-        'no url available for': 'No hay url disponible para',
-        'select theme': 'Seleccionar Tema',
-        'dark theme': 'Tema Oscuro',
-        'light theme': 'Tema Claro',
-        'system theme': 'Tema del sistema',
-        'es': 'Español',
-        'en': 'Inglés',
-        'please select some row': 'Por favor, seleccione alguna fila',
-        'copy': 'Copiar',
-        'paste': 'Pegar',
-
-        'connection-backend-refused': 'Conexión al backend rechazada',
-        'cause': 'Motivo',
-        'url': 'Url',
-        'remote-service': 'Servicio Remoto',
-        'User not authorized': 'Usuario no autorizado',
-        "historical": "Histórico",
-        "historical_tracks": "Histórico Medidas",
-        "historical_alarms": "Histórico Alarmas",
-        "monitoring": "Tiempo real",
-        "settings": "Configuración",
-        "records": "Registros",
-        "show-grid": "Mostrar Detalle",
-        "show-map": "Mostrar Mapa",
-        "maplibre.drag_mark": "Mover Marcador",
-        "maplibre.center_map": "Centrar Mapa",
-        "maplibre.user_location": "Localización usuario",
-        "map": "Mapa",
-        "new": "Nuevo",
-        "edit": "Editar",
-        "delete": "Eliminar",
-        "save": "Guardar",
-        "cancel": "Cancelar",
-        "accept": "Aceptar",
-        "this field is required": "Campo requerido",
-        "Enabled": "Habilitado",
-        "node not found": "Registro (nodo) no encontrado",
-        "undo": "Deshacer",
-        "clear": "Limpiar",
-        "alarm": "Alarma",
-        "alarms": "Alarmas",
-        "measure": "Medida",
-        "measures": "Medidas",
-        "value": "Valor",
-        "temperature": "Temperatura",
-        "All changes will be lost. Are you sure?": "Se perderán todos los cambios, ¿está seguro?",
-        "refresh": "Recargar",
-        "current value": "Valor actual",
-        "no_validated": "No validadas",
-        "active-validated": "Activas y validadas",
-        "all": "Todas",
-        "see all": "Ver todos",
-        "connected": "Conectado",
-        "disconnected": "Desconectado",
-        "search": "Buscar",
-        "select": "Seleccionar",
-        "device": "Dispositivo",
-        "devices": "Dispositivos",
-        "sensor": "Sensor",
-        "sensors": "Sensores",
-        "search device": "Buscar dispositivo",
-        "select device": "Seleccionar dispositivo",
-        "search measures": "Buscar medidas",
-        "search alarms": "Buscar alarmas",
-        "from": "Desde",
-        "to": "Hasta",
-        "device_actions": "Acciones",
-
-        "template_version": "Versión plantilla",
-        "select a measure": "Seleccione una medida",
-        "top_measures": "Medidas Top",
-
-        "power_on": "Encendido",
-        "voltage": "Voltaje",
-        "total": "Total",
-        "yesterday": "Ayer",
-        "period": "Periodo",
-        "power": "Potencia",
-        "unit": "Unidad",
-
-        "Remove all selected options": "Borrar todas las opciones seleccionadas",
-        "alarm_colors": "Colores alarmas",
-        "active_not_validated": "Activa, no-validada",
-        "active_validated": "Activa, validada",
-        "not_active_not_validated": "No activa, no-validada",
-        "add": "Añadir",
-        "description": "Descripción",
-        "notifications": "Notificar a:",
-        "operation": "Operación",
-        "triggers": "Disparadores",
-        "enabled": "Habilitado",
-        "max_age": "Máxima Edad",
-        "payload": "Payload",
-        "coordinates": "Coordenadas",
-        "geolocation is not supported": "Geolocalización no soportada",
-        "permission denied": "Permiso denegado",
-        "location unavailable": "Localización no disponible",
-        "timed out": "Tiempo sobrepasado",
-        "unknown error": "Error desconocido",
-
-        "device alarms": "Alarmas del dispositivo",
-        "Device Id": "Id dispositivo",
-        "Time": "Fecha",
-        "Device Name": "Nombre dispositivo",
-        "Alarm": "Alarma",
-        "Active": "Activa",
-        "Validated": "Validada",
-        "Description": "Descripción",
-        "Triggers": "Disparadores",
-        "Sent": "Enviada",
-        "Notified": "Notificada a:",
-
-        'Inicio': 'Inicio',
-
-        "resize all": "Redimensionar todos",
-        "resize topic nodes": "Redimensionar nodos del topic",
-        "resize all ports": "Redimensionar todos los puertos",
-        "resize topic ports": "Redimensionar puertos del topic",
-        "edge properties": "Propiedades del enlace",
-        "line width": "Grosor de línea",
-        "color": "Color",
-        "apply to": "Aplicar a",
-        "this edge": "Este enlace",
-        "same type edges": "Enlaces del mismo tipo",
-        "all edges": "Todos los enlaces",
-        "apply": "Aplicar",
-        "node properties": "Propiedades del nodo",
-        "fill color": "Color de relleno",
-        "stroke color": "Color del borde",
-        "this node": "Este nodo",
-        "same topic nodes": "Nodos del mismo topic",
-        "all nodes": "Todos los nodos",
-        "delete node": "Eliminar nodo",
-        "unlink": "Desenlazar",
-        "link to hook": "Enlazar a hook",
-        "redo": "Rehacer",
-        "zoom in": "Acercar",
-        "zoom out": "Alejar",
-        "reset zoom": "Restablecer zoom",
-        "auto fit": "Ajustar",
-        "enter full screen": "Pantalla completa",
-        "exit full screen": "Salir de pantalla completa",
-        "layout": "Disposición",
-        "operation mode": "Modo de operación",
-
-        'xxx': 'ultima entrada NO TOCAR, insertar antes'
+        /* mantener al final — insertar nuevas claves antes */
+        "_xxx":                               "last key — insert new ones above"
     }
 };
 

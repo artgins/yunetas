@@ -33,6 +33,21 @@
       and dismiss the dropdown on scroll (capture, passive — catches
       every ancestor scroller) and on window resize.
 
+    - **refactor(gui_treedb): apply locale convention**.  Trimmed
+      en.js/es.js to the 19 keys actually called from src/ (auth_bff
+      protocol IDs + the half-dozen `t(...)` calls in
+      `c_yuneta_gui.js`); deleted ~140 aspirational entries that had
+      no caller.  Renamed `remote-service` → `remote service`,
+      `connection-backend-refused` → `connection to backend refused`
+      (rule: spaces, not kebab); fixed top-level `nombre:` → `name:`
+      to match the rest of the codebase.  Added
+      `keySeparator: false` + `nsSeparator: false` in
+      `setup_locale()` so a future dotted key (e.g. device-namespace)
+      doesn't fall silently to nested-lookup.  Same
+      `scripts/validate-locales.mjs` + `prebuild` wiring as
+      wattyzer.  Auth_bff snake_case codes kept as-is (wire
+      contract, see `c_auth_bff.c`).
+
     - **feat(yuno-skeleton): locale convention + validator**.  The
       `js_gui` template now ships `scripts/validate-locales.mjs`
       (asserts every i18n key is ASCII + lower-case + present in every

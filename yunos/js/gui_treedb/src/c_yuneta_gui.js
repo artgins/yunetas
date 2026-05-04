@@ -173,7 +173,7 @@ function build_remote_service(gobj)
     const hostname = empty_string(window.location.hostname) ? "localhost" : window.location.hostname;
     const url = backend_urls[hostname];
     if (empty_string(url)) {
-        let msg = t("There is no registered URL for this remote service.: " + hostname);
+        let msg = t("no registered url for remote service") + ": " + hostname;
         log_error(msg);
         display_error_message(
             "Error",
@@ -797,13 +797,13 @@ function ac_id_refused(gobj, event, kw, src)
         <br>
         ${escapeHtml(t('user'))}: ${escapeHtml(kw.username)}
         <br>
-        ${escapeHtml(t('remote-service'))}: ${escapeHtml(kw.remote_yuno_role)}/${escapeHtml(kw.remote_yuno_name)}
+        ${escapeHtml(t('remote service'))}: ${escapeHtml(kw.remote_yuno_role)}/${escapeHtml(kw.remote_yuno_name)}
         <br>
         ${escapeHtml(t('url'))}: ${escapeHtml(kw.url)}
         </div>
     `;
 
-    let title = `${t("connection-backend-refused")}`;
+    let title = `${t("connection to backend refused")}`;
 
     display_error_message(title, message);
 

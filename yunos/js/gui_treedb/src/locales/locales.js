@@ -53,7 +53,14 @@ function setup_locale()
         {
             lng: locale, // if you're using a language detector, do not define the lng option
             debug: gobj_read_attr(gobj_yuno(), "trace_i18n"),
-            resources: locales
+            resources: locales,
+            /*  Treat the entire string as the key.  Default is "."
+             *  which would interpret e.g. "enchufe.power_on" as a
+             *  nested lookup and silently fall through.  Free-text
+             *  keys never use ".", but defensive: protocol-ID and
+             *  device-namespace keys are safe to add later.  */
+            keySeparator: false,
+            nsSeparator: false
         }
     ).then(function(t) {
         // initialized and ready to go!

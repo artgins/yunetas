@@ -1,210 +1,56 @@
-var en = {
-    nombre: 'English',
+/***********************************************************************
+ *          en.js
+ *
+ *          English translations.
+ *
+ *          Convention (all locale files share these rules):
+ *            1. Keys are lower-case ASCII English.
+ *            2. Values are sentence-case in their target language —
+ *               a missing translation falls through to the lower-case
+ *               key, making the gap visible to the user at a glance.
+ *            3. Every locale file must carry the *same* key set; see
+ *               scripts/validate-locales.mjs.
+ *
+ *          Two key shapes coexist on purpose:
+ *            - Free-text UI keys use spaces ("connection to backend
+ *              refused").
+ *            - Backend protocol IDs (auth_bff error_code values, see
+ *              kernel/c/root-linux/src/c_auth_bff.c) keep their
+ *              snake_case form so they match the wire format
+ *              one-to-one.  Both forms are still ASCII lower-case.
+ *
+ *          Copyright (c) 2025, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+const en = {
+    name: "English",
 
-    translation:
-    {
-        'year': 'Year',
-        'month': 'Month',
-        'hour': 'Hour',
-        'day': 'Day',
-        'week': 'Week',
-        'today': 'Today',
-        'ene': 'Jan',
-        'feb': 'Feb',
-        'mar': 'Mar',
-        'abr': 'Apr',
-        'may': 'May',
-        'jun': 'Jun',
-        'jul': 'Jul',
-        'ago': 'Aug',
-        'sep': 'Sep',
-        'oct': 'Oct',
-        'nov': 'Nov',
-        'dic': 'Dec',
-        'yes': 'Yes',
-        'no': 'No',
-        'are you sure': 'Are you sure?',
-        'error': 'Error',
-        'warning': 'Warning',
-        'info': 'Information',
-        'forgot password?': 'Forgot password?',
-        'not a member?': 'Not a member?',
-        'register': 'Register',
-        'user': 'User',
-        'email': 'Email',
-        'password': 'Password',
-        'login': 'Sign In',
-        'logout': 'Sign Out',
-        'submit': 'Submit',
+    translation: {
+        /* free-text UI labels (called via t() in c_yuneta_gui.js) */
+        "cause":                              "Cause",
+        "user":                               "User",
+        "url":                                "URL",
+        "remote service":                     "Remote service",
+        "connection to backend refused":      "Connection to backend refused",
+        "no yuneta backend url available":    "No Yuneta backend URL available",
+        "no registered url for remote service": "No registered URL for this remote service",
 
-        "password recovery": "Password Recovery",
-        "instructions password recovery": "Enter your email to receive password reset instructions.",
+        /* auth_bff error codes — wire IDs, see c_auth_bff.c */
+        "invalid_credentials":                "Invalid username or password",
+        "session_expired":                    "Your session has expired. Please log in again.",
+        "account_disabled":                   "Account disabled or not fully configured. Please contact the administrator.",
+        "auth_rate_limited":                  "Too many login attempts. Please wait a moment and try again.",
+        "auth_service_unavailable":           "Authentication service unavailable. Please try again later.",
+        "auth_config_error":                  "Could not log in. Please try again later or contact the administrator.",
+        "auth_unexpected_error":              "Could not log in. If the problem persists, please contact the administrator.",
+        "auth_empty_response":                "Could not log in. Please try again later.",
+        "auth_timeout":                       "Could not log in. Please try again later.",
+        "network_error":                      "Network error. Please check your connection and try again.",
+        "refresh_denied":                     "Your session has expired. Please log in again.",
+        "server_busy":                        "The server is busy. Please try again in a moment.",
 
-        'select language': 'Select Language',
-        'login denied': 'Access denied',
-        'invalid-username-password': 'Invalid Username or Password',
-
-        // --- auth_bff error codes (see kernel/c/root-linux/src/c_auth_bff.h)
-        'invalid_credentials':      'Invalid username or password',
-        'session_expired':          'Your session has expired. Please log in again.',
-        'account_disabled':         'Account disabled or not fully configured. Please contact the administrator.',
-        'auth_rate_limited':        'Too many login attempts. Please wait a moment and try again.',
-        'auth_service_unavailable': 'Authentication service unavailable. Please try again later.',
-        'auth_config_error':        'Could not log in. Please try again later or contact the administrator.',
-        'auth_unexpected_error':    'Could not log in. If the problem persists, please contact the administrator.',
-        'auth_empty_response':      'Could not log in. Please try again later.',
-        'auth_timeout':             'Could not log in. Please try again later.',
-        'network_error':            'Network error. Please check your connection and try again.',
-        'refresh_denied':           'Your session has expired. Please log in again.',
-        'server_busy':              'The server is busy. Please try again in a moment.',
-
-        'no yuneta backend url available': 'No yuneta backend url available',
-        'no url available for': 'No url available for',
-        'select theme': 'Select Theme',
-        'dark theme': 'Dark Theme',
-        'light theme': 'Light Theme',
-        'system theme': 'System Theme',
-        'es': 'Spanish',
-        'en': 'English',
-        'please select some row': 'Please select some row',
-        'copy': 'Copy',
-        'paste': 'Paste',
-
-        'connection-backend-refused': 'Connection to backend refused',
-        'cause': 'Cause',
-        'url': 'Url',
-        'remote-service': 'Remote Service',
-        'User not authorized': 'User not authorized',
-        "historical": "Historical",
-        "historical_tracks": "Historical Measures",
-        "historical_alarms": "Historical Alarms",
-        "monitoring": "Real-time",
-        "settings": "Settings",
-        "records": "Records",
-        "show-grid": "Show Details",
-        "show-map": "Show Map",
-        "maplibre.drag_mark": "Move Marker",
-        "maplibre.center_map": "Center Map",
-        "maplibre.user_location": "User Location",
-        "map": "Map",
-        "new": "New",
-        "edit": "Edit",
-        "delete": "Delete",
-        "save": "Save",
-        "cancel": "Cancel",
-        "accept": "Accept",
-        "this field is required": "This field is required",
-        "Enabled": "Enabled",
-        "node not found": "Record (node) not found",
-        "undo": "Undo",
-        "clear": "Clear",
-        "alarm": "Alarm",
-        "alarms": "Alarms",
-        "measure": "Measure",
-        "measures": "Measures",
-        "value": "Value",
-        "temperature": "Temperature",
-        "All changes will be lost. Are you sure?": "All changes will be lost. Are you sure?",
-        "refresh": "Refresh",
-        "current value": "Current Value",
-        "no_validated": "Not validated",
-        "active-validated": "Active and validated",
-        "all": "All",
-        "see all": "Show All",
-        "connected": "Connected",
-        "disconnected": "Disconnected",
-        "search": "Search",
-        "select": "Select",
-        "device": "Device",
-        "devices": "Devices",
-        "sensor": "Sensor",
-        "sensors": "Sensors",
-        "search device": "Search Device",
-        "select device": "Select Device",
-        "search measures": "Search Measures",
-        "search alarms": "Search Alarms",
-        "from": "From",
-        "to": "To",
-        "device_actions": "Actions",
-
-        "template_version": "Template version",
-        "select a measure": "Select a measure",
-        "top_measures": "Top Measures",
-
-        "power_on": "Power On",
-        "voltage": "Voltage",
-        "total": "Total",
-        "yesterday": "Yesterday",
-        "period": "Period",
-        "power": "Power",
-        "unit": "Unit",
-
-        "Remove all selected options": "Remove all selected options",
-        "alarm_colors": "Alarm Colors",
-        "active_not_validated": "Active, not-validated",
-        "active_validated": "Active, validated",
-        "not_active_not_validated": "Not active, not-validated",
-        "add": "Add",
-        "description": "Description",
-        "notifications": "Notificate to:",
-        "operation": "Operation",
-        "triggers": "Triggers",
-        "enabled": "Enabled",
-        "max_age": "Max Age",
-        "payload": "Payload",
-        "coordinates": "Coordinates",
-        "geolocation is not supported": "Geolocation is not supported",
-        "permission denied": "Permission denied",
-        "location unavailable": "Location unavailable",
-        "timed out": "Time out",
-        "unknown error": "Unknown error",
-
-        "device alarms": "Device Alarms",
-        "Device Id": "Device Id",
-        "Time": "Time",
-        "Device Name": "Device Name",
-        "Alarm": "Alarm",
-        "Active": "Active",
-        "Validated": "Validated",
-        "Description": "Description",
-        "Triggers": "Triggers",
-        "Sent": "Sent",
-        "Notified": "Notified to:",
-
-        'Inicio': 'Home',
-
-        "resize all": "Resize all",
-        "resize topic nodes": "Resize topic nodes",
-        "resize all ports": "Resize all ports",
-        "resize topic ports": "Resize topic ports",
-        "edge properties": "Edge properties",
-        "line width": "Line width",
-        "color": "Color",
-        "apply to": "Apply to",
-        "this edge": "This edge",
-        "same type edges": "Same type edges",
-        "all edges": "All edges",
-        "apply": "Apply",
-        "node properties": "Node properties",
-        "fill color": "Fill color",
-        "stroke color": "Stroke color",
-        "this node": "This node",
-        "same topic nodes": "Same topic nodes",
-        "all nodes": "All nodes",
-        "delete node": "Delete node",
-        "unlink": "Unlink",
-        "link to hook": "Link to hook",
-        "redo": "Redo",
-        "zoom in": "Zoom In",
-        "zoom out": "Zoom Out",
-        "reset zoom": "Reset Zoom",
-        "auto fit": "Auto Fit",
-        "enter full screen": "Enter Full Screen",
-        "exit full screen": "Exit Full Screen",
-        "layout": "Layout",
-        "operation mode": "Operation Mode",
-
-        'xxx': 'last entry DONT CHANGE, insert before'
+        /* keep this last so adding new keys above never hits the comma trap */
+        "_xxx":                               "last key — insert new ones above"
     }
 };
 
