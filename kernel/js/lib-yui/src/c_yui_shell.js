@@ -1354,6 +1354,15 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
         return;
     }
 
+    /*  The panel mounts on priv.layers.popup, which is a sibling of the
+     *  shell's $container.  refresh_language($container, t) therefore
+     *  does NOT walk into an open dropdown.  This is currently safe
+     *  because every sub-item handler (build_dropdown_row) closes the
+     *  dropdown before publishing its event, so by the time a language
+     *  switch fires the panel is already gone.  If a future caller
+     *  triggers a language switch while leaving the dropdown open,
+     *  rerun refresh_language on $panel — or move the panel under
+     *  $container (the popup layer is full-screen). */
     let aria_key = item && (item.aria_label || item.name || item.id) || "Menu";
     let i18n_aria = (item && (item.aria_label || item.name)) || "Menu";
     let $panel = createElement2(["div", {
@@ -1408,9 +1417,19 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
     };
     document.addEventListener("mousedown", backdrop, true);
 
+    /*  Scroll/resize: the panel anchor was frozen at open time from
+     *  getBoundingClientRect(); any layout shift drifts it from the
+     *  trigger.  Match native <select> UX and dismiss on either.
+     *  Capture-phase + passive scroll so we hear all scrollers (any
+     *  ancestor, not just window) without blocking them. */
+    let dismiss = () => close_toolbar_dropdown(gobj);
+    document.addEventListener("scroll", dismiss, {capture: true, passive: true});
+    window.addEventListener("resize", dismiss);
+
     let close_fn = () => close_toolbar_dropdown(gobj);
     $panel.__yui_close_handler__   = close_fn;
     $panel.__yui_backdrop_handler__ = backdrop;
+    $panel.__yui_dismiss_handler__  = dismiss;
     $panel.__yui_trigger__          = $trigger || null;
     push_escape(gobj, "popup", close_fn);
 
@@ -1445,6 +1464,13 @@ function close_toolbar_dropdown(gobj)
         document.removeEventListener("mousedown",
                                      $panel.__yui_backdrop_handler__, true);
         $panel.__yui_backdrop_handler__ = null;
+    }
+    if($panel.__yui_dismiss_handler__) {
+        document.removeEventListener("scroll",
+                                     $panel.__yui_dismiss_handler__,
+                                     {capture: true});
+        window.removeEventListener("resize", $panel.__yui_dismiss_handler__);
+        $panel.__yui_dismiss_handler__ = null;
     }
     if($panel.__yui_trigger__) {
         $panel.__yui_trigger__.setAttribute("aria-expanded", "false");
