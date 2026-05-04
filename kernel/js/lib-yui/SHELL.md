@@ -13,6 +13,39 @@ Yuneta configuration style.
 
 ---
 
+## 0. Philosophy — declarative first
+
+The shell is the practical expression of a wider Yuneta-side stance:
+**apps describe what they want; the framework decides how to paint
+it.**
+
+  1. **The application declares** in `app_config.json`: zones, menus,
+     toolbar items, view bindings, breakpoints, hover tooltips.
+  2. **`lib-yui` materialises** the DOM and owns *all* CSS for shell
+     chrome (toolbar, drawers, dropdowns, navs).  Apps do not poke
+     into the shell's elements; they do not ship media queries that
+     target shell selectors.
+  3. **Imperative helpers are escape hatches** — `yui_shell_set_avatar_provider`,
+     `yui_shell_refresh_avatars`, `yui_shell_close_dropdown`, etc.
+     They exist for the cases the declarative shape can't reach
+     (e.g. host-owned data like the user's initials).  They are not
+     the default path.
+
+When you reach for a feature, climb this ladder in order:
+
+  a. Can it be expressed by extending the JSON contract (a new field
+     or a new `type`/`action.type` value)?  Do that.
+  b. If not, can a small public helper in `lib-yui` cover it without
+     leaking DOM details to the host?  Add the helper.
+  c. Touching app DOM/CSS directly is a last resort and signals a
+     gap in (a) or (b) that should be filed back upstream.
+
+The reverse migration is the litmus test: every time wattyzer or
+another consumer can delete an `install_*()` patch or a CSS selector
+keyed on `data-toolbar-item-id`, the shell got better at its job.
+
+---
+
 ## 1. Goals
 
 1. **Declarative**: the screen split and the menu tree are described in
@@ -180,24 +213,77 @@ is only one main stage named `main` in `center`.
 
 ### 3.4 `toolbar`
 
+**Cheatsheet — three orthogonal axes per item:**
+
+| Axis | Field | Values | Effect |
+|---|---|---|---|
+| Form | `type` | `"brand"` · `"avatar"` · *omitted (action)* | Renderer kind |
+| Behaviour | `action.type` | `"navigate"` · `"drawer"` · `"event"` · `"dropdown"` | What the click does |
+| Visibility | `show_on` | `">=tablet"` · `"<desktop"` · `"*"` · ... | Per-item breakpoint |
+
+Compose freely — `type:"avatar"` + `action:{type:"dropdown",items:[…]}`
+is the canonical user menu.  Dropdown sub-items reuse the same
+`action.type` set (no nested dropdowns).  Brand items render as a
+passive `<div>` when `action` is omitted (focus-skipped, no click);
+include an `action` (typically `navigate`) to make the brand
+clickable.  Avatar items ignore `icon` and `name` — the badge text
+comes from the host-registered provider; use `aria_label` for the
+menu label.
+
 ```json
 "toolbar": {
   "zone": "top",
   "aria_label": "App toolbar",
   "items": [
     { "id": "burger", "icon": "icon-menu",
+      "show_on": "<desktop",
       "aria_label": "Open menu",
       "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" } },
+    { "id": "brand",  "type": "brand",
+      "logo": "/wattyzer-mark.svg", "wordmark": "Wattyzer",
+      "action": { "type": "navigate", "route": "/welcome" } },
     { "id": "home",   "icon": "icon-home",  "name": "Home",
       "action": { "type": "navigate", "route": "/dash/ov" } },
-    { "id": "user",   "icon": "icon-user",  "align": "end",
-      "action": { "type": "event", "event": "EV_OPEN_USER_MENU" } }
+    { "id": "search", "icon": "icon-search",
+      "show_on": ">=tablet",
+      "action": { "type": "event", "event": "EV_OPEN_SEARCH" } },
+    { "id": "user",   "type": "avatar",  "align": "end",
+      "aria_label": "User menu",
+      "action": {
+        "type": "dropdown",
+        "items": [
+          { "id": "profile",  "name": "My profile", "icon": "icon-user",
+            "action": { "type": "navigate", "route": "/account/profile" } },
+          { "type": "divider" },
+          { "id": "theme",    "name": "Theme",     "icon": "icon-moon",
+            "action": { "type": "event", "event": "EV_CYCLE_THEME" } },
+          { "id": "lang",     "name": "Language",  "icon": "icon-translate",
+            "action": { "type": "event", "event": "EV_CYCLE_LANGUAGE" } },
+          { "type": "divider" },
+          { "id": "logout",   "name": "Logout",    "icon": "icon-logout",
+            "action": { "type": "event", "event": "EV_LOGOUT" } }
+        ]
+      } }
   ]
 }
 ```
 
 - `zone` — host zone. Defaults to the first zone in `shell.zones` that
   declares `"host": "toolbar"`.
+- `items[].type`:
+  - omitted / `"action"` (default) — icon and/or label that fires
+    `action.type` on click.
+  - `"brand"` — logo + wordmark. Required: `logo` (image URL) and
+    `wordmark` (text). Optional `alt` (defaults to `wordmark`) and
+    `action` (typically `navigate`); without an action the brand
+    renders as a passive `<div>` (not focusable).
+  - `"avatar"` — circular initials badge. The text is supplied at
+    runtime by a host-registered provider:
+    ```js
+    yui_shell_set_avatar_provider(shell, () => "JD");
+    yui_shell_refresh_avatars(shell);   // re-paint after a change
+    ```
+    `lib-yui` never reads the user model directly; the host owns it.
 - `items[].action.type`:
   - `"navigate"` → `{ route }` — delegated to the shell (respects
     `use_hash`).
@@ -206,7 +292,20 @@ is only one main stage named `main` in `center`.
     matches.
   - `"event"`    → `{ event, kw? }` — `gobj_publish_event` from the
     shell.
-- `items[].align`: `"start"` (default) or `"end"` (right-align).
+  - `"dropdown"` → `{ items[] }` — opens a panel anchored to the
+    trigger button on the `popup` layer. Each entry is either a
+    `{ "type": "divider" }` separator or a sub-item with its own
+    `action` (`navigate` / `drawer` / `event` — nested dropdowns
+    are not supported). Sub-items accept `show_on` for parity with
+    toolbar items. The panel is dismissed by Escape, click outside
+    the panel, navigation, or by activating any sub-item; programmatic
+    close is also available via `yui_shell_close_dropdown(shell)`.
+- `items[].show_on` — Bulma breakpoint expression (same syntax as
+  `shell.zones[id].show_on`). Hides individual items per breakpoint
+  without needing a separate zone. Also valid on dropdown sub-items.
+- `items[].align`: `"start"` (default) or `"end"` (right-align). The
+  alignment also drives the dropdown panel anchor (right-aligned for
+  end items, left-aligned for start items).
 - `aria_label` per item is used as the `<button>`'s `aria-label`.
 
 ### 3.5 `items[]` — option structure
@@ -538,7 +637,8 @@ shell. Treat the two APIs as parallel — same intent, separate code.
 - `lifecycle: eager | keep_alive | lazy_destroy`, with the first one
   preinstantiating the views at startup.
 - **Declarative toolbar** (`toolbar.items[]` with `navigate`,
-  `drawer`, and `event` actions).
+  `drawer`, `event`, and `dropdown` actions; `type: "brand"` and
+  `type: "avatar"` item kinds; per-item `show_on`).
 - Single router: the nav publishes `EV_NAV_CLICKED`, the shell
   routes.
 - Canonical i18n: every translatable text node carries

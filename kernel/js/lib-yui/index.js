@@ -30,6 +30,9 @@ export {
     yui_shell_toggle_drawer,
     yui_shell_push_escape,
     yui_shell_pop_escape,
+    yui_shell_set_avatar_provider,
+    yui_shell_refresh_avatars,
+    yui_shell_close_dropdown,
 } from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
 export {

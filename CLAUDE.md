@@ -301,6 +301,7 @@ the structure exactly — count blank lines if in doubt.
 | JS gclass                 | `js_gclass/+rootname+.js_tmpl`                               |
 | Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
+| JS GUI yuno (Vite + lib-yui shell) | `js_gui/` (full project: package.json, vite.config.js, public/, src/locales/, app_config.json, c_+rootname+_view.js, main.js) |
 
 **Every banner from the skeleton must be present, even when its section is
 empty.** Don't add extra banners outside the skeleton set. Don't reorder

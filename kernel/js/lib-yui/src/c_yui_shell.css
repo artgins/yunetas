@@ -239,6 +239,90 @@
 }
 
 /*============================================================
+ *      Toolbar — type:"brand"
+ *      Logo image + wordmark text. Renders as <button> when
+ *      `action` is set, otherwise as a passive <div>.
+ *============================================================*/
+.yui-toolbar-brand {
+    gap: 0.5rem;
+    text-decoration: none;
+    color: inherit;
+}
+.yui-toolbar-brand-logo {
+    height: 1.75rem;
+    width: auto;
+    flex: 0 0 auto;
+    display: block;
+}
+.yui-toolbar-brand-wordmark {
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+/*============================================================
+ *      Toolbar — type:"avatar"
+ *      Circular badge populated by the host-registered provider
+ *      via yui_shell_set_avatar_provider().
+ *============================================================*/
+.yui-toolbar-avatar .yui-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: var(--bulma-link, #485fc7);
+    color: var(--bulma-link-invert, #ffffff);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+/*============================================================
+ *      Toolbar — action.type:"dropdown"
+ *      Panel anchored to the trigger; mounted on the popup
+ *      layer so it sits above the base grid but below modals.
+ *============================================================*/
+.yui-toolbar-dropdown-panel {
+    background-color: var(--bulma-scheme-main, #ffffff);
+    color: var(--bulma-text, inherit);
+    border: 1px solid var(--bulma-border, rgba(0, 0, 0, 0.1));
+    border-radius: 0.375rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    min-width: 12rem;
+    padding: 0.25rem 0;
+    margin-top: 0.25rem;
+}
+.yui-toolbar-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 0.5rem 0.875rem;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+}
+.yui-toolbar-dropdown-item:hover {
+    background-color: var(--bulma-scheme-main-bis, rgba(0, 0, 0, 0.06));
+}
+.yui-toolbar-dropdown-item:focus-visible {
+    outline: 2px solid var(--bulma-link, #485fc7);
+    outline-offset: -2px;
+}
+.yui-toolbar-dropdown-divider {
+    height: 1px;
+    margin: 0.25rem 0;
+    background-color: var(--bulma-border, rgba(0, 0, 0, 0.1));
+}
+
+/*============================================================
  *      Keyboard focus (accessibility)
  *      Use :focus-visible so we don't show an outline on click.
  *============================================================*/
