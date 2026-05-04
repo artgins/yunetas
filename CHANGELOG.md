@@ -19,6 +19,13 @@
       re-translates the `title`.  Hover tooltips swap language alongside
       the visible labels.
 
+    - **feat(gobj-js, lib-yui): translatable aria-labels**.  Nav and
+      toolbar renderers now also emit `data-i18n-aria-label="<key>"`
+      next to their `aria-label` attribute (toolbar root, action items,
+      brand, avatar, dropdown panel, dropdown rows, and nav items), and
+      `refresh_language()` walks `[data-i18n-aria-label]` to rewrite
+      `aria-label`.  Screen-reader names now follow the active locale.
+
 ## v7.3.1 -- 30/Apr/2026
     - **breaking(auth): standard OIDC migration of `c_auth_bff` and
       `c_task_authenticate`**.  Both gclasses now resolve IdP endpoints

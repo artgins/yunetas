@@ -3083,6 +3083,18 @@ function refresh_language(element, t)
             elem.setAttribute('title', t(value));
         }
     });
+
+    /*  Translate the `aria-label` attribute (assistive-tech name) for
+     *  any element carrying `data-i18n-aria-label="<canonical key>"`.
+     *  Same contract as data-i18n-title above — emitted by lib-yui's
+     *  toolbar and nav renderers next to the static `aria-label` so
+     *  screen readers track language switches. */
+    element.querySelectorAll('[data-i18n-aria-label]').forEach(function(elem) {
+        let value = elem.getAttribute('data-i18n-aria-label');
+        if(value) {
+            elem.setAttribute('aria-label', t(value));
+        }
+    });
 }
 
 /************************************************************

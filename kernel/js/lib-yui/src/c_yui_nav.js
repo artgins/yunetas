@@ -421,14 +421,22 @@ function item_li(gobj, it, opts)
         }
     }
 
+    let aria_key = label || it.id;
     let a_attrs = {
         class: a_class,
         href: it.route ? "#" + it.route : "#",
         "data-item-id": it.id,
         "data-route":   it.route || "",
         "data-disabled": it.disabled ? "1" : "0",
-        "aria-label":   label || it.id
+        "aria-label":   aria_key
     };
+    /*  Mirror the aria-label key in `data-i18n-aria-label` so
+     *  refresh_language() can re-translate it on language switch.
+     *  Only when sourced from a real label (skip the bare-id
+     *  fallback — ids aren't translation keys). */
+    if(label) {
+        a_attrs["data-i18n-aria-label"] = label;
+    }
     /*  Hover tooltip: prefer explicit `tooltip`, fall back to
      *  `aria_label` (typically equivalent, e.g. "Search (Ctrl+F)").
      *  Skip when both empty so we don't emit `title=""` noise.
@@ -485,6 +493,9 @@ function item_iconbar(gobj, it, opts)
         "data-route":   it.route || "",
         "aria-label":   label || it.id
     };
+    if(label) {
+        a_attrs["data-i18n-aria-label"] = label;
+    }
     let tip = it.tooltip || it.aria_label;
     if(tip) {
         a_attrs.title = tip;

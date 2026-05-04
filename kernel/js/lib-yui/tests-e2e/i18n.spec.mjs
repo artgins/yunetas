@@ -80,6 +80,35 @@ test.describe("live i18n", () => {
         await expect(toolbar_ask).toHaveText("Ask");
     });
 
+    test("aria-label on the toolbar root and burger swaps with the active language", async ({ page }) => {
+        await page.goto("/");
+        await expect(page).toHaveURL(/#\/dash\/ov$/);
+
+        let toolbar = page.locator("nav.yui-toolbar");
+        let burger  = page.locator('[data-toolbar-item-id="burger"]');
+
+        /*  Initial: English aria-labels straight from app_config. */
+        await expect(toolbar).toHaveAttribute("aria-label", "App toolbar");
+        await expect(toolbar).toHaveAttribute("data-i18n-aria-label", "App toolbar");
+        await expect(burger).toHaveAttribute("aria-label", "Open quick menu");
+        await expect(burger).toHaveAttribute("data-i18n-aria-label", "Open quick menu");
+
+        /*  Toggle language. */
+        await page.locator('[data-toolbar-item-id="lang"]').click();
+
+        /*  Spanish: aria-label was rewritten by refresh_language(),
+         *  data-i18n-aria-label still holds the canonical key. */
+        await expect(toolbar).toHaveAttribute("aria-label", "Barra de herramientas");
+        await expect(toolbar).toHaveAttribute("data-i18n-aria-label", "App toolbar");
+        await expect(burger).toHaveAttribute("aria-label", "Abrir menú rápido");
+        await expect(burger).toHaveAttribute("data-i18n-aria-label", "Open quick menu");
+
+        /*  Toggle back. */
+        await page.locator('[data-toolbar-item-id="lang"]').click();
+        await expect(toolbar).toHaveAttribute("aria-label", "App toolbar");
+        await expect(burger).toHaveAttribute("aria-label", "Open quick menu");
+    });
+
     test("modals/toasts opened AFTER a language toggle render in the active language", async ({ page }) => {
         await page.goto("/");
         await expect(page).toHaveURL(/#\/dash\/ov$/);

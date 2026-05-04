@@ -1055,10 +1055,12 @@ function build_toolbar(gobj, config)
      *  which createElement2 maps to `data-i18n` on the rendered
      *  element.  Apps swap languages by calling
      *  refresh_language(shell.$container, t) — no DOM rebuild here. */
+    let toolbar_aria = tb.aria_label || "Toolbar";
     let $bar = createElement2(
         ["nav", {class: "yui-toolbar navbar",
                  role: "navigation",
-                 "aria-label": tb.aria_label || "Toolbar"},
+                 "aria-label": toolbar_aria,
+                 "data-i18n-aria-label": toolbar_aria},
             [
                 ["div", {class: "navbar-brand yui-toolbar-start"}],
                 ["div", {class: "navbar-end   yui-toolbar-end"}]
@@ -1106,12 +1108,16 @@ function build_toolbar_action_item(gobj, it)
     }
 
     let aria_key = it.aria_label || it.name || it.id || "";
+    let i18n_aria = it.aria_label || it.name;
     let btn_attrs = {
         class: "navbar-item yui-toolbar-item is-unselectable",
         type: "button",
         "data-toolbar-item-id": it.id || "",
         "aria-label": aria_key
     };
+    if(i18n_aria) {
+        btn_attrs["data-i18n-aria-label"] = i18n_aria;
+    }
     let action_type = (it.action && it.action.type) || "";
     if(action_type === "dropdown") {
         btn_attrs["aria-haspopup"] = "menu";
@@ -1153,11 +1159,15 @@ function build_toolbar_brand_item(gobj, it)
     }
     let alt = it.alt || it.wordmark || "";
     let aria_key = it.aria_label || it.wordmark || it.id || "";
+    let i18n_aria = it.aria_label || it.wordmark;
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-brand is-unselectable",
         "data-toolbar-item-id": it.id || "",
         "aria-label": aria_key
     };
+    if(i18n_aria) {
+        attrs["data-i18n-aria-label"] = i18n_aria;
+    }
     let action_type = (it.action && it.action.type) || "";
     let tag = "button";
     if(action_type === "dropdown") {
@@ -1197,12 +1207,14 @@ function build_toolbar_avatar_item(gobj, it)
 {
     let priv = gobj_read_attr(gobj, "priv");
     let aria_key = it.aria_label || it.name || it.id || "User menu";
+    let i18n_aria = it.aria_label || it.name || "User menu";
     let action_type = (it.action && it.action.type) || "";
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-avatar is-unselectable",
         type: "button",
         "data-toolbar-item-id": it.id || "",
-        "aria-label": aria_key
+        "aria-label": aria_key,
+        "data-i18n-aria-label": i18n_aria
     };
     if(action_type === "dropdown") {
         attrs["aria-haspopup"] = "menu";
@@ -1343,10 +1355,12 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
     }
 
     let aria_key = item && (item.aria_label || item.name || item.id) || "Menu";
+    let i18n_aria = (item && (item.aria_label || item.name)) || "Menu";
     let $panel = createElement2(["div", {
         class: "yui-toolbar-dropdown-panel",
         role: "menu",
         "aria-label": aria_key,
+        "data-i18n-aria-label": i18n_aria,
         "data-toolbar-dropdown-for": (item && item.id) || ""
     }]);
 
@@ -1469,6 +1483,7 @@ function build_dropdown_row(gobj, sub, idx)
                                 i18n: sub.name}, sub.name]);
     }
     let aria_key = sub.aria_label || sub.name || sub.id || "";
+    let i18n_aria = sub.aria_label || sub.name;
     let attrs = {
         class: "yui-toolbar-dropdown-item",
         type: "button",
@@ -1476,6 +1491,9 @@ function build_dropdown_row(gobj, sub, idx)
         "data-dropdown-item-id": sub.id || "",
         "aria-label": aria_key
     };
+    if(i18n_aria) {
+        attrs["data-i18n-aria-label"] = i18n_aria;
+    }
     let $btn = createElement2(["button", attrs, children]);
     $btn.addEventListener("click", ev => {
         ev.preventDefault();
