@@ -208,6 +208,30 @@
     transform: none;
 }
 
+/*--- section header / divider (decorative items inside vertical/submenu) ---*/
+.yui-nav .menu-list .yui-nav-section-header {
+    list-style: none;
+    margin: 0.75rem 0 0.125rem;
+    padding: 0.125rem 0.5rem;
+}
+.yui-nav .menu-list .yui-nav-section-header:first-child {
+    margin-top: 0.125rem;
+}
+.yui-nav .menu-list .yui-nav-section-header-label {
+    display: inline-block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    color: var(--bulma-text-weak, #6b7280);
+}
+.yui-nav .menu-list .yui-nav-section-divider {
+    list-style: none;
+    height: 1px;
+    margin: 0.5rem 0.5rem;
+    background-color: var(--bulma-border-weak, #dbdbdb);
+}
+
 /*============================================================
  *      Active item highlight (Bulma already styles .is-active
  *      on .menu-list a and on .tabs li; we just ensure a

@@ -54,7 +54,9 @@ keyed on `data-toolbar-item-id`, the shell got better at its job.
    `left` on desktop and in `bottom` on mobile"* without duplicating the
    menu definition or breaking the panels' internal state.
 3. **Two-level navigation**: primary options + sub-options, mapped to
-   hash routes (`#/primary/secondary`).
+   hash routes (`#/primary/secondary`).  Apps that need a third level
+   of grouping inside the secondary use `type:"header"` / `type:"divider"`
+   decorative items (§3.5) — visual chunking without a third nav level.
 4. **Pluggable per-zone rendering**: the same menu option must be able
    to render differently depending on where it lands (vertical icon +
    label in `left`; icon-over-label in `bottom`; horizontal tabs in
@@ -344,6 +346,65 @@ menu label.
   route redirects to the first sub-item (or to `submenu.default`).
   Sub-items declare their own `target`.
 
+#### Decorative items inside a submenu — `type:"header"` / `type:"divider"`
+
+When a secondary nav has many leaves, group them visually with two
+non-interactive item kinds. The shell's route indexer ignores them
+(no `route`, no `target`); the renderers in `vertical`, `submenu`,
+`drawer` and `accordion` paint them; `tabs` and `icon-bar` silently
+drop them — there is no room for section labels in those compact
+layouts.
+
+```json
+"submenu": {
+  "render": { "top-sub": "tabs", "right": "vertical" },
+  "items": [
+    { "type": "header",  "name": "account" },
+    { "id": "profile",  "name": "my profile",
+      "route": "/system/account/profile",
+      "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                  "kw": { "title": "my profile" } } },
+    { "id": "sessions", "name": "sessions",
+      "route": "/system/account/sessions",
+      "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                  "kw": { "title": "sessions" } } },
+    { "type": "divider" },
+    { "type": "header",  "name": "infrastructure" },
+    { "id": "tariffs",  "name": "tariffs",
+      "route": "/system/infra/tariffs",
+      "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                  "kw": { "title": "tariffs" } } }
+  ]
+}
+```
+
+Field rules:
+
+- `type: "header"` — required `name` (translatable, emitted with
+  `data-i18n`). Renders as a small-caps section label, no anchor.
+- `type: "divider"` — no other fields. Renders as a 1 px horizontal
+  rule, `role="separator"`, `aria-hidden="true"`.
+
+Both kinds carry no `route`/`target`/`submenu`, so they are skipped
+by `enter_route`, by the route index, and by the click handler
+(`closest("[data-route]")` returns nothing).
+
+This lets an app keep a flat 2-level navigation tree (one of the
+shell's deliberate constraints, see §1 goal #3) while still
+expressing more than two levels of *meaning* — the third level is
+purely visual chunking inside the secondary nav.
+
+### 3.6 `menu.<id>.render[zone].layout` — when each layout is appropriate
+
+| Layout       | Best zone(s)         | Renders header/divider? | Notes                                  |
+|--------------|----------------------|-------------------------|----------------------------------------|
+| `vertical`   | `left`, `right`      | yes                     | Bulma `.menu`. Default secondary.       |
+| `submenu`    | `right`, `top-sub`   | yes                     | Vertical list with a heading on top.    |
+| `drawer`     | `overlay` (off-canvas)| yes (delegates to vertical) | Toggled by toolbar burger.        |
+| `accordion`  | `left`               | yes (in inner items)    | Collapsible groups; first-level entries are sections, not decorations. |
+| `tabs`       | `top-sub`            | no — silently dropped   | Horizontal strip; no room for labels.   |
+| `icon-bar`   | `bottom`             | no — silently dropped   | Mobile primary; one slot per icon.      |
+
 ---
 
 ## 4. Lifecycle
@@ -565,6 +626,7 @@ managing its visibility.
 | Declarative, Yuneta-style JSON                           | `config` attribute holding a JSON of `shell`/`menu`/`toolbar` |
 | Layers + working zones                                   | 6 fixed layers + 7 zones in a grid                            |
 | Two-level primary menu                                   | `menu.primary.items[].submenu.items[]`                        |
+| Three-level *meaning* without a third nav level          | `type:"header"` / `type:"divider"` decorative items inside `submenu.items[]` (§3.5) |
 | Primary in `left` on desktop and `bottom` on mobile      | `"host": "menu.primary"` in both, with opposite `show_on`     |
 | Icon + label; different per zone                         | `render[zone]` with `layout` + `icon_pos` + `show_label`      |
 | Submenu as tabs **or** as a side submenu                 | `submenu.render[zone]` set to `"tabs"` / `"vertical"` / etc.  |
@@ -630,6 +692,9 @@ shell. Treat the two APIs as parallel — same intent, separate code.
 - All 6 menu layouts (`vertical`, `icon-bar`, `tabs`, `drawer`,
   `submenu`, `accordion`), with auto-expansion of the active branch
   on accordion when the route changes.
+- Decorative `type:"header"` / `type:"divider"` items inside
+  secondary navs (§3.5) — visual chunking of long submenus without
+  introducing a third routing level.
 - Off-canvas drawer: mounted on the `overlay` layer (not inside the
   zone grid), closed on backdrop click and on `Escape`, public API
   `yui_shell_{open,close,toggle}_drawer`, focus-trap with
