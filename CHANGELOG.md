@@ -1,6 +1,14 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(lib-yui): bare-route redirect skips decorative items**.
+      `navigate_to()` was using `submenu.items[0].route` as the
+      fallback for a level-1 container — undefined when item 0 is a
+      `type:"header"` / `type:"divider"`, which caused the bare route
+      to fall through to "no target".  Use the first item with a
+      `route` instead; `submenu.default` still wins.  SHELL.md §3
+      updated.
+
     - **feat(lib-yui): item tooltips**.  Nav and toolbar items accept a
       `tooltip` field (fallback: `aria_label`); rendered as the HTML
       `title` attribute on the generated `<a>`/`<button>`.

@@ -343,7 +343,9 @@ menu label.
   - `stage` — where to mount it (defaults to `main`).
   - `lifecycle`: `eager` | `keep_alive` | `lazy_destroy`.
 - `submenu` — when declared, the item becomes a *container*: its bare
-  route redirects to the first sub-item (or to `submenu.default`).
+  route redirects to the first navigable sub-item (or to `submenu.default`
+  if set).  Decorative entries (§3.5) carry no `route` and are skipped
+  by this fallback, so a header may safely sit at position 0.
   Sub-items declare their own `target`.
 
 #### Decorative items inside a submenu — `type:"header"` / `type:"divider"`

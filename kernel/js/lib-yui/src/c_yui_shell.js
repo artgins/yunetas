@@ -861,10 +861,13 @@ function navigate_to(gobj, route)
     }
     let entry = priv.item_index[route];
 
-    /*  Route level 1 only: if it has a submenu, navigate to its default subitem */
+    /*  Route level 1 only: if it has a submenu, navigate to its default subitem.
+     *  Skip decorative items (`type:"header"`, `type:"divider"`) — they have
+     *  no `route`, so the first *navigable* child is used as the fallback.   */
     if(entry && !entry.target && entry.item && entry.item.submenu) {
         let sub = entry.item.submenu;
-        let default_sub = sub.default || (sub.items && sub.items[0] && sub.items[0].route);
+        let first_routable = sub.items && sub.items.find(it => it && it.route);
+        let default_sub = sub.default || (first_routable && first_routable.route);
         if(default_sub) {
             return navigate_to(gobj, default_sub);
         }
