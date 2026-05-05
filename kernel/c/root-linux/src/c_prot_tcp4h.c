@@ -373,10 +373,10 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     }
 
     if(header_erpl4.len > priv->max_pkt_size) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "TOO LONG SIZE",
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "tcp4h head too long",
             "len",          "%d", header_erpl4.len,
             NULL
         );
@@ -577,7 +577,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
         if (n <= 0) {
             // Some error in parsing
             // on error do break the connection
-            gobj_trace_dump_full_gbuf(gobj, gbuf, "ERROR in packet");
+            gobj_trace_dump_full_gbuf(gobj, gbuf, "bad tcp4h head");
             ws_close(gobj, -1);
             break;
         } else if (n > 0) {
