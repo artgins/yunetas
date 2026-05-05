@@ -16,6 +16,17 @@
  *      Each item supports:
  *          id, name, icon (CSS class or svg id), route, badge, disabled
  *
+ *      In addition to navigable items, secondary navs accept two
+ *      decorative item kinds for in-place visual grouping:
+ *
+ *          { "type": "header",  "name": "<group label>" }
+ *          { "type": "divider" }
+ *
+ *      Headers render as a small-caps section label; dividers as a thin
+ *      separator line.  Both are non-clickable and skipped by routing
+ *      and click handling.  Layouts that have no room for them
+ *      (`tabs`, `icon-bar`) silently drop these entries.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -39,6 +50,14 @@ const GCLASS_NAME = "C_YUI_NAV";
 const SUPPORTED_LAYOUTS = [
     "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion"
 ];
+
+/*  Decorative items have no `route` and never participate in
+ *  navigation; the shell's route indexer already skips items
+ *  without a route, so this only affects the rendering side. */
+function is_decorative(it)
+{
+    return !!(it && (it.type === "header" || it.type === "divider"));
+}
 
 /***************************************************************
  *              Attrs
@@ -237,6 +256,9 @@ function render_icon_bar(gobj, items)
 
     let bar_items = [];
     for(let it of items) {
+        if(is_decorative(it)) {
+            continue;   /*  headers/dividers don't fit a horizontal icon bar  */
+        }
         bar_items.push(item_iconbar(gobj, it, { icon_pos, show_label }));
     }
     return createElement2(
@@ -250,6 +272,9 @@ function render_tabs(gobj, items)
 
     let lis = [];
     for(let it of items) {
+        if(is_decorative(it)) {
+            continue;   /*  tab strips have no room for section labels  */
+        }
         let children = [];
         if(!empty_string(it.icon)) {
             children.push(["span", {class: "icon is-small"},
@@ -346,6 +371,9 @@ function render_accordion(gobj, items)
 
     let $root = createElement2(["aside", {class: "menu yui-nav-accordion p-2"}]);
     for(let it of items) {
+        if(is_decorative(it)) {
+            continue;   /*  primary-level decorations don't apply to accordion sections  */
+        }
         let acc_id = ++__nav_aria_seq__;
         let head_id = `yui-acc-head-${acc_id}`;
         let body_id = `yui-acc-body-${acc_id}`;
@@ -389,6 +417,29 @@ function render_accordion(gobj, items)
  ************************************************************/
 function item_li(gobj, it, opts)
 {
+    /*  Decorative entries: a non-interactive section header or a
+     *  thin divider rule.  Used inside vertical/submenu/accordion
+     *  navs to chunk the list visually without introducing a third
+     *  navigation level.  Both render as <li> with no <a>, so the
+     *  click handler's `closest("[data-route]")` skips them. */
+    if(it && it.type === "divider") {
+        return ["li", {
+            class: "yui-nav-section-divider",
+            role: "separator",
+            "aria-hidden": "true"
+        }];
+    }
+    if(it && it.type === "header") {
+        let label = it.name || "";
+        let span_attrs = {class: "yui-nav-section-header-label"};
+        if(label) {
+            span_attrs.i18n = label;
+        }
+        return ["li", {class: "yui-nav-section-header", role: "presentation"},
+            ["span", span_attrs, label]
+        ];
+    }
+
     let { icon_pos, show_label, stacked } = opts;
     let children = [];
     let label = it.name || "";
