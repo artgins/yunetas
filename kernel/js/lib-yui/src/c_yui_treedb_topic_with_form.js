@@ -1479,7 +1479,7 @@ function build_topic_modal(gobj)
     //     $$x.select2();
     // }
 
-    document.querySelectorAll(".select2-multiple").forEach((el) => {
+    $element.querySelectorAll(".select2-multiple").forEach((el) => {
         new TomSelect(el, {
             plugins: ["remove_button"], // Optional: Adds a remove button for multiple selections
             create: false, // Set to `true` if you want users to add new options
