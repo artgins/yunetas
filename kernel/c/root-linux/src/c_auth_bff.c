@@ -362,7 +362,7 @@ PRIVATE void mt_create(hgobj gobj)
          *  (gobj.c json2sdata, SDF_DEPRECATED flag) at gobj_create
          *  time; no extra gclass-level warning needed here.
          */
-        char legacy_base[PATH_MAX];
+        char legacy_base[1024];
         build_path(legacy_base, sizeof(legacy_base),
             idp_base_url, "realms", realm, "protocol", "openid-connect", NULL);
         snprintf(priv->token_url, sizeof(priv->token_url),
