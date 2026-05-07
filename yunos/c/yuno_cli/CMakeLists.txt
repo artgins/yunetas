@@ -100,8 +100,8 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    panel.a
-    ncurses.a
+    panelw.a
+    ncursesw.a
 )
 
 ##############################################

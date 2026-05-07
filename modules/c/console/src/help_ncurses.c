@@ -6,7 +6,9 @@
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <ncurses/ncurses.h>
+#include <locale.h>
+
+#include <ncursesw/ncurses.h>
 
 #include "help_ncurses.h"
 
@@ -49,6 +51,14 @@ PUBLIC WINDOW *open_ncurses(hgobj gobj)
     if(__ncurses_initialized__) {
         return 0;
     }
+
+    /*
+     *  Honor the user's locale before initscr() so wide ncurses can
+     *  decode UTF-8 input/output and account for multi-cell glyphs
+     *  (emoji, CJK). Without this, byte >= 0x80 would be rendered
+     *  through unctrl() as "M-x" escapes.
+     */
+    setlocale(LC_ALL, "");
 
     WINDOW *wn = initscr();         /* Start curses mode            */
     cbreak();                       /* Line buffering disabled      */

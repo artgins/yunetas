@@ -8,8 +8,8 @@
  ****************************************************************************/
 #pragma once
 
-#include <ncurses/ncurses.h>
-#include <ncurses/panel.h>      // don't remove
+#include <ncursesw/ncurses.h>
+#include <ncursesw/panel.h>     // don't remove
 #include "gobj.h"
 
 #ifdef __cplusplus

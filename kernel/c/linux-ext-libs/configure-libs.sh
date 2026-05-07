@@ -61,8 +61,28 @@
 #       all include <ncurses/ncurses.h> and link ncurses.a (narrow API),
 #       so the flag broke the whole console/CLI layer. Nobody uses the
 #       wide API yet, so just drop the flag.
+#   version 1.11
+#       re-enable --enable-widec on ncurses, this time with the consumer
+#       side also updated. Narrow ncurses without setlocale renders any
+#       byte >= 0x80 through unctrl(), turning UTF-8 emoji into "M-x"
+#       escapes in ycli/mqtt_tui (e.g. the "👤" prefix in BFF logs).
+#       Wide ncurses installs libncursesw.a / libpanelw.a and headers
+#       in include/ncursesw/. The 1.9 attempt failed because consumers
+#       still linked panel.a/ncurses.a and included <ncurses/ncurses.h>.
+#       Companion changes (must land together):
+#         - modules/c/console/src/help_ncurses.{h,c}:
+#               <ncurses/ncurses.h> -> <ncursesw/ncurses.h>
+#               <ncurses/panel.h>   -> <ncursesw/panel.h>
+#               setlocale(LC_ALL, "") before initscr()
+#         - utils/c/ycommand/CMakeLists.txt,
+#           yunos/c/yuno_cli/CMakeLists.txt,
+#           yunos/c/mqtt_tui/CMakeLists.txt:
+#               panel.a -> panelw.a, ncurses.a -> ncursesw.a
+#       Existing waddnstr / mvwaddstr calls keep working unchanged: the
+#       narrow API in libncursesw is UTF-8-aware once the locale is set,
+#       so it counts cells per character (not per byte).
 
-VERSION="1.10"
+VERSION="1.11"
 
 
 source ./repos2clone.sh
@@ -307,7 +327,8 @@ git checkout "$TAG_NCURSES"
     --without-progs \
     --without-debug \
     --with-pic \
-    --enable-sp-funcs
+    --enable-sp-funcs \
+    --enable-widec
 make
 make install
 cd ../..
