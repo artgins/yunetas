@@ -1,6 +1,28 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(gobj-c, gobj-js): EV_ON_OPEN_ERROR — close before open**.
+      When a connection-oriented gobj closes before ever opening (TCP
+      connect failed, TLS cert refused, non-101 handshake response,
+      handshake timeout, firewall) it now publishes a separate
+      `EV_ON_OPEN_ERROR` instead of `EV_ON_CLOSE`, preserving the
+      EV_ON_OPEN→EV_ON_CLOSE FSM contract for subscribers that only
+      handle close in their connected state.  Declared as a kernel
+      event in `g_ev_kernel.{h,c}` and wired in:
+        * `kernel/c/root-linux/src/c_ievent_cli.c` (IEvent client)
+        * `kernel/c/root-linux/src/c_websocket.c` (low-level WS)
+        * `kernel/js/gobj-js/src/c_ievent_cli.js` (browser client)
+      Mirrors the browser WebSocket split (.onopen/.onclose/.onerror).
+      Flagged with `EVF_NO_WARN_SUBS` so backend FSMs that ignore it
+      don't trip the no-subscribers warning; interactive frontends
+      opt in.  Retry policy unchanged: the connection-responsible
+      gobj keeps reconnecting forever while running — only the parent
+      (by stopping the gobj) decides to give up.  Each emission also
+      writes a `log_warning` (`MSGSET_CONNECT_DISCONNECT` in C)
+      including the remote yuno identity / url / peername — gives
+      logcenter and other monitors a precise per-attempt alert that
+      a silent retry loop is in progress.
+
     - **fix(lib-yui): bare-route redirect skips decorative items**.
       `navigate_to()` was using `submenu.items[0].route` as the
       fallback for a level-1 container — undefined when item 0 is a

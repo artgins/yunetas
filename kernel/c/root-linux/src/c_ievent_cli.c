@@ -757,6 +757,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Route (channel) close.
      */
     if(priv->inform_on_close) {
+        /*
+         *  We had a real session (EV_ON_OPEN was published) and the
+         *  channel just dropped.  Tell the subscribers — backend FSMs
+         *  need this to reset their state.  inform_on_close is
+         *  one-shot: re-armed by ac_identity_card_ack on the next
+         *  successful open.
+         */
         priv->inform_on_close = FALSE;
         json_t *kw_on_close = json_pack("{s:s, s:s, s:s}",
             "remote_yuno_name", gobj_read_str_attr(gobj, "remote_yuno_name"),
@@ -765,6 +772,44 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
 
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
+    } else {
+        /*
+         *  Channel closed BEFORE EV_ON_OPEN ever fired — typical
+         *  causes: bad TLS cert, port closed, backend not running,
+         *  firewall.  Framework policy is to keep retrying forever
+         *  while the gobj is running (the operator may fix the issue
+         *  at any time, the retry counter ends up in the logs and
+         *  triggers monitors), so we do NOT stop and we do NOT
+         *  publish EV_ON_CLOSE (would break the EV_ON_OPEN→EV_ON_CLOSE
+         *  FSM contract on subscribers that only handle close in
+         *  their connected state).  Instead we publish EV_ON_OPEN_ERROR,
+         *  declared with EVF_NO_WARN_SUBS so backend FSMs that don't
+         *  care don't trip the no-subscribers warning.  Interactive
+         *  frontends (e.g. browser GUIs) opt in.  Mirrors the
+         *  WebSocket browser API split: .onopen / .onclose / .onerror.
+         *
+         *  log_warning leaves a precise per-attempt trace so monitors
+         *  (logcenter et al.) can alert on it — the framework retries
+         *  forever, and without this line a misconfigured backend
+         *  would be silent in the operational logs.
+         */
+        gobj_log_warning(gobj, 0,
+            "msgset",               "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",                  "%s", "EV_ON_OPEN_ERROR: cannot open connection",
+            "remote_yuno_name",     "%s", gobj_read_str_attr(gobj, "remote_yuno_name"),
+            "remote_yuno_role",     "%s", gobj_read_str_attr(gobj, "remote_yuno_role"),
+            "remote_yuno_service",  "%s", gobj_read_str_attr(gobj, "remote_yuno_service"),
+            "url",                  "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+
+        json_t *kw_on_open_error = json_pack("{s:s, s:s, s:s}",
+            "remote_yuno_name", gobj_read_str_attr(gobj, "remote_yuno_name"),
+            "remote_yuno_role", gobj_read_str_attr(gobj, "remote_yuno_role"),
+            "remote_yuno_service", gobj_read_str_attr(gobj, "remote_yuno_service")
+        );
+
+        gobj_publish_event(gobj, EV_ON_OPEN_ERROR, kw_on_open_error);
     }
 
     JSON_DECREF(kw)
@@ -1539,6 +1584,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_ON_OPEN_ERROR,          EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
 
         {EV_TIMEOUT,                0},

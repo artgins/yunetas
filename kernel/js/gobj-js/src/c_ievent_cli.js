@@ -914,16 +914,65 @@ function ac_on_close(gobj, event, kw, src)
     }
 
     if(priv.inform_on_close) {
+        /*
+         *  We had a real session (EV_ON_OPEN was published) and the
+         *  channel just dropped.  Tell the subscribers — both backend
+         *  FSMs that need to reset their state and any frontend that
+         *  cares.  inform_on_close is one-shot: re-armed by
+         *  ac_identity_card_ack on the next successful open.
+         */
         priv.inform_on_close = false;
-        // Any interesting information for on_close event?
         gobj_publish_event(
             gobj,
             'EV_ON_CLOSE',
             {
-                url: url,
-                remote_yuno_name: priv.remote_yuno_name,
-                remote_yuno_role: priv.remote_yuno_role,
-                remote_yuno_service: priv.remote_yuno_service
+                url:                    url,
+                remote_yuno_name:       priv.remote_yuno_name,
+                remote_yuno_role:       priv.remote_yuno_role,
+                remote_yuno_service:    priv.remote_yuno_service
+            }
+        );
+    } else {
+        /*
+         *  WebSocket closed BEFORE EV_ON_OPEN ever fired — typical
+         *  causes: bad TLS cert (ERR_CERT_COMMON_NAME_INVALID), port
+         *  closed, backend not running, firewall.  The framework
+         *  policy is to keep retrying forever while the gobj is
+         *  running (the operator may fix the issue at any time, the
+         *  retry counter ends up in the logs and triggers monitors),
+         *  so we do NOT stop and we do NOT publish EV_ON_CLOSE
+         *  (would break the EV_ON_OPEN→EV_ON_CLOSE FSM contract on
+         *  subscribers that only handle close in their connected
+         *  state).  Instead we publish a separate event,
+         *  EV_ON_OPEN_ERROR, that interactive subscribers (typical:
+         *  a browser GUI showing a login form) can opt into.  The
+         *  EVF_NO_WARN_SUBS flag keeps the framework quiet for the
+         *  many subscribers (mostly backend FSMs) that don't care.
+         *  Mirrors the WebSocket browser API split: .onopen /
+         *  .onclose / .onerror.
+         *
+         *  log_warning leaves a precise trace per failed attempt so
+         *  monitors / log aggregators can alert on it (the framework
+         *  retries forever; without this line the only sign of
+         *  trouble would be the WebSocket close in the browser
+         *  console).
+         */
+        log_warning(
+            `${gobj_short_name(gobj)}: EV_ON_OPEN_ERROR cannot open ` +
+            `${url} (Code: ${e.code}, Reason: "${e.reason}", ` +
+            `Clean: ${e.wasClean})`
+        );
+        gobj_publish_event(
+            gobj,
+            'EV_ON_OPEN_ERROR',
+            {
+                url:                    url,
+                remote_yuno_name:       priv.remote_yuno_name,
+                remote_yuno_role:       priv.remote_yuno_role,
+                remote_yuno_service:    priv.remote_yuno_service,
+                code:                   e.code,
+                reason:                 e.reason,
+                was_clean:              e.wasClean
             }
         );
     }
@@ -1307,6 +1356,7 @@ function create_gclass(gclass_name)
 
         ["EV_ON_OPEN",              event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_ON_CLOSE",             event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ON_OPEN_ERROR",        event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_TIMEOUT",              0],
         [null, 0]
     ];
