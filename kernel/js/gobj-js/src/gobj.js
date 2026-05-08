@@ -538,7 +538,17 @@ function json2item(gobj, sdata, it, jn_value_)
 
     switch(it.type) {
         case data_type_t.DTP_STRING:
-            if(is_string(jn_value_)) {
+            if(jn_value_ === null || jn_value_ === undefined) {
+                /*
+                 *  C parity: a DTP_STRING attr cannot hold a null
+                 *  pointer, the convention is empty string.  Without
+                 *  this branch JSON.stringify(null) below produced the
+                 *  literal 4-char string "null", which then leaks into
+                 *  IEvent payloads (e.g. IDENTITY_CARD's jwt) and
+                 *  silently breaks empty-string checks on the wire.
+                 */
+                jn_value2 = "";
+            } else if(is_string(jn_value_)) {
                 jn_value2 = String(jn_value_);
             } else {
                 let s = JSON.stringify(jn_value_);
