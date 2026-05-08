@@ -4380,7 +4380,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT protocol name length",
+            "msg",          "%s", "Mqtt CMD_CONNECT: invalid MQTT protocol name length",
             NULL
         );
         return -1;
@@ -7996,6 +7996,9 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 break;
             }
             ret = handle__connect(gobj, gbuf, src);
+            if(ret < 0) {
+                gobj_trace_dump_full_gbuf(gobj, gbuf, "MQTT error in handle__connect");
+            }
             break;
 
         case CMD_CONNACK:       // NOT common to server(bridge)/client

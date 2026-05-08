@@ -5801,10 +5801,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
     if(ll != 4 /* MQTT */ && ll != 6 /* MQIsdp */) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT bad length",
+            "msg",          "%s", "Mqtt CMD_CONNECT: invalid MQTT protocol name length",
             NULL
         );
         return -1;
@@ -6048,7 +6048,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             client_id = NULL;
             if((protocol_version == mosq_p_mqtt311 && clean_start == 0) ||
                     priv->allow_zero_length_clientid == FALSE) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: refuse empty client id",
@@ -7981,6 +7981,9 @@ PRIVATE int frame_completed(hgobj gobj)
                 break;
             }
             ret = handle__connect(gobj, gbuf);
+            if(ret < 0) {
+                gobj_trace_dump_full_gbuf(gobj, gbuf, "MQTT error in handle__connect");
+            }
             break;
 
         case CMD_SUBSCRIBE:
