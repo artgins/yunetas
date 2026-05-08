@@ -340,7 +340,7 @@ PRIVATE void kill_proc(void *self, const char *name, pid_t pid)
                 "gobj",             "%s", __FILE__,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "Soy el Matador",
+                "msg",              "%s", "I am the killer",
                 "process",          "%s", name,
                 "pid",              "%d", (int)getpid(),
                 "relaunch_times",   "%d", relaunch_times,

@@ -686,7 +686,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Destination service not found",
+            "msg",          "%s", "Peername is required",
             "username",     "%s", username,
             NULL
         );
@@ -761,8 +761,20 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 int authorization = check_password(gobj, username, password);
                 if(authorization < 0) {
                     /*
-                     *  Only localhost is allowed without jwt
+                     *  check_password() returned < 0 — wrong user/password
+                     *  combination.  Log a warning so this lands in the
+                     *  per-msg stats counters alongside the rest of the
+                     *  failure paths in mt_authenticate (every other
+                     *  result:-1 branch already logs one).
                      */
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_AUTH,
+                        "msg",          "%s", "Invalid username or password",
+                        "username",     "%s", username,
+                        "service",      "%s", dst_service,
+                        NULL
+                    );
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                         "result", -1,
                         "comment", "Invalid username or password.",

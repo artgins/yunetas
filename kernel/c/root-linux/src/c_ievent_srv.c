@@ -805,26 +805,16 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     KW_INCREF(kw)
     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
     if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
-        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
-        // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
-        // TODO y en el cliente mete la ip de origen
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Authentication rejected",
-            "cause",        "%s", comment,
-            "detail",       "%j", jn_resp,
-            //"remote-addr",  "%s", remote_addr?remote_addr:"",
-            "yuno_role",    "%s", kw_get_str(gobj, kw, "yuno_role", "", 0),
-            "yuno_id",      "%s", kw_get_str(gobj, kw, "yuno_id", "", 0),
-            "yuno_name",    "%s", kw_get_str(gobj, kw, "yuno_name", "", 0),
-            "yuno_tag",     "%s", kw_get_str(gobj, kw, "yuno_tag", "", 0),
-            "yuno_version", "%s", kw_get_str(gobj, kw, "yuno_version", "", 0),
-            "src_yuno",     "%s", iev_src_yuno,
-            "src_role",     "%s", iev_src_role,
-            "src_service",  "%s", iev_src_service,
-            NULL
-        );
+        /*
+         *  Don't log a warning here — every code path inside
+         *  c_authz.c:mt_authenticate that returns result < 0 already
+         *  emits its own gobj_log_warning with the precise reason
+         *  ("Invalid token", "JWT expired", ...).  Logging again
+         *  here just produced a duplicate ("Authentication
+         *  rejected") with less detail, two lines per failed
+         *  authentication, which inflates the warning counters
+         *  monitors use to detect attacks.
+         */
 
         /*
          *      __RESPONSE__ __MESSAGE__
