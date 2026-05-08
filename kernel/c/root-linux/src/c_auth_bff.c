@@ -971,7 +971,7 @@ PRIVATE void send_json_response(hgobj browser, int status_code,
  *  is only a fallback and is also mirrored into the server log line.
  *
  *  Log severity is determined by HTTP status class:
- *    - 4xx  →  gobj_log_info  "👤BFF request rejected"
+ *    - 4xx  →  gobj_log_warning "👤BFF request rejected"
  *              Expected business outcomes: wrong password, expired
  *              session, malformed request, bad endpoint.  NOT an error
  *              — the server is doing exactly what it should.
@@ -999,7 +999,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
             NULL
         );
     } else {
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "👤BFF request rejected",
