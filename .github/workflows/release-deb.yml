@@ -32,6 +32,12 @@ jobs:
 
       - name: Install OS build dependencies
         run: |
+          # The runner image preinstalls the pgdg apt source, whose
+          # postgresql-common (290.pgdg22.04+1) conflicts with jammy's
+          # postgresql-server-dev-all (Depends: postgresql-common = 238).
+          # We only need libpq-dev + server-dev headers, not a specific
+          # PG version — drop pgdg so jammy resolves cleanly.
+          sudo rm -f /etc/apt/sources.list.d/pgdg.list /etc/apt/sources.list.d/pgdg.sources
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             git mercurial make cmake ninja-build \
