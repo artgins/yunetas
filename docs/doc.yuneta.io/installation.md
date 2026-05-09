@@ -3,9 +3,65 @@
 > **Prerequisites:** Linux, Python 3.7+, `sudo` access.
 > Full dependency lists and licenses are in [Reference](#reference) below.
 
+There are two ways to install Yunetas, depending on what you want to do:
+
+- **[Quick install](#quick-install)** — pre-built `.deb`, no compiler needed.
+  Use this to *run* yunos on a server.
+- **[Build from source](#build-from-source)** — full SDK. Use this to
+  *develop* with the framework or hack on it.
+
+> ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
+> management/build CLI (currently 0.x), **not** the C framework runtime
+> (currently 7.x). The `.deb` bundles both; building from source uses
+> the CLI to drive the build.
+
 ---
 
-## 1. Create the `yuneta` user
+## Quick install
+
+One-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
+```
+
+The script:
+
+- detects the host architecture (`amd64`, `armhf`, `riscv64`);
+- pulls the matching `.deb` from the latest [GitHub Release](https://github.com/artgins/yunetas/releases);
+- installs it via `apt`/`dpkg` so dependencies resolve cleanly.
+
+Pin a version (must exist as a published Release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.3.1
+```
+
+Or download the `.deb` manually from the
+[Releases page](https://github.com/artgins/yunetas/releases) and run:
+
+```bash
+sudo apt install ./yuneta-agent-<version>-<release>-<arch>.deb
+```
+
+The package installs the agent + CLI tools + bundled openresty under
+`/yuneta/`, creates the `yuneta` system user, applies kernel tuning
+and PAM limits, and starts the SysV service. Full inventory in
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/main/packages).
+
+> ℹ️ **Build the `.deb` yourself** instead of using the published asset:
+> see `packages/README.md` for the four arch wrapper scripts
+> (`AMD64.sh`, `ARM32.sh`, `ARMhf.sh`, `RISCV64.sh`). Requires the
+> SDK already built (next section).
+
+---
+
+## Build from source
+
+The 7-step flow below installs the full SDK — sources, build deps,
+tooling — under `~/yunetaprojects/`.
+
+### 1. Create the `yuneta` user
 
 ```bash
 sudo adduser yuneta
@@ -15,9 +71,7 @@ sudo chown yuneta:yuneta /yuneta
 
 Log out and log back in as `yuneta` for the rest of the steps.
 
----
-
-## 2. Install OS packages
+### 2. Install OS packages
 
 ```bash
 sudo apt -y install --no-install-recommends \
@@ -59,9 +113,7 @@ along with all three Playwright browsers. Chromium and Firefox bundle
 their own deps.
 ````
 
----
-
-## 3. Install the `yunetas` CLI
+### 3. Install the `yunetas` CLI
 
 ::::{tab-set}
 
@@ -116,9 +168,7 @@ source ~/.bashrc
 
 ::::
 
----
-
-## 4. Clone the repo
+### 4. Clone the repo
 
 ```bash
 mkdir ~/yunetaprojects
@@ -132,9 +182,7 @@ git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.g
 ```
 ````
 
----
-
-## 5. Activate the environment
+### 5. Activate the environment
 
 ```bash
 cd ~/yunetaprojects/yunetas
@@ -169,9 +217,7 @@ source yunetas-env.sh
 The script also sources `~/.yunetasrc` if it exists — use that file
 for your own personal additions.
 
----
-
-## 6. Configure (`menuconfig`)
+### 6. Configure (`menuconfig`)
 
 ```bash
 cd ~/yunetaprojects/yunetas
@@ -219,9 +265,7 @@ this writes `.config`, which the build needs.
 > re-run `./set_compiler.sh` so the external libs are rebuilt with
 > the matching toolchain.
 
----
-
-## 7. Build and test
+### 7. Build and test
 
 Build the bundled external libraries first (one-shot):
 

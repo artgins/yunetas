@@ -1,0 +1,98 @@
+name: Release runtime .deb
+
+# Builds the AMD64 .deb when a GitHub Release is published, and uploads
+# it as a release asset. Other architectures (armhf, arm32, riscv64)
+# can be added once cross-compile or matching runners are wired up.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag to attach the .deb to (e.g. 7.3.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write   # needed to upload assets to the release
+
+jobs:
+  amd64:
+    name: AMD64 .deb
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install OS build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git mercurial make cmake ninja-build \
+            gcc clang g++ \
+            python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel python3-venv \
+            libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+            libpcre3-dev zlib1g-dev libssl-dev \
+            perl dos2unix tree curl \
+            postgresql-server-dev-all libpq-dev \
+            kconfig-frontends telnet pipx \
+            patch gettext fail2ban rsync \
+            build-essential pkg-config ca-certificates linux-libc-dev
+
+      - name: Install Python tooling (kconfiglib + yunetas CLI)
+        run: |
+          pipx install kconfiglib
+          pipx install yunetas
+          # Make pipx-installed CLIs available in subsequent steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Create writable /yuneta tree
+        run: |
+          sudo mkdir -p /yuneta
+          sudo chown -R "$USER:$USER" /yuneta
+
+      - name: Build external libraries
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          cd kernel/c/linux-ext-libs
+          ./extrae.sh
+          ./configure-libs.sh
+
+      - name: Build yunetas
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          yunetas init
+          yunetas build
+
+      - name: Build AMD64 .deb
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          cd packages
+          ./AMD64.sh
+          ls -la dist/
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload .deb to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: packages/dist/yuneta-agent-*-amd64.deb
+          fail_on_unmatched_files: true
