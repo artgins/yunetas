@@ -32,12 +32,12 @@ jobs:
 
       - name: Install OS build dependencies
         run: |
-          # The runner image preinstalls the pgdg apt source, whose
-          # postgresql-common (290.pgdg22.04+1) conflicts with jammy's
-          # postgresql-server-dev-all (Depends: postgresql-common = 238).
-          # We only need libpq-dev + server-dev headers, not a specific
-          # PG version — drop pgdg so jammy resolves cleanly.
-          sudo rm -f /etc/apt/sources.list.d/pgdg.list /etc/apt/sources.list.d/pgdg.sources
+          # modules/c/postgres only #includes <postgresql/libpq-fe.h>
+          # (libpq client header), so libpq-dev alone is enough.
+          # postgresql-server-dev-all is in installation.md but pulls
+          # postgresql-common = 238, which conflicts with the
+          # pgdg postgresql-common 290.* the runner image already has
+          # installed. Skipping it side-steps the conflict.
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             git mercurial make cmake ninja-build \
@@ -47,7 +47,7 @@ jobs:
             libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
             libpcre3-dev zlib1g-dev libssl-dev \
             perl dos2unix tree curl \
-            postgresql-server-dev-all libpq-dev \
+            libpq-dev \
             kconfig-frontends telnet pipx \
             patch gettext fail2ban rsync \
             build-essential pkg-config ca-certificates linux-libc-dev
