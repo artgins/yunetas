@@ -1,6 +1,135 @@
 # **Changelog**
 
 ## Unreleased
+
+## v7.3.2 -- 09/May/2026
+    - **feat(release): publish runtime `.deb` on GitHub Releases +
+      one-liner `install.sh`**.  First CI workflow in the repo
+      (`.github/workflows/release-deb.yml`) builds the AMD64 `.deb`
+      on `release.published` (or `workflow_dispatch` against an
+      existing tag) via `packages/AMD64.sh` and uploads it as a
+      release asset.  Pairs with a new `install.sh` at the repo
+      root: a POSIX one-shot installer that detects host arch
+      (`amd64` / `armhf` / `riscv64`), queries the GitHub Releases
+      API for the latest (or pinned) tag, downloads the matching
+      `yuneta-agent-*-<arch>.deb`, and installs it via
+      `dpkg + apt-get -f`:
+
+          curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
+
+      Pin a version with `sudo sh -s -- 7.3.2`.  ARMhf / ARM32 /
+      RISCV64 wait for cross-compile or matching runners.  Past
+      releases (7.2.0 .. 7.3.1) have no `.deb` assets — the
+      workflow operates forward.
+
+    - **refactor(packages): extract `RELEASE` to a shared
+      `packages/RELEASE` file** (reset to `1`).  The four arch
+      wrappers had `RELEASE` hardcoded with divergent counters
+      (3× "9", 1× "6"); now all four read from one file the same
+      way they read `YUNETA_VERSION`.  Yunetas isn't widely
+      distributed yet, so the renumbering is harmless.
+
+    - **docs(installation): rewrite as 7-step "guía burros" path**.
+      `installation.md` restructured: prerequisites + 7 numbered
+      steps from "create the `yuneta` user" through "build and
+      test", with verbose detail (apt explanations, miniconda
+      bootstrap, full `menuconfig` options) tucked into dropdowns.
+      Adds a top-of-page **Quick install** section with the
+      `install.sh` one-liner and clarifies that the PyPI `yunetas`
+      package (0.x) is the management CLI, **not** the framework
+      runtime (7.x).  Step 5 documents the env vars `yunetas-env.sh`
+      exports — `YUNETAS_BASE`, `YUNETAS_OUTPUTS`, `YUNETAS_YUNOS`
+      — plus the `PATH` prepends and the layout contract
+      (`outputs/` and project repos as siblings of the `yunetas`
+      repo).  Adds an explicit "re-source per shell" warning, a
+      silent footgun in cron / SSH / CI sessions where
+      `ybatch` / `ycommand` vanish from `PATH`.
+
+    - **fix(gobj-js): `DTP_STRING` attr coerces null / undefined to
+      `""`**.  `json2item` used `JSON.stringify()` as the catch-all
+      coercion for non-string values; for `null` that produced the
+      literal 4-char string `"null"`, which leaked into IEvent
+      payloads.  Specifically: `c_ievent_cli`'s `IDENTITY_CARD`
+      sent `"jwt": "null"` to the backend, defeating the
+      `empty_string()` check in `c_ievent_srv` that drives the BFF
+      httpOnly-cookie auth path; `verify_token` then tried to
+      validate the literal `"null"` as a JWT and failed with
+      "No OAuth2 Issuer found".  Treat `null` and `undefined` as
+      `""` in `DTP_STRING` to bring JS in line with the C runtime
+      (where `DTP_STRING` cannot hold a `NULL` pointer).
+
+    - **refactor(C kernel): log hygiene for monitor stats**.  Several
+      warning counters in the global-warnings dashboard were noisier
+      than they needed to be:
+        * `c_auth_bff`: 4xx HTTP responses logged as warning instead
+          of info (5xx still error).  Sudden 4xx bursts now show in
+          dashboards that filter on warning severity.
+        * `c_prot_mqtt`, `c_prot_mqtt2`: malformed CONNECT frames
+          (client-side protocol issues) downgraded from error to
+          warning; rejection messages tightened so v1 and v2 paths
+          bucket into the same precise counter.  Dump the offending
+          gbuf when `handle__connect` returns < 0 so the bad CONNECT
+          can be inspected in the trace.
+        * `c_authz`, `c_ievent_srv`: dropped the duplicate
+          "Authentication rejected" warning in `c_ievent_srv` (each
+          `result < 0` path in `c_authz::mt_authenticate` already
+          logs its own); audited `mt_authenticate` so every
+          `result < 0` contributes to the per-msg stats counter;
+          fixed a `peername`-empty branch whose `msg` field was
+          leaking into the unrelated `dst_service`-not-found stats
+          bucket.
+        * `ydaemon`: translated the lone Spanish `msg` field
+          ("Soy el Matador" → "I am the killer") so monitors and
+          search tools group cleanly under the English-only
+          convention.
+
+    - **feat(lib-yui): toolbar brand / avatar / dropdown item types
+      with per-item `show_on`**.  Three new toolbar item kinds
+      validated by `shell_toolbar_helpers.js` and rendered by
+      `c_yui_shell.js`: `type:"brand"` (logo image + wordmark, with
+      optional action — passive `<div>` if action is omitted),
+      `type:"avatar"` (circular initials rendered from a
+      host-registered provider via the new
+      `yui_shell_set_avatar_provider` /
+      `yui_shell_refresh_avatars` helpers), and
+      `action.type:"dropdown"` (panel mounted on the popup layer
+      with `divider` entries, focus-trap, escape-stack push/pop and
+      capture-phase click-outside dismissal — closes on `scroll`
+      and `resize` to match native `<select>` UX).  `show_on` now
+      applies per item, not just per area.  CSS for all three
+      shipped, SHELL.md §3.4 cheatsheet rewritten and §10
+      "Implemented" updated.  23 new unit tests for the validators,
+      27 chromium e2e specs still pass.
+
+    - **build(linux-ext-libs): nginx / openresty link against system
+      libs; ncurses switched to widec for UTF-8**.  The vendored
+      OpenSSL / PCRE2 stay only for yuneta's own static binaries
+      (`ytls`, `yev_loop`); nginx and openresty now embed
+      `libssl` / `libcrypto` / `libpcre` / `libz` from the host,
+      same as the distro-packaged nginx — closes a latent
+      Makefile-clobbering bug in `re-install-libs.sh`.  Ncurses
+      re-enabled `--enable-widec` (v1.11) so `ycli` and `mqtt_tui`
+      render UTF-8 emoji / accents instead of `M-x` escape
+      sequences; consumers migrated to `<ncursesw/...>` and call
+      `setlocale(LC_ALL, "")` before `initscr()`.  Also:
+      `MAKEFLAGS=-j$(nproc)` for parallel builds, mbedtls Debug →
+      Release, and explicit Release+static+PIC flags across mbedtls
+      / jansson / pcre2 / libbacktrace / argp-standalone.
+
+    - **fix(c_auth_bff): shrink `legacy_base` buffer to silence
+      `-Wformat-truncation`**.  PATH_MAX-sized `legacy_base` plus
+      `/token` or `/logout` suffix into a PATH_MAX destination
+      tripped GCC's truncation analysis.  A legacy Keycloak base
+      URL is realistically well under 1 KB.
+
+    - **fix(lib-yui): TomSelect re-initialisation guards**.  The
+      "Tom Select already initialized on this element" exception
+      could be thrown when `build_topic_modal` ran twice — the
+      query for `.select2-multiple` was matching inputs in earlier
+      modals still attached to the popup-layer.  Scope the query
+      to the freshly built `$element`; also add a defensive skip
+      when the element already has a `tomselect` instance.
+
     - **feat(gobj-c, gobj-js): EV_ON_OPEN_ERROR — close before open**.
       When a connection-oriented gobj closes before ever opening (TCP
       connect failed, TLS cert refused, non-101 handshake response,
