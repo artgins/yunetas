@@ -1,39 +1,11 @@
 # **Installation**
 
-## License
+> **Prerequisites:** Linux, Python 3.7+, `sudo` access.
+> Full dependency lists and licenses are in [Reference](#reference) below.
 
-This project is licensed under the MIT License, except for the following files:
+---
 
-- kernel/c/libjwt/*
-  Mozilla Public License 2.0 (MPL-2.0)
-
-
-## System Requirements
-
-- [python](https://www.python.org/) 3.7+
-
-
-**Dependencies** for C and Linux:
-- [Jansson](http://jansson.readthedocs.io/en/latest/) MIT License
-- [libjwt](https://github.com/benmcollins/libjwt) MPL-2.0 License
-- [liburing](https://github.com/axboe/liburing) MIT License, LGPL-2.1, GPL-2.0  
-- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) Apache-2.0 or GPL-2.0
-- [openssl](https://www.openssl.org/) Apache-2.0 License
-- [pcre2](https://github.com/PCRE2Project/pcre2) BSD License and others
-- [libbacktrace](https://github.com/ianlancetaylor/libbacktrace) BSD 3-Clause License
-- [argp-standalone](https://github.com/artgins/argp-standalone.git) LGPL-2.1 License
-- [ncurses](https://github.com/mirror/ncurses.git) MIT License
-- [llhttp](https://github.com/nodejs/llhttp) MIT License
-
-
-**Dependencies** for deploying in Linux: 
-- [nginx](https://nginx.org) BSD-2-Clause license
-- [openresty](https://openresty.org/) BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
-- [curl](https://github.com/curl/curl) curl license, MIT/X derivate license,
-
-## Create environment
-
-Firstly you must create the user/group `yuneta` and the directory `/yuneta`.
+## 1. Create the `yuneta` user
 
 ```bash
 sudo adduser yuneta
@@ -41,11 +13,11 @@ sudo mkdir /yuneta
 sudo chown yuneta:yuneta /yuneta
 ```
 
-Re-enter with the user yuneta
+Log out and log back in as `yuneta` for the rest of the steps.
 
-## Install system dependencies
+---
 
-Install the C dependencies:
+## 2. Install OS packages
 
 ```bash
 sudo apt -y install --no-install-recommends \
@@ -64,19 +36,18 @@ sudo apt -y install --no-install-recommends \
 pipx install kconfiglib
 ```
 
-```{dropdown} Why these dependencies?
+```{dropdown} What each non-obvious package is for
 - `libjansson-dev`          — required for libjwt
 - `libpcre2-dev`            — required by openresty
 - `perl dos2unix mercurial` — required by openresty
-- `pipx kconfiglib`         — used by yunetas, configuration tool
-- `kconfig-frontends`       — used by yunetas, other configuration tool
+- `pipx kconfiglib`         — yunetas configuration tool
+- `kconfig-frontends`       — alternative configuration tool
 - `telnet`                  — required by tests
 ```
 
-### Optional: lib-yui end-to-end tests (Playwright)
-
-If you intend to run the JS UI library's e2e suite locally, the
-WebKit browser links against two extra apt packages on Debian/Ubuntu:
+````{dropdown} Optional: lib-yui end-to-end tests (Playwright)
+The WebKit browser used by the lib-yui e2e suite needs two extra
+packages on Debian/Ubuntu:
 
 ```bash
 sudo apt -y install --no-install-recommends \
@@ -84,180 +55,137 @@ sudo apt -y install --no-install-recommends \
 ```
 
 The `kernel/js/lib-yui/install-e2e-deps.sh` helper installs them
-along with all three Playwright browsers (Chromium, Firefox,
-WebKit).  Chromium and Firefox bundle their own deps and don't
-need anything from apt.
+along with all three Playwright browsers. Chromium and Firefox bundle
+their own deps.
+````
 
-## Install `yunetas`
+---
+
+## 3. Install the `yunetas` CLI
 
 ::::{tab-set}
 
-:::{tab-item} With `pipx` 
+:::{tab-item} With `pipx`
 
-## Install `pipx`
+```bash
+sudo apt install pipx     # Ubuntu 23.04+
+pipx ensurepath
+pipx install yunetas
+```
 
-[pipx] is used to install Python CLI applications globally while still isolating them in virtual environments.
+````{dropdown} Older Ubuntu (≤22.04)
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+````
 
-On Linux:
-
-- Ubuntu 23.04 or above:
-
-    ```bash
-    sudo apt install pipx
-    pipx ensurepath
-    ```
-
-- Ubuntu 22.04 or below
-
-    ```bash
-    python3 -m pip install --user pipx
-    python3 -m pipx ensurepath
-    ```
-
-## Install `yunetas`
-
--
-  ```bash
-  pipx install yunetas
-  ```
-
-### Update or uninstall `yunetas`
-
-````{dropdown} Click to see
-  - Update yunetas:
-
-      ```bash
-      pipx upgrade yunetas
-      ```
-
-  - Uninstall yunetas:
-
-      ```bash
-      pipx uninstall yunetas
-      ```
+````{dropdown} Update / uninstall
+```bash
+pipx upgrade yunetas
+pipx uninstall yunetas
+```
 ````
 
 :::
 
 :::{tab-item} With `conda`
 
-
-Steps to install and create a virtual environment:
-- Install [conda]:
-
-    ```bash
-    mkdir -p ~/miniconda3
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
-    bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-    rm -rf ~/miniconda3/miniconda.sh
-    ~/miniconda3/bin/conda init bash
-    ```
-
-- **Now you must close and re-open your current shell**:
-    ```bash
-    exit # exit and RE-open bash to continue !!
-    ```
-- Add conda-forge channel:
-    ```bash
-    conda config --add channels conda-forge
-    ```
-
-- Create the virtual environment `conda_yunetas` and activate:
-    ```bash
-    conda create -y -n conda_yunetas pip
-    conda config --set auto_activate_base false
-    echo 'conda activate conda_yunetas' >> ~/.bashrc
-    echo '' >> ~/.bashrc
-    source ~/.bashrc
-    ```
-
-## Install `yunetas`
-
 ```bash
 pip install yunetas
 ```
 
+````{dropdown} Bootstrap miniconda from scratch
+```bash
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm -rf ~/miniconda3/miniconda.sh
+~/miniconda3/bin/conda init bash
+exit   # close and re-open the shell
+
+conda config --add channels conda-forge
+conda create -y -n conda_yunetas pip
+conda config --set auto_activate_base false
+echo 'conda activate conda_yunetas' >> ~/.bashrc
+source ~/.bashrc
+```
+````
 
 :::
 
 ::::
 
-## Clone
+---
 
-Clone Yunetas with submodules:
-
-Build your own project directory:
+## 4. Clone the repo
 
 ```bash
 mkdir ~/yunetaprojects
 cd ~/yunetaprojects
-```
-
-Get the current version of yunetas:
-
-```bash
 git clone --recurse-submodules https://github.com/artgins/yunetas.git
 ```
 
-Or Get some version of yunetas:
-
+````{dropdown} Pin a specific version
 ```bash
 git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.git <version>
 ```
+````
 
-## Activating yunetas
+---
 
-Go to the yunetas directory in your project and activate:
+## 5. Activate the environment
 
 ```bash
 cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
+`yunetas-env.sh` exports three variables and prepends `/yuneta/bin`
+plus `$YUNETAS_BASE/scripts` to `PATH`:
 
-## Configure .bashrc
+| Variable          | Value                                       |
+|-------------------|---------------------------------------------|
+| `YUNETAS_BASE`    | The yunetas repo root (the dir you sourced from). |
+| `YUNETAS_OUTPUTS` | `$(dirname $YUNETAS_BASE)/outputs`          |
+| `YUNETAS_YUNOS`   | `$YUNETAS_OUTPUTS/yunos`                    |
 
-Next times, to activate yunetas environment,
-(you can add these lines to ``~/.bashrc`` :
+> ℹ️ **Layout contract.** `outputs/` and your own project repos sit as
+> siblings of the `yunetas` repo (e.g. `~/yunetaprojects/myproject/`).
+> Pick the parent dir freely; keep the sibling relationship.
+
+> ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
+> to source `yunetas-env.sh` again. Without it, `ybatch` / `ycommand` /
+> `yshutdown` are not on `PATH` and deploy scripts fail with
+> "command not found".
+
+**Make it permanent** — add to `~/.bashrc`:
 
 ```bash
-# edit: "vim ~/.bashrc" and add next lines:
 cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
-## Configure .yunetasrc
+The script also sources `~/.yunetasrc` if it exists — use that file
+for your own personal additions.
 
-The script source `yunetas-env.sh` also sources the file
+---
 
-```text
-~/.yunetasrc
-```
-
-where you can place your own scripts.
-
-### Configuring (Kconfig)
-
-Configuration options are defined in ``Kconfig`` file.
-The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
-
-Goto `yunetas` directory:
+## 6. Configure (`menuconfig`)
 
 ```bash
 cd ~/yunetaprojects/yunetas
-```
-
-Use this utility to edit the Kconfig file and to select the compiler, build type, etc:
-
-```text
 menuconfig
+```
 
-Options:
+Pick compiler, build type and the modules you need, then **save** —
+this writes `.config`, which the build needs.
 
+~~~~{dropdown} Full menuconfig options
+```text
 (Top) → Compiler Selection
     (X) GCC compiler (default)
     ( ) Clang compiler
-    WARNING: Remember to call set_compiler.sh if you change the compiler
 
 (Top) → Build Configuration
     Build Type
@@ -279,85 +207,93 @@ Options:
     [ ] Print times of yev_loop
 
 (Top) → Modules
-    *** Available modules. ***
     [*] C_CONSOLE support
     [*] C_MQTT support
     [*] C_MODBUS support
     [*] C_POSTGRES support
     [*] C_TEST support
 ```
+~~~~
 
+> ⚠️ **Save `.config` or the build fails.** If you switch compiler,
+> re-run `./set_compiler.sh` so the external libs are rebuilt with
+> the matching toolchain.
 
-> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the **.config** file is required.
+---
 
-> ⚠️ **Warning:** Execute the ./set_compiler.sh to compile the external libs with the same compiler as Yunetas.
+## 7. Build and test
 
-
-## Install dependencies
-
-Firstly, install yuneta dependencies:
-
-Goto `linux-ext-libs` directory:
-
-```bash
-cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs/
-```
-
-Extract, compile and install:
+Build the bundled external libraries first (one-shot):
 
 ```bash
+cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
 ./extrae.sh         # clone libraries
-./configure-libs.sh # configure, build and install libraries
+./configure-libs.sh # configure, build and install
 ```
 
-> ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) use the same
-> `configure-libs.sh` with GCC or Clang — no separate toolchain needed.
-> OpenSSL is built with `no-dso` and `no-sock` to avoid glibc resolver
-> stubs in the static binary.  See `kernel/c/linux-ext-libs/HACKS.md`
-> for details.
-
-## Compile Yunetas
-
-### Compiling and Installing Yunetas
-
-To build and install yunetas:
+Then build, install and test yunetas:
 
 ```bash
+cd ~/yunetaprojects/yunetas
 yunetas init
 yunetas build
-```
-
-
-### Test
-
-To test:
-
-```bash
 yunetas test
 ```
 
-By default, the installation directory of include files,
-libraries and binaries will be in ``/yuneta/development/outputs/``
+Artefacts land in `$YUNETAS_OUTPUTS/` (= `/yuneta/development/outputs/`
+by default): `include/`, `lib/`, `bin/`, `yunos/`.
 
-## Want the old /var/log/syslog back?
+> ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) reuse the same
+> `configure-libs.sh` with GCC or Clang — no separate toolchain.
+> OpenSSL is built with `no-dso` and `no-sock` to avoid glibc
+> resolver stubs in the static binary. See
+> `kernel/c/linux-ext-libs/HACKS.md` for details.
 
+---
+
+## Troubleshooting
+
+````{dropdown} Bring back /var/log/syslog
 ```bash
 sudo apt-get update
 sudo apt-get install rsyslog
 sudo systemctl enable --now rsyslog
 ```
+````
 
-## How remove warning: Setting locale failed:
-
+````{dropdown} Fix "Setting locale failed" warnings
 ```bash
 dpkg-reconfigure locales
 ```
+````
 
+---
+
+## Reference
+
+### License
+
+MIT, except for `kernel/c/libjwt/*` which is **MPL-2.0**.
+
+### Build dependencies (C / Linux)
+
+- [Jansson](http://jansson.readthedocs.io/en/latest/) — MIT
+- [libjwt](https://github.com/benmcollins/libjwt) — MPL-2.0
+- [liburing](https://github.com/axboe/liburing) — MIT, LGPL-2.1, GPL-2.0
+- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) — Apache-2.0 or GPL-2.0
+- [openssl](https://www.openssl.org/) — Apache-2.0
+- [pcre2](https://github.com/PCRE2Project/pcre2) — BSD and others
+- [libbacktrace](https://github.com/ianlancetaylor/libbacktrace) — BSD 3-Clause
+- [argp-standalone](https://github.com/artgins/argp-standalone.git) — LGPL-2.1
+- [ncurses](https://github.com/mirror/ncurses.git) — MIT
+- [llhttp](https://github.com/nodejs/llhttp) — MIT
+
+### Runtime / deploy dependencies
+
+- [nginx](https://nginx.org) — BSD-2-Clause
+- [openresty](https://openresty.org/) — BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
+- [curl](https://github.com/curl/curl) — curl license, MIT/X derivate
 
 [pipx]:     https://pipx.pypa.io/stable/
 [yunetas]:  https://pypi.org/project/yunetas/
-
-[sphinx]:   https://www.sphinx-doc.org/
-[venv]:     https://docs.python.org/3/library/venv.html
 [conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
-[sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/
