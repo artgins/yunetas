@@ -72,6 +72,15 @@ jobs:
           ./extrae.sh
           ./configure-libs.sh
 
+      - name: Generate default .config (non-interactive menuconfig)
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          # menuconfig is interactive; alldefconfig (from kconfiglib)
+          # generates .config picking default values for every symbol.
+          alldefconfig
+          test -f .config
+
       - name: Build yunetas
         shell: bash
         run: |
