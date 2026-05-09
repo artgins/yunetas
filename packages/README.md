@@ -19,19 +19,19 @@ cd packages/
 ./RISCV64.sh        # RISC-V 64-bit
 
 # 4. Install the resulting .deb
-sudo apt install ./dist/yuneta-agent-7.3.1-9-amd64.deb
+sudo apt install ./dist/yuneta-agent-7.3.1-1-amd64.deb
 ```
 
 ## Supported Architectures
 
-| Script | Architecture | Debian arch | Release |
-|--------|-------------|-------------|---------|
-| `AMD64.sh` | x86_64 | `amd64` | 9 |
-| `ARM32.sh` | ARMv7 | `arm32` | 9 |
-| `ARMhf.sh` | ARMv6/v7 hard-float | `armhf` | 9 |
-| `RISCV64.sh` | RISC-V 64-bit | `riscv64` | 6 |
+| Script | Architecture | Debian arch |
+|--------|-------------|-------------|
+| `AMD64.sh` | x86_64 | `amd64` |
+| `ARM32.sh` | ARMv7 | `arm32` |
+| `ARMhf.sh` | ARMv6/v7 hard-float | `armhf` |
+| `RISCV64.sh` | RISC-V 64-bit | `riscv64` |
 
-Each wrapper script reads the version from `../YUNETA_VERSION`, then calls `make-yuneta-agent-deb.sh` with the appropriate parameters.
+Each wrapper reads the framework version from `../YUNETA_VERSION` and the package release number from `../RELEASE`, then calls `make-yuneta-agent-deb.sh` with the appropriate parameters. All four architectures share the same release counter — bump `RELEASE` once when re-packaging the same framework version.
 
 ## File Layout
 
@@ -350,10 +350,15 @@ After installing the `.deb`, the `postinst` script reminds you to run:
 
 ## Versioning
 
-The package version is read from `../YUNETA_VERSION` (e.g., `YUNETA_VERSION=7.3.1`). The release number is set in each architecture wrapper script (e.g., `RELEASE="9"`). The final package name follows the pattern:
+Two numbers feed the package name:
+
+- **Framework version** — read from `../YUNETA_VERSION` (e.g. `YUNETA_VERSION=7.3.1`). Bumped when the framework changes.
+- **Package release** — read from `../RELEASE` (a single number, e.g. `1`). Bumped when re-packaging the **same** framework version (build script changed, deps changed, conffile fixed, etc.). Shared across all four architectures.
+
+The final package name follows the pattern:
 
 ```
 yuneta-agent-<version>-<release>-<arch>.deb
 ```
 
-Example: `yuneta-agent-7.3.1-9-amd64.deb`
+Example: `yuneta-agent-7.3.1-1-amd64.deb`

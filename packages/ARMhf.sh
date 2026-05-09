@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the AMD64 .deb using VERSION from ../YUNETA_VERSION (as-is, e.g. 7.0.0-b10)
+# Build the ARMhf .deb using VERSION from ../YUNETA_VERSION and RELEASE from ../RELEASE.
 # HACK: Must be executed from this script's directory.
 set -eu
 
@@ -13,7 +13,6 @@ fi
 
 PROJECT="yuneta-agent"
 ARCHITECTURE="armhf"
-RELEASE="9"   # manual control
 
 VER_FILE="../YUNETA_VERSION"
 if [ ! -r "$VER_FILE" ]; then
@@ -31,6 +30,23 @@ VERSION=$(printf "%s" "$RAW_VER" | awk '{$1=$1;print}')
 
 if [ -z "$VERSION" ]; then
     echo "ERROR: Empty YUNETA_VERSION in $VER_FILE" >&2
+    exit 1
+fi
+
+REL_FILE="../RELEASE"
+if [ ! -r "$REL_FILE" ]; then
+    echo "ERROR: Release file not found: $REL_FILE" >&2
+    exit 1
+fi
+
+# Parse single number from RELEASE; tolerate trailing comments / whitespace / CR.
+RAW_REL=$(head -n1 "$REL_FILE")
+RAW_REL=${RAW_REL%%\#*}
+RAW_REL=$(printf "%s" "$RAW_REL" | tr -d '\r')
+RELEASE=$(printf "%s" "$RAW_REL" | awk '{$1=$1;print}')
+
+if [ -z "$RELEASE" ]; then
+    echo "ERROR: Empty RELEASE in $REL_FILE" >&2
     exit 1
 fi
 
