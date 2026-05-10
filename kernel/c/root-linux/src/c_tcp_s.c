@@ -11,6 +11,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <fnmatch.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -80,6 +81,7 @@ SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,          
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "Exit if Listen failed"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
+SDATA (DTP_STRING,      "channel_filter",       SDF_RD,             "",             "Glob (fnmatch) pattern; new method only iterates IOGATE children whose gobj_name matches. Empty = take all (default). Use to partition the channel pool when several C_TCP_S share an IOGATE — e.g. two TLS listeners with different certs."),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
 SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   0,              "Current connections"),
@@ -129,6 +131,7 @@ typedef struct _PRIVATE_DATA {
 
     BOOL only_allowed_ips;
     json_t *child_tree_filter;
+    const char *channel_filter;
 
     hgobj subscriber;
 } PRIVATE_DATA;
@@ -160,6 +163,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
+    SET_PRIV(channel_filter,    gobj_read_str_attr)
     SET_PRIV(use_dups,          (int)gobj_read_integer_attr)
     SET_PRIV(clisrv_kw,         gobj_read_json_attr)
 
@@ -415,6 +419,22 @@ PRIVATE int mt_start(hgobj gobj)
             if(gobj_gclass_name(child) == C_CHANNEL ||
                 gobj_typeof_inherited_gclass(child, C_CHANNEL) // TODO review TODO in c_ievent_srv.c
             ) {
+                /*
+                 *  If a `channel_filter` glob is set, only claim channels
+                 *  whose gobj_name matches it.  Lets two C_TCP_S siblings
+                 *  in the same IOGATE partition the channel pool — each
+                 *  writes ytls/use_ssl/fd_listen only on its own subset,
+                 *  so two TLS listeners with different certs can coexist
+                 *  (without a filter the second listener would overwrite
+                 *  the first across all 1000 channels).
+                 */
+                if(!empty_string(priv->channel_filter) &&
+                    fnmatch(priv->channel_filter, gobj_name(child), 0) != 0
+                ) {
+                    child = gobj_next_child(child);
+                    continue;
+                }
+
                 hgobj gobj_bottom = gobj_last_bottom_gobj(child);
                 if(!gobj_bottom) {
                     gobj_log_error(gobj, 0,
@@ -491,6 +511,7 @@ PRIVATE int mt_start(hgobj gobj)
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "C_TCP_S new method: No channels found",
                 "url",          "%s", url,
+                "channel_filter", "%s", priv->channel_filter ? priv->channel_filter : "",
                 NULL
             );
         }
