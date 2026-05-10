@@ -7640,6 +7640,7 @@ PUBLIC void tranger2_print_md0_record(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD metadata, without key type",
+            "key",          "%s", key,
             NULL
         );
     }
@@ -7707,6 +7708,7 @@ PUBLIC void tranger2_print_md1_record(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD metadata, without key type",
+            "key",          "%s", key,
             NULL
         );
     }
