@@ -1,0 +1,23 @@
+{
+    "global": {
+        "agent.agent_environment": {
+            "daemon_log_handlers": {
+                "to_file": {
+                    "filename_mask": "W.log"
+                }
+            }
+        },
+        "controlcenter.jwt": "",
+        "authz.master": false,
+        "authz.authz_yuno_role": "agent"
+    },
+
+    "environment": {
+        "node_owner": "owner"
+    },
+
+    "__json_config_variables__": {
+        "__realm_id__":   "/yuneta_agent.trdb",
+        "__output_url__": "yunetacontrol.ovh:1995"
+    }
+}

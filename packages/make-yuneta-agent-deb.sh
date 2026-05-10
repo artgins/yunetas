@@ -168,8 +168,12 @@ rm -f "${WORKDIR}"/yuneta/bin/openresty/nginx/logs/* 2>/dev/null || true
 
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
-# Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
-YUNETA_AUTH_KEYS_FILE="${SCRIPT_DIR}/authorized_keys/authorized_keys"
+# Two ways to provide keys (env var wins):
+#   - YUNETA_AUTHORIZED_KEYS=/path/to/authorized_keys  (preferred)
+#   - ${SCRIPT_DIR}/authorized_keys/authorized_keys     (legacy, kept
+#     for backwards-compat with project-level builds)
+# The public framework .deb sets neither: no SSH keys bundled.
+YUNETA_AUTH_KEYS_FILE="${YUNETA_AUTHORIZED_KEYS:-${SCRIPT_DIR}/authorized_keys/authorized_keys}"
 if [ -f "${YUNETA_AUTH_KEYS_FILE}" ]; then
     echo "[i] Bundling authorized_keys from ${YUNETA_AUTH_KEYS_FILE}"
     install -D -m 0644 "${YUNETA_AUTH_KEYS_FILE}" "${WORKDIR}/etc/yuneta/authorized_keys"
@@ -191,11 +195,17 @@ install -D -m 0644 /dev/null "${WORKDIR}/etc/yuneta/webserver"
 printf '%s\n' "${WEB_CHOICE}" > "${WORKDIR}/etc/yuneta/webserver"
 
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
+# Binaries are pre-built into /yuneta/agent/ by `yunetas build`.
+# Config samples are generic templates committed to the repo (no JWTs,
+# no project-specific authz roles or jwks, owner placeholder is "owner").
+# Project-level packaging that needs a populated config can either
+# overlay /yuneta/agent/*.json on top of the .deb postinst, or wrap
+# this script with its own templates.
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
 AGENT_SRC_2="/yuneta/agent/yuneta_agent22"
 AGENT_SRC_4="/yuneta/agent/yuneta_agent44"
-AGENT_JSON_1="/yuneta/agent/yuneta_agent.json"
-AGENT_JSON_2="/yuneta/agent/yuneta_agent22.json"
+AGENT_JSON_1="${YUNETAS_BASE}/packages/templates/yuneta_agent.json.sample"
+AGENT_JSON_2="${YUNETAS_BASE}/packages/templates/yuneta_agent22.json.sample"
 
 if [ ! -x "${AGENT_SRC_1}" ]; then
     echo "[-] Missing or non-executable: ${AGENT_SRC_1}" >&2
@@ -1161,7 +1171,13 @@ for grp in $GROUPS; do
 done
 set +f; IFS="$OLDIFS"
 
-# Ensure agent configs exist without overwriting existing ones
+# Ensure agent configs exist without overwriting existing ones.
+# If YUNETA_OWNER env var is set, substitute the placeholder
+# "node_owner": "owner" with the requested value. Operators provide
+# it as: YUNETA_OWNER=mycompany sudo apt install ./yuneta-agent.deb
+# When unset, the literal "owner" stays in the file as a visible
+# reminder for the operator to edit (the .json files are conffiles
+# and never overwritten on upgrade).
 if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
     if [ -e /yuneta/agent/yuneta_agent.json.sample ]; then
         install -o yuneta -g yuneta -m 0644 -T \
@@ -1170,6 +1186,11 @@ if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
         printf '{}\n' > /yuneta/agent/yuneta_agent.json
         chown yuneta:yuneta /yuneta/agent/yuneta_agent.json
         chmod 0644 /yuneta/agent/yuneta_agent.json
+    fi
+    if [ -n "${YUNETA_OWNER:-}" ]; then
+        sed -i "s|\"node_owner\": \"owner\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
+            /yuneta/agent/yuneta_agent.json
+        info "node_owner set to '${YUNETA_OWNER}' in yuneta_agent.json"
     fi
 fi
 if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
@@ -1180,6 +1201,10 @@ if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
         printf '{}\n' > /yuneta/agent/yuneta_agent22.json
         chown yuneta:yuneta /yuneta/agent/yuneta_agent22.json
         chmod 0644 /yuneta/agent/yuneta_agent22.json
+    fi
+    if [ -n "${YUNETA_OWNER:-}" ]; then
+        sed -i "s|\"node_owner\": \"owner\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
+            /yuneta/agent/yuneta_agent22.json
     fi
 fi
 
