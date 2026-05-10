@@ -74,7 +74,7 @@ PRIVATE const char *sf_names[16+1] = {
  ***************************************************************/
 #pragma pack(1)
 
-typedef struct { // Size: 96 bytes
+typedef struct { // Size: 32 bytes — fields are big-endian on disk
     uint64_t __t__;
     uint64_t __tm__;
 
