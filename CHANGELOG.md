@@ -1,41 +1,6 @@
 # **Changelog**
 
 ## Unreleased
-    - **fix(C_TCP_S): `channel_filter` attr lets two TLS listeners
-      share an IOGATE without colliding**.  The "new method"
-      (no `child_tree_filter`) iterates the parent IOGATE's
-      C_CHANNEL siblings and writes `ytls`, `use_ssl`, `fd_listen`
-      onto each — designed for a single C_TCP_S dispatching one
-      pre-allocated channel pool.  When two C_TCP_S siblings used
-      the same IOGATE, the second one overwrote the first's per-
-      channel state across all channels: every channel ended up
-      pointing to the second listener's `ytls` (wrong cert) and
-      `fd_listen` (wrong socket).  Symptom in production: a second
-      TLS listener (e.g. wattyzer cert on :1602 next to estadodelaire
-      cert on :1600 in db_history's `__top_side__`) made connections
-      to :1600 fail TLS with the wattyzer cert and connections to
-      :1602 hang on handshake.  "1 plain + 1 TLS" never tripped this
-      because the plain listener doesn't write `ytls`.
-
-      New `channel_filter` string attr on C_TCP_S takes an `fnmatch`
-      glob; the new method only claims channels whose `gobj_name`
-      matches.  Empty (default) preserves current behaviour.  Use to
-      partition the pool when multiple C_TCP_S share an IOGATE:
-
-          "children": [
-            {"name":"secure_top_server",
-              "kw":{"url":"wss://0.0.0.0:1600",
-                    "channel_filter":"tcps-*",
-                    "crypto":{...estadodelaire cert...}}},
-            {"name":"secure_top_server_wattyzer",
-              "kw":{"url":"wss://0.0.0.0:1602",
-                    "channel_filter":"tcps_w-*",
-                    "crypto":{...wattyzer cert...}}}
-          ]
-
-      …with two `[^^children^^]` ranges, one per channel-name prefix.
-      Also adds `channel_filter` to the "No channels found" error log
-      so a typo'd filter is diagnosable.
 
 ## v7.3.2 -- 09/May/2026
     - **feat(release): publish runtime `.deb` on GitHub Releases +
