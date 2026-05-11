@@ -1470,7 +1470,7 @@ typedef enum {
     sf_cipher_record,       // records are encrypted
     sf_t_ms,                // timestamp in milliseconds
     sf_tm_ms,               // message time in milliseconds
-    sf_deleted_record,      // record is deleted
+    sf_loading_from_disk,   // record loading from disk
 } system_flag2_t;
 ```
 

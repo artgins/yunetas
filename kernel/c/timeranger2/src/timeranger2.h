@@ -90,9 +90,8 @@
  *  HACK tranger is only append. No update, no insert.
  *  A record can be deleted (it's unrecoverable).
  *  Only the master can write or delete, non-master only can read.
- *  The metadata `md2_record_t` can be updated only in two cases:
+ *  The metadata `md2_record_t` can be updated only in cases:
  *    - any bit in `user_flag`
- *    - `sf_deleted_record` bit in `system_flag` field when the record is deleted
  *
  *  Tranger is based in __t__ of the record (time when was saved)
  *  The __t__ time gets the filename where to save the record,
@@ -136,7 +135,6 @@ typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names *
     sf_cipher_record        = 0x0020,
     sf_t_ms                 = 0x0100,   /* record time in milliseconds */
     sf_tm_ms                = 0x0200,   /* message time in milliseconds */
-    sf_deleted_record       = 0x0400,
     sf_loading_from_disk    = 0x1000,
 } system_flag2_t;
 
