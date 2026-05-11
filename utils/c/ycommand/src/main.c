@@ -43,6 +43,7 @@ struct arguments
     char *user_id;
     char *user_passw;
     char *jwt;
+    char *editor;
 
     int verbose;                /* verbose */
     int print;
@@ -177,6 +178,7 @@ static struct argp_option options[] = {
 {"version",         'v',    0,          0,      "Print version.", 50},
 {"yuneta-version",  'V',    0,          0,      "Print yuneta version", 50},
 {"with-metadata",   'm',    0,          0,      "Print with metadata", 50},
+{"editor",          'e',    "EDITOR",   0,      "Editor command used by read-file / edit-yuno-config / view-yuno-config (default: vim). Pass --editor=cat (or any non-interactive command) to make the read auto-dump to stdout from a TTY; auto-dump already kicks in when stdout is NOT a TTY (script, pipe).", 50},
 {0}
 };
 
@@ -219,6 +221,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'j':
         arguments->jwt = arg;
+        break;
+    case 'e':
+        arguments->editor = arg;
         break;
 
     case 'u':
@@ -356,6 +361,7 @@ int main(int argc, char *argv[])
     arguments.user_id = "";
     arguments.user_passw = "";
     arguments.jwt = "";
+    arguments.editor = "vim";
     arguments.wait = 2;
 
     /*
@@ -416,7 +422,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_YCOMMAND.verbose", arguments.verbose,
             "C_YCOMMAND.command", arguments.command,
@@ -428,6 +434,7 @@ int main(int argc, char *argv[])
             "C_YCOMMAND.user_id", arguments.user_id,
             "C_YCOMMAND.user_passw", arguments.user_passw,
             "C_YCOMMAND.jwt", arguments.jwt,
+            "C_YCOMMAND.editor", arguments.editor,
             "C_YCOMMAND.url", arguments.url,
             "C_YCOMMAND.client_id", arguments.client_id,
             "C_YCOMMAND.yuno_role", arguments.yuno_role,
