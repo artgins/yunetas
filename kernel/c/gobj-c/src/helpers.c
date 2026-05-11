@@ -4519,6 +4519,74 @@ static const char *approxidate_alpha(const char *date, struct tm *tm, struct tm 
         tl++;
     }
 
+    /*
+     *  Short unit suffixes (1-3 chars).
+     *  match_string() is case-insensitive, which would conflate 'm' (minute)
+     *  with 'M' (month); use raw chars and strncasecmp() here so we can keep
+     *  the lowercase-m / uppercase-M distinction the way every other
+     *  duration shorthand does (sleep(1), find -mmin, etc.).
+     *
+     *  Three-char forms ("day", "hour", "week") already match typelen above
+     *  with >=len-1 chars; here we only cover the short forms typelen misses
+     *  ("s", "h", "d", "w", "m", "M", "y", "mi", "mo", "hr", "wk", "yr",
+     *  "sec", "min"). "mon" is left alone -> it still matches Monday in the
+     *  weekday loop below.
+     */
+    if (*num) {
+        int alpha_len = (int)(end - date);
+        int sec_unit = 0;
+        int is_month = 0;
+        int is_year  = 0;
+
+        if (alpha_len == 1) {
+            switch (date[0]) {
+                case 's': case 'S': sec_unit = 1;            break;
+                case 'h': case 'H': sec_unit = 60*60;        break;
+                case 'd': case 'D': sec_unit = 24*60*60;     break;
+                case 'w': case 'W': sec_unit = 7*24*60*60;   break;
+                case 'm':           sec_unit = 60;           break;
+                case 'M':           is_month = 1;            break;
+                case 'y': case 'Y': is_year  = 1;            break;
+            }
+        } else if (alpha_len == 2) {
+            if      (!strncasecmp(date, "mi", 2)) sec_unit = 60;
+            else if (!strncasecmp(date, "mo", 2)) is_month = 1;
+            else if (!strncasecmp(date, "hr", 2)) sec_unit = 60*60;
+            else if (!strncasecmp(date, "wk", 2)) sec_unit = 7*24*60*60;
+            else if (!strncasecmp(date, "yr", 2)) is_year  = 1;
+        } else if (alpha_len == 3) {
+            if      (!strncasecmp(date, "sec", 3)) sec_unit = 1;
+            else if (!strncasecmp(date, "min", 3)) sec_unit = 60;
+        }
+
+        if (sec_unit) {
+            update_tm(tm, now, sec_unit * *num);
+            *num = 0;
+            *touched = 1;
+            return end;
+        }
+        if (is_month) {
+            int n;
+            update_tm(tm, now, 0); /* fill in date fields if needed */
+            n = tm->tm_mon - *num;
+            *num = 0;
+            while (n < 0) {
+                n += 12;
+                tm->tm_year--;
+            }
+            tm->tm_mon = n;
+            *touched = 1;
+            return end;
+        }
+        if (is_year) {
+            update_tm(tm, now, 0); /* fill in date fields if needed */
+            tm->tm_year -= *num;
+            *num = 0;
+            *touched = 1;
+            return end;
+        }
+    }
+
     for (i = 0; i < 7; i++) {
         int match = match_string(date, weekday_names[i]);
         if (match >= 3) {
