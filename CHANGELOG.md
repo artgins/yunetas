@@ -23,6 +23,24 @@
       a `treedb_set_callback` that honours `--topic` and `--ids`.
       Errors out on `--follow --recursive` and on `--follow` with
       `--print-tranger` / `--print-treedb`.
+    - **fix(helpers/approxidate): accept short unit suffixes**.
+      `1s`, `1m`, `1h`, `1d`, `1w`, `1M`, `1y` (plus `1sec`, `1mi`,
+      `1min`, `1mo`, `1hr`, `1wk`, `1yr`) now resolve to the
+      expected relative duration instead of silently falling through
+      to the numeric date parser as day-of-month / year.  Lowercase
+      `m` keeps minute, uppercase `M` is month (case-sensitive to
+      disambiguate, mirroring `sleep` / `find -mmin` conventions).
+      `mon` is intentionally left as Monday so weekday parsing
+      keeps its existing behaviour.  Benefits every yuneta tool
+      that consumes `approxidate` (tr2list, treedb_list, ybatch,
+      tr2search, tr2keys, tr2migrate, ...).
+    - **refactor(tr2list): simpler `--dry-run` time block**.
+      Each time line now ends with `(<show_date_relative>)` —
+      `2 hours ago`, `3 days ago`, etc. — instead of echoing the
+      raw input and warning about parser footguns.  The warning
+      block in `--help` is dropped and replaced by a `short`
+      group listing the new 1-3 char unit forms accepted by
+      `approxidate`.
 
 ## v7.3.2 -- 09/May/2026
     - **feat(release): publish runtime `.deb` on GitHub Releases +

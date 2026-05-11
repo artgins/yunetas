@@ -37,13 +37,12 @@
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
     "             examples: '1.day', '3 hours', '2 weeks ago'\n" \
+    "  short    : 1s, 1m, 1h, 1d, 1w, 1M, 1y -- also 1sec, 1mi/1min,\n" \
+    "             1hr, 1mo, 1wk, 1yr. Lowercase 'm' = minute, uppercase\n" \
+    "             'M' = month (other unit letters case-insensitive).\n" \
     "  specials : now, yesterday, noon, midnight, tea, AM, PM, never\n" \
     "             number-words zero..ten, 'last <weekday>'\n" \
     "  absolute : '2026-05-11', 'May 11', weekday names, etc.\n" \
-    "WARNING: single-letter unit suffixes are NOT recognised. '-1d',\n" \
-    "'1h', '1m' are silently parsed as date components (so '-1d' ends\n" \
-    "up as day-1-of-the-current-month, not 'yesterday'). Spell out the\n" \
-    "unit: '1.day', '1 day ago', '3 hours', '2 weeks ago'.\n" \
     "Use --dry-run to verify the resolved timestamp before searching."
 
 #define VERSION     YUNETA_VERSION
@@ -1111,13 +1110,6 @@ int main(int argc, char *argv[])
          *  so flag anything implausibly large as milliseconds.
          */
         const char *time_keys[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
-        const char *time_args[] = {
-            arguments.from_t,
-            arguments.to_t,
-            arguments.from_tm,
-            arguments.to_tm,
-            NULL
-        };
         BOOL header_printed = FALSE;
         for(int i = 0; time_keys[i]; i++) {
             json_t *v = json_object_get(match_cond, time_keys[i]);
@@ -1139,13 +1131,11 @@ int main(int argc, char *argv[])
             }
             char buf[64];
             t2timestamp(buf, sizeof(buf), (time_t)seconds, arguments.print_local_time);
-            printf("  %-8s = %lld (%s)  ->  %s",
-                time_keys[i], raw, unit, buf
+            char relbuf[64];
+            show_date_relative((timestamp_t)seconds, relbuf, sizeof(relbuf));
+            printf("  %-8s = %lld (%s)  ->  %s   (%s)\n",
+                time_keys[i], raw, unit, buf, relbuf
             );
-            if(time_args[i]) {
-                printf("   (input: \"%s\")", time_args[i]);
-            }
-            printf("\n");
         }
         if(header_printed) {
             printf("\n");
