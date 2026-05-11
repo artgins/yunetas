@@ -67,6 +67,9 @@ struct arguments
 
     int print_tranger;
     int print_treedb;
+
+    int dry_run;
+    int follow;
 };
 
 const char *argp_program_version = APP " " VERSION;
@@ -97,6 +100,10 @@ static struct argp_option options[] = {
 {0,                     0,      0,                  0,      "Print",            4},
 {"print-tranger",       5,      0,                  0,      "Print tranger json", 4},
 {"print-treedb",        6,      0,                  0,      "Print treedb json", 4},
+
+{0,                     0,      0,                  0,      "Modes",            5},
+{"dry-run",             'n',    0,                  0,      "Show resolved path/database/topic and filters, then exit (no listing).", 5},
+{"follow",              'F',    0,                  0,      "After the initial listing, keep listening for treedb node CREATE/UPDATE/DELETE events until Ctrl+C. Cannot be combined with --recursive or --print-*.", 5},
 
 {0}
 };
@@ -140,6 +147,13 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 6:
         arguments->print_treedb = 1;
+        break;
+
+    case 'n':
+        arguments->dry_run = 1;
+        break;
+    case 'F':
+        arguments->follow = 1;
         break;
 
     case ARGP_KEY_ARG:
@@ -390,6 +404,58 @@ PRIVATE int resolve_treedb_path(
 }
 
 /***************************************************************************
+ *  Follow callback: fired by treedb on CREATED/UPDATED/DELETED/LINKED/UNLINKED
+ *  for any node in the open treedb. Honours --topic and --ids filters.
+ ***************************************************************************/
+PRIVATE int follow_callback(
+    void *user_data,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *operation,
+    json_t *node // owned
+)
+{
+    if(!empty_string(arguments.topic)) {
+        if(strcmp(arguments.topic, topic_name) != 0) {
+            json_decref(node);
+            return 0;
+        }
+    }
+    if(arguments.id) {
+        json_t *jn_ids = json_object_get(jn_filter, "id");
+        if(jn_ids) {
+            const char *node_id = json_string_value(json_object_get(node, "id"));
+            BOOL matched = FALSE;
+            size_t idx;
+            json_t *jn_val;
+            json_array_foreach(jn_ids, idx, jn_val) {
+                if(node_id && strcmp(json_string_value(jn_val), node_id) == 0) {
+                    matched = TRUE;
+                    break;
+                }
+            }
+            if(!matched) {
+                json_decref(node);
+                return 0;
+            }
+        }
+    }
+
+    char label[NAME_MAX + 64];
+    snprintf(label, sizeof(label), "[%s] %s/%s", operation, treedb_name, topic_name);
+
+    json_t *jn_record = node_collapsed_view(tranger, node, json_incref(jn_options));
+    print_json(label, jn_record);
+    json_decref(jn_record);
+
+    json_decref(node);
+    total_counter++;
+    partial_counter++;
+    return 0;
+}
+
+/***************************************************************************
  *  Open a tranger database at path, open the named treedb,
  *  and list its records.
  ***************************************************************************/
@@ -408,7 +474,7 @@ PRIVATE int _list_messages(
         "master", 0,
         "on_critical_error", 0
     );
-    json_t * tranger = tranger2_startup(0, jn_tranger, 0);
+    json_t * tranger = tranger2_startup(0, jn_tranger, arguments.follow? yev_loop : 0);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s\n\n", path);
         exit(-1);
@@ -426,7 +492,7 @@ PRIVATE int _list_messages(
     treedb_set_callback(
         tranger,
         treedb_name,
-        0,
+        arguments.follow? follow_callback : 0,
         0,
         TREEDB_CALLBACK_NO_FLAG
     );
@@ -552,6 +618,17 @@ PRIVATE int _list_messages(
             json_decref(cols);
             json_decref(iter);
         }
+    }
+
+    /*-------------------------------*
+     *  --follow: keep listening for node events until SIGINT
+     *-------------------------------*/
+    if(arguments.follow) {
+        fprintf(stderr,
+            "Following treedb '%s' at '%s'... Ctrl+C to stop.\n",
+            treedb_name, path
+        );
+        yev_loop_run(yev_loop, -1);
     }
 
     /*-------------------------------*
@@ -786,6 +863,67 @@ int main(int argc, char *argv[])
     }
     arguments.path = path;
 
+    /*----------------------------------*
+     *  Validate mode combinations
+     *----------------------------------*/
+    if(arguments.follow && arguments.recursive) {
+        fprintf(stderr,
+            "--follow cannot be combined with --recursive "
+            "(follow needs a single treedb).\n\n"
+        );
+        exit(-1);
+    }
+    if(arguments.follow && (arguments.print_tranger || arguments.print_treedb)) {
+        fprintf(stderr,
+            "--follow cannot be combined with --print-tranger or --print-treedb.\n\n"
+        );
+        exit(-1);
+    }
+
+    /*----------------------------------*
+     *  --dry-run: show what would be searched and exit
+     *----------------------------------*/
+    if(arguments.dry_run) {
+        /*
+         *  Try to resolve path/database/topic just like a real run would,
+         *  so the user sees what we auto-deduced from the path.
+         */
+        char resolved_path[PATH_MAX];
+        char resolved_database[NAME_MAX];
+        char resolved_topic[NAME_MAX];
+        int resolved_ok = (resolve_treedb_path(
+            arguments.path, arguments.database, arguments.topic,
+            resolved_path, sizeof(resolved_path),
+            resolved_database, sizeof(resolved_database),
+            resolved_topic, sizeof(resolved_topic)
+        ) == 0);
+
+        json_t *summary = json_pack(
+            "{s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:b, s:s, s:s, s:b, s:O, s:O}",
+            "path",             resolved_ok ? resolved_path : arguments.path,
+            "database",         resolved_ok ? resolved_database : (arguments.database ? arguments.database : ""),
+            "topic",            resolved_ok ? resolved_topic    : (arguments.topic    ? arguments.topic    : ""),
+            "resolution",       resolved_ok ? "ok" : "failed (showing raw user input)",
+            "recursive",        arguments.recursive ? 1 : 0,
+            "follow",           arguments.follow ? 1 : 0,
+            "print_tranger",    arguments.print_tranger ? 1 : 0,
+            "print_treedb",     arguments.print_treedb ? 1 : 0,
+            "mode",             arguments.mode ? arguments.mode : "",
+            "fields",           arguments.fields ? arguments.fields : "",
+            "table_mode",       table_mode ? 1 : 0,
+            "filter",           jn_filter,
+            "options",          jn_options
+        );
+        print_json("treedb_list --dry-run", summary);
+        json_decref(summary);
+
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options);
+        split_free2(list_fields);
+        gobj_end();
+        return 0;
+    }
+
     /*------------------------*
      *      Do your work
      *------------------------*/
@@ -878,5 +1016,7 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
 
-    alarm(time2exit);
+    if(!arguments.follow) {
+        alarm(time2exit);
+    }
 }

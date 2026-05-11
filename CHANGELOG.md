@@ -12,6 +12,17 @@
       documents the full `approxidate` grammar accepted by TIME
       options (units, specials, absolute forms) via argp's `\v`
       separator.
+    - **feat(treedb_list): `--dry-run` and `--follow` modes**.
+      `--dry-run` / `-n` runs `resolve_treedb_path` and prints the
+      deduced path / database / topic alongside the filter and
+      options JSON (also flags resolution failure and falls back to
+      the raw user input).  `--follow` / `-F` keeps listening for
+      node CREATED / UPDATED / DELETED / LINKED / UNLINKED events
+      after the initial listing — uses the existing rt_disk path
+      that treedb already opens internally when `master=false`, plus
+      a `treedb_set_callback` that honours `--topic` and `--ids`.
+      Errors out on `--follow --recursive` and on `--follow` with
+      `--print-tranger` / `--print-treedb`.
 
 ## v7.3.2 -- 09/May/2026
     - **feat(release): publish runtime `.deb` on GitHub Releases +
