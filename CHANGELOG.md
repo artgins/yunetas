@@ -1,6 +1,17 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(tr2list): `--dry-run` and `--follow` modes**.
+      `--dry-run` / `-n` prints the resolved search parameters and
+      the `match_cond` JSON (times already resolved by `approxidate`),
+      plus a human-readable rendering of any `from-t`/`to-t`/`from-tm`/
+      `to-tm` set — respects `--print-local-time` and flags millisecond
+      input.  `--follow` / `-F` opens an `rt_disk` list and runs
+      `yev_loop_run` until SIGINT (tail-f style; single topic, so it
+      errors out when combined with `--recursive`).  `--help` now
+      documents the full `approxidate` grammar accepted by TIME
+      options (units, specials, absolute forms) via argp's `\v`
+      separator.
 
 ## v7.3.2 -- 09/May/2026
     - **feat(release): publish runtime `.deb` on GitHub Releases +

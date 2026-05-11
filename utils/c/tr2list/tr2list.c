@@ -28,7 +28,19 @@
  *              Constants
  ***************************************************************************/
 #define APP         "tr2list"
-#define DOC         "List messages of TimeRanger2 database.\n Examples TIME:\n  1.seconds (minutes,hours,days,weeks,months,years)"
+#define DOC \
+    "List messages of TimeRanger2 database." \
+    "\v" /* argp: everything after \v appears AFTER the options block */ \
+    "TIME values accept a Unix timestamp (seconds; values >= 1e11 are taken\n" \
+    "as milliseconds) or a natural-language string parsed by approxidate\n" \
+    "(git-style date parser). Accepted forms:\n" \
+    "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
+    "             with a count and optional 'ago'\n" \
+    "             examples: '1.day', '3 hours', '2 weeks ago'\n" \
+    "  specials : now, yesterday, noon, midnight, tea, AM, PM, never\n" \
+    "             number-words zero..ten, 'last <weekday>'\n" \
+    "  absolute : '2026-05-11', 'May 11', weekday names, etc.\n" \
+    "Use --dry-run to verify the resolved timestamp before searching."
 
 #define VERSION     YUNETA_VERSION
 #define SUPPORT     "<support at artgins.com>"
@@ -76,6 +88,9 @@ struct arguments {
     char *filter;
 
     int list_databases;
+
+    int dry_run;
+    int follow;
 };
 
 const char *argp_program_version = APP " " VERSION;
@@ -126,6 +141,10 @@ static struct argp_option options[] = {
 
 {0,                     0,      0,                  0,      "Print", 12},
 {"list-databases",      21,     0,                  0,      "List databases.",  12},
+
+{0,                     0,      0,                  0,      "Modes", 13},
+{"dry-run",             'n',    0,                  0,      "Show resolved search parameters and exit (no search).", 13},
+{"follow",              'F',    0,                  0,      "Keep listening for new records until Ctrl+C (tail -f style). Cannot be combined with --recursive.", 13},
 
 {0}
 };
@@ -212,6 +231,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 
     case 21:
         arguments_->list_databases = 1;
+        break;
+
+    case 'n':
+        arguments_->dry_run = 1;
+        break;
+    case 'F':
+        arguments_->follow = 1;
         break;
 
     case ARGP_KEY_ARG:
@@ -504,7 +530,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         "database", database
     );
 
-    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    json_t *tranger = tranger2_startup(0, jn_tranger, arguments.follow? yev_loop : 0);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
         exit(-1);
@@ -530,7 +556,32 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
-    if(arguments.key) {
+    if(arguments.follow) {
+        /*
+         *  Follow mode: dump matching history then keep listening for new appends.
+         *  Use rt_by_disk because tr2list is a non-master reader — the writing yuno
+         *  (master) monitors /disks/{rt_id}/ and notifies us of new records.
+         */
+        char rt_id[64];
+        snprintf(rt_id, sizeof(rt_id), "tr2list^%d", (int)getpid());
+
+        json_t *rt = tranger2_open_list(
+            tranger,
+            topic,
+            json_incref(match_cond), // owned
+            NULL,           // extra
+            rt_id,          // rt_id
+            TRUE,           // rt_by_disk
+            "tr2list"       // creator
+        );
+        fprintf(stderr,
+            "Following %s/%s (rt_id=%s)... Ctrl+C to stop.\n",
+            database, topic, rt_id
+        );
+        yev_loop_run(yev_loop, -1);
+        tranger2_close_list(tranger, rt);
+
+    } else if(arguments.key) {
         json_t *rt = tranger2_open_iterator(
             tranger,
             topic,
@@ -1015,6 +1066,81 @@ int main(int argc, char *argv[])
     }
     arguments.path = path;
 
+    /*----------------------------------*
+     *  Validate mode combinations
+     *----------------------------------*/
+    if(arguments.follow && arguments.recursive) {
+        fprintf(stderr,
+            "--follow cannot be combined with --recursive "
+            "(follow needs a single topic).\n\n"
+        );
+        exit(-1);
+    }
+    if(arguments.follow && arguments.list_databases) {
+        fprintf(stderr, "--follow cannot be combined with --list-databases.\n\n");
+        exit(-1);
+    }
+
+    /*----------------------------------*
+     *  --dry-run: show what would be searched and exit
+     *----------------------------------*/
+    if(arguments.dry_run) {
+        json_t *summary = json_pack("{s:s, s:b, s:b, s:b, s:i, s:s, s:s, s:b, s:O}",
+            "path",             arguments.path,
+            "recursive",        arguments.recursive ? 1 : 0,
+            "list_databases",   arguments.list_databases ? 1 : 0,
+            "follow",           arguments.follow ? 1 : 0,
+            "verbose",          verbose,
+            "mode",             arguments.mode ? arguments.mode : "",
+            "fields",           arguments.fields ? arguments.fields : "",
+            "show_md2",         arguments.show_md2 ? 1 : 0,
+            "match_cond",       match_cond
+        );
+        print_json("tr2list --dry-run", summary);
+        json_decref(summary);
+
+        /*
+         *  Human-readable rendering of any time conditions present.
+         *  Values entered as natural language ("1 hour ago") were already
+         *  resolved by approxidate() into a Unix timestamp (seconds).
+         *  Numeric input passed through verbatim and may carry ms resolution,
+         *  so flag anything implausibly large as milliseconds.
+         */
+        const char *time_keys[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
+        BOOL header_printed = FALSE;
+        for(int i = 0; time_keys[i]; i++) {
+            json_t *v = json_object_get(match_cond, time_keys[i]);
+            if(!v) {
+                continue;
+            }
+            if(!header_printed) {
+                printf("\nTime parameters (%s):\n",
+                    arguments.print_local_time ? "local time" : "UTC"
+                );
+                header_printed = TRUE;
+            }
+            long long raw = (long long)json_integer_value(v);
+            long long seconds = raw;
+            const char *unit = "s";
+            if(raw >= 100000000000LL) {  /* >= 1e11 → milliseconds */
+                seconds = raw / 1000;
+                unit = "ms";
+            }
+            char buf[64];
+            t2timestamp(buf, sizeof(buf), (time_t)seconds, arguments.print_local_time);
+            printf("  %-8s = %lld (%s)  ->  %s\n",
+                time_keys[i], raw, unit, buf
+            );
+        }
+        if(header_printed) {
+            printf("\n");
+        }
+
+        json_decref(match_cond);
+        gobj_end();
+        return 0;
+    }
+
     /*------------------------*
      *      Do your work
      *------------------------*/
@@ -1101,5 +1227,7 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
 
-    alarm(time2exit);
+    if(!arguments.follow) {
+        alarm(time2exit);
+    }
 }
