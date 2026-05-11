@@ -1312,6 +1312,32 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
 PRIVATE int edit_json(hgobj gobj, const char *path)
 {
     const char *editor = gobj_read_str_attr(gobj, "editor");
+
+    /*
+     *  Bypass the interactive editor when stdout is not a TTY (pipe,
+     *  redirect, script invocation, harness driver).  Without this,
+     *  pty_sync_spawn'ing vim into a non-tty stdout dumps raw
+     *  terminal escape codes — garbled output, no way to read the
+     *  file.  In that case, just stream the file straight to stdout.
+     *  The 'editor' attr can still be overridden via --editor=cat for
+     *  explicit non-TTY use, but auto-detection covers the common
+     *  case (ssh -T, ybatch driver, claude-code Bash tool).
+     */
+    if(!isatty(STDOUT_FILENO)) {
+        FILE *fp = fopen(path, "r");
+        if(!fp) {
+            return -1;
+        }
+        char buf[8192];
+        size_t n;
+        while((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+            fwrite(buf, 1, n, stdout);
+        }
+        fclose(fp);
+        fflush(stdout);
+        return 0;
+    }
+
     char command[PATH_MAX];
     snprintf(command, sizeof(command), "%s %s", editor, path);
 
