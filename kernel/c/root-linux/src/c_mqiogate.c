@@ -71,7 +71,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_STRING,      "method",           SDF_RD,                     "lastdigits", "Method to select the child to send the message ('lastdigits', ). Default 'lastdigits', numeric value with the 'digits' last digits used to select the child. Digits can be decimal or hexadecimal ONLY, automatically detected."),
+SDATA (DTP_STRING,      "method",           SDF_RD,                     "lastdigits", "Method to select the child to send the message ('lastdigits' | 'broadcast'). Default 'lastdigits': partition by 'digits' last digits of kw[key] (decimal or hex, auto). 'broadcast': fan out the message to every C_QIOGATE child (independent persistent queues, each survives the others' outages)."),
 SDATA (DTP_INTEGER,     "digits",           SDF_RD|SDF_STATS,           "1",              "Digits to calculate output"),
 
 SDATA (DTP_STRING,      "key",              SDF_RD,                     "id",           "field of kw to obtain the index to child to send message. It must be a numeric value, and the last digit is used to index the child, so you can have until 10 children with the default method."),
@@ -345,6 +345,37 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     SWITCHS(priv->method) {
+        CASES("broadcast")
+            /*
+             *  Fan out the event to every C_QIOGATE child.  Each child
+             *  owns its own persistent queue, so a downstream outage on
+             *  one branch does not back-pressure the others.  Returns
+             *  the last non-zero rc from gobj_send_event, or 0 if all
+             *  succeeded.
+             */
+            {
+                int rc = 0;
+                int n = priv->n_children;
+                for(int i = 1; i <= n; i++) {
+                    hgobj child = gobj_child_by_index(gobj, i);
+                    if(!child) {
+                        continue;
+                    }
+                    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                        gobj_trace_msg(gobj,
+                            "MQIOGATE broadcast ==> %s",
+                            gobj_short_name(child)
+                        );
+                    }
+                    KW_INCREF(kw)
+                    int r = gobj_send_event(child, event, kw, gobj);
+                    if(r < 0) {
+                        rc = r;
+                    }
+                }
+                KW_DECREF(kw)
+                return rc;
+            }
         CASES("lastdigits")
         DEFAULTS
             int digits = priv->digits;
