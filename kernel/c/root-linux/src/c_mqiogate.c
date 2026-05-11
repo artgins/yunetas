@@ -328,11 +328,6 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj gobj_dst=0;
-
-    const char *id = "";
-    int idx = 0;
-
     if(priv->n_children <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -378,54 +373,71 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             }
         CASES("lastdigits")
         DEFAULTS
-            int digits = priv->digits;
-            id = kw_get_str(gobj, kw, priv->key, "", KW_REQUIRED);
-            int len = strlen(id);
-            if(len > 0) {
-                if(digits > len) {
-                    digits = len;
-                }
-                char *s = (char *)id + len - digits;
-                if(all_numbers(s)) {
-                    idx = atoi(s);
+            /*
+             *  Partition: select ONE child by hashing the last 'digits'
+             *  of kw[key] modulo n_children.  Used for sharding /
+             *  load distribution.
+             */
+            {
+                hgobj gobj_dst = 0;
+                const char *id = "";
+                int idx = 0;
+                int digits = priv->digits;
+                id = kw_get_str(gobj, kw, priv->key, "", KW_REQUIRED);
+                int len = strlen(id);
+                if(len > 0) {
+                    if(digits > len) {
+                        digits = len;
+                    }
+                    char *s = (char *)id + len - digits;
+                    if(all_numbers(s)) {
+                        idx = atoi(s);
+                    } else {
+                        idx = (int)strtol(s, NULL, 16);
+                    }
                 } else {
-                    idx = (int)strtol(s, NULL, 16);
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_CONFIGURATION,
+                        "msg",          "%s", "key value WITHOUT LENGTH",
+                        "method",       "%s", priv->method,
+                        "key",          "%s", priv->key,
+                        NULL
+                    );
                 }
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONFIGURATION,
-                    "msg",          "%s", "key value WITHOUT LENGTH",
-                    "method",       "%s", priv->method,
-                    "key",          "%s", priv->key,
-                    NULL
-                );
+                idx = idx % priv->n_children;
+                if(idx < 0) {
+                    idx = 0;
+                }
+
+                gobj_dst = gobj_child_by_index(gobj, idx+1);
+                if(!gobj_dst) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "C_QIOGATE destine NOT FOUND",
+                        NULL
+                    );
+                    KW_DECREF(kw)
+                    return -1;
+                }
+
+                if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                    gobj_trace_msg(gobj,
+                        "MQIOGATE %s (idx %d, value '%s') ==> %s",
+                        priv->key, idx, id, gobj_short_name(gobj_dst)
+                    );
+                }
+
+                return gobj_send_event(gobj_dst, event, kw, gobj);
             }
-            idx = idx % priv->n_children;
-            if(idx < 0) {
-                idx = 0;
-            }
-            break;
     } SWITCHS_END
 
-    gobj_dst = gobj_child_by_index(gobj, idx+1);
-
-    if(!gobj_dst) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "C_QIOGATE destine NOT FOUND",
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "MQIOGATE %s (idx %d, value '%s') ==> %s", priv->key, idx, id, gobj_short_name(gobj_dst));
-    }
-
-    return gobj_send_event(gobj_dst, event, kw, gobj);
+    /*  Every CASES returns explicitly above; this fallback only
+     *  exists to keep the compiler happy if SWITCHS ever lets a
+     *  path through without matching a branch. */
+    KW_DECREF(kw)
+    return -1;
 }
 
 /***************************************************************************
