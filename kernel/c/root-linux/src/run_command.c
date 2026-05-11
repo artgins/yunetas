@@ -234,6 +234,29 @@ PUBLIC int pty_sync_spawn(
 
             int status;
             if (waitpid(pid, &status, WNOHANG) && WIFEXITED(status)) {
+                /*
+                 *  Drain any data still buffered in the master pty
+                 *  before returning.  Without this, short-running
+                 *  non-interactive commands (cat, head, jq …) lose
+                 *  their tail: the parent reads one byte per loop
+                 *  iteration, so a 4 KiB-buffered output that arrives
+                 *  in one shot gets a single byte drained — then the
+                 *  WIFEXITED check fires on the next iteration and we
+                 *  return, discarding the other 4095 bytes.
+                 *
+                 *  Reading in larger chunks here is safe because the
+                 *  child has already exited; we just want to flush
+                 *  whatever's still in the kernel's pty buffer.  On
+                 *  Linux the master read returns -1 with errno=EIO
+                 *  once the slave side is fully closed, which breaks
+                 *  the drain loop.
+                 */
+                char drain_buf[4096];
+                ssize_t n;
+                while((n = read(master, drain_buf, sizeof(drain_buf))) > 0) {
+                    ssize_t w = write(STDOUT_FILENO, drain_buf, n);
+                    if(w) {} // avoid warning
+                }
                 return 0;
             }
         }
