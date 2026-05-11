@@ -40,6 +40,10 @@
     "  specials : now, yesterday, noon, midnight, tea, AM, PM, never\n" \
     "             number-words zero..ten, 'last <weekday>'\n" \
     "  absolute : '2026-05-11', 'May 11', weekday names, etc.\n" \
+    "WARNING: single-letter unit suffixes are NOT recognised. '-1d',\n" \
+    "'1h', '1m' are silently parsed as date components (so '-1d' ends\n" \
+    "up as day-1-of-the-current-month, not 'yesterday'). Spell out the\n" \
+    "unit: '1.day', '1 day ago', '3 hours', '2 weeks ago'.\n" \
     "Use --dry-run to verify the resolved timestamp before searching."
 
 #define VERSION     YUNETA_VERSION
