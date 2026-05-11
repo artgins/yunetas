@@ -2713,6 +2713,22 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     clear_input_line(gobj);
 
+    /*
+     *  Match the pattern in the failure branches above: when running
+     *  non-interactively, schedule the shutdown after a successful
+     *  dump so ycommand doesn't hang waiting for further input.
+     *  This used to be masked by vim — vim swallowed the controlling
+     *  tty until the user quit, so ycommand never returned in
+     *  practice but the user was the one holding it open.  With the
+     *  non-TTY auto-dump in edit_json (commit d9651c1ea), the
+     *  function returns immediately and ycommand needs to do the
+     *  same instead of idling on the event loop forever.
+     */
+    if(!priv->interactive) {
+        gobj_set_exit_code(result);
+        set_timeout(priv->timer, priv->wait * 1000);
+    }
+
     KW_DECREF(kw);
     return 0;
 }
