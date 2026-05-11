@@ -1107,6 +1107,13 @@ int main(int argc, char *argv[])
          *  so flag anything implausibly large as milliseconds.
          */
         const char *time_keys[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
+        const char *time_args[] = {
+            arguments.from_t,
+            arguments.to_t,
+            arguments.from_tm,
+            arguments.to_tm,
+            NULL
+        };
         BOOL header_printed = FALSE;
         for(int i = 0; time_keys[i]; i++) {
             json_t *v = json_object_get(match_cond, time_keys[i]);
@@ -1128,9 +1135,13 @@ int main(int argc, char *argv[])
             }
             char buf[64];
             t2timestamp(buf, sizeof(buf), (time_t)seconds, arguments.print_local_time);
-            printf("  %-8s = %lld (%s)  ->  %s\n",
+            printf("  %-8s = %lld (%s)  ->  %s",
                 time_keys[i], raw, unit, buf
             );
+            if(time_args[i]) {
+                printf("   (input: \"%s\")", time_args[i]);
+            }
+            printf("\n");
         }
         if(header_printed) {
             printf("\n");
