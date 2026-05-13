@@ -6,10 +6,12 @@
         "keywords": "TreeDB GUI"
     },
     "csp_connect_src": [
-        "wss://localhost:1800",
-        "wss://treedb.yunetas.com:1800",
-        "https://localhost:1801",
-        "https://treedb.yunetas.com:1801",
-        "https://auth.artgins.com"
+        "_comment: List every WebSocket and HTTPS origin the GUI must reach.  Must stay aligned with backend_urls + bff_urls in src/conf/backend_config.js.  In dev /auth is same-origin (Vite proxies to https://localhost:1804) — the BFF entry is for production builds.",
+        "wss://localhost:1602",
+        "wss://localhost:1604",
+        "https://localhost:1802",
+        "https://localhost:1804",
+        "wss://app.wattyzer.com:1602",
+        "https://app.wattyzer.com:1804"
     ]
 }

@@ -27,8 +27,8 @@
  *  WebSocket backend endpoints.
  */
 const backend_urls = {
-    "localhost":            "wss://localhost:1800",
-    "treedb.yunetas.com":   "wss://treedb.yunetas.com:1800"
+    "localhost":            "wss://localhost:1602",
+    "treedb.yunetas.com":   "wss://treedb.yunetas.com:1802"
 };
 
 /*
@@ -62,18 +62,18 @@ const bff_urls = {
  */
 const keycloak_configs = {
     "localhost": {
-        "realm": "estadodelaire.com",
+        "realm": "artgins",
         "auth-server-url": "https://auth.artgins.com",
         "ssl-required": "external",
-        "resource": "gui_treedb",
+        "resource": "treedb.yunetas.com",
         "public-client": true,
         "confidential-port": 0
     },
     "treedb.yunetas.com": {
-        "realm": "estadodelaire.com",
+        "realm": "artgins",
         "auth-server-url": "https://auth.artgins.com",
         "ssl-required": "external",
-        "resource": "gui_treedb",
+        "resource": "treedb.yunetas.com",
         "public-client": true,
         "confidential-port": 0
     }

@@ -73,9 +73,9 @@ const yuno_name = "TreeDB GUI";
 const yuno_role = "treedb_gui";
 const yuno_version = "7.0.0";
 
-const remote_yuno_role = "mqtt_broker";
-const remote_yuno_service = "mqtt_broker";
-const required_services = ["treedb_mqtt_broker", "treedb_authzs"];
+const remote_yuno_role = "db_history_wz";
+const remote_yuno_service = "db_history_wz";
+const required_services = ["treedb_wattyzerdb", "treedb_authzs"];
 
 /*
  *  TEST Trace Simple Machine
