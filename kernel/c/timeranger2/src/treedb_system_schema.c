@@ -81,7 +81,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '5',                              \n\
+    'schema_version': '6',                              \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -228,7 +228,7 @@ char treedb_system_schema[]= "\
             'id': 'cols',                               \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '4',                       \n\
+            'topic_version': '5',                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
@@ -238,6 +238,14 @@ char treedb_system_schema[]= "\
                     'flag': [                           \n\
                         'persistent',                   \n\
                         'required'                      \n\
+                    ]                                   \n\
+                },                                      \n\
+                'topics': {                             \n\
+                    'header': 'Topics',                 \n\
+                    'fillspace': 20,                    \n\
+                    'type': 'array',                    \n\
+                    'flag': [                           \n\
+                        'fkey'                          \n\
                     ]                                   \n\
                 },                                      \n\
                 'header': {                             \n\
