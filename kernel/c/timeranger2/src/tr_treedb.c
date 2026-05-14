@@ -446,17 +446,17 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
         return NULL;
     }
 
-    json_t *topic_cols_desc = json_array();
+    json_t *topic_cols_desc_ = json_array(); // Avoid declaration shadows a variable in the global scope
     const char *col_id;
     json_t *jn_col;
     json_object_foreach(json_object_get(jn_cols_topic, "cols"), col_id, jn_col) {
         json_t *entry = json_deep_copy(jn_col);
         json_object_set_new(entry, "id", json_string(col_id));
-        json_array_append_new(topic_cols_desc, entry);
+        json_array_append_new(topic_cols_desc_, entry);
     }
     json_decref(jn_schema);
 
-    return topic_cols_desc;
+    return topic_cols_desc_;
 }
 
 /***************************************************************************

@@ -7467,6 +7467,9 @@ PUBLIC int gobj_send_event(
         if(dst->gclass->gmt->mt_inject_event) {
             __inside__ --;
             if(tracea) {
+                /*
+                 *  Direct injection!
+                 */
                 if(trace_machine_format==1) {
                     trace_machine("🔜 %s%s%s %s%s %s%s%s",
                         On_Black RRed,

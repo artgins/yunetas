@@ -1409,7 +1409,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         authz_table,  // authz_table,
         command_table,  // command_table,
         s_user_trace_level,  // s_user_trace_level
-        gcflag_manual_start // gclass_flag
+        0  // gclass_flag
     );
     if(!__gclass__) {
         // Error already logged

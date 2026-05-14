@@ -1592,6 +1592,7 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    gobj_log_set_last_message("Local dropping");
     try_to_stop_yevents(gobj);
 
     JSON_DECREF(kw)
