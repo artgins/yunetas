@@ -738,7 +738,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             gobj_log_error(gobj,0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Cannot load TreeDB schema from file.",
+                "msg",          "%s", "Cannot load TreeDB schema from file",
                 "treedb_name",  "%s", treedb_name,
                 "schema_file",  "%s", schema_full_path,
                 NULL
@@ -749,7 +749,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB without schema.",
+            "msg",          "%s", "TreeDB without schema",
             "treedb_name",  "%s", treedb_name,
             NULL
         );
@@ -790,7 +790,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB ALREADY opened.",
+            "msg",          "%s", "TreeDB ALREADY opened",
             "treedb_name",  "%s", treedb_name,
             NULL
         );
@@ -1206,7 +1206,7 @@ PUBLIC int treedb_set_callback(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB not found.",
+            "msg",          "%s", "TreeDB not found",
             "treedb_name",  "%s", treedb_name,
             NULL
         );
@@ -1319,7 +1319,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB not found.",
+            "msg",          "%s", "TreeDB not found",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             NULL
@@ -1580,7 +1580,7 @@ PUBLIC int treedb_close_topic(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB not found.",
+            "msg",          "%s", "TreeDB not found",
             "treedb_name",  "%s", treedb_name,
             NULL
         );
@@ -1658,7 +1658,7 @@ PUBLIC json_t *treedb_list_treedb(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "NO TreeDB found.",
+            "msg",          "%s", "NO TreeDB found",
             NULL
         );
         JSON_DECREF(kw)
@@ -1693,7 +1693,7 @@ PUBLIC json_t *treedb_topics(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "TreeDB not found.",
+            "msg",          "%s", "TreeDB not found",
             "treedb_name",  "%s", treedb_name,
             NULL
         );

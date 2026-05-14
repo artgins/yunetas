@@ -75,7 +75,7 @@ const yuno_version = "7.0.0";
 
 const remote_yuno_role = "db_history_wz";
 const remote_yuno_service = "db_history_wz";
-const required_services = ["treedb_wattyzerdb", "treedb_authzs"];
+const required_services = ["treedb_wattyzer", "treedb_authzs", "treedb_system_schema"];
 
 /*
  *  TEST Trace Simple Machine

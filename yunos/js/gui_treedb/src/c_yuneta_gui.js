@@ -349,120 +349,60 @@ function build_app(gobj, services_roles)
     );
 
     /*----------------------------------------*
-     *      Treedb Mqtt
+     *      Treedb
      *----------------------------------------*/
-    let mqtt_broker_roles = services_roles["treedb_mqtt_broker"];
-    if(mqtt_broker_roles && strs_in_list(mqtt_broker_roles, ["root","owner"], true)) {
-        /*----------------------*
-         *      USER Topics
-         *----------------------*/
-        let gobj_tables_mqtt_broker = gobj_create_service(
-            "#topics_mqtt_broker", // HACK href
-            "C_YUI_TREEDB_TOPICS",
-            {
-                gobj_remote_yuno: __remote_service__,
-                treedb_name: "treedb_mqtt_broker",
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_tables_mqtt_broker);
-        // gobj_start(gobj_tables_mqtt_broker);
-        menu.push(
-            {
-                id: gobj_name(gobj_tables_mqtt_broker),
-                label: "MqttDB Topics",
-                icon: "yi-table",
-                gobj: gobj_tables_mqtt_broker  // use "$container" attribute
-            }
-        );
+    let required_services = gobj_read_attr(gobj, "required_services");
+    for(let treedb of required_services) {
+        if(treedb === "treedb_system_schema") {
+            continue;
+        }
+        let roles = services_roles[treedb];
+        if(treedb && strs_in_list(roles, ["root","owner"], true)) {
+            /*----------------------*
+             *      USER Topics
+             *----------------------*/
+            let gobj_tables = gobj_create_service(
+                "#topics-" + treedb, // HACK href
+                "C_YUI_TREEDB_TOPICS",
+                {
+                    gobj_remote_yuno: __remote_service__,
+                    treedb_name: treedb,
+                },
+                gobj
+            );
+            priv.user_gobjs.push(gobj_tables);
+            menu.push(
+                {
+                    id: gobj_name(gobj_tables),
+                    label: "Topics-" + treedb,
+                    icon: "yi-table",
+                    gobj: gobj_tables  // use "$container" attribute
+                }
+            );
 
-        /*----------------------*
-         *      USER Graphs
-         *----------------------*/
-        let gobj_graph_mqtt_broker = gobj_create_service(
-            "#graphs_mqtt_broker", // HACK href
-            "C_YUI_TREEDB_GRAPH",
-            {
-                gobj_remote_yuno: __remote_service__,
-                treedb_name: "treedb_mqtt_broker",
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_graph_mqtt_broker);
-        // gobj_start(gobj_graph_mqtt_broker);
-        menu.push(
-            {
-                id: gobj_name(gobj_graph_mqtt_broker),
-                label: "MqttDB Graphs",
-                icon: "yi-hexagon-nodes",
-                gobj: gobj_graph_mqtt_broker  // use "$container" attribute
-            }
-        );
+            /*----------------------*
+             *      USER Graphs
+             *----------------------*/
+            let gobj_graph_mqtt_broker = gobj_create_service(
+                "#graphs-" + treedb, // HACK href
+                "C_YUI_TREEDB_GRAPH",
+                {
+                    gobj_remote_yuno: __remote_service__,
+                    treedb_name: treedb,
+                },
+                gobj
+            );
+            priv.user_gobjs.push(gobj_graph_mqtt_broker);
+            menu.push(
+                {
+                    id: gobj_name(gobj_graph_mqtt_broker),
+                    label: "Graphs-" + treedb,
+                    icon: "yi-hexagon-nodes",
+                    gobj: gobj_graph_mqtt_broker  // use "$container" attribute
+                }
+            );
+        }
     }
-
-    /*----------------------------------------*
-     *      Treedb Authzs
-     *----------------------------------------*/
-    // TODO repon
-    // let authzs_roles = services_roles["treedb_authzs"];
-    // if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
-    //     /*----------------------*
-    //      *      USER Topics
-    //      *----------------------*/
-    //     let gobj_tables_authzsdb = gobj_create_service(
-    //         "#topics_authzs", // HACK href
-    //         "C_YUI_TREEDB_TOPICS",
-    //         {
-    //             gobj_remote_yuno: __remote_service__,
-    //             treedb_name: "treedb_authzs",
-    //         },
-    //         gobj
-    //     );
-    //     priv.user_gobjs.push(gobj_tables_authzsdb);
-    //     // gobj_start(gobj_tables_authzsdb);
-    //     menu.push(
-    //         {
-    //             id: gobj_name(gobj_tables_authzsdb),
-    //             label: "AuthzDB Topics",
-    //             icon: "yi-table",
-    //             gobj: gobj_tables_authzsdb  // use "$container" attribute
-    //         }
-    //     );
-    //
-    //     /*----------------------*
-    //      *      USER Graphs
-    //      *----------------------*/
-    //     let gobj_tabs = gobj_create_pure_child(
-    //         "#graphs_authzs", // HACK href
-    //         "C_YUI_TABS",
-    //         {
-    //         },
-    //         gobj
-    //     );
-    //     let label = "AuthzDB Graphs";
-    //     menu.push(
-    //         {
-    //             id: gobj_name(gobj_tabs),
-    //             label: label,
-    //             icon: "yi-hexagon-nodes",
-    //             gobj: gobj_tabs   // use "$container" attribute
-    //         }
-    //     );
-    //
-    //     gobj_create_service(
-    //         "graphs_authzs",
-    //         "C_YUI_TREEDB_GRAPH",
-    //         {
-    //             subscriber: gobj,
-    //             treedb_name: "treedb_authzs",
-    //             gobj_remote_yuno: __remote_service__,
-    //             label: label,
-    //             icon: "yi-hexagon-nodes"
-    //         },
-    //         gobj_tabs
-    //     );
-    //     priv.user_gobjs.push(gobj_tabs);
-    // }
 
     /*----------------------------------------*
      *      Design
@@ -475,58 +415,55 @@ function build_app(gobj, services_roles)
         }
     );
 
-    if(mqtt_broker_roles && strs_in_list(mqtt_broker_roles, ["root","owner"], true)) {
+    let treedb = "treedb_system_schema";
+    let roles = services_roles[treedb];
+    if(roles && strs_in_list(roles, ["root","owner"], true)) {
         /*-------------------------*
          *      SYSTEM Topics
          *-------------------------*/
-        let gobj_tables_mqtt_broker = gobj_create_service(
-            "#topics_mqtt_broker_system", // HACK href
+        let gobj_tables = gobj_create_service(
+            "#topics-" + treedb, // HACK href
             "C_YUI_TREEDB_TOPICS",
             {
                 gobj_remote_yuno: __remote_service__,
-                treedb_name: "treedb_mqtt_broker",
+                treedb_name: treedb,
                 system: true,
             },
             gobj
         );
-        priv.user_gobjs.push(gobj_tables_mqtt_broker);
-        // gobj_start(gobj_tables_mqtt_broker);
+        priv.user_gobjs.push(gobj_tables);
         menu.push(
             {
-                id: gobj_name(gobj_tables_mqtt_broker),
-                label: "MQTT Design",
+                id: gobj_name(gobj_tables),
+                label: "Topics-" + treedb,
                 icon: "yi-table",
-                gobj: gobj_tables_mqtt_broker  // use "$container" attribute
+                gobj: gobj_tables  // use "$container" attribute
+            }
+        );
+
+        /*----------------------*
+         *      USER Graphs
+         *----------------------*/
+        let gobj_graph_mqtt_broker = gobj_create_service(
+            "#graphs-" + treedb, // HACK href
+            "C_YUI_TREEDB_GRAPH",
+            {
+                gobj_remote_yuno: __remote_service__,
+                treedb_name: treedb,
+                system: true,
+            },
+            gobj
+        );
+        priv.user_gobjs.push(gobj_graph_mqtt_broker);
+        menu.push(
+            {
+                id: gobj_name(gobj_graph_mqtt_broker),
+                label: "Graphs-" + treedb,
+                icon: "yi-hexagon-nodes",
+                gobj: gobj_graph_mqtt_broker  // use "$container" attribute
             }
         );
     }
-
-    // TODO repon
-    // if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
-    //     /*-------------------------*
-    //      *      SYSTEM Topics
-    //      *-------------------------*/
-    //     let gobj_tables_authzsdb = gobj_create_service(
-    //         "#topics_authzs_system", // HACK href
-    //         "C_YUI_TREEDB_TOPICS",
-    //         {
-    //             gobj_remote_yuno: __remote_service__,
-    //             treedb_name: "treedb_authzs",
-    //             system: true,
-    //         },
-    //         gobj
-    //     );
-    //     priv.user_gobjs.push(gobj_tables_authzsdb);
-    //     // gobj_start(gobj_tables_authzsdb);
-    //     menu.push(
-    //         {
-    //             id: gobj_name(gobj_tables_authzsdb),
-    //             label: "AuthzDB Design",
-    //             icon: "yi-table",
-    //             gobj: gobj_tables_authzsdb  // use "$container" attribute
-    //         }
-    //     );
-    // }
 
     /*----------------------------------------*
      *      Developer
