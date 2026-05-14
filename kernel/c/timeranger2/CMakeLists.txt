@@ -44,6 +44,7 @@ set (SRCS
     src/tr_msg2db.c
     src/tr_queue.c
     src/tr_treedb.c
+    src/treedb_system_schema.c
 )
 
 set (HDRS
@@ -53,6 +54,7 @@ set (HDRS
     src/tr_msg2db.h
     src/tr_queue.h
     src/tr_treedb.h
+    src/treedb_system_schema.h
 )
 
 

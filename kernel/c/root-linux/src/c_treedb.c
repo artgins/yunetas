@@ -16,7 +16,7 @@
  *          "delete-topic"
  *
  *          Copyright (c) 2021 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -35,7 +35,7 @@
 #include "c_node.h"
 #include "c_treedb.h"
 
-#include "treedb_system_schema.c"
+#include "treedb_system_schema.h"
 
 /***************************************************************************
  *              Constants

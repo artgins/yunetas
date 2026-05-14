@@ -1,4 +1,15 @@
-#pragma once
+/****************************************************************************
+ *          TREEDB_SYSTEM_SCHEMA.C
+ *
+ *          Single source of truth for the treedb meta-schema.
+ *          Consumed by tr_treedb (_treedb_create_topic_cols_desc) and by
+ *          c_treedb (root-linux) to materialize the __system__ treedb.
+ *
+ *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2024-2026, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#include "treedb_system_schema.h"
 
 /*
  *
@@ -67,7 +78,7 @@
 
 */
 
-static char treedb_system_schema[]= "\
+char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
     'schema_version': '5',                              \n\

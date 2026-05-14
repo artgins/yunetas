@@ -6,7 +6,7 @@
  *          linked by child-parent relation.
  *
  *          Copyright (c) 2019 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -16,6 +16,7 @@
 #include <gobj.h>
 #include "timeranger2.h"
 #include "tr_treedb.h"
+#include "treedb_system_schema.h"
 
 /***************************************************************
  *              Constants
@@ -402,227 +403,58 @@ PRIVATE int delete_secondary_node(
 }
 
 /***************************************************************************
+ *  Build the meta-schema for treedb column descriptors.
  *
+ *  Single source of truth is the `cols` topic of `treedb_system_schema`
+ *  (see kernel/c/timeranger2/src/treedb_system_schema.{c,h}). This helper
+ *  parses that schema, extracts `topics[id=cols].cols` and returns it as
+ *  the array-of-objects shape that callers expect (each entry carries its
+ *  `id` as a regular field).
+ *
+ *  Ownership: the returned json_t belongs to the caller (matches the
+ *  prior json_pack-based contract). Parse-each-call on purpose — keeps
+ *  the function leak-free under CONFIG_DEBUG_TRACK_MEMORY; callers that
+ *  hit it on hot paths already cache the result themselves (see
+ *  topic_cols_desc in this file and in tr_msg2db.c).
  ***************************************************************************/
 PUBLIC json_t *_treedb_create_topic_cols_desc(void)
 {
-    /*
-     *  WARNING any change in this must be reflected in treedb_schema_treedb (c-core)
-     *  TODO se crea in-memory el desc de las cols, en vez de cogerlo de treedb_system_schema.c, porque pertenece a root-linux. Hay que arreglarlo
-     */
+    helper_quote2doublequote(treedb_system_schema);   // idempotent
+    json_t *jn_schema = legalstring2json(treedb_system_schema, TRUE);
+    if(!jn_schema) {
+        return NULL;    // Error already logged
+    }
+
+    json_t *jn_cols_topic = NULL;
+    size_t idx;
+    json_t *jn_topic;
+    json_array_foreach(json_object_get(jn_schema, "topics"), idx, jn_topic) {
+        const char *id = json_string_value(json_object_get(jn_topic, "id"));
+        if(id && strcmp(id, "cols") == 0) {
+            jn_cols_topic = jn_topic;
+            break;
+        }
+    }
+    if(!jn_cols_topic) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "treedb_system_schema has no 'cols' topic",
+            NULL
+        );
+        json_decref(jn_schema);
+        return NULL;
+    }
+
     json_t *topic_cols_desc = json_array();
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "id",
-            "header", "Id",
-            "fillspace", 10,
-            "type",
-                "string",
-            "flag",
-                "required",
-                "persistent"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s]}",
-            "id", "header",
-            "header", "Header",
-            "fillspace", 10,
-            "type",
-                "string",
-            "flag",
-                "required",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "fillspace",
-            "header", "Fillspace",
-            "fillspace", 3,
-            "type",
-                "integer",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
-            "id", "type",
-            "header", "Type",
-            "fillspace", 5,
-            "type", "string",
-            "enum",
-                "string",       // Real types
-                "integer",
-                "object",
-                "dict",
-                "array",
-                "list",
-                "real",
-                "boolean",
-                "blob",
-            "flag",
-                "enum",
-                "required",
-                "persistent",
-                "notnull",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "placeholder",
-            "header", "Placeholder",
-            "fillspace", 10,
-            "type",
-                "string",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s], s:[s,s,s]}",
-            "id", "flag",
-            "header", "Flag",
-            "fillspace", 14,
-            "type", "array",
-            "enum",
-                "",
-                "persistent",   // Field attributes
-                "required",
-                "notnull",
-                "wild",
-                "inherit",
-                "readable",
-                "writable",
-                "hidden",
-                "stats",
-                "rstats",
-                "pstats",
-
-                "hook",         // special field types
-                "fkey",
-                "enum",
-
-                // normal field types
-                // (WARNING some of them not processed or checked by tranger2)
-                // for example by js in frontend apps
-
-                "template",
-                "uuid",
-                "rowid",
-                "password",
-                "email",
-                "url",
-                "time",
-                "now",
-                "date",
-                "color",
-                "image",
-                "tel",
-                "table",
-                "id",
-                "currency",
-                "hex",
-                "binary",
-                "percent",
-                "base64",
-                "coordinates",
-                "gbuffer",
-
-            "flag",
-                "enum",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "hook",
-            "header", "Hook",
-            "fillspace", 8,
-            "type",
-                "blob",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "pkey2s",
-            "header", "Secondary Keys",
-            "fillspace", 8,
-            "type",
-                "blob",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "default",
-            "header", "Default",
-            "fillspace", 8,
-            "type",
-                "blob",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "description",
-            "header", "Description",
-            "fillspace", 8,
-            "type",
-                "string",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s]}",
-            "id", "properties",
-            "header", "Properties",
-            "fillspace", 8,
-            "type",
-                "blob",
-            "flag",
-                "persistent",
-                "writable"
-        )
-    );
-    json_array_append_new(
-        topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s]}",
-            "id", "_geometry",
-            "header", "Geometry",
-            "fillspace", 8,
-            "type",
-                "blob",
-            "flag",
-                "persistent"
-        )
-    );
+    const char *col_id;
+    json_t *jn_col;
+    json_object_foreach(json_object_get(jn_cols_topic, "cols"), col_id, jn_col) {
+        json_t *entry = json_deep_copy(jn_col);
+        json_object_set_new(entry, "id", json_string(col_id));
+        json_array_append_new(topic_cols_desc, entry);
+    }
+    json_decref(jn_schema);
 
     return topic_cols_desc;
 }
