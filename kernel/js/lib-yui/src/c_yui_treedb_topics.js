@@ -362,12 +362,6 @@ function process_treedb_descs(gobj)
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     for(const [key, desc] of Object.entries(descs)) {
         if(system) {
-            if(key === "__snaps__") {
-                continue;
-            }
-            if(key.substring(0, 2) !== "__") {
-                continue;
-            }
         } else {
             if(key.substring(0, 2) === "__") {
                 continue;
