@@ -471,13 +471,13 @@ function build_app(gobj, services_roles)
     if(main_roles && strs_in_list(main_roles, ["developer"], true)) {
         let gobj_tree_js = gobj_create_service(
             "#JS", // HACK href
-            "C_UI_TODO", //Ui_gobj_tree_js,
+            "C_YUI_GOBJ_TREE_JS",
             {
+                subscriber: gobj,
             },
             gobj
         );
         priv.user_gobjs.push(gobj_tree_js);
-        // gobj_start(gobj_tree_js);
         menu.push(
             {
                 id: gobj_name(gobj_tree_js),

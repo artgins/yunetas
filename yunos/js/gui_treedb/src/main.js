@@ -43,6 +43,7 @@ import {
     register_c_yui_treedb_topic_with_form,
     register_c_yui_treedb_graph,
     register_c_g6_nodes_tree,
+    register_c_yui_gobj_tree_js,
     inject_svg_icons,
 } from "@yuneta/lib-yui";
 
@@ -138,6 +139,7 @@ function main()
      */
     register_c_yuneta_gui();
     register_c_login();
+    register_c_yui_gobj_tree_js();
     register_c_ui_todo();
 
     /*

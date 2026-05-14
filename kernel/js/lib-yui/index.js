@@ -18,6 +18,7 @@ export { register_c_yui_routing } from "./src/c_yui_routing.js";
 export { register_c_yui_map } from "./src/c_yui_map.js";
 export { register_c_yui_uplot } from "./src/c_yui_uplot.js";
 export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
+export { register_c_yui_gobj_tree_js } from "./src/c_yui_gobj_tree_js.js";
 
 /*
  *  Declarative shell + menu navigation (new in v7.4)
