@@ -408,6 +408,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
 {
     /*
      *  WARNING any change in this must be reflected in treedb_schema_treedb (c-core)
+     *  TODO se crea in-memory el desc de las cols, en vez de cogerlo de treedb_system_schema.c, porque pertenece a root-linux. Hay que arreglarlo
      */
     json_t *topic_cols_desc = json_array();
     json_array_append_new(
@@ -608,6 +609,18 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
             "flag",
                 "persistent",
                 "writable"
+        )
+    );
+    json_array_append_new(
+        topic_cols_desc,
+        json_pack("{s:s, s:s, s:i, s:s, s:[s]}",
+            "id", "_geometry",
+            "header", "Geometry",
+            "fillspace", 8,
+            "type",
+                "blob",
+            "flag",
+                "persistent"
         )
     );
 
