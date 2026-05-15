@@ -27,6 +27,7 @@ import {
     kw_get_dict_value,
     kw_get_str,
     gobj_send_event,
+    gobj_publish_event,
     gobj_write_attr,
     gobj_short_name,
     gobj_read_str_attr,
@@ -297,7 +298,13 @@ function add_tab(gobj, gobj2, id, text, icon)
      */
     $a.addEventListener("click", function(ev) {
         ev.preventDefault();
+        /*  Switch locally now (instant, works standalone) … */
         gobj_send_event(gobj, "EV_SHOW", {href: id}, gobj);
+        /*  … and tell any host so it can mirror the topic into the
+         *  URL path (deep-link / reload restore).  Optional sub:
+         *  EVF_NO_WARN_SUBS so standalone use stays quiet. */
+        let topic = id.indexOf("?") >= 0 ? id.split("?")[1] : id;
+        gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: topic});
     });
 
     /*
@@ -1164,7 +1171,9 @@ function create_gclass(gclass_name)
         ["EV_DELETE_RECORD",        0],
         ["EV_REFRESH_TOPIC",        0],
         ["EV_SHOW",                 0],
-        ["EV_HIDE",                 0]
+        ["EV_HIDE",                 0],
+        ["EV_TOPIC_SELECTED",
+            event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(

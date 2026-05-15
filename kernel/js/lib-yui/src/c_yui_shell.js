@@ -879,6 +879,30 @@ function navigate_to(gobj, route)
         }
     }
 
+    /*  View-owned dynamic subroute: an undeclared route that extends
+     *  a declared one (`/a/b/c` under declared `/a/b`) mounts the
+     *  declared ancestor's view and hands it the trailing `subpath`.
+     *  Lets a content view own a 3rd, dynamic level (e.g. the treedb
+     *  topic) so the full path is a real, deep-linkable URL that
+     *  survives reload — without declaring runtime-only segments in
+     *  app_config.  Resolution keys the view by the BASE route, so a
+     *  subpath change reuses the same instance (no rebuild).        */
+    let matched_route = route;
+    let subpath = "";
+    if(!entry || !entry.target) {
+        let parts = route.split("/").filter(s => s.length > 0);
+        while(parts.length > 0 && (!entry || !entry.target)) {
+            parts.pop();
+            let cand = "/" + parts.join("/");
+            let e = priv.item_index[cand];
+            if(e && e.target) {
+                entry = e;
+                matched_route = cand;
+                subpath = route.slice(cand.length).replace(/^\/+/, "");
+            }
+        }
+    }
+
     if(!entry || !entry.target) {
         /*  Unknown route → fall back to the default route (standard
          *  SPA behaviour).  Resilient to stale/foreign hashes:
@@ -916,9 +940,10 @@ function navigate_to(gobj, route)
         return;
     }
 
-    /*  Hide previous */
+    /*  View instances are keyed by the BASE (declared) route so a
+     *  subpath-only change reuses the same view (no rebuild). */
     let prev_route = stage.active_route;
-    if(prev_route && prev_route !== route) {
+    if(prev_route && prev_route !== matched_route) {
         let prev_gobj = stage.items[prev_route];
         if(prev_gobj) {
             let $c = gobj_read_attr(prev_gobj, "$container");
@@ -939,21 +964,21 @@ function navigate_to(gobj, route)
         }
     }
 
-    /*  Show or create current */
-    let cur = stage.items[route];
+    /*  Show or create current (keyed by base route) */
+    let cur = stage.items[matched_route];
     if(!cur) {
-        cur = build_view_gobj(gobj, entry, route, stage);
+        cur = build_view_gobj(gobj, entry, matched_route, stage);
         if(!cur) {
             return;
         }
-        stage.items[route] = cur;
+        stage.items[matched_route] = cur;
     }
     let $c = gobj_read_attr(cur, "$container");
     if($c) {
         $c.classList.remove("is-hidden");
     }
 
-    stage.active_route = route;
+    stage.active_route = matched_route;
     gobj_write_attr(gobj, "current_route", route);
 
     /*  Show/hide secondary navs according to parent item */
@@ -988,6 +1013,8 @@ function navigate_to(gobj, route)
      *  each other. */
     gobj_publish_event(gobj, "EV_ROUTE_CHANGED", {
         route: route,
+        base: matched_route,
+        subpath: subpath,
         item: entry.item,
         parent_item: entry.parent_item,
         stage: stage_name,

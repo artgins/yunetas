@@ -459,15 +459,26 @@ Recommended default: `keep_alive`.
   listener. Any click on `C_YUI_NAV` changes `window.location.hash`
   and the shell reacts.
 - **Programmatic**: `yui_shell_navigate(shell_gobj, "/dash/ov")`.
-- **Unknown route → default**: a route not declared in any menu item
-  (stale bookmark, old deep link, foreign hash) redirects to the
-  default route (`default_route` attr or
-  `shell.stages.main.default_route`) instead of dead-ending. Only a
-  route whose *default itself* is unresolvable shows the loud
-  misconfig placeholder.
-- **Outgoing event**: `EV_ROUTE_CHANGED` (with `route`, `item`,
-  `parent_item`, `stage`). Navs consume it to mark the active item;
-  views may subscribe to react.
+- **View-owned dynamic subroute (3rd, runtime level)**: a route that
+  *extends* a declared one (`/a/b/c` under declared `/a/b`) mounts the
+  declared ancestor's view and is **not** rejected. The view is keyed
+  and reused by the BASE route (a subpath change does **not** rebuild
+  it); the full path goes to the hash / `current_route`. The view
+  receives the trailing `subpath` via `EV_ROUTE_CHANGED` and drives
+  changes with `yui_shell_navigate(shell, "<base>/<seg>")`. This is
+  how a content view exposes a deep-linkable, reload-surviving 3rd
+  level (e.g. the treedb topic) without declaring runtime-only
+  segments in `app_config`. (The 2-level *menu* contract is
+  unchanged — this is view-internal, not a nav level.)
+- **Unknown route → default**: a route that is neither declared nor a
+  subpath of a declared route (stale bookmark, foreign hash) redirects
+  to the default route (`default_route` attr or
+  `shell.stages.main.default_route`). Only a route whose *default
+  itself* is unresolvable shows the loud misconfig placeholder.
+- **Outgoing event**: `EV_ROUTE_CHANGED` (with `route` full path,
+  `base` declared route, `subpath` trailing view-owned part, `item`,
+  `parent_item`, `stage`, `menu_id`). Navs consume it to mark the
+  active item; views subscribe to react to subpath changes.
 
 ---
 
