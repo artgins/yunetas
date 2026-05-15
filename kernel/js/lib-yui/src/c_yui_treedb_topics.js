@@ -286,6 +286,21 @@ function add_tab(gobj, gobj2, id, text, icon)
     );
 
     /*
+     *  Self-contained tab navigation.  The `href` is kept only as a
+     *  stable id (remove_tab selects by it); intercept the click so
+     *  we do NOT mutate window.location.hash.  Historically this
+     *  component relied on the legacy C_YUI_MAIN/C_YUI_ROUTING host
+     *  catching `#<gobj>?<topic>` and sending EV_SHOW back; under the
+     *  new C_YUI_SHELL no host does that and the bogus hash would be
+     *  rejected by the shell router.  Dispatching EV_SHOW to self
+     *  works under any host (old or new).
+     */
+    $a.addEventListener("click", function(ev) {
+        ev.preventDefault();
+        gobj_send_event(gobj, "EV_SHOW", {href: id}, gobj);
+    });
+
+    /*
      *  SUB-CONTAINER, add child content
      */
     let $sub_container = $container.querySelector('.sub-container');
