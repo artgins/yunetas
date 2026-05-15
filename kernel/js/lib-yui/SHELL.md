@@ -86,12 +86,18 @@ Three orthogonal concepts:
 - **Zone** — region inside `base`. There are 7 fixed zones laid out on
   a CSS grid:
   ```
-  +------------------- top --------------------+
-  +----------------- top-sub ------------------+
-  | left | ............ center .......| right |
-  +---------------- bottom-sub ----------------+
-  +------------------ bottom ------------------+
+  +-------------------- top --------------------+
+  |      | +------- top-sub --------+ |        |
+  | left | |......... center .......| |  right |
+  +----------------- bottom-sub ----------------+
+  +------------------- bottom ------------------+
   ```
+  `top-sub` bands the **content column** (above `center`), not
+  the full width: on desktop the secondary nav (tabs) does not
+  overlap the `left` primary menu, which keeps full height. On
+  mobile `left`/`right` are hidden and collapse to 0, so
+  `top-sub`/`center` span the whole width. `bottom-sub` and
+  `bottom` remain full-width rows (unchanged).
   A zone can *host* (`host`) a menu, a toolbar, or a *stage*. It is
   hidden per breakpoint via the `show_on` operator.
 - **Stage** — zone marked as a container of routed gobjs. The most

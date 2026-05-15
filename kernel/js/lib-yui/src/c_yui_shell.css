@@ -41,10 +41,17 @@
  *
  *      grid-template-areas:
  *          top     top     top
- *          topsub  topsub  topsub
+ *          left    topsub  right
  *          left    center  right
  *          botsub  botsub  botsub
  *          bottom  bottom  bottom
+ *
+ *      `top-sub` sits at the TOP OF THE CONTENT column (above
+ *      `center`), not as a full-width band — so on desktop the
+ *      secondary nav (tabs) does not span over the `left` primary
+ *      menu, which keeps its full height beside the content.  On
+ *      mobile `left`/`right` are hidden, their `auto` columns
+ *      collapse to 0, and `top-sub`/`center` take the full width.
  *============================================================*/
 .yui-base-grid {
     display: grid;
@@ -52,7 +59,7 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
         "top    top    top"
-        "topsub topsub topsub"
+        "left   topsub right"
         "left   center right"
         "botsub botsub botsub"
         "bottom bottom bottom";
