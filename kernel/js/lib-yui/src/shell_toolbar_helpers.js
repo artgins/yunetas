@@ -25,7 +25,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 
-export const TOOLBAR_ITEM_KINDS = ["brand", "avatar", "action"];
+export const TOOLBAR_ITEM_KINDS = ["brand", "avatar", "connection", "action"];
 export const TOOLBAR_ACTION_TYPES = ["navigate", "drawer", "event", "dropdown"];
 
 
@@ -42,7 +42,7 @@ export function classify_toolbar_item(item)
         return "action";
     }
     let t = item.type;
-    if(t === "brand" || t === "avatar") {
+    if(t === "brand" || t === "avatar" || t === "connection") {
         return t;
     }
     return "action";
@@ -87,6 +87,15 @@ export function validate_toolbar_item(item)
     /*  Validate the action shape, including the new "dropdown" type. */
     if(item.action !== undefined && item.action !== null) {
         let nested = validate_action(item.action, id);
+        for(let w of nested) {
+            warnings.push(w);
+        }
+    }
+
+    /*  Optional secondary (right-click) action — same shape as action,
+     *  used e.g. by a connection indicator to open a dev panel. */
+    if(item.context_action !== undefined && item.context_action !== null) {
+        let nested = validate_action(item.context_action, id);
         for(let w of nested) {
             warnings.push(w);
         }

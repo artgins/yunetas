@@ -218,6 +218,13 @@ export function yui_shell_show_modal(shell, content, opts)
         if($modal.parentNode) {
             $modal.parentNode.removeChild($modal);
         }
+        if(opts && typeof opts.on_close === "function") {
+            try {
+                opts.on_close();
+            } catch(e) {
+                log_warning(`yui_shell_show_modal: on_close threw: ${e}`);
+            }
+        }
     };
     close_fn = close;
 

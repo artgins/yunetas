@@ -219,9 +219,22 @@ is only one main stage named `main` in `center`.
 
 | Axis | Field | Values | Effect |
 |---|---|---|---|
-| Form | `type` | `"brand"` · `"avatar"` · *omitted (action)* | Renderer kind |
+| Form | `type` | `"brand"` · `"avatar"` · `"connection"` · *omitted (action)* | Renderer kind |
 | Behaviour | `action.type` | `"navigate"` · `"drawer"` · `"event"` · `"dropdown"` | What the click does |
+| Secondary | `context_action` | same shape as `action` | Right-click (contextmenu) behaviour |
 | Visibility | `show_on` | `">=tablet"` · `"<desktop"` · `"*"` · ... | Per-item breakpoint |
+
+- **`type:"connection"`** — a small status dot reflecting the backend
+  connection. The host drives the state with
+  `yui_shell_set_connection_state(shell, bool)` (event-driven setter,
+  not a pull provider like avatar): call it `true` on `EV_ON_OPEN`,
+  `false` on `EV_ON_CLOSE`/transport errors. CSS owns the look
+  (`.yui-toolbar-conn.is-connected` / `.is-disconnected`). Optional
+  `action` (left-click) and `context_action` (right-click) honored —
+  e.g. right-click to open a dev panel.
+- **`context_action`** (any item kind) — optional secondary action
+  fired on right-click (`contextmenu`, `preventDefault`ed). Same
+  object shape and `action.type` set as `action`.
 
 Compose freely — `type:"avatar"` + `action:{type:"dropdown",items:[…]}`
 is the canonical user menu.  Dropdown sub-items reuse the same
@@ -476,6 +489,10 @@ audit a gobj's behaviour: every intent is recorded regardless of
 outcome, and every successful state transition has its own event.
 
 Public helpers (import from `@yuneta/lib-yui`):
+- `yui_shell_set_connection_state(shell, connected)` — paint every
+  `type:"connection"` toolbar dot connected/disconnected. Call from
+  the app's transport handlers (`EV_ON_OPEN` → `true`, close/errors →
+  `false`).
 - `yui_shell_navigate(shell, route)` — programmatic navigation.
 - `yui_shell_open_drawer(shell, menu_id?)`,
   `yui_shell_close_drawer(shell, menu_id?)`,
@@ -510,8 +527,12 @@ yui_shell_show_warning(shell, "Watch out");
 yui_shell_show_error(shell,   "Boom");
 
 /*  Non-blocking modal (Bulma .modal-content + .box).  Click on
- *  background, the close button or Escape close it. */
-let { close } = yui_shell_show_modal(shell, "Some inline content");
+ *  background, the close button or Escape close it.  `content` may
+ *  be an HTMLElement (mounted as-is).  opts: { dismiss_on_background,
+ *  on_close }.  on_close() fires once after the modal is removed by
+ *  ANY path (programmatic, Escape, backdrop, X) — use it to destroy
+ *  a gobj you mounted inside. */
+let { close } = yui_shell_show_modal(shell, $el, { on_close: cleanup });
 
 /*  Blocking dialogs.  Escape, the close button, and click on the
  *  background all resolve with the LAST button's value (cancel/no/

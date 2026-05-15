@@ -338,6 +338,29 @@
 }
 
 /*============================================================
+ *      Toolbar — type:"connection"
+ *      Backend-connection status dot.  State toggled by the
+ *      host via yui_shell_set_connection_state(shell, bool).
+ *============================================================*/
+.yui-toolbar-conn .yui-conn-dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 9999px;
+    background-color: #9aa5b1;
+    box-shadow: 0 0 0 2px rgba(154, 165, 177, 0.25);
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.yui-toolbar-conn.is-connected .yui-conn-dot {
+    background-color: #1FAE6F;
+    box-shadow: 0 0 0 2px rgba(31, 174, 111, 0.30);
+}
+.yui-toolbar-conn.is-disconnected .yui-conn-dot {
+    background-color: #D64545;
+    box-shadow: 0 0 0 2px rgba(214, 69, 69, 0.30);
+}
+
+/*============================================================
  *      Toolbar — action.type:"dropdown"
  *      Panel anchored to the trigger; mounted on the popup
  *      layer so it sits above the base grid but below modals.

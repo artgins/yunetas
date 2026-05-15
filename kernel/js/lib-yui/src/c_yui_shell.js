@@ -133,6 +133,12 @@ function mt_create(gobj)
          *  The provider is a () => string callback owned by the host. */
         avatar_provider: null,
         avatar_nodes:    [],
+        /*  Connection-indicator support — every toolbar item with
+         *  type:"connection" registers its dot <span> here so
+         *  yui_shell_set_connection_state(shell, bool) can repaint the
+         *  backend-connected state.  State is host/event-driven (unlike
+         *  the avatar provider it is a setter, not a pull callback). */
+        conn_nodes:      [],
         /*  Currently open toolbar dropdown panel, if any.  Tracked here
          *  so a second click on any trigger (or programmatic close) can
          *  tear down the previous one through the same code path. */
@@ -1052,6 +1058,7 @@ function build_toolbar(gobj, config)
      *  is the only caller now; a hot-reload helper would stale-leak
      *  every span without this). */
     priv.avatar_nodes = [];
+    priv.conn_nodes = [];
 
     /*  Toolbar labels follow the same i18n contract as nav labels:
      *  every translatable text node carries `i18n: <canonical key>`,
@@ -1082,6 +1089,8 @@ function build_toolbar(gobj, config)
             $item = build_toolbar_brand_item(gobj, it);
         } else if(kind === "avatar") {
             $item = build_toolbar_avatar_item(gobj, it);
+        } else if(kind === "connection") {
+            $item = build_toolbar_connection_item(gobj, it);
         } else {
             $item = build_toolbar_action_item(gobj, it);
         }
@@ -1144,6 +1153,7 @@ function build_toolbar_action_item(gobj, it)
         ev.preventDefault();
         handle_toolbar_action(gobj, it, $item);
     });
+    attach_context_action(gobj, $item, it);
     return $item;
 }
 
@@ -1271,6 +1281,63 @@ function refresh_avatars(gobj)
     for(let $n of priv.avatar_nodes) {
         paint_avatar(priv, $n);
     }
+}
+
+/************************************************************
+ *  Wire an optional secondary (right-click) action on a
+ *  toolbar item.  Same action shape as `action`; used e.g. by
+ *  the connection indicator to open a dev panel on right-click.
+ ************************************************************/
+function attach_context_action(gobj, $item, it)
+{
+    if(!it || !it.context_action) {
+        return;
+    }
+    $item.addEventListener("contextmenu", ev => {
+        ev.preventDefault();
+        handle_toolbar_action(
+            gobj, {id: it.id, action: it.context_action}, $item
+        );
+    });
+}
+
+/************************************************************
+ *  Renderer for type:"connection" — a small status dot that
+ *  reflects the backend connection.  The host drives the state
+ *  via yui_shell_set_connection_state(shell, bool); the dot
+ *  <span> is registered in priv.conn_nodes.  Optional `action`
+ *  (left-click) and `context_action` (right-click) are honored.
+ ************************************************************/
+function build_toolbar_connection_item(gobj, it)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    let aria_key  = it.aria_label || it.name || it.id || "backend connection";
+    let i18n_aria = it.aria_label || it.name || "backend connection";
+    let attrs = {
+        class: "navbar-item yui-toolbar-item yui-toolbar-conn " +
+               "is-unselectable is-disconnected",
+        type: "button",
+        "data-toolbar-item-id": it.id || "",
+        "aria-label": aria_key,
+        "data-i18n-aria-label": i18n_aria
+    };
+    let tip = it.tooltip || it.aria_label;
+    if(tip) {
+        attrs.title = tip;
+        attrs["data-i18n-title"] = tip;
+    }
+    let $dot  = createElement2(["span", {class: "yui-conn-dot"}, ""]);
+    let $item = createElement2(["button", attrs, [$dot]]);
+    let action_type = (it.action && it.action.type) || "";
+    if(action_type !== "") {
+        $item.addEventListener("click", ev => {
+            ev.preventDefault();
+            handle_toolbar_action(gobj, it, $item);
+        });
+    }
+    attach_context_action(gobj, $item, it);
+    priv.conn_nodes.push($item);
+    return $item;
 }
 
 function find_toolbar_zone(config)
@@ -1954,6 +2021,26 @@ function yui_shell_refresh_avatars(shell_gobj)
 }
 
 /************************************************************
+ *  Set the backend-connection state painted by every
+ *  type:"connection" toolbar item.  Host/event-driven: the
+ *  app calls this from its transport handlers (EV_ON_OPEN →
+ *  true, EV_ON_CLOSE / errors → false).  Toggles the
+ *  is-connected / is-disconnected classes; CSS owns the look.
+ ************************************************************/
+function yui_shell_set_connection_state(shell_gobj, connected)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv || !is_array(priv.conn_nodes)) {
+        return;
+    }
+    let on = !!connected;
+    for(let $n of priv.conn_nodes) {
+        $n.classList.toggle("is-connected", on);
+        $n.classList.toggle("is-disconnected", !on);
+    }
+}
+
+/************************************************************
  *  Programmatic close of any open toolbar dropdown.  Useful for
  *  external triggers (e.g. EV_LOGOUT firing from elsewhere) that
  *  want to dismiss whatever menu is on screen.
@@ -1981,5 +2068,6 @@ export {
     yui_shell_pop_escape,
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
+    yui_shell_set_connection_state,
     yui_shell_close_dropdown
 };

@@ -41,6 +41,22 @@ test("classify: type:'avatar' classifies as 'avatar'", () => {
     );
 });
 
+test("classify: type:'connection' classifies as 'connection'", () => {
+    assert.equal(
+        classify_toolbar_item({ id: "conn", type: "connection" }),
+        "connection"
+    );
+});
+
+test("validate: bad context_action surfaces a warning", () => {
+    let r = validate_toolbar_item({
+        id: "conn", type: "connection",
+        context_action: { type: "bogus" }
+    });
+    assert.equal(r.ok, false);
+    assert.ok(r.warnings.some(w => w.includes("unknown action.type")));
+});
+
 test("classify: unknown type falls back to 'action'", () => {
     assert.equal(
         classify_toolbar_item({ id: "?", type: "phantom" }),
@@ -203,7 +219,10 @@ test("dropdown: invalid sub-action surfaces underlying warning", () => {
  *      Constants exported are stable
  *============================================================*/
 test("kinds + action-type constants are exposed", () => {
-    assert.deepEqual(TOOLBAR_ITEM_KINDS, ["brand", "avatar", "action"]);
+    assert.deepEqual(
+        TOOLBAR_ITEM_KINDS,
+        ["brand", "avatar", "connection", "action"]
+    );
     assert.deepEqual(
         TOOLBAR_ACTION_TYPES,
         ["navigate", "drawer", "event", "dropdown"]
