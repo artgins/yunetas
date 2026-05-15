@@ -818,8 +818,21 @@ function ac_show(gobj, event, kw, src)
         /*
          *  href pointing to inside gobj (with ? right part)
          */
-        if($current_item) {
+        if($current_item && $current_item !== $a.parentNode) {
             $current_item.classList.remove('is-active');
+            /*
+             *  ac_show is the single owner of the tab switch: a
+             *  self-contained tab click sends only EV_SHOW (no
+             *  EV_HIDE from a host router), so hide the previously
+             *  shown topic content here or it stays visible.
+             */
+            let prev = $current_item.gobj;
+            if(prev) {
+                let $prev = gobj_read_attr(prev, "$container");
+                if($prev) {
+                    $prev.classList.add("is-hidden");
+                }
+            }
         }
         $current_item = $a.parentNode;
         gobj_write_attr(gobj, "$current_item", $current_item);
