@@ -293,7 +293,11 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    let __yui_main__ = gobj_find_service("__yui_main__", true);
+    /*  Optional legacy integration: EV_THEME from C_YUI_MAIN
+     *  (old shell).  Under the new C_YUI_SHELL there is no
+     *  __yui_main__ — look it up SILENTLY (no verbose) so its
+     *  absence is not logged as an error every mount. */
+    let __yui_main__ = gobj_find_service("__yui_main__");
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
         gobj_write_attr(gobj, "theme", gobj_read_str_attr(__yui_main__, "theme"));

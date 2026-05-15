@@ -180,7 +180,11 @@ function mt_create(gobj)
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
 
-    let __yui_main__ = gobj_find_service("__yui_main__", true);
+    /*  Optional legacy integration: EV_RESIZE from C_YUI_MAIN
+     *  (old shell).  Under the new C_YUI_SHELL there is no
+     *  __yui_main__ — look it up SILENTLY (no verbose) so its
+     *  absence is not logged as an error every mount. */
+    let __yui_main__ = gobj_find_service("__yui_main__");
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
     }
