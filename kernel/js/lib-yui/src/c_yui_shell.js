@@ -880,6 +880,24 @@ function navigate_to(gobj, route)
     }
 
     if(!entry || !entry.target) {
+        /*  Unknown route → fall back to the default route (standard
+         *  SPA behaviour).  Resilient to stale/foreign hashes:
+         *  bookmarks, old deep links, or a legacy component that
+         *  wrote `#<gobj>?<sub>` into the URL before navigation was
+         *  made self-contained.  Only dead-end in a placeholder when
+         *  the default is itself unresolvable (a real misconfig).   */
+        let config = gobj_read_attr(gobj, "config") || {};
+        let def = gobj_read_attr(gobj, "default_route") ||
+                  (config.shell && config.shell.stages &&
+                   config.shell.stages.main &&
+                   config.shell.stages.main.default_route) || "";
+        if(!empty_string(def) && def !== route) {
+            log_warning(
+                `C_YUI_SHELL: unknown route '${route}', ` +
+                `redirecting to default '${def}'`
+            );
+            return navigate_to(gobj, def);
+        }
         log_error(`C_YUI_SHELL: no target for route '${route}'`);
         show_stage_placeholder(
             gobj, "main",

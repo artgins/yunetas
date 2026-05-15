@@ -459,6 +459,12 @@ Recommended default: `keep_alive`.
   listener. Any click on `C_YUI_NAV` changes `window.location.hash`
   and the shell reacts.
 - **Programmatic**: `yui_shell_navigate(shell_gobj, "/dash/ov")`.
+- **Unknown route → default**: a route not declared in any menu item
+  (stale bookmark, old deep link, foreign hash) redirects to the
+  default route (`default_route` attr or
+  `shell.stages.main.default_route`) instead of dead-ending. Only a
+  route whose *default itself* is unresolvable shows the loud
+  misconfig placeholder.
 - **Outgoing event**: `EV_ROUTE_CHANGED` (with `route`, `item`,
   `parent_item`, `stage`). Navs consume it to mark the active item;
   views may subscribe to react.
