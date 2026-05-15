@@ -787,6 +787,9 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
 
     switch(field_desc.type) {
         case "string":
+        case "email":   // string subtype — plain text in the cell
+        case "tel":     // string subtype — plain text in the cell
+        case "url":     // string subtype — plain text in the cell
             break;
         case "integer":
             break;
@@ -2020,6 +2023,9 @@ function transform__treedb_value_2_form_value(gobj, col, value)
 
     switch(field_desc.type) {
         case "string":
+        case "email":   // string subtype
+        case "tel":     // string subtype
+        case "url":     // string subtype
             break;
         case "integer":
             break;
