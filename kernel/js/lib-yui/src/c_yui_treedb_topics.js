@@ -411,13 +411,30 @@ function process_treedb_descs(gobj)
     }
 
     /*
-     *  Active the last_selection
+     *  Activate the selection: in-memory last_selection if set
+     *  (intra-session tab change), else the persisted topic from a
+     *  previous page load, else null → ac_show selects the first
+     *  tab.  ac_show falls back to first if the href has no tab
+     *  (e.g. the persisted topic no longer exists in the schema).
      */
+    let href = gobj_read_str_attr(gobj, "last_selection");
+    if(!href) {
+        try {
+            let topic = window.localStorage.getItem(
+                `yui_treedb_topics:${gobj_name(gobj)}`
+            );
+            if(topic) {
+                href = `${gobj_name(gobj)}?${topic}`;
+            }
+        } catch(e) {
+            // localStorage unavailable — fall through to first tab
+        }
+    }
     gobj_send_event(
         gobj,
         "EV_SHOW",
         {
-            href: gobj_read_str_attr(gobj, "last_selection")
+            href: href
         },
         gobj
     );
@@ -853,8 +870,21 @@ function ac_show(gobj, event, kw, src)
 
     /*
      *  Save last selection, the topics can be not arrived yet.
+     *  Also persist the topic so a full page reload (the gobj is
+     *  recreated, last_selection is lost) restores the same tab.
+     *  Keyed by the stable gobj name so it is per-treedb/per-view.
      */
     gobj_write_attr(gobj, "last_selection", href);
+    if(href && href.indexOf("?") >= 0) {
+        let topic = href.split("?")[1];
+        try {
+            window.localStorage.setItem(
+                `yui_treedb_topics:${gobj_name(gobj)}`, topic
+            );
+        } catch(e) {
+            // localStorage unavailable (privacy mode) — non-fatal
+        }
+    }
 
     /*
      *  Show sub-container
