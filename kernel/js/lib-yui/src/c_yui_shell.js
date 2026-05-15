@@ -1107,7 +1107,8 @@ function build_toolbar_action_item(gobj, it)
             ["i", {class: it.icon, "aria-hidden": "true"}]]);
     }
     if(!empty_string(it.name)) {
-        children.push(["span", {i18n: it.name}, it.name]);
+        children.push(["span", {class: "yui-toolbar-item-label", i18n: it.name},
+            it.name]);
     }
 
     let aria_key = it.aria_label || it.name || it.id || "";

@@ -248,6 +248,38 @@
 .yui-toolbar {
     min-height: 2.5rem;
 }
+/*  Fixed app toolbar: ALWAYS a single row.  Bulma's .navbar stacks
+ *  .navbar-end below .navbar-brand on touch (<1024px) because the end
+ *  group is not wrapped in a burger .navbar-menu.  For a fixed shell
+ *  toolbar that is wrong — override Bulma's responsive navbar so the
+ *  start and end groups stay on one line at every breakpoint. */
+.yui-toolbar.navbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+.yui-toolbar .yui-toolbar-start {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+.yui-toolbar .yui-toolbar-end {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    flex-wrap: nowrap;
+    margin-left: auto;
+}
+/*  Phones: keep the toolbar compact — drop the brand wordmark and the
+ *  item text labels, keep the small logo + icons (icon-only toolbar). */
+@media screen and (max-width: 768px) {
+    .yui-toolbar-brand-wordmark,
+    .yui-toolbar-item-label {
+        display: none;
+    }
+}
 .yui-toolbar-item {
     background: transparent;
     border: none;
