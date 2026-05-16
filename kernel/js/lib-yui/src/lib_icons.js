@@ -98,10 +98,11 @@ const ICONS = `<svg xmlns="http://www.w3.org/2000/svg">
     </symbol>
     <!-- plus (create node). Deliberately NOT the FA7 solid plus:
          its arms are ~14% of the width and read thin next to the
-         other solid glyphs. This is a bold geometric plus (~23%
-         arm thickness) so it carries the same visual weight. -->
+         other solid glyphs. Bold geometric plus (~23% arm
+         thickness) with long arms (32..480) so it reads as a "+",
+         not a stubby Red-Cross square. -->
     <symbol id="g6-icon-plus" viewBox="0 0 512 512">
-        <path fill="currentColor" d="M316 64 L316 196 L448 196 L448 316 L316 316 L316 448 L196 448 L196 316 L64 316 L64 196 L196 196 L196 64 Z"/>
+        <path fill="currentColor" d="M316 32 L316 196 L480 196 L480 316 L316 316 L316 480 L196 480 L196 316 L32 316 L32 196 L196 196 L196 32 Z"/>
     </symbol>
     <!-- floppy-disk (save) -->
     <symbol id="g6-icon-save" viewBox="0 0 448 512">
