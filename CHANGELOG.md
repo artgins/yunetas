@@ -1,6 +1,103 @@
 # **Changelog**
 
 ## Unreleased
+
+## v7.3.3 -- 16/May/2026
+    - **fix(lib-yui): G6 v5 canvas panning (touch broken, desktop
+      desynced)** (PR #115).  G6 v5.1.0 `drag-canvas` derived the pan
+      delta from `event.movement`, which `@antv/g` fills from native
+      `PointerEvent.movementX/Y`: left at 0 for touch pointers on most
+      mobile browsers (canvas barely panned) and skewed by OS pointer
+      acceleration / `devicePixelRatio` on desktop (graph lagged the
+      cursor).  New `g6_drag_canvas_touch.js` subclasses `DragCanvas`,
+      reuses its clamp/cursor logic, and pans by the `event.viewport`
+      delta — reliable on mouse and touch, correct for any canvas
+      scale/zoom.  Registered once over the built-in `'drag-canvas'`
+      id so every graph (gobj-tree, json-graph, treedb editor) is
+      fixed without per-consumer changes.  `c_yui_gobj_tree_js.js`
+      and `c_yui_json_graph.js` also stop fighting G6 `autoResize`
+      (window-only in v5) and size the canvas to its content box via
+      a self-contained `ResizeObserver`.
+
+    - **fix(gobj-js): `createElement2` no longer poisons `data-i18n`
+      with `undefined`**.  A nullish `i18n` attribute (e.g. a field
+      whose `header` is undefined) rendered the literal
+      `data-i18n="undefined"` and suppressed translation, leaving
+      form labels blank.  The attribute is now skipped when the value
+      is `null`/`undefined`; an explicit empty string is still
+      honoured.
+
+    - **fix(lib-yui): pin `@yuneta/gobj-js` dependency**.  The
+      peer dependency was `"*"`, and a stale lockfile had frozen it
+      to the ancient `@yuneta/gobj-js@0.3.0` from npm — so lib-yui
+      (and downstream apps) silently built against 0.3.0 and updates
+      had no effect.  Peer range is now `^7.3.3` and a
+      `file:../gobj-js` devDependency makes local builds use the
+      in-tree source.  Downstream apps (wattyzer, estadodelaire,
+      hidraulia) must likewise repin and reinstall so they stop
+      resolving 0.3.0.
+
+    - **feat(lib-yui): shell-mountable developer panel**.
+      `build_dev_panel` plus a new `C_YUI_GOBJ_TREE_JS` hierarchical
+      gobj-tree viewer; the dev panel is now a real window box (was a
+      floating transparent overlay), with silent optional
+      `__yui_main__` lookup and theme-aware styling.
+
+    - **feat(lib-yui): TreeDB graph node redesign**.  Unified node
+      design system: doc-style HTML node cards (theme-aware), soft
+      topic palette, rectangular leaves, size tiers, ports back to
+      the topic colour, no circles, click-detail popover (no hover
+      tooltips), redesigned edges/ports, dark-theme contrast fix.
+
+    - **feat(lib-yui): graph toolbar / context-menu**.  All
+      toolbar/context-menu icons unified on one FA7 sprite;
+      theme-aware G6 context menu (readable in dark); G6 popup
+      transitions disabled (immediate, no glide); "reset zoom" home
+      icon restored; bolder/longer "create node" plus.
+
+    - **feat(lib-yui): shell / nav**.  View-owned dynamic 3rd-level
+      runtime subroute; unknown route falls back to the default
+      route; secondary-nav zone collapses from config; single-row
+      toolbar on touch; `toolbar type:"connection"` + `context_action`
+      + modal `on_close`; TreeDB topics persist the selected topic
+      across reloads with self-contained tab navigation; TreeDB
+      table row-count footer and email/tel/url subtypes; edit/delete
+      modal mount fallback.
+
+    - **fix(lib-yui): self-containment / responsiveness**.
+      `C_G6_NODES_TREE` self-contained `ResizeObserver` and toolbar
+      reconfig guarded until the graph is rendered;
+      `C_YUI_TREEDB_GRAPH` emits `EV_OPERATION_MODE_CHANGED`; g6
+      views detect theme from `<html data-theme>`; `C_YUI_UPLOT`
+      responsive width.
+
+    - **feat(treedb): system schema v5 → v6**.  Restore the
+      `cols.topics` fkey, refresh `cols` topic, show all system
+      topics; keep the original ArtGins start year as a range
+      (2024-2026).
+
+    - **feat(ycommand): `--editor`/`-e` and stdout dump**.  Dump a
+      file to stdout when stdout is not a TTY (was: always vim);
+      `ac_read_file` signals exit on success, not just on error;
+      `pty_sync_spawn` drains the master pty after child exit
+      (was: truncated `cat`).
+
+    - **feat(c_mqiogate): `broadcast` method** to fan out events to
+      every child (tidy `lastdigits` to mirror it).
+
+    - **chore(packages / ci)**.  Ship sanitized agent JSON templates
+      from the repo (drop the `/yuneta/agent/` dependency); move
+      `RELEASE` to the repo root; `release-deb` generates a default
+      `.config` via `alldefconfig` and drops the pgdg apt source.
+
+    - **chore(ext-libs): TODO bump nginx 1.28.3 → 1.30.1**
+      (CVE-2026-42945) for the next ext-libs refresh.
+
+    - **misc(C)**: remove `sf_deleted_record` flag; fix stale
+      `md2_record_t` "Size: 96 bytes" comment; log the key with bad
+      metadata; revert the `C_TCP_S channel_filter` two-TLS-listener
+      change.
+
     - **feat(tr2list): `--dry-run` and `--follow` modes**.
       `--dry-run` / `-n` prints the resolved search parameters and
       the `match_cond` JSON (times already resolved by `approxidate`),
