@@ -8,7 +8,6 @@
  ***********************************************************************/
 import {
     gobj_yuno,
-    gobj_find_service,
     log_error,
     is_string,
     createElement2,
@@ -29,7 +28,10 @@ import "vanilla-jsoneditor/themes/jse-theme-dark.css";
  ************************************************************/
 function info_traffic(title, msg, direction, size)
 {
-    if(!gobj_find_service("Developer-Window")) {
+    // Render into the traffic logger if it is present (old shell:
+    // inside C_YUI_WINDOW; new shell: inside the build_dev_panel()
+    // modal). Otherwise just dump to the console.
+    if(!document.getElementById('developer-traffic-logger')) {
         trace_json(msg);
         return;
     }
@@ -422,4 +424,102 @@ function setup_dev(self, show)
     gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
 }
 
-export {info_traffic, setup_dev};
+/************************************************************
+ *  Build the developer panel as a self-contained DOM subtree,
+ *  to be mounted by the new declarative shell via
+ *  yui_shell_show_modal (no C_YUI_WINDOW, no 'top-layer').
+ *
+ *  Returns { $el, dispose }:
+ *    - $el:     the panel element (header tabs + traffic logger
+ *               body + footer counters).
+ *    - dispose: stops the inter-event traffic trace; call it from
+ *               the modal's on_close.
+ *
+ *  Backwards compatible: setup_dev() (old shell, C_YUI_WINDOW) is
+ *  untouched; the trace_* helpers and info_traffic are shared.
+ ************************************************************/
+function build_dev_panel()
+{
+    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
+    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
+    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
+    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
+    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
+    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
+    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
+
+    let mk_btn = (label, fn) => ['button', {
+        class: 'button is-small',
+    }, label, {
+        click: (evt) => {
+            evt.stopPropagation();
+            fn();
+        }
+    }];
+
+    let counters = [
+        `Automata: ${trace}`, `Creation: ${creation}`,
+        `Start/Stop: ${start_stop}`, `Subscriptions: ${subscriptions}`,
+        `I18n: ${i18n}`, `Traffic: ${traffic}`, `No poll: ${no_poll}`,
+    ].map(txt => ['div', {style: 'padding:0 8px;'}, txt]);
+
+    let $el = createElement2(
+        ['div', {
+            class: 'yui-dev-panel',
+            style: 'display:flex;flex-direction:column;height:100%;' +
+                'min-height:0;font-family:-apple-system,BlinkMacSystemFont,' +
+                "'Segoe UI',Roboto,Helvetica,Arial,sans-serif;",
+        }, [
+            ['div', {
+                class: 'buttons',
+                style: 'flex:0 0 auto;display:flex;flex-wrap:wrap;' +
+                    'gap:6px;margin:0 0 8px 0;',
+            }, [
+                mk_btn('Automata', trace_automata),
+                mk_btn('Creation', trace_creation),
+                mk_btn('Star/Stop', trace_start_stop),
+                mk_btn('Subscriptions', trace_subscriptions),
+                mk_btn('I18n', trace_i18n),
+                mk_btn('Traffic', trace_traffic),
+                mk_btn('No Poll', set_no_poll),
+                mk_btn('Clear Traffic', () => {
+                    let l = document.getElementById("developer-traffic-logger");
+                    if(l) {
+                        l.innerHTML = "";
+                    }
+                }),
+            ]],
+            ['div', {
+                style: 'flex:1 1 auto;min-height:0;overflow:auto;',
+            }, [
+                ['div', {id: 'developer-traffic-logger',
+                    style: 'margin:0 4px;'}, []],
+            ]],
+            ['div', {
+                id: 'developer-window-info',
+                class: 'is-flex is-justify-content-space-between',
+                style: 'flex:0 0 auto;border-top:1px solid ' +
+                    'var(--bulma-border-weak,#cbd5e1);padding-top:6px;' +
+                    'margin-top:6px;font-size:12px;opacity:0.85;' +
+                    'flex-wrap:wrap;',
+            }, counters],
+        ]]
+    );
+
+    // Mirror setup_dev's tail: apply the persisted trace flags.
+    if(traffic) {
+        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
+        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
+    }
+    gobj_write_attr(gobj_yuno(), "tracing", trace);
+    gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
+
+    let dispose = function() {
+        // Stop feeding traffic into a detached DOM.
+        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
+    };
+
+    return {$el: $el, dispose: dispose};
+}
+
+export {info_traffic, setup_dev, build_dev_panel};

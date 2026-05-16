@@ -65,7 +65,7 @@ export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
 export { themes } from "./src/themes.js";
 export { YTable, createYTable } from "./src/ytable.js";
 export { yui_toolbar } from "./src/yui_toolbar.js";
-export { info_traffic, setup_dev } from "./src/yui_dev.js";
+export { info_traffic, setup_dev, build_dev_panel } from "./src/yui_dev.js";
 
 /*
  *  CSS - import these in your main entry point
