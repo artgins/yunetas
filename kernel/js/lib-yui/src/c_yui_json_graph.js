@@ -58,6 +58,8 @@ import {
     register,
 } from '@antv/g6';
 
+import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -89,6 +91,8 @@ let PRIVATE_DATA = {
     graph: null,
     node_counter: 0,
     theme: null,
+    resize_observer: null,  // ResizeObserver on the canvas mount element
+    _resize_raf: 0,         // rAF id debouncing resize -> EV_RESIZE
 };
 
 let __gclass__ = null;
@@ -149,6 +153,8 @@ function mt_create(gobj)
 
     build_ui(gobj);
 
+    ensure_drag_canvas_patch();
+
     if(!__layout_registered__) {
         register(ExtensionCategory.LAYOUT, 'json-tree-layout', JsonTreeLayout);
         __layout_registered__ = true;
@@ -177,6 +183,15 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
+
+    if(priv.resize_observer) {
+        priv.resize_observer.disconnect();
+        priv.resize_observer = null;
+    }
+    if(priv._resize_raf) {
+        cancelAnimationFrame(priv._resize_raf);
+        priv._resize_raf = 0;
+    }
 
     if(priv.graph) {
         priv.graph.destroy();
@@ -297,7 +312,7 @@ function build_graph(gobj)
     const graph = priv.graph = new Graph({
         container: priv.canvas_id,
         animation: false,
-        autoResize: true,
+        autoResize: false,
         zoomRange: [0.1, 4],
 
         node: {
@@ -336,6 +351,35 @@ function build_graph(gobj)
     graph.on(CanvasEvent.CLICK, (evt) => {
         // Canvas click
     });
+
+    /*
+     *  Self-contained resize.  G6 v5 autoResize only listens to the
+     *  global window 'resize'; it ignores container-only changes
+     *  (panel/tab/splitter/mobile chrome).  If the configured canvas
+     *  size drifts from its on-screen size, @antv/g getScale() scales
+     *  the pointer delta by bbox.width/offsetWidth and drag-canvas
+     *  panning desyncs (badly on mobile).  Observe the mount box and
+     *  re-sync on every change; rAF-debounced, setSize does not change
+     *  the observed box so there is no feedback loop.
+     */
+    if(typeof ResizeObserver !== "undefined") {
+        let $canvas = document.getElementById(priv.canvas_id);
+        if($canvas) {
+            let ro = new ResizeObserver(() => {
+                if(priv._resize_raf) {
+                    cancelAnimationFrame(priv._resize_raf);
+                }
+                priv._resize_raf = requestAnimationFrame(() => {
+                    priv._resize_raf = 0;
+                    if(priv.graph) {
+                        gobj_send_event(gobj, "EV_RESIZE", {}, gobj);
+                    }
+                });
+            });
+            ro.observe($canvas);
+            priv.resize_observer = ro;
+        }
+    }
 }
 
 /************************************************************
@@ -832,12 +876,43 @@ function ac_show(gobj, event, kw, src)
     if(graph) {
         let $canvas = document.getElementById(priv.canvas_id);
         if($canvas) {
-            let rect = $canvas.getBoundingClientRect();
-            if(rect.width > 0 && rect.height > 0) {
-                graph.setSize(rect.width, rect.height);
+            /*
+             *  Content box (clientWidth/Height), not getBoundingClientRect:
+             *  @antv/g lays the canvas into the element's content area and
+             *  getScale() compares bbox.width / offsetWidth.  Sizing to the
+             *  content box keeps that ratio at exactly 1 (no border / sub-px
+             *  drift) so drag-canvas panning stays 1:1.
+             */
+            let cw = $canvas.clientWidth;
+            let ch = $canvas.clientHeight;
+            if(cw > 0 && ch > 0) {
+                graph.setSize(cw, ch);
                 graph.render().then(() => {
                     graph.fitView();
                 });
+            }
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *  Keep the canvas size in sync with its on-screen box.
+ *  No fitView: preserve the user's current pan/zoom.
+ ************************************************************/
+function ac_resize(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(graph) {
+        let $canvas = document.getElementById(priv.canvas_id);
+        if($canvas) {
+            let cw = $canvas.clientWidth;
+            let ch = $canvas.clientHeight;
+            if(cw > 0 && ch > 0) {
+                graph.setSize(cw, ch);
             }
         }
     }
@@ -895,6 +970,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",           ac_zoom_reset,          null],
             ["EV_CENTER",               ac_center,              null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
+            ["EV_RESIZE",               ac_resize,              null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
         ]]
@@ -911,6 +987,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",           0],
         ["EV_CENTER",               0],
         ["EV_NODE_CLICK",           0],
+        ["EV_RESIZE",               0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
         ["EV_JSON_ITEM_CLICKED",    event_flag_t.EVF_OUTPUT_EVENT],

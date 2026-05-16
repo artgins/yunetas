@@ -95,6 +95,7 @@ import {Circle as CircleGeometry} from '@antv/g';
 import i18next, {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
+import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -129,6 +130,7 @@ class YuiToolbar extends Toolbar
     }
 }
 register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
+ensure_drag_canvas_patch();
 
 /***************************************************************
  *              Constants
