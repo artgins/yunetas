@@ -783,6 +783,41 @@ function configure_plugins(gobj)
         }
     );
 
+    /*  Tooltip ONLY for structural junctions (extended nodes):
+     *  they are label-less by design, so the name must be
+     *  reachable on hover. Other node types show their name
+     *  inline; keeping the tooltip scoped avoids hover noise. */
+    let graph = gobj.priv.graph;
+    graph_add_plugin(
+        gobj,
+        'tooltip',
+        {
+            trigger: 'hover',
+            enable: (e) => {
+                if(e.targetType !== 'node') {
+                    return false;
+                }
+                let nd = graph.getNodeData(e.target.id);
+                return !!(nd && nd.data && nd.data.desc &&
+                    nd.data.desc.node_treedb_type === 'extended');
+            },
+            getContent: (e, items) => {
+                let it = (items && items[0]) || {};
+                let nd = graph.getNodeData(it.id);
+                let rec = (nd && nd.data && nd.data.record) || {};
+                let topic = (nd && nd.data && nd.data.desc &&
+                    nd.data.desc.topic_name) || '';
+                let id = rec.id != null ? String(rec.id) : String(it.id);
+                return `<div class="g6-tooltip-node">` +
+                    `<div class="g6-tooltip-id">${escapeHtml(id)}</div>` +
+                    (topic
+                        ? `<div class="g6-tooltip-sub">${escapeHtml(topic)}</div>`
+                        : ``) +
+                    `</div>`;
+            },
+        }
+    );
+
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);
         configure_toolbar_edit(gobj);
@@ -1212,25 +1247,26 @@ function create_topic_node(gobj, desc, record)
     };
 
     if(node_treedb_type === 'child') {
-        // Pure child nodes: circle
-        node_graph_type = 'circle';
-        style.size = [60];
-        json_object_update_missing(style, {
-            labelText: record.id,
-            labelPlacement: 'center',
-            labelWordWrap: true,
-            labelMaxWidth: "100%",
-            labelFill: '#000',          // Force black; remove to let G6 dark theme control it
-            labelFontWeight: 'normal',
-            // iconText: record.id,
-            // iconSrc: record.icon,
-            // iconFontSize: 14,
-        });
+        // Pure child (leaf): compact chip-card so the name is
+        // always legible (same card language as entities, lighter).
+        node_graph_type = 'html';
+        style.size = [130, 38];
+        style.dx = -65;
+        style.dy = -19;
+        style.innerHTML = build_chip_innerHTML(
+            desc.color, priv.theme, record.icon, record.id
+        );
 
     } else if(node_treedb_type === 'extended') {
-        // Extended nodes (hooks > 0 && fkeys == 0): don't draw
-        // node_graph_type remains null
-        style.size = [80, 60];
+        // Extended (structural: hooks>0, fkeys==0): a small neutral
+        // junction so the topology reads (no orphan edges). No
+        // label; the name is shown via the tooltip plugin.
+        node_graph_type = 'diamond';
+        style.size = [16, 16];
+        let dark = (priv.theme === "dark");
+        style.fill = dark ? '#5b6472' : '#cbd5e1';
+        style.stroke = dark ? '#828c9c' : '#94a3b8';
+        style.lineWidth = 1;
 
     } else {
         // Hierarchical node: HTML
@@ -4144,9 +4180,9 @@ function hide_node_popover(gobj)
 
 /************************************************************
  *  Re-render every HTML (hierarchical) node so its card adopts
- *  the given theme. HTML node innerHTML is baked at build time;
- *  unlike G6-native shapes it is not re-themed by setTheme(), so
- *  on a theme toggle the cards must be regenerated explicitly.
+ *  the given theme: entity cards and leaf chips (baked innerHTML,
+ *  not re-themed by setTheme()) are regenerated; structural
+ *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
 function refresh_html_nodes_theme(gobj, theme)
 {
@@ -4155,6 +4191,7 @@ function refresh_html_nodes_theme(gobj, theme)
     if(!graph) {
         return;
     }
+    let dark = (theme === "dark");
     let nodes = graph.getData().nodes || [];
     let updates = [];
     for(let i = 0; i < nodes.length; i++) {
@@ -4162,23 +4199,90 @@ function refresh_html_nodes_theme(gobj, theme)
         if(!nd || !nd.data || !nd.data.desc) {
             continue;
         }
-        if(nd.data.desc.node_treedb_type !== 'hierarchical') {
-            continue;
-        }
+        let tt = nd.data.desc.node_treedb_type;
         let record = nd.data.record || {};
-        updates.push({
-            id: nodes[i].id,
-            style: {
-                innerHTML: build_node_innerHTML(
-                    nd.data.desc.color, theme, record.icon,
-                    record.id, nd.data.desc.topic_name
-                )
-            }
-        });
+        if(tt === 'hierarchical') {
+            updates.push({
+                id: nodes[i].id,
+                style: {
+                    innerHTML: build_node_innerHTML(
+                        nd.data.desc.color, theme, record.icon,
+                        record.id, nd.data.desc.topic_name
+                    )
+                }
+            });
+        } else if(tt === 'child') {
+            updates.push({
+                id: nodes[i].id,
+                style: {
+                    innerHTML: build_chip_innerHTML(
+                        nd.data.desc.color, theme, record.icon,
+                        record.id
+                    )
+                }
+            });
+        } else if(tt === 'extended') {
+            updates.push({
+                id: nodes[i].id,
+                style: {
+                    fill: dark ? '#5b6472' : '#cbd5e1',
+                    stroke: dark ? '#828c9c' : '#94a3b8'
+                }
+            });
+        }
     }
     if(updates.length > 0) {
         graph.updateNodeData(updates);
     }
+}
+
+/************************************************************
+ *  Build innerHTML for pure-child (leaf) nodes: a compact
+ *  chip-card. Same colour/typography family as the entity card
+ *  but lighter (1px border, no shadow, single line). The name is
+ *  always legible (ellipsis + native title tooltip on overflow).
+ ************************************************************/
+function build_chip_innerHTML(color, theme, icon, id)
+{
+    let dark = (theme === "dark");
+    let surface = dark ? "#1b2230" : "#ffffff";
+    let bg = dark
+        ? `color-mix(in srgb, ${color} 22%, ${surface})`
+        : `color-mix(in srgb, ${color} 11%, ${surface})`;
+    let border = dark
+        ? `color-mix(in srgb, ${color} 55%, #475569)`
+        : `color-mix(in srgb, ${color} 70%, #1f2933)`;
+    let text_color = dark ? "#e8eaed" : "#0f172a";
+
+    let icon_html = "";
+    if(icon) {
+        icon_html = `<img src="${safeSrc(icon)}" alt="" style="
+        width: 16px; height: 16px; object-fit: contain;
+        margin-right: 6px; flex: 0 0 auto;
+    "/>`;
+    }
+
+    return `
+<div title="${escapeHtml(id)}" style="
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    background: ${bg};
+    border: 1px solid ${border};
+    border-radius: 999px;
+    color: ${text_color};
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    overflow: hidden;
+">${icon_html}<span style="
+        font-size: 12px; font-weight: 600; line-height: 1;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    ">${escapeHtml(id)}</span>
+</div>
+`;
 }
 
 /************************************************************
@@ -4227,7 +4331,7 @@ function build_node_innerHTML(color, theme, icon, id, topic_name)
     }
 
     return `
-<div style="
+<div title="${escapeHtml(id)}" style="
     box-sizing: border-box;
     width: 100%;
     height: 100%;
