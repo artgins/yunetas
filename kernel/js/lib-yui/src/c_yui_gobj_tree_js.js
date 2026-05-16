@@ -911,15 +911,16 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    padding: 6px 9px;
-    gap: 2px;
+    justify-content: center;
+    padding: 5px 9px;
+    gap: 1px;
     cursor: pointer;
 " title="${escapeHtml(gclass_name + (instance_name ? "^" + instance_name : ""))}">
     <div style="flex:0 0 auto; display:flex; align-items:center; gap:6px; overflow:hidden;">
-        <span style="flex:1 1 auto; min-width:0; font-size:12px; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
+        <span style="flex:1 1 auto; min-width:0; font-size:12px; line-height:1.25; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
         ${toggle_html}
     </div>
-    <div style="flex:1 1 auto; min-height:0; font-size:12px; color:${cs.sub}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name_label || "&nbsp;"}</div>
+    <div style="flex:0 0 auto; font-size:12px; line-height:1.25; color:${cs.sub}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name_label || "&nbsp;"}</div>
     <div style="flex:0 0 auto; display:flex; justify-content:space-between; align-items:center; gap:6px; overflow:hidden;">
         <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${badges_html}</span>
         <span style="flex:0 0 auto; display:flex; align-items:center; gap:4px; color:${state_color}; font-weight:600; font-size:11px; white-space:nowrap;">
