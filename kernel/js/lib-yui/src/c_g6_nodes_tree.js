@@ -94,6 +94,8 @@ import {
 import {Circle as CircleGeometry} from '@antv/g';
 import i18next, {t} from "i18next";
 
+import {inject_svg_icons} from "./lib_icons.js";
+
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
  *  and disabled support.
@@ -753,6 +755,9 @@ function configure_toolbar(gobj)
             position: toolbar_position,
             style: {
                 backgroundColor: '#f5f5f5',
+                /*  Forced-light bg in both themes → pin dark icon
+                 *  color (currentColor) so it stays visible in dark. */
+                color: '#333',
                 padding: '8px',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                 borderRadius: '8px',
@@ -826,6 +831,12 @@ function configure_toolbar_edit(gobj)
         return;
     }
 
+    /*  g6-icon-plus / g6-icon-save are OUR sprite symbols (undo/redo
+     *  are G6 built-ins).  The sprite must be injected or the
+     *  <use href="#g6-icon-..."> resolves to nothing → blank buttons
+     *  in BOTH themes.  Idempotent. */
+    inject_svg_icons();
+
     graph_add_plugin(
         gobj,
         'toolbar-edit',
@@ -835,6 +846,10 @@ function configure_toolbar_edit(gobj)
             position: 'left-top',
             style: {
                 backgroundColor: '#f5f5f5',
+                /*  Toolbar bg is forced light in BOTH themes; icons
+                 *  use currentColor, so pin a dark color or in dark
+                 *  theme they'd be light-on-light (invisible). */
+                color: '#333',
                 padding: '8px',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                 borderRadius: '8px',
