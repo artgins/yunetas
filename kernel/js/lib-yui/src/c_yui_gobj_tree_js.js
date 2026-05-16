@@ -151,18 +151,20 @@ function gt_is_dark()
  ***************************************************************/
 function role_card_style(stroke, dark)
 {
-    let surface = dark ? "#1b2230" : "#ffffff";
+    // On dark, lift the card off the near-black canvas with a
+    // clearly-lighter slate base + vivid border (a faint tint on
+    // the canvas colour makes the cards invisible).
     return {
         bg: dark
-            ? `color-mix(in srgb, ${stroke} 20%, ${surface})`
-            : `color-mix(in srgb, ${stroke} 9%, ${surface})`,
+            ? `color-mix(in srgb, ${stroke} 30%, #2c3542)`
+            : `color-mix(in srgb, ${stroke} 9%, #ffffff)`,
         border: dark
-            ? `color-mix(in srgb, ${stroke} 68%, #ffffff)`
+            ? `color-mix(in srgb, ${stroke} 85%, #ffffff)`
             : stroke,
         title: dark ? "#e8eaed" : "#0f172a",
         sub: dark ? "#9aa4b2" : "#64748b",
         tagbg: dark
-            ? `color-mix(in srgb, ${stroke} 30%, ${surface})`
+            ? `color-mix(in srgb, ${stroke} 42%, #2c3542)`
             : `color-mix(in srgb, ${stroke} 14%, #ffffff)`,
         shadow: dark
             ? "0 1px 3px rgba(0,0,0,0.45)"

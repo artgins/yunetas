@@ -4389,10 +4389,10 @@ function build_chip_innerHTML(color, theme, icon, id)
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
     let bg = dark
-        ? `color-mix(in srgb, ${color} 18%, ${surface})`
+        ? `color-mix(in srgb, ${color} 30%, #2c3542)`
         : `color-mix(in srgb, ${color} 10%, ${surface})`;
     let border = dark
-        ? `color-mix(in srgb, ${color} 70%, #ffffff)`
+        ? `color-mix(in srgb, ${color} 85%, #ffffff)`
         : color;
     let text_color = dark ? "#e8eaed" : "#0f172a";
 
@@ -4445,18 +4445,20 @@ function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
     if(structural) {
         // Structural node (extended): neutral grey, dashed border —
         // reads as "container/junction" but still shows its name.
-        bg = dark ? "#222a36" : "#f1f5f9";
-        border = dark ? "#5b6472" : "#94a3b8";
+        bg = dark ? "#2c3542" : "#f1f5f9";
+        border = dark ? "#7c8694" : "#94a3b8";
         border_style = "dashed";
     } else {
-        // Soft palette (like the topology diagram): a very light
-        // tint of the topic colour as fill, the topic colour itself
-        // as the border (brightened a touch on dark so it shows).
+        // Soft palette (like the topology diagram): a light tint of
+        // the topic colour as fill, the topic colour as the border.
+        // On dark, lift the card off the (near-black) canvas with a
+        // clearly-lighter slate base + a vivid border, or the cards
+        // become invisible.
         bg = dark
-            ? `color-mix(in srgb, ${color} 18%, ${surface})`
+            ? `color-mix(in srgb, ${color} 30%, #2c3542)`
             : `color-mix(in srgb, ${color} 10%, ${surface})`;
         border = dark
-            ? `color-mix(in srgb, ${color} 70%, #ffffff)`
+            ? `color-mix(in srgb, ${color} 85%, #ffffff)`
             : color;
         border_style = "solid";
     }
