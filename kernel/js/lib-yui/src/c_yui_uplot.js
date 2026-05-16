@@ -168,6 +168,26 @@ function build_ui(gobj)
         $container
     );
     gobj_write_attr(gobj, "uplot", uplot);
+
+    /*  Responsive width: the `width` attr is only the initial /
+     *  fallback value.  Track the container and resize uPlot to its
+     *  real width so the chart never overflows a fluid card.  Height
+     *  stays the configured value. */
+    let fixed_height = gobj_read_attr(gobj, "height");
+    function fit_to_container() {
+        let w = $container.clientWidth;
+        if(w > 0) {
+            uplot.setSize({width: w, height: fixed_height});
+        }
+    }
+    fit_to_container();
+    if(typeof ResizeObserver !== "undefined") {
+        let ro = new ResizeObserver(function() {
+            fit_to_container();
+        });
+        ro.observe($container);
+        gobj.priv.resize_observer = ro;
+    }
 }
 
 /************************************************************
@@ -175,6 +195,10 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
+    if(gobj.priv.resize_observer) {
+        gobj.priv.resize_observer.disconnect();
+        gobj.priv.resize_observer = null;
+    }
     if(gobj_read_bool_attr(gobj, "own_container")) {
         let $container = gobj_read_attr(gobj, "$container");
         if($container) {
