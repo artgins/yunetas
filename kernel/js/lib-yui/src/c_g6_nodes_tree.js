@@ -238,6 +238,7 @@ let PRIVATE_DATA = {
     operation_mode:     null,
     layout:             null,
     theme:              null,
+    theme_observer:     null,    // MutationObserver on <html data-theme>
     _selected_node_id:  null,
     _selected_port_key: null,       // key of selected port (null = node selected)
     _resize_handles_el: null,
@@ -303,6 +304,30 @@ function mt_create(gobj)
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
         gobj_write_attr(gobj, "theme", gobj_read_str_attr(__yui_main__, "theme"));
+    } else {
+        /*  New C_YUI_SHELL: no __yui_main__, no EV_THEME broadcast.
+         *  Read the theme from <html data-theme> (the Bulma/wz_theme
+         *  convention) and react to changes with a MutationObserver,
+         *  re-using ac_theme via EV_THEME.  Without this priv.theme
+         *  stays "light" and the grid-line uses the light colour
+         *  (#EEEEEE) → glaring white grid on the dark canvas. */
+        let $html = document.documentElement;
+        let dt = $html.getAttribute("data-theme");
+        if(dt === "dark" || dt === "light") {
+            gobj_write_attr(gobj, "theme", dt);
+        }
+        if(typeof MutationObserver !== "undefined") {
+            let mo = new MutationObserver(() => {
+                let nt = $html.getAttribute("data-theme");
+                if(nt === "dark" || nt === "light") {
+                    gobj_send_event(gobj, "EV_THEME", {theme: nt}, gobj);
+                }
+            });
+            mo.observe($html, {
+                attributes: true, attributeFilter: ["data-theme"]
+            });
+            gobj.priv.theme_observer = mo;
+        }
     }
 
     build_ui(gobj);
@@ -344,6 +369,11 @@ function mt_destroy(gobj)
     if(priv._on_language_changed) {
         i18next.off('languageChanged', priv._on_language_changed);
         priv._on_language_changed = null;
+    }
+
+    if(priv.theme_observer) {
+        priv.theme_observer.disconnect();
+        priv.theme_observer = null;
     }
 
     if(priv.graph) {
