@@ -825,6 +825,11 @@ function configure_toolbar(gobj)
     let priv = gobj.priv;
     let toolbar_position = gobj_read_str_attr(gobj, "toolbar_position") || "top-left";
 
+    /*  Icons now come from OUR sprite (g6-icon-*), not G6 built-ins.
+     *  The sprite must be in the DOM or every <use> resolves to
+     *  nothing → blank buttons. Idempotent. */
+    inject_svg_icons();
+
     graph_add_plugin(
         gobj,
         'toolbar',
@@ -847,16 +852,15 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: t('zoom in')    },
-                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: t('zoom out')   },
-                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: t('reset zoom') },
-                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: t('auto fit')   },
+                    { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in')  },
+                    { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out') },
+                    { id: 'g6-icon-fit',      value: 'auto-fit', className: 'EV_AUTO_FIT', title: t('auto fit') },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
                     items.push(
-                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') },
-                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: t('exit full screen')  },
+                        { id: 'g6-icon-fullscreen',      value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') },
+                        { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: t('exit full screen')  },
                     );
                 }
 
@@ -869,9 +873,6 @@ function configure_toolbar(gobj)
                         break;
                     case 'zoom-out':
                         gobj_send_event(gobj, "EV_ZOOM_OUT", {}, gobj);
-                        break;
-                    case 'reset':
-                        gobj_send_event(gobj, "EV_ZOOM_RESET", {}, gobj);
                         break;
                     case 'auto-fit':
                         gobj_send_event(gobj, "EV_AUTO_FIT", {}, gobj);
@@ -939,8 +940,8 @@ function configure_toolbar_edit(gobj)
                 return [
                     { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN color_create_state', title: t('create node') },
                     { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
-                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
-                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
+                    { id: 'g6-icon-undo', value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
+                    { id: 'g6-icon-redo', value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
                 ];
             },
             onClick: (value) => {
@@ -4677,6 +4678,22 @@ function build_context_menu_items(gobj, e)
 }
 
 /************************************************************
+ *  Context-menu item with a sprite icon.
+ *  G6 inserts `name` as innerHTML (<li ...>${name}</li>), so an
+ *  inline <svg><use> from our g6-icon-* sprite renders fine and
+ *  keeps the same visual language as the toolbars.
+ ************************************************************/
+function ctx_item(icon_id, label, value)
+{
+    let name = `<svg style="width:1em;height:1em;` +
+        `vertical-align:-0.125em;margin-right:8px;` +
+        `pointer-events:none;fill:currentColor">` +
+        `<use href="#${icon_id}"></use></svg>` +
+        `${label}`;
+    return { name: name, value: value };
+}
+
+/************************************************************
  *  Build node context menu items.
  ************************************************************/
 function build_node_context_menu(gobj, node_id)
@@ -4684,8 +4701,9 @@ function build_node_context_menu(gobj, node_id)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('resize all'), value: 'resize_all_nodes' });
-        items.push({ name: t('resize topic nodes'), value: 'resize_topic_nodes' });
+        inject_svg_icons();
+        items.push(ctx_item('g6-icon-resize', t('resize all'), 'resize_all_nodes'));
+        items.push(ctx_item('g6-icon-resize', t('resize topic nodes'), 'resize_topic_nodes'));
     }
 
     return items;
@@ -4699,8 +4717,9 @@ function build_port_context_menu(gobj, node_id, port_key)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('resize all ports'), value: 'resize_all_ports' });
-        items.push({ name: t('resize topic ports'), value: 'resize_topic_ports' });
+        inject_svg_icons();
+        items.push(ctx_item('g6-icon-resize', t('resize all ports'), 'resize_all_ports'));
+        items.push(ctx_item('g6-icon-resize', t('resize topic ports'), 'resize_topic_ports'));
     }
 
     return items;
