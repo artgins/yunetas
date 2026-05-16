@@ -241,6 +241,8 @@ let PRIVATE_DATA = {
     theme_observer:     null,    // MutationObserver on <html data-theme>
     resize_observer:    null,    // ResizeObserver on $container
     _resize_raf:        0,       // rAF id debouncing resize bursts
+    is_fullscreen:      false,   // tracked via G6 onEnter/onExit
+
     _selected_node_id:  null,
     _selected_port_key: null,       // key of selected port (null = node selected)
     _resize_handles_el: null,
@@ -749,6 +751,17 @@ function configure_plugins(gobj)
             'fullscreen',
             {
                 autoFit: true,
+                /*  Track real state (covers toolbar, F/Esc keys and
+                 *  browser-driven exit) and rebuild the toolbar so
+                 *  only the relevant enter/exit icon is shown. */
+                onEnter: () => {
+                    gobj.priv.is_fullscreen = true;
+                    update_toolbar(gobj);
+                },
+                onExit: () => {
+                    gobj.priv.is_fullscreen = false;
+                    update_toolbar(gobj);
+                },
             }
         );
     }
@@ -858,10 +871,15 @@ function configure_toolbar(gobj)
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
-                    items.push(
-                        { id: 'g6-icon-fullscreen',      value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') },
-                        { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: t('exit full screen')  },
-                    );
+                    if(priv.is_fullscreen) {
+                        items.push(
+                            { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen', className: 'EV_EXIT_FULLSCREEN', title: t('exit full screen') }
+                        );
+                    } else {
+                        items.push(
+                            { id: 'g6-icon-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') }
+                        );
+                    }
                 }
 
                 return items;
