@@ -2947,8 +2947,17 @@ function createElement2(description, translate_fn) {
             } else {
                 if(attr === 'i18n' || attr === 'data-i18n' ||
                         attr === 'data_i18next' || attr === 'data-i18next') {
-                    data_i18next = attrs[attr];
-                    el.setAttribute('data-i18n', data_i18next);
+                    /*
+                     *  A nullish i18n key would render the literal
+                     *  data-i18n="undefined" and block translation
+                     *  (e.g. a field whose `header` is undefined).
+                     *  Skip the attribute instead of poisoning it.
+                     *  An explicit empty string is still honoured.
+                     */
+                    if(attrs[attr] !== null && attrs[attr] !== undefined) {
+                        data_i18next = attrs[attr];
+                        el.setAttribute('data-i18n', data_i18next);
+                    }
                 } else {
                     el.setAttribute(attr, attrs[attr]);
                 }

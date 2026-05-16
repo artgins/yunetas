@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/lib-yui",
-    "version": "7.3.2",
+    "version": "7.3.3",
     "type": "module",
     "main": "dist/lib-yui.cjs.js",
     "module": "dist/lib-yui.es.js",
@@ -32,10 +32,11 @@
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
         "@playwright/test": "^1.49.0",
+        "@yuneta/gobj-js": "file:../gobj-js",
         "vite": "^8.0.10"
     },
     "peerDependencies": {
-        "@yuneta/gobj-js": "*",
+        "@yuneta/gobj-js": "^7.3.3",
         "@antv/g6": "^5.1.0",
         "bulma": "^1.0.4",
         "i18next": "^26.0.7",

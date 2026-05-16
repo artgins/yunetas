@@ -9,7 +9,7 @@ that plugs into the GObject tree and communicates via events.
 `lib-yui` ships two app-shell stacks. They coexist; pick one per app.
 
 - **New GUIs → `C_YUI_SHELL` + `C_YUI_NAV`** (declarative shell, since
-  v7.4.0). JSON-driven layout, routed stages, drawer overlay with
+  v7.3.1). JSON-driven layout, routed stages, drawer overlay with
   focus-trap, hot-swap i18n. See [`SHELL.md`](./SHELL.md).
 - **Existing GUIs → keep `C_YUI_MAIN` + `C_YUI_ROUTING`.** Both are
   still shipped and supported. Migrating is opt-in, not mandated;
@@ -180,7 +180,7 @@ export default defineConfig({
 ```
 
 > **Note**: `preserveSymlinks: true` is required so that Vite resolves
-> `import "@yuneta/gobj-js"` from within yui-lib's source files using the host
+> `import "@yuneta/gobj-js"` from within lib-yui's source files using the host
 > app's `node_modules/`.
 
 ## Project Structure
