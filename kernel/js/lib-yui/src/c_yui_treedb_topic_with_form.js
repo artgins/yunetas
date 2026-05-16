@@ -136,6 +136,15 @@ let PRIVATE_DATA = {
 
 let __gclass__ = null;
 
+/*  Where to mount the edit/delete modal.  The legacy C_YUI_MAIN
+ *  shell provided a "#popup-layer" element; the new C_YUI_SHELL does
+ *  not.  Bulma `.modal` is position:fixed, so document.body is a
+ *  correct universal fallback (works under any host). */
+function popup_mount_layer()
+{
+    return document.getElementById("popup-layer") || document.body;
+}
+
 
 
 
@@ -1473,7 +1482,7 @@ function build_topic_modal(gobj)
     /*-----------------------------------------*
      *          Add to popup layer !!!
      *-----------------------------------------*/
-    document.getElementById("popup-layer").appendChild($element);
+    popup_mount_layer().appendChild($element);
 
     // jQuery($element).off('click').on('click', function(evt) {
     //     evt.stopPropagation();
@@ -2486,7 +2495,7 @@ function show_dropdown_popup_menu(gobj, x, y, items, callback)
     /*
      *  Add to popup layer
      */
-    document.getElementById("popup-layer").appendChild($element);
+    popup_mount_layer().appendChild($element);
 
     /*
      *  Set position
