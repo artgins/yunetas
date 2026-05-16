@@ -1239,7 +1239,7 @@ function create_topic_node(gobj, desc, record)
         style.dx = -75;
         style.dy = -50;
         style.innerHTML = build_node_innerHTML(
-            desc.color, getStrokeColor(desc.color), record.icon, record.id
+            desc.color, priv.theme, record.icon, record.id, desc.topic_name
         );
     }
 
@@ -1349,7 +1349,8 @@ function update_topic_node(gobj, desc, node_name, record)
                 id: node_name,
                 style: {
                     innerHTML: build_node_innerHTML(
-                        desc.color, getStrokeColor(desc.color), record.icon, record.id
+                        desc.color, priv.theme, record.icon, record.id,
+                        desc.topic_name
                     ),
                 }
             }]);
@@ -4068,7 +4069,8 @@ function show_node_popover(gobj)
         if(node_graph_type === 'hierarchical') {
             let record = nodeData.data.record || {};
             updateStyle.innerHTML = build_node_innerHTML(
-                fill, stroke, record.icon, record.id
+                fill, priv.theme, record.icon, record.id,
+                nodeData.data.desc.topic_name
             );
         }
         graph.updateNodeData([{ id: node_id, style: updateStyle }]);
@@ -4104,7 +4106,8 @@ function show_node_popover(gobj)
                 if(node_graph_type === 'hierarchical') {
                     let record = nodeData.data.record || {};
                     restoreStyle.innerHTML = build_node_innerHTML(
-                        origFill, origStroke, record.icon, record.id
+                        origFill, priv.theme, record.icon, record.id,
+                        nodeData.data.desc.topic_name
                     );
                 }
                 graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
@@ -4140,32 +4143,114 @@ function hide_node_popover(gobj)
 }
 
 /************************************************************
- *  Build innerHTML for hierarchical (HTML) nodes.
+ *  Re-render every HTML (hierarchical) node so its card adopts
+ *  the given theme. HTML node innerHTML is baked at build time;
+ *  unlike G6-native shapes it is not re-themed by setTheme(), so
+ *  on a theme toggle the cards must be regenerated explicitly.
  ************************************************************/
-function build_node_innerHTML(fill, stroke, icon, id)
+function refresh_html_nodes_theme(gobj, theme)
 {
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+    let nodes = graph.getData().nodes || [];
+    let updates = [];
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data || !nd.data.desc) {
+            continue;
+        }
+        if(nd.data.desc.node_treedb_type !== 'hierarchical') {
+            continue;
+        }
+        let record = nd.data.record || {};
+        updates.push({
+            id: nodes[i].id,
+            style: {
+                innerHTML: build_node_innerHTML(
+                    nd.data.desc.color, theme, record.icon,
+                    record.id, nd.data.desc.topic_name
+                )
+            }
+        });
+    }
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+    }
+}
+
+/************************************************************
+ *  Build innerHTML for hierarchical (HTML) nodes.
+ *
+ *  Card style modelled on the documentation schema graphs
+ *  (docs gen_treedb_graphs.py): rounded card, soft tint of the
+ *  topic colour with a strong matching border, subtle elevation,
+ *  system typography, bold id + muted topic subtitle. The topic
+ *  colour is kept (per-topic differentiation) but softened via
+ *  color-mix instead of a harsh saturated fill. Theme-aware.
+ ************************************************************/
+function build_node_innerHTML(color, theme, icon, id, topic_name)
+{
+    let dark = (theme === "dark");
+    let surface = dark ? "#1b2230" : "#ffffff";
+    let bg = dark
+        ? `color-mix(in srgb, ${color} 26%, ${surface})`
+        : `color-mix(in srgb, ${color} 14%, ${surface})`;
+    let border = dark
+        ? `color-mix(in srgb, ${color} 62%, #475569)`
+        : `color-mix(in srgb, ${color} 78%, #1f2933)`;
+    let title_color = dark ? "#e8eaed" : "#0f172a";
+    let sub_color = dark ? "#9aa4b2" : "#64748b";
+    let shadow = dark
+        ? "0 1px 3px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.30)"
+        : "0 1px 3px rgba(15,23,42,0.12), 0 1px 2px rgba(15,23,42,0.06)";
+
+    let icon_html = "";
+    if(icon) {
+        icon_html = `
+    <img src="${safeSrc(icon)}" alt="" style="
+        width: 28px; height: 28px; object-fit: contain;
+        margin-bottom: 6px; flex: 0 0 auto;
+    "/>`;
+    }
+
+    let sub_html = "";
+    if(topic_name) {
+        sub_html = `
+    <div style="
+        font-size: 11px; line-height: 1.2; color: ${sub_color};
+        margin-top: 2px; max-width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    ">${escapeHtml(topic_name)}</div>`;
+    }
+
     return `
 <div style="
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
-    background: ${fill};
-    border: 1px solid ${stroke};
-    border-radius: 0.5rem;
-    color: #000;
+    background: ${bg};
+    border: 1.5px solid ${border};
+    border-radius: 10px;
+    box-shadow: ${shadow};
+    color: ${title_color};
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 10px;
-">
-    <div>
-        <span class="icon is-large">
-        <img src="${safeSrc(icon)}" alt=""/>
-        </span>
-    </div>
-    <div style="font-weight: bold;">
-      ${escapeHtml(id)}
-    </div>
+    text-align: center;
+    padding: 10px 12px;
+    overflow: hidden;
+">${icon_html}
+    <div style="
+        font-size: 14px; font-weight: 600; line-height: 1.25;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+        display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; word-break: break-word;
+    ">${escapeHtml(id)}</div>${sub_html}
 </div>
 `;
 }
@@ -4519,7 +4604,8 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
         if(nd.data.desc.node_treedb_type === 'hierarchical') {
             let record = nd.data.record || {};
             updateStyle.innerHTML = build_node_innerHTML(
-                fill, stroke, record.icon, record.id
+                fill, priv.theme, record.icon, record.id,
+                nd.data.desc.topic_name
             );
         }
         updates.push({ id: nodes[i].id, style: updateStyle });
@@ -5392,6 +5478,8 @@ function ac_theme(gobj, event, kw, src)
         stroke: theme === 'dark' ? '#343434' : '#EEEEEE',
         borderStroke: theme === 'dark' ? '#656565' : '#EEEEEE',
     });
+
+    refresh_html_nodes_theme(gobj, theme);
 
     graph_draw(gobj).then(() => {
         // Restore toolbar icon states lost when G6 re-renders the DOM
