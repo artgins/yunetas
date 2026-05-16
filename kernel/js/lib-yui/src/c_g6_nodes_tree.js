@@ -868,7 +868,7 @@ function configure_toolbar(gobj)
                     { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in')  },
                     { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out') },
                     { id: 'g6-icon-fit',      value: 'auto-fit', className: 'EV_AUTO_FIT', title: t('auto fit') },
-                    { id: 'g6-icon-zoom-reset', value: 'reset', className: 'EV_ZOOM_RESET', title: t('reset zoom') },
+                    { id: 'g6-icon-home', value: 'reset', className: 'EV_ZOOM_RESET', title: t('reset zoom') },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
