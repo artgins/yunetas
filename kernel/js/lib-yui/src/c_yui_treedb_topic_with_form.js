@@ -66,6 +66,8 @@ import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
+import "./c_yui_treedb_topic_with_form.css";
+
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 /***************************************************************
@@ -745,8 +747,8 @@ function create_tabulator(gobj)
         selectableRows: selectable,
         /*  Row-count footer (updated on every data change below). */
         footerElement: "<span class='yui-tabulator-rowcount' " +
-            "style='display:block;text-align:right;font-size:0.8rem;" +
-            "color:#6b7280;padding:0.2rem 0.6rem;'></span>",
+            "style='display:block;text-align:right;font-size:0.75rem;" +
+            "color:#6b7280;padding:0.05rem 0.6rem;'></span>",
     });
 
     let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
