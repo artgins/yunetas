@@ -463,11 +463,26 @@ function build_dev_panel()
         `I18n: ${i18n}`, `Traffic: ${traffic}`, `No poll: ${no_poll}`,
     ].map(txt => ['div', {style: 'padding:0 8px;'}, txt]);
 
+    // The shell modal drops content into a transparent, unsized
+    // Bulma .modal-content; the panel must be its own opaque,
+    // sized window box. Theme-aware (read <html data-theme>).
+    let dark = (typeof document !== "undefined") &&
+        document.documentElement.getAttribute("data-theme") === "dark";
+    let surface = dark ? "#1f2733" : "#ffffff";
+    let fg = dark ? "#e8eaed" : "#0f172a";
+    let bd = dark ? "#3a4250" : "#cbd5e1";
+
     let $el = createElement2(
         ['div', {
             class: 'yui-dev-panel',
-            style: 'display:flex;flex-direction:column;height:100%;' +
-                'min-height:0;font-family:-apple-system,BlinkMacSystemFont,' +
+            style:
+                'display:flex;flex-direction:column;box-sizing:border-box;' +
+                'width:100%;height:min(72vh,720px);max-height:82vh;' +
+                'background:' + surface + ';color:' + fg + ';' +
+                'border:1px solid ' + bd + ';border-radius:10px;' +
+                'box-shadow:0 10px 30px rgba(0,0,0,0.35);' +
+                'padding:14px;overflow:hidden;' +
+                'font-family:-apple-system,BlinkMacSystemFont,' +
                 "'Segoe UI',Roboto,Helvetica,Arial,sans-serif;",
         }, [
             ['div', {
@@ -498,10 +513,9 @@ function build_dev_panel()
             ['div', {
                 id: 'developer-window-info',
                 class: 'is-flex is-justify-content-space-between',
-                style: 'flex:0 0 auto;border-top:1px solid ' +
-                    'var(--bulma-border-weak,#cbd5e1);padding-top:6px;' +
-                    'margin-top:6px;font-size:12px;opacity:0.85;' +
-                    'flex-wrap:wrap;',
+                style: 'flex:0 0 auto;border-top:1px solid ' + bd +
+                    ';padding-top:6px;margin-top:6px;font-size:12px;' +
+                    'opacity:0.85;flex-wrap:wrap;',
             }, counters],
         ]]
     );
