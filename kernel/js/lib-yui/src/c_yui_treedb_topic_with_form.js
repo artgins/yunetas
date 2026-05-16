@@ -743,17 +743,43 @@ function create_tabulator(gobj)
         index: pkey,
         columns: columns,
         selectableRows: selectable,
+        /*  Row-count footer (updated on every data change below). */
+        footerElement: "<span class='yui-tabulator-rowcount' " +
+            "style='display:block;text-align:right;font-size:0.8rem;" +
+            "color:#6b7280;padding:0.2rem 0.6rem;'></span>",
     });
 
     let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
+
+    /*  Keep the footer in sync with the visible (active) row count. */
+    function update_rowcount() {
+        let $rc = tabulator.element &&
+            tabulator.element.querySelector(".yui-tabulator-rowcount");
+        if(!$rc) {
+            return;
+        }
+        let n = 0;
+        try {
+            n = tabulator.getDataCount("active");
+        } catch(e) {
+            n = 0;
+        }
+        $rc.textContent = `${n} ${t("rows")}`;
+    }
+
     tabulator._ready = false;
     tabulator.on("tableBuilt", function() {
         tabulator._ready = true;
+        update_rowcount();
         if(tabulator._pendingData !== undefined) {
             tabulator.setData(tabulator._pendingData);
             delete tabulator._pendingData;
         }
     });
+    /*  dataProcessed: after load/filter/sort.  dataChanged: rows
+     *  added/removed/edited.  Both keep the count truthful. */
+    tabulator.on("dataProcessed", update_rowcount);
+    tabulator.on("dataChanged", update_rowcount);
     tabulator.on("rowSelected", function(row) {
         gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
     });
