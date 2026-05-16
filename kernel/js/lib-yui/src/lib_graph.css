@@ -63,3 +63,12 @@
 .g6-toolbar.g6-toolbar-large[style*="flex-direction: row"] .g6-toolbar-item + .g6-toolbar-item {
     border-left: 1px solid #d9d9d9;
 }
+
+/* No transient effects: open/move popups immediately (user pref).
+ * G6 injects its own .g6-contextmenu / .g6-tooltip CSS with a
+ * left/top/visibility transition that makes them glide into place.
+ * Override with !important so it wins regardless of <style> order. */
+.g6-contextmenu,
+.g6-tooltip {
+    transition: none !important;
+}
