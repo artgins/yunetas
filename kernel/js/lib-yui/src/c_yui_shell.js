@@ -1856,10 +1856,34 @@ function update_secondary_nav_visibility(gobj, entry)
     let owning_menu_id = entry.menu_id || "";
     let target_secondary_id = `secondary.${owning_menu_id}.${active_primary_id}`;
 
-    /*  Per-zone "is there a visible secondary nav here?" — so a zone
-     *  hosting menu.secondary collapses entirely (no empty white
-     *  strip / border) when the active route has no submenu. */
-    let zone_has_visible = {};
+    /*  Does the ACTIVE primary actually have a submenu?  Decided from
+     *  the config (the item tree), NOT from whether a secondary nav
+     *  gobj has been instantiated — those are created lazily, so on a
+     *  route with no submenu (e.g. Monitor) there may be zero
+     *  secondary navs and a nav-derived check would never collapse
+     *  the zone (empty white strip under the toolbar). */
+    let active_primary = entry.parent_item || entry.item || null;
+    let has_secondary = !!(
+        active_primary &&
+        active_primary.submenu &&
+        Array.isArray(active_primary.submenu.items) &&
+        active_primary.submenu.items.some(it => it && it.route)
+    );
+
+    /*  Collapse every zone that hosts menu.secondary when the active
+     *  route has no submenu; reveal them otherwise.  Zone set comes
+     *  from the declared config, so it works before any secondary
+     *  nav exists. */
+    let config = gobj_read_attr(gobj, "config") || {};
+    let zones_cfg = (config.shell && config.shell.zones) || {};
+    for(let z in zones_cfg) {
+        if(zones_cfg[z] && zones_cfg[z].host === "menu.secondary") {
+            let $z = priv.zones[z];
+            if($z) {
+                $z.classList.toggle("is-hidden", !has_secondary);
+            }
+        }
+    }
 
     for(let nav of priv.navs) {
         let level = gobj_read_attr(nav, "level");
@@ -1870,29 +1894,14 @@ function update_secondary_nav_visibility(gobj, entry)
         if(!nav_menu_id.startsWith("secondary.")) {
             continue;
         }
-        let nav_zone = gobj_read_attr(nav, "zone");
-        if(nav_zone && !(nav_zone in zone_has_visible)) {
-            zone_has_visible[nav_zone] = false;
-        }
         let $c = gobj_read_attr(nav, "$container");
         if(!$c) {
             continue;
         }
         if(nav_menu_id === target_secondary_id) {
             $c.classList.remove("is-hidden");
-            if(nav_zone) {
-                zone_has_visible[nav_zone] = true;
-            }
         } else {
             $c.classList.add("is-hidden");
-        }
-    }
-
-    /*  Collapse / reveal the secondary-nav zone(s) themselves. */
-    for(let z in zone_has_visible) {
-        let $z = priv.zones[z];
-        if($z) {
-            $z.classList.toggle("is-hidden", !zone_has_visible[z]);
         }
     }
 }
