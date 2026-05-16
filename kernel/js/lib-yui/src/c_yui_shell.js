@@ -1856,6 +1856,11 @@ function update_secondary_nav_visibility(gobj, entry)
     let owning_menu_id = entry.menu_id || "";
     let target_secondary_id = `secondary.${owning_menu_id}.${active_primary_id}`;
 
+    /*  Per-zone "is there a visible secondary nav here?" — so a zone
+     *  hosting menu.secondary collapses entirely (no empty white
+     *  strip / border) when the active route has no submenu. */
+    let zone_has_visible = {};
+
     for(let nav of priv.navs) {
         let level = gobj_read_attr(nav, "level");
         if(level !== "secondary") {
@@ -1865,14 +1870,29 @@ function update_secondary_nav_visibility(gobj, entry)
         if(!nav_menu_id.startsWith("secondary.")) {
             continue;
         }
+        let nav_zone = gobj_read_attr(nav, "zone");
+        if(nav_zone && !(nav_zone in zone_has_visible)) {
+            zone_has_visible[nav_zone] = false;
+        }
         let $c = gobj_read_attr(nav, "$container");
         if(!$c) {
             continue;
         }
         if(nav_menu_id === target_secondary_id) {
             $c.classList.remove("is-hidden");
+            if(nav_zone) {
+                zone_has_visible[nav_zone] = true;
+            }
         } else {
             $c.classList.add("is-hidden");
+        }
+    }
+
+    /*  Collapse / reveal the secondary-nav zone(s) themselves. */
+    for(let z in zone_has_visible) {
+        let $z = priv.zones[z];
+        if($z) {
+            $z.classList.toggle("is-hidden", !zone_has_visible[z]);
         }
     }
 }
