@@ -1219,35 +1219,35 @@ function create_topic_node(gobj, desc, record)
     };
 
     if(node_treedb_type === 'child') {
-        // Pure child (leaf): compact chip-card so the name is
-        // always legible (same card language as entities, lighter).
+        // Pure child (LEAF): smallest tier. Rounded-rect chip,
+        // same card language as entities, lighter.
         node_graph_type = 'html';
-        style.size = [130, 38];
-        style.dx = -65;
-        style.dy = -19;
+        style.size = [116, 40];
+        style.dx = -58;
+        style.dy = -20;
         style.innerHTML = build_chip_innerHTML(
             desc.color, priv.theme, record.icon, record.id
         );
 
     } else if(node_treedb_type === 'extended') {
-        // Extended (structural: hooks>0, fkeys==0): a card too, so
-        // the name is always visible; styled as "structural"
-        // (neutral grey, dashed border) to read as a container.
+        // Extended (structural / INTERMEDIATE): middle tier. Card
+        // with name; "structural" style (neutral grey, dashed
+        // border) to read as a container/junction.
         node_graph_type = 'html';
-        style.size = [140, 70];
-        style.dx = -70;
-        style.dy = -35;
+        style.size = [144, 66];
+        style.dx = -72;
+        style.dy = -33;
         style.innerHTML = build_node_innerHTML(
             desc.color, priv.theme, record.icon, record.id,
             desc.topic_name, true
         );
 
     } else {
-        // Hierarchical node: HTML
+        // Hierarchical entity (ROOT / container): largest tier.
         node_graph_type = 'html';
-        style.size = [150, 100];
-        style.dx = -75;
-        style.dy = -50;
+        style.size = [172, 96];
+        style.dx = -86;
+        style.dy = -48;
         style.innerHTML = build_node_innerHTML(
             desc.color, priv.theme, record.icon, record.id, desc.topic_name
         );
@@ -4389,11 +4389,11 @@ function build_chip_innerHTML(color, theme, icon, id)
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
     let bg = dark
-        ? `color-mix(in srgb, ${color} 22%, ${surface})`
-        : `color-mix(in srgb, ${color} 11%, ${surface})`;
+        ? `color-mix(in srgb, ${color} 18%, ${surface})`
+        : `color-mix(in srgb, ${color} 10%, ${surface})`;
     let border = dark
-        ? `color-mix(in srgb, ${color} 55%, #475569)`
-        : `color-mix(in srgb, ${color} 70%, #1f2933)`;
+        ? `color-mix(in srgb, ${color} 70%, #ffffff)`
+        : color;
     let text_color = dark ? "#e8eaed" : "#0f172a";
 
     let icon_html = "";
@@ -4411,7 +4411,7 @@ function build_chip_innerHTML(color, theme, icon, id)
     height: 100%;
     background: ${bg};
     border: 1px solid ${border};
-    border-radius: 999px;
+    border-radius: 8px;
     color: ${text_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
@@ -4449,12 +4449,15 @@ function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
         border = dark ? "#5b6472" : "#94a3b8";
         border_style = "dashed";
     } else {
+        // Soft palette (like the topology diagram): a very light
+        // tint of the topic colour as fill, the topic colour itself
+        // as the border (brightened a touch on dark so it shows).
         bg = dark
-            ? `color-mix(in srgb, ${color} 26%, ${surface})`
-            : `color-mix(in srgb, ${color} 14%, ${surface})`;
+            ? `color-mix(in srgb, ${color} 18%, ${surface})`
+            : `color-mix(in srgb, ${color} 10%, ${surface})`;
         border = dark
-            ? `color-mix(in srgb, ${color} 62%, #475569)`
-            : `color-mix(in srgb, ${color} 78%, #1f2933)`;
+            ? `color-mix(in srgb, ${color} 70%, #ffffff)`
+            : color;
         border_style = "solid";
     }
     let title_color = dark ? "#e8eaed" : "#0f172a";
@@ -5875,11 +5878,10 @@ function ac_node_click(gobj, event, kw, src)
                 } else {
                     deselect_port(gobj);
                     select_node(gobj, node_id);
-                    // Plain node click: show the detail popover.
-                    show_node_detail_popover(gobj, node_id);
                 }
             } else {
-                // Reading mode: a plain click shows the detail popover.
+                // Reading mode only: a plain click shows the detail
+                // popover. Never in edit mode (it gets in the way).
                 show_node_detail_popover(gobj, node_id);
             }
         }
