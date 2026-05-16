@@ -288,9 +288,15 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    let __yui_main__ = gobj_find_service("__yui_main__", true);
+    /*  Optional legacy integration with the old C_YUI_MAIN shell.
+     *  Under the new C_YUI_SHELL there is no __yui_main__ — look it
+     *  up SILENTLY (no verbose) so its absence is not logged as an
+     *  error, and fall back to the <html data-theme> convention. */
+    let __yui_main__ = gobj_find_service("__yui_main__");
     if(__yui_main__) {
         priv.theme = gobj_read_str_attr(__yui_main__, "theme");
+    } else {
+        priv.theme = gt_is_dark() ? "dark" : "light";
     }
 
     build_ui(gobj);
