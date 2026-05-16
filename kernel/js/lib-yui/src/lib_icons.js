@@ -96,9 +96,12 @@ const ICONS = `<svg xmlns="http://www.w3.org/2000/svg">
     <symbol id="g6-icon-resize" viewBox="0 0 512 512">
         <path fill="currentColor" d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z"/>
     </symbol>
-    <!-- plus (create node) -->
-    <symbol id="g6-icon-plus" viewBox="0 0 448 512">
-        <path fill="currentColor" d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+    <!-- plus (create node). Deliberately NOT the FA7 solid plus:
+         its arms are ~14% of the width and read thin next to the
+         other solid glyphs. This is a bold geometric plus (~23%
+         arm thickness) so it carries the same visual weight. -->
+    <symbol id="g6-icon-plus" viewBox="0 0 512 512">
+        <path fill="currentColor" d="M316 64 L316 196 L448 196 L448 316 L316 316 L316 448 L196 448 L196 316 L64 316 L64 196 L196 196 L196 64 Z"/>
     </symbol>
     <!-- floppy-disk (save) -->
     <symbol id="g6-icon-save" viewBox="0 0 448 512">
