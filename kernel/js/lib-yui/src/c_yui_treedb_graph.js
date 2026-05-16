@@ -26,6 +26,7 @@ import {
     gobj_read_attr,
     gobj_write_attr,
     gobj_send_event,
+    gobj_publish_event,
     gobj_find_service,
     createElement2,
     sprintf,
@@ -1409,6 +1410,14 @@ function ac_set_operation_mode(gobj, event, kw, src)
         gobj
     );
 
+    /*
+     *  Announce the change so an embedder can mirror it (e.g. into
+     *  the URL route).  Optional subscriber: EVF_NO_WARN_SUBS.
+     */
+    gobj_publish_event(gobj, "EV_OPERATION_MODE_CHANGED", {
+        operation_mode: operation_mode
+    });
+
     return 0;
 }
 
@@ -1528,6 +1537,8 @@ function create_gclass(gclass_name)
         ["EV_CLOSE_WINDOW",             0],
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
+        ["EV_OPERATION_MODE_CHANGED",
+            event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
         ["EV_RESIZE",                   0],
