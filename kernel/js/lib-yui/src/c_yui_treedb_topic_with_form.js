@@ -747,8 +747,8 @@ function create_tabulator(gobj)
         selectableRows: selectable,
         /*  Row-count footer (updated on every data change below). */
         footerElement: "<span class='yui-tabulator-rowcount' " +
-            "style='display:block;text-align:right;font-size:0.75rem;" +
-            "color:#6b7280;padding:0.05rem 0.6rem;'></span>",
+            "style='display:block;text-align:right;font-size:0.8rem;" +
+            "color:#6b7280;padding:0 0.6rem;'></span>",
     });
 
     let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
