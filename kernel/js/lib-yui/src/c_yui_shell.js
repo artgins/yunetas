@@ -2115,6 +2115,26 @@ function yui_shell_set_connection_state(shell_gobj, connected)
 }
 
 /************************************************************
+ *  Swap the icon of a toolbar item at runtime (host-driven,
+ *  like the avatar/connection helpers).  Used e.g. for a
+ *  theme toggle that shows a sun in light / moon in dark.
+ *  `icon_class` fully replaces the <i> class.
+ ************************************************************/
+function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)
+{
+    let $root = gobj_read_attr(shell_gobj, "$container");
+    if(!$root || empty_string(item_id) || empty_string(icon_class)) {
+        return;
+    }
+    let $i = $root.querySelector(
+        `[data-toolbar-item-id="${item_id}"] .icon i`
+    );
+    if($i) {
+        $i.className = icon_class;
+    }
+}
+
+/************************************************************
  *  Programmatic close of any open toolbar dropdown.  Useful for
  *  external triggers (e.g. EV_LOGOUT firing from elsewhere) that
  *  want to dismiss whatever menu is on screen.
@@ -2143,5 +2163,6 @@ export {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_connection_state,
+    yui_shell_set_toolbar_item_icon,
     yui_shell_close_dropdown
 };

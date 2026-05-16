@@ -298,11 +298,20 @@
     background: transparent;
     border: none;
     cursor: pointer;
-    padding: 0.5rem 0.75rem;
+    /*  Generous touch target: comfortable for a thumb (>= ~44px). */
+    padding: 0.5rem 0.85rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
     color: var(--bulma-text, inherit);
+}
+.yui-toolbar-item .icon {
+    /*  yi-* glyphs are 1em (mask) — scale them up so they are easy
+     *  to hit/read in the toolbar. */
+    font-size: 1.35rem;
 }
 .yui-toolbar-item:hover {
     background-color: var(--bulma-scheme-main-bis, rgba(0,0,0,0.04));
