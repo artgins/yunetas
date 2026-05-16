@@ -611,10 +611,17 @@ function build_graph(gobj)
     graph.setLayout(layout);
     //show_positions(gobj);
 
+    priv.graph_rendered = false;
     graph_render(gobj).then(() => {
         configure_events(gobj);
         configure_behaviour(gobj);
         configure_plugins(gobj);
+        /*
+         *  G6 plugin context only exists after render(); until now
+         *  any plugin access (toolbar reconfig) throws.  Mark ready
+         *  so deferred mode/layout/theme changes can reconfigure.
+         */
+        priv.graph_rendered = true;
     });
 }
 
@@ -747,6 +754,15 @@ function update_toolbar(gobj)
     let graph = priv.graph;
 
     if(!gobj_read_bool_attr(gobj, "with_toolbar")) {
+        return;
+    }
+    if(!priv.graph_rendered) {
+        /*
+         *  Called before render() resolved (e.g. operation mode
+         *  restored from the route during view start).  configure_
+         *  plugins() will build the toolbars from the stored attrs
+         *  once render completes — nothing to do here yet.
+         */
         return;
     }
 
