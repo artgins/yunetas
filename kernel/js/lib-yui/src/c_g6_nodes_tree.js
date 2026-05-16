@@ -1176,19 +1176,23 @@ function build_ports(gobj, desc)
                     if(child_topic_name) {
                         child_desc = priv.descs[child_topic_name];
                     }
+                    // Hook port (children attach here): unified
+                    // slate, not the per-topic colour (rainbow).
                     port = {
                         key: col.id,
-                        fill: child_desc?child_desc.color:desc.color,
-                        stroke: getStrokeColor(desc.color),
+                        fill: '#64748b',
+                        stroke: '#ffffff',
                     };
                     bottom_ports.push(port);
                 }
                 break;
             case "fkey":
+                // Fkey port (references a parent): unified teal,
+                // matching the tree/reference accent.
                 port = {
                     key: col.id,
-                    fill: desc.color,
-                    stroke: getStrokeColor(desc.color),
+                    fill: '#0e7490',
+                    stroke: '#ffffff',
                 };
                 top_ports.push(port);
                 break;
@@ -1600,15 +1604,23 @@ function draw_link(
      *  Child node (me)
      */
     let child_node = build_node_name(gobj, child_topic, child_id);
-    let style = graph.getElementRenderStyle(child_node);
 
     /*
      *  Create the edge with independent id and semantic data
      *  HACK: source/target are interchanged so arrows point parent -> child
      */
-    // Restore saved edge style from __graphs__
-    let saved_lineWidth = 2;
-    let saved_stroke = style.fill;
+    // Doc-style default: neutral grey edges, teal for the
+    // containment/tree relation (parent and child same topic, i.e.
+    // a self-hierarchy). Saturated topic colour is dropped.
+    // `themed_default` marks edges still on the default colour so a
+    // theme toggle can re-theme them without touching user-saved ones.
+    let dark = (priv.theme === "dark");
+    let is_tree = (parent_topic === child_topic);
+    let saved_lineWidth = is_tree ? 2 : 1.6;
+    let saved_stroke = is_tree
+        ? (dark ? '#22a7c2' : '#0e7490')
+        : (dark ? '#8b94a3' : '#6b7280');
+    let themed_default = true;
     let topic_props = priv._graph_properties[parent_topic];
     if(topic_props) {
         // Per-edge saved style
@@ -1621,11 +1633,12 @@ function draw_link(
                 }
                 if(edge_props.stroke) {
                     saved_stroke = edge_props.stroke;
+                    themed_default = false;
                 }
             }
         }
-        // Fall back to topic defaults
-        if(saved_lineWidth === 2 && is_object(topic_props.defaults)) {
+        // Fall back to topic defaults (only if not user-overridden)
+        if(themed_default && is_object(topic_props.defaults)) {
             let defs = topic_props.defaults;
             if(defs.edge_styles && defs.edge_styles[hook_name]) {
                 let hook_style = defs.edge_styles[hook_name];
@@ -1634,6 +1647,7 @@ function draw_link(
                 }
                 if(hook_style.stroke) {
                     saved_stroke = hook_style.stroke;
+                    themed_default = false;
                 }
             } else if(defs.edge_style) {
                 if(defs.edge_style.lineWidth != null) {
@@ -1641,6 +1655,7 @@ function draw_link(
                 }
                 if(defs.edge_style.stroke) {
                     saved_stroke = defs.edge_style.stroke;
+                    themed_default = false;
                 }
             }
         }
@@ -1664,6 +1679,8 @@ function draw_link(
             child_topic:  child_topic,
             child_id:     child_id,
             fkey_name:    fkey_name,
+            is_tree:        is_tree,
+            themed_default: themed_default,
         }
     };
 
@@ -4237,6 +4254,35 @@ function refresh_html_nodes_theme(gobj, theme)
 }
 
 /************************************************************
+ *  Re-theme edges still on the default doc colour (themed_default).
+ *  User-customised edge colours are left untouched.
+ ************************************************************/
+function refresh_default_edges_theme(gobj, theme)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+    let dark = (theme === "dark");
+    let edges = graph.getData().edges || [];
+    let updates = [];
+    for(let i = 0; i < edges.length; i++) {
+        let d = edges[i].data || {};
+        if(!d.themed_default) {
+            continue;
+        }
+        let stroke = d.is_tree
+            ? (dark ? '#22a7c2' : '#0e7490')
+            : (dark ? '#8b94a3' : '#6b7280');
+        updates.push({ id: edges[i].id, style: { stroke: stroke } });
+    }
+    if(updates.length > 0) {
+        graph.updateEdgeData(updates);
+    }
+}
+
+/************************************************************
  *  Build innerHTML for pure-child (leaf) nodes: a compact
  *  chip-card. Same colour/typography family as the entity card
  *  but lighter (1px border, no shadow, single line). The name is
@@ -5584,6 +5630,7 @@ function ac_theme(gobj, event, kw, src)
     });
 
     refresh_html_nodes_theme(gobj, theme);
+    refresh_default_edges_theme(gobj, theme);
 
     graph_draw(gobj).then(() => {
         // Restore toolbar icon states lost when G6 re-renders the DOM
