@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## v7.3.4 -- 16/May/2026
+    - **chore(release): corrective republish of `@yuneta/lib-yui`**.
+      `@yuneta/lib-yui@7.3.3` was published to npm from a branch that
+      had the 7.3.3 release prep (gobj-js dependency pin, CHANGELOG,
+      version) but **not** the G6 v5 canvas panning fix (PR #115):
+      the published 7.3.3 tarball is missing
+      `src/g6_drag_canvas_touch.js` and the `autoResize:false` /
+      `ensure_drag_canvas_patch` changes, so installing lib-yui from
+      npm still had the broken touch/desktop panning. npm versions
+      are immutable, so 7.3.4 republishes `@yuneta/lib-yui` from
+      `main` with the complete set (#115 + #116). No source changes
+      versus what `main` already contained at 7.3.3 — this is a
+      packaging correction only.
+    - **chore(release): `@yuneta/gobj-js` 7.3.3 → 7.3.4 (lockstep)**.
+      `@yuneta/gobj-js@7.3.3` on npm was already correct (it carries
+      the `createElement2` nullish-`data-i18n` guard). It is bumped to
+      7.3.4 with no functional change purely to keep the two JS
+      packages in lockstep and avoid version-skew confusion; the
+      `@yuneta/lib-yui` peer range moves to `^7.3.4`.
+    - **note**: deprecate the bad artifact —
+      `npm deprecate "@yuneta/lib-yui@7.3.3" "incomplete: missing the
+      G6 panning fix; use >=7.3.4"`.
+
 ## v7.3.3 -- 16/May/2026
     - **fix(lib-yui): G6 v5 canvas panning (touch broken, desktop
       desynced)** (PR #115).  G6 v5.1.0 `drag-canvas` derived the pan
