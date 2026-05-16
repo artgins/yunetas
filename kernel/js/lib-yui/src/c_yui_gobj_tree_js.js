@@ -129,6 +129,48 @@ const NODE_SIZES = {
 };
 
 /***************************************************************
+ *  Shared card typography.
+ ***************************************************************/
+const GT_FONT =
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
+    "Helvetica, Arial, sans-serif";
+
+/***************************************************************
+ *  True when the app is in dark theme (<html data-theme>).
+ ***************************************************************/
+function gt_is_dark()
+{
+    return (typeof document !== "undefined") &&
+        document.documentElement.getAttribute("data-theme") === "dark";
+}
+
+/***************************************************************
+ *  Soft, theme-aware card palette derived from the role colour
+ *  (same visual language as the treedb graph cards): light tint
+ *  fill + role-colour border, brightened on dark.
+ ***************************************************************/
+function role_card_style(stroke, dark)
+{
+    let surface = dark ? "#1b2230" : "#ffffff";
+    return {
+        bg: dark
+            ? `color-mix(in srgb, ${stroke} 20%, ${surface})`
+            : `color-mix(in srgb, ${stroke} 9%, ${surface})`,
+        border: dark
+            ? `color-mix(in srgb, ${stroke} 68%, #ffffff)`
+            : stroke,
+        title: dark ? "#e8eaed" : "#0f172a",
+        sub: dark ? "#9aa4b2" : "#64748b",
+        tagbg: dark
+            ? `color-mix(in srgb, ${stroke} 30%, ${surface})`
+            : `color-mix(in srgb, ${stroke} 14%, #ffffff)`,
+        shadow: dark
+            ? "0 1px 3px rgba(0,0,0,0.45)"
+            : "0 1px 3px rgba(15,23,42,0.12)",
+    };
+}
+
+/***************************************************************
  *  Map a gobj to its visual category.
  ***************************************************************/
 function get_node_category(target_gobj, is_root)
@@ -573,7 +615,7 @@ function build_graph(gobj)
         edge: {
             type: layout_cfg.edge_type,
             style: {
-                stroke: '#999',
+                stroke: gt_is_dark() ? '#8b94a3' : '#6b7280',
                 lineWidth: 1,
                 endArrow: true,
             },
@@ -617,7 +659,7 @@ function apply_layout(gobj)
         edge: {
             type: layout_cfg.edge_type,
             style: {
-                stroke: '#999',
+                stroke: gt_is_dark() ? '#8b94a3' : '#6b7280',
                 lineWidth: 1,
                 endArrow: true,
             },
@@ -702,7 +744,7 @@ function is_node_collapsed(gobj, full_name, num_children)
  *  Uses data-gobj-toggle / data-node-id attributes picked up
  *  by the delegated click listener in build_ui().
  ************************************************************/
-function render_toggle_html(node_id, collapsed, num_children, stroke_color)
+function render_toggle_html(node_id, collapsed, num_children, cs)
 {
     let label = collapsed ? ("+" + num_children) : "−";
     let title = collapsed ? "Expand children" : "Collapse children";
@@ -719,12 +761,12 @@ function render_toggle_html(node_id, collapsed, num_children, stroke_color)
             height: 16px;
             padding: 0 5px;
             margin-left: 4px;
-            background: #fff;
-            color: ${stroke_color};
-            border: 1px solid ${stroke_color};
-            border-radius: 8px;
+            background: ${cs.tagbg};
+            color: ${cs.border};
+            border: 1px solid ${cs.border};
+            border-radius: 6px;
             font-size: 10px;
-            font-weight: bold;
+            font-weight: 600;
             line-height: 1;
             cursor: pointer;
             user-select: none;
@@ -744,6 +786,8 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     let state = gobj_current_state(target_gobj) || "";
     let full_name = gobj_full_name(target_gobj);
     let colors = get_role_colors(target_gobj, is_root);
+    let dark = gt_is_dark();
+    let cs = role_card_style(colors.stroke, dark);
     let state_color = get_state_color(target_gobj);
 
     let running = gobj_is_running(target_gobj);
@@ -780,7 +824,7 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     }
 
     let toggle_html = has_children
-        ? render_toggle_html(node_id, collapsed, num_children, colors.stroke)
+        ? render_toggle_html(node_id, collapsed, num_children, cs)
         : "";
 
     let node_html;
@@ -798,19 +842,20 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
 <div style="
     width: ${width}px;
     height: ${height}px;
-    background: ${colors.fill};
-    border: ${border_width}px solid ${colors.stroke};
-    border-left: 5px solid ${colors.stroke};
-    border-radius: 3px;
-    font-family: sans-serif;
+    background: ${cs.bg};
+    border: ${border_width}px solid ${cs.border};
+    border-left: 5px solid ${cs.border};
+    border-radius: 7px;
+    box-shadow: ${cs.shadow};
+    font-family: ${GT_FONT};
     display: flex;
     align-items: center;
-    padding: 0 6px;
+    padding: 0 8px;
     box-sizing: border-box;
     overflow: hidden;
     cursor: pointer;
 " title="${compact_label}">
-    <span style="flex:1 1 auto; min-width:0; font-size:11px; color:#1A1A1A; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${compact_label}</span>
+    <span style="flex:1 1 auto; min-width:0; font-size:11px; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${compact_label}</span>
     <span title="${escapeHtml(state || status_text)}" style="
         flex: 0 0 auto;
         width: 8px; height: 8px; border-radius: 50%;
@@ -842,44 +887,36 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
             }
         }
         let badges_html = badges.map(b =>
-            `<span style="font-size:10px; padding:0 4px; margin-right:3px; background:${colors.stroke}22; color:${colors.stroke}; border:1px solid ${colors.stroke}; border-radius:8px; white-space:nowrap;">${b}</span>`
+            `<span style="font-size:10px; padding:0 5px; margin-right:4px; background:${cs.tagbg}; color:${cs.border}; border:1px solid ${cs.border}; border-radius:6px; white-space:nowrap;">${b}</span>`
         ).join("");
 
         node_html = `
 <div style="
     width: ${width}px;
     height: ${height}px;
-    background: ${colors.fill};
-    border: ${border_width}px solid ${colors.stroke};
-    border-radius: 6px;
+    background: ${cs.bg};
+    border: ${border_width}px solid ${cs.border};
+    border-radius: 9px;
+    box-shadow: ${cs.shadow};
     overflow: hidden;
-    font-family: sans-serif;
+    font-family: ${GT_FONT};
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    padding: 6px 9px;
+    gap: 2px;
     cursor: pointer;
 " title="${escapeHtml(gclass_name + (instance_name ? "^" + instance_name : ""))}">
-    <div style="
-        flex: 0 0 auto;
-        background: ${colors.stroke};
-        color: white;
-        font-weight: bold;
-        font-size: 12px;
-        padding: 2px 6px;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        overflow: hidden;
-    ">
-        <span style="flex:1 1 auto; min-width:0; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
+    <div style="flex:0 0 auto; display:flex; align-items:center; gap:6px; overflow:hidden;">
+        <span style="flex:1 1 auto; min-width:0; font-size:12px; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
         ${toggle_html}
     </div>
-    <div style="flex:1 1 auto; min-height:0; padding: 3px 6px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <span style="color:#1A1A1A;">${name_label || "&nbsp;"}</span>
-    </div>
-    <div style="flex:0 0 auto; padding: 2px 6px; font-size: 11px; white-space: nowrap; display:flex; justify-content:space-between; align-items:center; gap:6px; overflow:hidden;">
-        <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;">${badges_html}</span>
-        <span style="flex:0 0 auto; color:${state_color}; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">${state_label || status_text}</span>
+    <div style="flex:1 1 auto; min-height:0; font-size:12px; color:${cs.sub}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name_label || "&nbsp;"}</div>
+    <div style="flex:0 0 auto; display:flex; justify-content:space-between; align-items:center; gap:6px; overflow:hidden;">
+        <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${badges_html}</span>
+        <span style="flex:0 0 auto; display:flex; align-items:center; gap:4px; color:${state_color}; font-weight:600; font-size:11px; white-space:nowrap;">
+            <span style="width:7px; height:7px; border-radius:50%; background:${state_color};"></span>${state_label || status_text}
+        </span>
     </div>
 </div>`;
     }
