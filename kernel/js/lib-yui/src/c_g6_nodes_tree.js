@@ -239,6 +239,8 @@ let PRIVATE_DATA = {
     layout:             null,
     theme:              null,
     theme_observer:     null,    // MutationObserver on <html data-theme>
+    resize_observer:    null,    // ResizeObserver on $container
+    _resize_raf:        0,       // rAF id debouncing resize bursts
     _selected_node_id:  null,
     _selected_port_key: null,       // key of selected port (null = node selected)
     _resize_handles_el: null,
@@ -333,6 +335,28 @@ function mt_create(gobj)
     build_ui(gobj);
     register_layouts(gobj);
     build_graph(gobj);
+
+    /*  Self-contained resize: the old shell pushed EV_RESIZE from
+     *  __yui_main__; the new C_YUI_SHELL does not.  Observe our own
+     *  $container box and drive ac_resize ourselves so the canvas
+     *  follows content-area resizes (devtools, window, layout).
+     *  rAF-debounced; graph.setSize does not change the observed
+     *  box, so there is no feedback loop. */
+    if(typeof ResizeObserver !== "undefined" && priv.$container) {
+        let ro = new ResizeObserver(() => {
+            if(priv._resize_raf) {
+                cancelAnimationFrame(priv._resize_raf);
+            }
+            priv._resize_raf = requestAnimationFrame(() => {
+                priv._resize_raf = 0;
+                if(priv.graph && priv.graph_rendered) {
+                    gobj_send_event(gobj, "EV_RESIZE", {}, gobj);
+                }
+            });
+        });
+        ro.observe(priv.$container);
+        priv.resize_observer = ro;
+    }
 }
 
 /***************************************************************
@@ -374,6 +398,15 @@ function mt_destroy(gobj)
     if(priv.theme_observer) {
         priv.theme_observer.disconnect();
         priv.theme_observer = null;
+    }
+
+    if(priv.resize_observer) {
+        priv.resize_observer.disconnect();
+        priv.resize_observer = null;
+    }
+    if(priv._resize_raf) {
+        cancelAnimationFrame(priv._resize_raf);
+        priv._resize_raf = 0;
     }
 
     if(priv.graph) {
