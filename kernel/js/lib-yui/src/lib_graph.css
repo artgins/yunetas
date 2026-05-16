@@ -72,3 +72,25 @@
 .g6-tooltip {
     transition: none !important;
 }
+
+/* Theme-aware context menu. G6 injects its own .g6-contextmenu rule
+ * (white-ish bg, dark text) at runtime, AFTER our bundled CSS, so an
+ * equal-specificity rule would lose. Keying off [data-theme] on
+ * <html> raises specificity above G6's single-class rule — wins in
+ * both themes without !important. Icons use currentColor → they
+ * follow the text colour automatically. */
+[data-theme="light"] .g6-contextmenu {
+    background-color: #ffffff;
+    color: #1f2933;
+}
+[data-theme="light"] .g6-contextmenu-li:hover {
+    background-color: #f0f0f0;
+}
+[data-theme="dark"] .g6-contextmenu {
+    background-color: #232a33;
+    color: #e8eaed;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .g6-contextmenu-li:hover {
+    background-color: #2f3742;
+}
