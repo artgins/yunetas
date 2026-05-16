@@ -258,6 +258,8 @@ let PRIVATE_DATA = {
     _node_icon_el:      null,       // floating node properties icon element
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
+    _node_detail_el:    null,       // read-only detail popover (on click)
+    _detail_node_id:    null,       // node id the detail popover is showing
     _delete_confirm_el: null,       // delete confirmation popover
     _unlink_confirm_el: null,       // unlink confirmation popover
     _create_popover_el: null,       // create node popover element
@@ -783,41 +785,6 @@ function configure_plugins(gobj)
         }
     );
 
-    /*  Tooltip ONLY for structural junctions (extended nodes):
-     *  they are label-less by design, so the name must be
-     *  reachable on hover. Other node types show their name
-     *  inline; keeping the tooltip scoped avoids hover noise. */
-    let graph = gobj.priv.graph;
-    graph_add_plugin(
-        gobj,
-        'tooltip',
-        {
-            trigger: 'hover',
-            enable: (e) => {
-                if(e.targetType !== 'node') {
-                    return false;
-                }
-                let nd = graph.getNodeData(e.target.id);
-                return !!(nd && nd.data && nd.data.desc &&
-                    nd.data.desc.node_treedb_type === 'extended');
-            },
-            getContent: (e, items) => {
-                let it = (items && items[0]) || {};
-                let nd = graph.getNodeData(it.id);
-                let rec = (nd && nd.data && nd.data.record) || {};
-                let topic = (nd && nd.data && nd.data.desc &&
-                    nd.data.desc.topic_name) || '';
-                let id = rec.id != null ? String(rec.id) : String(it.id);
-                return `<div class="g6-tooltip-node">` +
-                    `<div class="g6-tooltip-id">${escapeHtml(id)}</div>` +
-                    (topic
-                        ? `<div class="g6-tooltip-sub">${escapeHtml(topic)}</div>`
-                        : ``) +
-                    `</div>`;
-            },
-        }
-    );
-
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);
         configure_toolbar_edit(gobj);
@@ -1176,23 +1143,24 @@ function build_ports(gobj, desc)
                     if(child_topic_name) {
                         child_desc = priv.descs[child_topic_name];
                     }
-                    // Hook port (children attach here): unified
-                    // slate, not the per-topic colour (rainbow).
+                    // Hook port: colour of the CHILD topic that can
+                    // attach here — the colour is the visual cue of
+                    // what links there.
                     port = {
                         key: col.id,
-                        fill: '#64748b',
-                        stroke: '#ffffff',
+                        fill: child_desc?child_desc.color:desc.color,
+                        stroke: getStrokeColor(desc.color),
                     };
                     bottom_ports.push(port);
                 }
                 break;
             case "fkey":
-                // Fkey port (references a parent): unified teal,
-                // matching the tree/reference accent.
+                // Fkey port: colour of this topic (the node that
+                // links out from here).
                 port = {
                     key: col.id,
-                    fill: '#0e7490',
-                    stroke: '#ffffff',
+                    fill: desc.color,
+                    stroke: getStrokeColor(desc.color),
                 };
                 top_ports.push(port);
                 break;
@@ -1262,15 +1230,17 @@ function create_topic_node(gobj, desc, record)
         );
 
     } else if(node_treedb_type === 'extended') {
-        // Extended (structural: hooks>0, fkeys==0): a small neutral
-        // junction so the topology reads (no orphan edges). No
-        // label; the name is shown via the tooltip plugin.
-        node_graph_type = 'diamond';
-        style.size = [16, 16];
-        let dark = (priv.theme === "dark");
-        style.fill = dark ? '#5b6472' : '#cbd5e1';
-        style.stroke = dark ? '#828c9c' : '#94a3b8';
-        style.lineWidth = 1;
+        // Extended (structural: hooks>0, fkeys==0): a card too, so
+        // the name is always visible; styled as "structural"
+        // (neutral grey, dashed border) to read as a container.
+        node_graph_type = 'html';
+        style.size = [140, 70];
+        style.dx = -70;
+        style.dy = -35;
+        style.innerHTML = build_node_innerHTML(
+            desc.color, priv.theme, record.icon, record.id,
+            desc.topic_name, true
+        );
 
     } else {
         // Hierarchical node: HTML
@@ -1376,12 +1346,24 @@ function update_topic_node(gobj, desc, node_name, record)
         // Update record data
         nodedata.data.record = record;
 
-        // Update label if it's a child node
+        // Regenerate the card/chip innerHTML for the new record
         if(desc.node_treedb_type === 'child') {
             graph.updateNodeData([{
                 id: node_name,
                 style: {
-                    labelText: record.id,
+                    innerHTML: build_chip_innerHTML(
+                        desc.color, priv.theme, record.icon, record.id
+                    ),
+                }
+            }]);
+        } else if(desc.node_treedb_type === 'extended') {
+            graph.updateNodeData([{
+                id: node_name,
+                style: {
+                    innerHTML: build_node_innerHTML(
+                        desc.color, priv.theme, record.icon, record.id,
+                        desc.topic_name, true
+                    ),
                 }
             }]);
         } else if(desc.node_treedb_type === 'hierarchical') {
@@ -4196,6 +4178,119 @@ function hide_node_popover(gobj)
 }
 
 /************************************************************
+ *  Read-only DETAIL popover, shown on node click.
+ *  The node itself carries only the basic info (name + topic);
+ *  the full record is shown here on demand. Click the same node
+ *  again, or the canvas, to dismiss.
+ ************************************************************/
+function hide_node_detail(gobj)
+{
+    gobj.priv._detail_node_id = null;
+    hide_overlay(gobj, '_node_detail_el');
+}
+
+function show_node_detail_popover(gobj, node_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Toggle: clicking the same node again closes it.
+    if(priv._node_detail_el && priv._detail_node_id === node_id) {
+        hide_node_detail(gobj);
+        return;
+    }
+    hide_node_detail(gobj);
+
+    let nd = graph.getNodeData(node_id);
+    if(!nd || !nd.data || !nd.data.desc) {
+        return;
+    }
+    let rect = get_node_viewport_rect(gobj, node_id);
+    if(!rect) {
+        return;
+    }
+
+    let dark = (priv.theme === "dark");
+    let record = nd.data.record || {};
+    let topic = nd.data.desc.topic_name || '';
+    let id = record.id != null ? String(record.id) : String(node_id);
+
+    let bg = dark ? '#1f2733' : '#ffffff';
+    let fg = dark ? '#e8eaed' : '#0f172a';
+    let sub = dark ? '#9aa4b2' : '#64748b';
+    let bd = dark ? '#3a4250' : '#d9d9d9';
+    let rowbd = dark ? '#2c3440' : '#eef1f5';
+
+    const popover = create_popover_base(
+        rect.right + 16, rect.top, 'g6-node-detail', bd, 220
+    );
+    popover.style.background = bg;
+    popover.style.color = fg;
+    popover.style.maxWidth = '320px';
+    popover.style.maxHeight = '60%';
+    popover.style.overflow = 'auto';
+    popover.style.fontFamily =
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
+        "Helvetica, Arial, sans-serif";
+
+    let rows = '';
+    for(let key of Object.keys(record)) {
+        if(key.indexOf('__') === 0) {   // skip internal metadata
+            continue;
+        }
+        let v = record[key];
+        let vs;
+        if(v === null || v === undefined) {
+            vs = '';
+        } else if(typeof v === 'object') {
+            vs = JSON.stringify(v);
+        } else {
+            vs = String(v);
+        }
+        if(vs.length > 240) {
+            vs = vs.slice(0, 240) + '…';
+        }
+        rows +=
+            `<div style="display:flex;gap:10px;padding:5px 0;` +
+            `border-top:1px solid ${rowbd};">` +
+            `<div style="flex:0 0 38%;color:${sub};font-size:12px;` +
+            `word-break:break-word;">${escapeHtml(key)}</div>` +
+            `<div style="flex:1 1 auto;font-size:12px;` +
+            `word-break:break-word;">${escapeHtml(vs)}</div>` +
+            `</div>`;
+    }
+
+    popover.innerHTML =
+        `<div style="display:flex;align-items:flex-start;gap:8px;` +
+        `margin-bottom:6px;">` +
+            `<div style="flex:1 1 auto;min-width:0;">` +
+                `<div style="font-size:14px;font-weight:600;` +
+                `word-break:break-word;">${escapeHtml(id)}</div>` +
+                `<div style="font-size:11px;color:${sub};` +
+                `margin-top:2px;">${escapeHtml(topic)}</div>` +
+            `</div>` +
+            `<div class="g6-detail-close" style="flex:0 0 auto;` +
+            `cursor:pointer;font-size:16px;line-height:1;` +
+            `color:${sub};padding:0 2px;">×</div>` +
+        `</div>` +
+        (rows || `<div style="font-size:12px;color:${sub};">` +
+            `${escapeHtml(t('no fields'))}</div>`);
+
+    let close_el = popover.querySelector('.g6-detail-close');
+    if(close_el) {
+        close_el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hide_node_detail(gobj);
+        });
+    }
+
+    priv.$container.appendChild(popover);
+    priv._node_detail_el = popover;
+    priv._detail_node_id = node_id;
+    clamp_popover_position(gobj, popover);
+}
+
+/************************************************************
  *  Re-render every HTML (hierarchical) node so its card adopts
  *  the given theme: entity cards and leaf chips (baked innerHTML,
  *  not re-themed by setTheme()) are regenerated; structural
@@ -4208,7 +4303,6 @@ function refresh_html_nodes_theme(gobj, theme)
     if(!graph) {
         return;
     }
-    let dark = (theme === "dark");
     let nodes = graph.getData().nodes || [];
     let updates = [];
     for(let i = 0; i < nodes.length; i++) {
@@ -4242,8 +4336,10 @@ function refresh_html_nodes_theme(gobj, theme)
             updates.push({
                 id: nodes[i].id,
                 style: {
-                    fill: dark ? '#5b6472' : '#cbd5e1',
-                    stroke: dark ? '#828c9c' : '#94a3b8'
+                    innerHTML: build_node_innerHTML(
+                        nd.data.desc.color, theme, record.icon,
+                        record.id, nd.data.desc.topic_name, true
+                    )
                 }
             });
         }
@@ -4341,16 +4437,26 @@ function build_chip_innerHTML(color, theme, icon, id)
  *  colour is kept (per-topic differentiation) but softened via
  *  color-mix instead of a harsh saturated fill. Theme-aware.
  ************************************************************/
-function build_node_innerHTML(color, theme, icon, id, topic_name)
+function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
 {
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
-    let bg = dark
-        ? `color-mix(in srgb, ${color} 26%, ${surface})`
-        : `color-mix(in srgb, ${color} 14%, ${surface})`;
-    let border = dark
-        ? `color-mix(in srgb, ${color} 62%, #475569)`
-        : `color-mix(in srgb, ${color} 78%, #1f2933)`;
+    let bg, border, border_style;
+    if(structural) {
+        // Structural node (extended): neutral grey, dashed border —
+        // reads as "container/junction" but still shows its name.
+        bg = dark ? "#222a36" : "#f1f5f9";
+        border = dark ? "#5b6472" : "#94a3b8";
+        border_style = "dashed";
+    } else {
+        bg = dark
+            ? `color-mix(in srgb, ${color} 26%, ${surface})`
+            : `color-mix(in srgb, ${color} 14%, ${surface})`;
+        border = dark
+            ? `color-mix(in srgb, ${color} 62%, #475569)`
+            : `color-mix(in srgb, ${color} 78%, #1f2933)`;
+        border_style = "solid";
+    }
     let title_color = dark ? "#e8eaed" : "#0f172a";
     let sub_color = dark ? "#9aa4b2" : "#64748b";
     let shadow = dark
@@ -4382,7 +4488,7 @@ function build_node_innerHTML(color, theme, icon, id, topic_name)
     width: 100%;
     height: 100%;
     background: ${bg};
-    border: 1.5px solid ${border};
+    border: 1.5px ${border_style} ${border};
     border-radius: 10px;
     box-shadow: ${shadow};
     color: ${title_color};
@@ -5769,7 +5875,12 @@ function ac_node_click(gobj, event, kw, src)
                 } else {
                     deselect_port(gobj);
                     select_node(gobj, node_id);
+                    // Plain node click: show the detail popover.
+                    show_node_detail_popover(gobj, node_id);
                 }
+            } else {
+                // Reading mode: a plain click shows the detail popover.
+                show_node_detail_popover(gobj, node_id);
             }
         }
     } catch(e) {
@@ -5828,6 +5939,8 @@ function ac_node_context_menu(gobj, event, kw, src)
 function ac_canvas_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    hide_node_detail(gobj);
 
     if(priv._linking_mode) {
         exit_linking_mode(gobj);
