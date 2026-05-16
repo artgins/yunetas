@@ -93,9 +93,16 @@
     border-top: 1px solid var(--bulma-border-weak, #dbdbdb);
 }
 
-/*  The center zone is a stage: its routed gobj $container fills it. */
+/*  The center zone is a stage: its routed gobj $container fills it.
+ *  flex-shrink MUST be 0: with shrink:1 + min-height:0 a view whose
+ *  content is taller than the zone gets shrunk below its content,
+ *  the content overflows the (short) box with no scrollbar, and the
+ *  view background only covers that short box (white/blank below).
+ *  shrink:0 → short content: flex-grow fills the zone (bg covers
+ *  all); tall content: the box keeps its content height and the
+ *  zone (overflow:auto) scrolls. Correct at every screen size. */
 .yui-zone-center > * {
-    flex: 1 1 auto;
+    flex: 1 0 auto;
     min-height: 0;
 }
 
