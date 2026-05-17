@@ -552,9 +552,12 @@ yui_shell_show_error(shell,   "Boom");
 /*  Non-blocking modal (Bulma .modal-content + .box).  Click on
  *  background, the close button or Escape close it.  `content` may
  *  be an HTMLElement (mounted as-is).  opts: { dismiss_on_background,
- *  on_close }.  on_close() fires once after the modal is removed by
- *  ANY path (programmatic, Escape, backdrop, X) — use it to destroy
- *  a gobj you mounted inside. */
+ *  with_close_button, on_close }.  with_close_button:false omits the
+ *  external floating Bulma `.modal-close` (for content that provides
+ *  its own in-box close, e.g. a C_YUI_PAGER header); Escape and the
+ *  backdrop still close.  on_close() fires once after the modal is
+ *  removed by ANY path (programmatic, Escape, backdrop, X) — use it
+ *  to destroy a gobj you mounted inside. */
 let { close } = yui_shell_show_modal(shell, $el, { on_close: cleanup });
 
 /*  Blocking dialogs.  Escape, the close button, and click on the
@@ -674,11 +677,20 @@ Notable attributes: `subscriber`, `root_title`, `back_on_root`
 pushed page set `discardable:true`), `$container` (internal, the
 node the parent mounts).
 
-Host note: when mounted inside a Bulma `modal-card`, hide the
-`modal-card-head` to avoid a double header — the pager's own
-`<- title` header is the chrome. On mobile a full-screen sheet is
-recommended; on desktop a centred card. No transitions on
-push/pop by design.
+Header affordance by depth: a deeper page shows a **back arrow**
+(`yi-arrow-left`, pops); the **root** page with `back_on_root`
+shows a **close cross** (`yi-xmark`, emits `EV_PAGER_EXIT`). The
+`pager_header_model` exposes this as `back_kind`
+(`"back"|"close"|"none"`).
+
+Host note: the close affordance lives **inside** the popup (the
+pager header). When hosting in `yui_shell_show_modal`, pass
+`with_close_button: false` so the external floating Bulma
+`.modal-close` is omitted and the pager's in-box cross is the only
+close (Escape and the backdrop still close). When mounted inside a
+Bulma `modal-card`, hide the `modal-card-head` to avoid a double
+header. On mobile a full-screen sheet is recommended; on desktop a
+centred card/box. No transitions on push/pop by design.
 
 ### `C_YUI_WIZARD`
 

@@ -176,17 +176,29 @@ export function yui_shell_show_modal(shell, content, opts)
         ? ["div", {class: "box"}, [["p", {i18n: content}, content]]]
         : null;
 
+    /*  The external Bulma `.modal-close is-large` sits at the
+     *  top-right of the viewport, outside the content box.  Callers
+     *  whose content provides its own in-box close (e.g. a
+     *  C_YUI_PAGER header) pass `with_close_button: false` to omit
+     *  it; Escape and the backdrop still close the modal. */
+    let with_close = !(opts && opts.with_close_button === false);
+    let modal_children = [
+        ["div", {class: "modal-background"}],
+        ["div", {class: "modal-content"},
+            inner ? [inner] : []
+        ]
+    ];
+    if(with_close) {
+        modal_children.push(
+            ["button", {class: "modal-close is-large",
+                        "aria-label": "close"}]
+        );
+    }
+
     let $modal = createElement2(
         ["div", {class: "modal yui-modal is-active",
                  role: "dialog", "aria-modal": "true"},
-            [
-                ["div", {class: "modal-background"}],
-                ["div", {class: "modal-content"},
-                    inner ? [inner] : []
-                ],
-                ["button", {class: "modal-close is-large",
-                            "aria-label": "close"}]
-            ]
+            modal_children
         ]
     );
     $layer.appendChild($modal);
@@ -239,7 +251,10 @@ export function yui_shell_show_modal(shell, content, opts)
     if((opts == null || opts.dismiss_on_background !== false)) {
         $modal.querySelector(".modal-background").addEventListener("click", close);
     }
-    $modal.querySelector(".modal-close").addEventListener("click", close);
+    let $close_btn = $modal.querySelector(".modal-close");
+    if($close_btn) {
+        $close_btn.addEventListener("click", close);
+    }
 
     return { close };
 }

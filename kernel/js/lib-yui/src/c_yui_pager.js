@@ -226,6 +226,18 @@ function render_header(gobj)
     let $discard = $container.querySelector('.yui-pager-discard');
 
     $back.classList.toggle('is-hidden', !model.show_back);
+    /*
+     *  Root (back_on_root) shows a close cross INSIDE the popup;
+     *  deeper pages show a back arrow.
+     */
+    let $back_icon = $back.querySelector('i');
+    if(model.back_kind === "close") {
+        $back_icon.className = 'yi-xmark';
+        $back.setAttribute('aria-label', 'close');
+    } else {
+        $back_icon.className = 'yi-arrow-left';
+        $back.setAttribute('aria-label', 'back');
+    }
     $discard.classList.toggle('is-hidden', !model.show_discard);
     $title.setAttribute('i18n', model.title);
     $title.textContent = model.title;

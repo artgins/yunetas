@@ -69,7 +69,12 @@ function pager_top(stack)
  *
  *      opts = { root_title, back_on_root, with_discard }
  *
- *  Returns { title, show_back, show_discard, depth }.
+ *  Returns { title, show_back, back_kind, show_discard, depth }.
+ *  back_kind:
+ *    "back"  — a deeper page: the affordance pops (icon: arrow)
+ *    "close" — the root page with back_on_root: it exits/closes
+ *              (icon: a cross, shown INSIDE the popup)
+ *    "none"  — root page, back_on_root false: no affordance
  ***************************************************************/
 function pager_header_model(stack, opts)
 {
@@ -84,18 +89,21 @@ function pager_header_model(stack, opts)
         title = opts.root_title || "";
     }
 
-    let show_back;
+    let back_kind;
     if(depth > 1) {
-        show_back = true;
+        back_kind = "back";
+    } else if(opts.back_on_root) {
+        back_kind = "close";
     } else {
-        show_back = !!opts.back_on_root;
+        back_kind = "none";
     }
 
     let show_discard = !!opts.with_discard && !!(top && top.discardable);
 
     return {
         title:        title,
-        show_back:    show_back,
+        show_back:    back_kind !== "none",
+        back_kind:    back_kind,
         show_discard: show_discard,
         depth:        depth,
     };

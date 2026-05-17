@@ -116,6 +116,26 @@ test("empty stack: title is root_title, depth 0", () => {
     assert.equal(m.depth, 0);
 });
 
+test("back_kind: root+back_on_root -> 'close'", () => {
+    const m = pager_header_model([{ id: "r" }], { back_on_root: true });
+    assert.equal(m.back_kind, "close");
+    assert.equal(m.show_back, true);
+});
+
+test("back_kind: root without back_on_root -> 'none'", () => {
+    const m = pager_header_model([{ id: "r" }], { back_on_root: false });
+    assert.equal(m.back_kind, "none");
+    assert.equal(m.show_back, false);
+});
+
+test("back_kind: deeper page -> 'back'", () => {
+    const m = pager_header_model(
+        [{ id: "r" }, { id: "lang" }], { back_on_root: true }
+    );
+    assert.equal(m.back_kind, "back");
+    assert.equal(m.show_back, true);
+});
+
 
 /*============================================================
  *      pager_back_action
