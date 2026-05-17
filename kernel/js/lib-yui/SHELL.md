@@ -875,6 +875,61 @@ Exercises every path: breakpoints, click and hash navigation, and the
 `keep_alive` vs `lazy_destroy` contrast (visible in the `instance #`
 counter painted by `C_TEST_VIEW`).
 
+### The test-app navigation tree, flattened
+
+A concrete instance of the §2 model on the shipping
+`test-app/src/app_config.json` — pure 2-level menu, inline `target`s,
+toolbar actions of type `navigate` / `event` / `drawer` (no
+`shell.routes`, no `target.kind` — those are not part of this engine;
+see the wattyzer routing-contract doc for the extended variant).
+
+```
+NAVIGATION TREE  (app_config.json)                 ROUTE INDEX  (runtime, flat)
+──────────────────────────────────                 ──────────────────────────────────────
+toolbar (zone:top)                                  path           target / effect
+  burger ── drawer toggle menu_id:quick             ─────────────  ───────────────────────────
+  home ──── navigate /dash/ov ──────────┐           /dash          ∅  → redirect to /dash/ov
+  help ──── navigate /help ───────────┐ │           /dash/ov       C_TEST_VIEW @main keep_alive
+  say-hello event EV_SHOW_HELLO  (*)   │ │           /dash/devices  C_TEST_VIEW @main keep_alive
+  ask-question event EV_ASK_QUESTION(*)│ │           /dash/alerts   C_TEST_VIEW @main lazy_destroy
+  lang ──── event EV_TOGGLE_LANGUAGE(*)│ │           /reports       ∅  → redirect to /reports/daily
+                                       │ │           /reports/daily   C_TEST_VIEW @main keep_alive†
+menu.primary (left / bottom)           │ │           /reports/monthly C_TEST_VIEW @main keep_alive†
+  "dash"    /dash  (container)         │ │           /settings      C_TEST_VIEW @main keep_alive†
+   └─ submenu (top-sub:tabs, right:submenu)          /help          C_TEST_VIEW @main eager
+      ├─ "ov"      /dash/ov ◄──────────┘ │                          (created at startup)
+      ├─ "devices" /dash/devices         │
+      └─ "alerts"  /dash/alerts          │           (*) toolbar action:"event" → publishes
+  "reports" /reports (container)         │               the event, NO route, NO index entry
+   └─ submenu (top-sub:tabs, right:submenu)           (†) no explicit lifecycle → engine
+      ├─ "daily"   /reports/daily        │               default keep_alive
+      └─ "monthly" /reports/monthly      │
+  "settings" /settings ─── target inline │           menu.quick (drawer overlay)
+  "help"     /help ◄───────────────────────────────── q-ov→/dash/ov  q-alerts→/dash/alerts
+             target.lifecycle:"eager"                  q-settings→/settings
+                                                       (no own targets: same keys → reuse
+                                                        the primary-menu instances)
+```
+
+What this example demonstrates that the generic §2 picture only states:
+
+- **Two `∅`-target containers** (`/dash`, `/reports`): clicking the
+  parent redirects to the first navigable child (no `submenu.default`
+  here, so it is the first child).
+- **All four lifecycle paths**: explicit `keep_alive`, explicit
+  `lazy_destroy`, explicit `eager` (`/help` is built at startup, not on
+  first visit), and *omitted* → engine default `keep_alive` (§4).
+- **Toolbar `action:"event"`** (`say-hello`, `ask-question`, `lang`):
+  these are **not** routes — they publish an app event and never enter
+  the route index. Only `action:"navigate"` items (`home`) and
+  `action:"drawer"` (`burger`) touch navigation. (This is the engine's
+  built-in action vocabulary; the wattyzer doc's `kind:"action"` is a
+  *different*, vendored extension that turns a *route* into transient
+  event wiring — do not conflate them.)
+- **`menu.quick` route reuse**: the drawer items carry only a `route`
+  and no `target`; they resolve to the same index entries as the
+  primary menu, so the existing instance is reused — no duplicate gobj.
+
 ---
 
 ## 10. Coexistence with `C_YUI_MAIN` / `C_YUI_ROUTING` — no migration planned
