@@ -680,6 +680,52 @@ Host note: when mounted inside a Bulma `modal-card`, hide the
 recommended; on desktop a centred card. No transitions on
 push/pop by design.
 
+### `C_YUI_WIZARD`
+
+Multi-step wizard (Pattern B: forward/back with a final confirm).
+Same container-agnostic philosophy as `C_YUI_PAGER` and the same
+**CHILD** subscription model. Unlike the pager, a wizard **does**
+confirm at the end. The parent supplies all steps up-front; the
+gclass owns the title / `N / M` counter / Back / Next(Confirm)
+chrome and shows one step at a time.
+
+Input events:
+- `EV_SET_STEPS` — `{ steps: [ { id, title, content } ] }`.
+  `content` is a gobj exposing `$container`, an `HTMLElement`, or a
+  `createElement2()` spec.
+- `EV_NEXT` — validate (if `linear`) then advance; on the last
+  step it confirms.
+- `EV_PREV` — previous step (no validation).
+- `EV_GOTO` — `{ idx }`, jump to a step (no validation).
+- `EV_STEP_VALID` — `{ ...kw }` the current step accepted; the
+  wizard accumulates `kw` and advances/confirms.
+- `EV_STEP_INVALID` — `{ msg }` the step rejected; the wizard
+  stays put (the step shows its own error).
+- `EV_CANCEL` — host asked to cancel → emits `EV_WIZARD_CANCEL`.
+- `EV_SHOW` / `EV_HIDE` / `EV_REFRESH` / `EV_RESIZE` — forwarded
+  to the current step when it is a gobj.
+
+Published events:
+- `EV_STEP_VALIDATE` — sent to the current step's gobj before
+  advancing in a `linear` wizard; the step must answer
+  `EV_STEP_VALID` / `EV_STEP_INVALID`.
+- `EV_STEP_SHOWN` — `{ idx, id }` (informational, no-warn).
+- `EV_WIZARD_DONE` — `{ kw, by_step }`. `kw` is the flat merge of
+  every step's validated kw; `by_step` keeps them keyed by step id.
+- `EV_WIZARD_CANCEL` — emitted on `EV_CANCEL`.
+
+Validation contract: in a `linear` wizard every step whose
+`content` is a gobj **must** handle `EV_STEP_VALIDATE` and reply
+`EV_STEP_VALID`/`EV_STEP_INVALID`. Steps that are plain elements,
+and non-linear wizards, skip validation and advance immediately.
+
+Notable attributes: `subscriber`, `confirm_label` (default
+`"confirm"`), `next_label` (`"next"`), `back_label` (`"back"`),
+`allow_back` (default `true`), `linear` (default `true`),
+`$container` (internal). Same modal-card host note as
+`C_YUI_PAGER` (hide `modal-card-head`; full-screen sheet on
+mobile; no transitions).
+
 ---
 
 ## 7. Integration in an app
