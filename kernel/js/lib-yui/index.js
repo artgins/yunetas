@@ -13,6 +13,7 @@
 export { register_c_yui_main, display_volatil_modal, display_info_message, display_warning_message, display_error_message, get_yesnocancel, get_yesno, get_ok } from "./src/c_yui_main.js";
 export { register_c_yui_window } from "./src/c_yui_window.js";
 export { register_c_yui_tabs } from "./src/c_yui_tabs.js";
+export { register_c_yui_pager } from "./src/c_yui_pager.js";
 export { register_c_yui_form } from "./src/c_yui_form.js";
 export { register_c_yui_routing } from "./src/c_yui_routing.js";
 export { register_c_yui_map } from "./src/c_yui_map.js";

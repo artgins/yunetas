@@ -634,6 +634,52 @@ itself. Labels are emitted with `data-i18n` and a single
 `refresh_language` call on the shell's `$container` re-translates
 every nav at once.
 
+### `C_YUI_PAGER`
+
+Drill-down navigation **stack** (Pattern A: settings-style,
+mobile-first). Container-agnostic: it owns *only* the navigation
+chrome (a `<- title` header + a body that stacks panels). The
+parent mounts `gobj_read_attr(pager, "$container")` wherever it
+wants — inside a `C_YUI_WINDOW` body, a Bulma `modal-card` body, or
+inline — and feeds content with `EV_PUSH_PAGE`. **No Confirm/Cancel
+chrome on purpose**: the content panel auto-saves itself (e.g.
+`C_YUI_FORM`); `<- back` only navigates.
+
+Subscription model: **CHILD** (created with a parent; the parent —
+or an explicit `subscriber` attr — receives the output events).
+
+Input events:
+- `EV_PUSH_PAGE` — `{ id, title, content, discardable? }`. `content`
+  is a gobj exposing a `$container` attr, an `HTMLElement`, or a
+  `createElement2()` spec (array).
+- `EV_POP_PAGE` / `EV_BACK` — pop the top page; popping past the
+  root emits `EV_PAGER_EXIT` when `back_on_root` is `true`.
+- `EV_REPLACE_PAGE` — `{ id, title, content, discardable? }`,
+  swaps the top page (same depth).
+- `EV_DISCARD_PAGE` — emit `EV_PAGE_DISCARD` for the top page.
+- `EV_SHOW` / `EV_HIDE` / `EV_REFRESH` / `EV_RESIZE` — chrome
+  show/hide/relabel; forwarded to the top page when it is a gobj.
+
+Published events:
+- `EV_PAGE_SHOWN` — `{ id, depth }` (informational, no-warn).
+- `EV_PAGE_DISCARD` — `{ id }`. The page/parent decides what
+  discard means (e.g. a form does `EV_UNDO_RECORD` then the host
+  pops). The pager only exposes the hook.
+- `EV_PAGER_EXIT` — back was pressed on the root; the host
+  (window / modal) should close.
+
+Notable attributes: `subscriber`, `root_title`, `back_on_root`
+(default `true`), `with_discard` (default `false`; the per-page
+`discard` affordance only shows when this is `true` **and** the
+pushed page set `discardable:true`), `$container` (internal, the
+node the parent mounts).
+
+Host note: when mounted inside a Bulma `modal-card`, hide the
+`modal-card-head` to avoid a double header — the pager's own
+`<- title` header is the chrome. On mobile a full-screen sheet is
+recommended; on desktop a centred card. No transitions on
+push/pop by design.
+
 ---
 
 ## 7. Integration in an app
