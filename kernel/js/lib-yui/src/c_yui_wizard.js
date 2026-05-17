@@ -167,7 +167,7 @@ function build_ui(gobj)
             ['div', {class: 'yui-wizard-footer is-flex is-justify-content-space-between is-flex-grow-0',
                      style: 'gap:.5rem; padding:.5rem;'}, [
                 ['button', {class: 'yui-wizard-back button', 'aria-label': 'back'}, [
-                    ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]],
+                    ['span', {class: 'icon'}, ['i', {class: 'yi-undo'}]],
                     ['span', {class: 'is-hidden-mobile', i18n: 'back'}, 'back']
                 ], {
                     click: function(evt) {
