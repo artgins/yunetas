@@ -81,8 +81,20 @@
 #       Existing waddnstr / mvwaddstr calls keep working unchanged: the
 #       narrow API in libncursesw is UTF-8-aware once the locale is set,
 #       so it counts cells per character (not per byte).
+#   version 1.12
+#       upgrade to nginx release-1.30.1 (was release-1.28.3) to fix
+#       CVE-2026-42945. nginx is a separate binary that links
+#       dynamically against the host libssl/libpcre/libz (see version
+#       1.10), so this is a pin-only bump: no yuneta consumer, header
+#       or CMakeLists change rides along.
+#       upgrade to openresty 1.29.2.4 (was 1.29.2.3): patch within the
+#       same 1.29.2 series, same separate-dynamic-binary rationale.
+#       upgrade to openssl 3.6.2 (was 3.6.1): patch within the 3.6
+#       series, no API change. Stayed on 3.6 (not 4.0): 4.0 is non-LTS
+#       (EOL 2027-05) and removes engines/legacy init; deferred as a
+#       separate decision.
 
-VERSION="1.11"
+VERSION="1.12"
 
 
 source ./repos2clone.sh

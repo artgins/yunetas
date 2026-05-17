@@ -9,13 +9,13 @@ declare -A REPOS
 TAG_JANSSON="v2.15.0"
 TAG_LIBURING="liburing-2.14"
 TAG_MBEDTLS="v4.1.0"
-TAG_OPENSSL="openssl-3.6.1"
+TAG_OPENSSL="openssl-3.6.2"
 TAG_PCRE2="pcre2-10.47"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
-TAG_OPENRESTY="1.29.2.3"    # warning: without the initial 'v'
+TAG_OPENRESTY="1.29.2.4"    # warning: without the initial 'v'
 TAG_NCURSES="v6.4"
-TAG_NGINX="release-1.28.3"  # TODO: bump to 1.30.1 — CVE-2026-42945
+TAG_NGINX="release-1.30.1"  # CVE-2026-42945 (was release-1.28.3)
 
 #------------------------------------------
 #   REPOS
