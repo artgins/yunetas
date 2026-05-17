@@ -677,11 +677,12 @@ Notable attributes: `subscriber`, `root_title`, `back_on_root`
 pushed page set `discardable:true`), `$container` (internal, the
 node the parent mounts).
 
-Header affordance by depth: a deeper page shows a **back icon**
-(`yi-undo`, pops); the **root** page with `back_on_root`
-shows a **close cross** (`yi-xmark`, emits `EV_PAGER_EXIT`). The
-icons come from lib-yui's `yui_icons.css` set (no left-arrow glyph
-in it; `yi-undo` is the back affordance). The
+Header affordance by depth: a deeper page shows a **back arrow**
+(`yi-arrow-left`, pops); the **root** page with `back_on_root`
+shows a **close cross** (`yi-xmark`, emits `EV_PAGER_EXIT`).
+`yi-arrow-left` / `yi-arrow-right` were added to
+`yui_icons.css` for this (the set is small — verify a glyph is
+defined there before using it). The
 `pager_header_model` exposes this as `back_kind`
 (`"back"|"close"|"none"`).
 

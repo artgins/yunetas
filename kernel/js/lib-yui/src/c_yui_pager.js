@@ -147,7 +147,7 @@ function build_ui(gobj)
             ['div', {class: 'yui-pager-header is-flex is-align-items-center is-flex-grow-0',
                      style: 'gap:.25rem; padding:.25rem .25rem;'}, [
                 ['button', {class: 'yui-pager-back button is-white is-hidden', 'aria-label': 'back'}, [
-                    ['span', {class: 'icon'}, ['i', {class: 'yi-undo'}]]
+                    ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]]
                 ], {
                     click: function(evt) {
                         evt.stopPropagation();
@@ -235,7 +235,7 @@ function render_header(gobj)
         $back_icon.className = 'yi-xmark';
         $back.setAttribute('aria-label', 'close');
     } else {
-        $back_icon.className = 'yi-undo';
+        $back_icon.className = 'yi-arrow-left';
         $back.setAttribute('aria-label', 'back');
     }
     $discard.classList.toggle('is-hidden', !model.show_discard);
