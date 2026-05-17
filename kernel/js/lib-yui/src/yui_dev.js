@@ -289,7 +289,16 @@ function info_user()
 }
 
 /************************************************************
+ *  Open the developer panel inside a non-modal C_YUI_WINDOW
+ *  (title bar + maximize + close + resize).
  *
+ *  Shell-agnostic: the legacy C_YUI_MAIN shell has a
+ *  '#top-layer' stacking element; the new C_YUI_SHELL does not.
+ *  We pass that element when present, otherwise null — and
+ *  C_YUI_WINDOW falls back to document.body by contract.  So the
+ *  new shell gets the same windowed dev panel instead of the
+ *  floating build_dev_panel() box.  Legacy behaviour is
+ *  unchanged (when '#top-layer' exists it is still used).
  ************************************************************/
 function setup_dev(self, show)
 {
@@ -397,8 +406,10 @@ function setup_dev(self, show)
             "Developer-Window",
             "C_YUI_WINDOW",
             {
-                $parent: document.getElementById('top-layer'),
+                $parent: document.getElementById('top-layer') || null,
                 subscriber: null,
+                showMax: true,
+                modal: false,
                 header: $dev_toolbar,
                 auto_save_size_and_position: true,
                 center: false,
