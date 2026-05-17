@@ -117,6 +117,77 @@ Three orthogonal concepts:
 | `bottom-sub` | secondary toolbar or tabs on mobile                    |
 | `bottom`     | primary menu rendered as `icon-bar` on mobile          |
 
+### The navigation tree vs. the route index
+
+People say *"the route tree"*, but that name hides that there are **two
+distinct artifacts**, joined by the `route` string:
+
+1. **The navigation tree** — declarative, hierarchical, lives in
+   `app_config.json`. This is the part that is actually a *tree*:
+   `menu.<id>` → `items[]` → (optional) `submenu` → `items[]`. Fixed at
+   **two routable levels** (see §3.3 / §3.5).
+2. **The route index** — flat, built at runtime. On startup the shell
+   *flattens* the navigation tree into a `Map`:
+   `"/path"` → `{ item, parent_item, target, stage, menu_id }`. This is
+   what `yui_shell_navigate()` / `hashchange` looks up. It is **not** a
+   tree — it is a lookup table (see §4 step 1).
+
+The `route` (`"/dash/ov"`) is **not the destination**. It is the
+flattened key that links a tree node to its index entry and to the URL
+hash. The destination is `target → gclass` mounted on a `stage`.
+
+```
+NAVIGATION TREE  (config, hierarchical)        ROUTE INDEX  (runtime, flat)
+─────────────────────────────────────          ───────────────────────────
+app_config.json
+└─ menu
+   ├─ primary
+   │  ├─ "dash"  route:/dash   (container, ─┐
+   │  │          no target)                 │  /dash        → target:∅
+   │  │  └─ submenu                          │                 (redirects to
+   │  │     ├─ "ov"     /dash/ov  ───────────┼─► /dash/ov     → C_TEST_VIEW
+   │  │     │           target,stage:main    │                  @main keep_alive
+   │  │     └─ "alerts" /dash/alerts ────────┼─► /dash/alerts → C_TEST_VIEW
+   │  │                 target,stage:main    │                  @main lazy_destroy
+   │  └─ "settings" /settings ───────────────┼─► /settings    → C_TEST_VIEW
+   │                 target,stage:main       │                  @main keep_alive
+   └─ quick
+      └─ "q-ov" route:/dash/ov  ─────────────┘  (same key → same index
+                                                 entry → reuses the one
+                                                 instance, no duplicate)
+```
+
+Runtime resolution of one navigation:
+
+```
+click ─► EV_NAV_CLICKED{route} ─► lookup route in the route index
+                                     │
+                     ┌───────────────┴────────────────┐
+               target is ∅                       gobj already
+               (container)                       mounted in stage?
+                     │                                 │
+            redirect to 1st child          yes ─► reuse ($container.show)
+            or submenu.default             no  ─► gobj_create(target.gclass)
+                                                  in target.stage, start
+                                                  │
+                                       EV_ROUTE_CHANGED{route,item,stage}
+```
+
+Terminology used in this document:
+
+| Loose name        | What it actually is                          | Precise term         |
+|-------------------|----------------------------------------------|----------------------|
+| "the route tree"  | `menu.*.items[].submenu` in the config       | **navigation tree**  |
+| "the routes"      | the flat `route → {...}` `Map` at runtime    | **route index**      |
+| "open a route"    | `route → target → gobj @ stage`              | **mount / binding**  |
+
+Orthogonal to all of the above are **zones** (CSS grid regions) and
+**stages** (zones that host routed gobjs) — they share the `shell`
+config block but are not part of the navigation tree.
+`C_YUI_PAGER` / `C_YUI_WIZARD` are **outside** the tree as well: they
+are stacked navigators a view mounts *inside* its own stage; they have
+no entry in the route index (see §6).
+
 ---
 
 ## 3. Configuration JSON
