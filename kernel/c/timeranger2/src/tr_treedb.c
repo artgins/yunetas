@@ -1681,10 +1681,12 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
      */
     if(kw_has_word(gobj, desc_flag, "required", 0)) {
         if(!value) {
+            char temp[NAME_MAX];
+            snprintf(temp, sizeof(temp), "Field required: '%s'", desc_id);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Field required",
+                "msg",          "%s", temp,
                 "desc",         "%j", desc,
                 "dato",         "%j", dato,
                 "field",        "%s", desc_id,
@@ -2346,10 +2348,12 @@ PRIVATE int normalize_node_field_value(
      */
     if(kw_has_word(gobj, desc_flag, "required", 0)) {
         if(!value) {
+            char temp[NAME_MAX];
+            snprintf(temp, sizeof(temp), "Field required: '%s'", field);
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Field required",
+                "msg",          "%s", temp,
                 "topic_name",   "%s", topic_name,
                 "field",        "%s", field,
                 "value",        "%j", value,
@@ -2991,10 +2995,12 @@ PRIVATE json_t *convert_node2tranger(
          */
         if(kw_has_word(gobj, desc_flag, "required", 0)) {
             if(!value) {
+                char temp[NAME_MAX];
+                snprintf(temp, sizeof(temp), "Field required: '%s'", field);
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "Field required",
+                    "msg",          "%s", temp,
                     "topic_name",   "%s", topic_name,
                     "field",        "%s", field,
                     "value",        "%j", value,
