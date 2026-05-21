@@ -100,38 +100,6 @@
         ]
     },
     {
-        "name": "js_gui",
-        "summary": "Create a JS GUI yuno (Vite + lib-yui declarative shell, with locales and public/ assets)",
-        "type": "Yuno",
-        "vars": [
-            {
-                "var": "version",
-                "message": "Version",
-                "default": "0.1.0"
-            },
-            {
-                "var": "description",
-                "message": "One-line description of the GUI",
-                "default": ""
-            },
-            {
-                "var": "author",
-                "message": "Author name",
-                "default": ""
-            },
-            {
-                "var": "author_email",
-                "message": "Author email (parenthesised, including the leading space, e.g. ' <a@b.com>')",
-                "default": ""
-            },
-            {
-                "var": "license_name",
-                "message": "License name",
-                "default": ""
-            }
-        ]
-    },
-    {
         "name": "yuno_standalone",
         "summary": "Create a standalone yuno project base in yunetas' kernel",
         "type": "Yuno",

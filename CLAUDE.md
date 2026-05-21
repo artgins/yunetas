@@ -301,7 +301,13 @@ the structure exactly — count blank lines if in doubt.
 | JS gclass                 | `js_gclass/+rootname+.js_tmpl`                               |
 | Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
-| JS GUI yuno (Vite + lib-yui shell) | `js_gui/` (full project: package.json, vite.config.js, public/, src/locales/, app_config.json, c_+rootname+_view.js, main.js) |
+
+The **JS GUI yuno** scaffold (Vite + declarative shell from
+the vendored lib-yui) was moved out of this repo on 2026-05-21
+when the new shell stack left `kernel/js/lib-yui` (v8.0).  Its
+canonical home is now `wattyzer/templates/js_gui/` (a private
+repo).  Use the wattyzer copy when starting a new declarative-
+shell GUI yuno.
 
 **Every banner from the skeleton must be present, even when its section is
 empty.** Don't add extra banners outside the skeleton set. Don't reorder

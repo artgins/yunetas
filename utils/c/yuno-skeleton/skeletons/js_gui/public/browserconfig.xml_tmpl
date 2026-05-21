@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/dn320426(v=vs.85) -->
-<browserconfig>
-    <msapplication>
-        <tile>
-            <TileColor>#1F3A5F</TileColor>
-        </tile>
-    </msapplication>
-</browserconfig>
