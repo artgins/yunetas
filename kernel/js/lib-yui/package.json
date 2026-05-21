@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/lib-yui",
-    "version": "7.3.4",
+    "version": "8.0.0",
     "type": "module",
     "main": "dist/lib-yui.cjs.js",
     "module": "dist/lib-yui.es.js",
@@ -20,18 +20,13 @@
         "skeleton/",
         "vite-plugin-yuneta-html.js"
     ],
-    "description": "Yuneta UI Library — GClass-based GUI components: app shell, windows, forms, maps, charts, TreeDB editors",
+    "description": "Yuneta UI Library — legacy GClass GUI stack (C_YUI_MAIN/WINDOW/TABS/ROUTING + TreeDB editors + charts/maps).  Declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) moved to wattyzer/gui/src/lib-yui in v8.0.",
     "scripts": {
         "build": "vite build",
-        "test": "node --test tests/*.test.mjs",
-        "test:e2e": "playwright test",
-        "test:e2e:ui": "playwright test --ui",
-        "test:all": "npm test && npm run test:e2e",
         "prepublishOnly": "npm run build"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
-        "@playwright/test": "^1.49.0",
         "@yuneta/gobj-js": "file:../gobj-js",
         "vite": "^8.0.10"
     },
