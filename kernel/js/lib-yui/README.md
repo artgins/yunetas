@@ -6,17 +6,24 @@ that plugs into the GObject tree and communicates via events.
 
 ## What this package ships
 
-`lib-yui` is the **legacy GClass GUI stack** for Yuneta-based web
-apps. It provides the `C_YUI_MAIN` app shell, supporting window
-managers, tabs, hash routing, forms, charts, maps, and TreeDB
-editors. Currently consumed by `estadodelaire` and `hidraulia`.
+`lib-yui` is the **Yuneta UI library** — both the legacy `C_YUI_MAIN`
+GClass stack and the newer declarative shell. Two parallel stacks
+coexist because consumers are at different points in the migration:
 
-> The newer declarative shell (`C_YUI_SHELL` + `C_YUI_NAV` +
-> `C_YUI_PAGER` + `C_YUI_WIZARD`) was prototyped here in v7.3.x
-> and moved out to `wattyzer/gui/src/lib-yui/` (vendored flat
-> copy) in **v8.0** so it can keep evolving without churning
-> this package. Apps that still need the legacy stack only
-> ship a smaller bundle.
+- **Legacy stack** (`C_YUI_MAIN`, `C_YUI_WINDOW`, `C_YUI_TABS`,
+  `C_YUI_FORM`, `C_YUI_ROUTING`, …). Consumed by `estadodelaire` and
+  `hidraulia`.
+- **Declarative shell stack** (`C_YUI_SHELL`, `C_YUI_NAV`,
+  `C_YUI_PAGER`, `C_YUI_WIZARD`). Shipped in lib-yui **8.0**.
+  Consumed by `wattyzer`.
+
+> **Where development happens.** `wattyzer/gui/src/lib-yui/` is a
+> flat vendored copy of this package used for hot iteration on the
+> declarative shell — `wattyzer` edits its own copy without
+> churning the published npm package; the work gets folded back to
+> this canonical copy on release boundaries. The lib-yui *in
+> yunetas* is the source of truth and is what `@yuneta/lib-yui`
+> on npm tracks. See memory `wattyzer-lib-yui-vendored`.
 
 ## Components
 
@@ -271,6 +278,21 @@ lib-yui/
 | `YTable`, `createYTable` | `ytable.js` | HTML table with selection |
 | `yui_toolbar` | `yui_toolbar.js` | Scrollable toolbar builder |
 | `info_traffic`, `setup_dev` | `yui_dev.js` | Developer panel and traffic monitor |
+
+## Icon set (`yui_icons.css`)
+
+The shipped icon set is **~40 CSS-mask glyphs** with class names
+`yi-<name>`. Anything outside that list renders as a **solid black
+square** (the default CSS mask with no image). Before using a new
+icon name, grep the file:
+
+```bash
+grep '^\.yi-.*::before' kernel/js/lib-yui/src/yui_icons.css
+```
+
+If you need an icon that isn't there, add it to `yui_icons.css` first
+(SVG → CSS mask), then reference `yi-<name>` from your component. See
+memory `yui_icons_set`.
 
 ## Skeleton — Starting a New Project
 

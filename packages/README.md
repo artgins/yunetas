@@ -19,7 +19,7 @@ cd packages/
 ./RISCV64.sh        # RISC-V 64-bit
 
 # 4. Install the resulting .deb
-sudo apt install ./dist/yuneta-agent-7.3.2-1-amd64.deb
+sudo apt install ./dist/yuneta-agent-7.3.4-1-amd64.deb
 ```
 
 ## Supported Architectures
@@ -352,7 +352,7 @@ After installing the `.deb`, the `postinst` script reminds you to run:
 
 Two numbers feed the package name:
 
-- **Framework version** — read from `../YUNETA_VERSION` (e.g. `YUNETA_VERSION=7.3.2`). Bumped when the framework changes.
+- **Framework version** — read from `../YUNETA_VERSION` (e.g. `YUNETA_VERSION=7.3.4`). Bumped when the framework changes.
 - **Package release** — read from `../RELEASE` (a single number, e.g. `1`). Bumped when re-packaging the **same** framework version (build script changed, deps changed, conffile fixed, etc.). Shared across all four architectures.
 
 The final package name follows the pattern:
@@ -361,4 +361,4 @@ The final package name follows the pattern:
 yuneta-agent-<version>-<release>-<arch>.deb
 ```
 
-Example: `yuneta-agent-7.3.2-1-amd64.deb`
+Example: `yuneta-agent-7.3.4-1-amd64.deb`

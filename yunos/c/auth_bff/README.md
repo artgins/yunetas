@@ -44,10 +44,50 @@ Implements the SEC-04 / SEC-06 / SEC-07 / SEC-09 recommendations — strict `coo
 
 ## Configuration
 
-Main config lives in the yuno's `kw` section. Key attributes: upstream provider URLs, client id, redirect URI, cookie domain, scope set.
+Main config lives in the yuno's `kw` section. Key attributes:
+upstream provider URLs, client id, redirect URI, cookie domain,
+scope set.
 
-See `c_auth_bff.h` in `kernel/c/root-linux/src/` for the full attribute list, or the source in `src/` for the yuno-level schema.
+See `c_auth_bff.h` in `kernel/c/root-linux/src/` for the full
+attribute list, or the source in `src/` for the yuno-level schema.
+
+**OIDC config — current vs deprecated shape.** As of the 2026-04-30
+migration, configure the IdP via `issuer` (or explicit endpoints):
+
+```json
+"issuer":               "https://auth.example.com/realms/<realm>/",
+"client_id":            "<client_id>",
+"client_secret":        "",
+"cookie_domain":        "<host>",
+"allowed_redirect_uri": "https://<host>/auth/callback"
+```
+
+The pair `idp_url` + `realm` is `SDF_DEPRECATED` and only kept as a
+legacy fallback (`c_auth_bff.c:181-192, 358`). New deployments must
+not use it.
 
 ## Deployment
 
-One `auth_bff` instance per realm. Per-host runtime configuration lives in `batches/<host>/auth_bff.<port>.json` (e.g. `batches/localhost/auth_bff.1801.json`), where the `idp_url`, `realm`, `client_id`, `cookie_domain` and other attributes are set.
+One `auth_bff` instance per realm. Per-host runtime configuration
+lives in `batches/<host>/auth_bff.<port>.json` (e.g.
+`batches/localhost/auth_bff.1801.json`). See
+[`yunos/c/yuno_agent/AUTH.md`](../yuno_agent/AUTH.md) §7 for the
+per-project Keycloak realm convention and §9.1 for the full
+bootstrap recipe.
+
+## Known issues
+
+Tracked at `~/.claude/.../memory/project_auth_bff_pending_bugs`:
+
+- **HTTP_CL chain leak under rapid disconnect** — the outbound
+  `C_PROT_HTTP_CL` chain to the IdP isn't always reclaimed cleanly
+  when the browser disconnects mid-`/token`. Watch process FD count
+  under unusual load.
+- **No real-IdP smoke tests** — `tests/c/c_auth_bff/` runs against
+  `c_mock_keycloak.c` only. Live Keycloak regressions go uncaught
+  in CI; manual staging smoke test is mandatory before each release.
+
+See [`AUTH.md`](../yuno_agent/AUTH.md) for the full authn / authz
+walkthrough, including the **critical caveat** that the per-command
+authz check (`gobj_user_has_authz` for commands) is currently
+**commented out** in `kernel/c/gobj-c/src/command_parser.c:73-113`.

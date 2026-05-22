@@ -15,7 +15,28 @@ tranger2_append_record(...)
 tranger2_iterator_open(...) / tranger2_iterator_next(...) / _close(...)
 ```
 
-Every call to `tranger2_append_record()` writes one record to disk, increments the per-key `g_rowid` (monotonic, never resets) and `i_rowid` (row in the md2 file). TreeDB relies on this for its link/unlink semantics — see `CLAUDE.md` for the full rules.
+Every call to `tranger2_append_record()` writes one record to disk,
+increments the per-key `g_rowid` (monotonic, never resets) and
+`i_rowid` (row in the md2 file). TreeDB relies on this for its
+link/unlink semantics — see `CLAUDE.md` for the full rules.
+
+See [`yunos/c/yuno_agent/TREEDB.md`](../../../yunos/c/yuno_agent/TREEDB.md)
+for the full timeranger2 + treedb walkthrough (mental model, on-disk
+layout, master/non-master locking, snapshots, the cross-yuno
+`rt_by_disk` pattern, sharp edges and recipes).
+
+## v6 → v7: no per-record `delete-record`
+
+The v6 `sf_deleted_record` flag (bit `0x0400`) was **removed** in
+commit `eb2c454a7` (2026-05-11). Today bit `0x0400` is unused and there
+is **no public API to delete an individual record**. `tranger2_delete_record`
+still exists as a symbol but deletes a whole key's directory, not
+individual records. A plan to restore per-record delete (mutate the
+per-key index + optional record-byte zeroing) lives in this repo's
+`TODO.md`. Until then, the data layer is **truly append-only**.
+
+If you need "logical delete" today, append a tombstone record at the
+treedb / application layer; don't try to mutate timeranger2 storage.
 
 ## Filesystem watcher
 
