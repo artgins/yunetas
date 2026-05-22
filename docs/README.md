@@ -82,12 +82,12 @@ Install [sphinx] and [sphinx-book-theme]
 
 - In some virtual environment, install [sphinx], [sphinx-book-theme] 
   -
-      ``` shell 
-    # Instalar (una sola vez)
+      ``` shell
+    # Install (one time only)
         npm install -g mystmd
-        pip install jupyter matplotlib numpy   # solo para el notebook demo
+        pip install jupyter matplotlib numpy   # only for the demo notebook
 
-    # Lanzar el dev server
+    # Start the dev server
         cd docs/doc.yuneta.io
         myst start
 

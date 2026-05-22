@@ -1,4 +1,22 @@
-Scripts
-=======
+# scripts
 
-This directory is added to PATH, you can install scripts, etc.
+Auxiliary scripts shipped with the Yuneta source tree. This directory
+is added to `PATH` by [`yunetas-env.sh`](../yunetas-env.sh), so the
+scripts below are runnable by name from any cwd inside a sourced
+yuneta shell.
+
+## What's here
+
+| Script                | Purpose                                                                    |
+|-----------------------|----------------------------------------------------------------------------|
+| `migratev6tov7.py`    | One-shot migration tool: moves a v6 timeranger2 store to the v7 layout. Used during the v6→v7 upgrade window; not needed for greenfield. |
+
+## Adding new scripts
+
+Drop them in this directory and they will appear on `PATH` after the
+next `source yunetas-env.sh`. Keep them self-contained — no
+intra-script imports — and document them with a one-line `--help` so
+new operators can discover what they do.
+
+Operational note: nothing in this directory is part of the runtime.
+These are developer / operator tools, not yunos.
