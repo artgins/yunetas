@@ -11,7 +11,7 @@ The Yuneta SDK is structured into the following top folders:
 - [tests](#tests):       Tests.
 - [tools](#tools):       Compilation or building tools.
 - [utils](#utils):       Utilities for Yuneta.
-- [yunos](#yunos):       Yunos supplied by the SDK.
+- [yunos](#folders-yunos):       Yunos supplied by the SDK.
 
 ---
 
@@ -175,7 +175,7 @@ Utility scripts and CLI tools for Yuneta.
 
 ---
 
-(yunos)=
+(folders-yunos)=
 ## `yunos`
 
 Pre-supplied full applications built with Yuneta.
