@@ -2772,9 +2772,17 @@ function gobj_read_attrs(
         }
 
         if(include_flag === -1 || (it.flag & include_flag)) {
-            // TODO must be a item2json, to call mt_reading
-            let jn = json_object_get(gobj.jn_attrs, it.name);
-            json_object_set(jn_attrs, it.name, jn);
+            let value;
+            if(gobj.gclass.gmt.mt_reading &&
+               !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                value = gobj.gclass.gmt.mt_reading(gobj, it.name);
+                if(value === undefined) {
+                    value = json_object_get(gobj.jn_attrs, it.name);
+                }
+            } else {
+                value = json_object_get(gobj.jn_attrs, it.name);
+            }
+            json_object_set(jn_attrs, it.name, value);
         }
     }
 
