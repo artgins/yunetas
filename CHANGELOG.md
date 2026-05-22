@@ -1,6 +1,33 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(gobj): `gobj_read_attrs` honours `mt_reading` via a new
+      `item2json` helper**.  The bulk reader (behind `view-attrs`,
+      introspection and `db_save_persistent_attrs`) was the only
+      attribute path bypassing `mt_reading`, so `SDF_RSTATS` counters
+      kept in `priv->X` read as zero through `view-attrs` even though
+      `stats-yuno` (typed readers) saw the live value.  The helper
+      dispatches by `DTP_*` and falls back to the stored value when
+      `mt_reading` is absent or returns `!v.found`.  `gobj_read_attr`
+      (single, borrowed-ref) is intentionally left alone: its
+      "Return is NOT yours!" contract is incompatible with allocating
+      a fresh `json_t` from a typed override.
+    - **fix(gobj-js): mirror C — `gobj_read_attrs` honours
+      `mt_reading`**.  Same shape as the C kernel patch, simplified
+      (dynamic types, no `DTP_*` switch): `undefined` falls back to
+      the stored value.  Defensive — no JS gclass implements
+      `mt_reading` today, so this only closes the symmetry.
+    - **fix(c_tcp): set `v.found = 1` for `cur_tx_queue` in
+      `mt_reading`**.  Pre-existing one-liner; the branch updated
+      `v.v.i` but forgot the discriminant, so the value was always
+      shadowed by the stored zero.  Surfaces now that
+      `gobj_read_attrs` consults `mt_reading`.
+    - **note**: validated by relinking every yuno (15 binaries) and
+      running the full `ctest` suite (93/93 passed, 436 s).  A
+      project-wide `yunetas build` after a kernel-side change does
+      pick up the relink correctly — the `rm <yuno_bin> &&
+      make install` workaround is only needed when rebuilding a
+      single yuno's `build/` directory in isolation.
 
 ## v7.3.4 -- 16/May/2026
     - **chore(release): corrective republish of `@yuneta/lib-yui`**.
