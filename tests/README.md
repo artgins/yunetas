@@ -1,8 +1,10 @@
-# README
+# Tests
 
-C test is using Criterion. YET NO!
+C tests use **CTest** (the CMake test runner). Each subdirectory under
+`tests/c/` is a self-contained test binary registered with `ctest` at
+build time.
 
-To run test, go to build directory and execute:
+To run the tests, go to the build directory and execute:
 
 ```bash
 ctest
