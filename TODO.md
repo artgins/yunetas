@@ -58,26 +58,31 @@ real IdP discovery documents.
 ## tranger2: restore delete-record (v6 → v7)
 
 v6 of Yuneta exposed a delete-record API on timeranger.  v7
-dropped it and has not put it back yet.  When a real consumer
-needs it, this is the plan.
+dropped it in commit `eb2c454a7` ("remove flag
+sf_deleted_record", 2026-05-11), which also removed the
+`sf_deleted_record` enum entry from `system_flag2_t` and
+cleared its slot from the `sf_names[]` string table.  The bit
+position `0x0400` is currently free in the enum (sits between
+`sf_tm_ms = 0x0200` and `sf_loading_from_disk = 0x1000`) and
+its slot in `sf_names[]` carries `""`.
 
-The log files stay **append-only** — deletion does not rewrite
-the log.  The per-key **index is mutable**, and the flag
-`sf_deleted_record = 0x0400` is already reserved for this
-purpose at `kernel/c/timeranger2/src/timeranger2.h:138` (with
-its own `// TODO no used by now` comment) and enumerated in
-the string table at `kernel/c/timeranger2/src/timeranger2.c:60`.
+When a real consumer needs delete-record again, this is the
+plan.  The log files stay **append-only** — deletion does not
+rewrite the log.  The per-key **index is mutable**:
 
-- **Index-level delete**: set `sf_deleted_record` on the
-  indexed entry so every reader (typed scans, `rt_by_disk`
-  followers, `list-*` commands, treedb lookups) skips it.
-  This is enough for normal "logically deleted" semantics.
+- **Index-level delete**: re-introduce `sf_deleted_record` (a
+  free `0x0400` slot is available, or move it to the
+  non-inherited band `0xF000` if persisting the marker on the
+  record itself is unwanted) and set it on the indexed entry
+  so every reader (typed scans, `rt_by_disk` followers,
+  `list-*` commands, treedb lookups) skips it.  Enough for
+  normal "logically deleted" semantics.
 - **Optional record-bytes zeroing**: overwrite the record
   payload in the log file with zeros.  Useful when the record
   carries sensitive data and the on-disk bytes must not stay
   recoverable even though the index already hides it.
 - v6 already had a working implementation — its index-mutation
-  pattern is the natural reference when this lands.
+  pattern is the natural reference.
 
 Until then, the "clean up a few records" operator workflow is
 cosmetic only: re-append the same key with a sentinel value /
