@@ -185,7 +185,7 @@ realm. See §7 for the project conventions.
 ### 2.7 Pending bugs
 
 Two issues are tracked but not fixed (per
-[`project_auth_bff_pending_bugs`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/project_auth_bff_pending_bugs.md)):
+`project_auth_bff_pending_bugs`):
 
 - **HTTP_CL chain leak** (`c_auth_bff.c:387-413, 1910-1978`). Under rapid
   browser-disconnect during a `/token` call, the outbound
@@ -566,7 +566,7 @@ The convention from
 | Project           | Keycloak host                  | Realm name           | Notes                                              |
 |-------------------|--------------------------------|----------------------|----------------------------------------------------|
 | yunetas dev       | `auth.artgins.com`             | `yunetas.com`        | Localhost dev batch, see `batches/localhost/auth_bff.1801.json`. |
-| hidrauliaconnect  | `auth.hidrauliaconnect.es`     | `hidrauliaconnect`   | Own realm since 2026-05-15; was estadodelaire-realm before. See [`project_hidraulia_keycloak`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/project_hidraulia_keycloak.md). |
+| hidrauliaconnect  | `auth.hidrauliaconnect.es`     | `hidrauliaconnect`   | Own realm since 2026-05-15; was estadodelaire-realm before. See `project_hidraulia_keycloak`. |
 | wattyzer          | (per project, private repo)    | (per project)        | See wattyzer batches/.                              |
 | estadodelaire     | (per project, private repo)    | (per project)        | See estadodelaire batches/.                         |
 
@@ -614,7 +614,7 @@ in Keycloak first.
 `stress/c/listen/deploy-yuno/emailsender.artgins.json:7` has an SMTP
 password field in cleartext (the public repo example carries a
 placeholder, but the private repos have the real value). See
-[`project_emailsender_smtp_secret`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/project_emailsender_smtp_secret.md):
+`project_emailsender_smtp_secret`:
 pending env-var migration + rotation as of 2026-05-15. The same secret
 also lives in the agent's treedb at runtime.
 

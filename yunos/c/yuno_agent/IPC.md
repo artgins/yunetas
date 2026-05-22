@@ -513,7 +513,7 @@ Note the comment in the source: `// OLD msg_iev_build_webix()`. Legacy
 codebases still mention the old name; treat both as the same thing.
 
 The agent's `LIFECYCLE.md` shows the `gobj_yuno_role_plus_name()` prefix
-convention for `jn_comment`; see [`feedback_build_command_response_yuno_prefix`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/feedback_build_command_response_yuno_prefix.md).
+convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
 
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
 
@@ -694,7 +694,7 @@ subscription model" section spells out the rule; the diagnostic emoji is
 It's the explicit *"missing subscriber is not a bug for this event"*
 annotation. Using it to silence a noisy warning often hides a real
 SERVICE/CHILD pattern mismatch. CLAUDE.md is unambiguous on this; see
-[`feedback_gclass_visual_layout`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/feedback_gclass_visual_layout.md).
+`feedback_gclass_visual_layout`.
 
 ### 8.4 Subscription lists are in **both** gobjs
 

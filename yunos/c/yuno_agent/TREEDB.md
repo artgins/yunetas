@@ -247,7 +247,7 @@ the directory was wired.
 ### 2.9 The delete-record story
 
 Memory
-[`project_tranger2_delete_record_deferred`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/project_tranger2_delete_record_deferred.md):
+`project_tranger2_delete_record_deferred`:
 the `sf_deleted_record` flag (bit `0x0400`) existed in v6 and was
 **removed** in commit `eb2c454a7` (2026-05-11). Today the flag bit is
 free (look at the holes in `timeranger2.c:61` — there's a `""` in slot
@@ -385,7 +385,7 @@ topic's `id` index, once nested inside its parent's hook) carries the
 ### 3.5 The `topic_cols.json` versioning trap
 
 Memory
-[`feedback_treedb_schema_versioning`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/feedback_treedb_schema_versioning.md):
+`feedback_treedb_schema_versioning`:
 
 > Any `cols` change needs a `topic_version` bump or the persisted
 > `topic_cols.json` keeps masking the new schema; wipe `store/` when
@@ -488,7 +488,7 @@ into `disks/<rt_id>/` for that subscriber. The subscriber's
 filesystem watcher fires, and it re-reads the hardlinks.
 
 Memory
-[`feedback_cross_yuno_via_store_not_command`](../../../home/gines/.claude/projects/-yuneta-development-yunetas/memory/feedback_cross_yuno_via_store_not_command.md):
+`feedback_cross_yuno_via_store_not_command`:
 in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
 queries from the SPA go through `db_history_wz` reading B+ yunos'
 stores *non-master* via this pattern. **`cmd_command_yuno` does not
