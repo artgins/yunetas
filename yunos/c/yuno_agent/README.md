@@ -18,6 +18,7 @@ to by default.
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
 | [`LIFECYCLE.md`](LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
+| [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -40,6 +41,14 @@ to by default.
   the JSON log lines, the FSM `machine` trace, end-to-end message tracing
   across yunos via `ievent_gate_stack`, the `logcenter` UDP aggregator, and
   the SPA-side dev panel.
+- **How yunos talk to each other** → [`IPC.md`](IPC.md) covers the event model
+  (states/actions tables, `EVF_*` flags, `kw` ownership, the "IMPORTANT HACK"
+  of state-before-action), intra-yuno dispatch (`gobj_send_event`,
+  `gobj_publish_event`, subscriptions, CHILD vs SERVICE), the inter-yuno
+  ievent layer (`C_IEVENT_SRV` / `C_IEVENT_CLI`, the `__md_iev__` metadata
+  block, identity card handshake, routing), commands / stats (`gobj_command`,
+  `msg_iev_build_response`), the gate stack (TCP/HTTP/WebSocket/MQTT, TLS,
+  `public_services`), and the browser SPA case.
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
