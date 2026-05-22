@@ -409,12 +409,12 @@ PRIVATE SSL_CTX *build_ssl_ctx(
     if(server) {
         log_opt_t log_fatal = fatal ? LOG_OPT_EXIT_ZERO : 0;
 
-        if(SSL_CTX_use_certificate_file(ctx, ssl_certificate, SSL_FILETYPE_PEM)!=1) {
+        if(SSL_CTX_use_certificate_chain_file(ctx, ssl_certificate)!=1) {
             unsigned long err = ERR_get_error();
             gobj_log_error(gobj, log_fatal,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", "SSL_CTX_use_certificate_file() FAILED",
+                "msg",          "%s", "SSL_CTX_use_certificate_chain_file() FAILED",
                 "error",        "%s", ERR_error_string(err, NULL),
                 "cert",         "%s", ssl_certificate,
                 NULL

@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(ytls/openssl): ship the full certificate chain**.
+      `build_ssl_ctx()` was loading the server certificate via
+      `SSL_CTX_use_certificate_file()`, which only parses the first
+      cert of a PEM bundle.  With a Let's Encrypt fullchain.pem on
+      disk, that meant the listener served only the leaf — browsers
+      hid the issue via AIA-fetch / cached intermediates, but
+      strict-TLS clients (e.g. Node's native `fetch`, used by the
+      Playwright QA driver against the public URL) failed chain
+      verification.  Switched to
+      `SSL_CTX_use_certificate_chain_file()` (chain-aware, PEM-only
+      — no `SSL_FILETYPE_PEM` arg).  The mbedTLS backend
+      (`mbedtls_x509_crt_parse_file`) was always chain-aware so it
+      was not affected.  Every yuno that exposes a TLS server with
+      the OpenSSL backend needs a relink + redeploy to pick up the
+      fix; for binaries shared by several live yunos (e.g.
+      `auth_bff` 1802+1804) the atomic `mv old old.bak; cp new old`
+      pattern avoids the `ETXTBSY` that breaks `update-binary`.
     - **fix(gobj): `gobj_read_attrs` honours `mt_reading` via a new
       `item2json` helper**.  The bulk reader (behind `view-attrs`,
       introspection and `db_save_persistent_attrs`) was the only
