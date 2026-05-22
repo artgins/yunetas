@@ -17,6 +17,7 @@ to by default.
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
 | [`LIFECYCLE.md`](LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
+| [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -34,6 +35,11 @@ to by default.
   `EV_ON_OPEN` / `EV_ON_CLOSE` handshake, the sharp edges (`update-binary`
   over a live mmap, stale pids, no SIGKILL escalation, pause ≠ SIGSTOP), and
   the canonical `ycommand` recipes.
+- **Debugging a running yuno** → [`DEBUGGING.md`](DEBUGGING.md) covers severity
+  levels (`gobj_log_*`), trace categories (global / gclass / gobj), how to read
+  the JSON log lines, the FSM `machine` trace, end-to-end message tracing
+  across yunos via `ievent_gate_stack`, the `logcenter` UDP aggregator, and
+  the SPA-side dev panel.
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
