@@ -21,6 +21,7 @@ to by default.
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
 | [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and isn't realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
+| [`AUTH.md`](AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c:73-113` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -63,6 +64,16 @@ to by default.
   between `yuno_citizen` and `yuno_standalone`, the verbatim SERVICE vs
   CHILD subscription block in `mt_create`, and the mandatory banner
   convention from CLAUDE.md.
+- **Auth + TLS** → [`AUTH.md`](AUTH.md) covers the `auth_bff` OIDC flow
+  (PKCE, HttpOnly cookies, the modern `issuer` config vs deprecated
+  `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service
+  with its `authzs` treedb (users / roles / users_accesses,
+  `parent_role_id` inheritance, the `yuneta` super-user bypass), the
+  `pm_*` schemas and the **critical** finding that the per-command
+  `gobj_user_has_authz` check at `command_parser.c:73-113` is currently
+  commented out, the `cert_sync_*` machinery on the agent and the
+  `reload-certs` broadcast, the per-project Keycloak realm convention,
+  and the secrets-in-cleartext risk (`client_secret`, SMTP password).
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
