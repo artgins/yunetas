@@ -109,6 +109,29 @@ Only artifacts that get committed must be in English.
 When editing a doc with Spanish content, translate it directly when the user asks
 for any cleanup of that file; otherwise propose the translation first.
 
+## Onboarding docs (read these before touching code)
+
+If you are a Claude instance landing in this repo for the first time, read
+these in order. They are ~5400 lines total but they replace ~weeks of
+spelunking through `c_agent.c` and `gobj.c`. The README is an index.
+
+| # | Doc                                                                     | Covers                                                            |
+|---|-------------------------------------------------------------------------|-------------------------------------------------------------------|
+| 0 | [`yunos/c/yuno_agent/README.md`](yunos/c/yuno_agent/README.md)          | Index of the seven below.                                         |
+| 1 | [`YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)             | How the agent manages yunos (create/run/kill/update/delete).      |
+| 2 | [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md)                       | Trace levels, log infrastructure, logcenter, SPA dev panel.       |
+| 3 | [`IPC.md`](yunos/c/yuno_agent/IPC.md)                                   | Events, ievents, gates, the SPA case.                             |
+| 4 | [`REALMS.md`](yunos/c/yuno_agent/REALMS.md)                             | Multi-tenancy, on-disk layout, CRUD, what is NOT realm-scoped.    |
+| 5 | [`SCAFFOLDING.md`](yunos/c/yuno_agent/SCAFFOLDING.md)                   | `yuno-skeleton` templates, banner conventions.                    |
+| 6 | [`YUNO_AUTH.md`](yunos/c/yuno_agent/YUNO_AUTH.md)                       | OIDC/auth_bff, `C_AUTHZ`, cert-sync. **Read §4.5**: the per-command authz check is currently commented out. |
+| 7 | [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md)                                 | Framework crash course (gclass, mt_*, SData, runtime tree).       |
+| 8 | [`YUNO_TREEDB.md`](yunos/c/yuno_agent/YUNO_TREEDB.md)                   | timeranger2 + treedb (link-saves-child rule, `topic_version` trap). |
+
+Each one is published as a chapter under **Operating Yuneta** in
+[`docs/doc.yuneta.io`](docs/doc.yuneta.io/) (slug `/yuno-lifecycle`,
+`/debugging`, `/ipc`, `/realms`, `/scaffolding`, `/yuno-auth`, `/gobj`,
+`/yuno-treedb`).
+
 ## System Prerequisites
 
 See [`docs/doc.yuneta.io/installation.md`](docs/doc.yuneta.io/installation.md) for
