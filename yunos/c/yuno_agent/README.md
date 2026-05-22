@@ -19,6 +19,8 @@ to by default.
 | [`LIFECYCLE.md`](LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
+| [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and isn't realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
+| [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -49,6 +51,18 @@ to by default.
   block, identity card handshake, routing), commands / stats (`gobj_command`,
   `msg_iev_build_response`), the gate stack (TCP/HTTP/WebSocket/MQTT, TLS,
   `public_services`), and the browser SPA case.
+- **Realms (the multi-tenancy unit)** → [`REALMS.md`](REALMS.md) explains the
+  `realms` topic, the composed `<name>.<role>.<env>` URL identity, the
+  `/yuneta/realms/<owner>/<url>/<yuno>/{bin,logs}` on-disk layout, `create-
+  realm` / `update-realm` / `delete-realm`, and the things that **look**
+  per-realm but aren't (port pool, cert sync, the binary repo).
+- **Scaffolding a new yuno or gclass** → [`SCAFFOLDING.md`](SCAFFOLDING.md)
+  explains `yuno-skeleton`, the seven shipped templates, the templating
+  engine (`{{var}}` for content, `+var+` for filenames, the `_tmpl`
+  opt-in, derived `rootname`/`Rootname`/`ROOTNAME`), the structural diff
+  between `yuno_citizen` and `yuno_standalone`, the verbatim SERVICE vs
+  CHILD subscription block in `mt_create`, and the mandatory banner
+  convention from CLAUDE.md.
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
