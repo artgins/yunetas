@@ -17,6 +17,7 @@ There are two ways to install Yunetas, depending on what you want to do:
 
 ---
 
+(quick-install)=
 ## Quick install
 
 One-liner:
@@ -56,6 +57,7 @@ and PAM limits, and starts the SysV service. Full inventory in
 
 ---
 
+(build-from-source)=
 ## Build from source
 
 The 7-step flow below installs the full SDK — sources, build deps,
@@ -313,6 +315,7 @@ dpkg-reconfigure locales
 
 ---
 
+(reference)=
 ## Reference
 
 ### License
