@@ -5,7 +5,7 @@ is misbehaving: how to turn the right knobs to see what's happening, where the
 output lands, how to follow a single message end-to-end through several yunos,
 and how the centralised log aggregator (`logcenter`) fits in.
 
-Companion to [`LIFECYCLE.md`](LIFECYCLE.md). That one covers how the agent
+Companion to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md). That one covers how the agent
 manages yunos; this one covers how to look *inside* them.
 
 ---

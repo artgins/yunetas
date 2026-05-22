@@ -41,7 +41,7 @@ project:
     - title: Operating Yuneta
       children:
         - title: Yuno lifecycle
-          file: ../../yunos/c/yuno_agent/LIFECYCLE.md
+          file: ../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md
         - title: Debugging a yuno
           file: ../../yunos/c/yuno_agent/DEBUGGING.md
         - title: Inter-process communication
@@ -51,11 +51,11 @@ project:
         - title: Scaffolding new yunos
           file: ../../yunos/c/yuno_agent/SCAFFOLDING.md
         - title: Auth, permissions, TLS
-          file: ../../yunos/c/yuno_agent/AUTH.md
+          file: ../../yunos/c/yuno_agent/YUNO_AUTH.md
         - title: gobj framework crash course
           file: ../../yunos/c/yuno_agent/GOBJ.md
         - title: timeranger2 + treedb crash course
-          file: ../../yunos/c/yuno_agent/TREEDB.md
+          file: ../../yunos/c/yuno_agent/YUNO_TREEDB.md
 
     - title: Guides
       children:

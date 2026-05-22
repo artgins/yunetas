@@ -5,7 +5,7 @@ afford to misunderstand on a Yuneta host: **who is calling** (authn),
 **what they're allowed to do** (authz), and **the TLS that protects the
 wire**.
 
-Sibling to [`LIFECYCLE.md`](LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
+Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
 [`IPC.md`](IPC.md), [`REALMS.md`](REALMS.md), [`SCAFFOLDING.md`](SCAFFOLDING.md).
 
 > ⚠️ **Read §4.5 and §8.3 before assuming anything about authz enforcement.**
@@ -594,7 +594,7 @@ The convention from
    under `/yuneta/store/certs/` (or however the project's `cert_sync_copy_cmd`
    delivers it).
 5. `install-binary` + `update-config` + `create-yuno` for the auth_bff
-   (see [`LIFECYCLE.md`](LIFECYCLE.md) §6.1, [`SCAFFOLDING.md`](SCAFFOLDING.md)
+   (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1, [`SCAFFOLDING.md`](SCAFFOLDING.md)
    §10.1).
 
 ---
@@ -730,7 +730,7 @@ EOF
 
 # 3. cert in /yuneta/store/certs/ (provisioned by your copy-certs.sh)
 
-# 4. install + create + run via the agent (see LIFECYCLE.md §6.1)
+# 4. install + create + run via the agent (see YUNO_LIFECYCLE.md §6.1)
 ```
 
 ### 9.2 Migrate a legacy `idp_url` + `realm` batch to `issuer`

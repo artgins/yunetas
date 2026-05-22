@@ -16,14 +16,14 @@ to by default.
 | [`src/c_agent.h`](src/c_agent.h)                    | Public interface (`register_c_agent`, `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
-| [`LIFECYCLE.md`](LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
+| [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
 | [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and isn't realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
-| [`AUTH.md`](AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c:73-113` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
+| [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c:73-113` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
 | [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`/`mt_start`/`mt_stop`/`mt_destroy`/`mt_writing`/`mt_reading`/etc.), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of `c_timer.c` (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
-| [`TREEDB.md`](TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
+| [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -36,7 +36,7 @@ to by default.
 
 ## Where to go next
 
-- **Operating a yuno (deploy / update / kill / pause)** → [`LIFECYCLE.md`](LIFECYCLE.md)
+- **Operating a yuno (deploy / update / kill / pause)** → [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
   has the full command inventory, the on-disk + treedb layout, the
   `EV_ON_OPEN` / `EV_ON_CLOSE` handshake, the sharp edges (`update-binary`
   over a live mmap, stale pids, no SIGKILL escalation, pause ≠ SIGSTOP), and
@@ -66,7 +66,7 @@ to by default.
   between `yuno_citizen` and `yuno_standalone`, the verbatim SERVICE vs
   CHILD subscription block in `mt_create`, and the mandatory banner
   convention from CLAUDE.md.
-- **Auth + TLS** → [`AUTH.md`](AUTH.md) covers the `auth_bff` OIDC flow
+- **Auth + TLS** → [`YUNO_AUTH.md`](YUNO_AUTH.md) covers the `auth_bff` OIDC flow
   (PKCE, HttpOnly cookies, the modern `issuer` config vs deprecated
   `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service
   with its `authzs` treedb (users / roles / users_accesses,
@@ -82,7 +82,7 @@ to by default.
   / `gobj_destroy`), every `mt_*` method, SData attributes (types, flags,
   persistence), the runtime tree, the service registry, and walks through
   `c_timer.c` as the minimal canonical example.
-- **timeranger2 + treedb in 30 minutes** → [`TREEDB.md`](TREEDB.md) covers
+- **timeranger2 + treedb in 30 minutes** → [`YUNO_TREEDB.md`](YUNO_TREEDB.md) covers
   the append-only log layer (per-key directories, `.json`+`.md2`
   partitioning, the `g_rowid`/`i_rowid` rule, master/non-master locking,
   the post-v7 absence of per-record delete), the graph layer on top

@@ -5,7 +5,7 @@ between gobjs in the same yuno, events crossing yuno boundaries over the
 network, the gates that turn external traffic (TCP/HTTP/WebSocket/MQTT) into
 events, and how a browser SPA fits in.
 
-Sibling to [`LIFECYCLE.md`](LIFECYCLE.md) and [`DEBUGGING.md`](DEBUGGING.md).
+Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) and [`DEBUGGING.md`](DEBUGGING.md).
 Same conventions: every claim cites `file:line`, ASCII diagrams are inline,
 sharp edges and recipes at the end.
 
@@ -462,7 +462,7 @@ Higher-level API on top of the event machinery.
 A gclass exposes commands by declaring them in a `command_table` of
 `SDATACM` / `SDATACM2` rows. Each row: name, parameter schema, permission
 schema, handler function, description. See `c_agent.c:806-900` for a real
-example, and the agent's own `LIFECYCLE.md` for the table semantics.
+example, and the agent's own `YUNO_LIFECYCLE.md` for the table semantics.
 
 ### 5.2 `gobj_command` — the public entry point
 
@@ -512,7 +512,7 @@ json_t *msg_iev_build_response(
 Note the comment in the source: `// OLD msg_iev_build_webix()`. Legacy
 codebases still mention the old name; treat both as the same thing.
 
-The agent's `LIFECYCLE.md` shows the `gobj_yuno_role_plus_name()` prefix
+The agent's `YUNO_LIFECYCLE.md` shows the `gobj_yuno_role_plus_name()` prefix
 convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
 
 ### 5.5 `gobj_stats` and `EV_MT_STATS`

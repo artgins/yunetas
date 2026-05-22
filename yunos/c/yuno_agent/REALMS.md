@@ -4,7 +4,7 @@ This document explains what a **realm** is in Yuneta, how the agent stores
 and manages them, how they partition the on-disk layout, and what is *not*
 scoped per realm (which surprises people).
 
-Sibling to [`LIFECYCLE.md`](LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
+Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
 [`IPC.md`](IPC.md). The unit of deployment (the yuno) is documented there;
 the unit of *tenancy* (the realm) is documented here.
 
@@ -117,7 +117,7 @@ Built by `build_yuno_private_domain()` at `c_agent.c:7135-7161`:
 
 ```
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
-  ├── bin/     ← materialised configuration JSON files (see LIFECYCLE.md §2.2)
+  ├── bin/     ← materialised configuration JSON files (see YUNO_LIFECYCLE.md §2.2)
   └── logs/    ← per-yuno log files (see DEBUGGING.md §5.1)
 ```
 
@@ -131,7 +131,7 @@ directory is materialised by `mkrdir()` inside
 started. Empty realms therefore leave no on-disk trace.
 
 The binary repository at `/yuneta/repos/<tags>/<role>/<version>/<role>`
-(see [`LIFECYCLE.md`](LIFECYCLE.md) §2.1) is **realm-agnostic**. A binary
+(see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §2.1) is **realm-agnostic**. A binary
 is shared across all realms on the host.
 
 ---
@@ -257,7 +257,7 @@ The agent has one `__username__` attribute (`c_agent.c:914`) with
 access, but the gating is against the *caller's* user, not against the
 realm. There is no built-in *"user X may read realm R but not realm S"*
 predicate in the agent itself. If you need that, the `auth_bff` yuno is
-the place to enforce it (see the upcoming AUTH.md).
+the place to enforce it (see the upcoming YUNO_AUTH.md).
 
 ### 7.4 The binary repository
 

@@ -5,7 +5,7 @@ Yuneta, and how to use it correctly so a freshly-created yuno or gclass
 matches the conventions enforced elsewhere (notably CLAUDE.md's
 "GClass templates and skeletons" hard rule).
 
-Sibling to [`LIFECYCLE.md`](LIFECYCLE.md) (deploying yunos),
+Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) (deploying yunos),
 [`REALMS.md`](REALMS.md) (the realm a yuno belongs to),
 [`DEBUGGING.md`](DEBUGGING.md), [`IPC.md`](IPC.md).
 
@@ -325,7 +325,7 @@ make
 For a citizen yuno you'll also need to:
 
 1. **Create a binary record** in the agent: `install-binary content64=$$(<role>)`
-   (see [`LIFECYCLE.md`](LIFECYCLE.md) §6.1).
+   (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1).
 2. **Create a configuration**: `update-config id=<role>.<name> version=1
    zcontent=$$(<role>_<name>.json)`.
 3. **Create the yuno record** linking realm + binary + config.
@@ -438,7 +438,7 @@ yuno-skeleton gclass_service my_new_service
 #   #include "c_my_new_service.h"
 #   call register_c_my_new_service() BEFORE the first gobj_create
 
-# rebuild + redeploy (LIFECYCLE.md §6.2)
+# rebuild + redeploy (YUNO_LIFECYCLE.md §6.2)
 ```
 
 ### 10.3 Add a new CHILD gclass

@@ -5,9 +5,9 @@ what a gobj is, what a gclass is, how to declare one, how the framework
 calls into it, how the runtime tree is laid out, and where the sharp
 edges are.
 
-Sibling to [`LIFECYCLE.md`](LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
+Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
 [`IPC.md`](IPC.md), [`REALMS.md`](REALMS.md), [`SCAFFOLDING.md`](SCAFFOLDING.md),
-[`AUTH.md`](AUTH.md). Events and message dispatch are already covered in
+[`YUNO_AUTH.md`](YUNO_AUTH.md). Events and message dispatch are already covered in
 detail in [`IPC.md`](IPC.md) — this doc only sketches the bits needed to
 understand the lifecycle.
 
@@ -101,14 +101,14 @@ Most useful ones, in roughly the order you'll write them:
 | `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** (gobj.c:2392-2403) | Free resources not owned by children                    |
 | `mt_start(gobj)`             | `gobj_start()` flips `running=TRUE` (gobj.c:4368) then calls this  | Start timers, subscribe to peers, open sockets          |
 | `mt_stop(gobj)`              | `gobj_stop()` flips `running=FALSE` then calls this                | Stop timers, unsubscribe, close sockets                 |
-| `mt_play(gobj)` / `mt_pause(gobj)` | `gobj_play()` / `gobj_pause()`                              | Gate input processing (see [`LIFECYCLE.md`](LIFECYCLE.md) §4.4) |
+| `mt_play(gobj)` / `mt_pause(gobj)` | `gobj_play()` / `gobj_pause()`                              | Gate input processing (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.4) |
 | `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds (gobj.c:3042-3043)            | Sync `priv->field` from the attr; validate; react       |
 | `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()` (gobj.c:3516-3517)                     | Return a *computed* value — **required for `SDF_RSTATS` counters** |
 | `mt_child_added` / `mt_child_removed` | When children are created/destroyed                       | Track child references, wire subscriptions              |
 | `mt_subscription_added` / `mt_subscription_deleted` | When someone subscribes to your events            | Send initial state, clean up per-subscriber resources   |
 | `mt_inject_event(gobj, ev, kw, src)` | When `gobj_send_event` finds no row in the state table     | The escape hatch — handle the event yourself, or fail   |
 | `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
-| `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed (gobj.c:9423-9433)       | Per-gclass authz hook — see [`AUTH.md`](AUTH.md) §4.3   |
+| `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed (gobj.c:9423-9433)       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
 The full table (28+ slots — `mt_create_resource`, `mt_save_resource`,
 `mt_create_node`, `mt_link_nodes`, etc.) is in `gobj.h:674-739`. Most
@@ -239,7 +239,7 @@ The ones that matter most often:
 | `SDF_RSTATS`     | Resettable stat — **requires `mt_reading` wired** to compute on read. See `feedback_mt_reading_for_rstats`. |
 | `SDF_PSTATS`     | Persistent stat (combination of `SDF_PERSIST` + stat semantics).      |
 | `SDF_DEPRECATED` | Logged-warning attribute, still accepted (see `auth_bff`'s `idp_url`). |
-| `SDF_AUTHZ_R` / `SDF_AUTHZ_W` / `SDF_AUTHZ_X` / `SDF_AUTHZ_S` / `SDF_AUTHZ_RS` | Demand the matching authz. ⚠️ Currently **not enforced** for commands (see [`AUTH.md`](AUTH.md) §4.5). |
+| `SDF_AUTHZ_R` / `SDF_AUTHZ_W` / `SDF_AUTHZ_X` / `SDF_AUTHZ_S` / `SDF_AUTHZ_RS` | Demand the matching authz. ⚠️ Currently **not enforced** for commands (see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.5). |
 
 ### 5.3 The R/W API
 

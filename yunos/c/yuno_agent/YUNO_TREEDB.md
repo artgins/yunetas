@@ -6,9 +6,9 @@ time-series log) and **treedb** (the graph database on top), how
 schemas are declared, how nodes link to each other, and which rules
 will ruin your day if you ignore them.
 
-Companion to [`GOBJ.md`](GOBJ.md). Sibling to [`LIFECYCLE.md`](LIFECYCLE.md)
+Companion to [`GOBJ.md`](GOBJ.md). Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
 (which uses these topics to store realms, yunos, binaries and
-configurations), [`AUTH.md`](AUTH.md) (which uses them for users, roles
+configurations), [`YUNO_AUTH.md`](YUNO_AUTH.md) (which uses them for users, roles
 and audit), and [`REALMS.md`](REALMS.md) (the realm hooks lifecycle).
 
 ---
@@ -282,10 +282,10 @@ nodes to their parent. Schema is JSON.
 The schemas already documented in this repo's docs cover the canonical
 examples:
 
-- [`LIFECYCLE.md`](LIFECYCLE.md) §2.1-2.3 — `binaries`, `configurations`,
+- [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §2.1-2.3 — `binaries`, `configurations`,
   `yunos`.
 - [`REALMS.md`](REALMS.md) §2 — `realms`.
-- [`AUTH.md`](AUTH.md) §4.1 — `users`, `roles`, `users_accesses`.
+- [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.1 — `users`, `roles`, `users_accesses`.
 
 Read those for the operational shape. This section explains how the
 schema *works*.
@@ -516,7 +516,7 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
 `gobj_list_snaps(gobj, filter, src)` is the gobj-level wrapper.
 
 Snapshots are how the agent picks which binary version to run when
-multiple are stored — see [`LIFECYCLE.md`](LIFECYCLE.md) §4.3. The
+multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
 (`gobj_list_snaps`, `c_agent.c:7279-7284`), then falls back to a
 direct `(role, role_version)` lookup.
@@ -646,7 +646,7 @@ column with its default value on first save.
 For a hot rollout where you can't bounce yunos:
 
 1. Update the schema file in source. Bump `topic_version`.
-2. Build + redeploy (see [`LIFECYCLE.md`](LIFECYCLE.md) §6.2).
+2. Build + redeploy (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.2).
 3. Verify the new field shows up:
 
    ```bash
