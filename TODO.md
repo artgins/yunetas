@@ -54,3 +54,34 @@ real IdP discovery documents.
   callers like `ybatch` / `ystats` / `ytests`.  Out of scope
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
+
+## tranger2: restore delete-record (v6 → v7)
+
+v6 of Yuneta exposed a delete-record API on timeranger.  v7
+dropped it and has not put it back yet.  When a real consumer
+needs it, this is the plan.
+
+The log files stay **append-only** — deletion does not rewrite
+the log.  The per-key **index is mutable**, and the flag
+`sf_deleted_record = 0x0400` is already reserved for this
+purpose at `kernel/c/timeranger2/src/timeranger2.h:138` (with
+its own `// TODO no used by now` comment) and enumerated in
+the string table at `kernel/c/timeranger2/src/timeranger2.c:60`.
+
+- **Index-level delete**: set `sf_deleted_record` on the
+  indexed entry so every reader (typed scans, `rt_by_disk`
+  followers, `list-*` commands, treedb lookups) skips it.
+  This is enough for normal "logically deleted" semantics.
+- **Optional record-bytes zeroing**: overwrite the record
+  payload in the log file with zeros.  Useful when the record
+  carries sensitive data and the on-disk bytes must not stay
+  recoverable even though the index already hides it.
+- v6 already had a working implementation — its index-mutation
+  pattern is the natural reference when this lands.
+
+Until then, the "clean up a few records" operator workflow is
+cosmetic only: re-append the same key with a sentinel value /
+cleanup-tagged source so the last-wins-per-key projection
+hides the original.  Full wipe still requires stopping the
+yuno and removing the topic store, which drops legitimate
+data with it.
