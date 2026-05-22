@@ -450,6 +450,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
         v.found = 1;
         v.v.i = priv->rxMsgs;
     } else if(strcmp(name, "cur_tx_queue")==0) {
+        v.found = 1;
         v.v.i = (json_int_t)dl_size(&priv->dl_tx);
     }
 
