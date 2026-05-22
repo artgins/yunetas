@@ -3506,6 +3506,41 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
 }
 
 /***************************************************************************
+ *  Resolve an attribute value for the bulk reader.
+ *  If the gclass exposes mt_reading and the gobj is still alive, the
+ *  override wins; otherwise fall back to the stored value.
+ *  Returns a new json_t reference (caller takes ownership).
+ ***************************************************************************/
+PRIVATE json_t *item2json(gobj_t *gobj, json_t *hs, const sdata_desc_t *it)
+{
+    if(gobj->gclass->gmt->mt_reading && !(gobj->obflag & obflag_destroyed)) {
+        SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, it->name);
+        if(v.found) {
+            switch(it->type) {
+                case DTP_STRING:
+                    return json_string(v.v.s? v.v.s : "");
+                case DTP_BOOLEAN:
+                    return json_boolean(v.v.b);
+                case DTP_INTEGER:
+                    return json_integer(v.v.i);
+                case DTP_REAL:
+                    return json_real(v.v.f);
+                case DTP_LIST:
+                case DTP_DICT:
+                case DTP_JSON:
+                    return v.v.j? json_incref(v.v.j) : json_null();
+                case DTP_POINTER:
+                    return json_integer((json_int_t)(uintptr_t)v.v.p);
+                default:
+                    break;
+            }
+        }
+    }
+    json_t *stored = json_object_get(hs, it->name);
+    return stored? json_incref(stored) : json_null();
+}
+
+/***************************************************************************
  *  ATTR: read
  ***************************************************************************/
 PUBLIC json_t *gobj_read_attrs( // Return is yours!
@@ -3520,9 +3555,7 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
     const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag)) {
-            // TODO must be a item2json, to call mt_reading
-            json_t *jn = json_object_get(gobj->jn_attrs, it->name);
-            json_object_set(jn_attrs, it->name, jn);
+            json_object_set_new(jn_attrs, it->name, item2json(gobj, gobj->jn_attrs, it));
         }
         it++;
     }
