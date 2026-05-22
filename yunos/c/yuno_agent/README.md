@@ -22,6 +22,8 @@ to by default.
 | [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and isn't realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
 | [`AUTH.md`](AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c:73-113` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
+| [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`/`mt_start`/`mt_stop`/`mt_destroy`/`mt_writing`/`mt_reading`/etc.), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of `c_timer.c` (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
+| [`TREEDB.md`](TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -74,6 +76,20 @@ to by default.
   commented out, the `cert_sync_*` machinery on the agent and the
   `reload-certs` broadcast, the per-project Keycloak realm convention,
   and the secrets-in-cleartext risk (`client_secret`, SMTP password).
+- **The gobj framework in 30 minutes** → [`GOBJ.md`](GOBJ.md) explains the
+  gclass / gobj distinction, the mandatory banner layout, the `GMETHODS`
+  table, the full lifecycle (`gobj_create*` / `gobj_start*` / `gobj_stop*`
+  / `gobj_destroy`), every `mt_*` method, SData attributes (types, flags,
+  persistence), the runtime tree, the service registry, and walks through
+  `c_timer.c` as the minimal canonical example.
+- **timeranger2 + treedb in 30 minutes** → [`TREEDB.md`](TREEDB.md) covers
+  the append-only log layer (per-key directories, `.json`+`.md2`
+  partitioning, the `g_rowid`/`i_rowid` rule, master/non-master locking,
+  the post-v7 absence of per-record delete), the graph layer on top
+  (topic schemas, `cols`/`hook`/`fkey` flags, the `__md_treedb__`
+  metadata block, node CRUD), the **link-saves-the-child-only** invariant,
+  the **`topic_version` schema-versioning trap**, snapshots, and the
+  cross-yuno `rt_by_disk` pattern.
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
