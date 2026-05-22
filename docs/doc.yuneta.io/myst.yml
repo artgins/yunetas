@@ -38,6 +38,25 @@ project:
         - title: Inspiration
           file: philosophy/philosophy.md
 
+    - title: Operating Yuneta
+      children:
+        - title: Yuno lifecycle
+          file: ../../yunos/c/yuno_agent/LIFECYCLE.md
+        - title: Debugging a yuno
+          file: ../../yunos/c/yuno_agent/DEBUGGING.md
+        - title: Inter-process communication
+          file: ../../yunos/c/yuno_agent/IPC.md
+        - title: Realms (multi-tenancy)
+          file: ../../yunos/c/yuno_agent/REALMS.md
+        - title: Scaffolding new yunos
+          file: ../../yunos/c/yuno_agent/SCAFFOLDING.md
+        - title: Auth, permissions, TLS
+          file: ../../yunos/c/yuno_agent/AUTH.md
+        - title: gobj framework crash course
+          file: ../../yunos/c/yuno_agent/GOBJ.md
+        - title: timeranger2 + treedb crash course
+          file: ../../yunos/c/yuno_agent/TREEDB.md
+
     - title: Guides
       children:
         - file: guide/basic_concepts.md
