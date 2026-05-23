@@ -93,8 +93,16 @@
 #       series, no API change. Stayed on 3.6 (not 4.0): 4.0 is non-LTS
 #       (EOL 2027-05) and removes engines/legacy init; deferred as a
 #       separate decision.
+#   version 1.13
+#       upgrade to nginx release-1.30.2 (was release-1.30.1) to fix
+#       CVE-2026-9256 (buffer overflow in ngx_http_rewrite_module).
+#       Same pin-only bump rationale as 1.12: nginx is a separate
+#       binary linked dynamically against the host, no yuneta consumer
+#       change rides along. openresty pin (1.29.2.4, based on nginx
+#       1.29.2) is NOT covered by this fix — track upstream openresty
+#       for a 1.29.2.5+ that picks up the patch before bumping it.
 
-VERSION="1.12"
+VERSION="1.13"
 
 
 source ./repos2clone.sh

@@ -15,7 +15,7 @@ TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
 TAG_OPENRESTY="1.29.2.4"    # warning: without the initial 'v'
 TAG_NCURSES="v6.4"
-TAG_NGINX="release-1.30.1"  # CVE-2026-42945 (was release-1.28.3)
+TAG_NGINX="release-1.30.2"  # CVE-2026-9256 (was release-1.30.1)
 
 #------------------------------------------
 #   REPOS
