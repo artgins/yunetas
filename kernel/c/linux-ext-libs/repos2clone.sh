@@ -13,7 +13,7 @@ TAG_OPENSSL="openssl-3.6.2"
 TAG_PCRE2="pcre2-10.47"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
-TAG_OPENRESTY="1.29.2.4"    # warning: without the initial 'v'
+TAG_OPENRESTY="1.29.2.5"    # CVE-2026-9256 backport (was 1.29.2.4); warning: without the initial 'v'
 TAG_NCURSES="v6.4"
 TAG_NGINX="release-1.30.2"  # CVE-2026-9256 (was release-1.30.1)
 

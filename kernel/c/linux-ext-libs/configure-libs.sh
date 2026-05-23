@@ -101,8 +101,17 @@
 #       change rides along. openresty pin (1.29.2.4, based on nginx
 #       1.29.2) is NOT covered by this fix — track upstream openresty
 #       for a 1.29.2.5+ that picks up the patch before bumping it.
+#   version 1.14
+#       upgrade to openresty 1.29.2.5 (was 1.29.2.4): backports the
+#       CVE-2026-9256 patch into the openresty-bundled nginx core
+#       (released 2026-05-22, day after nginx 1.30.2). Also pulls in
+#       a proxy_protocol v2 overflow/over-read hardening fix. Same
+#       pin-only bump rationale.
+#       (Compared to v1.13, this completes the CVE-2026-9256 coverage:
+#        v1.13 patched the standalone nginx binary, v1.14 patches the
+#        openresty binary that actually runs in front of yuneta SPAs.)
 
-VERSION="1.13"
+VERSION="1.14"
 
 
 source ./repos2clone.sh

@@ -56,12 +56,16 @@ hidraulia is production).
 
 ### nginx CVE-2026-9256
 
-Buffer overflow in `ngx_http_rewrite_module`. Resolved by bumping
-the nginx pin to `release-1.30.2` (configure-libs.sh v1.13). Same
-caveat as above: each deployed project must rebuild its own nginx
-copy. **openresty 1.29.2.4 is NOT covered** — its bundled nginx is
-1.29.2-based; wait for an upstream openresty release that picks up
-the patch before bumping.
+Buffer overflow in `ngx_http_rewrite_module`.
+
+Resolved in two pin bumps:
+- nginx pin → `release-1.30.2` (configure-libs.sh v1.13).
+- openresty pin → `1.29.2.5` (configure-libs.sh v1.14), which
+  backports the CVE-2026-9256 patch into the openresty-bundled
+  nginx core and also fixes a proxy_protocol v2 overflow/over-read.
+
+Same caveat as the previous CVE: each deployed project must
+rebuild its own nginx / openresty copy.
 
 > If you change the version of any library, update
 > `VERSION_INSTALLED.txt` and the corresponding version in
