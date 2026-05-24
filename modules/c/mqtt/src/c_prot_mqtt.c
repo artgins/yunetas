@@ -8027,7 +8027,17 @@ PRIVATE int frame_completed(hgobj gobj)
         }
     }
 
-    start_wait_frame_header(gobj);
+    /*
+     *  The MQTT handlers above (handle__publish_*, handle__pubrec, …)
+     *  publish EV_ON_MESSAGE synchronously and may trigger a full
+     *  disconnect cascade upstream. If ac_disconnected has already
+     *  moved us to ST_DISCONNECTED, don't clobber it back — that
+     *  would leave the protocol "connected" without an underlying
+     *  TCP. Same guard as c_prot_tcp4h.c / c_websocket.c / c_prot_mqtt2.c.
+     */
+    if(gobj_current_state(gobj) != ST_DISCONNECTED) {
+        start_wait_frame_header(gobj);
+    }
     return ret;
 }
 
