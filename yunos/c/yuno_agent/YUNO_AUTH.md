@@ -401,6 +401,35 @@ For any user-facing service that exposes commands and needs them
 authorised right now, **add an explicit `gobj_user_has_authz` call at
 the top of each command handler**. Don't rely on the framework flag.
 
+### 4.8 Per-instance config keys (`authz.*`)
+
+The `C_AUTHZ` gclass reads a small set of attrs at boot (see
+`c_authz.c:295-310` `attrs_table`):
+
+| Key                       | Status                | Purpose                                                                                  |
+|---------------------------|-----------------------|------------------------------------------------------------------------------------------|
+| `authz.master`            | bool                  | Whether this instance owns the authz treedb (writer) or follows another (reader).        |
+| `authz.authz_service`     | preferred             | Service name under which to build/look up the authz tree. Empty → defaults to `yuno_role`. |
+| `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at `c_authz.c:417` — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
+| `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
+
+Same `Authz.*` keys (capital A) appear in some legacy configs — both
+spellings are accepted by jansson's path resolution, but the canonical
+form is the lowercase `authz.*` used in `yuno_agent/src/main.c:97`.
+
+There is also a JWKS migration analogous to §2.5:
+
+| Key                       | Status                | Purpose                                                          |
+|---------------------------|-----------------------|------------------------------------------------------------------|
+| `Authz.jwks`              | preferred             | Array of full JWK objects (the standard format).                  |
+| `Authz.jwt_public_keys`   | legacy                | Older `iss` + `pkey` (raw PEM) tuple. Superseded by `Authz.jwks`. Drop from new configs. |
+
+**Gotcha:** if you use the deprecated `authz.authz_yuno_role`, the
+controlcenter will silently reject the agent's identity card ("User not
+exist") — the JWT validates fine but the user→service mapping returns
+empty. Both spellings reach `c_authz.c` but the deprecated one
+generally lags behind in coverage. Always prefer `authz.authz_service`.
+
 ---
 
 ## 5. `C_AUTHZ` commands (user / role CRUD)

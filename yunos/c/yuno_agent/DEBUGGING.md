@@ -538,13 +538,29 @@ Commands (`c_logcenter.c:99-106`):
 | `tail`            | Last N lines of the centralised log.                                    |
 | `reset-counters`  | Zero the in-memory counters.                                            |
 
-Use it like any other yuno:
+Use it like any other yuno (target it by `yuno_role=logcenter` so you
+don't depend on the yuno's numeric `id`, which varies per realm; the
+default service is implied for `command-yuno`):
 
 ```bash
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=display-summary'
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=tail n=200'
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=search match="EV_ON_CLOSE"'
+# rollup counters (Alert/Critical/Error/Warning/Info + Connect/Disconnect breakdown)
+ycommand -c 'command-yuno yuno_role=logcenter command=display-summary'
+
+# last N log lines (default ~100; can pass lines=N)
+ycommand -c 'command-yuno yuno_role=logcenter command=tail lines=200'
+
+# substring search (parameter is text=, not match=); maxcount caps the hits
+ycommand -c 'command-yuno yuno_role=logcenter command=search text="EV_ON_CLOSE" maxcount=20'
+
+# wipe the rollup counters — useful before reproducing an issue so the
+# next display-summary only shows the new run
+ycommand -c 'command-yuno yuno_role=logcenter command=reset-counters'
 ```
+
+Other commands worth knowing about (`c_logcenter.c:99-106`):
+`send-summary` / `enable-send-summary` / `disable-send-summary` (email
+rollup), `restart-yuneta-on-queue-alarm` (auto-recovery hook when the
+UDP queue floods).
 
 ### Per-yuno vs centralised — when to use each
 
@@ -656,9 +672,10 @@ Enable logcenter. In every yuno's config JSON add:
 Then:
 
 ```bash
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=tail n=500'
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=search match="<keyword>"'
-ycommand -c 'command-yuno id=logcenter service=__default_service__ command=display-summary'
+ycommand -c 'command-yuno yuno_role=logcenter command=tail lines=500'
+ycommand -c 'command-yuno yuno_role=logcenter command=search text="<keyword>" maxcount=50'
+ycommand -c 'command-yuno yuno_role=logcenter command=display-summary'
+ycommand -c 'command-yuno yuno_role=logcenter command=reset-counters'   # wipe the rollup
 ```
 
 ### 11.4 Follow one request end-to-end

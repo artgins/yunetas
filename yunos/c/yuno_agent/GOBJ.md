@@ -593,6 +593,50 @@ gobj that has a lifecycle.
 CLAUDE.md hard rule. Every `if` / `for` / `while` body is multi-line
 braced, even single-statement ones. See `CLAUDE.md` for the rationale.
 
+### 8.13 `gobj_publish_event` is synchronous — guard post-publish state resets
+
+`gobj_publish_event` delivers to every subscriber **synchronously**;
+when the call returns, every subscriber has fully processed the event,
+including any cascades they triggered. Under io_uring this is
+unforgiving: a single publish can travel up the chain, react with
+`EV_DROP` going down, hit `C_TCP::set_disconnected`, which publishes
+`EV_DISCONNECTED` back up, etc. — your gobj can re-enter `ac_disconnected`
+and end up in `ST_DISCONNECTED` **before** the line after your publish
+runs.
+
+Concretely, this pattern in a frame-oriented protocol is wrong:
+
+```c
+gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+start_wait_frame_header(gobj);      // ← bug: clobbers ST_DISCONNECTED
+```
+
+It leaves the protocol "connected" without an underlying TCP, and the
+next reconnect's `EV_CONNECTED` lands in `ST_WAIT_FRAME_HEADER` instead
+of `ST_DISCONNECTED` → "Event NOT DEFINED in state" cascade.
+
+Canonical guard (all five frame-oriented gclasses now use it):
+
+```c
+gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+if(gobj_current_state(gobj) != ST_DISCONNECTED) {
+    start_wait_frame_header(gobj);
+}
+```
+
+`c_prot_mqtt2.c:8118` uses the more defensive
+`gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)`
+form (also handles the gobj-stopped case). Either is fine.
+
+Sites with this guard today: `c_websocket.c:1158`, `c_prot_tcp4h.c:455`,
+`c_prot_mqtt2.c:8118`, `c_prot_mqtt.c:8030`,
+`c_prot_modbus_m.c:3633`. Fixed in commits `635b06a41` and `855527770`
+(2026-05-24).
+
+**Rule of thumb:** after any synchronous `gobj_publish_event` that
+could plausibly produce a disconnect upstream (`EV_ON_MESSAGE`,
+`EV_ON_ID`, etc.), read the current state before mutating it.
+
 ---
 
 ## 9. Recipes

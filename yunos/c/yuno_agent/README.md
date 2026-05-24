@@ -110,7 +110,15 @@ to by default.
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
-  from a control center.
+  from a control center. Two practical uses:
+  1. *PTY backdoor for ops*: the controlcenter operator can drop into a
+     shell on the host without touching the primary agent.
+  2. *Self-update channel for the primary agent*: because `yuneta_agent22`
+     is an independent process (its own `--config-file`, its own watcher),
+     you can `--stop` / replace the binary / `--start` of `yuneta_agent`
+     without losing the inbound channel to the host. Same `authz.master`
+     wiring as the primary, but typically with `authz.master=false`
+     so it follows the primary's authz treedb instead of forking one.
 
 ## Build
 
