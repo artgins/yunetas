@@ -452,7 +452,18 @@ PRIVATE int frame_completed(hgobj gobj)
     );
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
 
-    start_wait_frame_header(gobj);
+    /*
+     *  The EV_ON_MESSAGE publish above is synchronous and may
+     *  trigger a full disconnect cascade upstream (e.g. an authz
+     *  NAK that drops the chain). If ac_disconnected has already
+     *  moved us to ST_DISCONNECTED, don't clobber it back —
+     *  that would leave the protocol "connected" without an
+     *  underlying TCP and the next EV_CONNECTED would land in
+     *  ST_WAIT_FRAME_HEADER instead of ST_DISCONNECTED.
+     */
+    if(gobj_current_state(gobj) != ST_DISCONNECTED) {
+        start_wait_frame_header(gobj);
+    }
 
     return 0;
 }
