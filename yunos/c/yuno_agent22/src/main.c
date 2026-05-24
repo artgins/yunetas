@@ -67,6 +67,7 @@ PRIVATE char variable_config[]= "\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
                 'handler_options': 255,                             \n\
+                'max_megas_rotatoryfile_size': 600,                 \n\
                 'filename_mask': 'yuneta_agent22-W.log'             \n\
             },                                                      \n\
             'to_udp': {                                             \n\
