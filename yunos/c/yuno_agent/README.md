@@ -16,6 +16,7 @@ to by default.
 | [`src/c_agent.h`](src/c_agent.h)                    | Public interface (`register_c_agent`, `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
+| [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | **Minute 0: what every yuno's `main()` actually does.** `yuneta_entry_point()` step-by-step (argp, gbmem-setup + json allocator switch, config merge, log handlers, gclass registration), `ydaemon.c` double-fork supervisor (the watcher that makes a yuno survive without an agent), signals inside the child, how `kill-yuno` interacts with the watcher, `/var/crash/core.%e` forensics wired by the `.deb`. |
 | [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
@@ -36,6 +37,22 @@ to by default.
 
 ## Where to go next
 
+- **What every yuno's `main()` actually does** → [`ENTRY_POINT.md`](ENTRY_POINT.md)
+  is the "minute 0" read. It explains `yuneta_entry_point()` step by step
+  (argp, the `gbmem_setup` + `json_set_alloc_funcs` switch that load-bears
+  every test allocator rule, the `fixed + variable + --config-file +
+  positional` config merge that `view-config` surfaces, the log handlers,
+  the gclass-registration callback). Then `ydaemon.c`: the double-fork
+  pattern, the **per-yuno watcher** that auto-relaunches the child on any
+  abnormal exit (this is what makes a yuno survive `kill -9 yuneta_agent`),
+  the `waitpid` decision matrix, and `daemon_shutdown()`'s SIGQUIT-then-
+  SIGKILL pair. Then signals inside the yuno child (signalfd, SIGQUIT
+  semantics, SIGUSR1/2 as trace toggles). Then how the agent's
+  `kill-yuno` interacts with the watcher and why the default doesn't
+  touch it. Then `/var/crash/core.%e` post-mortem: the sysctl + PAM
+  limits + `/var/crash` group ownership wired by the `.deb`, the no-PID
+  pattern, the `Daemon relaunched` log line that's your only silent-crash
+  alarm.
 - **Operating a yuno (deploy / update / kill / pause)** → [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
   has the full command inventory, the on-disk + treedb layout, the
   `EV_ON_OPEN` / `EV_ON_CLOSE` handshake, the sharp edges (`update-binary`

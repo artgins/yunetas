@@ -287,22 +287,42 @@ SIGKILL.
 
 ### 4.6 Crash detection and reconciliation
 
-There is no `SIGCHLD` handler and no polling of pids. **Crash = channel
-closed.** The path is exactly the same as a clean kill: `EV_ON_CLOSE` fires
-and the record is cleared. The agent does not distinguish "exited normally"
-from "segfaulted".
+**From the agent's point of view**, a crash is indistinguishable from a
+clean kill: `EV_ON_CLOSE` fires, `ac_on_close()` runs, the treedb row
+flips `yuno_running=false`. The agent has no `SIGCHLD` handler and does
+not poll pids. It does not know "exited normally" from "segfaulted".
 
-**No auto-restart on crash.** A crashed yuno stays stopped until the next
-`run-yuno` call or the next agent boot.
+**The restart, however, does not depend on the agent.** Every yuno
+started with `--start` runs under a per-yuno watcher process (the
+first-fork survivor in `ydaemon.c`). When the yuno child dies abnormally
+(any signal other than `SIGKILL`, or any non-zero exit code), the watcher
+sleeps 2s and re-execs the same binary — and it does so **regardless of
+whether the agent is running**. A yuno is an autonomous machine; the
+watcher is what makes that concrete. See
+[`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-watcher) §4
+for the full decision matrix.
 
-**At agent boot** the timer `ac_timeout()` (c_agent.c:10902) runs:
+What the agent contributes on top:
 
-1. `run_util_yunos()` (c_agent.c:8389) first — yunos tagged `util`, ignoring
-   `disabled`.
-2. `run_enabled_yunos()` (c_agent.c:8331) — every row with
-   `disabled=false ∧ running=false`.
+- It logs the closed channel and clears `yuno_pid`/`yuno_playing`. A
+  fresh `run-yuno` is **not** needed; the watcher has already spawned
+  a new child with a new pid that will reconnect to the agent on its own
+  (it goes through the normal `EV_ON_OPEN` handshake).
+- At agent boot the timer `ac_timeout()` (c_agent.c:10902) runs:
+    1. `run_util_yunos()` (c_agent.c:8389) — yunos tagged `util`,
+       ignoring `disabled`.
+    2. `run_enabled_yunos()` (c_agent.c:8331) — every row with
+       `disabled=false ∧ running=false`.
 
-This is the only reconciliation between treedb state and reality.
+   This reconciliation matters only for yunos that **don't** have a live
+   watcher (e.g. the agent itself was killed and brought back; any yunos
+   whose own watchers happened to die too).
+
+Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
+(sysctl + PAM limits configured by the `.deb`, see
+[`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-crash-forensics) §8).
+The watcher emits a `Daemon relaunched` log line on every relaunch
+(`MSGSET_SYSTEM`) — grep for it to spot silent crash loops.
 
 ### 4.7 Deletion: `delete-yuno`
 
@@ -336,11 +356,19 @@ On the next `run-yuno`, `ac_on_open()` checks `getpgid(_pid) >= 0`
 flapping. If you suspect a stale pid, manually clear `yuno_running` and
 `yuno_pid` in treedb before retrying.
 
-### 5.3 No SIGKILL escalation
+### 5.3 No SIGKILL escalation, and the watcher gotcha
 
 `kill-yuno` sends one signal and waits. There's no "after 30 seconds, try
-SIGKILL". A yuno that swallows `SIGQUIT` stays alive and the agent's record
-stays stuck in `running`. If a yuno is wedged, set `signal2kill=9` first.
+SIGKILL". A yuno that swallows `SIGQUIT` (or whose signalfd handler is
+wedged) stays alive and the agent's record stays stuck in `running`.
+
+Worse, a naive `kill -9 <yuno_pid>` from the shell **does not** kill the
+yuno permanently: the watcher classifies SIGKILL on the child as
+"abnormal" and relaunches after 2s. You need to kill **both** the child
+and its watcher, or — better — use `kill-yuno force=1` /
+`set-quick-kill`, which sends SIGKILL to both pids and is the only way
+the agent can actually take down an uncooperative yuno
+(`c_agent.c:8104-8127`, and [`ENTRY_POINT.md §7`](ENTRY_POINT.md#entry-point-kill-yuno)).
 
 ### 5.4 `pause` ≠ `SIGSTOP`, `play` ≠ `SIGCONT`
 

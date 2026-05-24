@@ -112,25 +112,26 @@ for any cleanup of that file; otherwise propose the translation first.
 ## Onboarding docs (read these before touching code)
 
 If you are a Claude instance landing in this repo for the first time, read
-these in order. They are ~5400 lines total but they replace ~weeks of
+these in order. They are ~5800 lines total but they replace ~weeks of
 spelunking through `c_agent.c` and `gobj.c`. The README is an index.
 
 | # | Doc                                                                     | Covers                                                            |
 |---|-------------------------------------------------------------------------|-------------------------------------------------------------------|
-| 0 | [`yunos/c/yuno_agent/README.md`](yunos/c/yuno_agent/README.md)          | Index of the seven below.                                         |
-| 1 | [`YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)             | How the agent manages yunos (create/run/kill/update/delete).      |
-| 2 | [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md)                       | Trace levels, log infrastructure, logcenter, SPA dev panel.       |
-| 3 | [`IPC.md`](yunos/c/yuno_agent/IPC.md)                                   | Events, ievents, gates, the SPA case.                             |
-| 4 | [`REALMS.md`](yunos/c/yuno_agent/REALMS.md)                             | Multi-tenancy, on-disk layout, CRUD, what is NOT realm-scoped.    |
-| 5 | [`SCAFFOLDING.md`](yunos/c/yuno_agent/SCAFFOLDING.md)                   | `yuno-skeleton` templates, banner conventions.                    |
-| 6 | [`YUNO_AUTH.md`](yunos/c/yuno_agent/YUNO_AUTH.md)                       | OIDC/auth_bff, `C_AUTHZ`, cert-sync. **Read §4.5**: the per-command authz check is currently commented out. |
-| 7 | [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md)                                 | Framework crash course (gclass, mt_*, SData, runtime tree).       |
-| 8 | [`YUNO_TREEDB.md`](yunos/c/yuno_agent/YUNO_TREEDB.md)                   | timeranger2 + treedb (link-saves-child rule, `topic_version` trap). |
+| 0 | [`yunos/c/yuno_agent/README.md`](yunos/c/yuno_agent/README.md)          | Index of the eight below.                                         |
+| 1 | [`ENTRY_POINT.md`](yunos/c/yuno_agent/ENTRY_POINT.md)                   | What `main()` does. `yuneta_entry_point` + `ydaemon.c` watcher (the autonomous-survival kernel). `/var/crash/core.%e`. |
+| 2 | [`YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)             | How the agent manages yunos (create/run/kill/update/delete).      |
+| 3 | [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md)                       | Trace levels, log infrastructure, logcenter, SPA dev panel.       |
+| 4 | [`IPC.md`](yunos/c/yuno_agent/IPC.md)                                   | Events, ievents, gates, the SPA case.                             |
+| 5 | [`REALMS.md`](yunos/c/yuno_agent/REALMS.md)                             | Multi-tenancy, on-disk layout, CRUD, what is NOT realm-scoped.    |
+| 6 | [`SCAFFOLDING.md`](yunos/c/yuno_agent/SCAFFOLDING.md)                   | `yuno-skeleton` templates, banner conventions.                    |
+| 7 | [`YUNO_AUTH.md`](yunos/c/yuno_agent/YUNO_AUTH.md)                       | OIDC/auth_bff, `C_AUTHZ`, cert-sync. **Read §4.5**: the per-command authz check is currently commented out. |
+| 8 | [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md)                                 | Framework crash course (gclass, mt_*, SData, runtime tree).       |
+| 9 | [`YUNO_TREEDB.md`](yunos/c/yuno_agent/YUNO_TREEDB.md)                   | timeranger2 + treedb (link-saves-child rule, `topic_version` trap). |
 
 Each one is published as a chapter under **Operating Yuneta** in
-[`docs/doc.yuneta.io`](docs/doc.yuneta.io/) (slug `/yuno-lifecycle`,
-`/debugging`, `/ipc`, `/realms`, `/scaffolding`, `/yuno-auth`, `/gobj`,
-`/yuno-treedb`).
+[`docs/doc.yuneta.io`](docs/doc.yuneta.io/) (slug `/entry-point`,
+`/yuno-lifecycle`, `/debugging`, `/ipc`, `/realms`, `/scaffolding`,
+`/yuno-auth`, `/gobj`, `/yuno-treedb`).
 
 ## System Prerequisites
 

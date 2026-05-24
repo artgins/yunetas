@@ -40,6 +40,8 @@ project:
 
     - title: Operating Yuneta
       children:
+        - title: Entry point (main + watcher)
+          file: ../../yunos/c/yuno_agent/ENTRY_POINT.md
         - title: Yuno lifecycle
           file: ../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md
         - title: Debugging a yuno
