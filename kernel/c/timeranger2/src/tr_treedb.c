@@ -5218,6 +5218,9 @@ PUBLIC int treedb_delete_instance(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!jn_options) {
+        jn_options = json_object();
+    }
 
     /*------------------------------*
      *  Check pure_node
