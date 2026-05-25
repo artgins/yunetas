@@ -520,7 +520,7 @@ PRIVATE sdata_desc_t pm_stats_yuno[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id of yuno"),
 SDATAPM (DTP_STRING,    "stats",        0,              0,          "Statistic to be executed in matched yunos"),
-SDATAPM (DTP_STRING,    "service",      0,              0,          "Service of yuno where execute the statistic"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Target service (default: matched yuno_role; pass `__yuno__` to query the top C_YUNO attrs)"),
 SDATAPM (DTP_STRING,    "realm_id",     0,              0,          "Realm Id"),
 SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno Role"),
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno Name"),
@@ -8288,6 +8288,21 @@ PRIVATE int stats_to_yuno(hgobj gobj, json_t *yuno, const char* stats, json_t* k
     if(!channel_gobj) {
         KW_DECREF(kw);
         return -1;
+    }
+    /*  Default `service` to the yuno_role of the matched yuno.  The
+     *  convention is `gobj_create_default_service(yuno_role, GCLASS,
+     *  ...)`, so service name == yuno role; the operator then gets
+     *  the real SDF_RSTATS counters of the citizen gclass without
+     *  having to spell out the service.  To explicitly query the
+     *  top C_YUNO attributes (the previous default), pass
+     *  `service=__yuno__`.  Yunos that don't register a service
+     *  named like their role will surface a "Service not found"
+     *  reply — also the right signal to learn the actual service. */
+    if(empty_string(kw_get_str(gobj, kw, "service", "", 0))) {
+        const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", 0);
+        if(!empty_string(yuno_role)) {
+            json_object_set_new(kw, "service", json_string(yuno_role));
+        }
     }
     json_t *webix =  gobj_stats(  // debe retornar siempre 0.
         channel_gobj,
