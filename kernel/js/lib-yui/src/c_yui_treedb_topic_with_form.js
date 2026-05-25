@@ -910,7 +910,13 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                     value = parseInt(value) || 0;
                     value = new Date(value*1000);
 
-                    const userLocale = navigator.language;
+                    const rawLocale = navigator.language;
+                    // Playwright Firefox without locale config and some embedded
+                    // webviews report navigator.language as the literal string
+                    // "undefined" — would throw RangeError in Intl.DateTimeFormat.
+                    const userLocale = (typeof rawLocale === "string" && rawLocale && rawLocale !== "undefined")
+                        ? rawLocale
+                        : undefined;
                     const opts = {
                         day: 'numeric',
                         month: 'short',   // 'long' for full month name, 'short' for abbreviated, 'narrow' for shortest
