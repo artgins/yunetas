@@ -615,7 +615,7 @@ It leaves the protocol "connected" without an underlying TCP, and the
 next reconnect's `EV_CONNECTED` lands in `ST_WAIT_FRAME_HEADER` instead
 of `ST_DISCONNECTED` → "Event NOT DEFINED in state" cascade.
 
-Canonical guard (all five frame-oriented gclasses now use it):
+Canonical guard (four of the five frame-oriented gclasses use it):
 
 ```c
 gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
@@ -624,14 +624,22 @@ if(gobj_current_state(gobj) != ST_DISCONNECTED) {
 }
 ```
 
-`c_prot_mqtt2.c:8118` uses the more defensive
+`c_prot_mqtt2.c:8117` uses the more defensive
 `gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)`
 form (also handles the gobj-stopped case). Either is fine.
 
-Sites with this guard today: `c_websocket.c:1158`, `c_prot_tcp4h.c:455`,
-`c_prot_mqtt2.c:8118`, `c_prot_mqtt.c:8030`,
-`c_prot_modbus_m.c:3633`. Fixed in commits `635b06a41` and `855527770`
-(2026-05-24).
+Sites with this guard today: `c_websocket.c:1158`, `c_prot_tcp4h.c:464`,
+`c_prot_mqtt.c:8038`, `c_prot_mqtt2.c:8117`. Fixed in commits
+`635b06a41` and `855527770` (2026-05-24).
+
+**Intentionally unguarded:** `c_prot_modbus_m.c` (`ac_rx_data`, lines
+3632-3633). The guard was applied in `855527770` and then reverted in
+`54a2624f8` (2026-05-25): the modbus master flow is polled-master, the
+`EV_ON_MESSAGE` publish does not have an upstream authz NAK path that
+re-enters `ac_disconnected`, so the cascade pattern does not arise.
+Leave the `RESET_MACHINE()` + `gobj_change_state(ST_CONNECTED)` pair
+unguarded there; do not re-add the guard from a "consistency" grep
+without first reproducing an actual cascade.
 
 **Rule of thumb:** after any synchronous `gobj_publish_event` that
 could plausibly produce a disconnect upstream (`EV_ON_MESSAGE`,
