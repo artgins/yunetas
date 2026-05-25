@@ -1385,7 +1385,8 @@ int tranger2_append_record(
     json_t *jn_record               // data to write (owned)
 );
 
-int      tranger2_delete_record(json_t *tranger, const char *topic_name, const char *key);
+int      tranger2_delete_key(json_t *tranger, const char *topic_name, const char *key);
+/* legacy alias kept in timeranger2.h: #define tranger2_delete_record tranger2_delete_key */
 int      tranger2_write_user_flag(json_t *tranger, const char *topic_name,
     const char *key, uint64_t __t__, uint64_t rowid, uint16_t user_flag);
 int      tranger2_set_user_flag(json_t *tranger, const char *topic_name,

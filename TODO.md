@@ -55,38 +55,79 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## tranger2: restore delete-record (v6 → v7)
+## tranger2: add `tranger2_delete_instance` (v6 → v7)
 
-v6 of Yuneta exposed a delete-record API on timeranger.  v7
-dropped it in commit `eb2c454a7` ("remove flag
-sf_deleted_record", 2026-05-11), which also removed the
-`sf_deleted_record` enum entry from `system_flag2_t` and
-cleared its slot from the `sf_names[]` string table.  The bit
-position `0x0400` is currently free in the enum (sits between
-`sf_tm_ms = 0x0200` and `sf_loading_from_disk = 0x1000`) and
-its slot in `sf_names[]` carries `""`.
+### Vocabulary
 
-When a real consumer needs delete-record again, this is the
-plan.  The log files stay **append-only** — deletion does not
-rewrite the log.  The per-key **index is mutable**:
+timeranger2 has two delete granularities:
 
-- **Index-level delete**: re-introduce `sf_deleted_record` (a
-  free `0x0400` slot is available, or move it to the
-  non-inherited band `0xF000` if persisting the marker on the
-  record itself is unwanted) and set it on the indexed entry
-  so every reader (typed scans, `rt_by_disk` followers,
-  `list-*` commands, treedb lookups) skips it.  Enough for
-  normal "logically deleted" semantics.
-- **Optional record-bytes zeroing**: overwrite the record
-  payload in the log file with zeros.  Useful when the record
-  carries sensitive data and the on-disk bytes must not stay
-  recoverable even though the index already hides it.
-- v6 already had a working implementation — its index-mutation
-  pattern is the natural reference.
+- A **record** is a primary key.  It lives in its own
+  directory `keys/<key>/` with its own `.md2` index.
+- An **instance** is one row in that key's `.md2` index,
+  addressed by `(key, __t__, rowid)`.
+  `tranger2_append_record(key, ..., __t__)` appends one
+  instance (the name is historical; the contract is
+  per-instance).
 
-Until then, the "clean up a few records" operator workflow is
-cosmetic only: re-append the same key with a sentinel value /
+v7 has the record-level delete: **`tranger2_delete_key()`**
+(renamed from `tranger2_delete_record` on 2026-05-25; legacy
+alias kept as `#define` in `timeranger2.h`).  What is missing
+is per-instance soft delete.
+
+### What was removed and what remains
+
+v6 had a per-instance soft delete under flag `sf0_deleted_record`.
+The matching v7 flag — `sf_deleted_record` at bit `0x0400` — was
+removed in commit `eb2c454a7` ("remove flag sf_deleted_record",
+2026-05-11) because nothing in v7 was using it.  The slot
+in `system_flag2_t` is free (sits between `sf_tm_ms = 0x0200`
+and `sf_loading_from_disk = 0x1000`) and its slot in
+`sf_names[]` carries `""`.
+
+The dormant consumer is `treedb_delete_instance_node`
+(`tr_treedb.c:5353`, currently an `if(0)` placeholder).
+
+### Plan (when a real consumer needs it)
+
+The log files stay **append-only** — deletion does not
+rewrite the log.  The per-key `.md2` **index is mutable**
+(the existing `tranger2_write_user_flag()` already mutates
+`md2_record_t` rows in place — same plumbing).
+
+- **Re-introduce the flag** as **`sf_deleted_instance = 0x0400`**
+  (clearer than the old `sf_deleted_record` — the bit lives on
+  one instance, not on the key as a whole).  Add the matching
+  entry in `sf_names[]`.  Bit position stays inherited so the
+  `rt_by_disk` followers see the same flag the master does.
+- **Add `tranger2_delete_instance(tranger, topic_name, key,
+  __t__, rowid, zero_payload)`**.  Internally:
+  - `get_md_record_for_wr()` to locate the slot;
+  - OR `sf_deleted_instance` into `system_flag`, `pwrite` 32
+    bytes back;
+  - update the matching entry in `topic_cache`;
+  - if `zero_payload`: `lseek(__offset__)` + write `__size__`
+    bytes of zeros in `data/<mask>.json` (v6 did this
+    unconditionally; we keep it opt-in for sensitive-data wipes).
+- **Honor the bit on read** in the 4-5 entry points that
+  iterate `.md2` rows (`tranger2_open_iterator`,
+  `tranger2_iterator_get_page`, the internal
+  next/prev helpers, the `rt_by_disk` follower callback at
+  `/disks/<rt_id>/`, and `treedb_load_topic_records` in
+  `tr_treedb.c`).  v6 has the canonical 5-site pattern
+  preserved in `utils/c/tr2migrate/30_timeranger.c`
+  (search for `sf0_deleted_record` — 5 hits in the read
+  paths).
+- **Wire the consumer**: replace the `if(0)` in
+  `treedb_delete_instance_node` (`tr_treedb.c:5353`) with the
+  real call.
+- **Tests** under `tests/c/timeranger2`: create 3 instances of
+  one key, mark instance #2 deleted, expect 2 readable; same
+  with a cold reload; same with an `rt_by_disk` follower.
+
+### Operator workaround until then
+
+Cosmetic only: re-append the same key with a sentinel value /
 cleanup-tagged source so the last-wins-per-key projection
-hides the original.  Full wipe still requires stopping the
-yuno and removing the topic store, which drops legitimate
-data with it.
+hides the original instance.  Full wipe of a record (key +
+all instances) is `tranger2_delete_key()`.  No per-instance
+wipe until the above lands.

@@ -88,7 +88,9 @@
  *      It will delete hard link and then will read the original .md2 file
  *
  *  HACK tranger is only append. No update, no insert.
- *  A record can be deleted (it's unrecoverable).
+ *  A whole record (a primary key + every instance under it) can be
+ *  deleted via `tranger2_delete_key()` — irrecoverable. There is no
+ *  per-instance delete in v7 today (see TODO.md / `sf_deleted_instance`).
  *  Only the master can write or delete, non-master only can read.
  *  The metadata `md2_record_t` can be updated only in cases:
  *    - any bit in `user_flag`
@@ -418,13 +420,23 @@ PUBLIC int tranger2_append_record(
 );
 
 /*
-    Delete record.
+    Delete a whole record (= primary key) from a topic.
+    Removes the `keys/<key>/` directory and every instance it
+    holds. Irrecoverable. Only the master can delete.
+
+    See `tranger2_delete_instance()` (not implemented yet, see
+    TODO.md) for per-instance soft-delete.
 */
-PUBLIC int tranger2_delete_record(
+PUBLIC int tranger2_delete_key(
     json_t *tranger,
     const char *topic_name,
     const char *key
 );
+
+/* Legacy name kept as a source-level alias so existing callers
+   keep compiling. New code should use `tranger2_delete_key`.
+   Will be removed in a future major bump. */
+#define tranger2_delete_record tranger2_delete_key
 
 /*
     Write record user flag

@@ -358,13 +358,21 @@ This function is idempotent, meaning that if the topic already exists, it will r
 
 ---
 
+(tranger2_delete_key)=
 (tranger2_delete_record)=
-## `tranger2_delete_record()`
+## `tranger2_delete_key()`
 
-The `tranger2_delete_record()` function deletes a record from the specified topic in the TimeRanger database.
+The `tranger2_delete_key()` function deletes a whole record (= a
+primary key, with every instance stored under it) from the specified
+topic in the TimeRanger database. It removes the `keys/<key>/`
+directory and drops the key from the topic cache. Irrecoverable. Only
+the master can delete.
+
+For per-instance soft delete (a single row in a key's history), see
+the pending `tranger2_delete_instance()` plan in `TODO.md`.
 
 ```C
-int tranger2_delete_record(
+int tranger2_delete_key(
     json_t  *tranger,
     const char  *topic_name,
     const char  *key
@@ -385,7 +393,12 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-If the specified `key` does not exist in the topic, `tranger2_delete_record()` will fail.
+If the specified `key` does not exist in the topic, `tranger2_delete_key()` will fail.
+
+The legacy name `tranger2_delete_record()` is kept as a source-level
+alias in `timeranger2.h` (`#define tranger2_delete_record tranger2_delete_key`)
+so existing callers keep compiling unchanged; new code should use
+`tranger2_delete_key()`.
 
 ---
 

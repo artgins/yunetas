@@ -5047,7 +5047,7 @@ PUBLIC int treedb_delete_node(
      *  HACK this action is no-reversible
      *  List of deleted id's in memory
      *-------------------------------------------------*/
-    if(tranger2_delete_record(tranger, topic_name, id)==0) {
+    if(tranger2_delete_key(tranger, topic_name, id)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
@@ -5349,12 +5349,14 @@ PUBLIC int treedb_delete_instance(
     }
 
     /*-------------------------------------------------*
-     *  Delete the record
-     *  HACK cannot use tranger_delete_record()
-     *  List of deleted id's in memory
-     *  (borrar un id record en tranger, y el resto?)
+     *  Delete one instance of a composite record
+     *  Pending: needs `tranger2_delete_instance(tranger, topic_name,
+     *  id, __t__, rowid)` (per-instance soft delete via
+     *  `sf_deleted_instance`).  Not implemented yet — see TODO.md.
+     *  `tranger2_delete_key()` would nuke the whole record, which is
+     *  too coarse here.
      *-------------------------------------------------*/
-    if(0) { // TODO tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(0) { // TODO tranger2_delete_instance(tranger, topic_name, id, __t__, __rowid__)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/

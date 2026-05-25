@@ -246,18 +246,27 @@ the directory was wired.
 
 ### 2.9 The delete-record story
 
-Memory
-`project_tranger2_delete_record_deferred`:
-the `sf_deleted_record` flag (bit `0x0400`) existed in v6 and was
-**removed** in commit `eb2c454a7` (2026-05-11). Today the flag bit is
-free (look at the holes in `timeranger2.c:61` — there's a `""` in slot
-`0x0400`). There is a public `tranger2_delete_record` symbol
-(`timeranger2.c:2743-2826`) but it **deletes a key's entire directory**,
-not individual records.
+Two granularities, only one of them implemented in v7.
 
-A plan to restore per-record delete (mutate the per-key index + optional
-record-byte zeroing) lives in the repo `TODO.md`. Until that lands, the
-data layer is *truly* append-only.
+- **Whole record** (= a primary key + every instance under it).
+  Implemented as **`tranger2_delete_key()`** (renamed from
+  `tranger2_delete_record` on 2026-05-25; legacy alias kept as a
+  `#define` in `timeranger2.h`). Removes `keys/<key>/` and drops the
+  key from `topic_cache`. Irrecoverable. Used today by
+  `treedb_delete_node` (`tr_treedb.c:5050`).
+- **One instance** (one row in the `.md2` file). **Not implemented in
+  v7.** v6 had it under flag `sf0_deleted_record`; the v7 equivalent
+  `sf_deleted_record` at bit `0x0400` was removed in `eb2c454a7`
+  (2026-05-11) because no consumer was using it. The slot in
+  `system_flag2_t` and in `sf_names[]` is empty.
+
+The plan in repo `TODO.md` reintroduces the bit as **`sf_deleted_instance`**
+and adds **`tranger2_delete_instance(tranger, topic_name, key, __t__, rowid)`**
+when a consumer needs it. The dormant caller in `tr_treedb.c:5353`
+(`treedb_delete_instance_node`, an `if(0)` placeholder) is the obvious
+first wiring point.
+
+Memory: `project_tranger2_delete_record_deferred`.
 
 ### 2.10 Durability
 
@@ -553,10 +562,12 @@ store.
 
 ### 4.5 timeranger2 is append-only
 
-(§2.9.) There is no per-record delete today. `tranger2_delete_record`
-deletes a whole key's directory. If you find yourself wanting to
-mutate-in-place, you almost certainly want to append a new "tombstone"
-record instead.
+(§2.9.) There is no **per-instance** delete in v7 today.
+`tranger2_delete_key()` (legacy name `tranger2_delete_record`) deletes
+a whole key's directory — every instance with it. If you find yourself
+wanting to drop a single instance, you almost certainly want to append
+a new "tombstone" instance instead, or wait for
+`tranger2_delete_instance()` to land (TODO.md).
 
 ### 4.6 No `fsync` after append
 

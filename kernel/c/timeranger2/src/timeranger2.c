@@ -2738,9 +2738,11 @@ PUBLIC int tranger2_append_record(
 }
 
 /***************************************************************************
-    Delete record
+    Delete a whole record (= primary key) from a topic.
+    Removes the `keys/<key>/` directory and every instance it holds.
+    Irrecoverable. Only the master can delete.
  ***************************************************************************/
-PUBLIC int tranger2_delete_record(
+PUBLIC int tranger2_delete_key(
     json_t *tranger,
     const char *topic_name,
     const char *key

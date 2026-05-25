@@ -1566,7 +1566,7 @@ with links to the API documentation.
 
 23. [**`tranger2_append_record`**](timeranger2/timeranger2.md#tranger2_append_record) — `PUBLIC int tranger2_append_record( json_t *tranger, const char *topic_name, uint64_t __t__, uint16_t user_flag, md2_record_ex_t *md_record_ex, json_t *jn_record )`
 
-24. [**`tranger2_delete_record`**](timeranger2/timeranger2.md#tranger2_delete_record) — `PUBLIC int tranger2_delete_record( json_t *tranger, const char *topic_name, const char *key )`
+24. [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) — `PUBLIC int tranger2_delete_key( json_t *tranger, const char *topic_name, const char *key )` *(legacy alias: `tranger2_delete_record`)*
 
 25. [**`tranger2_write_user_flag`**](timeranger2/timeranger2.md#tranger2_write_user_flag) — `PUBLIC int tranger2_write_user_flag( json_t *tranger, const char *topic_name, const char *key, uint64_t __t__, uint64_t rowid, uint16_t user_flag )`
 
@@ -3005,7 +3005,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`tranger2_close_rt_mem`**](timeranger2/timeranger2.md#tranger2_close_rt_mem) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_close_topic`**](timeranger2/timeranger2.md#tranger2_close_topic) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_create_topic`**](timeranger2/timeranger2.md#tranger2_create_topic) | `timeranger2.h` | timeranger2 (Time-Series DB) |
-| [**`tranger2_delete_record`**](timeranger2/timeranger2.md#tranger2_delete_record) | `timeranger2.h` | timeranger2 (Time-Series DB) |
+| [**`tranger2_delete_key`**](timeranger2/timeranger2.md#tranger2_delete_key) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_delete_topic`**](timeranger2/timeranger2.md#tranger2_delete_topic) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_dict_topic_desc_cols`**](timeranger2/timeranger2.md#tranger2_dict_topic_desc_cols) | `timeranger2.h` | timeranger2 (Time-Series DB) |
 | [**`tranger2_get_iterator_by_id`**](timeranger2/timeranger2.md#tranger2_get_iterator_by_id) | `timeranger2.h` | timeranger2 (Time-Series DB) |
