@@ -45,7 +45,7 @@ instances.
 
 ### v6 → v7: the missing per-instance delete
 
-v6 had a per-instance soft delete (`sf0_deleted_record` bit honored
+v6 had a per-instance delete (`sf0_deleted_record` bit honored
 on read). The matching v7 flag — `sf_deleted_record` at bit `0x0400`
 — was **removed** in commit `eb2c454a7` (2026-05-11) because nothing
 in v7 was using it. The slot is empty in `system_flag2_t` and in

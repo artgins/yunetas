@@ -368,8 +368,9 @@ topic in the TimeRanger database. It removes the `keys/<key>/`
 directory and drops the key from the topic cache. Irrecoverable. Only
 the master can delete.
 
-For per-instance soft delete (a single row in a key's history), see
-the pending `tranger2_delete_instance()` plan in `TODO.md`.
+For per-instance delete (a single row in a key's history — irrecoverable,
+no resurrection), see the pending `tranger2_delete_instance()` plan in
+`TODO.md`.
 
 ```C
 int tranger2_delete_key(

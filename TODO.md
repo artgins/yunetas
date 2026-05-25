@@ -72,11 +72,12 @@ timeranger2 has two delete granularities:
 v7 has the record-level delete: **`tranger2_delete_key()`**
 (renamed from `tranger2_delete_record` on 2026-05-25; legacy
 alias kept as `#define` in `timeranger2.h`).  What is missing
-is per-instance soft delete.
+is per-instance delete.  Both deletes are irrecoverable; the
+distinction is granularity, not reversibility.
 
 ### What was removed and what remains
 
-v6 had a per-instance soft delete under flag `sf0_deleted_record`.
+v6 had a per-instance delete under flag `sf0_deleted_record`.
 The matching v7 flag — `sf_deleted_record` at bit `0x0400` — was
 removed in commit `eb2c454a7` ("remove flag sf_deleted_record",
 2026-05-11) because nothing in v7 was using it.  The slot

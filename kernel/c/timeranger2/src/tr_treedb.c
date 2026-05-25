@@ -5351,8 +5351,9 @@ PUBLIC int treedb_delete_instance(
     /*-------------------------------------------------*
      *  Delete one instance of a composite record
      *  Pending: needs `tranger2_delete_instance(tranger, topic_name,
-     *  id, __t__, rowid)` (per-instance soft delete via
-     *  `sf_deleted_instance`).  Not implemented yet — see TODO.md.
+     *  id, __t__, rowid)` — marks the .md2 row with
+     *  `sf_deleted_instance` (irrecoverable, no resurrection).
+     *  Not implemented yet — see TODO.md.
      *  `tranger2_delete_key()` would nuke the whole record, which is
      *  too coarse here.
      *-------------------------------------------------*/

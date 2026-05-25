@@ -425,7 +425,9 @@ PUBLIC int tranger2_append_record(
     holds. Irrecoverable. Only the master can delete.
 
     See `tranger2_delete_instance()` (not implemented yet, see
-    TODO.md) for per-instance soft-delete.
+    TODO.md) for per-instance delete (the row in the .md2 index is
+    marked dead and the payload bytes are optionally zeroed —
+    irrecoverable, no resurrection).
 */
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
