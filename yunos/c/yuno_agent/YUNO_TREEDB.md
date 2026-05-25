@@ -262,9 +262,11 @@ Two granularities, only one of them implemented in v7.
 
 The plan in repo `TODO.md` reintroduces the bit as **`sf_deleted_instance`**
 and adds **`tranger2_delete_instance(tranger, topic_name, key, __t__, rowid)`**
-when a consumer needs it. The dormant caller in `tr_treedb.c:5353`
-(`treedb_delete_instance_node`, an `if(0)` placeholder) is the obvious
-first wiring point.
+when a consumer needs it. **Treedb is NOT the consumer**:
+`treedb_delete_instance()` is per-`pkey2`-index in-memory cleanup
+only (the on-disk row stays alive and is wiped later by
+`treedb_delete_node()` → `tranger2_delete_key()`). Expected first
+callers are external — housekeeping / GDPR / test fixtures.
 
 Memory: `project_tranger2_delete_record_deferred`.
 

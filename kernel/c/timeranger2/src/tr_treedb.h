@@ -356,13 +356,20 @@ PUBLIC int treedb_delete_node(
 );
 
 /**rst**
-    "force" delete links. If there are links are not force then delete_node will fail
+    Remove a node from ONE secondary `pkey2` index.
+
+    The primary `id` index, every other secondary index, and the
+    on-disk record stay alive.  Use `treedb_delete_node()` for the
+    whole-node wipe (clears every index + calls
+    `tranger2_delete_key()` on the underlying record).
+
+    `force` only relaxes the snapshot-tag guard.
 **rst**/
 PUBLIC int treedb_delete_instance(
     json_t *tranger,
-    json_t *node,       // owned, pure node
+    json_t *node,           // owned, pure node
     const char *pkey2_name,
-    json_t *jn_options  // bool "force"
+    json_t *jn_options      // bool "force": skip the snapshot-tag guard
 );
 
 PUBLIC int treedb_clean_node( // remove all links (fkeys)

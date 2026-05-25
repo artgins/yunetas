@@ -85,8 +85,12 @@ in `system_flag2_t` is free (sits between `sf_tm_ms = 0x0200`
 and `sf_loading_from_disk = 0x1000`) and its slot in
 `sf_names[]` carries `""`.
 
-The dormant consumer is `treedb_delete_instance_node`
-(`tr_treedb.c:5353`, currently an `if(0)` placeholder).
+No in-tree consumer today.  `treedb_delete_instance()` (a sibling
+of `treedb_delete_node()`) handles per-`pkey2`-index cleanup
+without touching the on-disk row, so the treedb side does NOT
+need `tranger2_delete_instance`.  Expected first callers are
+external: housekeeping jobs (selective compaction of historical
+appends), GDPR / sensitive-payload wipes, test fixtures.
 
 ### Plan (when a real consumer needs it)
 
@@ -118,9 +122,6 @@ rewrite the log.  The per-key `.md2` **index is mutable**
   preserved in `utils/c/tr2migrate/30_timeranger.c`
   (search for `sf0_deleted_record` — 5 hits in the read
   paths).
-- **Wire the consumer**: replace the `if(0)` in
-  `treedb_delete_instance_node` (`tr_treedb.c:5353`) with the
-  real call.
 - **Tests** under `tests/c/timeranger2`: create 3 instances of
   one key, mark instance #2 deleted, expect 2 readable; same
   with a cold reload; same with an `rt_by_disk` follower.

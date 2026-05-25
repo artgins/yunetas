@@ -5190,27 +5190,37 @@ PUBLIC int treedb_delete_node(
 }
 
 /***************************************************************************
-    "force" delete links.
-    If there are links and not force then delete_node will fail
-    WARNING that kw can be node, the node to delete!!
+    Remove this node from ONE secondary `pkey2` index.
 
-    HACK: delete will be delete the record forever, for that reason,
-          a node with snap tag cannot be delete!
+    A node is normally registered in:
+      - the primary `id` index (indexx);
+      - one slot per `pkey2_value` in every secondary `pkey2` index
+        declared on the topic (indexy_<pkey2_name>).
 
-TODO sin uso, a la espera de depurar bien los delete de instancias
+    `treedb_delete_instance` cleans only the named secondary slot.
+    The primary index, the other secondary indexes, and the on-disk
+    md2 row stay alive — that work belongs to `treedb_delete_node()`
+    (which calls `tranger2_delete_key()` on the underlying record).
 
+    `force` only relaxes the snapshot-tag guard; secondary-index
+    cleanup is link-safe by construction (children/parents resolve
+    through the primary index, which is not touched here).
+
+    In-tree caller: `c_node.c::ac_delete_node` iterates the topic's
+    pkey2s and calls this per secondary index before falling back to
+    `treedb_delete_node()` on the primary.
  ***************************************************************************/
 PUBLIC int treedb_delete_instance(
     json_t *tranger,
     json_t *node,       // owned, pure node
     const char *pkey2_name,
-    json_t *jn_options  // bool "force"
+    json_t *jn_options  // bool "force": skip the snapshot-tag guard
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*------------------------------*
-     *      Check original node
+     *  Check pure_node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -5226,7 +5236,7 @@ PUBLIC int treedb_delete_instance(
     }
 
     /*-------------------------------*
-     *      Get node info
+     *  Get node info
      *-------------------------------*/
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
@@ -5234,19 +5244,18 @@ PUBLIC int treedb_delete_instance(
     BOOL force = kw_get_bool(gobj, jn_options, "force", 0, KW_WILD_NUMBER);
 
     /*-------------------------------*
-     *      Get record info
+     *  Snapshot-tag guard
      *-------------------------------*/
-    //json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
     json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
-        // añade opción de borrar un snap que desmarque los nodos?
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "cannot delete node, it has a tag",
+            "msg",          "%s", "Cannot delete instance, node has a tag",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
+            "pkey2_name",   "%s", pkey2_name,
             NULL
         );
         JSON_DECREF(jn_options)
@@ -5254,202 +5263,82 @@ PUBLIC int treedb_delete_instance(
         return -1;
     }
 
-    /*-------------------------------*
-     *  Check hooks and fkeys
-     *-------------------------------*/
-    BOOL to_delete = TRUE;
-
-    /*-------------------------------*
-     *      Childs
-     *-------------------------------*/
-    json_t *down_refs = get_node_down_refs(gobj, tranger, node);
-    if(json_array_size(down_refs)>0) {
-        if(force) {
-            json_t *jn_hooks = treedb_get_topic_hooks(
-                tranger,
-                treedb_name,
-                topic_name
-            );
-            int idx2; json_t *jn_hook;
-            json_array_foreach(jn_hooks, idx2, jn_hook) {
-                const char *hook = json_string_value(jn_hook);
-                json_t *children = _list_children(
-                    gobj,
-                    tranger,
-                    hook,
-                    node
-                );
-                int idx3; json_t *child;
-                json_array_foreach(children, idx3, child) {
-                    _unlink_nodes(gobj, tranger, hook, node, child, TRUE);
-                }
-                JSON_DECREF(children)
-            }
-            JSON_DECREF(jn_hooks)
-
-            /*
-             *  Re-checks down links
-             */
-            json_t *down_refs_ = get_node_down_refs(gobj, tranger, node);
-            if(json_array_size(down_refs_)>0) {
-                to_delete = FALSE;
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "Cannot delete node: still has down links",
-                    "topic_name",   "%s", topic_name,
-                    "id",           "%s", id,
-                    NULL
-                );
-            }
-            JSON_DECREF(down_refs_)
-
-        } else {
-            to_delete = FALSE;
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Cannot delete node: has down links",
-                "topic_name",   "%s", topic_name,
-                "id",           "%s", id,
-                NULL
-            );
-        }
-    }
-    JSON_DECREF(down_refs)
-
-    /*-------------------------------*
-     *      Parents
-     *-------------------------------*/
-    json_t *up_refs = get_node_up_refs(gobj, tranger, node);
-    if(json_array_size(up_refs)>0) {
-        if(force) {
-            if(treedb_clean_node(tranger, node, FALSE)<0) {
-                to_delete = FALSE;
-            }
-        } else {
-            to_delete = FALSE;
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "Cannot delete node: has up links",
-                "topic_name",   "%s", topic_name,
-                "id",           "%s", id,
-                NULL
-            );
-        }
-    }
-    JSON_DECREF(up_refs)
-
-    if(!to_delete) {
-        // Error already logged
-        JSON_DECREF(jn_options)
-        JSON_DECREF(node)
-        return -1;
+    if(treedb_trace) {
+        gobj_trace_msg(gobj,
+            "delete instance, topic %s, id %s, pkey2 %s",
+            topic_name, id, pkey2_name
+        );
     }
 
-    /*-------------------------------------------------*
-     *  Delete one instance of a composite record
-     *  Pending: needs `tranger2_delete_instance(tranger, topic_name,
-     *  id, __t__, rowid)` — marks the .md2 row with
-     *  `sf_deleted_instance` (irrecoverable, no resurrection).
-     *  Not implemented yet — see TODO.md.
-     *  `tranger2_delete_key()` would nuke the whole record, which is
-     *  too coarse here.
-     *-------------------------------------------------*/
-    if(0) { // TODO tranger2_delete_instance(tranger, topic_name, id, __t__, __rowid__)==0) {
-        /*-------------------------------*
-         *  Trace
-         *-------------------------------*/
-        if(treedb_trace) {
-            gobj_trace_msg(gobj, "delete instance node, topic %s, id %s", topic_name, id);
-        }
+    /*-------------------------------*
+     *  Maintain node live past
+     *  delete_secondary_node()
+     *-------------------------------*/
+    JSON_INCREF(node)
 
-        /*-------------------------------*
-         *  Maintain node live
-         *-------------------------------*/
-        JSON_INCREF(node)
-
-        /*---------------------------------*
-            *  Get indexy: to delete node
-            *---------------------------------*/
-        json_t *indexy = treedb_get_pkey2_index(
-            tranger,
-            treedb_name,
-            topic_name,
-            pkey2_name
-        );
-        const char *pkey2_value = get_key2_value(
-            tranger,
-            topic_name,
-            pkey2_name,
-            node
-        );
-        if(delete_secondary_node(indexy, id, pkey2_value)<0) { // node owned
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "delete_secondary_node() FAILED",
-                "topic_name",   "%s", topic_name,
-                "pkey2_name",   "%s", pkey2_name,
-                "id",           "%s", id,
-                "key2",         "%s", pkey2_value,
-                NULL
-            );
-        }
-
-        /*
-         *  Call Callback
-         */
-        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
-
-        treedb_callback_t treedb_callback =
-            (treedb_callback_t)(size_t)kw_get_int(gobj,
-            treedb,
-            "__treedb_callback__",
-            0,
-            0
-        );
-        if(treedb_callback) {
-            /*
-             *  Inform user in real time
-             */
-            void *user_data =
-                (treedb_callback_t)(size_t)kw_get_int(gobj,
-                treedb,
-                "__treedb_callback_user_data__",
-                0,
-                0
-            );
-            JSON_INCREF(node)
-            treedb_callback(
-                user_data,
-                tranger,
-                treedb_name,
-                topic_name,
-                EV_TREEDB_NODE_DELETED,
-                node
-            );
-        }
-
-        /*-------------------------------*
-         *  Kill the node
-         *-------------------------------*/
-        JSON_DECREF(node)
-
-    } else {
+    /*-------------------------------*
+     *  Drop the secondary entry
+     *-------------------------------*/
+    json_t *indexy = treedb_get_pkey2_index(
+        tranger,
+        treedb_name,
+        topic_name,
+        pkey2_name
+    );
+    const char *pkey2_value = get_key2_value(
+        tranger,
+        topic_name,
+        pkey2_name,
+        node
+    );
+    if(delete_secondary_node(indexy, id, pkey2_value)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot delete node",
+            "msg",          "%s", "delete_secondary_node() FAILED",
             "topic_name",   "%s", topic_name,
+            "pkey2_name",   "%s", pkey2_name,
             "id",           "%s", id,
+            "key2",         "%s", pkey2_value,
             NULL
         );
-        JSON_DECREF(jn_options)
-        JSON_DECREF(node)
-        return -1;
     }
+
+    /*-------------------------------*
+     *  Fire EV_TREEDB_NODE_DELETED
+     *-------------------------------*/
+    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+
+    treedb_callback_t treedb_callback =
+        (treedb_callback_t)(size_t)kw_get_int(gobj,
+        treedb,
+        "__treedb_callback__",
+        0,
+        0
+    );
+    if(treedb_callback) {
+        void *user_data =
+            (treedb_callback_t)(size_t)kw_get_int(gobj,
+            treedb,
+            "__treedb_callback_user_data__",
+            0,
+            0
+        );
+        JSON_INCREF(node)
+        treedb_callback(
+            user_data,
+            tranger,
+            treedb_name,
+            topic_name,
+            EV_TREEDB_NODE_DELETED,
+            node
+        );
+    }
+
+    /*-------------------------------*
+     *  Release the maintain ref
+     *-------------------------------*/
+    JSON_DECREF(node)
 
     JSON_DECREF(jn_options)
     return 0;
