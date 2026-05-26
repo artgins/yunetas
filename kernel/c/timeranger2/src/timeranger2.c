@@ -2768,6 +2768,14 @@ PRIVATE void fire_key_deleted_locally(
         int idx;
         json_t *entry;
         json_array_foreach(band, idx, entry) {
+            /*
+             *  rt_disk entries with an active fs_watcher receive the
+             *  signal via the FS_SUBDIR_DELETED_TYPE inotify branch
+             *  (even in-process). Skip them here to avoid double-fire.
+             */
+            if(json_object_get(entry, "fs_event_client")) {
+                continue;
+            }
             const char *filter_key = json_string_value(json_object_get(entry, "key"));
             if(filter_key && filter_key[0] != '\0'
                     && strcmp(filter_key, deleted_key) != 0) {
