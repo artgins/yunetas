@@ -359,7 +359,6 @@ This function is idempotent, meaning that if the topic already exists, it will r
 ---
 
 (tranger2_delete_key)=
-(tranger2_delete_record)=
 ## `tranger2_delete_key()`
 
 The `tranger2_delete_key()` function deletes a whole record (= a
