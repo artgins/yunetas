@@ -1,6 +1,8 @@
 # **Changelog**
 
 ## Unreleased
+
+## v7.4.0 -- 26/May/2026
     - **chore(lib-yui)!: declarative shell stack removed —
       `@yuneta/lib-yui` jumps to 8.0.0**. The new declarative
       shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
