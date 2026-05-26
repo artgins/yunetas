@@ -55,7 +55,7 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## tranger2: add `tranger2_delete_instance` (v6 → v7)
+## tranger2: `tranger2_delete_instance` — DONE (2026-05-26)
 
 ### Vocabulary
 
@@ -69,67 +69,68 @@ timeranger2 has two delete granularities:
   instance (the name is historical; the contract is
   per-instance).
 
-v7 has the record-level delete: **`tranger2_delete_key()`**
-(renamed from `tranger2_delete_record` on 2026-05-25; legacy
-alias kept as `#define` in `timeranger2.h`).  What is missing
-is per-instance delete.  Both deletes are irrecoverable; the
-distinction is granularity, not reversibility.
+Both API entry points live in `timeranger2.h`:
 
-### What was removed and what remains
+- `tranger2_delete_key(tranger, topic, key)` — drop the whole
+  `keys/<key>/` directory.
+- `tranger2_delete_instance(tranger, topic, key, __t__, rowid,
+  zero_payload)` — tombstone one row in place.
 
-v6 had a per-instance delete under flag `sf0_deleted_record`.
-The matching v7 flag — `sf_deleted_record` at bit `0x0400` — was
-removed in commit `eb2c454a7` ("remove flag sf_deleted_record",
-2026-05-11) because nothing in v7 was using it.  The slot
-in `system_flag2_t` is free (sits between `sf_tm_ms = 0x0200`
-and `sf_loading_from_disk = 0x1000`) and its slot in
-`sf_names[]` carries `""`.
+Both are irrecoverable; the distinction is granularity, not
+reversibility.
 
-No in-tree consumer today.  `treedb_delete_instance()` (a sibling
-of `treedb_delete_node()`) handles per-`pkey2`-index cleanup
-without touching the on-disk row, so the treedb side does NOT
-need `tranger2_delete_instance`.  Expected first callers are
-external: housekeeping jobs (selective compaction of historical
-appends), GDPR / sensitive-payload wipes, test fixtures.
+### How `delete_instance` works
 
-### Plan (when a real consumer needs it)
+- The `.md2` row is mutated in place via the existing
+  `get_md_record_for_wr` + `rewrite_md_to_file` plumbing.  OR
+  `sf_deleted_instance = 0x0400` (re-introduced in `system_flag2_t`,
+  inherited side of the mask so `rt_by_disk` followers see the same
+  bit as the master) into the system_flag bits.
+- The `.json` log stays append-only.  `rowid`s do **not**
+  renumber — slot N stays slot N, just dark.
+- If `zero_payload` is TRUE, overwrite the matching `__size__`
+  bytes at `__offset__` in the data `.json` with `0x00`.  Opt-in
+  because after the wipe the JSON file is no longer a parseable
+  concatenation — only the `.md2` index makes sense of it.
+- Master-only.  Second delete of the same instance is a silent
+  no-op (returns 0, no log).
 
-The log files stay **append-only** — deletion does not
-rewrite the log.  The per-key `.md2` **index is mutable**
-(the existing `tranger2_write_user_flag()` already mutates
-`md2_record_t` rows in place — same plumbing).
+### Read paths that honour the bit
 
-- **Re-introduce the flag** as **`sf_deleted_instance = 0x0400`**
-  (clearer than the old `sf_deleted_record` — the bit lives on
-  one instance, not on the key as a whole).  Add the matching
-  entry in `sf_names[]`.  Bit position stays inherited so the
-  `rt_by_disk` followers see the same flag the master does.
-- **Add `tranger2_delete_instance(tranger, topic_name, key,
-  __t__, rowid, zero_payload)`**.  Internally:
-  - `get_md_record_for_wr()` to locate the slot;
-  - OR `sf_deleted_instance` into `system_flag`, `pwrite` 32
-    bytes back;
-  - update the matching entry in `topic_cache`;
-  - if `zero_payload`: `lseek(__offset__)` + write `__size__`
-    bytes of zeros in `data/<mask>.json` (v6 did this
-    unconditionally; we keep it opt-in for sensitive-data wipes).
-- **Honor the bit on read** in the 4-5 entry points that
-  iterate `.md2` rows (`tranger2_open_iterator`,
-  `tranger2_iterator_get_page`, the internal
-  next/prev helpers, the `rt_by_disk` follower callback at
-  `/disks/<rt_id>/`, and `treedb_load_topic_records` in
-  `tr_treedb.c`).  v6 has the canonical 5-site pattern
-  preserved in `utils/c/tr2migrate/30_timeranger.c`
-  (search for `sf0_deleted_record` — 5 hits in the read
-  paths).
-- **Tests** under `tests/c/timeranger2`: create 3 instances of
-  one key, mark instance #2 deleted, expect 2 readable; same
-  with a cold reload; same with an `rt_by_disk` follower.
+v7 read flow is funnelled through three sites — not the five v6
+had, because v7 iteration is segment-based instead of
+file-walking.  Each site does the same `is_deleted_instance()`
+skip + `next_segment_row()` advance:
 
-### Operator workaround until then
+- `tranger2_open_iterator` history loop (`timeranger2.c`)
+- `tranger2_iterator_get_page` (`timeranger2.c`)
+- `publish_new_rt_disk_records` (`timeranger2.c`, rt_by_disk
+  follower)
 
-Cosmetic only: re-append the same key with a sentinel value /
-cleanup-tagged source so the last-wins-per-key projection
-hides the original instance.  Full wipe of a record (key +
-all instances) is `tranger2_delete_key()`.  No per-instance
-wipe until the above lands.
+`tr_treedb.c` is **not** a fourth site: `load_id_callback` /
+`load_pkey2_callback` are downstream callbacks of those three.
+Filtering upstream covers treedb transparently — no tr_treedb
+change.
+
+`tranger2_read_record_content` and `tranger2_read_user_flag`
+deliberately **do not** filter.  The caller supplies (key, __t__,
+rowid) — the row is already located — so we still serve it for
+audit / wipe-verification tooling.  This matches v6 behaviour.
+
+### Known second-order effects (documented in the header)
+
+- `iterator_size()`, `total_rows`, `pages` count slots, not live
+  rows.  A page returning `data.length=2` with `total_rows=3` is
+  the contract for "1 dead in this segment".
+- `topic_cache` cells (`fr_t`/`to_t`/`fr_tm`/`to_tm`) are not
+  refreshed.  If the deleted instance was the min/max t/tm of its
+  file, the cell rollup may lie.  Cheap to fix on next cold
+  reload; expensive to fix incrementally; deferred until a
+  consumer needs it.
+
+### Tests
+
+`tests/c/timeranger2/test_delete_instance.c` — single binary,
+five sub-cases: history skip + cold reload, paged skip +
+`total_rows` over-report, `zero_payload` raw-byte check,
+idempotent second delete, non-master refusal.
