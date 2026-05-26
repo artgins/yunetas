@@ -390,9 +390,6 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
 #if defined(__linux__)
-#if defined(CONFIG_HAVE_OPENSSL)
-    OpenSSL_add_all_digests();
-#endif
 #if defined(CONFIG_HAVE_MBEDTLS)
     /* Safe to call alongside OpenSSL — PSA and OpenSSL use independent state */
     psa_crypto_init(); /* PSA must be initialised before any crypto in v4.0 */

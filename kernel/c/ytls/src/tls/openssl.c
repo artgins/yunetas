@@ -172,11 +172,6 @@ PRIVATE api_tls_t api_tls = {
     shutdown_sskt
 };
 
-/***************************************************************
- *              Data
- ***************************************************************/
-PRIVATE BOOL __initialized__ = FALSE;
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -500,15 +495,6 @@ PRIVATE hytls init(
 )
 {
     /*--------------------------------*
-     *      Init OPENSSL
-     *--------------------------------*/
-    if(!__initialized__) {
-        __initialized__ = TRUE;
-        SSL_library_init();
-        OpenSSL_add_all_algorithms();
-    }
-
-    /*--------------------------------*
      *      Alloc memory
      *--------------------------------*/
     ytls_t *ytls = GBMEM_MALLOC(sizeof(ytls_t));
@@ -679,9 +665,6 @@ PRIVATE void cleanup(hytls ytls_)
     if(ytls && ytls->ctx) {
         SSL_CTX_free(ytls->ctx);
     }
-
-    /* Removes all digests and ciphers */
-    EVP_cleanup();
 
     GBMEM_FREE(ytls)
 }
