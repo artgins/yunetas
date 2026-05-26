@@ -425,6 +425,16 @@ PUBLIC int tranger2_append_record(
     Removes the `keys/<key>/` directory and every instance it
     holds. Irrecoverable. Only the master can delete.
 
+    Propagates the deletion to:
+      - in-memory subscribers (rt_mem, iterators, rt_disk in this
+        process) that registered a key-delete callback via
+        `tranger2_set_rt_key_deleted_callback()`;
+      - external `rt_by_disk` followers, by removing the matching
+        `topic/disks/<rt_id>/<key>/` subdirectories. Followers
+        watching their `disks/<rt_id>/` recursively pick it up via
+        the standard inotify channel and run the same callback
+        fan-out on their side.
+
     See `tranger2_delete_instance()` for per-instance delete (the
     row in the .md2 index is marked dead and the payload bytes are
     optionally zeroed — irrecoverable, no resurrection).
@@ -540,6 +550,46 @@ typedef int (*tranger2_load_record_callback_t)(
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_ex_t *md_record_ex,
     json_t *jn_record  // must be JSON owned
+);
+
+/*
+    Key-delete callback for rt_mem / rt_disk / iterators.
+
+    Fires when `tranger2_delete_key()` runs against a key this
+    subscriber tracks:
+      - on the master: directly from `tranger2_delete_key()`.
+      - on `rt_by_disk` followers: from the inotify watcher on
+        `disks/<rt_id>/`, when the master mirrors the deletion.
+
+    The subscriber's `key` filter is honoured: an empty `key` ("")
+    matches every deletion; a specific key only matches that one.
+
+    Returning non-zero is allowed but currently ignored — there is
+    nothing to break out of.
+
+    Register with `tranger2_set_rt_key_deleted_callback()`.
+*/
+typedef int (*tranger2_key_deleted_callback_t)(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,        // the deleted key
+    json_t *list,           // iterator / rt_mem / rt_disk entry, don't own
+    void *user_data
+);
+
+/*
+    Register a key-delete callback on a list/iterator/rt_disk
+    handle returned by `tranger2_open_rt_mem()`,
+    `tranger2_open_rt_disk()` or `tranger2_open_iterator()`.
+
+    Additive: existing handles default to "no callback", behaviour
+    unchanged. `user_data` is opaque; it is passed back verbatim.
+    Passing `cb=NULL` clears any previously registered callback.
+*/
+PUBLIC int tranger2_set_rt_key_deleted_callback(
+    json_t *list,
+    tranger2_key_deleted_callback_t cb,
+    void *user_data
 );
 
 /*

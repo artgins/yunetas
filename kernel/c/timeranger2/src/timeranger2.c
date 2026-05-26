@@ -2742,9 +2742,117 @@ PUBLIC int tranger2_append_record(
 }
 
 /***************************************************************************
+ *  Fire registered key-delete callbacks for every in-memory subscriber
+ *  whose filter matches the deleted key.
+ *
+ *  Subscribers live in three arrays on the topic:
+ *      topic.lists[]       — rt_mem
+ *      topic.iterators[]   — open_iterator
+ *      topic.disks[]       — rt_disk
+ *
+ *  Each entry's `key` field is the filter ("" = match all).
+ ***************************************************************************/
+PRIVATE void fire_key_deleted_locally(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *deleted_key
+)
+{
+    const char *bands[] = { "lists", "iterators", "disks", NULL };
+    for(int b = 0; bands[b]; b++) {
+        json_t *band = json_object_get(topic, bands[b]);
+        if(!json_is_array(band)) {
+            continue;
+        }
+        int idx;
+        json_t *entry;
+        json_array_foreach(band, idx, entry) {
+            const char *filter_key = json_string_value(json_object_get(entry, "key"));
+            if(filter_key && filter_key[0] != '\0'
+                    && strcmp(filter_key, deleted_key) != 0) {
+                continue;
+            }
+            tranger2_key_deleted_callback_t cb =
+                (tranger2_key_deleted_callback_t)(uintptr_t)json_integer_value(
+                    json_object_get(entry, "key_deleted_callback"));
+            if(!cb) {
+                continue;
+            }
+            void *user_data = (void *)(uintptr_t)json_integer_value(
+                json_object_get(entry, "key_deleted_user_data"));
+            cb(tranger, topic, deleted_key, entry, user_data);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Mirror the key deletion into every `topic/disks/<rt_id>/<key>/`
+ *  subdirectory the master finds. Followers watching their
+ *  `disks/<rt_id>/` recursively pick this up as FS_SUBDIR_DELETED_TYPE
+ *  and run fire_key_deleted_locally() on their side.
+ *
+ *  Silent no-op for rt_ids that never received any record for this key
+ *  (their `<key>/` dir never got created).
+ ***************************************************************************/
+PRIVATE void mirror_key_delete_to_disks(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+)
+{
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    if(!topic_dir) {
+        return;
+    }
+
+    char disks_root[PATH_MAX];
+    snprintf(disks_root, sizeof(disks_root), "%s/disks", topic_dir);
+    if(!is_directory(disks_root)) {
+        return;
+    }
+
+    DIR *dir = opendir(disks_root);
+    if(!dir) {
+        return;
+    }
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.' &&
+          (entry->d_name[1] == '\0' ||
+           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+            continue;
+        }
+        char key_path[PATH_MAX];
+        snprintf(key_path, sizeof(key_path), "%s/%s/%s",
+            disks_root, entry->d_name, key);
+        if(is_directory(key_path)) {
+            if(rmrdir(key_path) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "rmrdir() on disks/<rt_id>/<key>/ FAILED",
+                    "path",         "%s", key_path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+        }
+    }
+    closedir(dir);
+}
+
+/***************************************************************************
     Delete a whole record (= primary key) from a topic.
     Removes the `keys/<key>/` directory and every instance it holds.
     Irrecoverable. Only the master can delete.
+
+    Propagates the deletion: first mirrors the rmrdir into
+    `topic/disks/<rt_id>/<key>/` so followers pick it up via inotify,
+    then fires in-process `key_deleted_callback`s on rt_mem /
+    iterators / rt_disk subscribers, then removes the live key dir.
+    Order matters — followers may read while reacting.
  ***************************************************************************/
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
@@ -2786,6 +2894,14 @@ PUBLIC int tranger2_delete_key(
      *  Close opened files
      */
     close_fd_opened_files(gobj, topic, key);
+
+    /*
+     *  Propagate the delete to external followers first (rmrdir of
+     *  topic/disks/<rt_id>/<key>/ — inotify fan-out on their side),
+     *  then to local in-process subscribers.
+     */
+    mirror_key_delete_to_disks(gobj, topic, key);
+    fire_key_deleted_locally(gobj, tranger, topic, key);
 
     /*
      *  Remove directory of topic's key
@@ -3888,6 +4004,31 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 }
 
 /***************************************************************************
+ *  Register a key-delete callback on a rt_mem / rt_disk / iterator
+ *  handle. See typedef tranger2_key_deleted_callback_t in the header.
+ *
+ *  Stored on the handle as two int slots so it survives across
+ *  master/follower processes when the handle is serialized.
+ ***************************************************************************/
+PUBLIC int tranger2_set_rt_key_deleted_callback(
+    json_t *list,
+    tranger2_key_deleted_callback_t cb,
+    void *user_data
+)
+{
+    if(!list) {
+        return -1;
+    }
+    json_object_set_new(list,
+        "key_deleted_callback",
+        json_integer((json_int_t)(uintptr_t)cb));
+    json_object_set_new(list,
+        "key_deleted_user_data",
+        json_integer((json_int_t)(uintptr_t)user_data));
+    return 0;
+}
+
+/***************************************************************************
  *  MASTER: find realtime disks of clients
  ***************************************************************************/
 PRIVATE BOOL find_rt_disk_cb(
@@ -4339,7 +4480,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         client_fs_callback,
         gobj,
         tranger,  // user_data
-        NULL // TODO key, only must watch the key?
+        topic     // user_data2 — needed to resolve key-delete fan-out
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -4367,7 +4508,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
-    // TODO char *key = fs_event->user_data2;
+    json_t *watched_topic = fs_event->user_data2;   // set by monitor_rt_disk_by_client
 
     char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/%s",
@@ -4412,15 +4553,30 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 
         case FS_SUBDIR_DELETED_TYPE:
             /*
-             *  - Key directory deleted, ignore, it's me TODO review
+             *  Master mirrored a tranger2_delete_key() into our
+             *  disks/<rt_id>/<key>/ — propagate locally: clear cache
+             *  rollup and fire registered key_deleted_callbacks.
              */
-            // TODO this indicate that a key has been removed, do something
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "FS_SUBDIR_DELETED_TYPE client fs_event NOT processed",
-                NULL
-            );
+            if(watched_topic) {
+                const char *deleted_key = (const char *)fs_event->filename;
+                if(gobj_global_trace_level() & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "CLIENT: Key directory deleted",
+                        "msg2",             "%s", "💾🔶 CLIENT: Key directory deleted",
+                        "action",           "%s", "propagate key-delete",
+                        "deleted_key",      "%s", deleted_key,
+                        "full_path",        "%s", full_path,
+                        NULL
+                    );
+                }
+                json_t *cache = json_object_get(watched_topic, "cache");
+                if(cache) {
+                    json_object_del(cache, deleted_key);
+                }
+                fire_key_deleted_locally(gobj, tranger, watched_topic, deleted_key);
+            }
             break;
 
         case FS_FILE_CREATED_TYPE:
