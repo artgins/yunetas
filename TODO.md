@@ -134,3 +134,79 @@ audit / wipe-verification tooling.  This matches v6 behaviour.
 five sub-cases: history skip + cold reload, paged skip +
 `total_rows` over-report, `zero_payload` raw-byte check,
 idempotent second delete, non-master refusal.
+
+## tranger2: `delete_key` → subscriber propagation — DONE (2026-05-26)
+
+### What was broken
+
+`tranger2_delete_key()` used to `rmrdir(keys/<key>/)` and clear
+the in-memory rollup cache, but never notified subscribers.
+- `rt_mem` listeners (same process) kept stale references.
+- `rt_by_disk` followers (other process) kept their cached view
+  of the dead key alive — they only watched **appends** through
+  the `disks/<rt_id>/` hardlink channel, never deletions.
+
+Wattyzer's `db_history_wz` worked around this on every SPA
+delete with a "tombstone-then-delete" recipe
+(commits `04bde63` for tariffs, `3bc85da` for budgets in the
+wattyzer repo): emit an `update_node` with a skeleton record
+designed to look like "absent" downstream, then call
+`delete_node`. The follower sees the tombstone fly by on its
+append channel and prunes its cache.
+
+### What landed
+
+Master:
+- New helper `mirror_key_delete_to_disks(topic, key)` walks
+  `topic/disks/<rt_id>/` and `rmrdir`s every `<rt_id>/<key>/`
+  it finds before the final `rmrdir(keys/<key>/)`. Followers
+  watching their `disks/<rt_id>/` recursively pick this up as
+  `FS_SUBDIR_DELETED_TYPE` on the standard inotify channel —
+  no new IPC, no new file convention.
+- New helper `fire_key_deleted_locally(topic, key)` iterates
+  `topic.lists[]` (rt_mem), `topic.iterators[]` and
+  `topic.disks[]`. Each entry's `key` filter is honoured (""
+  matches any). Entries with an attached `fs_event_client`
+  (active inotify watcher) are skipped here to avoid
+  double-fire when the same process is both master and
+  in-process follower.
+
+Follower:
+- `client_fs_callback`'s `FS_SUBDIR_DELETED_TYPE` branch — a
+  v7 TODO that had been logging "NOT processed" since
+  inception — now extracts the deleted key, clears
+  `topic.cache[key]` and runs the same fan-out.
+- `monitor_rt_disk_by_client` now stashes the `topic` json
+  pointer in `fs_event->user_data2` so the callback can
+  resolve the topic without walking the path.
+
+API (additive, no breaking signature change):
+- `typedef tranger2_key_deleted_callback_t`
+- `PUBLIC tranger2_set_rt_key_deleted_callback(handle, cb, user_data)`
+  registers on a handle returned by `tranger2_open_rt_mem`,
+  `tranger2_open_rt_disk` or `tranger2_open_iterator`.
+
+### Tests
+
+`tests/c/timeranger2/test_delete_key_propagation.c` — single
+binary, five sub-cases: rt_mem specific-key listener,
+all-keys listener, filter skip, rt_disk in-process via
+inotify, cache rollup cleared.
+
+### Follow-up — remove the wattyzer tombstone recipe
+
+The skeleton-then-delete dance in `wattyzer/.../db_history_wz`
+becomes redundant once this lands in a deployed `yunetas`
+release. Plan:
+
+1. Ship yunetas with this change, deploy wattyzer against it.
+2. Run **one production cycle** with both paths coexisting —
+   confirm follower caches stay in sync on tariff and budget
+   deletes without the skeleton update being load-bearing.
+3. Remove the `delete_X_data` skeleton from `db_history_wz`
+   (both tariff and budget paths), keep only the plain
+   `gobj_delete_node`. Drop the matching agregador filter
+   tricks that depended on the skeleton shape.
+
+Out of scope here on purpose: not touching the wattyzer repo
+in the same commit window — coexistence first, cleanup later.
