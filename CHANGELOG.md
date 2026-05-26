@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **docs(api/treedb): document the real snap semantics**.
+      The `treedb_shoot_snap` / `treedb_activate_snap` API pages
+      described the surface only — name, parameters, return — and
+      missed the parts that determine whether snaps actually work
+      for the caller: `treedb_shoot_snap` tags the live `.md2`
+      record's `user_flag` in place via
+      `tranger2_write_user_flag` (so rowid order is preserved
+      and re-shoots overwrite prior tags on the same record);
+      `treedb_activate_snap("__clear__")` is the deactivate
+      path; the active/inactive toggle only flips a flag, and
+      the new primary visibility materialises on the **next**
+      `treedb_open_db()` — not on the call itself. Updated
+      `docs/doc.yuneta.io/api/timeranger2/treedb.md` §§
+      `treedb_shoot_snap` + `treedb_activate_snap` with the
+      reload semantics + the in-place tag mechanic + the
+      16-bit snap-id ceiling. Companion to the `treedb_shoot_snap`
+      completion shipped in the same release.
     - **feat(tr_treedb): complete `treedb_shoot_snap` so
       `activate-snap <name>` rolls back primaries correctly**.
       The TODO at the heart of `treedb_shoot_snap` was a dead

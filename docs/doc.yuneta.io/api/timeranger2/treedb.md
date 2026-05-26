@@ -341,7 +341,7 @@ This function does not modify foreign key (`fkey`), hook, or persistent fields. 
 (treedb_activate_snap)=
 ## `treedb_activate_snap()`
 
-Activates a snapshot in the TreeDB, returning the corresponding snapshot tag. The function updates the current state of the database to match the specified snapshot.
+Marks a previously shot snapshot as active (`active: true` on the snap node in `__snaps__`). Use the reserved name `"__clear__"` to instead deactivate whichever snap is currently active — this is the *deactivate-snap* path.
 
 ```C
 int treedb_activate_snap(
@@ -357,15 +357,24 @@ int treedb_activate_snap(
 |---|---|---|
 | `tranger` | `json_t *` | A reference to the TimeRanger instance managing the TreeDB. |
 | `treedb_name` | `const char *` | The name of the TreeDB where the snapshot is stored. |
-| `snap_name` | `const char *` | The name of the snapshot to activate. |
+| `snap_name` | `const char *` | The name of the snapshot to activate, or `"__clear__"` to deactivate the current active snap. |
 
 **Returns**
 
-Returns the snapshot tag as an integer if successful, or a negative value if an error occurs.
+Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an integer on success, `0` for the `"__clear__"` deactivate path, or a negative value on error (`-1` if the named snap is not found).
+
+**Behaviour**
+
+This call only toggles the `active` flag on the snap node. The primary index of every topic is **not** refreshed in memory; the new visibility takes effect on the next `treedb_open_db()`:
+
+- With a snap active, the topic loader filters by `user_flag = snap_tag` and only records carrying that tag become primary — this gives rollback to the state captured by [`treedb_shoot_snap()`](<#treedb_shoot_snap>).
+- After `"__clear__"` (or with no snap ever shot) the loader applies no filter; the backward scan picks the highest-`rowid` record per key as primary — i.e. the latest live record.
+
+Consumers that need the change visible immediately must close and reopen the resource (e.g. `gobj_stop` + `gobj_start` on the gclass that owns the treedb, which is what the agent's `restart_nodes` does).
 
 **Notes**
 
-Ensure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>).
+Ensure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>) (except for `"__clear__"`, which is always valid).
 
 ---
 
@@ -1302,7 +1311,7 @@ This function is useful for debugging and monitoring TreeDB operations.
 (treedb_shoot_snap)=
 ## `treedb_shoot_snap()`
 
-`treedb_shoot_snap()` tags the current state of a TreeDB instance, creating a snapshot with an associated name and description.
+Captures the current primary set of every user topic by stamping each primary record's `user_flag` field with the snap's id. The snap is registered as a row in `__snaps__` (assigned an integer `id` from its `g_rowid`); that same `id` is then written *in place* via `tranger2_write_user_flag()` on the live `.md2` record of each current primary. The snap is created with `active: false` — use [`treedb_activate_snap()`](<#treedb_activate_snap>) to switch to it.
 
 ```C
 int treedb_shoot_snap(
@@ -1319,16 +1328,22 @@ int treedb_shoot_snap(
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the `tranger` instance managing the TreeDB. |
 | `treedb_name` | `const char *` | Name of the TreeDB instance to snapshot. |
-| `snap_name` | `const char *` | Name assigned to the snapshot. |
+| `snap_name` | `const char *` | Name assigned to the snapshot. Must be unique within the treedb — the call fails if one already exists. The literal `"__clear__"` is reserved and cannot be used. |
 | `description` | `const char *` | Optional description providing details about the snapshot. |
 
 **Returns**
 
-Returns `0` on success, or a negative error code on failure.
+Returns `0` on success, or a negative error code on failure (snap already exists, or the snap `id` would exceed the 16-bit `user_flag` ceiling — i.e. `>= 0xFFFF` snaps in this treedb's history).
+
+**Behaviour**
+
+For every non-meta topic (i.e. names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
+
+Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0` (which then carry the snap's id thereafter). Re-shooting the same primaries under a different snap name *overwrites* the prior tag on those records; coexistence of multiple snaps therefore requires that intermediate updates have generated new records between shoots.
 
 **Notes**
 
-Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](<#treedb_activate_snap>).
+Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](<#treedb_activate_snap>). Like all snap operations, the visibility change is materialised on the next `treedb_open_db()`, not in memory at call time — see [`treedb_activate_snap()`](<#treedb_activate_snap>) for the reload semantics.
 
 ---
 
