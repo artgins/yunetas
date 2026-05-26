@@ -61,6 +61,7 @@ set(SRCS
     test_topic_pkey_integer_iterator5
     test_topic_pkey_integer_iterator6
     test_delete_instance
+    test_delete_key_propagation
     test_testing
 )
 
