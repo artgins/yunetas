@@ -1,6 +1,57 @@
 # **Changelog**
 
 ## Unreleased
+    - **chore(lib-yui)!: declarative shell stack removed —
+      `@yuneta/lib-yui` jumps to 8.0.0**. The new declarative
+      shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
+      `C_YUI_WIZARD`, `shell_modals` and every `shell_*_helpers`
+      module + the full Playwright e2e suite and the `test-app/`
+      vite project) was already being maintained from the
+      wattyzer-vendored copy at `wattyzer/gui/src/lib-yui`. The
+      kernel copy was just dead weight in the bundle consumed
+      by estadodelaire / hidraulia (legacy apps that only use
+      `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two
+      copies had drifted enough to make every fold-back a
+      conflict. Verified by grep that neither legacy consumer
+      imports any shell symbol before deleting. `dist/lib-yui.es.js`
+      is now 3.4 MB / gzip 706 KB (~25% lighter). Migration: if
+      you need the declarative shell, the canonical copy is
+      `wattyzer/gui/src/lib-yui/` (private repo) as of
+      2026-05-15. The yuno-skeleton `js_gui` scaffold that
+      referenced `register_c_yui_shell` was dropped here too;
+      the replacement scaffold lives in
+      `wattyzer/templates/js_gui/`.
+    - **chore(ext-libs): three security bumps (v1.12 → v1.13 →
+      v1.14)**. v1.12: nginx 1.28.3 → 1.30.1 (CVE-2026-42945),
+      openresty → 1.29.2.4, openssl 3.6.1 → 3.6.2. v1.13: nginx
+      → 1.30.2 (CVE-2026-9256, buffer overflow in
+      `ngx_http_rewrite_module`). v1.14: openresty → 1.29.2.5
+      (backports the CVE-2026-9256 patch into the
+      openresty-bundled nginx + a `proxy_protocol v2`
+      over-read fix). All three are pin-only — nginx and
+      openresty are separate dynamically-linked binaries (see
+      `configure-libs.sh` v1.10), so no yuneta consumer /
+      header / CMake change rides along. OpenSSL deliberately
+      held on the 3.6 LTS series; the 4.0 jump (non-LTS,
+      EOL 2027-05, drops engines / legacy init) is tracked
+      separately.
+    - **refactor(tranger2): rename `tranger2_delete_record` →
+      `tranger2_delete_key`**. Locks the vocabulary
+      timeranger2 was using loosely: *record* = a primary key
+      (whole `keys/<key>/` directory, deleted via
+      `tranger2_delete_key`); *instance* = one row of that
+      key's `.md2` index, addressed by
+      `(key, __t__, rowid)`. The legacy name is kept as a
+      source-level alias
+      (`#define tranger2_delete_record tranger2_delete_key`),
+      so external callers keep compiling unchanged. In-tree
+      caller (`treedb_delete_node`) updated; README, the
+      timeranger2 API page (with the old MyST anchor preserved
+      so external links to `(tranger2_delete_record)=` keep
+      resolving) and the appendix index follow the rename. A
+      subsequent commit dropped "soft" from the delete-instance
+      vocabulary: granularity, not reversibility — both
+      deletes are irrecoverable.
     - **feat(tranger2): `tranger2_delete_instance()` — per-row
       tombstone**. Mutates one row of the `.md2` index in place via
       `sf_deleted_instance = 0x0400` (reinstated in `system_flag2_t`
@@ -39,6 +90,23 @@
       `db_history_wz` becomes redundant after one production cycle
       of coexistence — cleanup planned in the wattyzer repo, not
       here.
+    - **fix(tr_treedb): repair `treedb_delete_instance`
+      (pkey2-index cleanup only)**. The function was a dead
+      copy-paste of `treedb_delete_node` with the real work
+      fenced behind `if(0) { ... tranger2_delete_instance(...) }`
+      and an `else` returning -1 with *"Cannot delete node"*. The
+      dead branch was also wrong — it would have wiped the
+      underlying `.md2` row while the primary index and the
+      other `pkey2_*` indexes still referenced it (state
+      corruption). The only in-tree caller
+      (`c_node.c::ac_delete_node`) was getting -1 on every call
+      without acting on the return, so the breakage was silent.
+      Rewritten to do what the function name promises: drop the
+      in-memory entry for THIS pkey2 via `delete_secondary_node`,
+      fire `EV_TREEDB_NODE_DELETED`, preserve the JSON_INCREF /
+      DECREF pattern. The whole-node wipe stays the job of
+      `treedb_delete_node` → `tranger2_delete_key`. Contract
+      spelled out in the `.c` and `.h` docstrings.
     - **fix(ytls/openssl): ship the full certificate chain**.
       `build_ssl_ctx()` was loading the server certificate via
       `SSL_CTX_use_certificate_file()`, which only parses the first
@@ -56,6 +124,40 @@
       fix; for binaries shared by several live yunos (e.g.
       `auth_bff` 1802+1804) the atomic `mv old old.bak; cp new old`
       pattern avoids the `ETXTBSY` that breaks `update-binary`.
+    - **chore(ytls, c_authz): drop OpenSSL legacy init/cleanup
+      calls** (OpenSSL 4.0 prep). Removed four
+      deprecated-since-1.1.0 calls that were no-ops on the 3.x
+      series and disappear in 4.0: `SSL_library_init()` +
+      `OpenSSL_add_all_algorithms()` (with the redundant
+      `__initialized__` guard) in `ytls/openssl.c` init,
+      `EVP_cleanup()` in cleanup, and
+      `OpenSSL_add_all_digests()` (with its
+      `CONFIG_HAVE_OPENSSL` wrapper) in `c_authz.c`. OpenSSL
+      ≥ 1.1.0 auto-initialises on first use and cleans up via
+      `atexit`. The `OPENSSL_API_COMPAT 30100` define already
+      gates the rest of the 1.1.x compat surface; the yuneta
+      source is now 4.0-clean (the jump itself stays deferred).
+    - **fix(c_prot_tcp4h, c_prot_mqtt): guard state reset
+      against in-publish disconnect cascade**. Under io_uring,
+      publishing `EV_ON_MESSAGE` is synchronous and can trigger
+      a full disconnect cascade upstream (authz NAK in
+      `C_IEVENT_CLI` → `EV_DROP` → `C_TCP` ac_drop →
+      `try_to_stop_yevents` → `set_disconnected` publishes
+      `EV_DISCONNECTED` → the protocol gclass moves to
+      `ST_DISCONNECTED`). The caller of `frame_completed`
+      then unconditionally reset the FSM back to
+      `ST_WAIT_FRAME_HEADER` / `ST_CONNECTED`, leaving the
+      protocol "connected" without an underlying TCP. Symptom:
+      *"Event NOT DEFINED in state: EV_CONNECTED in
+      C_PROT_TCP4H@ST_WAIT_FRAME_HEADER"* alternating with
+      broken-pipe / local-dropping cycles. Guard
+      (`state != ST_DISCONNECTED`) added — same form already
+      present in `c_websocket.c` and `c_prot_mqtt2.c`. The
+      twin guard initially added to `c_prot_modbus_m` was
+      reverted in a follow-up: the modbus-master flow does
+      not expose the same cascade (see `GOBJ.md §8.13`).
+      Verified live on `app.wattyzer.com` across the
+      controlcenter dial-out loop.
     - **fix(gobj): `gobj_read_attrs` honours `mt_reading` via a new
       `item2json` helper**.  The bulk reader (behind `view-attrs`,
       introspection and `db_save_persistent_attrs`) was the only
@@ -77,6 +179,41 @@
       `v.v.i` but forgot the discriminant, so the value was always
       shadowed by the stored zero.  Surfaces now that
       `gobj_read_attrs` consults `mt_reading`.
+    - **fix(lib-yui): normalize `navigator.language` before
+      `Intl.DateTimeFormat`**. Playwright Firefox without locale
+      config (and some embedded webviews) report
+      `navigator.language` as the literal string `"undefined"`;
+      passing that to `Intl.DateTimeFormat` throws `RangeError`
+      and breaks SPA bootstrap. Guard with a string +
+      `"undefined"` check, fall back to `undefined` so Intl
+      resolves to the system locale. Fold-back of wattyzer
+      `1bf08aa`.
+    - **feat(yuno_agent): `stats-yuno` defaults `service` to the
+      matched `yuno_role`**. `cmd_stats_yuno` previously passed
+      an empty `service` when the operator didn't spell it out,
+      so the remote fell back to `priv->gobj_service` (the top
+      `C_YUNO` instance) and returned only the few attrs declared
+      on `c_yuno` — typically all zero, missing the real
+      `SDF_RSTATS` counters that live on the citizen service
+      (e.g. `C_AUTOMATIONS_WZ`'s `alarms_seen` /
+      `tracks_seen` / `fires_seen` / `runs_done`). Convention is
+      `gobj_create_default_service(yuno_role, GCLASS, ...)` so
+      service name == yuno role; the operator now gets the real
+      counters with the natural `stats-yuno yuno_role=X`
+      invocation. Pass `service=__yuno__` to explicitly query the
+      top `C_YUNO` attrs (previous default).
+    - **fix(tr_treedb): include the required-field name in error
+      logs**. The three "Field required" `gobj_log_error` sites in
+      `check_desc_field` / `normalize_node_field_value` /
+      `convert_node2tranger` logged the same opaque message; now
+      the field name is interpolated into `msg` so the offending
+      column is visible at a glance without expanding the
+      structured payload.
+    - **chore(yuno_agent): increase agent log file size**. Bumps
+      the agent's own log rotation threshold in `yuno_agent` and
+      `yuno_agent22` (two-line `main.c` change). Avoids
+      tighter-than-needed rollovers under the trace volume the
+      onboarding doc work surfaced.
     - **note**: validated by relinking every yuno (15 binaries) and
       running the full `ctest` suite (93/93 passed, 436 s).  A
       project-wide `yunetas build` after a kernel-side change does
