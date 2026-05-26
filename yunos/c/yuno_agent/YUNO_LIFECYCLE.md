@@ -424,12 +424,20 @@ ycommand -c 'run-yuno id=<yuno_id>'
 ycommand -c 'list-yunos'
 ```
 
-### 6.2 Update the binary of a running yuno (safe path)
+### 6.2 Hot-patch the binary at the same version (`update-binary`)
 
-Always **orderly shutdown first**; never `update-binary` over a live mmap.
+Use this when the version number in `main.c` (`APP_VERSION`) is
+**unchanged** — e.g. a `RelWithDebInfo` rebuild for a quick fix
+during a debugging session. `update-binary` overwrites the existing
+`{role}/{version}/` slot in `/yuneta/repos/...` and the matching
+treedb row. There is no rollback path; the previous bytes are gone.
+
+Always **orderly shutdown first**; never `update-binary` over a live
+mmap. The command itself does NOT refuse if a yuno using the binary
+is running (see §5.1).
 
 ```bash
-# 1. build
+# 1. build (APP_VERSION unchanged in main.c)
 cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make install
 
 # 2. orderly shutdown via the agent (NOT a manual kill)
@@ -438,15 +446,18 @@ ycommand -c 'kill-yuno yuno_role=<role>'
 # 3. wait until it really left
 ycommand -c 'list-yunos'    # expect yuno_running=false
 
-# 4. upload the new binary
-#    - same version → update-binary (overwrites)
-#    - new version  → install-binary (creates a new row)
+# 4. overwrite the same-version slot in the agent repo
 ycommand -c 'update-binary id=<role> content64=$$(<role>)'
 ycommand -c 'list-binaries' # verify size/date
 
 # 5. start back
 ycommand -c 'run-yuno'
 ```
+
+For a real version bump (`1.3.1.0` → `1.3.1.1`, `7.3.4` → `7.4.0`,
+…) use the upgrade flow in §6.5 instead — `update-binary` is the
+wrong tool, and the `WARNING: Don't use in production!` description
+in `command-yuno` help applies precisely to that misuse.
 
 ### 6.3 Change a yuno's configuration
 
@@ -469,6 +480,90 @@ ycommand -c 'list-yunos'                   # confirm running=false
 ycommand -c 'disable-yuno id=<yuno_id>'    # belt and braces
 ycommand -c 'delete-yuno  id=<yuno_id>'    # refuses if running
 # binary stays in /yuneta/repos until you delete-binary it
+```
+
+### 6.5 Upgrade a yuno to a new release (version bump)
+
+When `APP_VERSION` in `main.c` changes (`1.3.1.0` → `1.3.1.1`, or a
+yunetas-side bump like `7.3.4` → `7.4.0`), the canonical flow is
+**not** `kill-yuno` + `run-yuno`. Both the old and the new
+yuno-instance rows exist after registration, and the agent's
+in-memory primary index for the `yunos` topic still points at the
+old `pkey2` (`yuno_release`). Plain `run-yuno` will re-launch the
+older release.
+
+```bash
+# 1. Build the new version
+cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make install
+
+# 2. Push the new binary to the agent
+#    install-binary creates a new <role>/<version>/ slot; refuses if
+#    (role, version) already exists — that is the safety vs update-binary.
+ycommand -c 'install-binary id=<role> content64=$$(<role>)'
+
+# 3. Register a yuno-instance row at the new role_version
+#    create=1 actually persists; without it, find-new-yunos just lists
+#    the commands it would run. Both pkey2 rows now coexist:
+#       <id> <realm> <role>  <yuno_release=OLD>
+#       <id> <realm> <role>  <yuno_release=NEW>
+#    Visible via `list-yunos-instances`; `list-yunos` still shows OLD
+#    as primary.
+ycommand -c 'find-new-yunos create=1'
+
+# 4. Force the agent to promote the newest pkey2 to primary and restart
+#    deactivate-snap (no args, no active snap) is the only command that
+#    triggers `restart_nodes()` (c_agent.c:8816): SIGKILL every running
+#    yuno, gobj_stop/start the treedb resource (which rebuilds the
+#    primary index from disk — newest pkey2 wins), then run every
+#    must_play yuno. Equivalent to `yshutdown` + `restart-yuneta` but
+#    without restarting the agent process itself.
+ycommand -c 'deactivate-snap'
+
+# 5. Verify
+ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
+# release column should now read the new version. The OLD pkey2 row
+# stays in treedb for rollback (see §6.6 below).
+```
+
+#### Caveats
+
+- **Node-wide bounce.** `restart_nodes()` SIGKILLs every running
+  yuno on the node, not just the one being upgraded. Tolerable for
+  kernel-yuno rotations (`auth_bff`, `emailsender`, `logcenter`);
+  worth flagging before doing it during a busy window on a realm
+  with many citizen yunos. A per-role rolling upgrade would require
+  `cmd_run_yuno` to be made snap-aware the same way
+  `get_yuno_binary` already is (TODO in `c_agent.c:4898-4900` is
+  the same observation).
+
+- **No orderly shutdown.** The SIGKILL means yunos do NOT run their
+  `mt_stop` / FSM stop callbacks. For protocols that flush state on
+  exit (mqtt close packets, treedb final saves), prefer manually
+  `kill-yuno`-ing each role before `deactivate-snap`.
+
+- **`find-new-yunos create=1` without an actual binary will not
+  break anything**, but the row it creates will have no
+  corresponding binary file and `run-yuno` will then fail with
+  *"primary binary not found"* once `deactivate-snap` promotes it.
+  Always do step 2 first.
+
+### 6.6 Rollback after an upgrade
+
+The OLD `pkey2` row stays in `yunos`, and the OLD binary stays in
+`/yuneta/repos/<role>/<old_version>/`. To revert:
+
+```bash
+# Take a snap of the current state first (optional but recommended)
+ycommand -c 'shoot-snap name=<rollback-tag> description="pre-upgrade"'
+
+# … later, if the new release misbehaves, activate the snap
+ycommand -c 'activate-snap name=<rollback-tag>'
+# This calls the same restart_nodes() cycle, but with the snap
+# active get_yuno_binary refuses to fall back to list_instances
+# and primary-only lookup is enforced — the OLD row wins again.
+
+# To remove the pin once you've decided:
+ycommand -c 'deactivate-snap'
 ```
 
 ---

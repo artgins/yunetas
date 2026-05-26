@@ -1,6 +1,24 @@
 # **Changelog**
 
 ## Unreleased
+    - **docs(yuno_agent): document the version-bump upgrade flow**.
+      `kill-yuno` + `run-yuno` does not pick up a new release —
+      `cmd_run_yuno` walks the `yunos` topic primary index, which
+      keeps pointing at the older `pkey2` (`yuno_release`) after
+      `find-new-yunos create=1` appends the new row. The fix is
+      always `install-binary` → `find-new-yunos create=1` →
+      `deactivate-snap`. `deactivate-snap` with no args (and no
+      active snap) is the only supported way to trigger
+      `restart_nodes()` (`c_agent.c:8816`), which SIGKILLs every
+      running yuno, `gobj_stop/start`s the treedb resource so the
+      primary index is rebuilt from disk with the newest `pkey2`
+      first, then runs every must-play yuno. Equivalent to
+      `yshutdown` + `restart-yuneta` at the agent-process level,
+      but without restarting the daemon. Added as `YUNO_LIFECYCLE.md`
+      §6.5 + §6.6 (rollback via `shoot-snap` / `activate-snap`) and
+      refreshed `CLAUDE.md` §3 with the same-version vs version-bump
+      split. Verified live with `gate_pvpc 1.3.1.0 → 1.3.1.1`
+      on the local agent.
 
 ## v7.4.0 -- 26/May/2026
     - **chore(lib-yui)!: declarative shell stack removed —

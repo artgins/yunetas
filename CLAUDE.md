@@ -541,6 +541,8 @@ tail -f /yuneta/realms/<realm>/<yuno>/logs/<N>.log | grep -a "keyword"    # foll
 **Always go through the agent — never kill processes manually or overwrite a
 running binary directly.**
 
+#### Same-version hot-patch (debug rebuild, `APP_VERSION` unchanged)
+
 ```bash
 # 1. Build
 cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make install
@@ -548,7 +550,7 @@ cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make instal
 # 2. Kill the running yuno(s)
 ycommand -c 'kill-yuno yuno_role=<role>'
 
-# 3. Upload the new binary (version stays the same)
+# 3. Overwrite the same-version slot
 ycommand -c 'update-binary id=<role> content64=$$(<role>)'
 
 # 4. Verify size/date
@@ -557,6 +559,35 @@ ycommand -c 'list-binaries'
 # 5. Start the yuno(s)
 ycommand -c 'run-yuno'
 ```
+
+#### Version bump (`APP_VERSION` in `main.c` changed)
+
+`kill-yuno` + `run-yuno` will re-launch the OLD release: the agent's
+in-memory primary index for the `yunos` topic does not move when a
+new `pkey2` row is appended. The canonical sequence is:
+
+```bash
+# 1. Build (APP_VERSION bumped in main.c)
+cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make install
+
+# 2. Install into a NEW slot
+ycommand -c 'install-binary id=<role> content64=$$(<role>)'
+
+# 3. Register a yuno-instance row at the new role_version
+ycommand -c 'find-new-yunos create=1'
+
+# 4. Trigger restart_nodes() so the new pkey2 becomes primary
+ycommand -c 'deactivate-snap'
+```
+
+`deactivate-snap` (no args, no active snap) is the supported way to
+force the agent to SIGKILL every running yuno, reload the treedb
+(rebuilds the primary index — newest pkey2 wins), and bring
+everything back on the new release. It is a node-wide bounce — use
+`shoot-snap name=<tag>` first if you want a rollback point. Full
+flow incl. rollback in
+[`yunos/c/yuno_agent/YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)
+§6.5 / §6.6.
 
 ### 4. Deactivate traces when done
 
