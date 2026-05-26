@@ -1,6 +1,44 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(tranger2): `tranger2_delete_instance()` — per-row
+      tombstone**. Mutates one row of the `.md2` index in place via
+      `sf_deleted_instance = 0x0400` (reinstated in `system_flag2_t`
+      on the inherited side of the mask, so `rt_by_disk` followers
+      see the same tombstone as the master). Optional `zero_payload`
+      overwrites the matching `__size__` bytes at `__offset__` in the
+      data `.json` for sensitive-data wipes. Three read sites honour
+      the bit and skip dead rows: `tranger2_open_iterator` history
+      loop, `tranger2_iterator_get_page`, and
+      `publish_new_rt_disk_records`. Treedb is downstream and
+      inherits the skip with no `tr_treedb` change. Master-only.
+      Second delete of the same row is a silent no-op. `rowid`s do
+      NOT renumber; `iterator_size` / `total_rows` keep counting
+      slots, not live rows. `tranger2_read_record_content` and
+      `tranger2_read_user_flag` still serve dead rows when the caller
+      addresses them directly (audit / wipe-verification tooling).
+      Coverage: `tests/c/timeranger2/test_delete_instance.c` (5
+      sub-cases).
+    - **feat(tranger2): `tranger2_delete_key()` propagates to
+      subscribers**. Pre-2026-05-26 the function `rmrdir`'d
+      `keys/<key>/` and cleared the in-memory rollup cache, but
+      never notified subscribers — `rt_mem` listeners kept stale
+      references and `rt_by_disk` followers in other processes kept
+      their cached view alive. Now: (1) `topic/disks/<rt_id>/<key>/`
+      subdirectories are removed BEFORE the live `keys/<key>/`, so
+      followers catch the deletion on the standard inotify channel
+      (`FS_SUBDIR_DELETED_TYPE`, the v7 TODO branch that had been
+      logging "NOT processed" since inception is now wired); (2)
+      in-process subscribers receive a registered
+      `tranger2_key_deleted_callback_t` via the new
+      `tranger2_set_rt_key_deleted_callback()` setter. Additive
+      typedef and setter — no breaking signature change to
+      `open_rt_mem` / `open_rt_disk` / `open_iterator`. Coverage:
+      `tests/c/timeranger2/test_delete_key_propagation.c` (5
+      sub-cases). Wattyzer's "tombstone-then-delete" workaround in
+      `db_history_wz` becomes redundant after one production cycle
+      of coexistence — cleanup planned in the wattyzer repo, not
+      here.
     - **fix(ytls/openssl): ship the full certificate chain**.
       `build_ssl_ctx()` was loading the server certificate via
       `SSL_CTX_use_certificate_file()`, which only parses the first

@@ -38,26 +38,35 @@ In timeranger2 the data model is **two-level**:
 the record `key`. The naming is historical; the contract operates on
 instances.
 
-| Granularity | API today | What it does |
+| Granularity | API | What it does |
 |---|---|---|
-| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache`. Irrecoverable. |
-| One instance | *not implemented in v7* — see TODO.md | Would mark the `.md2` row with `sf_deleted_instance` (bit `0x0400`, currently free) + optionally zero the payload. v6 had this under `sf0_deleted_record`. |
+| Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + mirror to `disks/<rt_id>/<key>/` for `rt_by_disk` followers. Irrecoverable. |
+| One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
 
-### v6 → v7: the missing per-instance delete
+### Subscriber propagation on `tranger2_delete_key`
 
-v6 had a per-instance delete (`sf0_deleted_record` bit honored
-on read). The matching v7 flag — `sf_deleted_record` at bit `0x0400`
-— was **removed** in commit `eb2c454a7` (2026-05-11) because nothing
-in v7 was using it. The slot is empty in `system_flag2_t` and in
-`sf_names[]`.
+In-process subscribers (rt_mem, rt_disk in the same yuno, open_iterator)
+register interest with:
 
-The plan in `TODO.md` ("tranger2: add `tranger2_delete_instance`")
-reintroduces the bit as **`sf_deleted_instance`** and adds
-`tranger2_delete_instance(tranger, topic_name, key, __t__, rowid)`
-when a real consumer needs it.
+```c
+tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
+```
 
-If you need "logical delete" today, append a tombstone instance at the
-treedb / application layer; don't try to mutate timeranger2 storage.
+When the master calls `tranger2_delete_key()`:
+
+1. Every `topic/disks/<rt_id>/<key>/` subdirectory is removed before
+   the live `keys/<key>/` directory. `rt_by_disk` followers
+   recursive-watching `disks/<rt_id>/` pick this up as
+   `FS_SUBDIR_DELETED_TYPE` and run the same callback fan-out on
+   their side.
+2. In-process subscribers whose `key` filter matches receive the
+   `key_deleted_callback`. Handles that own an inotify watcher
+   (`fs_event_client` set) are skipped here — the inotify branch
+   delivers the same event.
+
+Pre-2026-05-26 followers that polled their cache on a timer can drop
+the timer. See `tests/c/timeranger2/test_delete_key_propagation.c`
+for the regression coverage.
 
 ## Filesystem watcher
 

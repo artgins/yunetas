@@ -1387,6 +1387,8 @@ int tranger2_append_record(
 
 int      tranger2_delete_key(json_t *tranger, const char *topic_name, const char *key);
 /* legacy alias kept in timeranger2.h: #define tranger2_delete_record tranger2_delete_key */
+int      tranger2_delete_instance(json_t *tranger, const char *topic_name,
+    const char *key, uint64_t __t__, uint64_t rowid, BOOL zero_payload);
 int      tranger2_write_user_flag(json_t *tranger, const char *topic_name,
     const char *key, uint64_t __t__, uint64_t rowid, uint16_t user_flag);
 int      tranger2_set_user_flag(json_t *tranger, const char *topic_name,
@@ -1458,6 +1460,12 @@ json_t *tranger2_open_list(json_t *tranger, const char *topic_name,
 int     tranger2_close_list(json_t *tranger, json_t *list);
 int     tranger2_close_all_lists(json_t *tranger, const char *topic_name,
     const char *rt_id, const char *creator);
+
+// Key-delete notification (in-process + cross-process via inotify)
+typedef int (*tranger2_key_deleted_callback_t)(json_t *tranger, json_t *topic,
+    const char *key, json_t *list, void *user_data);
+int     tranger2_set_rt_key_deleted_callback(json_t *list,
+    tranger2_key_deleted_callback_t cb, void *user_data);
 ```
 
 ### Record Flags
@@ -1471,6 +1479,7 @@ typedef enum {
     sf_cipher_record,       // records are encrypted
     sf_t_ms,                // timestamp in milliseconds
     sf_tm_ms,               // message time in milliseconds
+    sf_deleted_instance,    // per-instance tombstone (bit 0x0400, inherited)
     sf_loading_from_disk,   // record loading from disk
 } system_flag2_t;
 ```

@@ -368,9 +368,21 @@ topic in the TimeRanger database. It removes the `keys/<key>/`
 directory and drops the key from the topic cache. Irrecoverable. Only
 the master can delete.
 
-For per-instance delete (a single row in a key's history — irrecoverable,
-no resurrection), see the pending `tranger2_delete_instance()` plan in
-`TODO.md`.
+The deletion is **propagated to subscribers**:
+
+- Every `topic/disks/<rt_id>/<key>/` subdirectory is `rmrdir`'d
+  before the live `keys/<key>/` directory is removed. `rt_by_disk`
+  followers watching their `disks/<rt_id>/` recursively pick this up
+  via the standard inotify channel and run the same fan-out on their
+  side (clear local cache + fire registered callbacks).
+- In-process `rt_mem`, `rt_disk` and `open_iterator` subscribers
+  whose `key` filter matches receive their
+  [`tranger2_key_deleted_callback_t`](#tranger2_set_rt_key_deleted_callback)
+  if registered.
+
+For per-instance delete (one row of a key's `.md2` index —
+irrecoverable, no resurrection), see
+[`tranger2_delete_instance()`](#tranger2_delete_instance).
 
 ```C
 int tranger2_delete_key(
@@ -400,6 +412,125 @@ The legacy name `tranger2_delete_record()` is kept as a source-level
 alias in `timeranger2.h` (`#define tranger2_delete_record tranger2_delete_key`)
 so existing callers keep compiling unchanged; new code should use
 `tranger2_delete_key()`.
+
+---
+
+(tranger2_delete_instance)=
+## `tranger2_delete_instance()`
+
+The `tranger2_delete_instance()` function deletes a single instance
+(one row of a key's `.md2` index) without touching the surrounding
+rows. The row's metadata is mutated in place: `sf_deleted_instance`
+(bit `0x0400` of `system_flag2_t`, on the inherited side of the mask
+so `rt_by_disk` followers see the same tombstone) is OR'd into the
+system flag bits. The `.json` data log stays append-only.
+
+Read paths (`tranger2_open_iterator` history loop,
+`tranger2_iterator_get_page`, and the `rt_by_disk` follower) skip rows
+whose tombstone bit is set. Treedb is downstream of those paths and
+inherits the skip with no `tr_treedb` change. `tranger2_read_record_content()`
+and `tranger2_read_user_flag()` deliberately do **not** filter — the
+caller has already located the row — so they remain available for
+audit / wipe-verification tooling.
+
+Irrecoverable. Master-only. Second delete of the same row is a silent
+no-op (returns `0`).
+
+```C
+int tranger2_delete_instance(
+    json_t      *tranger,
+    const char  *topic_name,
+    const char  *key,
+    uint64_t    __t__,
+    uint64_t    rowid,          // per-key i_rowid, slot in .md2, based 1
+    BOOL        zero_payload
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | A pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | The topic that owns the key. |
+| `key` | `const char *` | The key whose instance is to be deleted. |
+| `__t__` | `uint64_t` | Time of the instance (matches the value passed to `tranger2_append_record`). |
+| `rowid` | `uint64_t` | Per-key slot index in the `.md2` file, based 1. |
+| `zero_payload` | `BOOL` | If `TRUE`, also overwrites the matching `__size__` bytes at `__offset__` in the `.json` data file with zeros. Opt-in: after the wipe the JSON is no longer a parseable concatenation — only the `.md2` index makes sense of it. Use for sensitive-data wipes. |
+
+**Returns**
+
+Returns `0` on success, a negative value on failure.
+
+**Notes**
+
+Side effects to be aware of:
+
+- `rowid`s do **not** renumber. Slot N stays slot N (dark).
+- `iterator_size()`, `total_rows`, `pages` count slots, not live
+  rows. A page returning `data.length=2` with `total_rows=3` is the
+  contract for "1 dead in this segment".
+- `topic_cache` cells (`fr_t`/`to_t`/`fr_tm`/`to_tm`) are not
+  refreshed. If the deleted instance was the min/max t/tm of its file,
+  the cell rollup may lie. Cheap to fix on next cold reload; expensive
+  to fix incrementally; deferred until a consumer needs it.
+
+---
+
+(tranger2_set_rt_key_deleted_callback)=
+## `tranger2_set_rt_key_deleted_callback()`
+
+Registers a key-delete callback on a handle returned by
+`tranger2_open_rt_mem()`, `tranger2_open_rt_disk()` or
+`tranger2_open_iterator()`. The callback fires when
+[`tranger2_delete_key()`](#tranger2_delete_key) runs against a key
+this subscriber tracks:
+
+- On the master, directly from `tranger2_delete_key()`.
+- On `rt_by_disk` followers, from the inotify watcher on
+  `disks/<rt_id>/` when the master mirrors the deletion.
+
+The subscriber's `key` filter is honoured: an empty filter (`""`)
+matches every deletion; a specific key only matches that one.
+
+Additive: existing handles default to "no callback", behaviour
+unchanged. Passing `cb=NULL` clears any previously registered callback.
+
+```C
+typedef int (*tranger2_key_deleted_callback_t)(
+    json_t      *tranger,
+    json_t      *topic,
+    const char  *key,           // the deleted key
+    json_t      *list,          // iterator / rt_mem / rt_disk entry, don't own
+    void        *user_data
+);
+
+int tranger2_set_rt_key_deleted_callback(
+    json_t                              *list,
+    tranger2_key_deleted_callback_t     cb,
+    void                                *user_data
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `list` | `json_t *` | A handle previously returned by `tranger2_open_rt_mem`, `tranger2_open_rt_disk` or `tranger2_open_iterator`. |
+| `cb` | `tranger2_key_deleted_callback_t` | Function to invoke, or `NULL` to clear. |
+| `user_data` | `void *` | Opaque pointer echoed back to the callback. |
+
+**Returns**
+
+Returns `0` on success, `-1` if `list` is `NULL`.
+
+**Notes**
+
+For symmetry between in-process and cross-process subscribers, the
+callback is **not** fired twice for the same delete: rt_disk entries
+that own an active inotify watcher are skipped on the master-side
+fan-out, since the watcher will deliver the same event when it picks
+up the directory removal.
 
 ---
 

@@ -246,27 +246,51 @@ the directory was wired.
 
 ### 2.9 The delete-record story
 
-Two granularities, only one of them implemented in v7.
+Two granularities, both implemented in v7 as of 2026-05-26.
 
 - **Whole record** (= a primary key + every instance under it).
-  Implemented as **`tranger2_delete_key()`** (renamed from
-  `tranger2_delete_record` on 2026-05-25; legacy alias kept as a
-  `#define` in `timeranger2.h`). Removes `keys/<key>/` and drops the
-  key from `topic_cache`. Irrecoverable. Used today by
-  `treedb_delete_node` (`tr_treedb.c:5050`).
-- **One instance** (one row in the `.md2` file). **Not implemented in
-  v7.** v6 had it under flag `sf0_deleted_record`; the v7 equivalent
-  `sf_deleted_record` at bit `0x0400` was removed in `eb2c454a7`
-  (2026-05-11) because no consumer was using it. The slot in
-  `system_flag2_t` and in `sf_names[]` is empty.
+  **`tranger2_delete_key()`** (renamed from `tranger2_delete_record`
+  on 2026-05-25; legacy alias kept as a `#define` in `timeranger2.h`).
+  Removes `keys/<key>/` and drops the key from `topic_cache`.
+  Irrecoverable. Used today by `treedb_delete_node`.
+- **One instance** (one row in the `.md2` file).
+  **`tranger2_delete_instance(tranger, topic, key, __t__, rowid,
+  zero_payload)`** mutates the `.md2` row in place with
+  `sf_deleted_instance = 0x0400` (back in `system_flag2_t`, inherited
+  side of the mask so `rt_by_disk` followers see the tombstone).
+  Optional `zero_payload` overwrites the matching `__size__` bytes in
+  the data `.json` for sensitive-data wipes. Read paths
+  (`tranger2_open_iterator` history, `tranger2_iterator_get_page`,
+  `publish_new_rt_disk_records`) skip dead rows. Master-only,
+  idempotent. Slot ids do NOT renumber — `iterator_size` /
+  `total_rows` keep counting slots, not live rows.
+  **Treedb is NOT a consumer**: `treedb_delete_instance()` is
+  per-`pkey2`-index in-memory cleanup only.
 
-The plan in repo `TODO.md` reintroduces the bit as **`sf_deleted_instance`**
-and adds **`tranger2_delete_instance(tranger, topic_name, key, __t__, rowid)`**
-when a consumer needs it. **Treedb is NOT the consumer**:
-`treedb_delete_instance()` is per-`pkey2`-index in-memory cleanup
-only (the on-disk row stays alive and is wiped later by
-`treedb_delete_node()` → `tranger2_delete_key()`). Expected first
-callers are external — housekeeping / GDPR / test fixtures.
+#### Propagation to subscribers (2026-05-26)
+
+`tranger2_delete_key()` now notifies every subscriber tracking
+the deleted key. Two paths:
+
+- **In-process** (rt_mem, rt_disk in the same yuno as the master,
+  open_iterator): a registered
+  `tranger2_key_deleted_callback_t` fires for each handle whose
+  `key` filter matches (`""` = any).
+- **Across-process** (`rt_by_disk` followers): the master
+  `rmrdir`s `topic/disks/<rt_id>/<key>/` BEFORE the live
+  `keys/<key>/` so the follower's inotify watcher catches it as
+  `FS_SUBDIR_DELETED_TYPE` and runs the same fan-out. No new IPC
+  channel, no new file convention.
+
+Register with:
+
+```c
+tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
+```
+
+…on any handle returned by `tranger2_open_rt_mem`,
+`tranger2_open_rt_disk` or `tranger2_open_iterator`. Pre-2026-05-26
+followers that polled their cache on a timer can drop the timer.
 
 Memory: `project_tranger2_delete_record_deferred`.
 
@@ -562,14 +586,22 @@ non-master. If you find yourself writing in a yuno that's the
 non-master, you have a deployment bug — two yunos opened the same
 store.
 
-### 4.5 timeranger2 is append-only
+### 4.5 timeranger2 is append-only — with two scoped deletes
 
-(§2.9.) There is no **per-instance** delete in v7 today.
-`tranger2_delete_key()` (legacy name `tranger2_delete_record`) deletes
-a whole key's directory — every instance with it. If you find yourself
-wanting to drop a single instance, you almost certainly want to append
-a new "tombstone" instance instead, or wait for
-`tranger2_delete_instance()` to land (TODO.md).
+(§2.9.) The `.json` data log itself is **never rewritten**: appends
+go to the end, that's it. What is mutable is the `.md2` index, and
+two delete primitives operate on it:
+
+- `tranger2_delete_key()` removes a key's directory wholesale (every
+  instance with it) and propagates the deletion to in-process and
+  cross-process subscribers via inotify + callback fan-out.
+- `tranger2_delete_instance()` tombstones one row of the `.md2` index
+  in place (bit `sf_deleted_instance = 0x0400`); readers skip it,
+  rowids do not renumber. Opt-in `zero_payload` overwrites the
+  matching bytes in the `.json` for GDPR-style wipes.
+
+Both are master-only and irrecoverable. The append-only contract
+still holds at the data-log level — only the index is mutated.
 
 ### 4.6 No `fsync` after append
 
