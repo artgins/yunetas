@@ -8547,7 +8547,10 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     }
 
     uint32_t user_flag = kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
-    if(user_flag==0 || user_flag >= 0xFFFFFFFF) {
+    // user_flag is the snap's id (g_rowid in __snaps__) and rides the
+    // appended record's md2 user_flag field, which is uint16_t — so cap
+    // at 0xFFFE (treedb_open_db treats snap_tag=0 as "no snap active").
+    if(user_flag==0 || user_flag >= 0xFFFF) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -8567,49 +8570,50 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
             continue;
         }
 
-        /*---------------------------------*
-         *  Tag each current key of topic
-         *---------------------------------*/
-
-        /*----------------------------------*
-         *  Get indexx: to tag nodes
-         *----------------------------------*/
+        /*------------------------------------------------------*
+         *  Stamp the snap's user_flag on every current primary
+         *  IN PLACE via tranger2_write_user_flag — do NOT
+         *  re-append (treedb_save_node would create a new md2
+         *  instance at a higher rowid; on the next reload the
+         *  backward scan would then pick the snap-data record
+         *  as primary even after a `deactivate-snap`, masking
+         *  the records the user actually wants live).
+         *------------------------------------------------------*/
         json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
         if(!indexx) {
-            // It's not a treedb topic
+            // Not a treedb topic
             continue;
         }
 
-        /*
-         *  Firstly create a new node. Last node can already have a snap tag
-         */
         const char *node_id; json_t *node;
         json_object_foreach(indexx, node_id, node) {
-            treedb_save_node(tranger, node);
-            // TODO uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
-            //
-            // ret += tranger2_write_user_flag(
-            //     tranger,
-            //     topic_name,
-            //     __rowid__,
-            //     user_flag
-            // );
-            if(ret < 0) {
+            json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
+            if(!__md_treedb__) {
+                continue;
+            }
+            const char *key = node_id;
+            uint64_t __t__ = (uint64_t)kw_get_int(gobj, __md_treedb__, "t", 0, 0);
+            uint64_t i_rowid = (uint64_t)kw_get_int(gobj, __md_treedb__, "i_rowid", 0, 0);
+
+            if(tranger2_write_user_flag(
+                    tranger, topic_name, key, __t__, i_rowid, (uint16_t)user_flag) < 0) {
+                ret += -1;
                 gobj_log_critical(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Cannot write tag",
                     "topic_name",   "%s", topic_name,
+                    "key",          "%s", key,
                     "snap",         "%s", snap_name,
                     NULL
                 );
+            } else {
+                // Keep the in-memory metadata coherent with the disk
+                json_object_set_new(
+                    __md_treedb__, "tag", json_integer((json_int_t)user_flag)
+                );
             }
         }
-
-        /*
-         *  Mark
-         */
-
     }
 
     JSON_DECREF(topics)

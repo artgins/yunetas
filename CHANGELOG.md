@@ -1,6 +1,37 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(tr_treedb): complete `treedb_shoot_snap` so
+      `activate-snap <name>` rolls back primaries correctly**.
+      The TODO at the heart of `treedb_shoot_snap` was a dead
+      branch: it walked the primary index of every topic but
+      the actual `tranger2_write_user_flag` call was commented
+      out, so snaps only ever created an entry in `__snaps__`
+      and never tagged any record. The agent's `activate-snap
+      <name>` path queried `snap_tag` correctly on reload (see
+      `treedb_open_db` line 1299 — the user_flag filter is
+      enforced), but with no record carrying the tag the load
+      returned an empty primary index, and the rollback silently
+      did nothing — the test suite never caught it because there
+      was none. Wired the tag write in-place via
+      `tranger2_write_user_flag(tranger, topic_name, key, t,
+      i_rowid, user_flag)` so the existing record gets stamped
+      without inflating the `.md2` (using `treedb_save_node`
+      would create a new instance at the highest rowid and
+      then steal "latest" after `deactivate-snap`, masking the
+      newer records the user actually wants live). Also tightened
+      the snap-id range check from 32-bit (`0xFFFFFFFF`) to 16-bit
+      (`0xFFFF`) since `user_flag` is `uint16_t` end-to-end. New
+      regression: `tests/c/tr_treedb_snap` walks 9 phases
+      modelling the agent's upgrade lifecycle (seed v1 → add v2
+      → shoot snap_v1 → deactivate → reload picks v2 → add v3 →
+      deactivate → reload picks v3 → shoot snap_v3 → activate
+      snap_v1 → reload rolls back to v1 → activate snap_v3 →
+      reload to v3 → deactivate → stays at v3) on two topics
+      (`binaries` + `yunos`) keyed exactly like the agent's
+      `binaries` / `configurations` / `yunos`. `tr_treedb` and
+      `tr_treedb_delete_instance` rerun green against the patched
+      library — no regressions.
     - **docs(yuno_agent): document the version-bump upgrade flow**.
       `kill-yuno` + `run-yuno` does not pick up a new release —
       `cmd_run_yuno` walks the `yunos` topic primary index, which
