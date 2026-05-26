@@ -58,7 +58,7 @@ PRIVATE const char *sf_names[16+1] = {
     "",                         // 0x0080
     "sf_t_ms",                  // 0x0100
     "sf_tm_ms",                 // 0x0200
-    "",                         // 0x0400
+    "sf_deleted_instance",      // 0x0400
     "",                         // 0x0800
 
     // Non-inherited
@@ -116,6 +116,10 @@ static inline void set_system_flag(md2_record_t *md_record, uint16_t system_flag
     // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
     uint64_t system_flag = system_flag_;
     md_record->__tm__ |= (system_flag & 0xFFFF) << 44;
+}
+
+static inline BOOL is_deleted_instance(const md2_record_ex_t *md_record_ex) {
+    return (md_record_ex->system_flag & sf_deleted_instance) != 0;
 }
 
 
@@ -3137,6 +3141,163 @@ PUBLIC int tranger2_set_user_flag(
 }
 
 /***************************************************************************
+    Delete a single instance (one row of the per-key .md2 index).
+    Mutates the .md2 row in place: OR `sf_deleted_instance` into
+    the system_flag bits. Read paths (iterator history, iterator
+    pages, rt_by_disk follower) skip rows with the bit set.
+
+    If zero_payload, also overwrites the matching __size__ bytes
+    at __offset__ in `data/<mask>.json` with zeros (sensitive-data
+    wipe). Opt-in: after the wipe the .json file is no longer a
+    parseable concatenation — only the .md2 index makes sense of it.
+
+    Irrecoverable. Master-only. Segments in memory and topic_cache
+    are not updated (see header doc).
+ ***************************************************************************/
+PUBLIC int tranger2_delete_instance(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t __t__,
+    uint64_t rowid,
+    BOOL zero_payload
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+
+    if(!master) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Only master can delete",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot open topic",
+            "topic",        "%s", topic_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    system_flag2_t topic_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(topic_flag & sf_rowid_key) {
+        key = "__rowid__";
+    }
+
+    /*----------------------------------------*
+     *  Load the md row, OR the tombstone bit
+     *----------------------------------------*/
+    off_t offset;
+    md2_record_t md_record;
+    int md_fd = get_md_record_for_wr(
+        gobj,
+        tranger,
+        topic,
+        key,
+        __t__,
+        rowid,
+        &md_record,
+        &offset
+    );
+    if(md_fd < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    /*
+     *  Capture payload locator BEFORE we touch the md row (we need
+     *  __offset__/__size__ for the optional wipe below).
+     */
+    uint64_t payload_offset = md_record.__offset__;
+    uint64_t payload_size   = md_record.__size__;
+
+    uint16_t system_flag = get_system_flag(&md_record);
+    if(system_flag & sf_deleted_instance) {
+        // Already dead. Nothing to do, but not an error.
+        return 0;
+    }
+    system_flag |= sf_deleted_instance;
+    set_system_flag(&md_record, system_flag);
+
+    if(rewrite_md_to_file(
+        gobj,
+        tranger,
+        topic,
+        key,
+        md_fd,
+        offset,
+        &md_record
+    )<0) {
+        // Error already logged
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *  Optional payload wipe
+     *----------------------------------------*/
+    if(zero_payload && payload_size > 0) {
+        int data_fd = get_topic_wr_fd(gobj, tranger, topic, key, TRUE, __t__);
+        if(data_fd < 0) {
+            // Error already logged
+            return -1;
+        }
+        off_t off_ = lseek(data_fd, (off_t)payload_offset, SEEK_SET);
+        if(off_ != (off_t)payload_offset) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "lseek() on data file FAILED",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key,
+                "offset",       "%lu", (unsigned long)payload_offset,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+
+        char buf[4096];
+        memset(buf, 0, sizeof(buf));
+        uint64_t remaining = payload_size;
+        while(remaining > 0) {
+            size_t chunk = (remaining > sizeof(buf))? sizeof(buf) : (size_t)remaining;
+            ssize_t wrote = write(data_fd, buf, chunk);
+            if(wrote != (ssize_t)chunk) {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "write() zero payload FAILED",
+                    "topic",        "%s", topic_name,
+                    "key",          "%s", key,
+                    "remaining",    "%lu", (unsigned long)remaining,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+                return -1;
+            }
+            remaining -= chunk;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
     Read record user flag
     This function works directly in disk, segments in memory not used or updated
  ***************************************************************************/
@@ -4546,6 +4707,9 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
             rowid,
             &md_record_ex
         );
+        if(is_deleted_instance(&md_record_ex)) {
+            continue;
+        }
         json_t *record = read_record_content(
             tranger,
             topic,
@@ -5553,6 +5717,19 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             )<0) {
                 break;
             }
+            if(is_deleted_instance(&md_record_ex)) {
+                cur_segment = next_segment_row(
+                    segments,
+                    match_cond,
+                    cur_segment,
+                    &rowid
+                );
+                if(cur_segment >= 0) {
+                    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+                    json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+                }
+                continue;
+            }
             if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
@@ -5846,6 +6023,20 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             &md_record_ex
         )<0) {
             break;
+        }
+
+        if(is_deleted_instance(&md_record_ex)) {
+            cur_segment = next_segment_row(
+                segments,
+                match_cond,
+                cur_segment,
+                &rowid
+            );
+            if(cur_segment >= 0) {
+                json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+                json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+            }
+            continue;
         }
 
         if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {

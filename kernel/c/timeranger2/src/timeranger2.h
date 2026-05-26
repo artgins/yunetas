@@ -137,6 +137,7 @@ typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names *
     sf_cipher_record        = 0x0020,
     sf_t_ms                 = 0x0100,   /* record time in milliseconds */
     sf_tm_ms                = 0x0200,   /* message time in milliseconds */
+    sf_deleted_instance     = 0x0400,   /* per-instance tombstone, inherited by rt_by_disk followers */
     sf_loading_from_disk    = 0x1000,
 } system_flag2_t;
 
@@ -424,10 +425,9 @@ PUBLIC int tranger2_append_record(
     Removes the `keys/<key>/` directory and every instance it
     holds. Irrecoverable. Only the master can delete.
 
-    See `tranger2_delete_instance()` (not implemented yet, see
-    TODO.md) for per-instance delete (the row in the .md2 index is
-    marked dead and the payload bytes are optionally zeroed —
-    irrecoverable, no resurrection).
+    See `tranger2_delete_instance()` for per-instance delete (the
+    row in the .md2 index is marked dead and the payload bytes are
+    optionally zeroed — irrecoverable, no resurrection).
 */
 PUBLIC int tranger2_delete_key(
     json_t *tranger,
@@ -439,6 +439,43 @@ PUBLIC int tranger2_delete_key(
    keep compiling. New code should use `tranger2_delete_key`.
    Will be removed in a future major bump. */
 #define tranger2_delete_record tranger2_delete_key
+
+/*
+    Delete a single instance (one row of the per-key .md2 index).
+
+    The .md2 row is mutated in place: `sf_deleted_instance` is OR'd
+    into the system_flag bits. The on-disk `.md2`/`.json` files
+    stay append-only — the row's slot is kept, only its tombstone
+    bit is set. Read paths (iterator history, iterator pages,
+    rt_by_disk follower) skip rows with the bit set; downstream
+    consumers like treedb inherit the skip transparently.
+
+    Side effects:
+      - `rowid`s do NOT renumber. Slot N stays slot N (dark).
+      - `iterator_size()`, `total_rows`, `pages` keep counting the
+        slot. Cache cells (fr_t/to_t/fr_tm/to_tm) are not refreshed.
+      - `tranger2_read_record_content()` and
+        `tranger2_read_user_flag()` still return the row when the
+        caller supplies (key, __t__, rowid) directly. The skip only
+        applies to iteration. This is intentional, for audit /
+        wipe-verification tooling.
+
+    If `zero_payload` is TRUE, the matching `__size__` bytes at
+    `__offset__` in the corresponding `data/<mask>.json` are
+    overwritten with zeros (sensitive-data wipe). Opt-in because
+    the JSON file is no longer a parseable concatenation after the
+    hole — only the .md2 index makes sense of it.
+
+    Irrecoverable. Master-only.
+*/
+PUBLIC int tranger2_delete_instance(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t __t__,
+    uint64_t rowid,         // per-key i_rowid (slot in .md2), based 1
+    BOOL zero_payload
+);
 
 /*
     Write record user flag
