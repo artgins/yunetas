@@ -54,3 +54,40 @@ real IdP discovery documents.
   callers like `ybatch` / `ystats` / `ytests`.  Out of scope
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
+
+## emailsender: drop libcurl (target 7.5)
+
+**`feat(emailsender)!: drop libcurl, native SMTP over ytls`**
+
+`emailsender` is the only yuno that cannot honour `CONFIG_FULLY_STATIC`
+because it links libcurl, which drags in a deeply dynamic dependency
+graph (OpenSSL, libssh2, c-ares, libidn2, libpsl, libnghttp2/3, zlib,
+brotli). Consequence on the deploy side: the emailsender binary built
+on the dev host carries `GLIBC_2.XX` requirements that frequently
+exceed the runtime nodes' libc (currently glibc 2.36 on
+`app.wattyzer.com`, 2.38+ on dev) — so unlike every other yuno, an
+emailsender upgrade needs a build environment matched to the target
+host's glibc. Documented in the 7.4.1 deploy notes as the reason
+emailsender was skipped from the deploy bundle.
+
+The replacement is native SMTP on top of the existing `ytls` /
+`c_tcp_s` stack: EHLO → STARTTLS → AUTH PLAIN/LOGIN → MAIL FROM →
+RCPT TO → DATA per RFC 5321 + the MIME multipart encoder for the body
+(text + html + attachments) — base64 / quoted-printable inline because
+libcurl was the only thing supplying them today. Rough scope is
+~1500 LOC and naturally maps to a gclass with an SMTP-session FSM.
+
+When this lands, `CONFIG_FULLY_STATIC` covers the *entire* yuno set
+on the same arch — every `outputs/yunos/<role>` becomes a portable
+static binary, the build-host vs runtime-host glibc skew goes away,
+and the apt dependency list shrinks (no more `libcurl4-openssl-dev`
+runtime requirement).
+
+The `!` in the commit prefix is the breaking-change marker for the
+emailsender attrs that today expose libcurl semantics (e.g. proxy /
+CA-bundle paths phrased as libcurl options) — those will be replaced
+by SMTP-native equivalents. Existing realm configs for emailsender
+will need a one-shot migration; the agent's `update-binary` path is
+sufficient for the deploy.
+
+Target: **7.5**.
