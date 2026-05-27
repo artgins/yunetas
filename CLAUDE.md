@@ -221,8 +221,9 @@ Generate via `menuconfig`. Key knobs:
 ### Fully Static Binaries (`CONFIG_FULLY_STATIC`)
 
 Produces fully static glibc binaries (GCC or Clang) that run on any Linux of the
-same arch with no shared libraries. Works with both TLS backends.
-Exception: `emailsender` (depends on libcurl) cannot be static.
+same arch with no shared libraries. Works with both TLS backends. Since 7.4.3
+the entire yuno set is static (emailsender included — libcurl was dropped in
+favour of native SMTPS on top of `ytls` / `c_tcp`).
 
 `configure-libs.sh` already passes the OpenSSL flags needed for clean static
 builds (`no-dso`, `no-sock`).

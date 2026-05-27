@@ -39,7 +39,7 @@ Binaries are installed into `$YUNETAS_OUTPUTS/yunos/` by `yunetas build`.
 | Binary | Description |
 |--------|-------------|
 | **`dba_postgres`** | PostgreSQL database administrator yuno — provides connection pooling, query execution, and data-access services. Requires `CONFIG_MODULE_POSTGRES=y` and `libpq`. |
-| **`emailsender`** | E-mail sending yuno — uses libcurl for SMTP delivery on behalf of other services. **Cannot** be built as a fully-static binary. |
+| **`emailsender`** | E-mail sending yuno — speaks native SMTPS (implicit TLS, RFC 8314) on top of `C_SMTP_SESSION` + `C_TCP`, with its own MIME encoder. Queues outgoing messages with TimeRanger2 persistence. Builds fully static since 7.4.3. |
 
 ## Development & Testing
 
