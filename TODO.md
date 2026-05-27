@@ -55,39 +55,61 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## emailsender: drop libcurl (target 7.4.3)
+## ycommand stdin-pipe drops responses after large install-binary
 
-**`feat(emailsender)!: drop libcurl, native SMTP over ytls`**
+**`fix(ycommand): drop responses lost after large install-binary in stdin-pipe`**
 
-`emailsender` is the only yuno that cannot honour `CONFIG_FULLY_STATIC`
-because it links libcurl, which drags in a deeply dynamic dependency
-graph (OpenSSL, libssh2, c-ares, libidn2, libpsl, libnghttp2/3, zlib,
-brotli). Consequence on the deploy side: the emailsender binary built
-on the dev host carries `GLIBC_2.XX` requirements that frequently
-exceed the runtime nodes' libc (currently glibc 2.36 on
-`app.wattyzer.com`, 2.38+ on dev) — so unlike every other yuno, an
-emailsender upgrade needs a build environment matched to the target
-host's glibc. Documented in the 7.4.1 deploy notes as the reason
-emailsender was skipped from the deploy bundle.
+The long-lived stdin-pipe session added in 7.4.3 works fine for small
+payloads but loses the response of the SECOND and subsequent commands
+when an earlier command in the pipe is an `install-binary` carrying a
+~40 MB base64 body. Minimal reproduction against the local agent
+(`ws://127.0.0.1:1991`, no network in between):
 
-The replacement is native SMTP on top of the existing `ytls` /
-`c_tcp_s` stack: EHLO → STARTTLS → AUTH PLAIN/LOGIN → MAIL FROM →
-RCPT TO → DATA per RFC 5321 + the MIME multipart encoder for the body
-(text + html + attachments) — base64 / quoted-printable inline because
-libcurl was the only thing supplying them today. Rough scope is
-~1500 LOC and naturally maps to a gclass with an SMTP-session FSM.
+```bash
+{ echo 'install-binary id=emailsender content64=$$(emailsender)'
+  sleep 8
+  echo 'list-binaries'
+} | ycommand --wait=15
+```
 
-When this lands, `CONFIG_FULLY_STATIC` covers the *entire* yuno set
-on the same arch — every `outputs/yunos/<role>` becomes a portable
-static binary, the build-host vs runtime-host glibc skew goes away,
-and the apt dependency list shrinks (no more `libcurl4-openssl-dev`
-runtime requirement).
+Expected: two responses — a `version: 7.4.3` line for the
+install-binary and the `Total: 25` table from list-binaries.
+Observed: only the list-binaries response is rendered. The
+install-binary response either never arrives or never gets matched
+back to its command.
 
-The `!` in the commit prefix is the breaking-change marker for the
-emailsender attrs that today expose libcurl semantics (e.g. proxy /
-CA-bundle paths phrased as libcurl options) — those will be replaced
-by SMTP-native equivalents. Existing realm configs for emailsender
-will need a one-shot migration; the agent's `update-binary` path is
-sufficient for the deploy.
+Control: three back-to-back `list-binaries` calls in the same pipe
+shape produce three full `Total: …` responses — the gate
+(`priv->cmd_in_flight`) and the dispatch loop are sound for small
+messages.
 
-Target: **7.4.3**.
+Practical impact: when deploying multiple yunos in one batch, the
+trailing `find-new-yunos` + `deactivate-snap` get dropped silently,
+leaving the agent with the new binary slots registered but the
+running yunos still on the old release. Discovered during the
+7.4.3 deploy to `app.wattyzer.com` — the workaround is to issue
+each `install-binary` as a separate ycommand call (≈400 ms extra
+ROPC re-auth per command, acceptable for occasional deploys).
+
+`c_ycommand.c` looks correct in isolation: `exec_one_command`
+returns 1 on async dispatch, `cmd_in_flight` is set, and
+`ac_command_answer` clears it + drives the next pending. The
+issue is almost certainly below that layer — likely in either
+the wss frame fragmentation in `c_websocket.c` for the 40 MB
+outbound message, or in the request/response correlation in
+`c_ievent_cli.c` when the request body is large enough that the
+agent's ack races something on the client side. Reproducible
+without network, so it is not a wss-on-the-wire problem.
+
+Investigation path:
+- Add a trace of WS frames (in + out) and confirm the install-
+  binary RESPONSE actually leaves the agent and reaches the
+  client.
+- Confirm the `__md_iev__.iev_id` (or whatever correlation key
+  ycommand uses) on the lost response matches the in-flight
+  request id.
+- Check whether c_ievent_cli silently drops a reply when the
+  client is mid-send of a different (queued) outbound message.
+
+Workaround stays as a documented operator note in the meantime;
+no immediate user-facing breakage other than the noisier deploy.
