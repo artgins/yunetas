@@ -25,6 +25,14 @@ shutdown.
 Authentication options: `--jwt`, `--user_id`/`--user_passw`, or a config file.
 Run `ycommand --help` for all flags.
 
+## Choosing a mode
+
+| Mode                        | When to use                                                                 | Trade-off                                                       |
+| --------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `ycommand -c '<cmd>'`       | A single command inside a shell script or one-liner                         | Pays connect + auth on every invocation                         |
+| `ycommand -i`               | Interactive exploration: prompt, TAB, history, `Ctrl+R`, did-you-mean       | Requires a TTY; not scriptable                                  |
+| `... \| ycommand` (stdin)   | A known sequence of N commands without needing to read a response first     | No feedback loop — every line is sent regardless of prior output; connect + auth paid once |
+
 ## Command line syntax
 
 | Form                          | Meaning                                                         |
