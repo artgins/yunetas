@@ -1,5 +1,31 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(install-binary): surface the real cause in error
+      response**. `cmd_install_binary` built its failure comment as
+      `json_sprintf("Cannot create binary: %s",
+      gobj_log_last_message())`, which produced *"Cannot create
+      binary: "* (empty cause + trailing space) whenever the
+      underlying `treedb_create_node` returned NULL because the
+      `(id, pkey2=version)` combination already existed — that path
+      logs *"Node already exists"* via `gobj_log_warning`, and
+      `gobj_log_warning` does not populate `last_message` (only
+      `LOG_ERR` and above do). After the per-command reset in
+      `command_parser` (7.4.1, `b1abd7f69`), the buffer is `""` by
+      then. Two-layer fix, same shape as the snap commands in 7.4.1:
+      `treedb_create_node` now calls `gobj_log_set_last_message()`
+      alongside the warning so the cause (*"Node already exists in
+      '<topic>': id='<id>'"*) reaches every caller that pipes
+      `gobj_log_last_message()` into the response (≈13 callers in
+      `c_node.c` benefit alongside `cmd_install_binary`);
+      `cmd_install_binary` reads `last_msg` once and falls back to
+      `"(see log)"` if it's empty, so the response is always
+      informative regardless of whether layer-1 was reached. Drive-by:
+      removed the stale `// TODO check tranger2_write_user_flag`
+      marker above `treedb_shoot_snap` — the function was completed
+      in 7.4.0/7.4.1 (`4c89e4b2c` + `46f8f0434`) and the audit
+      confirmed no remaining wiring gap.
+
 ## v7.4.1 -- 27/May/2026
     - **fix(command_parser): stop misleading stale strerror in
       command responses**. Many `cmd_*` in `c_node.c` build their
