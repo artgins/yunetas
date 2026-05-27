@@ -8617,7 +8617,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     }
 
     JSON_DECREF(topics)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************

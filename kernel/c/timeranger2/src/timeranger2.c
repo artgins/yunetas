@@ -2832,8 +2832,7 @@ PRIVATE void mirror_key_delete_to_disks(
             continue;
         }
         char key_path[PATH_MAX];
-        snprintf(key_path, sizeof(key_path), "%s/%s/%s",
-            disks_root, entry->d_name, key);
+        build_path(key_path, sizeof(key_path), disks_root, entry->d_name, key, NULL);
         if(is_directory(key_path)) {
             if(rmrdir(key_path) < 0) {
                 gobj_log_error(gobj, 0,
