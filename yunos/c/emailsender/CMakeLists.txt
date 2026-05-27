@@ -44,10 +44,12 @@ SET (YUNO_SRCS
     src/main.c
     src/c_emailsender.c
     src/c_curl.c
+    src/c_smtp_session.c
 )
 SET (YUNO_HDRS
     src/c_emailsender.h
     src/c_curl.h
+    src/c_smtp_session.h
 )
 
 ##############################################
