@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.3 -- 27/May/2026
     - **feat(emailsender)!: drop libcurl, native SMTP over ytls**.
       `emailsender` was the only yuno that linked libcurl, which
       dragged OpenSSL/libssh2/c-ares/libidn2/libpsl/libnghttp2/3/
