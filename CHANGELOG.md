@@ -1,6 +1,67 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(ycommand): long-lived stdin-pipe session keeps OAuth2
+      auth open across many commands**. Until now `ycommand` had
+      three input shapes: `-c CMD` (one command, exit), `-i`
+      (interactive editline over a raw TTY), and an undocumented
+      synchronous pipe path inside `ac_on_open` that did
+      `while(fgets(line, stdin))` — fine for pre-buffered batches
+      but it blocked the yev_loop between lines, so any
+      programmatic driver that wanted to send a command, read its
+      response, then send another would hang. `-i` was also
+      unusable for non-TTY drivers (e.g. claudia-console running
+      `ycommand` via Bash) because `tty_keyboard_init`
+      unconditionally calls `enableRawMode`, which fails with
+      "NOT a TTY" on a piped fd. Net effect: every remote command
+      paid the full OAuth2 ROPC round-trip (~200-400 ms against
+      Keycloak) even when the caller had ten queued up. New
+      behavior, no new flag: when stdin is not a TTY and neither
+      `-c` nor `-i` was supplied, ycommand sets up an io_uring read
+      event on `dup(STDIN_FILENO)` (yev_loop refuses fd<=0, so we
+      dup) and drives lines through the existing
+      `split_commands_into_queue` + `run_next_pending` machinery.
+      The process stays alive between commands, EOF triggers an
+      orderly shutdown via the existing `set_timeout(timer,
+      wait*1000)` → `ac_timeout` → `exit()` path, and a
+      `priv->cmd_in_flight` gate serialises async dispatches so a
+      stdin line arriving mid-flight enqueues instead of racing.
+      Auth happens once; the rest of the session is free. Tested
+      against local `ws://127.0.0.1:1991` (4-line batches and
+      delayed sequences with 3 s gaps between lines) and against
+      `wss://app.wattyzer.com:1993` + OAuth2 (three commands with
+      2 s gaps, single ROPC). Backwards-compatible: the pre-existing
+      `-c` and `-i` paths are untouched, the pipe-mode trigger is a
+      strict superset of the previous synchronous fgets behaviour,
+      and `echo cmd | ycommand` keeps producing the same output as
+      before (just via an event-driven reader). `c_ycommand.c`
+      grew +220/-25; no changes elsewhere.
+
+    - **docs(philosophy): add "The Typed-Graph Model" chapter**.
+      New page under `philosophy/` slotted between
+      [Design Principles](doc.yuneta.io/philosophy/design_principles.md)
+      and [Domain Model](doc.yuneta.io/philosophy/domain_model.md),
+      articulating the conceptual claim the framework rests on: data
+      and behavior are two views of the same typed graph
+      (`topic`↔`gclass`, `node`↔`gobj`, `hook`/`fkey`↔
+      subscription/`bottom_gobj`, with `sdata_desc_t` describing
+      schemas on both planes). Sections cover: the unit is the
+      typed binding, not just the node; the two-plane primitive
+      table; what kinds of organisation the model can express
+      (hierarchies, matrix, workflows, communication topologies,
+      versioned-over-time); what does not fit cleanly (schemaless
+      iteration, OLAP, eventually-consistent distributed state,
+      truly opaque payloads); the implicit axiom; the payoffs at
+      scale; and the empirical justification from 15 + years of
+      v2/v6 production. Cross-links added in `philosophy/`
+      neighbours and reverse-links from `yunos/c/yuno_agent/`'s
+      `ENTRY_POINT.md` (See also), `GOBJ.md` (Conceptual frame
+      callout: behavior plane) and `YUNO_TREEDB.md` (Conceptual
+      frame callout: information plane) so a reader landing in the
+      technical chapters can step up one level on demand. Build is
+      warning-free; the new chapter appears in the TOC under
+      Philosophy.
+
     - **fix(install-binary): surface the real cause in error
       response**. `cmd_install_binary` built its failure comment as
       `json_sprintf("Cannot create binary: %s",
