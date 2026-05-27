@@ -49,6 +49,10 @@
 PRIVATE int send_smtp_line(hgobj gobj, const char *line);
 PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_final);
 PRIVATE int begin_send_current_message(hgobj gobj);
+PRIVATE int send_next_rcpt_or_data(hgobj gobj);
+PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
+PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
+PRIVATE void cleanup_current_message(hgobj gobj);
 PRIVATE int abort_session(hgobj gobj, const char *reason);
 
 /*
@@ -106,6 +110,8 @@ typedef struct _PRIVATE_DATA {
     int32_t timeout_response;
     BOOL inform_on_close;
     json_t *jn_current_msg;     /* envelope of the message being sent; NULL when idle */
+    json_t *jn_recipients;      /* flat json_array of unique RCPT TO addresses */
+    int recipient_index;        /* next RCPT TO index to send */
 } PRIVATE_DATA;
 
 
@@ -165,7 +171,7 @@ PRIVATE void mt_destroy(hgobj gobj)
         istream_destroy(priv->istream_in);
         priv->istream_in = NULL;
     }
-    JSON_DECREF(priv->jn_current_msg)
+    cleanup_current_message(gobj);
 }
 
 /***************************************************************************
@@ -179,12 +185,24 @@ PRIVATE int mt_start(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method stop
+ *
+ *      Polite shutdown: if we are past the banner, fire a best-effort QUIT
+ *      down to the bottom before stopping it. We do not wait for the 221
+ *      reply — server tolerates the early close, and waiting would require
+ *      an extra state plus a timeout. Skipping QUIT entirely is also valid
+ *      SMTP, but a graceful close keeps the server-side logs clean.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+
+    gobj_state_t st = gobj_current_state(gobj);
+    if(st != ST_DISCONNECTED && st != ST_WAIT_CONNECTED && st != ST_WAIT_BANNER) {
+        send_smtp_line(gobj, "QUIT");
+    }
+
     gobj_stop(gobj_bottom_gobj(gobj));
 
     return 0;
@@ -289,11 +307,190 @@ PRIVATE int begin_send_current_message(hgobj gobj)
         return -1;
     }
 
-    char line[NAME_MAX];
+    char line[LINE_BUFFER_MAX];
     snprintf(line, sizeof(line), "MAIL FROM:<%s>", from);
+    priv->recipient_index = 0;
     gobj_change_state(gobj, ST_WAIT_MAIL_FROM_RESP);
     set_timeout(priv->timer, priv->timeout_response);
     return send_smtp_line(gobj, line);
+}
+
+/***************************************************************************
+ *  Walk through priv->jn_recipients sending one RCPT TO per call. When the
+ *  list is exhausted, transition to ST_WAIT_DATA_GO and send DATA.
+ ***************************************************************************/
+PRIVATE int send_next_rcpt_or_data(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->jn_recipients &&
+       priv->recipient_index < (int)json_array_size(priv->jn_recipients)) {
+        const char *rcpt = json_string_value(
+            json_array_get(priv->jn_recipients, priv->recipient_index)
+        );
+        priv->recipient_index++;
+
+        char line[LINE_BUFFER_MAX];
+        snprintf(line, sizeof(line), "RCPT TO:<%s>", rcpt);
+        gobj_change_state(gobj, ST_WAIT_RCPT_TO_RESP);
+        set_timeout(priv->timer, priv->timeout_response);
+        return send_smtp_line(gobj, line);
+    }
+
+    gobj_change_state(gobj, ST_WAIT_DATA_GO);
+    set_timeout(priv->timer, priv->timeout_response);
+    return send_smtp_line(gobj, "DATA");
+}
+
+/***************************************************************************
+ *  Append one parsed recipient token to (jn_set, jn_list), normalising:
+ *      - trims leading/trailing whitespace
+ *      - if "Name <addr>" form, keeps only what's inside angle brackets
+ *      - skips empties
+ *      - deduplicates via jn_set
+ *  jn_set is a json_object used purely as a hash set (values = json_true()).
+ ***************************************************************************/
+PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, char *token)
+{
+    while(*token && (*token == ' ' || *token == '\t')) {
+        token++;
+    }
+    size_t len = strlen(token);
+    while(len > 0 && (token[len - 1] == ' ' || token[len - 1] == '\t' ||
+                       token[len - 1] == '\r' || token[len - 1] == '\n')) {
+        token[--len] = '\0';
+    }
+    if(len == 0) {
+        return;
+    }
+    char *lt = strrchr(token, '<');
+    if(lt) {
+        char *gt = strrchr(lt, '>');
+        if(gt && gt > lt + 1) {
+            *gt = '\0';
+            token = lt + 1;
+            while(*token && (*token == ' ' || *token == '\t')) {
+                token++;
+            }
+        }
+    }
+    if(empty_string(token)) {
+        return;
+    }
+    if(json_object_get(jn_set, token)) {
+        return;
+    }
+    json_object_set_new(jn_set, token, json_true());
+    json_array_append_new(jn_list, json_string(token));
+}
+
+/***************************************************************************
+ *  Build a deduplicated json_array of RCPT TO addresses from the message
+ *  envelope. Reads "to", "cc", "bcc" as comma-separated strings (the shape
+ *  c_emailsender currently emits). Returns a new owned array, or NULL if
+ *  no valid recipient was found.
+ ***************************************************************************/
+PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg)
+{
+    json_t *jn_set = json_object();
+    json_t *jn_list = json_array();
+    if(!jn_set || !jn_list) {
+        JSON_DECREF(jn_set)
+        JSON_DECREF(jn_list)
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "json_object/array() FAILED",
+            NULL
+        );
+        return NULL;
+    }
+
+    const char *fields[] = {"to", "cc", "bcc", NULL};
+    for(int f = 0; fields[f]; f++) {
+        const char *src = kw_get_str(gobj, jn_msg, fields[f], "", 0);
+        if(empty_string(src)) {
+            continue;
+        }
+        char *buf = gbmem_strdup(src);
+        if(!buf) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "gbmem_strdup() FAILED",
+                NULL
+            );
+            JSON_DECREF(jn_set)
+            JSON_DECREF(jn_list)
+            return NULL;
+        }
+        char *save = NULL;
+        for(char *tok = strtok_r(buf, ",", &save);
+            tok;
+            tok = strtok_r(NULL, ",", &save)
+        ) {
+            add_recipient_token(jn_set, jn_list, tok);
+        }
+        gbmem_free(buf);
+    }
+
+    JSON_DECREF(jn_set)
+    if(json_array_size(jn_list) == 0) {
+        JSON_DECREF(jn_list)
+        return NULL;
+    }
+    return jn_list;
+}
+
+/***************************************************************************
+ *  Append body to out, doubling any leading '.' at the start of a line
+ *  per RFC 5321 §4.5.2. Treats '\n' as line terminator (works for both
+ *  CRLF and LF inputs). Returns 0 on success, -1 on gbuffer overflow.
+ ***************************************************************************/
+PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len)
+{
+    BOOL at_line_start = TRUE;
+    for(size_t i = 0; i < len; i++) {
+        if(at_line_start && body[i] == '.') {
+            if(gbuffer_append(out, ".", 1) != 1) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY,
+                    "msg",          "%s", "gbuffer_append() FAILED (dot stuff)",
+                    NULL
+                );
+                return -1;
+            }
+        }
+        if(gbuffer_append(out, (void *)&body[i], 1) != 1) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "gbuffer_append() FAILED (body)",
+                NULL
+            );
+            return -1;
+        }
+        if(body[i] == '\n') {
+            at_line_start = TRUE;
+        } else {
+            at_line_start = FALSE;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Drop the in-flight message bookkeeping. Safe to call when nothing is in
+ *  flight (JSON_DECREF tolerates NULL).
+ ***************************************************************************/
+PRIVATE void cleanup_current_message(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_current_msg)
+    JSON_DECREF(priv->jn_recipients)
+    priv->recipient_index = 0;
 }
 
 /***************************************************************************
@@ -367,7 +564,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         istream_destroy(priv->istream_in);
         priv->istream_in = NULL;
     }
-    JSON_DECREF(priv->jn_current_msg)
+    cleanup_current_message(gobj);
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
@@ -380,7 +577,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
 /***************************************************************************
  *  Bytes arriving from C_TCP. Feed them to the line accumulator; each full
- *  CRLF-terminated line will fire EV_RX_DATA back to us (handled by
+ *  CRLF-terminated line will fire EV_RX_LINE back to us (handled by
  *  ac_rx_line). The dispatch is synchronous, so the loop drains the gbuf
  *  one line at a time.
  ***************************************************************************/
@@ -547,25 +744,14 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(code != SMTP_CODE_OK) {
             return abort_session(gobj, "MAIL FROM rejected");
         }
-        const char *to = kw_get_str(gobj, priv->jn_current_msg, "to", "", 0);
-        if(empty_string(to)) {
-            return abort_session(gobj, "EV_SEND_MESSAGE without 'to'");
-        }
-        char line_rcpt[NAME_MAX];
-        snprintf(line_rcpt, sizeof(line_rcpt), "RCPT TO:<%s>", to);
-        gobj_change_state(gobj, ST_WAIT_RCPT_TO_RESP);
-        set_timeout(priv->timer, priv->timeout_response);
-        return send_smtp_line(gobj, line_rcpt);
+        return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_RCPT_TO_RESP) {
         if(code != SMTP_CODE_OK) {
             return abort_session(gobj, "RCPT TO rejected");
         }
-        /* TODO: multiple recipients (cc/bcc) — loop RCPT TO before DATA. */
-        gobj_change_state(gobj, ST_WAIT_DATA_GO);
-        set_timeout(priv->timer, priv->timeout_response);
-        return send_smtp_line(gobj, "DATA");
+        return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_DATA_GO) {
@@ -583,12 +769,16 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *body = kw_get_str(gobj, priv->jn_current_msg, "body", "", 0);
         size_t body_len = strlen(body);
 
-        gbuffer_t *gbuf_body = gbuffer_create(body_len + 8, body_len + 8);
+        /* Worst case: every byte is a leading '.' → body_len * 2 */
+        size_t cap = body_len * 2 + 8;
+        gbuffer_t *gbuf_body = gbuffer_create(body_len + 8, cap);
         if(!gbuf_body) {
             return abort_session(gobj, "no memory for DATA body");
         }
-        /* TODO: dot-stuff lines that start with '.' per RFC 5321 §4.5.2. */
-        gbuffer_append(gbuf_body, (void *)body, body_len);
+        if(dot_stuff_into(gbuf_body, body, body_len) < 0) {
+            GBUFFER_DECREF(gbuf_body)
+            return abort_session(gobj, "dot-stuff into gbuffer failed");
+        }
         if(body_len < 2 ||
            body[body_len - 2] != '\r' || body[body_len - 1] != '\n') {
             gbuffer_append(gbuf_body, "\r\n", 2);
@@ -619,7 +809,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "code", code
         );
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
-        JSON_DECREF(priv->jn_current_msg)
+        cleanup_current_message(gobj);
         gobj_change_state(gobj, ST_IDLE);
         return 0;
     }
@@ -642,7 +832,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "code", 0
         );
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
-        JSON_DECREF(priv->jn_current_msg)
+        cleanup_current_message(gobj);
     }
     abort_session(gobj, "timeout waiting for SMTP response");
 
@@ -652,9 +842,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Incoming send-message request from above. kw owns:
- *      "from"    str  (envelope sender; defaults to attr "from" upstream)
- *      "to"      str  (single recipient — multi-recipient is TODO)
+ *      "from"    str  (envelope sender)
+ *      "to"      str  (comma-separated recipients — primary)
+ *      "cc"      str  (comma-separated recipients — copy)
+ *      "bcc"     str  (comma-separated recipients — blind)
  *      "body"    str  (full RFC 5322 message with headers)
+ *
+ *  Recipients across to/cc/bcc are gathered into a flat, deduplicated list
+ *  for the SMTP envelope (one RCPT TO per address). The body is the caller's
+ *  problem: it must already carry the visible To: / Cc: headers and OMIT
+ *  Bcc: (per RFC 5322 §3.6.3) — c_smtp_session does not edit the body.
  *
  *  If we are not authenticated yet, stash the message and the handshake
  *  loop will pick it up on entry to ST_IDLE.
@@ -679,8 +876,27 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return -1;
     }
 
+    json_t *jn_rcpts = gather_recipients(gobj, kw);
+    if(!jn_rcpts) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "EV_SEND_MESSAGE has no valid recipients",
+            NULL
+        );
+        json_t *kw_ack = json_pack("{s:b, s:i}",
+            "ok", 0,
+            "code", 0
+        );
+        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
+        KW_DECREF(kw)
+        return -1;
+    }
+
     JSON_INCREF(kw)
     priv->jn_current_msg = kw;
+    priv->jn_recipients = jn_rcpts;
+    priv->recipient_index = 0;
 
     if(gobj_current_state(gobj) == ST_IDLE) {
         int ret = begin_send_current_message(gobj);
