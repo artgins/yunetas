@@ -91,6 +91,8 @@
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE int yev_stdin_callback(yev_event_h yev_event);
+PRIVATE void try_drain_stdin_pipe(hgobj gobj);
 PRIVATE int cmd_connect(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
@@ -269,6 +271,22 @@ typedef struct _PRIVATE_DATA {
      */
     json_t *pending_commands;       /* json array of strings */
     BOOL current_ignore_fail;       /* true while an async `-cmd` is in flight */
+
+    /*
+     *  Long-lived stdin-pipe mode: when stdin is not a TTY and the caller
+     *  used neither `-i` (raw editline) nor `-c CMD` (one-shot), we read
+     *  commands line-by-line from stdin via a yev_event. The process stays
+     *  alive between commands (one OAuth2 auth, many dispatches) and exits
+     *  cleanly once stdin closes AND the queue has drained. Lets a
+     *  programmatic driver (or Claude Code's Bash tool) keep an
+     *  authenticated session open without raw-mode TTY.
+     */
+    yev_event_h yev_stdin;
+    int stdin_dup_fd;               /* dup(STDIN_FILENO); yev rejects fd<=0 */
+    gbuffer_t *stdin_line_buf;      /* accumulator for partial lines */
+    BOOL stdin_pipe_mode;           /* set once in mt_create */
+    BOOL stdin_closed;              /* EOF arrived on stdin */
+    BOOL cmd_in_flight;             /* async cmd dispatched, waiting for answer */
 } PRIVATE_DATA;
 
 
@@ -341,6 +359,18 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
+     *  Long-lived stdin-pipe mode: only when stdin is a pipe AND the user
+     *  asked for neither raw-mode editline nor a single `-c` invocation.
+     *  Allocated here so an early caller of try_drain_stdin_pipe() (e.g.
+     *  from ac_on_open before any line has arrived) finds the buffer ready.
+     */
+    const char *startup_command = gobj_read_str_attr(gobj, "command");
+    if(!interactive && empty_string(startup_command) && !isatty(STDIN_FILENO)) {
+        priv->stdin_pipe_mode = TRUE;
+        priv->stdin_line_buf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    }
+
+    /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
@@ -369,6 +399,15 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_stdin)
+    if(priv->stdin_dup_fd > 0) {
+        close(priv->stdin_dup_fd);
+        priv->stdin_dup_fd = -1;
+    }
+    if(priv->stdin_line_buf) {
+        gbuffer_decref(priv->stdin_line_buf);
+        priv->stdin_line_buf = NULL;
+    }
     JSON_DECREF(priv->commands_cache)
     JSON_DECREF(priv->pending_commands)
 }
@@ -424,6 +463,39 @@ PRIVATE int mt_start(hgobj gobj)
 
     if(priv->interactive && priv->gobj_editline) {
         gobj_start(priv->gobj_editline);
+    }
+
+    /*
+     *  Long-lived stdin-pipe mode: drive stdin as an io_uring read event so
+     *  the process stays alive between commands. Lines arriving before the
+     *  WS is connected get queued and dispatched once ac_on_open fires.
+     *  yev_loop treats fd<=0 as unset (yev_loop.c:1198), so we dup STDIN
+     *  to land on a positive fd, same trick as tty_keyboard_init().
+     */
+    if(priv->stdin_pipe_mode) {
+        priv->stdin_dup_fd = dup(STDIN_FILENO);
+        if(priv->stdin_dup_fd < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "dup(STDIN_FILENO) FAILED",
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        } else {
+            json_int_t rx_buffer_size = 4*1024;
+            priv->yev_stdin = yev_create_read_event(
+                yuno_event_loop(),
+                yev_stdin_callback,
+                gobj,
+                priv->stdin_dup_fd,
+                gbuffer_create(rx_buffer_size, rx_buffer_size)
+            );
+            if(priv->yev_stdin) {
+                yev_start_event(priv->yev_stdin);
+            }
+        }
     }
 
     const char *issuer = gobj_read_str_attr(gobj, "issuer");
@@ -625,6 +697,22 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
     }
 
+    /* Mirror for the stdin-pipe-mode reader. Closing the dup fd lets a
+     * pending io_uring read complete with EBADF if the kernel hasn't
+     * already drained it. */
+    if(priv->stdin_dup_fd > 0) {
+        close(priv->stdin_dup_fd);
+        priv->stdin_dup_fd = -1;
+    }
+    if(priv->yev_stdin) {
+        if(!yev_event_is_stopped(priv->yev_stdin)) {
+            yev_stop_event(priv->yev_stdin);
+            if(!yev_event_is_stopped(priv->yev_stdin)) {
+                to_wait_stopped = TRUE;
+            }
+        }
+    }
+
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
@@ -736,6 +824,107 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 
     } while(0);
 
+    return 0;
+}
+
+/***************************************************************************
+ *  Long-lived stdin-pipe drainer. Extracts complete lines from
+ *  priv->stdin_line_buf, enqueues each one and (if idle + connected) kicks
+ *  the dispatch loop. When stdin has closed we also flush a trailing
+ *  partial line so a missing final '\n' doesn't swallow the last command.
+ ***************************************************************************/
+PRIVATE void try_drain_stdin_pipe(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->stdin_pipe_mode || !priv->stdin_line_buf) {
+        return;
+    }
+
+    gbuffer_t *buf = priv->stdin_line_buf;
+    while(gbuffer_leftbytes(buf) > 0) {
+        char *base = gbuffer_cur_rd_pointer(buf);
+        size_t left = gbuffer_leftbytes(buf);
+        size_t i;
+        for(i = 0; i < left; i++) {
+            if(base[i] == '\n') {
+                break;
+            }
+        }
+        BOOL final_partial = FALSE;
+        if(i >= left) {
+            if(priv->stdin_closed && left > 0) {
+                final_partial = TRUE;
+            } else {
+                break;
+            }
+        }
+        char *line = gbmem_malloc(i + 1);
+        memcpy(line, base, i);
+        line[i] = 0;
+        gbuffer_get(buf, final_partial ? i : (i + 1));
+
+        if(i > 0 && line[i-1] == '\r') {
+            line[i-1] = 0;
+        }
+
+        char *p = line;
+        while(*p == ' ' || *p == '\t') {
+            p++;
+        }
+        if(*p && *p != '#') {
+            split_commands_into_queue(gobj, p);
+        }
+        gbmem_free(line);
+    }
+
+    if(gobj_in_this_state(gobj, ST_CONNECTED)
+       && !priv->cmd_in_flight
+       && priv->pending_commands
+       && json_array_size(priv->pending_commands) > 0) {
+        run_next_pending(gobj);
+    }
+}
+
+/***************************************************************************
+ *  io_uring read callback for STDIN_FILENO when the long-lived pipe mode
+ *  is active. Appends bytes to the line buffer, dispatches whatever is
+ *  complete, and on EOF/error flags the session for orderly shutdown once
+ *  the queue drains.
+ ***************************************************************************/
+PRIVATE int yev_stdin_callback(yev_event_h yev_event)
+{
+    hgobj gobj = yev_get_gobj(yev_event);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = yev_get_result(yev_event);
+    yev_state_t state = yev_get_state(yev_event);
+
+    if(state == YEV_ST_IDLE && result > 0) {
+        gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+        size_t n = gbuffer_leftbytes(gbuf);
+        if(n > 0) {
+            gbuffer_append(
+                priv->stdin_line_buf,
+                gbuffer_cur_rd_pointer(gbuf),
+                n
+            );
+        }
+        try_drain_stdin_pipe(gobj);
+        if(yev_event_is_idle(yev_event)) {
+            gbuffer_clear(gbuf);
+            yev_start_event(yev_event);
+        }
+        return 0;
+    }
+
+    priv->stdin_closed = TRUE;
+    try_drain_stdin_pipe(gobj);
+    if(!priv->cmd_in_flight
+       && (!priv->pending_commands
+           || json_array_size(priv->pending_commands) == 0)) {
+        /* Mirror the existing -c shutdown path: ac_timeout calls exit().
+         * The grace lets any pending io_uring submissions wind down. */
+        set_timeout(priv->timer, priv->wait * 1000);
+    }
     return 0;
 }
 
@@ -2030,33 +2219,25 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             /*
-             *  Non-interactive with no -c/positional: if stdin is a pipe,
-             *  read commands from it one per line (blank / '#' lines are
-             *  skipped) and drain them sequentially — each waits for the
-             *  previous response, stop on error unless the line was
-             *  prefixed with '-'. This gives ycommand basic pipe-style
-             *  scripting:  `cat batch.ycmd | ycommand -u ws://...`
+             *  Non-interactive with no -c/positional: stdin-pipe mode is
+             *  set up in mt_create + mt_start as an io_uring read event on
+             *  STDIN_FILENO. Lines arriving before we got here have been
+             *  enqueued already; kick the dispatch loop if anything is
+             *  ready, otherwise just wait for the next line to arrive.
+             *
+             *  This is the long-lived pipe session: one OAuth2 auth, many
+             *  dispatches, exit on EOF + queue drained. See yev_stdin_callback
+             *  and try_drain_stdin_pipe.
              */
-            if(!isatty(STDIN_FILENO)) {
-                char line[4096];
-                while(fgets(line, sizeof(line), stdin)) {
-                    size_t len = strlen(line);
-                    while(len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-                        line[--len] = 0;
-                    }
-                    const char *s = line;
-                    while(*s == ' ' || *s == '\t') s++;
-                    if(*s == 0 || *s == '#') {
-                        continue;
-                    }
-                    split_commands_into_queue(gobj, s);
-                }
+            if(priv->stdin_pipe_mode) {
                 if(priv->pending_commands
-                   && json_array_size(priv->pending_commands) > 0) {
+                   && json_array_size(priv->pending_commands) > 0
+                   && !priv->cmd_in_flight) {
                     run_next_pending(gobj);
-                } else {
-                    gobj_stop(priv->gobj_remote_agent);
                 }
+                /* No commands queued yet: wait for stdin to deliver one.
+                 * If stdin already closed and queue was empty, the EOF
+                 * branch of yev_stdin_callback will exit cleanly. */
             } else {
                 printf("What command?\n");
                 gobj_stop(priv->gobj_remote_agent);
@@ -2316,6 +2497,7 @@ PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
 
     /* Async: the response will arrive via EV_MT_COMMAND_ANSWER. */
     priv->current_ignore_fail = ignore_fail;
+    priv->cmd_in_flight = TRUE;
     printf("\n"); fflush(stdout);
     return 1;
 }
@@ -2401,6 +2583,10 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     int __answer_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
     BOOL __ignore_fail = priv->current_ignore_fail;
     priv->current_ignore_fail = FALSE;
+    /* The async dispatched by exec_one_command has just returned. Clear the
+     * gate so a stdin line arriving DURING run_next_pending() below (or
+     * after, via yev_stdin_callback) can drive the next dispatch. */
+    priv->cmd_in_flight = FALSE;
 
     /*
      *  Unified rendering: use display_webix_result() in both modes so the
@@ -2421,10 +2607,19 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     if(!priv->interactive) {
         gobj_set_exit_code(__answer_result);
         /* Schedule the shutdown timeout only when we're actually done —
-         * if more queued commands are still being drained, wait for them. */
+         * if more queued commands are still being drained, wait for them.
+         * In long-lived stdin-pipe mode the session stays up until stdin
+         * closes; the EOF branch of yev_stdin_callback drives the final
+         * shutdown then. */
         if(!priv->pending_commands
            || json_array_size(priv->pending_commands) == 0) {
-            set_timeout(priv->timer, priv->wait * 1000);
+            if(priv->stdin_pipe_mode) {
+                if(priv->stdin_closed && !priv->cmd_in_flight) {
+                    set_timeout(priv->timer, priv->wait * 1000);
+                }
+            } else {
+                set_timeout(priv->timer, priv->wait * 1000);
+            }
         }
     }
 
