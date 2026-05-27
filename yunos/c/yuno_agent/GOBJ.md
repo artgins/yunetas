@@ -5,6 +5,15 @@ what a gobj is, what a gclass is, how to declare one, how the framework
 calls into it, how the runtime tree is laid out, and where the sharp
 edges are.
 
+> **Conceptual frame.** This document describes the **behavior plane**
+> of Yuneta's typed-graph model. The information plane is in
+> [`YUNO_TREEDB.md`](YUNO_TREEDB.md). The claim that both planes share
+> one set of primitives — `gclass`/`topic`, `gobj`/`node`,
+> subscription/`hook` — is laid out in
+> [The Typed-Graph Model](../../../docs/doc.yuneta.io/philosophy/typed_graph_model.md).
+> Read that first if you want to know *why* gobj and treedb look so
+> similar before diving into either one.
+
 Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
 [`IPC.md`](IPC.md), [`REALMS.md`](REALMS.md), [`SCAFFOLDING.md`](SCAFFOLDING.md),
 [`YUNO_AUTH.md`](YUNO_AUTH.md). Events and message dispatch are already covered in

@@ -202,6 +202,9 @@ managed by convention:
 
 ## Where to go next
 
+- [The Typed-Graph Model](typed_graph_model.md) — the conceptual frame
+  these entities and relationships fit into: one typed graph spanning
+  both data and behavior.
 - [Design Principles](design_principles.md) — the engineering decisions
   these concepts sit on (in particular, decision 7 on append-only
   persistence and decision 8 on the control plane).

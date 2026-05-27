@@ -33,6 +33,8 @@ project:
       children:
         - title: Design Principles
           file: philosophy/design_principles.md
+        - title: The Typed-Graph Model
+          file: philosophy/typed_graph_model.md
         - title: Domain Model
           file: philosophy/domain_model.md
         - title: Inspiration

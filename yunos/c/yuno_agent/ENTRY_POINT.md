@@ -474,6 +474,10 @@ the core in `/var/crash/` is from the previous incarnation.
 
 ## See also
 
+- [The Typed-Graph Model](../../../docs/doc.yuneta.io/philosophy/typed_graph_model.md) —
+  the conceptual frame that the technical chapters under *Operating
+  Yuneta* sit inside. Useful if you want to step up one level before
+  diving deeper.
 - [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) — what happens once a yuno is
   alive: the agent's view, `run-yuno`, `kill-yuno`, the play/pause gate.
 - [`DEBUGGING.md`](DEBUGGING.md) — traces, the dev panel, ievent

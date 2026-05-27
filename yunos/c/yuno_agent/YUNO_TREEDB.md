@@ -6,6 +6,15 @@ time-series log) and **treedb** (the graph database on top), how
 schemas are declared, how nodes link to each other, and which rules
 will ruin your day if you ignore them.
 
+> **Conceptual frame.** This document describes the **information
+> plane** of Yuneta's typed-graph model. The behavior plane is in
+> [`GOBJ.md`](GOBJ.md). The claim that both planes share one set of
+> primitives — `topic`/`gclass`, `node`/`gobj`, `hook`/subscription —
+> is laid out in
+> [The Typed-Graph Model](../../../docs/doc.yuneta.io/philosophy/typed_graph_model.md).
+> Read that first if you want to know *why* treedb and gobj look so
+> similar before diving into either one.
+
 Companion to [`GOBJ.md`](GOBJ.md). Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
 (which uses these topics to store realms, yunos, binaries and
 configurations), [`YUNO_AUTH.md`](YUNO_AUTH.md) (which uses them for users, roles

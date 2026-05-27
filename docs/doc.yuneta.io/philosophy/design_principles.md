@@ -221,15 +221,18 @@ version and authorize it like any other contract.
 
 If the trade-offs above match what you need, the recommended path is:
 
-1. [Domain Model](domain_model.md) — learn the vocabulary these
+1. [The Typed-Graph Model](typed_graph_model.md) — the conceptual claim
+   these decisions implement: data and behavior as two views of one
+   typed graph.
+2. [Domain Model](domain_model.md) — learn the vocabulary these
    principles operate on (realms, entities, messages, CRUDLU).
-2. [Installation](../installation.md) — get a working build environment.
-3. [Basic Concepts](../guide/basic_concepts.md) — concrete mechanics
+3. [Installation](../installation.md) — get a working build environment.
+4. [Basic Concepts](../guide/basic_concepts.md) — concrete mechanics
    of [GClass](../guide/basic_concepts.md#basic_gclass),
    [gobj](../guide/basic_concepts.md#basic_gobj), and
    [yuno](../guide/basic_concepts.md#yuno).
-4. [GClass Guide](../guide/guide_gclass.md) — build your first GClass.
-5. The **API reference** sections in the sidebar.
+5. [GClass Guide](../guide/guide_gclass.md) — build your first GClass.
+6. The **API reference** sections in the sidebar.
 
 Optional:
 
