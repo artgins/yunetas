@@ -8571,13 +8571,28 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
         }
 
         /*------------------------------------------------------*
-         *  Stamp the snap's user_flag on every current primary
-         *  IN PLACE via tranger2_write_user_flag — do NOT
-         *  re-append (treedb_save_node would create a new md2
-         *  instance at a higher rowid; on the next reload the
-         *  backward scan would then pick the snap-data record
-         *  as primary even after a `deactivate-snap`, masking
-         *  the records the user actually wants live).
+         *  Stamp the snap's user_flag on every current primary.
+         *
+         *  Two paths, depending on whether the record already
+         *  carries a previous snap's tag:
+         *
+         *  - Untagged record (tag == 0) or same-snap re-stamp:
+         *    write user_flag IN PLACE with tranger2_write_user_flag.
+         *    No extra storage, no aliasing.
+         *
+         *  - Record already tagged by another snap (tag != 0 &&
+         *    tag != user_flag): append a CLONE via
+         *    tranger2_append_record so the previous snap keeps its
+         *    own record. Cloning is required because user_flag is
+         *    a single uint16_t per md2 instance — without cloning,
+         *    the new snap would overwrite the older snap's tag and
+         *    activate-snap(older) would lose those records.
+         *
+         *  The in-memory node's metadata is intentionally NOT
+         *  updated when we clone: the live primary on disk is the
+         *  original record (lower rowid, original tag), and the
+         *  in-memory state must keep pointing at it so subsequent
+         *  treedb_save_node() appends use the right base rowid.
          *------------------------------------------------------*/
         json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
         if(!indexx) {
@@ -8594,8 +8609,48 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
             const char *key = node_id;
             uint64_t __t__ = (uint64_t)kw_get_int(gobj, __md_treedb__, "t", 0, 0);
             uint64_t i_rowid = (uint64_t)kw_get_int(gobj, __md_treedb__, "i_rowid", 0, 0);
+            uint16_t existing_tag = (uint16_t)kw_get_int(gobj, __md_treedb__, "tag", 0, 0);
 
-            if(tranger2_write_user_flag(
+            if(existing_tag != 0 && existing_tag != (uint16_t)user_flag) {
+                /*------------------------------------------------------*
+                 *  Already tagged by another snap → clone via append.
+                 *  The cloned record carries the new snap's tag; the
+                 *  original record keeps its previous snap tag.
+                 *------------------------------------------------------*/
+                json_t *tranger_record = convert_node2tranger(
+                    gobj, tranger, topic_name, node
+                );
+                if(!tranger_record) {
+                    // Error already logged
+                    ret += -1;
+                    continue;
+                }
+                md2_record_ex_t md_clone = {0};
+                int append_ret = tranger2_append_record(
+                    tranger,
+                    topic_name,
+                    0,              // __t__: 0 → tranger sets now
+                    (uint16_t)user_flag,
+                    &md_clone,
+                    tranger_record  // owned
+                );
+                if(append_ret < 0) {
+                    ret += -1;
+                    gobj_log_critical(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "Cannot append cloned record for snap",
+                        "topic_name",   "%s", topic_name,
+                        "key",          "%s", key,
+                        "snap",         "%s", snap_name,
+                        "existing_tag", "%d", (int)existing_tag,
+                        NULL
+                    );
+                }
+                /* Do NOT touch __md_treedb__: the in-memory node
+                   still points at the original record, which keeps
+                   its previous tag on disk. */
+            } else if(tranger2_write_user_flag(
                     tranger, topic_name, key, __t__, i_rowid, (uint16_t)user_flag) < 0) {
                 ret += -1;
                 gobj_log_critical(gobj, 0,

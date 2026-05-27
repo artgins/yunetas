@@ -7679,6 +7679,10 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     const char *work_dir = yuneta_root_dir();
     const char *yuno_id = SDATA_GET_ID(yuno);
 
+    if(bfbinary && bfbinary_size > 0) {
+        bfbinary[0] = '\0';
+    }
+
     /*
      *  Build the domain of yuno (defined by his realm)
      */
@@ -7690,6 +7694,13 @@ PRIVATE gbuffer_t *build_yuno_running_script(
 
     json_t *hs_realm = get_yuno_realm(gobj, yuno);
     if(!hs_realm) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "get_yuno_realm() FAILED",
+            "yuno_id",      "%s", yuno_id,
+            NULL
+        );
         return 0;
     }
     const char *bind_ip = SDATA_GET_STR(hs_realm, "bind_ip");
@@ -7707,6 +7718,15 @@ PRIVATE gbuffer_t *build_yuno_running_script(
 
     json_t *binary = get_yuno_binary(gobj, yuno);
     if(!binary) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "get_yuno_binary() FAILED",
+            "yuno_id",      "%s", yuno_id,
+            "yuno_role",    "%s", yuno_role,
+            "yuno_release", "%s", yuno_release,
+            NULL
+        );
         json_decref(hs_realm);
         return 0;
     }
@@ -7957,8 +7977,13 @@ PRIVATE int run_yuno(
     json_object_set_new(yuno, "launch_id", json_integer(t));
 
     char bfbinary[NAME_MAX];
+    bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
-    build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE);
+    if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE)) {
+        // Error already logged
+        gbuffer_decref(gbuf_sh);
+        return -1;
+    }
 
     const char *realm_id = kw_get_str(gobj, yuno, "realm_id`0", "", KW_REQUIRED);
     const char *yuno_id = kw_get_str(gobj, yuno, "id", "", KW_REQUIRED);
@@ -9894,8 +9919,25 @@ PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgo
      *  Walk over yunos iter
      *------------------------------------------------*/
     char bfbinary[NAME_MAX];
+    bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
-    build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), TRUE);
+    if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), TRUE)) {
+        // Error already logged
+        gbuffer_decref(gbuf_sh);
+        JSON_DECREF(iter)
+        return gobj_send_event(
+            src,
+            EV_READ_FILE,
+            msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("build_yuno_running_script() FAILED"),
+                0,
+                0,
+                kw  // owned
+            ),
+            gobj
+        );
+    }
     char *s = gbuffer_cur_rd_pointer(gbuf_sh);
 
     char temp[4*1024];
@@ -9982,8 +10024,25 @@ PRIVATE int ac_read_running_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgob
      *  Walk over yunos iter
      *------------------------------------------------*/
     char bfbinary[NAME_MAX];
+    bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
-    build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE);
+    if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE)) {
+        // Error already logged
+        gbuffer_decref(gbuf_sh);
+        JSON_DECREF(iter)
+        return gobj_send_event(
+            src,
+            EV_READ_FILE,
+            msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("build_yuno_running_script() FAILED"),
+                0,
+                0,
+                kw  // owned
+            ),
+            gobj
+        );
+    }
 
     json_t *jn_s = json_string(bfbinary);
     json_t *jn_data = json_pack("{s:s, s:o}",
