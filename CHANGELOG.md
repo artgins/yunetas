@@ -1,6 +1,126 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.1 -- 27/May/2026
+    - **fix(command_parser): stop misleading stale strerror in
+      command responses**. Many `cmd_*` in `c_node.c` build their
+      failure comment as `json_string(gobj_log_last_message())`,
+      but `gobj_log_set_last_message()` is only called by
+      `gobj_log_*()` with priority `<= LOG_ERR`. If the failure
+      path logs at `LOG_INFO` (or doesn't log at all),
+      `last_message` keeps whatever it had from the previous
+      `LOG_ERR` — frequently `strerror(errno)` of an earlier TCP
+      disconnect ("Connection reset by peer"). The response was
+      being delivered correctly with that strerror as the comment;
+      ycommand rendered it verbatim and it looked indistinguishable
+      from a real network error, sending operators down a wild
+      diagnostic chase. Two-part fix at the kernel command
+      boundary in `kernel/c/gobj-c/src/command_parser.c`: (1)
+      `command_parser()` resets `last_message` to `""` at entry,
+      so every command dispatch starts with a clean slate;
+      (2) `build_command_response()` substitutes `"(see log)"`
+      when the response is a failure (`result != 0`) and the
+      comment is an empty string, so callers that use the bare
+      `json_string(gobj_log_last_message())` idiom produce a
+      useful placeholder instead of `ERROR -1: `. Success
+      responses keep their empty comment (cmd_topics etc. return
+      data without a comment by design). Documented the new
+      semantics in
+      `docs/doc.yuneta.io/api/logging/log.md`
+      (`gobj_log_last_message` + `gobj_log_set_last_message`).
+    - **fix(agent): `list-binaries` enumerates every
+      `(role, version)` instance**. `cmd_list_binaries` called
+      `gobj_list_nodes("binaries", ...)`, which only returns the
+      in-memory primary per id (role). After an `install-binary`
+      that added a second version under the same role, the new
+      instance was invisible until a `deactivate-snap` rebuilt
+      the primary index — and even then only the most-recent
+      version survived. The doc claimed *"returns all rows"* but
+      the call had never matched that promise. Switched to
+      `gobj_list_instances("binaries", "", ...)`: the topic has
+      `pkey2=version`, so the instances iterator returns one row
+      per `(role, version)` and multi-version installs are
+      visible from the moment `install-binary` appends the
+      record. Validated with two coexisting `emailsender`
+      versions (7.4.1 + 7.4.2): `list-binaries` now returns four
+      rows instead of three. `list-binaries-instances` stays as
+      the explicit "instances" alias. `YUNO_LIFECYCLE.md` table
+      updated to match.
+    - **fix(snap): implement `snap-content` + recover error
+      responses to ycommand**. (a) `cmd_snap_content` in
+      `c_node.c` was a literal `"TODO"` stub. Now walks the
+      requested topic with `tranger2_open_list` filtered by
+      `user_flag=snap_id` and a `load_record_callback` that
+      drains matching records into a `json_array` carried via
+      the rt's `extra` (merged into the rt object by
+      `json_object_update_missing_new`, so the callback reads
+      `list->snap_data`, not `list->extra->snap_data`).
+      Validates `topic_name` and `snap_id` (1..65534, matching
+      the `uint16_t` md2 `user_flag` range), returns the schema
+      + the array and a `(count)` comment. (b) Error responses
+      from `shoot-snap` / `activate-snap` / `deactivate-snap`
+      were arriving at ycommand as `"Connection reset by peer"`
+      instead of the real cause. Root cause:
+      `json_string(gobj_log_last_message())` produced an empty
+      JSON string whenever the kernel function logged with
+      `gobj_log_info` (which doesn't populate `last_message`),
+      and the buffer still held the strerror of a prior
+      disconnect. Two-layer fix: `treedb_shoot_snap` /
+      `treedb_activate_snap` explicitly call
+      `gobj_log_set_last_message()` in their "already exists"
+      and "not found" paths; `cmd_shoot_snap` /
+      `cmd_activate_snap` / `cmd_deactivate_snap` build the
+      error comment with
+      `json_sprintf("Cannot ... '%s': %s", name, empty_string(last)?"(see log)":last)`
+      so the comment is never empty even if some future caller
+      forgets the layer-1 update. Note: there are ~13 other
+      `cmd_*` in `c_node.c` with the same
+      `json_string(gobj_log_last_message())` pattern — same trap
+      — covered by the systemic `command_parser` reset documented
+      in the entry above.
+    - **fix(snap): preserve previous snap's tag + harden
+      `run_yuno` launcher**. (a) `treedb_shoot_snap` stamped
+      `user_flag` IN PLACE on every primary record. A second
+      `shoot-snap` over a record that hadn't changed since the
+      first snap therefore overwrote the older snap's tag,
+      making that record unreachable from
+      `activate-snap(older)`. Fix: if the primary record already
+      carries a tag from a different snap, append a CLONE via
+      `tranger2_append_record(user_flag=new)` so the older
+      record keeps its tag. Untagged primaries (and same-snap
+      re-stamps) still take the in-place path — no extra
+      storage. The in-memory `__md_treedb__` is intentionally
+      left untouched on the clone branch so subsequent
+      `treedb_save_node()` appends keep using the original base
+      `rowid`. Validated end-to-end: shoot A → 13 records carry
+      `uflag=1`; shoot B (no intermediate change) → still 13
+      records carry `uflag=1` + 13 clones carry `uflag=2`;
+      `activate-snap A` and `activate-snap B` both restore all
+      yunos. (b) `build_yuno_running_script` in `c_agent.c` took
+      an uninitialised `char bfbinary[]` from the caller's stack
+      and could early-return `0` (silently) on a missing realm
+      or binary. All three callers ignored the return value,
+      then ran or serialised whatever garbage was on the stack —
+      hence the corrupted `/yuneta/bin/<role>^<name>.sh`
+      launchers (~21-27 bytes of stack noise) that
+      `activate-snap` produced when the binary record didn't come
+      back. Fix: zero-init `bfbinary` at function entry, log the
+      two early-return sites (no silent errors), and have every
+      caller check the return value and respond with an error
+      instead of piping uninitialised memory into
+      `run_process2()` or a JSON reply. Treedb `treedb_shoot_snap`
+      doc page updated to describe the new clone-vs-stamp
+      behaviour.
+    - **fix(timeranger2): silence two `-W` warnings without
+      losing errors**. (a) `treedb_shoot_snap` in
+      `kernel/c/timeranger2/src/tr_treedb.c` now returns the
+      accumulated `ret` so `tranger2_write_user_flag` failures
+      across topics surface to callers instead of being silently
+      dropped. (b) `mirror_key_delete_to_disks` in
+      `timeranger2.c` uses `build_path()` to assemble the
+      `disks/<rt_id>/<key>` path; `build_path` already syslogs
+      `LOG_CRIT` on overflow, so no silent skip on truncation
+      (closes a `-Wformat-truncation` warning without
+      introducing a silent early-out).
     - **docs(api/treedb): document the real snap semantics**.
       The `treedb_shoot_snap` / `treedb_activate_snap` API pages
       described the surface only — name, parameters, return — and

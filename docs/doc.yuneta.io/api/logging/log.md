@@ -427,7 +427,9 @@ A pointer to a string containing the last logged message. The returned string is
 
 **Notes**
 
-This function provides access to the most recent log message, which can be useful for debugging or monitoring purposes.
+Auto-populated only by `gobj_log_*()` entries whose priority is `LOG_ERR` or higher (`LOG_ERR`, `LOG_CRIT`, `LOG_ALERT`, `LOG_EMERG`). `gobj_log_info` / `gobj_log_warning` / `gobj_log_debug` do **not** touch the buffer — if you want an info-level failure to be surfaced via `gobj_log_last_message()`, call [`gobj_log_set_last_message()`](#gobj_log_set_last_message) explicitly.
+
+The buffer is **reset to `""` at the entry of `command_parser()`**, so inside a command dispatch the result reflects only logs that ran during this command — never an unrelated strerror left behind by an earlier flow (a previous TCP disconnect, a parallel handler, …). Callers that pipe this value into a response comment (`json_string(gobj_log_last_message())`) can rely on that scope.
 
 ---
 
@@ -544,6 +546,8 @@ This function does not return a value.
 **Notes**
 
 The stored message can be retrieved using [`gobj_log_last_message()`](#gobj_log_last_message).
+
+Use this to surface an info-level failure cause to a caller that builds its response comment from `gobj_log_last_message()`. The auto-populator only fires for `LOG_ERR`-or-higher entries, so `gobj_log_info("Snap not found")` does **not** update the buffer on its own — call `gobj_log_set_last_message("%s", "Snap not found: ...")` alongside the info log if the caller needs the text.
 
 ---
 

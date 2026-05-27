@@ -1339,7 +1339,9 @@ Returns `0` on success, or a negative error code on failure (snap already exists
 
 For every non-meta topic (i.e. names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
 
-Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0` (which then carry the snap's id thereafter). Re-shooting the same primaries under a different snap name *overwrites* the prior tag on those records; coexistence of multiple snaps therefore requires that intermediate updates have generated new records between shoots.
+Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0` (which then carry the snap's id thereafter).
+
+When the next shoot finds a primary record that *already* carries a tag from an earlier snap (i.e. `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag; the original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is being snapped for the first time.
 
 **Notes**
 
