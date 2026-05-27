@@ -55,7 +55,7 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## emailsender: drop libcurl (target 7.5)
+## emailsender: drop libcurl (target 7.4.3)
 
 **`feat(emailsender)!: drop libcurl, native SMTP over ytls`**
 
@@ -90,4 +90,4 @@ by SMTP-native equivalents. Existing realm configs for emailsender
 will need a one-shot migration; the agent's `update-binary` path is
 sufficient for the deploy.
 
-Target: **7.5**.
+Target: **7.4.3**.
