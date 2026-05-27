@@ -1,13 +1,12 @@
 # emailsender
 
-Yuno that sends emails on behalf of other Yuneta services. Uses
-libcurl for SMTP / HTTP API delivery with configurable handlers and
-logging.
+Yuno that sends emails on behalf of other Yuneta services. Speaks
+native SMTPS (implicit TLS, RFC 8314) on top of `C_SMTP_SESSION` +
+`C_TCP`, with its own MIME encoder. Queues outgoing messages with
+TimeRanger2 persistence and processes them asynchronously.
 
-> **Static-build caveat**: `emailsender` links against libcurl and
-> **cannot be built as a fully-static binary**
-> (`CONFIG_FULLY_STATIC`). Build it dynamically even when the rest of
-> the suite is static.
+> Since 7.4.3 the yuno no longer links libcurl; it builds fully
+> static like every other yuno in the suite.
 
 ## ⚠️ Operational secret risk — SMTP password in cleartext
 

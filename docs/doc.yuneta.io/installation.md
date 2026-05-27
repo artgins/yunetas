@@ -81,7 +81,7 @@ sudo apt -y install --no-install-recommends \
   gcc clang g++ \
   python3-dev python3-pip python3-setuptools \
   python3-tk python3-wheel python3-venv \
-  libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+  libjansson-dev libpcre2-dev liburing-dev \
   libpcre3-dev zlib1g-dev libssl-dev \
   perl dos2unix tree curl \
   postgresql-server-dev-all libpq-dev \
@@ -339,7 +339,6 @@ MIT, except for `kernel/c/libjwt/*` which is **MPL-2.0**.
 
 - [nginx](https://nginx.org) — BSD-2-Clause
 - [openresty](https://openresty.org/) — BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
-- [curl](https://github.com/curl/curl) — curl license, MIT/X derivate
 
 [pipx]:     https://pipx.pypa.io/stable/
 [yunetas]:  https://pypi.org/project/yunetas/

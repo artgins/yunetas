@@ -9,7 +9,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_curl.h"
 #include "c_smtp_session.h"
 #include "c_emailsender.h"
 
@@ -222,7 +221,6 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     register_c_emailsender();
-    register_c_curl();
     register_c_smtp_session();
 
     /*------------------------------------------------*

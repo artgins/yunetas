@@ -13,7 +13,7 @@ yunos/
     ├── logcenter/          # Centralized log collection, analysis, and alerting
     ├── mqtt_broker/        # MQTT v3.1/v3.1.1/v5.0 broker with persistence
     ├── mqtt_tui/           # Interactive MQTT client (TUI)
-    ├── emailsender/        # Email sending service via libcurl/SMTP
+    ├── emailsender/        # Email sending service (native SMTPS)
     ├── dba_postgres/       # PostgreSQL database adapter
     ├── sgateway/           # Simple gateway for protocol bridging
     ├── emu_device/         # Device emulator for testing
@@ -32,7 +32,7 @@ yunos/
 | logcenter | `logcenter` | `C_LOGCENTER` | `${YUNOS_DEST_DIR}` | Log collection with email alerts |
 | mqtt_broker | `mqtt_broker` | `C_MQTT_BROKER` | `${YUNOS_DEST_DIR}` | MQTT broker (v3.1, v3.1.1, v5.0) |
 | mqtt_tui | `mqtt_tui` | `C_MQTT_TUI` | `/yuneta/bin` | Interactive MQTT client |
-| emailsender | `emailsender` | `C_EMAILSENDER`, `C_CURL` | `${YUNOS_DEST_DIR}` | Email sending via SMTP/libcurl |
+| emailsender | `emailsender` | `C_EMAILSENDER`, `C_SMTP_SESSION` | `${YUNOS_DEST_DIR}` | Email sending via native SMTPS |
 | dba_postgres | `dba_postgres` | `C_DBA_POSTGRES` | `${YUNOS_DEST_DIR}` | PostgreSQL adapter |
 | sgateway | `sgateway` | `C_SGATEWAY` | `${YUNOS_DEST_DIR}` | Simple gateway |
 | emu_device | `emu_device` | `C_EMU_DEVICE` | `${YUNOS_DEST_DIR}` | Device gate emulator |
@@ -259,13 +259,13 @@ MQTT broker supporting v3.1, v3.1.1, and v5.0. Uses the `C_MQTT_BROKER` GClass f
 
 ### emailsender
 
-Email sending service using libcurl/SMTP. Queues email requests with TimeRanger2 persistence and processes them asynchronously.
+Email sending service using native SMTPS (implicit TLS, RFC 8314). Queues email requests with TimeRanger2 persistence and processes them asynchronously.
 
-**GClasses:** `C_EMAILSENDER` (queue/dispatch), `C_CURL` (libcurl wrapper)
+**GClasses:** `C_EMAILSENDER` (queue/dispatch + MIME encoder), `C_SMTP_SESSION` (SMTP protocol over `C_TCP`)
 
-**Events:** `EV_CURL_COMMAND` (send request), `EV_CURL_RESPONSE` (receive result)
+**Events:** `EV_SEND_EMAIL` / `EV_SEND_MESSAGE` (enqueue), `EV_ON_MESSAGE` (smtp result), `EV_SMTP_COMMAND` (internal dequeue)
 
-**Dependency:** `sudo apt-get install libcurl4-openssl-dev`
+**Dependency:** none beyond the standard yuneta toolchain.
 
 ### dba_postgres
 

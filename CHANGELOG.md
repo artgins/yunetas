@@ -1,6 +1,60 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(emailsender)!: drop libcurl, native SMTP over ytls**.
+      `emailsender` was the only yuno that linked libcurl, which
+      dragged OpenSSL/libssh2/c-ares/libidn2/libpsl/libnghttp2/3/
+      zlib/brotli into its runtime graph. The dev-host glibc kept
+      bumping while production stayed on older versions (e.g. 2.36
+      on `app.wattyzer.com`), so emailsender was the one yuno where
+      every upgrade needed a build environment matched to the
+      target — and it was deliberately skipped from the 7.4.1
+      deploy bundle for that reason. Three new building blocks
+      land in this release: (1) `C_SMTP_SESSION` (yunos/c/
+      emailsender/src/c_smtp_session.{c,h}) — a CHILD-pattern
+      protocol gclass that owns a `C_TCP` bottom and walks the
+      RFC 5321 submission FSM (banner → EHLO → AUTH PLAIN →
+      MAIL FROM → RCPT TO → DATA → \r\n.\r\n → QUIT) with
+      multi-recipient support, RFC 5321 §4.5.2 dot-stuffing and
+      a best-effort QUIT on `mt_stop`. Uses `istream_read_until_
+      delimiter("\r\n", 2, EV_RX_LINE)` so raw bytes from C_TCP
+      (`EV_RX_DATA`) and parsed lines (`EV_RX_LINE`) flow through
+      distinct actions and never feed back into the istream.
+      (2) `mime_encoder.{c,h}` — pure helpers, no gclass; builds a
+      complete RFC 5322 message with optional single attachment
+      (`multipart/mixed`) or inline-image attachment with
+      Content-ID (`multipart/related`), base64-wrapped at 76
+      chars per RFC 2045 §6.8, and RFC 2047 base64 encoded-words
+      for non-ASCII Subject / From display-name. (3) Cutover in
+      `c_emailsender.c`: `priv->curl` → `priv->smtp` as a
+      pure_child created with `{url, username, password,
+      helo_name=gethostname()}`; the synchronous `gobj_send_event
+      (priv->curl, EV_CURL_COMMAND, …)` + immediate
+      `process_curl_response` flow becomes async — `ac_smtp_
+      command` MIME-encodes, sends `EV_SEND_MESSAGE` to the smtp
+      child and stays in `ST_WAIT_RESPONSE`; the response arrives
+      later via the new `ac_on_message` handler. Kernel-side
+      precursor: `_yev_protocol_fill_hints()` in `kernel/c/
+      yev_loop/src/yev_loop.c` learns the `smtps` schema (port
+      465, marked `secure=TRUE`) alongside the existing
+      `mqtts`/`wss` — strictly additive. Together this removes
+      `libcurl4-openssl-dev` from `docs/doc.yuneta.io/
+      installation.md`, drops `find_package(CURL REQUIRED)` and
+      `${CURL_LIBRARIES}` from the yuno's CMakeLists, deletes
+      `c_curl.{c,h}` outright, and brings the emailsender binary
+      down to `ldd` reporting only `libgcc_s` + `libc` (vs the
+      previous ~12 shared libs). `emailsender^artgins` is already
+      pointed at `smtps://ssl0.ovh.net:465` in all three realms +
+      the staging batch, so the cutover is a no-config-change
+      deploy. **Breaking change for callers building EV_SEND_EMAIL
+      kw manually**: the libcurl-era attrs `strict_tls` and
+      `auto_inline_images` are ignored (TLS is now decided by the
+      URL schema; auto-inline-image HTML rewriting was a libcurl
+      `curl_mime_*` feature not reimplemented). The `cmd_send_
+      email` command schema is unchanged; existing callers (the
+      whole estadodelaire batch + every realm config) keep
+      working without edits.
+
     - **feat(ycommand): long-lived stdin-pipe session keeps OAuth2
       auth open across many commands**. Until now `ycommand` had
       three input shapes: `-c CMD` (one command, exit), `-i`
