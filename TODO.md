@@ -61,24 +61,46 @@ real IdP discovery documents.
 
 The long-lived stdin-pipe session added in 7.4.3 is correct for
 small payloads but drops responses for `install-binary` (~40 MB
-base64 body) at a roughly fixed rate. Investigated 2026-05-27
-against the local agent (`ws://127.0.0.1:1991`, no network).
-Findings:
+base64 body) **as a function of inter-command sleep**. Investigated
+2026-05-27 against the local agent (`ws://127.0.0.1:1991`, no
+network). The first hypothesis — WS frame interleaving in
+c_websocket — was **ruled out** after reading the kernel TX path:
+both the client side (ac_send_message builds one combined frame
+and dispatches a single EV_TX_DATA) and the server side (header +
+payload as two EV_TX_DATA events through c_tcp's FIFO dl_tx queue)
+are serial; nothing on the wire interleaves.
 
-**Repro (test H), 4 identical large install-binary in pipe:**
+The actual signal is timing:
+
+**Timing matrix (all against local ws://127.0.0.1:1991):**
+
+| Test | N dispatches | sleep | Responses |
+|------|--------------|-------|-----------|
+| K    | 2            | 1 s   | 1         |
+| L    | 2            | 5 s   | 2 ✓       |
+| M    | 3            | 3 s   | 2         |
+| H/I  | 4            | 3 s   | 3         |
+| J    | 6            | 5 s   | 6 ✓       |
+
+The losing pattern is **inter-command sleep < server processing
+time** (one install-binary on this host takes ≈ 4-5 s of CPU/disk
+for the base64 decode + gbuf2file + treedb lookup). With sleep ≥ 5
+every request completes its round-trip before the next echo from
+the pipe arrives, and no response is dropped. With sleep < 5,
+roughly one in N responses goes missing — `--wait=60` does not
+recover them.
+
+**Reproducer (test K — minimum):**
 
 ```bash
-{ for i in 1 2 3 4; do
-    echo 'install-binary id=emailsender content64=$$(emailsender)'
-    sleep 3
-  done
-} | ycommand --wait=15
+{ echo 'install-binary id=emailsender content64=$$(emailsender)'
+  sleep 1
+  echo 'install-binary id=emailsender content64=$$(emailsender)'
+} | ycommand --wait=20
 ```
 
-Expected: 4 response lines (here `ERROR -1: Binary already
-exists` because the slot is full, but a real response is
-delivered).
-Observed: **3** response lines. One in the middle is missing.
+Expected: 2 `ERROR -1: Binary already exists` lines (slot already
+filled). Observed: 1.
 
 **Control (small payloads work):**
 
@@ -89,19 +111,35 @@ Observed: **3** response lines. One in the middle is missing.
 } | ycommand --wait=15   # → 3× "Total: 25" reliably
 ```
 
-**The dropped response paradox.** If `cmd_in_flight` actually
-held until response arrived, ycommand would HANG on the lost
-response and never dispatch the next command. But it does
-dispatch the next command. So the gate is being cleared without
-`ac_command_answer` having rendered the missing response. That
-points at either:
+**Agent-side smoking gun.** Every test run ends with the agent
+logging `cause: "Connection reset by peer"` on the input-* channel
+that served the ycommand session — i.e. the CLIENT is closing the
+TCP rather than sending a WS close. ycommand reaches `exit()` while
+the agent still has unread responses buffered, the kernel turns
+that into RST, and any reply still in flight at that moment is
+lost.
 
-- A reply path that flips `cmd_in_flight = FALSE` and continues
-  without invoking `display_webix_result`, or
-- The reply IS being received but discarded before reaching
-  `ac_command_answer` (e.g. in `c_ievent_cli`'s correlation
-  layer, with a stale `__md_iev__` id from the previous large
-  request that hasn't been fully serialised yet).
+Why does ycommand exit early on the small-sleep case but not on
+the big-sleep case? Hypothesis (not yet confirmed with
+instrumentation):
+
+- With sleep ≥ server processing time, each request's response
+  arrives before the next echo, so `cmd_in_flight` stays TRUE
+  while the NEXT line is being read from stdin → no exit timer
+  scheduled.
+- With sleep < processing time, the stdin reader buffers all N
+  lines into `pending_commands` quickly, EOF is reached early,
+  and the `ac_command_answer` post-response check
+  (`queue empty && stdin_closed && !cmd_in_flight → set exit
+  timer`) can fire transiently between a response landing and
+  the next `run_next_pending` dispatch — scheduling exit before
+  the last response actually arrives.
+
+That or the c_websocket / c_ievent_cli ASYNC dispatch chain is
+flipping `cmd_in_flight = FALSE` on a path other than the real
+`ac_command_answer` (e.g. an EV_TX_READY arriving from c_tcp
+gets accidentally treated as a command response somewhere).
+Needs instrumentation to confirm.
 
 **Operational impact.** The 7.4.3 deploy pipeline (shoot-snap +
 3× install-binary + find-new-yunos + deactivate-snap) hit this
@@ -113,26 +151,30 @@ manually. Effective workaround in the meantime: issue each
 `install-binary` as a separate ycommand call (≈400 ms extra
 ROPC re-auth per command, acceptable for occasional deploys).
 
-**Where to look next.**
+**Where to look next** (in c_ycommand.c, the bug is on the client
+side; c_websocket TX is clean):
 
-- `c_ycommand.c` flow is internally consistent
-  (`exec_one_command` returns 1, sets `cmd_in_flight`;
-  `ac_command_answer` clears it + drives `run_next_pending`).
-  The bug is below this layer.
-- Trace WS frames in/out at the agent — confirm install-binary
-  RESPONSE is actually emitted (one suspected case: agent emits
-  it but on a half-fragmented frame that ycommand reassembles
-  as a no-op).
-- `c_websocket.c` write path on large outbound frames: when
-  ycommand is mid-write of a 40 MB request, what happens if
-  the agent emits a response to a previous command back at it?
-  Frame interleaving / RX buffer overrun?
-- `c_ievent_cli.c` request/response correlation: confirm there
-  is a request-id field and the matching is strict (and not
-  just FIFO-positional, which would corrupt under reordering).
+- Add a counter trace to `exec_one_command` (dispatch count) and
+  `ac_command_answer` (response count) — confirm whether the
+  agent is even being asked for the missing response, or the
+  client never sent the request.
+- Confirm the exit-timer scheduling logic at lines 2614-2622 of
+  `c_ycommand.c` cannot fire while another response is still
+  in flight from a previous command.
+- Inspect `priv->stdin_closed` transitions: maybe it's being
+  set TRUE before the read truly hit EOF (e.g. a partial-read
+  error path that flags stdin_closed prematurely).
+- Verify on the agent side that the matching install-binary
+  REQUEST actually arrived (use `set-gclass-trace gclass=
+  C_IEVENT_SRV set=1 level=ievents2` and grep for the cmd
+  string in the latest agent log). If the request never landed,
+  the client is dropping it before sending.
 
 **Workaround (documented for operators):** when deploying many
 yunos at once, do the install-binary calls as separate `-c`
 invocations and use stdin-pipe only for the trailing
 small-message commands (`find-new-yunos`, `shoot-snap`,
-`deactivate-snap`).
+`deactivate-snap`). Alternative: insert a `sleep` between
+install-binary lines that is ≥ the server-side processing time
+(≈ 5 s for a 40 MB binary on a fast local host, more over wss
+to a remote agent).
