@@ -819,6 +819,26 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
     }
 
+    if(st == ST_IDLE) {
+        /*
+         *  Server-initiated speak while we are idle — almost always a
+         *  421 timeout ("Service not available, closing transmission
+         *  channel") because submission servers (OVH ssl0.ovh.net in
+         *  particular) close inactive sessions aggressively. Treat as
+         *  a graceful close: drop the TCP cleanly, log INFO not ERROR.
+         *  C_TCP will auto-reconnect when the next email is enqueued.
+         */
+        gobj_log_info(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INFO,
+            "msg",      "%s", "server closed idle SMTP session",
+            "code",     "%d", code,
+            NULL
+        );
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        return 0;
+    }
+
     if(st == ST_WAIT_DATA_RESP) {
         BOOL ok = (code == SMTP_CODE_OK);
         if(!ok) {
