@@ -43,6 +43,5 @@ and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
 `#define` macros in `static_resolv.h` redirect all `getaddrinfo` and
 `freeaddrinfo` call sites in files that include that header.
 
-> **Note:** `emailsender` cannot be fully static because it depends on
-> `libcurl`, which requires shared library support.  All other utils and
-> yunos build cleanly as fully static GCC/Clang binaries.
+> All utils and yunos in the suite (including `emailsender` since 7.4.3)
+> build cleanly as fully static GCC/Clang binaries.

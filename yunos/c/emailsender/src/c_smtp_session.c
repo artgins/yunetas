@@ -81,6 +81,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
+SDATA (DTP_STRING,  "url",              SDF_RD,     "",         "SMTP server URL (smtps://host:465). If set, mt_start auto-creates a C_TCP bottom."),
 SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain advertised to the server"),
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
 SDATA (DTP_STRING,  "password",         SDF_RD,     "",         "SMTP AUTH PLAIN password"),
@@ -176,10 +177,33 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method start
+ *
+ *      Mirrors c_prot_tcp4h's pattern: if a url attribute is set and no
+ *      bottom gobj exists yet, auto-create a C_TCP client child with that
+ *      url and start it. The C_TCP child decides TLS vs plain from the
+ *      URL schema (smtps:// → implicit TLS from byte zero).
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_start(gobj_bottom_gobj(gobj));
+    const char *url = gobj_read_str_attr(gobj, "url");
+    hgobj bottom = gobj_bottom_gobj(gobj);
+
+    if(!empty_string(url) && !bottom) {
+        json_t *kw_tcp = json_pack("{s:s}",
+            "url", url
+        );
+        bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_tcp, gobj);
+        if(!bottom) {
+            /* Error already logged by gobj_create_pure_child */
+            return -1;
+        }
+        gobj_set_bottom_gobj(gobj, bottom);
+    }
+
+    if(bottom) {
+        gobj_start(bottom);
+    }
+
     return 0;
 }
 
@@ -633,7 +657,6 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     BOOL is_final = TRUE;
     if(parse_response_code(line, line_len, &code, &is_final) < 0) {
         abort_session(gobj, "malformed SMTP reply line");
-        GBUFFER_DECREF(gbuf)
         KW_DECREF(kw)
         return -1;
     }
@@ -647,15 +670,18 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_trace_msg(gobj, "<<< %.*s", (int)tlen, line);
     }
 
-    /* Re-arm for the next line BEFORE running any handler that may send. */
+    /*
+     *  Re-arm for the next line BEFORE running any handler that may send.
+     *  KW_DECREF below will release the gbuffer payload via gobj's
+     *  registered auto-cleanup for the "gbuffer" key (see gobj.c:562) —
+     *  we MUST NOT decref it manually or we'd double-free.
+     */
     if(istream_read_until_delimiter(priv->istream_in, "\r\n", 2, EV_RX_LINE) < 0) {
         /* Error already logged by istream_read_until_delimiter */
-        GBUFFER_DECREF(gbuf)
         KW_DECREF(kw)
         return -1;
     }
 
-    GBUFFER_DECREF(gbuf)
     KW_DECREF(kw)
 
     /*
@@ -1000,6 +1026,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_banner[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1008,6 +1035,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_ehlo_resp[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1016,6 +1044,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_auth_resp[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1033,6 +1062,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_mail_from_resp[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1041,6 +1071,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_rcpt_to_resp[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1049,6 +1080,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_data_go[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
+        {EV_TX_READY,           0,                      0},
         {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
@@ -1057,8 +1089,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_data_resp[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_RX_LINE,            ac_rx_line,             0},
-        {EV_TIMEOUT,            ac_timeout,             0},
         {EV_TX_READY,           0,                      0},
+        {EV_TIMEOUT,            ac_timeout,             0},
         {EV_DROP,               ac_drop,                0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
         {0,0,0}

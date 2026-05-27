@@ -13,8 +13,17 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include "c_curl.h"
+#include "c_smtp_session.h"
+#include "mime_encoder.h"
 #include "c_emailsender.h"
+
+/*
+ *  Internal self-event: ac_timeout_to_dequeue posts this to ourselves once
+ *  a queued message is dequeued; ac_smtp_command consumes it, MIME-encodes
+ *  and dispatches EV_SEND_MESSAGE down to the smtp child. Defined here
+ *  (file-local) so the action functions can reference it.
+ */
+GOBJ_DEFINE_EVENT(EV_SMTP_COMMAND);
 
 /***************************************************************************
  *              Constants
@@ -121,7 +130,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj curl;
+    hgobj smtp;                 /* C_SMTP_SESSION pure_child (owns its C_TCP) */
     hgobj timer;
     hgobj gobj_input_side;
     hgobj persist;
@@ -166,7 +175,27 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->curl = gobj_create_pure_child(gobj_name(gobj), C_CURL, 0, gobj);
+
+    /*
+     *  Build the SMTP session child. It auto-creates its own C_TCP bottom
+     *  on mt_start using the url attr. EHLO domain defaults to the local
+     *  hostname so the receiving server logs an identifiable peer.
+     */
+    char hostname[HOST_NAME_MAX + 1];
+    if(gethostname(hostname, sizeof(hostname)) != 0) {
+        snprintf(hostname, sizeof(hostname), "localhost");
+    }
+    hostname[sizeof(hostname) - 1] = '\0';
+
+    json_t *kw_smtp = json_pack("{s:s, s:s, s:s, s:s}",
+        "url", gobj_read_str_attr(gobj, "url"),
+        "username", gobj_read_str_attr(gobj, "username"),
+        "password", gobj_read_str_attr(gobj, "password"),
+        "helo_name", hostname
+    );
+    priv->smtp = gobj_create_pure_child(
+        gobj_name(gobj), C_SMTP_SESSION, kw_smtp, gobj
+    );
     //priv->persist = gobj_find_service("persist", FALSE);
 
     /*
@@ -220,7 +249,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    gobj_start(priv->curl);
+    gobj_start(priv->smtp);
 
     return 0;
 }
@@ -233,7 +262,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_stop(priv->curl);
+    gobj_stop(priv->smtp);
 
     return 0;
 }
@@ -347,9 +376,16 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *reply_to = kw_get_str(gobj, kw, "reply-to", 0, 0);
     const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
     const char *attachment = kw_get_str(gobj, kw, "attachment", 0, 0);
-    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
     const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
     const char *body = kw_get_str(gobj, kw, "body", "", 0);
+
+    /*
+     *  is_html arrives from the agent's command parser as a JSON integer
+     *  (the parser does not coerce DTP_BOOLEAN -> json bool, see memory
+     *  feedback_command_parser_via_agent_quirks). KW_WILD_NUMBER lets
+     *  kw_get_bool accept int/real/string/bool without erroring.
+     */
+    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, KW_WILD_NUMBER);
 
     if(empty_string(to)) {
         return msg_iev_build_response(
@@ -682,9 +718,19 @@ PRIVATE q_msg_t *enqueue_failing_message(
 /***************************************************************************
  *  Enqueue failing message
  ***************************************************************************/
-PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result, const char *to)
+PRIVATE int process_smtp_response(hgobj gobj, q_msg_t *msg, int result, const char *to)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!msg) {
+        /*
+         *  Spurious ack with nothing in flight (e.g. ac_on_close arriving
+         *  twice). Just clear state and re-arm.
+         */
+        gobj_change_state(gobj, ST_IDLE);
+        set_timeout(priv->timer, priv->timeout_dequeue);
+        return 0;
+    }
 
     if(result < 0) {
         // Error already logged
@@ -783,14 +829,13 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->sd_cur_email) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Already a current sending email",
-            NULL
-        );
-        enqueue_failing_message(gobj, priv->sd_cur_email);
-        priv->sd_cur_email = NULL;
+        /*
+         *  Defensive: still waiting for a previous reply. Re-arm the timer
+         *  and wait — the in-flight one will resolve via EV_ON_MESSAGE.
+         */
+        set_timeout(priv->timer, priv->timeout_dequeue);
+        KW_DECREF(kw);
+        return 0;
     }
 
     /*
@@ -799,7 +844,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
     priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
     if(priv->sd_cur_email) {
         json_t *msg = trq_msg_json(priv->sd_cur_email);
-        gobj_send_event(gobj, EV_CURL_COMMAND, msg, src);
+        gobj_send_event(gobj, EV_SMTP_COMMAND, msg, src);
     }
 
     KW_DECREF(kw);
@@ -807,9 +852,11 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
 }
 
 /********************************************************************
- *
+ *  Build the MIME message and dispatch it to the SMTP child.
+ *  Async: the response (success / failure) comes back via EV_ON_MESSAGE
+ *  handled by ac_on_message.
  ********************************************************************/
-PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -820,47 +867,33 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "msg",          "%s", "NOT a current sending email",
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+        set_timeout(priv->timer, priv->timeout_dequeue);
         KW_DECREF(kw);
         return -1;
     }
-
-    priv->pending_acks++;
-
-    q_msg_t *qmsg = priv->sd_cur_email;
-    priv->sd_cur_email = NULL;
 
     const char *from = kw_get_str(gobj, kw, "from", 0, 0);
     if(empty_string(from)) {
         from = priv->from;
     }
+    const char *from_beautiful = gobj_read_str_attr(gobj, "from_beautiful");
     const char *to = kw_get_str(gobj, kw, "to", 0, 0);
     const char *cc = kw_get_str(gobj, kw, "cc", "", 0);
     const char *bcc = kw_get_str(gobj, kw, "bcc", "", 0);
     const char *reply_to = kw_get_str(gobj, kw, "reply_to", "", 0);
     const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
-    const char *attachments = kw_get_str(gobj, kw, "attachments", "", 0);
+    const char *attachment = kw_get_str(gobj, kw, "attachment", "", 0);
+    if(empty_string(attachment)) {
+        /* Legacy alias from c_curl era. */
+        attachment = kw_get_str(gobj, kw, "attachments", "", 0);
+    }
     const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
     BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
-    BOOL strict_tls = kw_get_bool(gobj, kw, "strict_tls", 0, 0);
-    BOOL auto_inline_images = kw_get_bool(gobj, kw, "auto_inline_images", 0, 0);
 
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(!gbuf) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "gbuf NULL",
-            "url",          "%s", priv->url,
-            NULL
-        );
+    gbuffer_t *gbuf_body = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
-        process_curl_response(gobj, qmsg, -1, to);
+    q_msg_t *qmsg_for_fail = priv->sd_cur_email;
 
-        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
-        KW_DECREF(kw);
-        return -1;
-    }
     if(empty_string(to)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -869,124 +902,152 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "url",          "%s", priv->url,
             NULL
         );
+        priv->sd_cur_email = NULL;
+        process_smtp_response(gobj, qmsg_for_fail, -1, "");
+        KW_DECREF(kw);
+        return -1;
+    }
 
-        process_curl_response(gobj, qmsg, -1, to);
-
-        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+    /*--------------------------------*
+     *      MIME encode the message
+     *--------------------------------*/
+    mime_email_t m = {
+        .from = from,
+        .from_beautiful = from_beautiful,
+        .to = to,
+        .cc = cc,
+        .reply_to = reply_to,
+        .subject = subject,
+        .is_html = is_html,
+        .body = gbuf_body,
+        .attachment = empty_string(attachment) ? NULL : attachment,
+        .inline_file_id = empty_string(inline_file_id) ? NULL : inline_file_id,
+    };
+    gbuffer_t *mime_body = mime_build_message(gobj, &m);
+    if(!mime_body) {
+        /* Error already logged */
+        priv->sd_cur_email = NULL;
+        process_smtp_response(gobj, qmsg_for_fail, -1, to);
         KW_DECREF(kw);
         return -1;
     }
 
     /*
-     *  Como la url esté mal y no se resuelva libcurl NO RETORNA NUNCA!
-     *  Usa ips numéricas!
+     *  c_smtp_session reads body as a string via kw_get_str. Drop a NUL
+     *  at the end of the gbuffer so json_string() sees it as a C string,
+     *  without copying the body again.
      */
-    gbuffer_incref(gbuf);
-    json_t *kw_curl = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:I}",
-        "username", priv->username,
-        "password", priv->password,
-        "url", priv->url,
-        "subject", subject,
+    const char *body_str = (const char *)gbuffer_cur_rd_pointer(mime_body);
+    size_t body_len = gbuffer_leftbytes(mime_body);
+
+    json_t *kw_send = json_pack(
+        "{s:s, s:s, s:s, s:s, s:s#}",
         "from", from,
         "to", to,
         "cc", cc,
         "bcc", bcc,
-        "reply_to", reply_to,
-        "attachments", attachments,
-        "is_html", is_html,
-        "strict_tls", strict_tls,
-        "auto_inline_images", auto_inline_images,
-        "gbuffer", (json_int_t)(uintptr_t)gbuf
+        "body", body_str, (json_int_t)body_len
     );
-
-    if(!kw_curl) {
+    if(!kw_send) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "json_pack() FAILED",
+            "msg",          "%s", "json_pack() FAILED for kw_send",
             NULL
         );
-
-        process_curl_response(gobj, qmsg, -1, to);
-
-        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+        GBUFFER_DECREF(mime_body)
+        priv->sd_cur_email = NULL;
+        process_smtp_response(gobj, qmsg_for_fail, -1, to);
         KW_DECREF(kw);
         return -1;
     }
+    GBUFFER_DECREF(mime_body)
 
-    if(!empty_string(attachments)) {
-        if(access(attachments, 0)==0) {
-            json_object_set_new(kw_curl, "attachments", json_string(attachments));
-            if(!empty_string(inline_file_id)) {
-                json_object_set_new(kw_curl, "inline_file_id", json_string(inline_file_id));
-            }
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "attachment file not found, ignoring it",
-                "attachments",  "%s", attachments,
-                NULL
-            );
-        }
-    }
-
+    priv->pending_acks++;
     priv->send++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, kw_curl, "SEND EMAIL to %s", priv->url);
-        gobj_trace_dump(gobj,
-            gbuffer_cur_rd_pointer(gbuf),
-            gbuffer_leftbytes(gbuf),
-            "SEND EMAIL to %s",
-            priv->url
-        );
+        gobj_trace_json(gobj, kw_send, "SEND EMAIL to %s", priv->url);
     }
 
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
-    int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 
-    process_curl_response(gobj, qmsg, result, to);
+    /*
+     *  Async: the smtp child will publish EV_ON_MESSAGE when the server
+     *  acks/nacks the DATA stage. priv->sd_cur_email stays set until then.
+     */
+    int ret = gobj_send_event(priv->smtp, EV_SEND_MESSAGE, kw_send, gobj);
+    if(ret < 0) {
+        /* SMTP child not ready (still connecting, or dead) — fail now. */
+        priv->sd_cur_email = NULL;
+        process_smtp_response(gobj, qmsg_for_fail, -1, to);
+    }
 
     KW_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  EV_ON_MESSAGE callback from the SMTP child. kw carries {ok: bool,
+ *  code: int}. ok=true → email sent; ok=false → enqueue to failed.
  ***************************************************************************/
-PRIVATE int ac_curl_response(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
+    if(src != priv->smtp) {
+        /* Unexpected source — ignore but log. */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_ON_MESSAGE from unexpected source",
+            NULL
+        );
+        KW_DECREF(kw);
+        return 0;
+    }
 
-    // TODO future case, to get response from another yuno, recover the msg
+    BOOL ok = kw_get_bool(gobj, kw, "ok", 0, 0);
+
     q_msg_t *qmsg = priv->sd_cur_email;
     priv->sd_cur_email = NULL;
-    process_curl_response(gobj, qmsg, result, "");
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, "");
 
     KW_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  EV_ON_OPEN fired by the SMTP child after a successful banner+EHLO[+AUTH].
+ *  Kick the dequeue loop immediately so a queued message doesn't have to
+ *  wait for the next timer tick.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    // Some app is connected, ignore
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->smtp && gobj_in_this_state(gobj, ST_IDLE)) {
+        set_timeout(priv->timer, priv->timeout_dequeue);
+    }
+
     KW_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  EV_ON_CLOSE from the SMTP child. If a message was in flight, fail it
+ *  so it lands in the failed queue / triggers a retry on the next dequeue.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    // Some app is disconnected, ignore
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->smtp && priv->sd_cur_email) {
+        q_msg_t *qmsg = priv->sd_cur_email;
+        priv->sd_cur_email = NULL;
+        process_smtp_response(gobj, qmsg, -1, "");
+    }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -1042,17 +1103,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_CURL_COMMAND,   ac_curl_command,        0},
+        {EV_SMTP_COMMAND,   ac_smtp_command,        0},
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_TIMEOUT,        ac_timeout_to_dequeue,  0},
         {EV_ON_OPEN,        ac_on_open,             0},
         {EV_ON_CLOSE,       ac_on_close,            0},
+        {EV_ON_MESSAGE,     ac_on_message,          0},
         {0,0,0}
     };
 
     ev_action_t st_wait_response[] = {
-        {EV_CURL_RESPONSE,  ac_curl_response,       0},
+        {EV_ON_MESSAGE,     ac_on_message,          0},
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_ON_OPEN,        ac_on_open,             0},
@@ -1072,10 +1134,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
         {EV_SEND_EMAIL,         EVF_PUBLIC_EVENT},
-        {EV_CURL_COMMAND,       0},
-        {EV_CURL_RESPONSE,      0},
+        {EV_SMTP_COMMAND,       0},
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
+        {EV_ON_MESSAGE,         0},
         {EV_TIMEOUT,            0},
         {NULL, 0}
     };
