@@ -3203,10 +3203,12 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
         src
     );
     if(!node) {
+        const char *last_msg = gobj_log_last_message();
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Cannot create binary: %s", gobj_log_last_message()),
+            json_sprintf("Cannot create binary: %s",
+                empty_string(last_msg) ? "(see log)" : last_msg),
             0,
             0,
             kw  // owned

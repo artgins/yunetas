@@ -4454,6 +4454,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             "id",           "%s", id,
             NULL
         );
+        // gobj_log_warning does not populate last_message; do it
+        // ourselves so callers (e.g. cmd_install_binary) can surface
+        // the real cause in the response comment instead of falling
+        // back to the generic "(see log)" placeholder.
+        gobj_log_set_last_message(
+            "Node already exists in '%s': id='%s'", topic_name, id
+        );
         JSON_DECREF(pkey2_list)
         JSON_DECREF(kw)
         return 0;
@@ -8468,7 +8475,7 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
 }
 
 /***************************************************************************
- *  TODO check tranger2_write_user_flag
+ *
  ***************************************************************************/
 PUBLIC int treedb_shoot_snap( // tag the current tree db
     json_t *tranger,
