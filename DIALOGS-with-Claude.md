@@ -182,4 +182,4 @@ Coste: cuando algo **realmente** no encaja (un blob opaco, una operación genuin
 - **Substitución por contrato**: cambia OpenSSL ↔ mbedTLS por debajo del gclass `C_YTLS` y nadie arriba se entera. Cambia `c_tcp` por `c_unix_socket` y los protocolos siguen ciegos.
 - **Trazabilidad estructural**: `gobj_short_name()` te da la ruta entera (`C_YUNO^...^C_AUTH_BFF^auth_bff^C_HTTPS_CL^...^C_TCP^...`) — sabes en qué punto del grafo está pasando algo sin desplegar trazas ad-hoc.
 
-La frase corta: **Yuneta es la apuesta de que datos y procesos son dos vistas del mismo grafo tipado, y que pagar el coste de tipar todo se amortiza con creces cuando el sistema lleva 15 años en producción**. Hidraulia/ son el justificante empírico de esa apuesta.
+La frase corta: **Yuneta es la apuesta de que datos y procesos son dos vistas del mismo grafo tipado, y que pagar el coste de tipar todo se amortiza con creces cuando el sistema lleva 15 años en producción**. 
