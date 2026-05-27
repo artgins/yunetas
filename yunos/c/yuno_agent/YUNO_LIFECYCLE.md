@@ -145,7 +145,7 @@ config commands only (admin, realm, certs and console commands omitted):
 | `install-binary`  | c_agent.c:3005 | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | c_agent.c:3234 | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
 | `delete-binary`   | c_agent.c:3446 | Refuse if any yuno still references it, then `gobj_delete_node` + `rmrdir`. |
-| `list-binaries`   | c_agent.c:2917 | `gobj_list_nodes("binaries", filter)`, returns all rows.                |
+| `list-binaries`   | c_agent.c:2917 | `gobj_list_instances("binaries", "", filter)`, returns one row per `(role, version)` so multi-version installs are visible. |
 
 ### Configurations
 

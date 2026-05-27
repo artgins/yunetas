@@ -2920,11 +2920,15 @@ PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char *resource = "binaries";
 
     /*
-     *  Get a iter of matched resources
+     *  The 'binaries' topic uses pkey2 (version) to keep one record per
+     *  (role, version). gobj_list_nodes returns ONE row per id (role) —
+     *  the in-memory primary — so multi-version installs were invisible.
+     *  Walk the instances so every installed version surfaces.
      */
-    json_t *jn_data = gobj_list_nodes(
+    json_t *jn_data = gobj_list_instances(
         priv->resource,
         resource,
+        "",
         kw_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
