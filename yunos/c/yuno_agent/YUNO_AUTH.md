@@ -878,6 +878,5 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 | `reload-certs` handler in TCP server              | `kernel/c/root-linux/src/c_tcp_s.c:854-885`                            |
 | Per-yuno cert paths (example)                     | `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json:26-27`          |
 | Localhost dev OIDC batch                          | `batches/localhost/auth_bff.1801.json:55-58`                           |
-| Hidraulia keycloak (memory)                       | `~/.claude/.../memory/project_hidraulia_keycloak.md`                   |
 | auth_bff pending bugs (memory)                    | `~/.claude/.../memory/project_auth_bff_pending_bugs.md`                |
 | SMTP cleartext (memory)                           | `~/.claude/.../memory/project_emailsender_smtp_secret.md`              |
