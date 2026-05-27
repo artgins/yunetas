@@ -11,8 +11,7 @@ GClass stack and the newer declarative shell. Two parallel stacks
 coexist because consumers are at different points in the migration:
 
 - **Legacy stack** (`C_YUI_MAIN`, `C_YUI_WINDOW`, `C_YUI_TABS`,
-  `C_YUI_FORM`, `C_YUI_ROUTING`, …). Consumed by `estadodelaire` and
-  `hidraulia`.
+  `C_YUI_FORM`, `C_YUI_ROUTING`, …). Consumed by `estadodelaire`.
 - **Declarative shell stack** (`C_YUI_SHELL`, `C_YUI_NAV`,
   `C_YUI_PAGER`, `C_YUI_WIZARD`). Shipped in lib-yui **8.0**.
   Consumed by `wattyzer`.

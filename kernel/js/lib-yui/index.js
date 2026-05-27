@@ -7,8 +7,8 @@
  *          (C_YUI_SHELL, C_YUI_NAV, C_YUI_PAGER, C_YUI_WIZARD,
  *          shell_modals + helpers) was removed from this package
  *          and now evolves only in wattyzer/gui/src/lib-yui/
- *          (vendored flat copy).  Legacy apps (estadodelaire,
- *          hidraulia) consume this package and only need the
+ *          (vendored flat copy).  Legacy apps (estadodelaire)
+ *          consume this package and only need the
  *          legacy stack (C_YUI_MAIN + C_YUI_WINDOW + C_YUI_TABS
  *          + C_YUI_ROUTING + TreeDB views + chart/map widgets).
  *          Removing the new stack from here makes their bundles

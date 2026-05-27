@@ -51,8 +51,7 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 
 Resolved in this repo at commit `322d4cb03` by rebuilding the openresty
 + pcre + zlib + libssl stack. Private deployed projects still need
-their own rebuild (see memory `project_nginx_cve_2026_42945` —
-hidraulia is production).
+their own rebuild.
 
 ### nginx CVE-2026-9256
 

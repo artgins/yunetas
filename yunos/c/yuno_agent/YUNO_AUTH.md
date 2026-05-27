@@ -595,7 +595,6 @@ The convention from
 | Project           | Keycloak host                  | Realm name           | Notes                                              |
 |-------------------|--------------------------------|----------------------|----------------------------------------------------|
 | yunetas dev       | `auth.artgins.com`             | `yunetas.com`        | Localhost dev batch, see `batches/localhost/auth_bff.1801.json`. |
-| hidrauliaconnect  | `auth.hidrauliaconnect.es`     | `hidrauliaconnect`   | Own realm since 2026-05-15; was estadodelaire-realm before. See `project_hidraulia_keycloak`. |
 | wattyzer          | (per project, private repo)    | (per project)        | See wattyzer batches/.                              |
 | estadodelaire     | (per project, private repo)    | (per project)        | See estadodelaire batches/.                         |
 

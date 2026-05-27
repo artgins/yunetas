@@ -41,7 +41,7 @@ the port pool, the cert sync directory, and most authzs. Section 7 has the
 full list.
 
 The classic deployment pattern: one realm per project/customer (`wattyzer`,
-`hidrauliaconnect`, `estadodelaire`…), all sharing the same agent on a
+`estadodelaire`…), all sharing the same agent on a
 host.
 
 ---

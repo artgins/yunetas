@@ -47,5 +47,5 @@ directory) followed by the agent's `install-binary` + `create-yuno` +
 `run-yuno` cycle. See
 [`LIFECYCLE.md`](../yuno_agent/LIFECYCLE.md) §6.
 
-Production deployments live in the private `estadodelaire` /
-`hidraulia` repos under their respective `batches/<host>/` trees.
+Production deployments live in the private `estadodelaire` repo
+under its `batches/<host>/` tree.

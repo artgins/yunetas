@@ -284,7 +284,7 @@
       vite project) was already being maintained from the
       wattyzer-vendored copy at `wattyzer/gui/src/lib-yui`. The
       kernel copy was just dead weight in the bundle consumed
-      by estadodelaire / hidraulia (legacy apps that only use
+      by estadodelaire (legacy apps that only use
       `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two
       copies had drifted enough to make every fold-back a
       conflict. Verified by grep that neither legacy consumer
@@ -550,8 +550,8 @@
       (and downstream apps) silently built against 0.3.0 and updates
       had no effect.  Peer range is now `^7.3.3` and a
       `file:../gobj-js` devDependency makes local builds use the
-      in-tree source.  Downstream apps (wattyzer, estadodelaire,
-      hidraulia) must likewise repin and reinstall so they stop
+      in-tree source.  Downstream apps (wattyzer, estadodelaire)
+      must likewise repin and reinstall so they stop
       resolving 0.3.0.
 
     - **feat(lib-yui): shell-mountable developer panel**.
