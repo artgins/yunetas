@@ -1,5 +1,48 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(yev_loop): retry transient ENOMEM in
+      `io_uring_queue_init_params`**. A synchronised restart of
+      many yunos (e.g. an agent `deactivate-snap` on a node with
+      10+ yunos) used to drop 1-3 SIGABRT cores per yuno in
+      `/var/crash`, even though every yuno eventually came up
+      after the `ydaemon` watcher relaunched it. Root cause was
+      `yev_loop_create` aborting via `LOG_OPT_ABORT` on a
+      transient `-ENOMEM` from io_uring init: rings consume
+      pinned kernel memory (RLIMIT_MEMLOCK / vm.max_user_locks)
+      and a simultaneous restart of N yunos saturates that
+      budget for a few ms while the previous rings' pages are
+      released. Forensic evidence: 12 cores at 13:23 today with
+      identical bt bottoming at `yev_loop.c:184`, all `err=-12`
+      with `entries=32768`. Fix wraps the init call in a
+      5-iteration exponential-backoff retry (100/200/400/800/1600
+      ms ≈ 3 s) for `ENOMEM`/`EAGAIN` only; non-transient errors
+      (EINVAL, ENOSYS, EPERM…) fall through to the original
+      abort path unchanged. Each retry logs a warning so an
+      operator can see the pressure event without it being
+      silent. Local stress test (3 consecutive `deactivate-snap`
+      cycles = 48 yuno restarts) generated 0 cores.
+
+    - **fix(ycommand): keep stdin-pipe queue draining when a
+      command returns -1**. The long-lived stdin-pipe mode added
+      in 7.4.3 inherited the ybatch convention from `-c` / `-i` /
+      file-fed batches: a `-1` result with no leading `-` on the
+      command drops the rest of the queue. That convention is
+      hostile to stdin-pipe deploys — the operator has already
+      piped every line in, and one common non-fatal `-1` (e.g.
+      `install-binary` returning "Binary already exists" for a
+      slot that's already filled) silently swallows the rest.
+      Surfaced on the 7.4.3 wattyzer deploy: binaries got
+      registered, then `find-new-yunos` + `deactivate-snap`
+      vanished, leaving yunos on the old release until the
+      trailing commands were re-run by hand. Fix: in
+      `stdin_pipe_mode` every command behaves as `ignore-fail`
+      (no queue clear on error). Explicit `-` prefix path stays.
+      Repro matrix (4 install-binary in pipe, slot pre-filled):
+      before fix 3/4 responses, after fix 4/4. The earlier
+      "WS frame interleaving" hypothesis logged in TODO.md was
+      ruled out (kept as a post-mortem trail).
+
 ## v7.4.3 -- 27/May/2026
     - **feat(emailsender)!: drop libcurl, native SMTP over ytls**.
       `emailsender` was the only yuno that linked libcurl, which
