@@ -34,6 +34,20 @@ endif()
 
 include("${_yunetas_project_cmake}")
 
+#----------------------------------------#
+#   Static binaries
+#   To compile as static, also using gcc,
+#   set the link flags here. Mirrors the
+#   pattern used by every other yuno in
+#   the suite (gate_*, db_*, mqtt_broker, …).
+#----------------------------------------#
+if(CONFIG_FULLY_STATIC)
+    set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
+    set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    set(BUILD_SHARED_LIBS OFF)
+endif()
+
 ##############################################
 #   Source
 ##############################################
@@ -53,6 +67,13 @@ SET (YUNO_HDRS
 #   yuno
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
