@@ -57,6 +57,7 @@ Cancel CQE: res = 0    (success)
 #include <liburing.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/timerfd.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
@@ -178,7 +179,48 @@ retry:
     struct io_uring_params params = {
         .flags = params_test.flags | IORING_SETUP_CLAMP
     };
-    err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
+    /*
+     *  Retry on transient ENOMEM/EAGAIN before aborting. io_uring rings
+     *  consume pinned kernel memory (RLIMIT_MEMLOCK / vm.max_user_locks);
+     *  a synchronised restart of many yunos (e.g. an agent deactivate-snap
+     *  on a node with 10+ yunos) momentarily saturates it even though
+     *  the kernel releases the previous rings' pages within milliseconds.
+     *  Without this retry every mass-restart used to dump N cores in
+     *  /var/crash for no operational reason: the ydaemon watcher relaunches,
+     *  the 2nd or 3rd attempt succeeds, but every failed attempt aborts
+     *  with SIGABRT. Exponential backoff caps the wait at ~3 s total.
+     *
+     *  Non-transient errors (EINVAL, ENOSYS, EPERM, …) skip the retry and
+     *  fall through to the original abort path — those are real config /
+     *  kernel-support failures, not pressure.
+     */
+    int retry_delay_ms = 100;
+    for(int retry = 0; retry < 5; retry++) {
+        err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
+        if(err >= 0) {
+            break;
+        }
+        if(err != -ENOMEM && err != -EAGAIN) {
+            break;
+        }
+        gobj_log_warning(yuno, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "io_uring_queue_init_params() transient pressure, retrying",
+            "attempt",      "%d", retry + 1,
+            "delay_ms",     "%d", retry_delay_ms,
+            "entries",      "%d", entries,
+            "errno",        "%d", -err,
+            "serrno",       "%s", strerror(-err),
+            NULL
+        );
+        struct timespec ts = {
+            .tv_sec  = retry_delay_ms / 1000,
+            .tv_nsec = (retry_delay_ms % 1000) * 1000000L,
+        };
+        nanosleep(&ts, NULL);
+        retry_delay_ms *= 2;
+    }
     if (err < 0) {
         GBMEM_FREE(yev_loop)
         gobj_log_critical(yuno, LOG_OPT_ABORT,
