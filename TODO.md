@@ -55,61 +55,84 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## ycommand stdin-pipe drops responses after large install-binary
+## ycommand stdin-pipe drops responses for large install-binary
 
-**`fix(ycommand): drop responses lost after large install-binary in stdin-pipe`**
+**`fix(ycommand): response of large install-binary intermittently lost in stdin-pipe`**
 
-The long-lived stdin-pipe session added in 7.4.3 works fine for small
-payloads but loses the response of the SECOND and subsequent commands
-when an earlier command in the pipe is an `install-binary` carrying a
-~40 MB base64 body. Minimal reproduction against the local agent
-(`ws://127.0.0.1:1991`, no network in between):
+The long-lived stdin-pipe session added in 7.4.3 is correct for
+small payloads but drops responses for `install-binary` (~40 MB
+base64 body) at a roughly fixed rate. Investigated 2026-05-27
+against the local agent (`ws://127.0.0.1:1991`, no network).
+Findings:
+
+**Repro (test H), 4 identical large install-binary in pipe:**
 
 ```bash
-{ echo 'install-binary id=emailsender content64=$$(emailsender)'
-  sleep 8
-  echo 'list-binaries'
+{ for i in 1 2 3 4; do
+    echo 'install-binary id=emailsender content64=$$(emailsender)'
+    sleep 3
+  done
 } | ycommand --wait=15
 ```
 
-Expected: two responses — a `version: 7.4.3` line for the
-install-binary and the `Total: 25` table from list-binaries.
-Observed: only the list-binaries response is rendered. The
-install-binary response either never arrives or never gets matched
-back to its command.
+Expected: 4 response lines (here `ERROR -1: Binary already
+exists` because the slot is full, but a real response is
+delivered).
+Observed: **3** response lines. One in the middle is missing.
 
-Control: three back-to-back `list-binaries` calls in the same pipe
-shape produce three full `Total: …` responses — the gate
-(`priv->cmd_in_flight`) and the dispatch loop are sound for small
-messages.
+**Control (small payloads work):**
 
-Practical impact: when deploying multiple yunos in one batch, the
-trailing `find-new-yunos` + `deactivate-snap` get dropped silently,
-leaving the agent with the new binary slots registered but the
-running yunos still on the old release. Discovered during the
-7.4.3 deploy to `app.wattyzer.com` — the workaround is to issue
-each `install-binary` as a separate ycommand call (≈400 ms extra
+```bash
+{ echo 'list-binaries'; sleep 1
+  echo 'list-binaries'; sleep 1
+  echo 'list-binaries'
+} | ycommand --wait=15   # → 3× "Total: 25" reliably
+```
+
+**The dropped response paradox.** If `cmd_in_flight` actually
+held until response arrived, ycommand would HANG on the lost
+response and never dispatch the next command. But it does
+dispatch the next command. So the gate is being cleared without
+`ac_command_answer` having rendered the missing response. That
+points at either:
+
+- A reply path that flips `cmd_in_flight = FALSE` and continues
+  without invoking `display_webix_result`, or
+- The reply IS being received but discarded before reaching
+  `ac_command_answer` (e.g. in `c_ievent_cli`'s correlation
+  layer, with a stale `__md_iev__` id from the previous large
+  request that hasn't been fully serialised yet).
+
+**Operational impact.** The 7.4.3 deploy pipeline (shoot-snap +
+3× install-binary + find-new-yunos + deactivate-snap) hit this
+on `app.wattyzer.com` — the 3 binary slots all got registered
+(agent side: confirmed) but the trailing `find-new-yunos` /
+`deactivate-snap` responses got swallowed and the running yunos
+were left on the old release until I re-ran those two commands
+manually. Effective workaround in the meantime: issue each
+`install-binary` as a separate ycommand call (≈400 ms extra
 ROPC re-auth per command, acceptable for occasional deploys).
 
-`c_ycommand.c` looks correct in isolation: `exec_one_command`
-returns 1 on async dispatch, `cmd_in_flight` is set, and
-`ac_command_answer` clears it + drives the next pending. The
-issue is almost certainly below that layer — likely in either
-the wss frame fragmentation in `c_websocket.c` for the 40 MB
-outbound message, or in the request/response correlation in
-`c_ievent_cli.c` when the request body is large enough that the
-agent's ack races something on the client side. Reproducible
-without network, so it is not a wss-on-the-wire problem.
+**Where to look next.**
 
-Investigation path:
-- Add a trace of WS frames (in + out) and confirm the install-
-  binary RESPONSE actually leaves the agent and reaches the
-  client.
-- Confirm the `__md_iev__.iev_id` (or whatever correlation key
-  ycommand uses) on the lost response matches the in-flight
-  request id.
-- Check whether c_ievent_cli silently drops a reply when the
-  client is mid-send of a different (queued) outbound message.
+- `c_ycommand.c` flow is internally consistent
+  (`exec_one_command` returns 1, sets `cmd_in_flight`;
+  `ac_command_answer` clears it + drives `run_next_pending`).
+  The bug is below this layer.
+- Trace WS frames in/out at the agent — confirm install-binary
+  RESPONSE is actually emitted (one suspected case: agent emits
+  it but on a half-fragmented frame that ycommand reassembles
+  as a no-op).
+- `c_websocket.c` write path on large outbound frames: when
+  ycommand is mid-write of a 40 MB request, what happens if
+  the agent emits a response to a previous command back at it?
+  Frame interleaving / RX buffer overrun?
+- `c_ievent_cli.c` request/response correlation: confirm there
+  is a request-id field and the matching is strict (and not
+  just FIFO-positional, which would corrupt under reordering).
 
-Workaround stays as a documented operator note in the meantime;
-no immediate user-facing breakage other than the noisier deploy.
+**Workaround (documented for operators):** when deploying many
+yunos at once, do the install-binary calls as separate `-c`
+invocations and use stdin-pipe only for the trailing
+small-message commands (`find-new-yunos`, `shoot-snap`,
+`deactivate-snap`).
