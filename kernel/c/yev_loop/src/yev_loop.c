@@ -904,6 +904,8 @@ PRIVATE const char *default_port_for_schema(const char *schema)
             return "1883";
         ICASES("mqtts")
             return "8883";
+        ICASES("smtps")
+            return "465";
         DEFAULTS
             return NULL;
     } SWITCHS_END;
@@ -932,6 +934,7 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("https")
         ICASES("mqtts")
         ICASES("wss")
+        ICASES("smtps")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
             *secure = TRUE;
