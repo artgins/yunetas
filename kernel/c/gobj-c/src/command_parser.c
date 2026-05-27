@@ -51,6 +51,18 @@ PUBLIC json_t *command_parser(
     hgobj src
 )
 {
+    /*
+     *  Reset last_message so this command's failure path cannot
+     *  leak the strerror of an unrelated earlier error. Classic
+     *  symptom: a shoot-snap dup-name failure displayed the comment
+     *  "Connection reset by peer" — the strerror that an earlier
+     *  TCP disconnect had stamped into the static last_message
+     *  buffer. Per-command reset makes last_message effectively
+     *  "this command's most recent error", which is what every
+     *  json_string(gobj_log_last_message()) caller actually wants.
+     */
+    gobj_log_set_last_message("%s", "");
+
     const sdata_desc_t *cnf_cmd = 0;
     json_t *kw_cmd = expand_command(gobj, command, kw, &cnf_cmd);
     if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
@@ -871,6 +883,22 @@ PUBLIC json_t *build_command_response( // // old build_webix()
 ) {
     if(!jn_comment) {
         jn_comment = json_string("");
+    }
+    /*
+     *  If a failure response carries no comment (caller used
+     *  json_string(gobj_log_last_message()) but no LOG_ERR ran
+     *  during this command, so last_message is now empty thanks
+     *  to the per-command reset in command_parser), substitute
+     *  a generic hint so the user at least sees something more
+     *  informative than "ERROR -1: ". Success responses keep
+     *  their empty comment — cmd_topics and similar return data
+     *  with no comment by design.
+     */
+    if(result != 0 &&
+       json_is_string(jn_comment) &&
+       empty_string(json_string_value(jn_comment))) {
+        JSON_DECREF(jn_comment)
+        jn_comment = json_string("(see log)");
     }
     if(!jn_schema) {
         jn_schema = json_null();
