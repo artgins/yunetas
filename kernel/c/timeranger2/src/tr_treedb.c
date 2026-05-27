@@ -8502,6 +8502,9 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
             "snap",         "%s", snap_name,
             NULL
         );
+        // gobj_log_info does not populate last_message; do it ourselves so
+        // callers (e.g. c_node's cmd_shoot_snap) can surface the cause.
+        gobj_log_set_last_message("%s", temp);
         JSON_DECREF(snaps)
         return -1;
     }
@@ -8739,6 +8742,9 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
             "snap",         "%s", snap_name,
             NULL
         );
+        // gobj_log_info does not populate last_message; do it ourselves so
+        // callers (e.g. c_node's cmd_activate_snap) can surface the cause.
+        gobj_log_set_last_message("%s", temp);
         return -1;
     }
 

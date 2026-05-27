@@ -3068,82 +3068,137 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
+/*
+ *  Callback for cmd_snap_content's tranger2_open_list walk:
+ *  every record matching user_flag=snap_id is dropped into the
+ *  json_array carried in the rt's extra dict under "snap_data".
+ */
+PRIVATE int snap_content_load_cb(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record  // owned
+)
+{
+    // tranger2_open_list merges 'extra' into the rt object directly
+    // (json_object_update_missing_new), so snap_data is a top-level field.
+    json_t *jn_data = json_object_get(list, "snap_data");
+    if(!jn_data || !json_is_array(jn_data)) {
+        JSON_DECREF(jn_record)
+        return 0;
+    }
+    json_object_set_new(jn_record, "__key__", json_string(key));
+    json_object_set_new(jn_record, "__rowid__", json_integer((json_int_t)rowid));
+    json_array_append_new(jn_data, jn_record);
+    return 0;
+}
+
 PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /* snap_id arrives as a string (pm_snap_content declares DTP_STRING) */
+    const char *snap_id_s = kw_get_str(gobj, kw, "snap_id", "", 0);
+    json_int_t snap_id = 0;
+    if(!empty_string(snap_id_s)) {
+        snap_id = strtoll(snap_id_s, NULL, 10);
+    }
+    if(snap_id <= 0 || snap_id > 0xFFFE) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Invalid snap_id '%s' (must be 1..65534)", snap_id_s),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_data = json_array();
+
+    /*
+     *  Walk this topic's records filtered by user_flag=snap_id, backward
+     *  (newest first per key). The callback drains matches into jn_data,
+     *  which is carried into the rt via "extra".
+     */
+    json_t *match_cond = json_pack(
+        "{s:b, s:I, s:I, s:I}",
+        "backward", 1,
+        "user_flag", (json_int_t)snap_id,
+        "to_rowid", (json_int_t)-1,   // non-zero → not realtime
+        "load_record_callback", (json_int_t)(uintptr_t)snap_content_load_cb
+    );
+    json_t *jn_extra = json_pack("{s:O}",
+        "snap_data", jn_data
+    );
+
+    char rt_id[NAME_MAX];
+    snprintf(rt_id, sizeof(rt_id),
+        "snap-content-%lld-%s",
+        (long long)snap_id, topic_name
+    );
+
+    json_t *rt = tranger2_open_list(
+        priv->tranger,
+        topic_name,
+        match_cond,         // owned
+        jn_extra,           // owned
+        rt_id,
+        FALSE,              // rt_by_disk
+        gobj_short_name(gobj)
+    );
+    if(!rt) {
+        // Error already logged
+        JSON_DECREF(jn_data)
+        const char *last_msg = gobj_log_last_message();
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("snap-content failed: %s",
+                empty_string(last_msg)?"(see log)":last_msg),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    tranger2_close_list(priv->tranger, rt);
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("TODO"),
         0,
-        0,
+        json_sprintf("snap %lld content for topic '%s' (%zu records)",
+            (long long)snap_id, topic_name, json_array_size(jn_data)),
+        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
+        jn_data,
         kw  // owned
     );
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//    if(empty_string(topic_name)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What topic_name?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    int snap_id = kw_get_int(gobj, kw, "snap_id", 0, KW_WILD_NUMBER);
-//    if(!snap_id) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What snap_id?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    json_t *topic = tranger2_topic(priv->tranger, topic_name);
-//    if(!topic) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("Topic not found: '%s'", topic_name),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    json_t *jn_data = json_array();
-//
-//    json_t *jn_filter = json_pack("{s:b, s:i}",
-//        "backward", 1,
-//        "user_flag", snap_id
-//    );
-//
-//
-//    json_t *list = tranger2_open_iterator( TODO no será open_list ?
-//        topic_name,
-//        "key", // TODO
-//        jn_filter,  //match_cond,  // owned
-//        NULL,       //load_record_callback, // called on LOADING and APPENDING
-//        "",         // iterator_id,     // iterator id, optional, if empty will be the key
-//        NULL, // creator TODO
-//        jn_data,    // JSON array, if not empty, fills it with the LOADING data, not owned
-//        NULL
-//    );
-//    tranger2_close_iterator(priv->tranger, list);
-//
-//    return msg_iev_build_response(
-//        gobj,
-//        0,
-//        0,
-//        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
-//        jn_data,
-//        kw  // owned
-//    );
 }
 
 /***************************************************************************
@@ -3202,9 +3257,13 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    const char *last_msg = gobj_log_last_message();
     return msg_iev_build_response(gobj,
         ret,
-        ret==0?json_sprintf("Snap '%s' shot", name):json_string(gobj_log_last_message()),
+        ret==0
+            ? json_sprintf("Snap '%s' shot", name)
+            : json_sprintf("Cannot shoot snap '%s': %s",
+                name, empty_string(last_msg)?"(see log)":last_msg),
         ret==0?tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"):0,
         jn_data,
         kw  // owned
@@ -3234,9 +3293,13 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
         kw_incref(kw),
         src
     );
+    const char *last_msg = gobj_log_last_message();
     return msg_iev_build_response(gobj,
         ret,
-        ret>=0?json_sprintf("Snap activated: '%s'", name):json_string(gobj_log_last_message()),
+        ret>=0
+            ? json_sprintf("Snap activated: '%s'", name)
+            : json_sprintf("Cannot activate snap '%s': %s",
+                name, empty_string(last_msg)?"(see log)":last_msg),
         0,
         0,
         kw  // owned
@@ -3254,9 +3317,13 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
         kw_incref(kw),
         src
     );
+    const char *last_msg = gobj_log_last_message();
     return msg_iev_build_response(gobj,
         ret,
-        ret==0?json_sprintf("Snap deactivated"):json_string(gobj_log_last_message()),
+        ret==0
+            ? json_sprintf("Snap deactivated")
+            : json_sprintf("Cannot deactivate snap: %s",
+                empty_string(last_msg)?"(see log)":last_msg),
         0,
         0,
         kw  // owned
