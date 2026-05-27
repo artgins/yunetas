@@ -2,7 +2,7 @@
 
 Control-plane CLI for Yuneta services. Sends commands and stats requests to a
 running yuno over its local socket or a remote WebSocket URL. Supports
-single-command mode, an interactive shell and batch scripting.
+single-command mode, an interactive shell and a long-lived stdin-pipe session.
 
 ## Usage
 
@@ -10,9 +10,17 @@ single-command mode, an interactive shell and batch scripting.
 ycommand -c '<command>'                     # single command on the default yuno
 ycommand <command> <args...>                # same as -c, positional form
 ycommand --url ws://host:port -c 'help'     # remote yuno
-ycommand -i                                 # interactive shell
-cat script.ycmd | ycommand -u ws://...      # batch from stdin
+ycommand -i                                 # interactive shell (raw TTY)
+cat script.ycmd | ycommand -u ws://...      # long-lived stdin-pipe session
 ```
+
+The **stdin-pipe** mode kicks in automatically when neither `-c` nor `-i` is
+passed and stdin is not a TTY. Lines are read event-driven (one `dup`'d
+io_uring read per line), so the session stays alive between commands — a
+shell coproc, a `{ echo cmd1; sleep 5; echo cmd2; }` block, or any
+programmatic driver can stream commands into the same authenticated session
+and pay the OAuth2 round-trip only once. EOF on stdin triggers an orderly
+shutdown.
 
 Authentication options: `--jwt`, `--user_id`/`--user_passw`, or a config file.
 Run `ycommand --help` for all flags.
