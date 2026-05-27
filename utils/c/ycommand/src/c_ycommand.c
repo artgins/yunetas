@@ -2597,7 +2597,20 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     int r = display_webix_result(gobj, kw);  /* consumes kw */
 
     if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
-        if(__answer_result < 0 && !__ignore_fail) {
+        /*
+         *  ybatch convention: a -1 result with no leading '-' on the command
+         *  drops the rest of the queue. We keep that for -c / -i / file-fed
+         *  batches (a failed step there usually invalidates the rest), but
+         *  in long-lived stdin-pipe mode the operator has already typed /
+         *  piped every line — clearing the queue silently turns a single
+         *  "already exists" into a half-applied deploy (real case: the
+         *  7.4.3 wattyzer deploy lost find-new-yunos + deactivate-snap
+         *  because an install-binary returned -1 for an existing slot).
+         *  In pipe mode every line behaves as ignore-fail by default;
+         *  the explicit '-' prefix path stays for explicit semantics.
+         */
+        BOOL stop_on_error = !__ignore_fail && !priv->stdin_pipe_mode;
+        if(__answer_result < 0 && stop_on_error) {
             json_array_clear(priv->pending_commands);
         } else {
             run_next_pending(gobj);

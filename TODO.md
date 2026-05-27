@@ -55,7 +55,20 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## ycommand stdin-pipe drops responses for large install-binary
+## ~~ycommand stdin-pipe drops responses for large install-binary~~ (RESOLVED)
+
+**Status**: fixed 2026-05-27. Root cause was the ybatch
+"drop-queue-on-error" path in `ac_command_answer` firing on
+install-binary returning `-1` for already-existing slots. In
+stdin-pipe mode the operator has already committed every line of
+the pipe; clearing the queue silently turned a single "already
+exists" into a half-applied deploy. Fix: in `stdin_pipe_mode` every
+line behaves as `ignore-fail` by default, so a -1 from one command
+does not drop the rest. The explicit `-` prefix path stays for
+explicit semantics. Diagnosis trail kept below for reference; the
+earlier "frame interleaving" hypothesis was wrong.
+
+---
 
 **`fix(ycommand): response of large install-binary intermittently lost in stdin-pipe`**
 
