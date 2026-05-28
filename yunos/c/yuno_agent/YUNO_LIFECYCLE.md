@@ -510,13 +510,18 @@ ycommand -c 'install-binary id=<role> content64=$$(<role>)'
 #    as primary.
 ycommand -c 'find-new-yunos create=1'
 
-# 4. Force the agent to promote the newest pkey2 to primary and restart
+# 4. Force the agent to promote the newest release to primary and restart
 #    deactivate-snap (no args, no active snap) is the only command that
-#    triggers `restart_nodes()` (c_agent.c:8816): SIGKILL every running
-#    yuno, gobj_stop/start the treedb resource (which rebuilds the
-#    primary index from disk — newest pkey2 wins), then run every
-#    must_play yuno. Equivalent to `yshutdown` + `restart-yuneta` but
-#    without restarting the agent process itself.
+#    triggers `restart_nodes()`: SIGKILL every running yuno, then —
+#    BEFORE the reload — `promote_highest_release_yunos()` re-appends the
+#    highest non-disabled `yuno_release` per id so it becomes the highest
+#    rowid. (The treedb primary is the highest-ROWID record, not the
+#    highest version; lifecycle/snap writes can leave an older release on
+#    top, which is why a plain reload alone is not enough — the old
+#    "force volatil" TODO.) gobj_stop/start then rebuilds the primary
+#    index from disk with the promoted release on top, and every
+#    must_play yuno runs on it. Equivalent to `yshutdown` +
+#    `restart-yuneta` but without restarting the agent process itself.
 ycommand -c 'deactivate-snap'
 
 # 5. Verify
@@ -531,10 +536,10 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
   yuno on the node, not just the one being upgraded. Tolerable for
   kernel-yuno rotations (`auth_bff`, `emailsender`, `logcenter`);
   worth flagging before doing it during a busy window on a realm
-  with many citizen yunos. A per-role rolling upgrade would require
-  `cmd_run_yuno` to be made snap-aware the same way
-  `get_yuno_binary` already is (TODO in `c_agent.c:4898-4900` is
-  the same observation).
+  with many citizen yunos. (The version-promotion half of the old
+  "force volatil" TODO is now handled by
+  `promote_highest_release_yunos()`; what remains is making the
+  bounce per-role instead of node-wide.)
 
 - **No orderly shutdown.** The SIGKILL means yunos do NOT run their
   `mt_stop` / FSM stop callbacks. For protocols that flush state on

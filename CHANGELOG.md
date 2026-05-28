@@ -1,6 +1,66 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(ytls): send SNI in OpenSSL client handshakes.** The
+      OpenSSL backend never set the TLS `server_name` extension —
+      the code was a `// TODO SSL_set_tlsext_host_name` stub — so
+      client ClientHellos went out without SNI. Virtual-hosted TLS
+      endpoints behind a CDN/WAF (e.g. an Imperva Incapsula front
+      end) reject SNI-less handshakes with HTTP 403. The mbedTLS
+      backend already set SNI and `c_tcp` already supplies
+      `ssl_server_name`; only the OpenSSL path dropped it. Now
+      stores `ssl_server_name` in `init()` and calls
+      `SSL_set_tlsext_host_name()` per-connection in
+      `new_secure_filter()` for client sockets. Server side is
+      unaffected (no servername callback registered, so incoming
+      SNI is ignored). Verified end-to-end: 403 → 200 against an
+      Imperva-fronted HTTPS API.
+
+    - **fix(timeranger2): fire key-delete callbacks for `rt_by_disk`
+      followers.** `fire_key_deleted_locally()` skipped every entry
+      with an `fs_event_client` (i.e. every `rt_by_disk` follower),
+      assuming the `FS_SUBDIR_DELETED` inotify branch fired their
+      `key_deleted_callback`. But that branch's only firing
+      mechanism *was* `fire_key_deleted_locally()`, which skipped
+      them — so a `rt_by_disk` follower's key-delete callback never
+      fired on a `tranger2_delete_key()`. The follower's in-memory
+      state only reconciled on restart (LOADING reload from
+      `keys/`); live deletes were silently dropped for every
+      fs-watcher follower framework-wide. Split the fan-out by
+      transport via a new `fs_followers` flag: the master in-process
+      path fires only non-watcher subscribers (rt_mem
+      lists/iterators); the `FS_SUBDIR_DELETED` inotify branch fires
+      only the `rt_disk` followers (the inotify event IS their
+      signal). Each subscriber now fires exactly once; also removes
+      a latent same-process double-fire of non-watcher subscribers.
+      Verified: a master `tranger2_delete_key` now drops the key
+      from a separate-process follower's in-memory cache live, no
+      restart.
+
+    - **fix(yuno_agent): promote highest `yuno_release` to primary on
+      `restart_nodes`.** The treedb primary for a yuno-id is the
+      highest-ROWID record, not the highest `yuno_release`:
+      lifecycle writes (kill/run/snap) append records for whatever
+      release is *active*, so after `install-binary` +
+      `find-new-yunos` an older release could stay primary and
+      `deactivate-snap` relaunched it instead of the new version
+      (the long-standing "force volatil" TODO; a `shoot-snap`
+      between `find-new-yunos` and `deactivate-snap` reliably
+      triggered it). New `promote_highest_release_yunos()` runs in
+      `restart_nodes()` BEFORE the treedb reload: for each id whose
+      highest non-disabled `yuno_release` is newer than the current
+      primary, it re-appends that release so it becomes the highest
+      rowid; the reload then makes it primary and
+      `run_enabled_yunos()` launches it. An append does NOT move the
+      in-memory primary index — only the reload rebuilds it — so the
+      promote must precede the `gobj_stop/start`. Version order via
+      the existing `get_n_v()`. (`volatil` itself was already
+      honored — `mt_update_node` routes volatil updates to
+      `set_volatil_values`, in-memory only — so the culprit was the
+      non-volatil lifecycle/snap writes, not the run-update.)
+      Verified: a multi-yuno realm upgraded to a new release with a
+      single `deactivate-snap`.
+
     - **fix(yev_loop): retry transient ENOMEM in
       `io_uring_queue_init_params`**. A synchronised restart of
       many yunos (e.g. an agent `deactivate-snap` on a node with

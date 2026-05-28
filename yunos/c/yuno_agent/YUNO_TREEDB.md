@@ -288,8 +288,15 @@ the deleted key. Two paths:
 - **Across-process** (`rt_by_disk` followers): the master
   `rmrdir`s `topic/disks/<rt_id>/<key>/` BEFORE the live
   `keys/<key>/` so the follower's inotify watcher catches it as
-  `FS_SUBDIR_DELETED_TYPE` and runs the same fan-out. No new IPC
-  channel, no new file convention.
+  `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
+  `key_deleted_callback`. `fire_key_deleted_locally()` is split by
+  transport (`fs_followers` flag): the master in-process call
+  serves non-watcher subscribers, the inotify branch serves the
+  fs-watcher followers — each subscriber fires exactly once. No new
+  IPC channel, no new file convention. (The inotify branch firing
+  the fs-watcher callbacks was completed 2026-05-28; before that the
+  shared fan-out skipped them and live deletes were silently
+  dropped — see CHANGELOG.)
 
 Register with:
 
