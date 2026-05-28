@@ -2756,7 +2756,8 @@ PRIVATE void fire_key_deleted_locally(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    const char *deleted_key
+    const char *deleted_key,
+    BOOL fs_followers
 )
 {
     const char *bands[] = { "lists", "iterators", "disks", NULL };
@@ -2769,11 +2770,18 @@ PRIVATE void fire_key_deleted_locally(
         json_t *entry;
         json_array_foreach(band, idx, entry) {
             /*
-             *  rt_disk entries with an active fs_watcher receive the
-             *  signal via the FS_SUBDIR_DELETED_TYPE inotify branch
-             *  (even in-process). Skip them here to avoid double-fire.
+             *  Split the fan-out by transport so each subscriber fires once:
+             *   - fs_followers==FALSE: only in-process subscribers WITHOUT an
+             *     fs_watcher (rt_mem lists/iterators). The master delete path
+             *     (tranger2_delete_key) uses this.
+             *   - fs_followers==TRUE: only rt_disk followers (those with an
+             *     fs_watcher). The FS_SUBDIR_DELETED inotify branch uses this —
+             *     that inotify event IS the follower's delete signal. (Before,
+             *     such followers were skipped in BOTH paths, so their
+             *     key_deleted_callback never fired.)
              */
-            if(json_object_get(entry, "fs_event_client")) {
+            BOOL has_fs_watcher = json_object_get(entry, "fs_event_client") != NULL;
+            if(has_fs_watcher != fs_followers) {
                 continue;
             }
             const char *filter_key = json_string_value(json_object_get(entry, "key"));
@@ -2908,7 +2916,7 @@ PUBLIC int tranger2_delete_key(
      *  then to local in-process subscribers.
      */
     mirror_key_delete_to_disks(gobj, topic, key);
-    fire_key_deleted_locally(gobj, tranger, topic, key);
+    fire_key_deleted_locally(gobj, tranger, topic, key, FALSE);  // in-process non-watcher subs
 
     /*
      *  Remove directory of topic's key
@@ -4582,7 +4590,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(cache) {
                     json_object_del(cache, deleted_key);
                 }
-                fire_key_deleted_locally(gobj, tranger, watched_topic, deleted_key);
+                fire_key_deleted_locally(gobj, tranger, watched_topic, deleted_key, TRUE);  // rt_disk followers
             }
             break;
 
