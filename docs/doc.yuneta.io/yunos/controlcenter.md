@@ -70,15 +70,14 @@ its **hostname**.
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
 
 ```bash
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd="list-yunos"'
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd2agent="list-yunos"'
 ```
 
 Parameters: `agent_id` (UUID or hostname), `agent_service`, and `cmd2agent`
-(the command to run on the node — the shipped README example passes it in the
-wild-command form `cmd="…"`). The control center routes the command to the one
-matching connected agent (`gobj_command`, first match only). The node's agent
-then executes it, and can itself target a specific yuno via its own
-`command-yuno` (`command=… service=…`).
+(the command to run on the node — this is the exact key the handler reads). The
+control center routes the command to the one matching connected agent
+(`gobj_command`, first match only). The node's agent then executes it, and can
+itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
 
 ## Inventory (TreeDB)
 

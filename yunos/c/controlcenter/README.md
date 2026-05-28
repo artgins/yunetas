@@ -42,7 +42,7 @@ Talk to it via `ycommand`:
 
 ```bash
 ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd="list-yunos"'
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
 ```
 
 The control center finds the matching connected agent (a `C_IEVENT_SRV` child
