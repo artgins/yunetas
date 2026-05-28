@@ -402,20 +402,18 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
 
     }
-    int len = (int)strlen(body);
-    gbuffer_t *gbuf = gbuffer_create(len, len);
-    if(len > 0) {
-        gbuffer_append(gbuf, (void *)body, len);
-    }
-
-    json_t *kw_send = json_pack("{s:s, s:s, s:s, s:I, s:b, s:b, s:s}",
+    /*
+     *  Body travels as a plain string so it is persisted with the queued
+     *  message (and survives retries / yuno restarts). ac_enqueue_message
+     *  also accepts a transient "gbuffer" pointer from other senders and
+     *  normalises it to this same "body" string.
+     */
+    json_t *kw_send = json_pack("{s:s, s:s, s:s, s:s, s:b}",
         "to", to,
         "reply_to", reply_to?reply_to:"",
         "subject", subject,
-        "gbuffer", (json_int_t)(uintptr_t)gbuf,
-        "is_html", is_html,
-        "__persistent_event__", 1,
-        "__persistence_reference__", "asdfasdfasfdsdf" // TODO no se usa persistencia
+        "body", body,
+        "is_html", is_html
     );
     if(attachment && access(attachment, 0)==0) {
         json_object_set_new(kw_send, "attachment", json_string(attachment));
@@ -839,6 +837,24 @@ PRIVATE int ac_enqueue_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Normalise the body to a persisted string. Senders may pass it as a
+     *  transient "gbuffer" pointer (logcenter, legacy callers); the queue
+     *  must store the bytes, not a pointer, or the body is lost on the first
+     *  retry (the dequeued kw's auto-decref frees the gbuffer) and on restart.
+     *  Extract the pointer (KW_EXTRACT removes the key, so the auto-decref
+     *  won't double-free) and drain it into "body".
+     */
+    gbuffer_t *gbuf_body = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw, "gbuffer", 0, KW_EXTRACT
+    );
+    if(gbuf_body) {
+        json_object_set_new(kw, "body",
+            json_stringn(gbuffer_cur_rd_pointer(gbuf_body), gbuffer_leftbytes(gbuf_body))
+        );
+        GBUFFER_DECREF(gbuf_body)
+    }
+
     if(gobj_read_bool_attr(gobj, "disable_alarm_emails")) {
         const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
         if(strstr(subject, "ALERTA Encolamiento") || strstr(subject, "ALERT Queuing")
@@ -960,8 +976,6 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
     BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
 
-    gbuffer_t *gbuf_body = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
     q_msg_t *qmsg_for_fail = priv->sd_cur_email;
 
     if(empty_string(to)) {
@@ -981,6 +995,17 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     /*--------------------------------*
      *      MIME encode the message
      *--------------------------------*/
+    /*
+     *  Body is persisted as a string; wrap it in a transient gbuffer for the
+     *  MIME encoder (which does not take ownership). Freed right after build.
+     */
+    const char *body = kw_get_str(gobj, kw, "body", "", 0);
+    size_t body_src_len = strlen(body);
+    gbuffer_t *gbuf_body = NULL;
+    if(body_src_len > 0) {
+        gbuf_body = gbuffer_create(body_src_len, body_src_len);
+        gbuffer_append(gbuf_body, (void *)body, body_src_len);
+    }
     mime_email_t m = {
         .from = from,
         .from_beautiful = from_beautiful,
@@ -994,6 +1019,7 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         .inline_file_id = empty_string(inline_file_id) ? NULL : inline_file_id,
     };
     gbuffer_t *mime_body = mime_build_message(gobj, &m);
+    GBUFFER_DECREF(gbuf_body)
     if(!mime_body) {
         /* Error already logged */
         priv->sd_cur_email = NULL;
