@@ -20,7 +20,7 @@ From [`src/main.c`](src/main.c):
 Initial config (from `variable_config` in `main.c`): one `deny_subscribes`
 entry `["test/nosubscribe"]` as a placeholder. Real deployments override
 the broker's attrs via the external config file (see
-[`LIFECYCLE.md`](../yuno_agent/LIFECYCLE.md) §2.2 for how the agent
+[`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §2.2 for how the agent
 materialises configs).
 
 ## Commands
@@ -80,5 +80,5 @@ ycommand -c 'create-yuno realm_id=<realm> yuno_role=mqtt_broker yuno_name=<name>
 ycommand -c 'run-yuno'
 ```
 
-See [`LIFECYCLE.md`](../yuno_agent/LIFECYCLE.md) §6 for the canonical
+See [`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §6 for the canonical
 deploy recipes.

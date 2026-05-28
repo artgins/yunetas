@@ -44,7 +44,7 @@ not stored in the batch / treedb / config files.
 Standard yuneta build (`make install` from the yuno's `build/`
 directory) followed by the agent's `install-binary` + `create-yuno` +
 `run-yuno` cycle. See
-[`LIFECYCLE.md`](../yuno_agent/LIFECYCLE.md) §6.
+[`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §6.
 
 Production deployments live in the private `estadodelaire` repo
 under its `batches/<host>/` tree.

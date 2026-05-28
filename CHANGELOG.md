@@ -43,6 +43,40 @@
       "WS frame interleaving" hypothesis logged in TODO.md was
       ruled out (kept as a post-mortem trail).
 
+    - **fix(emailsender): retry queued emails instead of
+      dead-lettering on the first failure, and persist the body**.
+      Any send failure (SMTP server down, wrong URL, rejected
+      AUTH, or simply the SMTP child still connecting when the
+      dequeue timer fired) used to move the email straight to the
+      `emails_failed` dead-letter queue and unload it — `max_retries`
+      was declared but never used and nothing drains the failed
+      queue, so one transient hiccup shelved the message forever.
+      Now the message stays at the head of `emails_queue` and is
+      only dispatched while the SMTP session is connected and
+      authenticated (a momentary outage just waits and retries on
+      reconnect); transient failures are retried up to `max_retries`
+      total attempts before being dead-lettered. The body is now
+      persisted as a string in the queue — it was carried as a
+      transient gbuffer pointer that the dequeued kw's auto-decref
+      freed after the first attempt, so retries (and any yuno
+      restart) lost the body. Also split RCPT recipients on `;` as
+      well as `,` (an Outlook-style list or a stray trailing `;`,
+      e.g. logcenter's summary `to`, was rejected by the server as
+      `501 Invalid TO`). Deployed and validated live on
+      `emailsender^artgins`.
+
+    - **feat(emu_device): implement the frame-emission path on
+      timeranger2**. The device-gate emulator was a scaffold: its
+      replay was written against the removed timeranger v1 API and
+      its `__output_side__` had no TCP connex (the v6 Connex/Tcp0
+      globals were dead). Ported to v7 — the output side is built
+      in code (`C_IOGATE > C_CHANNEL > C_PROT_RAW > C_TCP` to `url`,
+      like `sgateway`); `mt_play` loads matching `frame64` records
+      via `tranger2_open_list`, and on connect it sends the
+      `leading` frame then `window` frames every `interval` ms.
+      Compile-verified only; end-to-end runtime validation (needs a
+      `frame64` topic + a TCP sink) is tracked in `TODO.md`.
+
 ## v7.4.3 -- 27/May/2026
     - **feat(emailsender)!: drop libcurl, native SMTP over ytls**.
       `emailsender` was the only yuno that linked libcurl, which
