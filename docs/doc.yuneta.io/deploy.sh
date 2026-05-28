@@ -24,5 +24,16 @@ fi
 
 ORIGIN="./_build/html/"
 DESTINE="yuneta@yuneta.io:/yuneta/gui/doc.yuneta.io/"
-rsync -auvzL -e ssh \
-    $ORIGIN $DESTINE
+
+# Safety guard: a failed/empty build must never reach the --delete rsync, or it
+# would wipe the live site. Require the built entry page before syncing.
+if [ ! -f "${ORIGIN}index.html" ]; then
+    echo "ERROR: ${ORIGIN}index.html missing; build failed or incomplete — aborting deploy." >&2
+    exit 1
+fi
+
+# --delete mirrors the build onto the server: pages and content-hashed assets
+# dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
+# the server too. --delete-after defers removals until the transfer succeeds.
+rsync -auvzL --delete-after -e ssh \
+    "$ORIGIN" "$DESTINE"
