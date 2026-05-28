@@ -238,6 +238,12 @@ project:
 
     - title: Built-in Modules
       file: modules.md
+      children:
+        - file: modules/console.md
+        - file: modules/modbus.md
+        - file: modules/mqtt.md
+        - file: modules/postgres.md
+        - file: modules/test.md
 
     - title: Built-in Yunos
       file: yunos.md
