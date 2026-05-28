@@ -137,6 +137,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_dequeue;
     json_int_t max_retries;
     q_msg_t *sd_cur_email;
+    json_int_t cur_retries;     /* failed attempts for the current head message */
+    BOOL smtp_ready;            /* TRUE between EV_ON_OPEN and EV_ON_CLOSE (child connected+authed) */
 
     json_int_t send;
     json_int_t sent;
@@ -716,9 +718,24 @@ PRIVATE q_msg_t *enqueue_failing_message(
 // }
 
 /***************************************************************************
- *  Enqueue failing message
+ *  Resolve the in-flight message after an SMTP send attempt.
+ *      result >= 0 -> sent OK: unload from the queue.
+ *      result <  0 -> failed:
+ *          - transient (permanent==FALSE) with retries left -> keep the
+ *            message at the head of the queue (NOT unloaded) so the next
+ *            dequeue retries it. max_retries bounds total attempts.
+ *          - permanent (bad content), or retries exhausted -> move to the
+ *            failed (dead-letter) queue and unload.
+ *  The message is never lost: it stays persisted in emails_queue until it is
+ *  either sent or copied into emails_failed.
  ***************************************************************************/
-PRIVATE int process_smtp_response(hgobj gobj, q_msg_t *msg, int result, const char *to)
+PRIVATE int process_smtp_response(
+    hgobj gobj,
+    q_msg_t *msg,
+    int result,
+    BOOL permanent,
+    const char *to
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -732,17 +749,24 @@ PRIVATE int process_smtp_response(hgobj gobj, q_msg_t *msg, int result, const ch
         return 0;
     }
 
-    if(result < 0) {
-        // Error already logged
+    /*
+     *  Exactly one ack/nack per in-flight send: balance the increment done
+     *  at the top of ac_smtp_command.
+     */
+    if(priv->pending_acks > 0) {
+        priv->pending_acks--;
+    } else {
         gobj_log_error(gobj, 0,
-            "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "email NOT sent",
-            "to",       "%s", to,
-            "url",      "%s", priv->url,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "pending_acks ZERO or NEGATIVE",
+            "to",           "%s", to,
+            "pending_acks", "%ld", (long)priv->pending_acks,
             NULL
         );
-        enqueue_failing_message(gobj, msg);
-    } else {
+    }
+
+    if(result >= 0) {
         gobj_log_info(gobj, 0,
             "msgset",   "%s", MSGSET_INFO,
             "msg",      "%s", "email sent",
@@ -751,21 +775,46 @@ PRIVATE int process_smtp_response(hgobj gobj, q_msg_t *msg, int result, const ch
             NULL
         );
         priv->sent++;
-    }
-
-    if (priv->pending_acks > 0) {
-        priv->pending_acks--;
+        priv->cur_retries = 0;
+        trq_unload_msg(msg, result);
     } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "pending_acks ZERO or NEGATIVE",
-            "to",           "%s", to,
-            "pending_acks", "%ld", (unsigned long) priv->pending_acks,
-            NULL
-        );
+        priv->cur_retries++;
+        if(!permanent && priv->cur_retries < priv->max_retries) {
+            /*
+             *  Transient failure with retries left. The underlying SMTP /
+             *  transport error is already logged downstream. Keep the message
+             *  at the head of the queue (do NOT unload): the next dequeue
+             *  (or the next EV_ON_OPEN, if the link dropped) retries it.
+             */
+            gobj_log_warning(gobj, 0,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "email NOT sent, will retry",
+                "to",           "%s", to,
+                "url",          "%s", priv->url,
+                "attempt",      "%ld", (long)priv->cur_retries,
+                "max_retries",  "%ld", (long)priv->max_retries,
+                NULL
+            );
+        } else {
+            /*
+             *  Permanent failure, or retries exhausted: move to the failed
+             *  (dead-letter) queue and unload from the main queue.
+             */
+            gobj_log_error(gobj, 0,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "email NOT sent, moved to failed queue",
+                "to",           "%s", to,
+                "url",          "%s", priv->url,
+                "attempt",      "%ld", (long)priv->cur_retries,
+                "max_retries",  "%ld", (long)priv->max_retries,
+                "permanent",    "%d", permanent?1:0,
+                NULL
+            );
+            enqueue_failing_message(gobj, msg);
+            trq_unload_msg(msg, result);
+            priv->cur_retries = 0;
+        }
     }
-    trq_unload_msg(msg, result);
 
     gobj_change_state(gobj, ST_IDLE);
     set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
@@ -839,7 +888,22 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
     }
 
     /*
-     *  Dequeue the message
+     *  Only dispatch when the SMTP session is connected and authenticated
+     *  (between EV_ON_OPEN and EV_ON_CLOSE). Otherwise leave the message in
+     *  the persistent queue and wait: C_TCP reconnects on its own and
+     *  ac_on_open kicks the dequeue again. This avoids dead-lettering
+     *  perfectly good messages just because the link is momentarily down
+     *  (server restart, transient network, or simply still handshaking at
+     *  startup with a backlog loaded from disk).
+     */
+    if(!priv->smtp_ready) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    /*
+     *  Dequeue the message (head of queue; it stays there until unloaded,
+     *  so a retry sees the same message again).
      */
     priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
     if(priv->sd_cur_email) {
@@ -872,6 +936,12 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return -1;
     }
 
+    /*
+     *  One in-flight send: count it now so every process_smtp_response()
+     *  exit below (success, permanent failure, retry) stays balanced.
+     */
+    priv->pending_acks++;
+
     const char *from = kw_get_str(gobj, kw, "from", 0, 0);
     if(empty_string(from)) {
         from = priv->from;
@@ -903,7 +973,7 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             NULL
         );
         priv->sd_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, "");
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, ""); // permanent: bad content
         KW_DECREF(kw);
         return -1;
     }
@@ -927,7 +997,7 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!mime_body) {
         /* Error already logged */
         priv->sd_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, to);
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: bad content
         KW_DECREF(kw);
         return -1;
     }
@@ -957,13 +1027,12 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         );
         GBUFFER_DECREF(mime_body)
         priv->sd_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, to);
+        process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: cannot build request
         KW_DECREF(kw);
         return -1;
     }
     GBUFFER_DECREF(mime_body)
 
-    priv->pending_acks++;
     priv->send++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -978,9 +1047,12 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      */
     int ret = gobj_send_event(priv->smtp, EV_SEND_MESSAGE, kw_send, gobj);
     if(ret < 0) {
-        /* SMTP child not ready (still connecting, or dead) — fail now. */
+        /*
+         *  SMTP child not in ST_IDLE (raced a close between the dequeue guard
+         *  and here). Transient: retry on the next dequeue / reconnect.
+         */
         priv->sd_cur_email = NULL;
-        process_smtp_response(gobj, qmsg_for_fail, -1, to);
+        process_smtp_response(gobj, qmsg_for_fail, -1, FALSE, to);
     }
 
     KW_DECREF(kw);
@@ -1011,7 +1083,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     q_msg_t *qmsg = priv->sd_cur_email;
     priv->sd_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, "");
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, FALSE, "");
 
     KW_DECREF(kw);
     return 0;
@@ -1026,8 +1098,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->smtp && gobj_in_this_state(gobj, ST_IDLE)) {
-        set_timeout(priv->timer, priv->timeout_dequeue);
+    if(src == priv->smtp) {
+        priv->smtp_ready = TRUE;
+        if(gobj_in_this_state(gobj, ST_IDLE)) {
+            set_timeout(priv->timer, priv->timeout_dequeue);
+        }
     }
 
     KW_DECREF(kw);
@@ -1042,10 +1117,17 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->smtp && priv->sd_cur_email) {
-        q_msg_t *qmsg = priv->sd_cur_email;
-        priv->sd_cur_email = NULL;
-        process_smtp_response(gobj, qmsg, -1, "");
+    if(src == priv->smtp) {
+        priv->smtp_ready = FALSE;
+        if(priv->sd_cur_email) {
+            /*
+             *  Link dropped mid-send. Transient: process_smtp_response keeps
+             *  the message queued for a retry on reconnect (until max_retries).
+             */
+            q_msg_t *qmsg = priv->sd_cur_email;
+            priv->sd_cur_email = NULL;
+            process_smtp_response(gobj, qmsg, -1, FALSE, "");
+        }
     }
 
     KW_DECREF(kw);
