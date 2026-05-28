@@ -241,9 +241,73 @@ project:
 
     - title: Built-in Yunos
       file: yunos.md
+      children:
+        - title: Agent & Management
+          children:
+            - file: yunos/yuneta_agent.md
+            - file: yunos/yuneta_agent22.md
+            - file: yunos/controlcenter.md
+            - file: yunos/logcenter.md
+        - title: Messaging & Protocol
+          children:
+            - file: yunos/mqtt_broker.md
+            - file: yunos/sgateway.md
+        - title: Authentication
+          children:
+            - file: yunos/auth_bff.md
+        - title: Data & Infrastructure
+          children:
+            - file: yunos/dba_postgres.md
+            - file: yunos/emailsender.md
+        - title: Development & Testing
+          children:
+            - file: yunos/watchfs.md
+            - file: yunos/emu_device.md
 
     - title: Utilities
       file: utilities.md
+      children:
+        - title: Control Plane
+          children:
+            - file: utilities/ycommand.md
+            - file: utilities/ybatch.md
+            - file: utilities/ystats.md
+            - file: utilities/ytests.md
+            - file: utilities/ylist.md
+            - file: utilities/yshutdown.md
+        - title: Interactive Clients
+          children:
+            - file: utilities/ycli.md
+            - file: utilities/mqtt_tui.md
+        - title: Data Inspection
+          children:
+            - file: utilities/tr2list.md
+            - file: utilities/tr2keys.md
+            - file: utilities/tr2search.md
+            - file: utilities/tr2migrate.md
+            - file: utilities/treedb_list.md
+            - file: utilities/msg2db_list.md
+            - file: utilities/list_queue_msgs2.md
+            - file: utilities/stats_list.md
+            - file: utilities/json_diff.md
+        - title: Code Generation
+          children:
+            - file: utilities/yuno-skeleton.md
+            - file: utilities/ymake-skeleton.md
+            - file: utilities/yclone-gclass.md
+            - file: utilities/yclone-project.md
+            - file: utilities/yscapec.md
+        - title: Diagnostics
+          children:
+            - file: utilities/fs_watcher.md
+            - file: utilities/inotify.md
+            - file: utilities/ytestconfig.md
+            - file: utilities/time2date.md
+            - file: utilities/time2range.md
+            - file: utilities/static_binary_test.md
+        - title: Security
+          children:
+            - file: utilities/keycloak_pkey_to_jwks.md
 
     - title: Test Suite
       file: testing.md
