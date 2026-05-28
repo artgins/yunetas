@@ -7,7 +7,9 @@ Useful for quick conversions when debugging logs, computing range boundaries, or
 ## Usage
 
 ```bash
-time2range <time_t> [options]
+time2range -t <time_t> -p <type> [-r <range>] [-z <TZ>]
 ```
 
+The timestamp is the `-t`/`--time_t` option (not a positional). `-t` and
+`-p`/`--type` (`hours`|`days`|`weeks`|`months`|`years`) are required.
 Run `time2range --help` for the full option list.

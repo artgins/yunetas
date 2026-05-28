@@ -5,7 +5,10 @@ Clone a whole Yuneta project (yuno, util, …) under a new name. Renames source 
 ## Usage
 
 ```bash
-yclone-project <source-dir> <new-name>
+yclone-project <SOURCE-PROJECT> <DESTINATION-PROJECT> --src-keyword <kw> --dst-keyword <kw>
 ```
+
+Both positionals and both keyword options are required. `SOURCE-PROJECT` must
+exist; `DESTINATION-PROJECT` must not.
 
 See also `yclone-gclass` for cloning a single GClass.

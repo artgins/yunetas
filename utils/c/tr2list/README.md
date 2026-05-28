@@ -5,7 +5,8 @@ List records from a **timeranger2** topic. Supports filtering by time range and 
 ## Usage
 
 ```bash
-tr2list --path <tranger-path> --topic <topic> [options]
+tr2list <PATH> [options]
 ```
 
-Run `tr2list --help` for all filters (`--from-t`, `--to-t`, `--from-rowid`, `--fields`, `--metadata`, …).
+`PATH` is a positional argument (the topic/database are deduced from it).
+Run `tr2list --help` for all filters (`--from-t`, `--to-t`, `--from-rowid`, `--fields`, `--show_md2`, …).

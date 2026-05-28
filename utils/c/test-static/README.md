@@ -6,8 +6,10 @@ Minimal "hello world" program used as a smoke test for the **fully-static build*
 
 ```bash
 cd utils/c/test-static/build && make
-file hello           # should report: statically linked
-./hello
+file static_binary_test     # should report: statically linked
+./static_binary_test
 ```
+
+(The source file is `hello.c`, but the built binary is `static_binary_test`.)
 
 If the resulting binary is dynamically linked or references `ld-linux-*.so`, something is wrong with the static-build configuration — see the top-level `CLAUDE.md` for the full static-binary notes.

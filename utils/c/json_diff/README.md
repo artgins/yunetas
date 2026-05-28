@@ -5,7 +5,9 @@ Semantic diff of two JSON files. Arrays can be compared as unordered sets, and m
 ## Usage
 
 ```bash
-json_diff <file1.json> <file2.json> [options]
+json_diff --file1 <a.json> --file2 <b.json> [options]
 ```
 
-Run `json_diff --help` for the full list of options (unordered arrays, skip private keys, etc.).
+The files are passed via `--file1`/`-a` and `--file2`/`-b` (not positionally).
+Run `json_diff --help` for the full list of options (`--without_metadata`/`-m`,
+`--without_private`/`-p`, …).
