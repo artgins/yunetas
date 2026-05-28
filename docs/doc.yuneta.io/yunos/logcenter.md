@@ -17,7 +17,7 @@ C_LOGCENTER            <- counting, rotation, summary, monitoring, self-heal
 ```
 
 Summary e-mails are sent by publishing `EV_SEND_EMAIL` to the `emailsender`
-service (see [`emailsender`](yuno-emailsender)).
+service (see [`emailsender`](emailsender.md)).
 
 ### Wire format
 
