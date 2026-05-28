@@ -8371,6 +8371,89 @@ PRIVATE int authzs_to_yuno(
 }
 
 /***************************************************************************
+ *  Promote the highest yuno_release per id so the reload makes it primary.
+ *
+ *  The treedb primary for a yuno-id is the highest-ROWID record, not the
+ *  highest yuno_release: lifecycle writes (kill/run/snap) append records for
+ *  whatever release is active, so an older release can sit on top and a
+ *  pending binary upgrade never takes effect (the `force volatil` TODO).
+ *
+ *  An append does NOT move the in-memory primary index — only a reload
+ *  rebuilds it. So this MUST run BEFORE the restart_nodes() reload: for each
+ *  id whose highest non-disabled yuno_release is newer than the current
+ *  primary, re-append that release (gobj_update_node) so it becomes the
+ *  highest rowid; the imminent reload then makes it the primary and
+ *  run_enabled_yunos() launches the newest version.
+ ***************************************************************************/
+PRIVATE int promote_highest_release_yunos(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char *resource = "yunos";
+
+    json_t *primaries = gobj_list_nodes(
+        priv->resource,
+        resource,
+        0, // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    int idx; json_t *primary;
+    json_array_foreach(primaries, idx, primary) {
+        const char *id = kw_get_str(gobj, primary, "id", 0, 0);
+        const char *primary_release = kw_get_str(gobj, primary, "yuno_release", "", 0);
+        if(empty_string(id)) {
+            continue;
+        }
+
+        json_t *instances = gobj_list_instances(
+            priv->resource,
+            resource,
+            "",
+            json_pack("{s:s}", "id", id),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            gobj
+        );
+
+        const char *best_release = primary_release;
+        int jx; json_t *inst;
+        json_array_foreach(instances, jx, inst) {
+            if(kw_get_bool(gobj, inst, "yuno_disabled", 0, 0)) {
+                continue;
+            }
+            const char *rel = kw_get_str(gobj, inst, "yuno_release", "", 0);
+            if(!empty_string(rel) && get_n_v(rel) > get_n_v(best_release)) {
+                best_release = rel;
+            }
+        }
+
+        if(get_n_v(best_release) > get_n_v(primary_release)) {
+            gobj_log_info(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_STARTUP,
+                "msg",      "%s", "promote highest yuno_release to primary",
+                "id",       "%s", id,
+                "from",     "%s", primary_release,
+                "to",       "%s", best_release,
+                NULL
+            );
+            json_decref(
+                gobj_update_node(   // re-append → highest rowid for the reload
+                    priv->resource,
+                    resource,
+                    json_pack("{s:s, s:s}", "id", id, "yuno_release", best_release),
+                    0, // options
+                    gobj
+                )
+            );
+        }
+        JSON_DECREF(instances);
+    }
+    JSON_DECREF(primaries);
+    return 0;
+}
+
+/***************************************************************************
  *  Try to run the activated yunos.
  *  This function is called once by timer at startup
  ***************************************************************************/
@@ -8885,6 +8968,13 @@ PRIVATE int restart_nodes(hgobj gobj)
     JSON_DECREF(iter)
     // Restore kill
     gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
+
+    /*----------------------------------------*
+     *  Promote the highest yuno_release per id BEFORE the reload, so the
+     *  rebuilt primary index is the newest version (not just the highest
+     *  rowid left by lifecycle writes). Must precede the gobj_stop/start.
+     *----------------------------------------*/
+    promote_highest_release_yunos(gobj);
 
     /*----------------------------*
      *  Restart treedb
