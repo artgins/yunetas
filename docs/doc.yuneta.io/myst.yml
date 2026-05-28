@@ -24,12 +24,14 @@ project:
     - file: index.md
 
     - title: Get Started
+      file: get_started.md
       children:
         - file: installation.md
         - file: activating.md
         - file: CHANGELOG.md
 
     - title: Philosophy
+      file: philosophy/index.md
       children:
         - title: Design Principles
           file: philosophy/design_principles.md
@@ -41,6 +43,7 @@ project:
           file: philosophy/philosophy.md
 
     - title: Operating Yuneta
+      file: operating_yuneta.md
       children:
         - title: Entry point (main + watcher)
           file: ../../yunos/c/yuno_agent/ENTRY_POINT.md
@@ -62,6 +65,7 @@ project:
           file: ../../yunos/c/yuno_agent/YUNO_TREEDB.md
 
     - title: Guides
+      file: guide/index.md
       children:
         - file: guide/basic_concepts.md
         - file: guide/guide_gclass.md
@@ -82,8 +86,10 @@ project:
         - file: guide/guide_oauth2_pkce_bff.md
 
     - title: API Reference
+      file: api/index.md
       children:
         - title: GObj
+          file: api/gobj/index.md
           children:
             - title: Startup
               file: api/gobj/startup.md
@@ -110,6 +116,7 @@ project:
             - title: Node
               file: api/gobj/node.md
         - title: Helpers
+          file: api/helpers/index.md
           children:
             - title: String
               file: api/helpers/string_helper.md
@@ -144,6 +151,7 @@ project:
             - title: Misc
               file: api/helpers/misc.md
         - title: Logging
+          file: api/logging/index.md
           children:
             - title: Log
               file: api/logging/log.md
@@ -154,6 +162,7 @@ project:
             - title: Rotatory
               file: api/logging/rotatory.md
         - title: Parsers
+          file: api/parsers/index.md
           children:
             - title: Command Parser
               file: api/parsers/command_parser.md
@@ -162,6 +171,7 @@ project:
         - title: Testing
           file: api/testing/testing.md
         - title: Timeranger2
+          file: api/timeranger2/index.md
           children:
             - title: timeranger2
               file: api/timeranger2/timeranger2.md
@@ -182,6 +192,7 @@ project:
         - title: JWT (libjwt)
           file: api/libjwt.md
         - title: Runtime
+          file: api/runtime/index.md
           children:
             - title: Entry Point
               file: api/runtime/entry_point.md
@@ -200,8 +211,8 @@ project:
             - title: GClass Registration
               file: api/runtime/registration.md
         - title: JavaScript
+          file: api/js/index.md
           children:
-            - file: api/js/index.md
             - file: api/js/bootstrap.md
             - file: api/js/gclass.md
             - file: api/js/lifecycle.md
@@ -216,9 +227,8 @@ project:
             - file: api/js/treedb_helpers.md
 
     - title: Built-in GClasses
+      file: api/gclass/index.md
       children:
-        - title: Overview
-          file: api/gclass/index.md
         - title: Transport
           file: api/gclass/transport.md
         - title: Protocol
@@ -249,23 +259,28 @@ project:
       file: yunos.md
       children:
         - title: Agent & Management
+          file: yunos/agent-and-management.md
           children:
             - file: yunos/yuneta_agent.md
             - file: yunos/yuneta_agent22.md
             - file: yunos/controlcenter.md
             - file: yunos/logcenter.md
         - title: Messaging & Protocol
+          file: yunos/messaging-and-protocol.md
           children:
             - file: yunos/mqtt_broker.md
             - file: yunos/sgateway.md
         - title: Authentication
+          file: yunos/authentication.md
           children:
             - file: yunos/auth_bff.md
         - title: Data & Infrastructure
+          file: yunos/data-and-infrastructure.md
           children:
             - file: yunos/dba_postgres.md
             - file: yunos/emailsender.md
         - title: Development & Testing
+          file: yunos/development-and-testing.md
           children:
             - file: yunos/watchfs.md
             - file: yunos/emu_device.md
@@ -274,6 +289,7 @@ project:
       file: utilities.md
       children:
         - title: Control Plane
+          file: utilities/control-plane.md
           children:
             - file: utilities/ycommand.md
             - file: utilities/ybatch.md
@@ -282,10 +298,12 @@ project:
             - file: utilities/ylist.md
             - file: utilities/yshutdown.md
         - title: Interactive Clients
+          file: utilities/interactive-clients.md
           children:
             - file: utilities/ycli.md
             - file: utilities/mqtt_tui.md
         - title: Data Inspection
+          file: utilities/data-inspection.md
           children:
             - file: utilities/tr2list.md
             - file: utilities/tr2keys.md
@@ -297,6 +315,7 @@ project:
             - file: utilities/stats_list.md
             - file: utilities/json_diff.md
         - title: Code Generation
+          file: utilities/code-generation.md
           children:
             - file: utilities/yuno-skeleton.md
             - file: utilities/ymake-skeleton.md
@@ -304,6 +323,7 @@ project:
             - file: utilities/yclone-project.md
             - file: utilities/yscapec.md
         - title: Diagnostics
+          file: utilities/diagnostics.md
           children:
             - file: utilities/fs_watcher.md
             - file: utilities/inotify.md
@@ -312,6 +332,7 @@ project:
             - file: utilities/time2range.md
             - file: utilities/static_binary_test.md
         - title: Security
+          file: utilities/security.md
           children:
             - file: utilities/keycloak_pkey_to_jwks.md
 
