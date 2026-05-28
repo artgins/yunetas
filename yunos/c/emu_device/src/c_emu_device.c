@@ -4,11 +4,19 @@
  *
  *          Emulator of device gates
  *
+ *          Replays recorded frames (field "frame64" of a timeranger2 topic)
+ *          out through __output_side__ at a controlled rate: `window` frames
+ *          every `interval` milliseconds. Used to feed device-facing gates /
+ *          ingest pipelines without real hardware.
+ *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <inttypes.h>
 #include <limits.h>
 #include "c_emu_device.h"
 
@@ -23,9 +31,20 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int list_databases(const char *path);
-PRIVATE int list_topics(const char *path, const char *database);
-
+PRIVATE int create_output_side(hgobj gobj);
+PRIVATE int collect_record_cb(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned
+);
+PRIVATE int send_frame_b64(hgobj gobj, const char *frame64);
+PRIVATE int send_window(hgobj gobj);
+PRIVATE BOOL frames_exhausted(hgobj gobj);
+PRIVATE int finish_replay(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -78,7 +97,7 @@ SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST,         0,  
 SDATA (DTP_STRING,      "path",                 SDF_WR|SDF_PERSIST,         0,   "Path of database."                 ),
 SDATA (DTP_STRING,      "database",             SDF_WR|SDF_PERSIST,         0,   "Database Name."                    ),
 SDATA (DTP_STRING,      "topic",                SDF_WR|SDF_PERSIST,         0,   "Database Topic."                   ),
-SDATA (DTP_STRING,      "leading",              SDF_WR|SDF_PERSIST,         0,   "Leading data."                   ),
+SDATA (DTP_STRING,      "leading",              SDF_WR|SDF_PERSIST,         0,   "Leading data (base64 frame sent on connect)."),
 SDATA (DTP_STRING,      "from_t",               SDF_WR|SDF_PERSIST,         0,   "From time."                        ),
 SDATA (DTP_STRING,      "to_t",                 SDF_WR|SDF_PERSIST,         0,   "To time."                          ),
 SDATA (DTP_STRING,      "from_rowid",           SDF_WR|SDF_PERSIST,         0,   "From rowid."                       ),
@@ -87,8 +106,7 @@ SDATA (DTP_STRING,      "user_flag_mask_set",   SDF_WR|SDF_PERSIST,         0,  
 SDATA (DTP_STRING,      "user_flag_mask_notset",SDF_WR|SDF_PERSIST,         0,   "Mask of User Flag not set."        ),
 SDATA (DTP_STRING,      "system_flag_mask_set", SDF_WR|SDF_PERSIST,         0,   "Mask of System Flag set."          ),
 SDATA (DTP_STRING,      "system_flag_mask_notset",SDF_WR|SDF_PERSIST,       0,   "Mask of System Flag not set."      ),
-SDATA (DTP_STRING,      "use_very_first",       SDF_WR|SDF_PERSIST,         0,   "Search from the very first record."),
-SDATA (DTP_STRING,      "key",                  SDF_WR|SDF_PERSIST,         0,   "Key."                              ),
+SDATA (DTP_STRING,      "key",                  SDF_WR|SDF_PERSIST,         0,   "Key (default: all keys)."          ),
 SDATA (DTP_STRING,      "notkey",               SDF_WR|SDF_PERSIST,         0,   "Not key."                          ),
 
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,                     "2000",         "Timeout"),
@@ -121,13 +139,12 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_output_side;
 
     json_t *tranger;
-    json_t *htopic;
+    json_t *jn_list;        /* tranger2_open_list handle */
     json_t *match_cond;
-    md2_record_ex_t md_record;
-    uint64_t last_id;
+    json_t *jn_frames;      /* loaded records (with "frame64"), drained at window/interval rate */
+    json_int_t frame_idx;   /* index of the next frame to send */
 
 } PRIVATE_DATA;
-
 
 
 
@@ -146,9 +163,9 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-
     priv->timer_interval = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    // TODO gobj_write_str_attr(priv->timer_interval, "timeout_event_name", EV_TICK2SEND);
+
+    create_output_side(gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -192,6 +209,10 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->timer_interval);
+
     return 0;
 }
 
@@ -200,6 +221,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->timer_interval);
+    gobj_stop(priv->timer_interval);
+
     return 0;
 }
 
@@ -218,22 +244,38 @@ PRIVATE int mt_play(hgobj gobj)
     const char *topic = gobj_read_str_attr(gobj, "topic");
 
     if(empty_string(url)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "What __output_side__ url?",
+            NULL
+        );
         if(agent_client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "What yuno __input_side__ url?",
-                NULL
-            );
             gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        } else {
-            fprintf(stderr, "What yuno __input_side__ url?\n");
-            exit(-1);
+            return -1;
         }
+        fprintf(stderr, "What __output_side__ url?\n");
+        exit(-1);
+    }
+
+    if(empty_string(path)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "What TimeRanger path?",
+            NULL
+        );
+        if(agent_client) {
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
+            return -1;
+        }
+        fprintf(stderr, "What TimeRanger path?\n");
+        exit(-1);
     }
 
     /*
-     *  Check if path contains all
+     *  If path points directly at a topic directory (contains topic_desc.json),
+     *  derive path/database/topic from it.
      */
     char bftemp[PATH_MAX];
     snprintf(bftemp, sizeof(bftemp), "%s%s%s",
@@ -248,72 +290,52 @@ PRIVATE int mt_play(hgobj gobj)
         path = bftemp;
     }
 
-    if(empty_string(path)) {
-        if(agent_client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "What TimeRanger path?",
-                NULL
-            );
-            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        } else {
-            fprintf(stderr, "What TimeRanger path?\n");
-            exit(-1);
-        }
-    }
     if(empty_string(database)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "What Database?",
+            NULL
+        );
         if(agent_client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "What Database?",
-                NULL
-            );
             gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        } else {
-            fprintf(stderr, "What Database?\n\n");
-            list_databases(path);
-            exit(-1);
+            return -1;
         }
+        fprintf(stderr, "What Database? (try: tr2list --list-databases %s)\n", path);
+        exit(-1);
     }
     if(empty_string(topic)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "What Topic?",
+            NULL
+        );
         if(agent_client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "What Topic?",
-                NULL
-            );
             gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        } else {
-            fprintf(stderr, "What Topic?\n\n");
-            list_topics(path, database);
-            exit(-1);
+            return -1;
         }
+        fprintf(stderr, "What Topic?\n");
+        exit(-1);
     }
 
     /*----------------------------------*
-     *  Match conditions
+     *  Build match conditions
      *----------------------------------*/
     const char *from_t = gobj_read_str_attr(gobj, "from_t");
     const char *to_t = gobj_read_str_attr(gobj, "to_t");
-
     const char *from_rowid = gobj_read_str_attr(gobj, "from_rowid");
     const char *to_rowid = gobj_read_str_attr(gobj, "to_rowid");
-
     const char *user_flag_mask_set = gobj_read_str_attr(gobj, "user_flag_mask_set");
     const char *user_flag_mask_notset = gobj_read_str_attr(gobj, "user_flag_mask_notset");
-
     const char *system_flag_mask_set = gobj_read_str_attr(gobj, "system_flag_mask_set");
     const char *system_flag_mask_notset = gobj_read_str_attr(gobj, "system_flag_mask_notset");
-
     const char *key = gobj_read_str_attr(gobj, "key");
     const char *notkey = gobj_read_str_attr(gobj, "notkey");
 
     priv->match_cond = json_object();
 
-    if(from_t) {
+    if(!empty_string(from_t)) {
         timestamp_t timestamp;
         int offset;
         if(all_numbers(from_t)) {
@@ -323,7 +345,7 @@ PRIVATE int mt_play(hgobj gobj)
         }
         json_object_set_new(priv->match_cond, "from_t", json_integer(timestamp));
     }
-    if(to_t) {
+    if(!empty_string(to_t)) {
         timestamp_t timestamp;
         int offset;
         if(all_numbers(to_t)) {
@@ -333,118 +355,110 @@ PRIVATE int mt_play(hgobj gobj)
         }
         json_object_set_new(priv->match_cond, "to_t", json_integer(timestamp));
     }
-
-    if(from_rowid) {
+    if(!empty_string(from_rowid)) {
         json_object_set_new(priv->match_cond, "from_rowid", json_integer(atoll(from_rowid)));
     }
-    if(to_rowid) {
+    if(!empty_string(to_rowid)) {
         json_object_set_new(priv->match_cond, "to_rowid", json_integer(atoll(to_rowid)));
     }
-
-    if(user_flag_mask_set) {
-        json_object_set_new(
-            priv->match_cond,
-            "user_flag_mask_set",
-            json_integer(atol(user_flag_mask_set))
-        );
+    if(!empty_string(user_flag_mask_set)) {
+        json_object_set_new(priv->match_cond, "user_flag_mask_set", json_integer(atol(user_flag_mask_set)));
     }
-    if(user_flag_mask_notset) {
-        json_object_set_new(
-            priv->match_cond,
-            "user_flag_mask_notset",
-            json_integer(atol(user_flag_mask_notset))
-        );
+    if(!empty_string(user_flag_mask_notset)) {
+        json_object_set_new(priv->match_cond, "user_flag_mask_notset", json_integer(atol(user_flag_mask_notset)));
     }
-    if(system_flag_mask_set) {
-        json_object_set_new(
-            priv->match_cond,
-            "system_flag_mask_set",
-            json_integer(atol(system_flag_mask_set))
-        );
+    if(!empty_string(system_flag_mask_set)) {
+        json_object_set_new(priv->match_cond, "system_flag_mask_set", json_integer(atol(system_flag_mask_set)));
     }
-    if(system_flag_mask_notset) {
-        json_object_set_new(
-            priv->match_cond,
-            "system_flag_mask_notset",
-            json_integer(atol(system_flag_mask_notset))
-        );
+    if(!empty_string(system_flag_mask_notset)) {
+        json_object_set_new(priv->match_cond, "system_flag_mask_notset", json_integer(atol(system_flag_mask_notset)));
     }
-    if(key) {
-        json_object_set_new(
-            priv->match_cond,
-            "key",
-            json_string(key)
-        );
+    if(!empty_string(key)) {
+        json_object_set_new(priv->match_cond, "key", json_string(key));
+    } else {
+        /* No key given: load all keys (rkey "" is equivalent to ".*"). */
+        json_object_set_new(priv->match_cond, "rkey", json_string(""));
     }
-    if(notkey) {
-        json_object_set_new(
-            priv->match_cond,
-            "notkey",
-            json_string(notkey)
-        );
+    if(!empty_string(notkey)) {
+        json_object_set_new(priv->match_cond, "notkey", json_string(notkey));
     }
 
-    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
+    /*
+     *  tranger2_open_list requires the load callback in match_cond; it is
+     *  invoked synchronously per matching record during the load below,
+     *  collecting frames into priv->jn_frames.
+     */
+    json_object_set_new(
+        priv->match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(uintptr_t)collect_record_cb)
+    );
 
-    // TODO
-    // hgobj gobj_connex = gobj_find_bottom_child_by_gclass(priv->gobj_output_side, "Connex");
-    // json_t *jn_urls = json_pack("[s]", url);
-    // gobj_write_json_attr(gobj_connex, "urls", jn_urls);
-    // json_decref(jn_urls);
-    //
-    // gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
-    // gobj_start_tree(priv->gobj_output_side);
-    // gobj_start(priv->timer_interval);
-    //
-    // /*-------------------------------*
-    //  *  Startup TimeRanger
-    //  *-------------------------------*/
-    // json_t *jn_tranger = json_pack("{s:s, s:s}",
-    //     "path", path,
-    //     "database", database
-    // );
-    // priv->tranger = tranger_startup(jn_tranger);
-    // if(agent_client) {
-    //     gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INTERNAL,
-    //         "msg",          "%s", "tranger_startup() FAILED",
-    //         "path",         "%s", path,
-    //         "database",     "%s", database,
-    //         NULL
-    //     );
-    // } else {
-    //     if(!priv->tranger) {
-    //         fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
-    //         exit(-1);
-    //     }
-    // }
-    //
-    // /*-------------------------------*
-    //  *  Open topic
-    //  *-------------------------------*/
-    // priv->htopic = tranger_open_topic(
-    //     priv->tranger,
-    //     topic,
-    //     FALSE
-    // );
-    // if(agent_client) {
-    //     gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INTERNAL,
-    //         "msg",          "%s", "tranger_open_topic() FAILED",
-    //         "path",         "%s", path,
-    //         "database",     "%s", database,
-    //         "topic",        "%s", topic,
-    //         NULL
-    //     );
-    // } else {
-    //     if(!priv->htopic) {
-    //         fprintf(stderr, "Can't open topic %s\n\n", topic);
-    //         list_topics(path, database);
-    //         exit(-1);
-    //     }
-    // }
+    /*----------------------------------*
+     *  Startup TimeRanger2 + load frames
+     *----------------------------------*/
+    priv->jn_frames = json_array();
+    priv->frame_idx = 0;
+
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+        "path", path,
+        "database", database,
+        "master", 0
+    );
+    priv->tranger = tranger2_startup(gobj, jn_tranger, 0);
+    if(!priv->tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "tranger2_startup() FAILED",
+            "path",         "%s", path,
+            "database",     "%s", database,
+            NULL
+        );
+        if(agent_client) {
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
+            return -1;
+        }
+        fprintf(stderr, "Can't startup tranger %s/%s\n", path, database);
+        exit(-1);
+    }
+
+    if(!tranger2_open_topic(priv->tranger, topic, TRUE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "tranger2_open_topic() FAILED",
+            "topic",        "%s", topic,
+            NULL
+        );
+        if(agent_client) {
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
+            return -1;
+        }
+        fprintf(stderr, "Can't open topic %s\n", topic);
+        exit(-1);
+    }
+
+    priv->jn_list = tranger2_open_list(
+        priv->tranger,
+        topic,
+        json_incref(priv->match_cond),  // owned by open_list; priv keeps its ref
+        0,                              // extra
+        "emu_replay",                   // rt_id
+        TRUE,                           // rt_by_disk
+        gobj_name(gobj)                 // creator
+    );
+
+    if(gobj_trace_level(gobj) & TRACE_INFO) {
+        gobj_trace_msg(gobj, "emu_device loaded %d frames from %s",
+            (int)json_array_size(priv->jn_frames), topic);
+    }
+
+    /*
+     *  Start the output side: when it connects it publishes EV_ON_OPEN, which
+     *  sends the leading frame and kicks the window/interval emission.
+     */
+    gobj_start_tree(priv->gobj_output_side);
 
     return 0;
 }
@@ -459,14 +473,22 @@ PRIVATE int mt_pause(hgobj gobj)
     if(gobj_find_service("agent_client", FALSE)) {
         gobj_save_persistent_attrs(gobj, 0);
     }
+
     clear_timeout(priv->timer_interval);
-    gobj_stop(priv->timer_interval);
+
     if(priv->gobj_output_side) {
         gobj_stop_tree(priv->gobj_output_side);
     }
 
+    if(priv->tranger && priv->jn_list) {
+        tranger2_close_list(priv->tranger, priv->jn_list);
+        priv->jn_list = 0;
+    }
+    EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
+
     JSON_DECREF(priv->match_cond);
-    // EXEC_AND_RESET(tranger_shutdown, priv->tranger); TODO
+    JSON_DECREF(priv->jn_frames);
+    priv->frame_idx = 0;
 
     return 0;
 }
@@ -548,10 +570,11 @@ PRIVATE json_t *cmd_read_parameters(hgobj gobj, const char *cmd, json_t *kw, hgo
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("window: %d\ninterval: %d\nlast_id: %"PRIu64"",
+        json_sprintf("window: %d\ninterval: %d\nframes sent: %"PRIu64"\nframes loaded: %d",
             priv->window,
             priv->interval,
-            priv->last_id
+            (uint64_t)priv->frame_idx,
+            (int)json_array_size(priv->jn_frames)
         ),
         0,
         0,
@@ -570,234 +593,145 @@ PRIVATE json_t *cmd_read_parameters(hgobj gobj, const char *cmd, json_t *kw, hgo
 
 
 /***************************************************************************
- *
+ *  Build the __output_side__ stack: a raw-TCP client connecting to `url`.
+ *  Mirrors sgateway's output side; EV_SEND_MESSAGE to the gate routes to it.
  ***************************************************************************/
-// PRIVATE BOOL list_db_cb(
-//     void *user_data,
-//     wd_found_type type,     // type found
-//     char *fullpath,         // directory+filename found
-//     const char *directory,  // directory of found filename
-//     char *name,             // dname[255]
-//     int level,              // level of tree where file found
-//     int index               // index of file inside of directory, relative to 0
-// )
-// {
-//     char *p = strrchr(directory, '/');
-//     if(p) {
-//         printf("  %s\n", p+1);
-//     } else {
-//         printf("  %s\n", directory);
-//     }
-//     return TRUE; // to continue
-// }
-
-PRIVATE int list_databases(const char *path)
+PRIVATE int create_output_side(hgobj gobj)
 {
-    printf("Databases found:\n");
-    // walk_dir_tree( TODO
-    //     path,
-    //     "__timeranger__.json",
-    //     WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
-    //     list_db_cb,
-    //     0
-    // );
-    printf("\n");
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->gobj_output_side = gobj_create_service(
+        "__output_side__",
+        C_IOGATE,
+        0,
+        gobj_yuno()
+    );
+
+    hgobj gobj_channel = gobj_create("output", C_CHANNEL, 0, priv->gobj_output_side);
+    hgobj gobj_prot_raw = gobj_create("output", C_PROT_RAW, 0, gobj_channel);
+    gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
+
+    json_t *kw_connex = json_pack("{s:i, s:[s]}",
+        "timeout_between_connections", 2000,
+        "urls", gobj_read_str_attr(gobj, "url")
+    );
+    hgobj gobj_connex = gobj_create_service("output", C_TCP, kw_connex, gobj_prot_raw);
+    gobj_set_bottom_gobj(gobj_prot_raw, gobj_connex);
+
+    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Load callback: collect each matching record into priv->jn_frames.
+ *  Called synchronously per record during tranger2_open_list().
+ ***************************************************************************/
+PRIVATE int collect_record_cb(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned
+)
+{
+    hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    if(!gobj) {
+        JSON_DECREF(jn_record)
+        return -1;  // Error already logged
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_array_append_new(priv->jn_frames, jn_record);  // takes ownership
+    return 0;
+}
+
+/***************************************************************************
+ *  Base64-decode a frame and send it out through __output_side__.
+ ***************************************************************************/
+PRIVATE int send_frame_b64(hgobj gobj, const char *frame64)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_base64_to_binary(frame64, strlen(frame64));
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "gbuffer_base64_to_binary() FAILED",
+            NULL
+        );
+        return -1;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_INFO) {
+        gobj_trace_msg(gobj, "emu_device sending %d bytes", (int)gbuffer_leftbytes(gbuf));
+    }
+
+    json_t *kw_tx = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_tx, gobj);
+    priv->txMsgs++;
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Send up to `window` frames from the loaded list, advancing frame_idx.
+ ***************************************************************************/
+PRIVATE int send_window(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t total = json_array_size(priv->jn_frames);
+
+    for(uint32_t i=0; i<priv->window; i++) {
+        if((size_t)priv->frame_idx >= total) {
+            break;
+        }
+        json_t *rec = json_array_get(priv->jn_frames, (size_t)priv->frame_idx);
+        priv->frame_idx++;
+
+        const char *frame64 = kw_get_str(gobj, rec, "frame64", "", 0);
+        if(empty_string(frame64)) {
+            continue;
+        }
+        send_frame_b64(gobj, frame64);
+    }
+
     return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE BOOL list_topic_cb(
-//     void *user_data,
-//     wd_found_type type,     // type found
-//     char *fullpath,         // directory+filename found
-//     const char *directory,  // directory of found filename
-//     char *name,             // dname[255]
-//     int level,              // level of tree where file found
-//     int index               // index of file inside of directory, relative to 0
-// )
-// {
-//     char *p = strrchr(directory, '/');
-//     if(p) {
-//         printf("  %s\n", p+1);
-//     } else {
-//         printf("  %s\n", directory);
-//     }
-//     return TRUE; // to continue
-// }
-
-PRIVATE int list_topics(const char *path, const char *database)
+PRIVATE BOOL frames_exhausted(hgobj gobj)
 {
-    char temp[5*1024];
-    snprintf(temp, sizeof(temp), "%s/%s", path, database);
-    printf("Topics found:\n");
-    // walk_dir_tree( TODO
-    //     temp,
-    //     ".*\\.md",
-    //     WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
-    //     list_topic_cb,
-    //     0
-    // );
-    printf("\n");
-    return 0;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return ((size_t)priv->frame_idx >= json_array_size(priv->jn_frames))?TRUE:FALSE;
 }
 
 /***************************************************************************
- *
+ *  All frames replayed: stop the periodic emission. In standalone (CLI)
+ *  mode the process has nothing left to do, so it exits.
  ***************************************************************************/
-// PRIVATE char bin[64*1024];
-// PRIVATE gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
-// {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // BOOL end = FALSE;
-    // BOOL first_time = FALSE;
-    // *empty_frame = FALSE; TODO
-    // if(priv->last_id == 0) {
-    //     first_time = TRUE;
-    //     json_incref(priv->match_cond);
-    //     if(tranger_find_record(priv->tranger, priv->htopic, priv->match_cond, &priv->md_record)<0) {
-    //         return FALSE;
-    //     }
-    // } else {
-    //     if(tranger_next_record(priv->tranger, priv->htopic, &priv->md_record)<0) {
-    //         return FALSE;
-    //     }
-    // }
-    // priv->last_id = priv->md_record.__rowid__;
-    //
-    // while(!end) {
-    //     if(tranger_match_record(
-    //             priv->tranger,
-    //             priv->htopic,
-    //             priv->match_cond,
-    //             &priv->md_record,
-    //             &end
-    //         )) {
-    //         priv->last_id = priv->md_record.__rowid__;
-    //         json_t *jn_record = tranger_read_record_content(
-    //             priv->tranger,
-    //             priv->htopic,
-    //             &priv->md_record
-    //         );
-    //         if(jn_record) {
-    //             const char *frame = kw_get_str(gobj, jn_record, "frame64", "", KW_REQUIRED);
-    //             size_t len = strlen(frame);
-    //             if(len == 0) {
-    //                 if(first_time) {
-    //                     if(tranger_next_record(
-    //                         priv->tranger,
-    //                         priv->htopic,
-    //                         &priv->md_record
-    //                     )<0) {
-    //                         return 0;
-    //                     }
-    //                     priv->last_id = priv->md_record.__rowid__;
-    //                     continue;
-    //                 }
-    //                 *empty_frame = TRUE;
-    //                 json_decref(jn_record);
-    //                 return 0;
-    //             }
-    //             len = b64_decode(frame, (uint8_t *)bin, sizeof(bin));
-    //             frame = bin;
-    //             gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
-    //             gbuffer_append(gbuf, (void *)frame, len);
-    //
-    //             json_decref(jn_record);
-    //             return gbuf;
-    //         } else  {
-    //             // TODO falta probar
-    //             return 0;
-    //         }
-    //     }
-    //     if(end) {
-    //         break;
-    //     }
-    //     if(tranger_next_record(priv->tranger, priv->htopic, &priv->md_record)<0) {
-    //         return 0;
-    //     }
-    //     priv->last_id = priv->md_record.__rowid__;
-    // }
-//     return 0;
-// }
-
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     uint32_t window = gobj_read_integer_attr(gobj, "window");
-//     for(int i=0; i<window; i++) {
-//         /*
-//          *  Envia el mensaje al destino
-//          */
-//         gbuffer_t *gbuf = 0;
-//
-//         BOOL empty_frame;
-//         gbuf = get_next_frame(gobj, &empty_frame);
-//         if(!gbuf) {
-//             if(empty_frame) {
-//                 if(gobj_trace_level(gobj) & TRACE_INFO) {
-//                     trace_msg0("Droping connection");
-//                 }
-//                 gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
-//                 return 0;
-//             }
-//             return -1;
-//         }
-//
-//         if(gobj_trace_level(gobj) & TRACE_INFO) {
-//             char metadata[1024];
-//             // print_md1_record(priv->tranger, priv->htopic, &priv->md_record, metadata, sizeof(metadata));
-//             trace_msg0("Sending: %s", metadata);
-//         }
-//
-//         json_t *kw_tx = json_pack("{s:I}",
-//             "gbuffer", (json_int_t)(uintptr_t)gbuf
-//         );
-//         gobj_send_event(channel_gobj, EV_SEND_MESSAGE, kw_tx, gobj);
-//
-//         priv->txMsgs++;
-//     }
-//
-//     return 0;
-// }
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int emulate_gps_msgs(hgobj gobj)
+PRIVATE int finish_replay(hgobj gobj)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Recorre la tabla de output channels y comprueba que están en una ruta
-     */
-    // dl_list_t *iter = gobj_match_childs_by_strict_gclass(priv->gobj_output_side, "Channel"); TODO
-    // int ret;
-    // hgobj channel_gobj;
-    // rc_first_instance(iter, (rc_resource_t **)&channel_gobj);
-    //
-    // BOOL opened = gobj_read_bool_attr(channel_gobj, "opened");
-    // if(!opened) {
-    //     return 0;
-    // }
-    // ret = send_gps_msgs(gobj, channel_gobj);
-    // if(ret < 0) {
-    //     clear_timeout(priv->timer_interval);
-    //     if(!gobj_find_service("agent_client", FALSE)) {
-    //         trace_msg0("Finished, sent %"PRIu64" messages", *priv->ptxMsgs);
-    //         exit(0);
-    //     }
-    // } else if(ret == 0) {
-    //     // drop channel sended
-    //     // WARNING realmente estamos considerando una única conexión (channel)
-    //     clear_timeout(priv->timer_interval);
-    // }
-    // gobj_free_iter(iter, TRUE, 0);
-    // return ret;
+    clear_timeout(priv->timer_interval);
+
+    if(gobj_trace_level(gobj) & TRACE_INFO) {
+        gobj_trace_msg(gobj, "emu_device finished, sent %"PRIu64" frames", priv->txMsgs);
+    }
+
+    if(!gobj_find_service("agent_client", FALSE)) {
+        exit(0);
+    }
+
     return 0;
 }
 
@@ -812,60 +746,45 @@ PRIVATE int emulate_gps_msgs(hgobj gobj)
 
 
 /***************************************************************************
- *
+ *  Output side connected: send the leading frame (if any) then start
+ *  emitting `window` frames per `interval`.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_INFO) {
-        trace_msg0("Connected");
+        gobj_trace_msg(gobj, "emu_device connected");
     }
 
     if(gobj_is_playing(gobj)) {
-        const char *frame = gobj_read_str_attr(gobj, "leading");
-        if(!empty_string(frame)) {
-            /*
-             *  Envia el mensaje al destino
-             */
-            if(gobj_trace_level(gobj) & TRACE_INFO) {
-                trace_msg0("Sending: %s", frame);
-            }
-
-            // size_t len = strlen(frame); TODO
-            // len = b64_decode(frame, (uint8_t *)bin, sizeof(bin));
-            // frame = bin;
-            // gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
-            // gbuffer_append(gbuf, (void *)frame, len);
-            //
-            // json_t *kw_tx = json_pack("{s:I}",
-            //     "gbuffer", (json_int_t)(uintptr_t)gbuf
-            // );
-            // gobj_send_event(src, EV_SEND_MESSAGE, kw_tx, gobj);
-
-            priv->txMsgs++;
+        const char *leading = gobj_read_str_attr(gobj, "leading");
+        if(!empty_string(leading)) {
+            send_frame_b64(gobj, leading);
         }
 
-        if(emulate_gps_msgs(gobj)>0) {
-            // WARNING realmente estamos considerando una única conexión (channel)
+        send_window(gobj);
+
+        if(frames_exhausted(gobj)) {
+            finish_replay(gobj);
+        } else {
             set_timeout_periodic(priv->timer_interval, priv->interval);
         }
     }
-
 
     KW_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  Output side disconnected.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_INFO) {
-        trace_msg0("Disconnected");
+        gobj_trace_msg(gobj, "emu_device disconnected");
     }
     clear_timeout(priv->timer_interval);
 
@@ -874,14 +793,32 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  Data coming back from the peer (counted, not used).
  ***************************************************************************/
-// PRIVATE int ac_interval(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-// {
-//     emulate_gps_msgs(gobj);
-//     KW_DECREF(kw);
-//     return 0;
-// }
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rxMsgs++;
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Periodic tick: send the next window of frames.
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    send_window(gobj);
+
+    if(frames_exhausted(gobj)) {
+        finish_replay(gobj);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
 
 /***************************************************************************
  *  Child stopped
@@ -934,11 +871,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_MESSAGE,     0,              0},
-        // {EV_TICK2SEND,      ac_interval,    0}, TODO
-        {EV_ON_OPEN,        ac_on_open,     0},
-        {EV_ON_CLOSE,       ac_on_close,    0},
-        {EV_STOPPED,        ac_stopped,     0},
+        {EV_ON_MESSAGE,         ac_on_message,  0},
+        {EV_ON_OPEN,            ac_on_open,     0},
+        {EV_ON_CLOSE,           ac_on_close,    0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,     0},
+        {EV_STOPPED,            ac_stopped,     0},
         {0,0,0}
     };
 
@@ -951,11 +888,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_ON_MESSAGE,     0},
-        // {EV_TICK2SEND,      0}, TODO
-        {EV_ON_OPEN,        0},
-        {EV_ON_CLOSE,       0},
-        {EV_STOPPED,        0},
+        {EV_ON_MESSAGE,         0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_STOPPED,            0},
         {NULL, 0}
     };
 

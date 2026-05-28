@@ -121,8 +121,6 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
-        'Tcp0.output_priority': 1,                                  \n\
-        'Connex.timeout_between_connections':10                     \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
@@ -131,26 +129,6 @@ PRIVATE char variable_config[]= "\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__output_side__',                              \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false,                                      \n\
-            'children': [                                           \n\
-                {                                                   \n\
-                    'name': 'output',                               \n\
-                    'gclass': 'C_CHANNEL',                          \n\
-                    'children': [                                   \n\
-                        {                                           \n\
-                            'name': 'output',                       \n\
-                            'gclass': 'C_PROT_RAW',                 \n\
-                            'children': [                           \n\
-                            ]                                       \n\
-                        }                                           \n\
-                    ]                                               \n\
-                }                                                   \n\
-            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
