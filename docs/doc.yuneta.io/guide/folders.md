@@ -149,6 +149,7 @@ Utility scripts and CLI tools for Yuneta.
     - `inotify`: Tracks file events using inotify.
     - `json_diff`: JSON diff utility.
     - `list_queue_msgs2`: Lists queue messages.
+    - `mqtt_tui`: Interactive MQTT client (text-based UI).
     - `msg2db_list`: Lists msg2db records.
     - `pkey_to_jwks`: Converts public keys to JWKS format.
     - `stats_list`: Lists statistics.
@@ -161,6 +162,7 @@ Utility scripts and CLI tools for Yuneta.
     - `tr2search`: Searches in Timeranger2.
     - `treedb_list`: Lists TreeDB entries.
     - `ybatch`: Batch operations for yunos.
+    - `ycli`: Interactive ncurses CLI for yunos.
     - `yclone-gclass`: Clones a GClass template.
     - `yclone-project`: Clones a project template.
     - `ycommand`: Control-plane CLI for running yunos.
@@ -188,12 +190,10 @@ Pre-supplied full applications built with Yuneta.
     - `emu_device`: Device emulator.
     - `logcenter`: Log aggregation center.
     - `mqtt_broker`: MQTT v3.1.1 + v5.0 broker with persistence.
-    - `mqtt_tui`: MQTT text-based UI.
     - `sgateway`: Service gateway.
     - `watchfs`: Filesystem watcher service.
     - `yuno_agent`: Yuno lifecycle manager (start/stop/update).
     - `yuno_agent22`: Yuno agent v2.
-    - `yuno_cli`: Yuno command-line interface.
 
 - `JS`:
     - `gui_yunetas.js`: Graphical User Interface (GUI) for managing Yuneta.

@@ -57,7 +57,7 @@
 #       drop --enable-widec from ncurses. The 1.9 sweep enabled
 #       wide-character ncurses, which installs as ncursesw (headers
 #       in include/ncursesw/, lib as libncursesw.a). Yuneta's consumers
-#       (modules/c/console, utils/c/ycommand, yunos/c/{yuno_cli,mqtt_tui})
+#       (modules/c/console, utils/c/{ycommand,ycli,mqtt_tui})
 #       all include <ncurses/ncurses.h> and link ncurses.a (narrow API),
 #       so the flag broke the whole console/CLI layer. Nobody uses the
 #       wide API yet, so just drop the flag.
@@ -75,8 +75,8 @@
 #               <ncurses/panel.h>   -> <ncursesw/panel.h>
 #               setlocale(LC_ALL, "") before initscr()
 #         - utils/c/ycommand/CMakeLists.txt,
-#           yunos/c/yuno_cli/CMakeLists.txt,
-#           yunos/c/mqtt_tui/CMakeLists.txt:
+#           utils/c/ycli/CMakeLists.txt,
+#           utils/c/mqtt_tui/CMakeLists.txt:
 #               panel.a -> panelw.a, ncurses.a -> ncursesw.a
 #       Existing waddnstr / mvwaddstr calls keep working unchanged: the
 #       narrow API in libncursesw is UTF-8-aware once the locale is set,

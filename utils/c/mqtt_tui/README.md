@@ -92,10 +92,9 @@ token elsewhere.
 ## Build & install
 
 ```bash
-cd yunos/c/mqtt_tui/build
+cd utils/c/mqtt_tui/build
 make install
 ```
 
-Installed under `$YUNETAS_YUNOS/mqtt_tui/`. Not deployed via the agent
-in the usual flow — it's an interactive CLI you invoke from your
-shell.
+Installed into `/yuneta/bin`. Not deployed via the agent in the usual
+flow — it's an interactive CLI you invoke from your shell.

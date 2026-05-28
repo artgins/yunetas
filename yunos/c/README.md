@@ -12,14 +12,16 @@ yunos/
     ├── controlcenter/      # Central management of distributed agents
     ├── logcenter/          # Centralized log collection, analysis, and alerting
     ├── mqtt_broker/        # MQTT v3.1/v3.1.1/v5.0 broker with persistence
-    ├── mqtt_tui/           # Interactive MQTT client (TUI)
     ├── emailsender/        # Email sending service (native SMTPS)
     ├── dba_postgres/       # PostgreSQL database adapter
     ├── sgateway/           # Simple gateway for protocol bridging
     ├── emu_device/         # Device emulator for testing
-    ├── watchfs/            # Filesystem watcher — run commands on file changes
-    └── yuno_cli/           # Interactive CLI with ncurses windowing (ycli)
+    └── watchfs/            # Filesystem watcher — run commands on file changes
 ```
+
+> The interactive clients `ycli` and `mqtt_tui` used to live here; they moved to
+> [`utils/c/`](../../utils/c/) (`utils/c/ycli`, `utils/c/mqtt_tui`) since they are
+> client tools installed in `/yuneta/bin`, not deployable services.
 
 ## Yuno Summary
 
@@ -31,13 +33,11 @@ yunos/
 | controlcenter | `controlcenter` | `C_CONTROLCENTER` | `${YUNOS_DEST_DIR}` | Central management of distributed agents |
 | logcenter | `logcenter` | `C_LOGCENTER` | `${YUNOS_DEST_DIR}` | Log collection with email alerts |
 | mqtt_broker | `mqtt_broker` | `C_MQTT_BROKER` | `${YUNOS_DEST_DIR}` | MQTT broker (v3.1, v3.1.1, v5.0) |
-| mqtt_tui | `mqtt_tui` | `C_MQTT_TUI` | `/yuneta/bin` | Interactive MQTT client |
 | emailsender | `emailsender` | `C_EMAILSENDER`, `C_SMTP_SESSION` | `${YUNOS_DEST_DIR}` | Email sending via native SMTPS |
 | dba_postgres | `dba_postgres` | `C_DBA_POSTGRES` | `${YUNOS_DEST_DIR}` | PostgreSQL adapter |
 | sgateway | `sgateway` | `C_SGATEWAY` | `${YUNOS_DEST_DIR}` | Simple gateway |
 | emu_device | `emu_device` | `C_EMU_DEVICE` | `${YUNOS_DEST_DIR}` | Device gate emulator |
 | watchfs | `watchfs` | `C_WATCHFS` | `${YUNOS_DEST_DIR}`, `/yuneta/bin` | Filesystem watcher |
-| ycli | `ycli` | `C_CLI` + 7 window GClasses | `/yuneta/bin` | Ncurses CLI |
 
 ---
 
@@ -304,69 +304,9 @@ Filesystem watcher that executes a shell command when monitored files change. Us
 
 ## Client Yunos
 
-### mqtt_tui
-
-Interactive MQTT client with terminal UI (ncurses). Connects to an MQTT broker and a Yuneta broker simultaneously. Supports publish, subscribe, unsubscribe interactively.
-
-**GClasses:** `C_MQTT_TUI`, `C_EDITLINE`
-
-**Events:** `EV_SEND_MQTT_SUBSCRIBE`, `EV_SEND_MQTT_UNSUBSCRIBE`, `EV_SEND_MQTT_PUBLISH`
-
-**Command-line options (30+):**
-
-```
-MQTT:
-  -c, --mqtt-persistent-session      Enable persistent session
-  -d, --mqtt-persistent-db           Persistent message database
-  -i, --id CLIENT_ID                 MQTT Client ID
-  -q, --mqtt_protocol PROTOCOL       mqttv5, mqttv311, or mqttv31
-  -e, --mqtt_connect_properties JSON MQTT v5 CONNECT properties
-  -x, --mqtt_session_expiry_interval SECONDS
-  -a, --mqtt_keepalive SECONDS       Keep-alive (default: 60)
-  --will-topic TOPIC                 Last Will topic
-  --will-payload PAYLOAD             Last Will payload
-  --will-qos QOS                     Last Will QoS
-  --will-retain RETAIN               Last Will retain
-  --will-properties JSON             Last Will properties (v5)
-
-OAuth2 / OIDC:
-  -I, --issuer URL                   OIDC issuer URL (triggers discovery)
-  -T, --token-endpoint URL           Explicit OAuth2 token endpoint
-  -E, --end-session-endpoint URL     Explicit OIDC end_session endpoint
-  -Z, --client-id CLIENT_ID          OAuth2 client_id
-  -u, --user_id USER_ID              Username or OAuth2 user ID
-  -U, --user_passw PASSWORD          OAuth2 password
-  -P, --mqtt_passw PASSWORD          MQTT password
-  -j, --jwt JWT                      Pre-obtained JWT
-
-Connection:
-  -h, --url-mqtt URL                 MQTT URL (default: mqtt://127.0.0.1:1810)
-  -b, --url-broker URL               Broker URL (default: ws://127.0.0.1:1800)
-
-Local:
-  -p, --print                        Print configuration
-  -l, --verbose LEVEL                Verbose level
-  -v, --version                      Print version
-  -V, --yuneta-version               Print Yuneta version
-  -m, --with-metadata                Print with metadata
-  -7, --list-mqtt-properties         List MQTT v5 properties
-```
-
-### ycli (yuno_cli)
-
-Full-featured interactive command-line interface with ncurses windowing. Registers 9 GClasses for its TUI:
-
-| GClass | Purpose |
-|--------|---------|
-| `C_CLI` | Main CLI controller |
-| `C_EDITLINE` | Line editor (from console module) |
-| `C_WN_STDSCR` | Root ncurses screen |
-| `C_WN_LAYOUT` | Window layout manager |
-| `C_WN_BOX` | Box container |
-| `C_WN_LIST` | Scrollable list |
-| `C_WN_STATIC` | Static text display |
-| `C_WN_STSLINE` | Status line |
-| `C_WN_TOOLBAR` | Toolbar |
+> The interactive clients `ycli` and `mqtt_tui` moved to `utils/c/` — see
+> [`utils/c/ycli/README.md`](../../utils/c/ycli/README.md) and
+> [`utils/c/mqtt_tui/README.md`](../../utils/c/mqtt_tui/README.md).
 
 ### emu_device
 
@@ -412,8 +352,6 @@ All yunos link the standard kernel libraries. Additional per-yuno dependencies:
 | Yuno | Extra libraries |
 |------|----------------|
 | mqtt_broker | `${MODULE_MQTT}` |
-| mqtt_tui | `${MODULE_CONSOLE}`, `${MODULE_MQTT}`, `panel.a`, `ncurses.a` |
-| ycli | `${MODULE_CONSOLE}`, `panel.a`, `ncurses.a` |
 | emailsender | `${CURL_LIBRARIES}` |
 | dba_postgres | `libyunetas-c_postgres.a`, `pq` |
 

@@ -69,7 +69,7 @@ for the timeranger2 / treedb layer.
 
 - [`yunos/c/mqtt_broker/`](../../../yunos/c/mqtt_broker/) — the broker
   yuno (binds `C_MQTT_BROKER` to a TCP gate, autostart).
-- [`yunos/c/mqtt_tui/`](../../../yunos/c/mqtt_tui/) — a TUI client built
+- [`utils/c/mqtt_tui/`](../../../utils/c/mqtt_tui/) — a TUI client built
   on `C_PROT_MQTT2` for interactive testing and debugging.
 - Tests under [`tests/c/c_mqtt/`](../../../tests/c/c_mqtt/).
 

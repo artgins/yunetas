@@ -15,11 +15,9 @@ add_subdirectory(emu_device)
 add_subdirectory(logcenter)
 add_subdirectory(sgateway)
 add_subdirectory(watchfs)
-add_subdirectory(yuno_cli)
 add_subdirectory(yuno_agent)
 add_subdirectory(yuno_agent22)
 add_subdirectory(mqtt_broker)
-add_subdirectory(mqtt_tui)
 
 # compile in Release mode :
 #

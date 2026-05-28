@@ -13,6 +13,13 @@ Command-line utilities written in C that ship with Yuneta. They fall in three br
 | `ylist` | List running yunos on the local host |
 | `yshutdown` | Shut down yunos / the agent |
 
+## Interactive clients
+
+| Tool | Purpose |
+|---|---|
+| `ycli` | Ncurses windowed CLI for browsing yunos and sending commands |
+| `mqtt_tui` | Interactive MQTT client with a text-based UI |
+
 ## Data / storage inspection
 
 | Tool | Purpose |

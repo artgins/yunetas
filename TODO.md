@@ -49,7 +49,7 @@ real IdP discovery documents.
   refuse it for confidential clients. Migrating to PKCE
   (authorization code + code_verifier) would make the task
   work against any modern IdP, at the cost of needing a
-  browser redirect — viable for `yuno_cli` and `ycommand`
+  browser redirect — viable for `ycli` and `ycommand`
   (which already prompt the user) but not for headless
   callers like `ybatch` / `ystats` / `ytests`.  Out of scope
   for the current migration; flagged here so it surfaces when
