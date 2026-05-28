@@ -1,18 +1,11 @@
 (yuno-emu_device)=
 # `emu_device`
 
-Device-gate emulator — intended to feed an ingest endpoint with device frames
-at a controlled rate, so device-facing GClasses and ingest pipelines can be
-tested without real hardware.
+Device-gate emulator — replays recorded device frames to an ingest endpoint at
+a controlled rate, so device-facing GClasses and ingest pipelines can be tested
+without real hardware.
 
-```{warning}
-The frame-emission path (and the timeranger2 replay source) is **commented out
-in the current source** (`c_emu_device.c`). The yuno builds and accepts its
-configuration/commands, but it does **not** currently transmit frames — treat
-it as a scaffold / work-in-progress, not a working generator.
-```
-
-## Intended model
+## How it works
 
 ```
 C_EMU_DEVICE
@@ -20,11 +13,21 @@ C_EMU_DEVICE
     C_TIMER
 ```
 
-On each `interval` tick the emulator is meant to push `window` frames out
-through `__output_side__` (a raw-TCP client connecting to `url`, the device
-gate / ingest endpoint). Frames would be sourced from a TimeRanger2 topic
-selected by the `path` / `database` / `topic` attributes and filtered by time,
-rowid, key and user/system flags.
+- On **play**, it starts a TimeRanger2 reader and loads every matching record
+  from the `path` / `database` / `topic` topic (filtered by `from_t`/`to_t`,
+  `from_rowid`/`to_rowid`, the flag masks and `key`/`notkey`; all keys by
+  default) into memory.
+- When the output side **connects** (`url`, a raw-TCP client), it first sends
+  the `leading` frame (if set), then emits **`window` frames every `interval`
+  milliseconds**. Each frame is the base64 `frame64` field of a record,
+  decoded to bytes and sent as a raw message.
+- When the loaded frames are exhausted it stops the periodic emission (and, run
+  standalone from the CLI, exits).
+
+```{note}
+The replay loads all matching records into memory up front (`tranger2_open_list`),
+so point it at a bounded range when replaying a large topic.
+```
 
 ## Configuration
 
@@ -33,20 +36,19 @@ rowid, key and user/system flags.
 | `url` | — | `__output_side__` target (device gate to feed) |
 | `window` | `1` | Frames to send per interval |
 | `interval` | `1000` | Interval between bursts (ms) |
-| `leading` | — | Leading data prepended to frames |
-| `path` / `database` / `topic` | — | TimeRanger2 replay source |
+| `leading` | — | Base64 frame sent once on connect |
+| `path` / `database` / `topic` | — | TimeRanger2 replay source (records with a `frame64` field) |
 | `from_t` / `to_t` / `from_rowid` / `to_rowid` | — | Time / rowid range of the replay |
-| `key` / `notkey` | — | Key filters |
+| `key` / `notkey` | — | Key filters (default: all keys) |
 | `user_flag_mask_set` / `user_flag_mask_notset` | — | User-flag filters |
 | `system_flag_mask_set` / `system_flag_mask_notset` | — | System-flag filters |
-| `use_very_first` | — | Start from the very first record |
-| `timeout` | `2000` | Periodic tick (ms) |
+| `timeout` | `2000` | Timer tick (ms) |
 
 ## Commands
 
 | Command | Parameters | Description |
 |---------|------------|-------------|
-| `read-parameters` | — | View current parameters |
+| `read-parameters` | — | Window, interval, frames sent / loaded |
 | `write-window` | `window` | Set frames-per-interval |
 | `write-interval` | `interval` | Set interval (ms) |
 | `help` | — | Command help |
@@ -55,4 +57,4 @@ rowid, key and user/system flags.
 
 | GClass | Level | Shows |
 |--------|-------|-------|
-| `C_EMU_DEVICE` | `info` | User-level information |
+| `C_EMU_DEVICE` | `info` | Connect / send / finish activity |
