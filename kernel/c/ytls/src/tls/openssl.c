@@ -97,6 +97,7 @@ typedef struct ytls_s {
     SSL_CTX *ctx;
     BOOL trace_tls;
     size_t rx_buffer_size;
+    char ssl_server_name[256]; // Server name for SNI (client-side TLS only)
     hgobj gobj;
 } ytls_t;
 
@@ -479,7 +480,10 @@ PRIVATE SSL_CTX *build_ssl_ctx(
         ERR_clear_error();
 
     } else {
-        // TODO SSL_set_tlsext_host_name : "yuneta.io"
+        /*
+         *  SNI (server_name extension) is per-connection, so it is applied on
+         *  the SSL object in new_secure_filter(), not here on the SSL_CTX.
+         */
     }
 
     return ctx;
@@ -514,6 +518,9 @@ PRIVATE hytls init(
     ytls->gobj = gobj;
     ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
     ytls->rx_buffer_size = kw_get_int(gobj, jn_config, "rx_buffer_size", 32*1024, 0);
+    snprintf(ytls->ssl_server_name, sizeof(ytls->ssl_server_name), "%s",
+        kw_get_str(gobj, jn_config, "ssl_server_name", "", 0)
+    );
 
     if(ytls->trace_tls) {
         gobj_log_debug(gobj, 0,
@@ -757,6 +764,23 @@ PRIVATE hsskt new_secure_filter(
         SSL_set_accept_state(sskt->ssl);
     } else {
         SSL_set_connect_state(sskt->ssl);
+
+        /*
+         *  SNI: advertise the target hostname in the ClientHello. Required by
+         *  virtual-hosted TLS endpoints (CDN/WAF front ends, e.g. ESIOS behind
+         *  Imperva) which reject SNI-less handshakes with a 403.
+         */
+        if(ytls->ssl_server_name[0] != '\0') {
+            if(SSL_set_tlsext_host_name(sskt->ssl, ytls->ssl_server_name) != 1) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "SSL_set_tlsext_host_name() FAILED",
+                    "ssl_server_name",  "%s", ytls->ssl_server_name,
+                    NULL
+                );
+            }
+        }
     }
 
 // Esto jode?    SSL_set_options(sskt->ssl, SSL_OP_NO_RENEGOTIATION); // New to openssl 1.1.1
