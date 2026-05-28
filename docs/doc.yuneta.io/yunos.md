@@ -7,12 +7,18 @@ Binaries are installed into `$YUNETAS_OUTPUTS/yunos/` by `yunetas build`.
 
 Each yuno has its own page (see the navigation sidebar). Grouped by area:
 
-## Agent & Management
+## Node Core
+
+The baseline services every node runs.
 
 - [`yuneta_agent`](yunos/yuneta_agent.md)
 - [`yuneta_agent22`](yunos/yuneta_agent22.md)
-- [`controlcenter`](yunos/controlcenter.md)
 - [`logcenter`](yunos/logcenter.md)
+- [`emailsender`](yunos/emailsender.md)
+
+## Remote Control
+
+- [`controlcenter`](yunos/controlcenter.md)
 
 ## Messaging & Protocol
 
@@ -26,7 +32,6 @@ Each yuno has its own page (see the navigation sidebar). Grouped by area:
 ## Data & Infrastructure
 
 - [`dba_postgres`](yunos/dba_postgres.md)
-- [`emailsender`](yunos/emailsender.md)
 
 ## Development & Testing
 

@@ -258,13 +258,17 @@ project:
     - title: Built-in Yunos
       file: yunos.md
       children:
-        - title: Agent & Management
-          file: yunos/agent-and-management.md
+        - title: Node Core
+          file: yunos/node-core.md
           children:
             - file: yunos/yuneta_agent.md
             - file: yunos/yuneta_agent22.md
-            - file: yunos/controlcenter.md
             - file: yunos/logcenter.md
+            - file: yunos/emailsender.md
+        - title: Remote Control
+          file: yunos/remote-control.md
+          children:
+            - file: yunos/controlcenter.md
         - title: Messaging & Protocol
           file: yunos/messaging-and-protocol.md
           children:
@@ -278,7 +282,6 @@ project:
           file: yunos/data-and-infrastructure.md
           children:
             - file: yunos/dba_postgres.md
-            - file: yunos/emailsender.md
         - title: Development & Testing
           file: yunos/development-and-testing.md
           children:
