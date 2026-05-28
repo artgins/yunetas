@@ -410,9 +410,9 @@ PRIVATE void add_recipient_token(json_t *jn_set, json_t *jn_list, char *token)
 
 /***************************************************************************
  *  Build a deduplicated json_array of RCPT TO addresses from the message
- *  envelope. Reads "to", "cc", "bcc" as comma-separated strings (the shape
- *  c_emailsender currently emits). Returns a new owned array, or NULL if
- *  no valid recipient was found.
+ *  envelope. Reads "to", "cc", "bcc" as comma- or semicolon-separated strings
+ *  (semicolon is the Outlook-style separator and also covers a stray trailing
+ *  ';'). Returns a new owned array, or NULL if no valid recipient was found.
  ***************************************************************************/
 PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg)
 {
@@ -449,9 +449,9 @@ PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg)
             return NULL;
         }
         char *save = NULL;
-        for(char *tok = strtok_r(buf, ",", &save);
+        for(char *tok = strtok_r(buf, ",;", &save);
             tok;
-            tok = strtok_r(NULL, ",", &save)
+            tok = strtok_r(NULL, ",;", &save)
         ) {
             add_recipient_token(jn_set, jn_list, tok);
         }
