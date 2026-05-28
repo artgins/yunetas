@@ -20,3 +20,11 @@ to PostgreSQL types:
 | object | `text` (JSON serialized) |
 
 Requires `libpq-dev` and `CONFIG_MODULE_POSTGRES=y`.
+
+Queries are queued and run asynchronously over one or more connection channels.
+
+**Commands:** `list-size` / `list-queue` (pending-query queue), `view-channels`,
+`authzs`. **Trace levels:** `messages`.
+
+Consumed by the [`dba_postgres`](../yunos/dba_postgres.md) yuno (the
+`__postgres__` service), which adds the DBA layer on top.

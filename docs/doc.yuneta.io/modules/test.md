@@ -9,5 +9,8 @@ Paired test server/client for functional testing and traffic generation.
 
 Paired test components: `C_PEPON` is a test server that responds to
 requests, `C_TESTON` is a test client that generates traffic
-(via `EV_START_TRAFFIC`). Used for functional testing and validation
-of Yuneta transport and protocol stacks.
+(send it `EV_START_TRAFFIC` to begin). Together they exercise the Yuneta
+transport and protocol stacks for functional tests and benchmarks (see the
+suites under `tests/c/` and `performance/c/`).
+
+**Trace levels (both):** `messages`.
