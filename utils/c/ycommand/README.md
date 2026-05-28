@@ -22,8 +22,8 @@ programmatic driver can stream commands into the same authenticated session
 and pay the OAuth2 round-trip only once. EOF on stdin triggers an orderly
 shutdown.
 
-Authentication options: `--jwt`, `--user_id`/`--user_passw`, or a config file.
-Run `ycommand --help` for all flags.
+Authentication is described in [Authentication (OAuth2 / OIDC)](#authentication-oauth2--oidc)
+below. Run `ycommand --help` for the full flag list.
 
 ## Choosing a mode
 
@@ -32,6 +32,47 @@ Run `ycommand --help` for all flags.
 | `ycommand -c '<cmd>'`       | A single command inside a shell script or one-liner                         | Pays connect + auth on every invocation                         |
 | `ycommand -i`               | Interactive exploration: prompt, TAB, history, `Ctrl+R`, did-you-mean       | Requires a TTY; not scriptable                                  |
 | `... \| ycommand` (stdin)   | A known sequence of N commands without needing to read a response first     | No feedback loop — every line is sent regardless of prior output; connect + auth paid once |
+
+## Authentication (OAuth2 / OIDC)
+
+The default `ws://127.0.0.1:1991` is the agent's plain local control port and
+needs no credentials. The remote / TLS path (typically `wss://host:1993`) is
+gated by an OAuth2 JWT, supplied one of two ways:
+
+- **Pre-obtained token** — pass it directly with `--jwt`.
+- **Fetch at connect** — pass `--user_id` + `--user_passw` together with an IdP
+  (`--issuer` or `--token-endpoint`) and `--client-id`; ycommand obtains the JWT
+  itself before opening the WebSocket.
+
+When an IdP and a `--user_id` are present, ycommand runs a one-shot token-fetch
+task at connect time: it resolves the token endpoint (via OIDC discovery from
+`--issuer`, or taken verbatim from `--token-endpoint`), exchanges
+`user_id` / `user_passw` / `client_id` for a JWT (resource-owner password
+grant), then opens the WebSocket carrying that JWT in the handshake. In
+stdin-pipe mode this round-trip happens **once** and the resulting session
+serves every piped command.
+
+| Flag                            | Short | Purpose                                                                          |
+| ------------------------------- | ----- | -------------------------------------------------------------------------------- |
+| `--issuer=<url>`                | `-I`  | OIDC issuer URL; triggers discovery of the token / end-session endpoints         |
+| `--token-endpoint=<url>`        | `-T`  | Explicit token endpoint; skips discovery (set with `--end-session-endpoint`)     |
+| `--end-session-endpoint=<url>`  | `-E`  | Explicit OIDC end_session endpoint; skips discovery (set with `--token-endpoint`) |
+| `--client-id=<id>`              | `-Z`  | OAuth2 `client_id` (Keycloak / Auth0 / Azure AD / …)                             |
+| `--user_id=<user>`              | `-x`  | Username for the token grant                                                     |
+| `--user_passw=<passw>`          | `-X`  | Password for the token grant                                                     |
+| `--jwt=<token>`                 | `-j`  | Use a previously obtained JWT; skips the token-fetch task                        |
+
+```bash
+# Fetch a JWT via discovery, then connect to a remote agent
+ycommand --url wss://host:1993 \
+         --issuer https://auth.example.com/realms/yuneta/ \
+         --client-id yuneta \
+         --user_id alice --user_passw '••••••' \
+         -c 'list-yunos'
+
+# Reuse a JWT you already hold (no token-fetch round-trip)
+ycommand --url wss://host:1993 --jwt "$JWT" -c 'stats'
+```
 
 ## Command line syntax
 
