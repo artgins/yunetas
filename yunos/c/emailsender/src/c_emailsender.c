@@ -44,6 +44,7 @@ PRIVATE int close_queues(hgobj gobj);
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -71,6 +72,14 @@ PRIVATE sdata_desc_t pm_set_email_user[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_STRING,    "url",          0,      0,          "SMTP url"),
+SDATAPM (DTP_STRING,    "from",         0,      0,          "Default from"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_url_from[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "url",          0,      0,          "SMTP url"),
+SDATAPM (DTP_STRING,    "from",         0,      0,          "Default from"),
 SDATA_END()
 };
 
@@ -80,6 +89,7 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
 SDATACM2(DTP_SCHEMA,    "set-email-user",   SDF_AUTHZ_X, 0,         pm_set_email_user, cmd_set_email_user, "Set email user"),
+SDATACM2(DTP_SCHEMA,    "set-url-from",     SDF_AUTHZ_X, 0,         pm_set_url_from, cmd_set_url_and_from, "Set url and/or from"),
 SDATACM (DTP_SCHEMA,    "send-email",       0,      pm_send_email,  cmd_send_email, "Send email."),
 SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
@@ -91,11 +101,11 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------------------default-----description---------- */
-SDATA (DTP_STRING,      "username",             SDF_PERSIST|SDF_WR,     "",     "email username"),
-SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_WR,     "",     "email password"),
-SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED,    "",     "smtp URL"),
-SDATA (DTP_STRING,      "from",                 SDF_RD|SDF_REQUIRED,    "",     "default from"),
-SDATA (DTP_STRING,      "from_beautiful",       SDF_RD,                 "",     "from with name"),
+SDATA (DTP_STRING,      "username",             SDF_PERSIST|SDF_REQUIRED,"",    "email username"),
+SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_REQUIRED,"",    "email password"),
+SDATA (DTP_STRING,      "url",                  SDF_PERSIST|SDF_REQUIRED,"",    "smtp URL"),
+SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    "default from"),
+SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
 SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,     "10",   "Timeout in miliseconds to dequeue msgs."),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
 SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,     0,      "True when testing, send only to test_email"),
@@ -383,8 +393,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*--------------------------*
      *      Get parameters
      *--------------------------*/
@@ -401,7 +409,7 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
     }
 
     /*-----------------------------*
-     *      Has password?
+     *      Password
      *-----------------------------*/
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
     if(empty_string(password)) {
@@ -417,13 +425,53 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     gobj_write_str_attr(gobj, "username", username);
     gobj_write_str_attr(gobj, "password", password);
-
     gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
 
     return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Email username set: %s", username),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    const char *from = kw_get_str(gobj, kw, "from", "", 0);
+
+    if(empty_string(url) && empty_string(from)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What url or from?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!empty_string(url)) {
+        gobj_write_str_attr(gobj, "url", url);
+        gobj_save_persistent_attrs(gobj, json_pack("url"));
+    }
+    if(!empty_string(from)) {
+        gobj_write_str_attr(gobj, "from", from);
+        gobj_save_persistent_attrs(gobj, json_pack("from"));
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("rrl/from set: %s/%s", url, from),
         0,
         0,
         kw  // owned
