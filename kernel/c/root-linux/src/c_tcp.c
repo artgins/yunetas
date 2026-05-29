@@ -108,9 +108,9 @@ SDATA (DTP_BOOLEAN, "no_tx_ready_event",SDF_RD,         0,          "Set TRUE if
 SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         0,          "Maximum messages in tx queue. Default is 0: no limit."),
 SDATA (DTP_INTEGER, "cur_tx_queue",     SDF_RD,         0,          "Current messages in tx queue"),
 
-SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
-SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
-SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
+SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"),
+SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
+SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
@@ -153,7 +153,7 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_accept;
     int fd_clisrv;
     int fd_listen;
-    int timeout_inactivity;
+    json_int_t timeout_inactivity;
     BOOL inform_disconnection;
 
     json_int_t connxs;
@@ -208,7 +208,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
-    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
+    SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
     SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
     SET_PRIV(use_ssl,               gobj_read_bool_attr)
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
@@ -226,7 +226,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(timeout_inactivity,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(__clisrv__,            gobj_read_bool_attr)
