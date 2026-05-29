@@ -162,6 +162,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t max_retries;
     q_msg_t *qmsg_cur_email;
     json_int_t cur_retries;     /* failed attempts for the current head message */
+    BOOL smtp_ready;            /* TRUE between EV_ON_OPEN and EV_ON_CLOSE (child connected+authed) */
 
     json_int_t send;
     json_int_t sent;
@@ -907,6 +908,19 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     }
 
     /*
+     *  Only dispatch when the SMTP session is connected and authenticated
+     *  (between EV_ON_OPEN and EV_ON_CLOSE). Otherwise leave the message in
+     *  the persistent queue and wait: C_TCP reconnects on its own and
+     *  ac_on_open kicks the dequeue again. This avoids dead-lettering
+     *  perfectly good messages just because the link is momentarily down
+     *  (server restart, transient network, or simply still handshaking at
+     *  startup with a backlog loaded from disk).
+     */
+    if(!priv->smtp_ready) {
+        return 0;
+    }
+
+    /*
      *  Dequeue the message (head of queue; it stays there until unloaded,
      *  so a retry sees the same message again).
      */
@@ -1059,9 +1073,7 @@ PRIVATE int process_smtp_response(
             "msg",          "%s", "NO pending current email",
             NULL
         );
-        if(gobj_in_this_state(gobj, ST_WAIT_RESPONSE)) {
-            gobj_change_state(gobj, ST_OPENED);
-        }
+        gobj_change_state(gobj, ST_IDLE);
         return tira_dela_cola(gobj);
     }
 
@@ -1115,10 +1127,9 @@ PRIVATE int process_smtp_response(
         }
     }
 
-    if(gobj_in_this_state(gobj, ST_WAIT_RESPONSE)) {
-        gobj_change_state(gobj, ST_OPENED);
-        tira_dela_cola(gobj);
-    }
+    gobj_change_state(gobj, ST_IDLE);
+    tira_dela_cola(gobj);
+
     return 0;
 }
 
@@ -1195,6 +1206,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->smtp) {
+        priv->smtp_ready = TRUE;
         tira_dela_cola(gobj);
     }
 
@@ -1211,6 +1223,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->smtp) {
+        priv->smtp_ready = FALSE;
         if(priv->qmsg_cur_email) {
             /*
              *  Link dropped mid-send. Transient: process_smtp_response keeps
@@ -1306,17 +1319,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      States
      *------------------------*/
-    ev_action_t st_closed[] = {
+    ev_action_t st_idle[] = {
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
-        {EV_ON_OPEN,        ac_on_open,             ST_OPENED},
-        {0,0,0}
-    };
-
-    ev_action_t st_opened[] = {
-        {EV_SEND_EMAIL,     ac_enqueue_message,     0},
-        {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
-        {EV_ON_CLOSE,       ac_on_close,            ST_CLOSED},
+        {EV_ON_OPEN,        ac_on_open,             0},
+        {EV_ON_CLOSE,       ac_on_close,            0},
         {0,0,0}
     };
 
@@ -1324,13 +1331,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_ON_MESSAGE,     ac_on_message,          0},
-        {EV_ON_CLOSE,       ac_on_close,            ST_CLOSED},
+        {EV_ON_CLOSE,       ac_on_close,            0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_CLOSED,         st_closed},
-        {ST_OPENED,         st_opened},
+        {ST_IDLE,           st_idle},
         {ST_WAIT_RESPONSE,  st_wait_response},
         {0, 0}
     };
@@ -1344,7 +1350,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
         {EV_ON_MESSAGE,         0},
-        {EV_TIMEOUT,            0},
         {NULL, 0}
     };
 
