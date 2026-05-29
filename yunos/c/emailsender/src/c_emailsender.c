@@ -152,7 +152,6 @@ typedef struct _PRIVATE_DATA {
     hgobj smtp;                 /* C_SMTP_SESSION pure_child (owns its C_TCP) */
     hgobj timer;
     hgobj gobj_input_side;
-    hgobj persist;
     json_int_t timeout_dequeue;
     json_int_t max_retries;
     q_msg_t *sd_cur_email;
@@ -217,7 +216,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->smtp = gobj_create_pure_child(
         gobj_name(gobj), C_SMTP_SESSION, kw_smtp, gobj
     );
-    //priv->persist = gobj_find_service("persist", FALSE);
 
     /*
      *  SERVICE subscription model
