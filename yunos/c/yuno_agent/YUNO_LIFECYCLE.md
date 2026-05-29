@@ -334,15 +334,34 @@ treedb row; the on-disk `bin/` directory is cleaned by treedb cascade.
 
 ## 5. Sharp edges (read these before touching production)
 
-### 5.1 `update-binary` does not check for running yunos
+### 5.1 `update-binary` fails while the yuno is running (text-file-busy)
 
-c_agent.c:3234 overwrites the file at `/yuneta/repos/<tags>/<role>/<version>/<role>`
-unconditionally (c_agent.c:3370). If a process is currently running that
-binary, you are overwriting the file backing its `mmap`. This **can** corrupt
-the live process. The command's own description in the table says
-*"WARNING: Don't use in production!"* (c_agent.c:850).
+`update-binary` (c_agent.c:3234) base64-decodes `content64` to
+`/yuneta/realms/agent/agent/temp/<role>`, then copies it over
+`/yuneta/repos/<tags>/<role>/<version>/<role>`. The agent **execs running
+yunos directly from that repos path**, so if a process is running that exact
+file the copy is refused by the kernel (`ETXTBSY`) and the command returns:
 
-**Use `install-binary` with a new version, or `kill-yuno` first.**
+```
+ERROR -1: Cannot copy '/yuneta/realms/agent/agent/temp/<role>'
+          to '/yuneta/repos/.../<version>/<role>'
+```
+
+It does **not** corrupt the live process — Linux simply won't let you overwrite
+a busy executable. The command's description still says *"WARNING: Don't use in
+production!"* (c_agent.c:850).
+
+**So the same-version hot-patch order is mandatory: `kill-yuno <role>` FIRST,
+then `update-binary`, then `run-yuno`.** (`$$(<role>)` in ycommand reads the
+freshly-built binary from `$YUNETAS_YUNOS` = `outputs/yunos/<role>`, so a plain
+`make install` is enough to stage the new build.) For a real release, prefer
+`install-binary` with a bumped version.
+
+> **Note — `list-binaries` returns the in-memory pkey2 index.** After a runtime
+> `update-binary`, `list-binaries` reflects the new size/date immediately
+> *(fixed dbf532ec9 — `treedb_save_node()` now refreshes the pkey2 secondary
+> index at runtime; before that fix it kept showing the previous record until
+> the agent restarted and reloaded the topic from disk)*.
 
 ### 5.2 Stale `yuno_running=true` after a hard crash
 

@@ -371,6 +371,14 @@ Six things to notice:
    `topic_desc_t.pkey`.
 2. **`pkey2s`** — optional secondary key (composite). Allows multiple
    records per primary key (e.g. multiple versions of a binary).
+   Queried via `treedb_get_instance()` / `treedb_list_instances()` and the
+   agent's `instances` command. **Invariant (since dbf532ec9):** the pkey2
+   secondary index shares the SAME node object as the primary index;
+   `treedb_save_node()` re-points it on every runtime save. Before that fix
+   it held a separate object only filled at disk-load, so a runtime
+   `update-node` was invisible through `list_instances` until the next
+   reload — the bug behind `list-binaries` showing a stale binary right
+   after `update-binary`.
 3. **`schema_version`** + **`topic_version`** — different. Schema is
    the overall layout; topic is per-topic. **Bump `topic_version`
    whenever you change `cols`** — §3.5.

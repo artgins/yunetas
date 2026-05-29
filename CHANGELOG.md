@@ -1,6 +1,53 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(tr_treedb): refresh the pkey2 secondary index on a runtime
+      `treedb_save_node()`.** The secondary `pkey2` index kept objects
+      SEPARATE from the primary `id` index, populated only while loading
+      from disk (`load_pkey2_callback` gated on `sf_loading_from_disk`).
+      At runtime `treedb_update_node()` mutated the primary node in place
+      and `treedb_save_node()` only appended a tranger row — neither
+      touched the secondary index, so `treedb_get_instance()` /
+      `treedb_list_instances()` returned the OLD content after an update.
+      Surfaced as the agent's `list-binaries` showing the previous binary
+      right after a successful `update-binary` (the agent returns the
+      in-memory pkey2 index; the new record was already on disk). Now
+      `treedb_save_node()` re-points every pkey2 slot of the node at the
+      node object itself. No-op for topics without pkey2s. New regression
+      test `tests/c/tr_treedb_update_instance` (create → reload from disk →
+      update → assert via get_instance/list_instances); it fails against
+      the pre-fix code.
+
+    - **fix(emailsender): correctness + resilience of the SMTP send path.**
+      (1) Duplicate `MAIL FROM` → "503 MAIL already given": on AUTH-OK the
+      session published EV_ON_OPEN (whose subscriber already begins the
+      queued send, being idle) and then began it again; snapshot the
+      pending flag before publishing. (2) Permanent 5xx rejections now
+      dead-letter immediately (reply code forwarded via EV_ON_CLOSE /
+      EV_ON_MESSAGE; `code>=500` = permanent, 4xx/timeout/drop = transient
+      retry). (3) Binary (non-UTF-8) bodies persisted base64 under
+      `body_base64` instead of being silently dropped by `json_stringn`.
+      (4) Reconnect-on-demand with exponential backoff (2s→×2→cap 5min,
+      reset on EV_ON_OPEN): mail enqueued after a `timeout_inactivity`
+      idle-close now reconnects (EV_CONNECT) and drains; permanent session
+      failures (AUTH 535, EHLO/banner 5xx) log a loud ERROR and back off,
+      never loop or grow the queue silently. (5) Fixed a shutdown SIGSEGV:
+      the reconnect paths dereferenced the emails queue without a NULL
+      guard, crashing when a deferred TCP disconnect delivered EV_ON_CLOSE
+      after `close_queues()`.
+
+    - **refactor(c_tcp): `timeout_inactivity` / `timeout_between_connections`
+      / `rx_buffer_size` are deployment config (`SDF_RD`), not runtime
+      knobs** — dropped `SDF_WR` (and the misleading `SDF_PERSIST` on the
+      two timeouts); widened `priv->timeout_inactivity` to `json_int_t`.
+
+    - **fix(yev_loop): retry the static resolver's UDP `recv()` on `EINTR`,
+      and log `gai_strerror(ret)` not `strerror(errno)`.** A signal
+      interrupting the blocking DNS `recv()` made `yuneta_getaddrinfo()`
+      fail spuriously (the logged "Interrupted system call" was a stale
+      residual errno; getaddrinfo-family return an `EAI_*` code). Both
+      `getaddrinfo() FAILED` sites now log the real `gai_*` cause.
+
     - **fix(ytls): send SNI in OpenSSL client handshakes.** The
       OpenSSL backend never set the TLS `server_name` extension —
       the code was a `// TODO SSL_set_tlsext_host_name` stub — so
