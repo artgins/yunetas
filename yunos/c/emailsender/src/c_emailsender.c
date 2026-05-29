@@ -48,6 +48,7 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -82,17 +83,25 @@ SDATAPM (DTP_STRING,    "url",          0,      0,          "SMTP url"),
 SDATAPM (DTP_STRING,    "from",         0,      0,          "Default from"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_list_queues[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
-SDATACM2(DTP_SCHEMA,    "set-email-user",   SDF_AUTHZ_X, 0,         pm_set_email_user, cmd_set_email_user, "Set email user"),
-SDATACM2(DTP_SCHEMA,    "set-url-from",     SDF_AUTHZ_X, 0,         pm_set_url_from, cmd_set_url_and_from, "Set url and/or from"),
 SDATACM (DTP_SCHEMA,    "send-email",       0,      pm_send_email,  cmd_send_email, "Send email."),
 SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
+SDATACM (DTP_SCHEMA,    "list-queues",      0,      pm_list_queues, cmd_list_queues, "List email queues"),
+
+/*-CMD2---type------name------------flag------------ali-items---------------json_fn-------------description--*/
+SDATACM2(DTP_SCHEMA,"set-email-user",SDF_AUTHZ_X,   0,  pm_set_email_user,  cmd_set_email_user, "Set email user"),
+SDATACM2(DTP_SCHEMA,"set-url-from", SDF_AUTHZ_X,    0,  pm_set_url_from,    cmd_set_url_and_from, "Set url and/or from"),
+
 SDATA_END()
 };
 
@@ -557,6 +566,64 @@ PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw
         json_sprintf("Alarm emails disabled"),
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int total_queues = 0;
+    int total_fails = 0;
+
+    json_t *jn_data = json_object();
+
+    if(!gobj_is_playing(gobj)) {
+        // In pause the queues are closed
+        open_queues(gobj);
+    }
+
+    if(priv->trq_emails_queue) { // 0 if not running
+        json_t *q = json_array();
+        json_object_set_new(jn_data, "emails_queue", q);
+
+        q_msg_t *qmsg;
+        qmsg_foreach_forward(priv->trq_emails_queue, qmsg) {
+            json_t *msg = trq_msg_json(qmsg);
+            json_array_append_new(q, msg);
+            total_queues++;
+        }
+    }
+
+    if(priv->trq_emails_failed) { // 0 if not running
+        json_t *q = json_array();
+        json_object_set_new(jn_data, "emails_failed", q);
+
+        q_msg_t *qmsg;
+        qmsg_foreach_forward(priv->trq_emails_failed, qmsg) {
+            json_t *msg = trq_msg_json(qmsg);
+            json_array_append_new(q, msg);
+            total_fails++;
+        }
+    }
+
+    if(!gobj_is_playing(gobj)) {
+        // In pause the queues are closed
+        close_queues(gobj);
+    }
+
+    /*
+     *  Inform
+     */
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Email Queues: in queue %d, failed %d", total_queues, total_fails),
+        0,
+        jn_data,
         kw  // owned
     );
 }
