@@ -753,6 +753,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_BANNER) {
         if(code != SMTP_CODE_SERVICE_READY) {
+            priv->reject_code = code;
             return abort_session(gobj, "server did not greet with 220");
         }
         char line_ehlo[NAME_MAX];
@@ -765,6 +766,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_EHLO_RESP) {
         if(code != SMTP_CODE_OK) {
+            priv->reject_code = code;
             return abort_session(gobj, "EHLO rejected");
         }
         const char *username = gobj_read_str_attr(gobj, "username");
@@ -808,6 +810,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_AUTH_RESP) {
         if(code != SMTP_CODE_AUTH_OK) {
+            priv->reject_code = code;
             return abort_session(gobj, "AUTH PLAIN rejected");
         }
         return enter_idle_after_handshake(gobj);

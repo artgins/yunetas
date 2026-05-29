@@ -20,6 +20,16 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  Reconnection backoff bounds (milliseconds). The SMTP link is brought up
+ *  on demand when there is mail to send; if the connect or handshake fails
+ *  (server down, bad credentials, ...) we retry on a timer with exponential
+ *  backoff between RECONNECT_BACKOFF_MIN_MS and RECONNECT_BACKOFF_MAX_MS,
+ *  reset to MIN on a successful open. This bounds the retry rate (no hammer)
+ *  and drains the queue automatically when the server/config recovers.
+ */
+#define RECONNECT_BACKOFF_MIN_MS    2000
+#define RECONNECT_BACKOFF_MAX_MS    300000
 
 /***************************************************************************
  *              Structures
@@ -159,10 +169,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj smtp;                 /* C_SMTP_SESSION pure_child (owns its C_TCP) */
+    hgobj timer;                /* C_TIMER pure_child: reconnection backoff / queue-drain retry */
     hgobj gobj_input_side;
     json_int_t max_retries;
     q_msg_t *qmsg_cur_email;
     json_int_t cur_retries;     /* failed attempts for the current head message */
+    json_int_t reconnect_backoff; /* current reconnect backoff (ms); grows on failure, resets on open */
     BOOL smtp_ready;            /* TRUE between EV_ON_OPEN and EV_ON_CLOSE (child connected+authed) */
 
     json_int_t send;
@@ -224,6 +236,12 @@ PRIVATE void mt_create(hgobj gobj)
         kw_smtp,
         gobj
     );
+
+    /*
+     *  Timer for the reconnection backoff / queue-drain retry.
+     */
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->reconnect_backoff = RECONNECT_BACKOFF_MIN_MS;
 
     /*
      *  SERVICE subscription model
@@ -324,6 +342,7 @@ PRIVATE int mt_pause(hgobj gobj)
     /*--------------------------------*
      *      Stop smtp and timer
      *--------------------------------*/
+    clear_timeout(priv->timer);
     gobj_stop(priv->smtp);
 
     /*--------------------------------*
@@ -921,14 +940,18 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     if(!priv->smtp_ready) {
         /*
          *  Session not up. The bottom C_TCP closes on inactivity
-         *  (timeout_inactivity) and does NOT auto-reconnect, so a freshly
-         *  enqueued message would otherwise sit here forever. Kick an
-         *  on-demand (re)connect when the SMTP child is idle-closed
-         *  (ST_DISCONNECTED); EV_ON_OPEN then re-enters this dequeue. If a
-         *  connect/handshake is already in progress, just wait for it.
+         *  (timeout_inactivity) and does NOT auto-reconnect. Act only if mail
+         *  is actually waiting: kick an on-demand (re)connect when the SMTP
+         *  child is idle-closed (ST_DISCONNECTED) and arm the backoff timer so
+         *  a failed connect/handshake is retried later (ac_retry) instead of
+         *  stalling. EV_ON_OPEN then re-enters this dequeue; if a connect/
+         *  handshake is already in progress we just wait for it.
          */
-        if(gobj_current_state(priv->smtp) == ST_DISCONNECTED) {
-            gobj_send_event(priv->smtp, EV_CONNECT, 0, gobj);
+        if(trq_first_msg(priv->trq_emails_queue)) {
+            if(gobj_current_state(priv->smtp) == ST_DISCONNECTED) {
+                gobj_send_event(priv->smtp, EV_CONNECT, 0, gobj);
+            }
+            set_timeout(priv->timer, priv->reconnect_backoff);
         }
         return 0;
     }
@@ -1252,6 +1275,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->smtp) {
         priv->smtp_ready = TRUE;
+        /* Session is healthy: cancel any pending reconnect retry and reset
+           the backoff so the next outage starts from the minimum again. */
+        clear_timeout(priv->timer);
+        priv->reconnect_backoff = RECONNECT_BACKOFF_MIN_MS;
         tira_dela_cola(gobj);
     }
 
@@ -1269,19 +1296,50 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->smtp) {
         priv->smtp_ready = FALSE;
+        int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
         if(priv->qmsg_cur_email) {
             /*
              *  Session dropped mid-send. A 5xx reply code forwarded by the
              *  SMTP child means the server rejected this specific message
              *  (permanent) → dead-letter it directly. No code / a 4xx means a
              *  transient transport error → keep it queued for a retry on
-             *  reconnect (until max_retries).
+             *  reconnect (until max_retries). process_smtp_response re-arms the
+             *  retry timer via tira_dela_cola if mail remains.
              */
-            int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
             BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
             process_smtp_response(gobj, qmsg, -1, permanent, "");
+        } else {
+            /*
+             *  Session went down with no message in flight: either a normal
+             *  idle-close, or a handshake failure (banner/EHLO/AUTH) that
+             *  blocks ALL queued mail, not one message.
+             */
+            if(code >= 500 && code < 600) {
+                /*
+                 *  Session-level permanent rejection (e.g. AUTH 535 bad
+                 *  credentials, EHLO/banner 5xx). Log loudly and back off hard;
+                 *  keep mail queued — do NOT dead-letter, it will flow once the
+                 *  credentials/config are fixed.
+                 */
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_APP,
+                    "msg",          "%s", "SMTP session rejected, check credentials/config",
+                    "code",         "%d", code,
+                    "url",          "%s", priv->url,
+                    NULL
+                );
+                priv->reconnect_backoff = RECONNECT_BACKOFF_MAX_MS;
+            }
+            /*
+             *  If mail is still queued, schedule a backoff retry so it drains
+             *  when the link / config recovers (ac_retry).
+             */
+            if(trq_first_msg(priv->trq_emails_queue)) {
+                set_timeout(priv->timer, priv->reconnect_backoff);
+            }
         }
     }
 
@@ -1316,6 +1374,29 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
     process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, "");
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Reconnect backoff timer fired. If the SMTP session is still down and mail
+ *  is waiting, grow the backoff (capped) and try again via tira_dela_cola
+ *  (which re-issues EV_CONNECT and re-arms this timer). The backoff resets to
+ *  the minimum on a successful open (ac_on_open). This bounds the retry rate
+ *  against a down server / bad config and drains the queue on recovery.
+ ***************************************************************************/
+PRIVATE int ac_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->smtp_ready && trq_first_msg(priv->trq_emails_queue)) {
+        priv->reconnect_backoff *= 2;
+        if(priv->reconnect_backoff > RECONNECT_BACKOFF_MAX_MS) {
+            priv->reconnect_backoff = RECONNECT_BACKOFF_MAX_MS;
+        }
+        tira_dela_cola(gobj);
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -1376,6 +1457,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_ON_OPEN,        ac_on_open,             0},
         {EV_ON_CLOSE,       ac_on_close,            0},
+        {EV_TIMEOUT,        ac_retry,               0},
         {0,0,0}
     };
 
@@ -1384,6 +1466,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_ON_MESSAGE,     ac_on_message,          0},
         {EV_ON_CLOSE,       ac_on_close,            0},
+        {EV_TIMEOUT,        ac_retry,               0},
         {0,0,0}
     };
 
@@ -1402,6 +1485,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
         {EV_ON_MESSAGE,         0},
+        {EV_TIMEOUT,            0},
         {NULL, 0}
     };
 
