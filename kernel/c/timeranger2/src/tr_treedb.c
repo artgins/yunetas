@@ -4768,6 +4768,37 @@ PUBLIC int treedb_save_node(
     json_object_set_new(__md_treedb__, "t", json_integer((json_int_t)md_record.__t__));
     json_object_set_new(__md_treedb__, "tm", json_integer((json_int_t)md_record.__tm__));
 
+    /*------------------------------------------------------------------*
+     *  Keep the pkey2 secondary indexes in sync with this node.
+     *
+     *  The load callbacks (load_pkey2_callback) only populate the secondary
+     *  indexes while loading from disk (sf_loading_from_disk). At runtime a
+     *  create/update mutates the primary node object in place, but the
+     *  secondary index kept a SEPARATE stale object, so treedb_list_instances()
+     *  returned the old content (e.g. agent list-binaries showing the previous
+     *  binary after update-binary). Re-point every pkey2 slot of this node at
+     *  the node itself, so the secondary index shares the primary object and
+     *  reflects this save. No-op for topics without pkey2s.
+     *------------------------------------------------------------------*/
+    const char *node_id = kw_get_str(gobj, node, "id", "", 0);
+    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    int idx_pkey2; json_t *jn_pkey2_name;
+    json_array_foreach(pkey2s, idx_pkey2, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        const char *pkey2_value = get_key2_value(tranger, topic_name, pkey2_name, node);
+        if(empty_string(pkey2_value)) {
+            continue;
+        }
+        json_t *indexy = treedb_get_pkey2_index(tranger, treedb_name, topic_name, pkey2_name);
+        if(indexy) {
+            add_secondary_node(indexy, node_id, pkey2_value, node); // re-point to node
+        }
+    }
+    JSON_DECREF(pkey2s)
+
     /*-------------------------------*
      *  Get callback
      *-------------------------------*/
