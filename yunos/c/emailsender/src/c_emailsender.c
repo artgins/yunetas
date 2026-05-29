@@ -82,10 +82,10 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------------------default-----description---------- */
-SDATA (DTP_STRING,      "username",             SDF_RD,                 0,      "email username"),
-SDATA (DTP_STRING,      "password",             SDF_RD,                 0,      "email password"),
-SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED,    0,      "smtp URL"),
-SDATA (DTP_STRING,      "from",                 SDF_RD|SDF_REQUIRED,    0,      "default from"),
+SDATA (DTP_STRING,      "username",             SDF_PERSIST|SDF_WR,     "",     "email username"),
+SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_WR,     "",     "email password"),
+SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED,    "",     "smtp URL"),
+SDATA (DTP_STRING,      "from",                 SDF_RD|SDF_REQUIRED,    "",     "default from"),
 SDATA (DTP_STRING,      "from_beautiful",       SDF_RD,                 "",     "from with name"),
 SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,     "10",   "Timeout in miliseconds to dequeue msgs."),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
