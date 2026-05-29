@@ -43,6 +43,7 @@ PRIVATE int close_queues(hgobj gobj);
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -66,14 +67,22 @@ SDATAPM (DTP_STRING,    "body",         0,              0,          "Email body.
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_set_email_user[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "send-email",       0,                  pm_send_email,  cmd_send_email, "Send email."),
-SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,               0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
-SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,                0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
+/*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
+SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
+SDATACM2(DTP_SCHEMA,    "set-email-user",   SDF_AUTHZ_X, 0,         pm_set_email_user, cmd_set_email_user, "Set email user"),
+SDATACM (DTP_SCHEMA,    "send-email",       0,      pm_send_email,  cmd_send_email, "Send email."),
+SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
+SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
 SDATA_END()
 };
 
@@ -363,6 +372,58 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *      Has password?
+     *-----------------------------*/
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(empty_string(password)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_write_str_attr(gobj, "username", username);
+    gobj_write_str_attr(gobj, "password", password);
+
+    gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Email username set: %s", username),
         0,
         0,
         kw  // owned
