@@ -49,6 +49,7 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_remove_emails_failed(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -97,6 +98,7 @@ SDATACM (DTP_SCHEMA,    "send-email",       0,      pm_send_email,  cmd_send_ema
 SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,   0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,    0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
 SDATACM (DTP_SCHEMA,    "list-queues",      0,      pm_list_queues, cmd_list_queues, "List email queues"),
+SDATACM (DTP_SCHEMA,    "remove-emails-failed",0,   0,              cmd_remove_emails_failed, "Remove emails failed"),
 
 /*-CMD2---type------name------------flag------------ali-items---------------json_fn-------------description--*/
 SDATACM2(DTP_SCHEMA,"set-email-user",SDF_AUTHZ_X,   0,  pm_set_email_user,  cmd_set_email_user, "Set email user"),
@@ -624,6 +626,45 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("Email Queues: in queue %d, failed %d", total_queues, total_fails),
         0,
         jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_remove_emails_failed(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int total_fails = 0;
+
+    if(!gobj_is_playing(gobj)) {
+        // In pause the queues are closed
+        open_queues(gobj);
+    }
+
+    if(priv->trq_emails_failed) { // 0 if not running
+        q_msg_t *qmsg, *prev;
+        qmsg_foreach_forward_safe(priv->trq_emails_failed, qmsg, prev) {
+            trq_unload_msg(qmsg, 0);
+            total_fails++;
+        }
+    }
+
+    if(!gobj_is_playing(gobj)) {
+        // In pause the queues are closed
+        close_queues(gobj);
+    }
+
+    /*
+     *  Inform
+     */
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Deleted Emails failed: %d", total_fails),
+        0,
+        0,
         kw  // owned
     );
 }
