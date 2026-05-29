@@ -16,6 +16,7 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -209,7 +210,10 @@ static int dns_query(
                   (struct sockaddr *)&srv4, sizeof(srv4)) < 0) {
             close(sock); return -1;
         }
-        int n = (int)recv(sock, resp, resp_bufsz, 0);
+        int n;
+        do {
+            n = (int)recv(sock, resp, resp_bufsz, 0);
+        } while(n < 0 && errno == EINTR);   /* restart if interrupted by a signal */
         close(sock);
         return n;
     }
@@ -227,7 +231,10 @@ static int dns_query(
                   (struct sockaddr *)&srv6, sizeof(srv6)) < 0) {
             close(sock); return -1;
         }
-        int n = (int)recv(sock, resp, resp_bufsz, 0);
+        int n;
+        do {
+            n = (int)recv(sock, resp, resp_bufsz, 0);
+        } while(n < 0 && errno == EINTR);   /* restart if interrupted by a signal */
         close(sock);
         return n;
     }

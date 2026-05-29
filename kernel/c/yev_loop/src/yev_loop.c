@@ -2200,8 +2200,8 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
             "url",          "%s", dst_url,
             "host",         "%s", dst_host,
             "port",         "%s", dst_port,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
+            "gai_ret",      "%d", ret,
+            "gai_strerror", "%s", gai_strerror(ret),
             NULL
         );
         return -1;
@@ -2517,8 +2517,8 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "url",          "%s", listen_url,
             "host",         "%s", host,
             "port",         "%s", port,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
+            "gai_ret",      "%d", ret,
+            "gai_strerror", "%s", gai_strerror(ret),
             NULL
         );
         return NULL;
