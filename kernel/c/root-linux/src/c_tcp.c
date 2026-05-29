@@ -72,6 +72,8 @@
  ***************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE void set_connected(hgobj gobj, int fd);
+PRIVATE void set_inactivity_timeout(hgobj gobj);
+PRIVATE void start_pending_writes(hgobj gobj);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
@@ -484,6 +486,19 @@ PRIVATE int get_peer_and_sock_name(hgobj gobj, int fd)
 }
 
 /***************************************************************************
+ *  Arm the inactivity timer (client only, one-shot, reset on each activity).
+ *  No-op unless this is a pure tcp client with timeout_inactivity > 0.
+ ***************************************************************************/
+PRIVATE void set_inactivity_timeout(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(IS_CLI && priv->gobj_timer && priv->timeout_inactivity > 0) {
+        set_timeout(priv->gobj_timer, priv->timeout_inactivity);
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd)
@@ -627,6 +642,13 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         );
 
         gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+
+        /*
+         *  Inactivity model: flush data queued while disconnected and arm the
+         *  inactivity timer (both no-op unless timeout_inactivity > 0).
+         */
+        start_pending_writes(gobj);
+        set_inactivity_timeout(gobj);
     }
 }
 
@@ -654,6 +676,13 @@ PRIVATE void set_secure_connected(hgobj gobj)
     gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 
     ytls_flush(priv->ytls, priv->sskt);
+
+    /*
+     *  Inactivity model: flush data queued while disconnected and arm the
+     *  inactivity timer (both no-op unless timeout_inactivity > 0).
+     */
+    start_pending_writes(gobj);
+    set_inactivity_timeout(gobj);
 }
 
 /***************************************************************************
@@ -795,10 +824,18 @@ PRIVATE void set_disconnected(hgobj gobj)
          */
         if(gobj_is_running(gobj)) {
             gobj_change_state(gobj, ST_DISCONNECTED);
-            set_timeout(
-                priv->gobj_timer,
-                gobj_read_integer_attr(gobj, "timeout_between_connections")
-            );
+            if(priv->timeout_inactivity > 0) {
+                /*
+                 *  Inactivity model: do NOT auto-reconnect. Stay disconnected
+                 *  until new tx data arrives (EV_TX_DATA in ST_DISCONNECTED).
+                 */
+                clear_timeout(priv->gobj_timer);
+            } else {
+                set_timeout(
+                    priv->gobj_timer,
+                    gobj_read_integer_attr(gobj, "timeout_between_connections")
+                );
+            }
         } else {
             /*
              *  The gobj is in stop
@@ -929,6 +966,27 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
     dl_add(&priv->dl_tx, gbuf);
 
     return 0;
+}
+
+/***************************************************************************
+ *  Flush data queued while disconnected, right after a (re)connection.
+ *  Inactivity model: tx data that arrived while the client was disconnected
+ *  was enqueued (ac_tx_data_disconnected/ac_tx_data_queued); start draining
+ *  it now. No-op when the queue is empty (the normal, non-inactivity path).
+ ***************************************************************************/
+PRIVATE void start_pending_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gbuf_txing) {
+        return;
+    }
+    gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
+    if(gbuf_txing) {
+        priv->gbuf_txing = gbuf_txing;
+        dl_delete(&priv->dl_tx, gbuf_txing, 0);
+        write_data(gobj);
+    }
 }
 
 /***************************************************************************
@@ -1186,6 +1244,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     priv->rxMsgs++;
                     priv->rxBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
+                    set_inactivity_timeout(gobj); // rx activity: reset timer
+
                     int ret = 0;
 
                     if(priv->use_ssl) {
@@ -1264,6 +1324,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                          *  See if all data was transmitted
                          */
                         priv->txBytes += (json_int_t)yev_get_result(yev_event);
+
+                        set_inactivity_timeout(gobj); // tx activity: reset timer
+
                         if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
                             if(trace_level & TRACE_MACHINE) {
                                 trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
@@ -1601,6 +1664,100 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Inactivity timeout expired while connected: close the connection.
+ *  The client reconnects on demand when new tx data arrives
+ *  (see ac_tx_data_disconnected).
+ ***************************************************************************/
+PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_set_last_message("Inactivity timeout");
+    try_to_stop_yevents(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Tx data while disconnected (inactivity model).
+ *  Queue the data and trigger an on-demand reconnection; the queue is
+ *  flushed by start_pending_writes() once connected.
+ ***************************************************************************/
+PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "gbuffer NULL",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(priv->timeout_inactivity > 0) {
+        enqueue_write(gobj, gbuffer_incref(gbuf));
+        clear_timeout(priv->gobj_timer);
+        gobj_send_event(gobj, EV_CONNECT, 0, gobj);
+    } else {
+        /*
+         *  No inactivity model: there is no on-demand reconnection, the data
+         *  cannot be sent while disconnected. Drop it (logged, not silent).
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "tcp tx data while disconnected, dropped",
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Tx data while a (re)connection is in progress (inactivity model).
+ *  Queue it; start_pending_writes() flushes it once connected.
+ ***************************************************************************/
+PRIVATE int ac_tx_data_queued(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "gbuffer NULL",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(priv->timeout_inactivity > 0) {
+        enqueue_write(gobj, gbuffer_incref(gbuf));
+    } else {
+        /*
+         *  No inactivity model: not expected here, drop it (logged, not silent).
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "tcp tx data while connecting, dropped",
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Called when a trace level is enabled at runtime (e.g. via agent command).
  *  Propagate the TLS trace flag to the active secure filter if present.
  ***************************************************************************/
@@ -1686,6 +1843,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECT,                ac_connect,                 ST_WAIT_CONNECTED},
         {EV_TIMEOUT,                ac_connect,                 ST_WAIT_CONNECTED},
+        {EV_TX_DATA,                ac_tx_data_disconnected,    0},
         {0,0,0}
     };
 
@@ -1699,12 +1857,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_connected[] = {
+        {EV_TX_DATA,                ac_tx_data_queued,          0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
 
     ev_action_t st_wait_handshake[] = {
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
+        {EV_TX_DATA,                ac_tx_data_queued,          0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
@@ -1712,6 +1872,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_connected[] = {
         {EV_TX_DATA,                ac_tx_data,                 0},
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
+        {EV_TIMEOUT,                ac_timeout_inactivity,      0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
