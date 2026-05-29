@@ -461,17 +461,17 @@ PRIVATE json_t *cmd_set_url_and_from(hgobj gobj, const char *cmd, json_t *kw, hg
 
     if(!empty_string(url)) {
         gobj_write_str_attr(gobj, "url", url);
-        gobj_save_persistent_attrs(gobj, json_pack("url"));
+        gobj_save_persistent_attrs(gobj, json_string("url"));
     }
     if(!empty_string(from)) {
         gobj_write_str_attr(gobj, "from", from);
-        gobj_save_persistent_attrs(gobj, json_pack("from"));
+        gobj_save_persistent_attrs(gobj, json_string("from"));
     }
 
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("rrl/from set: %s/%s", url, from),
+        json_sprintf("URL/from set: %s/%s", url, from),
         0,
         0,
         kw  // owned
