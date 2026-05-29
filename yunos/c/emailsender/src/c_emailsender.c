@@ -947,7 +947,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
          *  stalling. EV_ON_OPEN then re-enters this dequeue; if a connect/
          *  handshake is already in progress we just wait for it.
          */
-        if(trq_first_msg(priv->trq_emails_queue)) {
+        if(priv->trq_emails_queue && trq_first_msg(priv->trq_emails_queue)) {
             if(gobj_current_state(priv->smtp) == ST_DISCONNECTED) {
                 gobj_send_event(priv->smtp, EV_CONNECT, 0, gobj);
             }
@@ -1335,9 +1335,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             /*
              *  If mail is still queued, schedule a backoff retry so it drains
-             *  when the link / config recovers (ac_retry).
+             *  when the link / config recovers (ac_retry). Guard against the
+             *  queue being closed (NULL) during shutdown: a deferred TCP
+             *  disconnect can deliver EV_ON_CLOSE after mt_pause/close_queues.
              */
-            if(trq_first_msg(priv->trq_emails_queue)) {
+            if(priv->trq_emails_queue && trq_first_msg(priv->trq_emails_queue)) {
                 set_timeout(priv->timer, priv->reconnect_backoff);
             }
         }
@@ -1390,7 +1392,7 @@ PRIVATE int ac_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->smtp_ready && trq_first_msg(priv->trq_emails_queue)) {
+    if(!priv->smtp_ready && priv->trq_emails_queue && trq_first_msg(priv->trq_emails_queue)) {
         priv->reconnect_backoff *= 2;
         if(priv->reconnect_backoff > RECONNECT_BACKOFF_MAX_MS) {
             priv->reconnect_backoff = RECONNECT_BACKOFF_MAX_MS;
