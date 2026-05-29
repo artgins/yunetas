@@ -106,7 +106,6 @@ SDATA (DTP_STRING,      "password",             SDF_PERSIST|SDF_REQUIRED,"",    
 SDATA (DTP_STRING,      "url",                  SDF_PERSIST|SDF_REQUIRED,"",    "smtp URL"),
 SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    "default from"),
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
-SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,     "10",   "Timeout in miliseconds to dequeue msgs."),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
 SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,     0,      "True when testing, send only to test_email"),
 SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,     0,      "True when testing, add test_email to send"),
@@ -150,9 +149,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj smtp;                 /* C_SMTP_SESSION pure_child (owns its C_TCP) */
-    hgobj timer;
     hgobj gobj_input_side;
-    json_int_t timeout_dequeue;
     json_int_t max_retries;
     q_msg_t *sd_cur_email;
     json_int_t cur_retries;     /* failed attempts for the current head message */
@@ -194,8 +191,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-
     /*
      *  Build the SMTP session child. It auto-creates its own C_TCP bottom
      *  on mt_start using the url attr. EHLO domain defaults to the local
@@ -214,7 +209,10 @@ PRIVATE void mt_create(hgobj gobj)
         "helo_name", hostname
     );
     priv->smtp = gobj_create_pure_child(
-        gobj_name(gobj), C_SMTP_SESSION, kw_smtp, gobj
+        gobj_name(gobj),
+        C_SMTP_SESSION,
+        kw_smtp,
+        gobj
     );
 
     /*
@@ -237,7 +235,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(from,                  gobj_read_str_attr)
     SET_PRIV(max_retries,           gobj_read_integer_attr)
-    SET_PRIV(timeout_dequeue,       gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -247,8 +244,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_dequeue,     gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(max_retries,       gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(max_retries,         gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -265,11 +261,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
-    gobj_start(priv->smtp);
-
     return 0;
 }
 
@@ -278,11 +269,6 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
-    gobj_stop(priv->smtp);
-
     return 0;
 }
 
@@ -302,17 +288,18 @@ PRIVATE int mt_play(hgobj gobj)
      *--------------------------------*/
     open_queues(gobj);
 
+    /*--------------------------------*
+     *      Start smtp
+     *--------------------------------*/
+    gobj_start(priv->smtp);
+
     /*
      *  Start services
      */
+
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     // gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
-
-    /*
-     *  Periodic timer
-     */
-    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
 
     return 0;
 }
@@ -323,6 +310,11 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------------*
+     *      Stop smtp and timer
+     *--------------------------------*/
+    gobj_stop(priv->smtp);
 
     /*--------------------------------*
      *      Close queues
@@ -850,7 +842,6 @@ PRIVATE int process_smtp_response(
          *  twice). Just clear state and re-arm.
          */
         gobj_change_state(gobj, ST_IDLE);
-        set_timeout(priv->timer, priv->timeout_dequeue);
         return 0;
     }
 
@@ -922,7 +913,6 @@ PRIVATE int process_smtp_response(
     }
 
     gobj_change_state(gobj, ST_IDLE);
-    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
 
     return 0;
 }
@@ -986,7 +976,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     );
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
-        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+        int x;
     }
 
     KW_DECREF(kw);
@@ -1005,7 +995,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
          *  Defensive: still waiting for a previous reply. Re-arm the timer
          *  and wait — the in-flight one will resolve via EV_ON_MESSAGE.
          */
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        int x;
         KW_DECREF(kw);
         return 0;
     }
@@ -1054,7 +1044,7 @@ PRIVATE int ac_smtp_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "msg",          "%s", "NOT a current sending email",
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        int x;
         KW_DECREF(kw);
         return -1;
     }
@@ -1234,7 +1224,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src == priv->smtp) {
         priv->smtp_ready = TRUE;
         if(gobj_in_this_state(gobj, ST_IDLE)) {
-            set_timeout(priv->timer, priv->timeout_dequeue);
+            int x;
         }
     }
 

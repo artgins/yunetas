@@ -4,9 +4,7 @@
  *
  *          SMTP client protocol on top of C_TCP.
  *
- *          Wire model (canonical __output_side__ stack):
- *
- *              C_MQIOGATE > C_QIOGATE > C_IOGATE > C_CHANNEL
+ *          Wire model:
  *                  > C_SMTP_SESSION  <- this gclass
  *                      > C_TCP        (smtps://host:465)
  *
@@ -1163,7 +1161,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0, // authz_table,
         0, // command_table,
         s_user_trace_level,
-        0 // gcflags
+        gcflag_manual_start // gcflags
     );
     if(!__gclass__) {
         return -1;
