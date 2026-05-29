@@ -52,6 +52,20 @@
       model. This is the layer that owns reconnection/backoff (the emailsender
       rework relies on it).
 
+    - **fix(c_tcp): keep the pending tx queue across a FAILED reconnect in the
+      inactivity model.** `set_disconnected()` flushed `dl_tx` on every
+      disconnect, so bytes queued while disconnected (to be sent on the
+      on-demand reconnect) were lost if the connect failed before succeeding —
+      the message vanished silently and was never delivered. Now the queue is
+      kept when the connection was NEVER established (`inform_disconnection`
+      still FALSE) in the `timeout_inactivity` model on a running gobj, and
+      `start_pending_writes()` flushes it once a retry connects. An established
+      connection still flushes (its byte stream is broken); `mt_stop()` still
+      flushes unconditionally (no leak on stop). New regression test
+      `tests/c/c_tcp_inactivity` test4 (queue while the server is down → fail
+      retries → server up → echo confirms delivery); it fails against the
+      pre-fix code (no echo, FIFO timeout).
+
     - **refactor(c_tcp): `timeout_inactivity` / `timeout_between_connections`
       / `rx_buffer_size` are deployment config (`SDF_RD`), not runtime
       knobs** — dropped `SDF_WR` (and the misleading `SDF_PERSIST` on the

@@ -771,10 +771,27 @@ PRIVATE void set_disconnected(hgobj gobj)
     gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
     /*
-     *  Clean tx messages
+     *  Clean tx messages.
+     *
+     *  The in-flight write (gbuf_txing) is a partial write on a now-dead
+     *  socket: always discard it.
+     *
+     *  The pending queue (dl_tx) is discarded too WHEN the connection had been
+     *  established (its byte stream is broken — resending would desync the
+     *  protocol). But when the connection was NEVER established
+     *  (inform_disconnection is still FALSE: a failed connect / dropped
+     *  handshake), those bytes were never put on the wire, so in the
+     *  reconnect-on-tx model (timeout_inactivity) we KEEP them and a running
+     *  client flushes them via start_pending_writes() once the retry connects.
      */
     GBUFFER_DECREF(priv->gbuf_txing)
-    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    BOOL keep_pending_tx =
+        priv->timeout_inactivity > 0 &&
+        !priv->inform_disconnection &&
+        gobj_is_running(gobj);
+    if(!keep_pending_tx) {
+        dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    }
 
     /*
      *  Info of "disconnected"

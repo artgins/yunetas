@@ -24,16 +24,34 @@ path.
 
 ## Tests
 
-| Test  | Traffic           | Client url                    |
-|-------|-------------------|-------------------------------|
-| test1 | clear (no TLS)    | `tcp://127.0.0.1:7779`        |
-| test2 | secure (TLS)      | `tcps://127.0.0.1:7780`       |
+| Test  | Traffic        | Client url                | What it proves                                         |
+|-------|----------------|---------------------------|--------------------------------------------------------|
+| test1 | clear (no TLS) | `tcp://127.0.0.1:7779`    | idle-close then reconnect-on-tx, echo round-trip       |
+| test2 | secure (TLS)   | `tcps://127.0.0.1:7780`   | same flow across the TLS handshake                     |
+| test3 | clear (no TLS) | `tcp://127.0.0.1:7781`    | retry-with-backoff after a FAILED connect              |
+| test4 | clear (no TLS) | `tcp://127.0.0.1:7782`    | the pending tx queue survives FAILED reconnects        |
+
+All four use a real `timeout_inactivity` of 20000 ms (OVH idle-drops at ~55 s;
+the prod timeout is 30 s). Sub-second values are pointless here: the auto-retry
+already runs ~2 s apart and `C_TIMER` has ~1 s resolution.
 
 `test2` exercises the same flow across the TLS handshake: the inactivity timer
 is armed in `set_secure_connected` (after the handshake completes) and re-armed
 on the reconnect.
 
-## Flow (event-driven)
+`test3` and `test4` are regressions for the inactivity-model reconnection logic
+in `set_disconnected()`. They start the client while **no server listens** so
+the first connects are refused, then bring the echo server up late:
+
+- **test3** — a failed connect must keep retrying at `timeout_between_connections`
+  (it used to clear the timer on any disconnect and stall). Asserts the client
+  eventually connects once the server is up.
+- **test4** — bytes sent **while disconnected** are queued in `dl_tx` and must
+  survive the failed reconnects (the queue used to be flushed on every
+  disconnect, silently losing the message). Asserts the queued bytes are flushed
+  and echoed once a retry finally connects.
+
+## Flow (event-driven, test1/test2)
 
 1. play → start the echo server, wait, then start the client
 2. client connects the first time            → `EV_CONNECTED`
@@ -45,12 +63,10 @@ on the reconnect.
                                               → `EV_RX_DATA`
 6. verify the echo and shut down
 
-The assertions are the ordered milestone logs ("Client connected",
-"Inactivity disconnected", "Client reconnected", "Echo received"), checked in
-strict FIFO order by the test harness. The test does not assert wall-clock
-timing: `C_TIMER` rides the yuno's ~1s periodic heartbeat, so a `timeout_inactivity`
-of 1500 ms actually closes at the first tick past 1.5 s — the flow waits for the
-event whenever it arrives.
+The assertions are the ordered milestone logs, checked in strict FIFO order by
+the test harness. The tests do not assert wall-clock timing: `C_TIMER` rides the
+yuno's ~1 s periodic heartbeat, so the flow waits for each event whenever it
+arrives.
 
 ## Run
 
@@ -60,4 +76,6 @@ The binaries run standalone (exit 0 on success):
 cd build && make
 ./test_tcp_inactivity_test1
 ./test_tcp_inactivity_test2
+./test_tcp_inactivity_test3
+./test_tcp_inactivity_test4
 ```
