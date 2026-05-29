@@ -117,6 +117,7 @@ SDATA (DTP_STRING,      "url",                  SDF_PERSIST|SDF_REQUIRED,"",    
 SDATA (DTP_STRING,      "from",                 SDF_PERSIST|SDF_REQUIRED,"",    "default from"),
 SDATA (DTP_STRING,      "from_beautiful",       SDF_PERSIST,            "",     "from with name"),
 SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,     "4",    "Maximum retries to send email"),
+SDATA (DTP_INTEGER,     "timeout_inactivity",   SDF_PERSIST,            "30000", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,     0,      "True when testing, send only to test_email"),
 SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,     0,      "True when testing, add test_email to send"),
 SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,     "",     "test email"),
@@ -210,8 +211,9 @@ PRIVATE void mt_create(hgobj gobj)
     }
     hostname[sizeof(hostname) - 1] = '\0';
 
-    json_t *kw_smtp = json_pack("{s:s, s:s, s:s, s:s}",
+    json_t *kw_smtp = json_pack("{s:s, s:I, s:s, s:s, s:s}",
         "url", gobj_read_str_attr(gobj, "url"),
+        "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity"),
         "username", gobj_read_str_attr(gobj, "username"),
         "password", gobj_read_str_attr(gobj, "password"),
         "helo_name", hostname
@@ -917,6 +919,17 @@ PRIVATE int tira_dela_cola(hgobj gobj)
      *  startup with a backlog loaded from disk).
      */
     if(!priv->smtp_ready) {
+        /*
+         *  Session not up. The bottom C_TCP closes on inactivity
+         *  (timeout_inactivity) and does NOT auto-reconnect, so a freshly
+         *  enqueued message would otherwise sit here forever. Kick an
+         *  on-demand (re)connect when the SMTP child is idle-closed
+         *  (ST_DISCONNECTED); EV_ON_OPEN then re-enters this dequeue. If a
+         *  connect/handshake is already in progress, just wait for it.
+         */
+        if(gobj_current_state(priv->smtp) == ST_DISCONNECTED) {
+            gobj_send_event(priv->smtp, EV_CONNECT, 0, gobj);
+        }
         return 0;
     }
 
@@ -933,39 +946,46 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     }
 
     q_msg_t *qmsg_for_fail = priv->qmsg_cur_email;
-    json_t *kw = trq_msg_json(priv->qmsg_cur_email);
+    json_t *msg = trq_msg_json(priv->qmsg_cur_email);
 
-    const char *from = kw_get_str(gobj, kw, "from", 0, 0);
+    const char *from = kw_get_str(gobj, msg, "from", 0, 0);
     if(empty_string(from)) {
         from = priv->from;
     }
     const char *from_beautiful = gobj_read_str_attr(gobj, "from_beautiful");
-    const char *to = kw_get_str(gobj, kw, "to", 0, 0);
-    const char *cc = kw_get_str(gobj, kw, "cc", "", 0);
-    const char *bcc = kw_get_str(gobj, kw, "bcc", "", 0);
-    const char *reply_to = kw_get_str(gobj, kw, "reply_to", "", 0);
-    const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
-    const char *attachment = kw_get_str(gobj, kw, "attachment", "", 0);
+    const char *to = kw_get_str(gobj, msg, "to", 0, 0);
+    const char *cc = kw_get_str(gobj, msg, "cc", "", 0);
+    const char *bcc = kw_get_str(gobj, msg, "bcc", "", 0);
+    const char *reply_to = kw_get_str(gobj, msg, "reply_to", "", 0);
+    const char *subject = kw_get_str(gobj, msg, "subject", "", 0);
+    const char *attachment = kw_get_str(gobj, msg, "attachment", "", 0);
     if(empty_string(attachment)) {
         /* Legacy alias from c_curl era. */
-        attachment = kw_get_str(gobj, kw, "attachments", "", 0);
+        attachment = kw_get_str(gobj, msg, "attachments", "", 0);
     }
-    const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
-    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+    const char *inline_file_id = kw_get_str(gobj, msg, "inline_file_id", 0, 0);
+    BOOL is_html = kw_get_bool(gobj, msg, "is_html", 0, 0);
 
     /*--------------------------------*
      *      MIME encode the message
      *--------------------------------*/
     /*
-     *  Body is persisted as a string; wrap it in a transient gbuffer for the
-     *  MIME encoder (which does not take ownership). Freed right after build.
+     *  Body is persisted either as a UTF-8 "body" string or, when it carried
+     *  non-UTF-8 bytes at enqueue time, as base64 under "body_base64". Decode
+     *  whichever is present into a transient gbuffer for the MIME encoder
+     *  (which does not take ownership). Freed right after build.
      */
-    const char *body = kw_get_str(gobj, kw, "body", "", 0);
-    size_t body_src_len = strlen(body);
     gbuffer_t *gbuf_body = NULL;
-    if(body_src_len > 0) {
-        gbuf_body = gbuffer_create(body_src_len, body_src_len);
-        gbuffer_append(gbuf_body, (void *)body, body_src_len);
+    const char *body_base64 = kw_get_str(gobj, msg, "body_base64", "", 0);
+    if(!empty_string(body_base64)) {
+        gbuf_body = gbuffer_base64_to_binary(body_base64, strlen(body_base64));
+    } else {
+        const char *body = kw_get_str(gobj, msg, "body", "", 0);
+        size_t body_src_len = strlen(body);
+        if(body_src_len > 0) {
+            gbuf_body = gbuffer_create(body_src_len, body_src_len);
+            gbuffer_append(gbuf_body, (void *)body, body_src_len);
+        }
     }
     mime_email_t m = {
         .from = from,
@@ -985,7 +1005,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
         process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: bad content
-        KW_DECREF(kw);
+        KW_DECREF(msg);
         return -1;
     }
 
@@ -1006,14 +1026,15 @@ PRIVATE int tira_dela_cola(hgobj gobj)
             "msg",          "%s", "json_pack() FAILED for kw_send",
             NULL
         );
-        gobj_trace_json(gobj, kw, "json_pack() FAILED for kw_send");
+        gobj_trace_json(gobj, msg, "json_pack() FAILED for kw_send");
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
         process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to); // permanent: cannot build request
-        KW_DECREF(kw);
+        KW_DECREF(msg);
         return -1;
     }
     GBUFFER_DECREF(mime_body)
+    KW_DECREF(msg);
 
     priv->send++;
 
@@ -1160,9 +1181,33 @@ PRIVATE int ac_enqueue_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         gobj, kw, "gbuffer", 0, KW_EXTRACT
     );
     if(gbuf_body) {
-        json_object_set_new(kw, "body",
-            json_stringn(gbuffer_cur_rd_pointer(gbuf_body), gbuffer_leftbytes(gbuf_body))
-        );
+        char *p = gbuffer_cur_rd_pointer(gbuf_body);
+        size_t l = gbuffer_leftbytes(gbuf_body);
+        json_t *jn_body = json_stringn(p, l);
+        if(jn_body) {
+            json_object_set_new(kw, "body", jn_body);
+        } else {
+            /*
+             *  Body is not valid UTF-8 (binary content): json_stringn refuses
+             *  it and would otherwise drop the body silently. Persist it
+             *  base64-encoded under "body_base64" so no byte is lost across
+             *  retries / restarts; tira_dela_cola decodes it back to raw bytes.
+             */
+            gbuffer_t *b64 = gbuffer_binary_to_base64(p, l);
+            if(b64) {
+                json_object_set_new(kw, "body_base64",
+                    json_stringn(gbuffer_cur_rd_pointer(b64), gbuffer_leftbytes(b64))
+                );
+                GBUFFER_DECREF(b64)
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY,
+                    "msg",          "%s", "base64 encode of binary body FAILED",
+                    NULL
+                );
+            }
+        }
         GBUFFER_DECREF(gbuf_body)
     }
 
@@ -1189,7 +1234,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         kw  // not owned
     );
 
-    if(gobj_in_this_state(gobj, ST_OPENED)) {
+    if(gobj_in_this_state(gobj, ST_IDLE)) {
         tira_dela_cola(gobj);
     }
 
@@ -1226,12 +1271,17 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->smtp_ready = FALSE;
         if(priv->qmsg_cur_email) {
             /*
-             *  Link dropped mid-send. Transient: process_smtp_response keeps
-             *  the message queued for a retry on reconnect (until max_retries).
+             *  Session dropped mid-send. A 5xx reply code forwarded by the
+             *  SMTP child means the server rejected this specific message
+             *  (permanent) → dead-letter it directly. No code / a 4xx means a
+             *  transient transport error → keep it queued for a retry on
+             *  reconnect (until max_retries).
              */
+            int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
+            BOOL permanent = (code >= 500 && code < 600);
             q_msg_t *qmsg = priv->qmsg_cur_email;
             priv->qmsg_cur_email = NULL;
-            process_smtp_response(gobj, qmsg, -1, FALSE, "");
+            process_smtp_response(gobj, qmsg, -1, permanent, "");
         }
     }
 
@@ -1260,10 +1310,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     BOOL ok = kw_get_bool(gobj, kw, "ok", 0, 0);
+    int code = (int)kw_get_int(gobj, kw, "code", 0, 0);
+    BOOL permanent = (!ok && code >= 500 && code < 600);
 
     q_msg_t *qmsg = priv->qmsg_cur_email;
     priv->qmsg_cur_email = NULL;
-    process_smtp_response(gobj, qmsg, ok ? 0 : -1, FALSE, "");
+    process_smtp_response(gobj, qmsg, ok ? 0 : -1, permanent, "");
 
     KW_DECREF(kw);
     return 0;

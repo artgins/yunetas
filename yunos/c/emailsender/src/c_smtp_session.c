@@ -47,6 +47,8 @@
 PRIVATE int send_smtp_line(hgobj gobj, const char *line);
 PRIVATE int parse_response_code(const char *bf, size_t len, int *code, BOOL *is_final);
 PRIVATE int begin_send_current_message(hgobj gobj);
+PRIVATE int enter_idle_after_handshake(hgobj gobj);
+PRIVATE int reject_current_message(hgobj gobj, int code, const char *reason);
 PRIVATE int send_next_rcpt_or_data(hgobj gobj);
 PRIVATE json_t *gather_recipients(hgobj gobj, json_t *jn_msg);
 PRIVATE int dot_stuff_into(gbuffer_t *out, const char *body, size_t len);
@@ -76,14 +78,15 @@ GOBJ_DEFINE_EVENT(EV_RX_LINE);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
-SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
-SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
-SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
+SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD, "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_STRING,  "url",              SDF_RD,     "",         "SMTP server URL (smtps://host:465). If set, mt_start auto-creates a C_TCP bottom."),
 SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain advertised to the server"),
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
 SDATA (DTP_STRING,  "password",         SDF_RD,     "",         "SMTP AUTH PLAIN password"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_RD,     "30000",    "Per-command server response timeout (ms)"),
+SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. Default if null is parent."),
+SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
+SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
 SDATA_END()
 };
 
@@ -111,6 +114,7 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_current_msg;     /* envelope of the message being sent; NULL when idle */
     json_t *jn_recipients;      /* flat json_array of unique RCPT TO addresses */
     int recipient_index;        /* next RCPT TO index to send */
+    int reject_code;            /* SMTP reply code of a per-message rejection, forwarded on EV_ON_CLOSE; 0 = transient/link error */
 } PRIVATE_DATA;
 
 
@@ -187,8 +191,9 @@ PRIVATE int mt_start(hgobj gobj)
     hgobj bottom = gobj_bottom_gobj(gobj);
 
     if(!empty_string(url) && !bottom) {
-        json_t *kw_tcp = json_pack("{s:s}",
-            "url", url
+        json_t *kw_tcp = json_pack("{s:s, s:I}",
+            "url", url,
+            "timeout_inactivity", gobj_read_integer_attr(gobj, "timeout_inactivity")
         );
         bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_tcp, gobj);
         if(!bottom) {
@@ -532,6 +537,49 @@ PRIVATE int abort_session(hgobj gobj, const char *reason)
     return -1;
 }
 
+/***************************************************************************
+ *  Reach ST_IDLE after a successful banner+EHLO[+AUTH] handshake and tell
+ *  the owner the session is usable (EV_ON_OPEN).
+ *
+ *  An owner that reacts to EV_ON_OPEN by sending EV_SEND_MESSAGE will — since
+ *  we are already in ST_IDLE — have its message begun by ac_send_message
+ *  itself. We must therefore NOT begin it again here, or MAIL FROM goes out
+ *  twice and the server answers the duplicate with "503 MAIL already given".
+ *  Snapshot the pending flag BEFORE publishing: only a message stashed DURING
+ *  the handshake (while we were not yet idle) still needs kicking off here.
+ ***************************************************************************/
+PRIVATE int enter_idle_after_handshake(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_change_state(gobj, ST_IDLE);
+    BOOL had_pending = (priv->jn_current_msg != NULL);
+    gobj_publish_event(gobj, EV_ON_OPEN, 0);
+    if(had_pending) {
+        return begin_send_current_message(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  A per-message SMTP rejection mid-transaction (a non-2xx/3xx reply to
+ *  MAIL FROM / RCPT TO / DATA). Remember the reply code so ac_disconnected
+ *  can forward it to the owner in EV_ON_CLOSE — a 5xx is permanent (the owner
+ *  dead-letters the message instead of retrying) — then drop the session.
+ *
+ *  We resolve the in-flight message through EV_ON_CLOSE rather than
+ *  EV_ON_MESSAGE here on purpose: the owner sees smtp_ready=FALSE before it
+ *  tries to dispatch the next queued message, so it cannot push it into the
+ *  dying connection.
+ ***************************************************************************/
+PRIVATE int reject_current_message(hgobj gobj, int code, const char *reason)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->reject_code = code;
+    return abort_session(gobj, reason);
+}
+
 
 
 
@@ -590,8 +638,16 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
-        gobj_publish_event(gobj, EV_ON_CLOSE, 0);
+        /*
+         *  Forward the per-message rejection code (if any) so the owner can
+         *  tell a permanent 5xx (dead-letter) from a transient link drop
+         *  (retry). 0/absent = transient.
+         */
+        json_t *kw_close = priv->reject_code ?
+            json_pack("{s:i}", "code", priv->reject_code) : NULL;
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw_close);
     }
+    priv->reject_code = 0;
 
     KW_DECREF(kw)
     return 0;
@@ -715,9 +771,7 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *password = gobj_read_str_attr(gobj, "password");
         if(empty_string(username) || empty_string(password)) {
             /* No credentials: skip AUTH, jump straight to ST_IDLE */
-            gobj_change_state(gobj, ST_IDLE);
-            gobj_publish_event(gobj, EV_ON_OPEN, 0);
-            return 0;
+            return enter_idle_after_handshake(gobj);
         }
         size_t ulen = strlen(username);
         size_t plen = strlen(password);
@@ -756,31 +810,26 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(code != SMTP_CODE_AUTH_OK) {
             return abort_session(gobj, "AUTH PLAIN rejected");
         }
-        gobj_change_state(gobj, ST_IDLE);
-        gobj_publish_event(gobj, EV_ON_OPEN, 0);
-        if(priv->jn_current_msg) {
-            return begin_send_current_message(gobj);
-        }
-        return 0;
+        return enter_idle_after_handshake(gobj);
     }
 
     if(st == ST_WAIT_MAIL_FROM_RESP) {
         if(code != SMTP_CODE_OK) {
-            return abort_session(gobj, "MAIL FROM rejected");
+            return reject_current_message(gobj, code, "MAIL FROM rejected");
         }
         return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_RCPT_TO_RESP) {
         if(code != SMTP_CODE_OK) {
-            return abort_session(gobj, "RCPT TO rejected");
+            return reject_current_message(gobj, code, "RCPT TO rejected");
         }
         return send_next_rcpt_or_data(gobj);
     }
 
     if(st == ST_WAIT_DATA_GO) {
         if(code != SMTP_CODE_START_INPUT) {
-            return abort_session(gobj, "DATA not accepted");
+            return reject_current_message(gobj, code, "DATA not accepted");
         }
         /*
          *  Body is pre-formed by the caller as kw["body"] — full RFC 5322
@@ -852,9 +901,14 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "ok", ok ? 1 : 0,
             "code", code
         );
-        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
+        /*
+         *  Resolve BEFORE publishing: a subscriber reacting to EV_ON_MESSAGE
+         *  may dispatch the next queued message straight away (the connection
+         *  stays up), and it must find us idle with nothing in flight.
+         */
         cleanup_current_message(gobj);
         gobj_change_state(gobj, ST_IDLE);
+        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
         return 0;
     }
 
@@ -870,14 +924,14 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->jn_current_msg) {
-        json_t *kw_ack = json_pack("{s:b, s:i}",
-            "ok", 0,
-            "code", 0
-        );
-        gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ack);
-        cleanup_current_message(gobj);
-    }
+    /*
+     *  Per-command watchdog fired. Treat as a transient failure: drop the
+     *  session with reject_code 0. ac_disconnected forwards EV_ON_CLOSE
+     *  (no code) and the owner retries the in-flight message on reconnect.
+     *  Resolving via EV_ON_CLOSE (not EV_ON_MESSAGE) avoids dispatching the
+     *  next message into the session we are about to tear down.
+     */
+    priv->reject_code = 0;
     abort_session(gobj, "timeout waiting for SMTP response");
 
     KW_DECREF(kw)
@@ -949,6 +1003,25 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     /* Not authenticated yet: the handshake will dispatch on entry to ST_IDLE. */
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  On-demand (re)connect request from the owner: a message is queued but the
+ *  session was idle-closed by the bottom C_TCP's timeout_inactivity (which
+ *  does NOT auto-reconnect). Kick the bottom C_TCP — it accepts EV_CONNECT in
+ *  ST_DISCONNECTED and runs a fresh connect, after which ac_connected drives
+ *  banner/EHLO/AUTH and finally EV_ON_OPEN, at which point the owner dequeues.
+ *  No-op if a connection is already in progress.
+ ***************************************************************************/
+PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(bottom && gobj_current_state(bottom) == ST_DISCONNECTED) {
+        gobj_send_event(bottom, EV_CONNECT, 0, gobj);
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -1026,6 +1099,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_disconnected[] = {
+        {EV_CONNECT,            ac_connect,             0},
         {EV_CONNECTED,          ac_connected,           0},
         {EV_DISCONNECTED,       ac_disconnected,        0},
         {EV_STOPPED,            ac_stopped,             0},
@@ -1136,6 +1210,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_LINE,            0},
         {EV_TX_READY,           0},
         {EV_SEND_MESSAGE,       0},
+        {EV_CONNECT,            0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
         {EV_DROP,               0},
