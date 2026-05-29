@@ -753,7 +753,6 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_BANNER) {
         if(code != SMTP_CODE_SERVICE_READY) {
-            priv->reject_code = code;
             return abort_session(gobj, "server did not greet with 220");
         }
         char line_ehlo[NAME_MAX];
@@ -766,7 +765,6 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_EHLO_RESP) {
         if(code != SMTP_CODE_OK) {
-            priv->reject_code = code;
             return abort_session(gobj, "EHLO rejected");
         }
         const char *username = gobj_read_str_attr(gobj, "username");
@@ -810,7 +808,6 @@ PRIVATE int ac_rx_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(st == ST_WAIT_AUTH_RESP) {
         if(code != SMTP_CODE_AUTH_OK) {
-            priv->reject_code = code;
             return abort_session(gobj, "AUTH PLAIN rejected");
         }
         return enter_idle_after_handshake(gobj);
@@ -1005,21 +1002,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         return ret;
     }
 
-    /* Not authenticated yet: the handshake will dispatch on entry to ST_IDLE. */
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  On-demand (re)connect request from the owner: a message is queued but the
- *  session was idle-closed by the bottom C_TCP's timeout_inactivity (which
- *  does NOT auto-reconnect). Kick the bottom C_TCP — it accepts EV_CONNECT in
- *  ST_DISCONNECTED and runs a fresh connect, after which ac_connected drives
- *  banner/EHLO/AUTH and finally EV_ON_OPEN, at which point the owner dequeues.
- *  No-op if a connection is already in progress.
- ***************************************************************************/
-PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
+    /*
+     *  Not ready to send yet. The message is stashed; enter_idle_after_handshake
+     *  begins it when we reach ST_IDLE. If the bottom C_TCP idle-closed
+     *  (timeout_inactivity, so it does not auto-reconnect), bring it back up now
+     *  — reconnection is this session's job (it owns the transport and must
+     *  redo the SMTP handshake), NOT the owner's. If a connect/handshake is
+     *  already in progress, just wait for it.
+     */
     hgobj bottom = gobj_bottom_gobj(gobj);
     if(bottom && gobj_current_state(bottom) == ST_DISCONNECTED) {
         gobj_send_event(bottom, EV_CONNECT, 0, gobj);
@@ -1102,7 +1092,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECT,            ac_connect,             0},
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
         {EV_CONNECTED,          ac_connected,           0},
         {EV_DISCONNECTED,       ac_disconnected,        0},
         {EV_STOPPED,            ac_stopped,             0},
@@ -1213,7 +1203,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_LINE,            0},
         {EV_TX_READY,           0},
         {EV_SEND_MESSAGE,       0},
-        {EV_CONNECT,            0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
         {EV_DROP,               0},
