@@ -56,16 +56,15 @@ time over a single `C_SMTP_SESSION`. The error handling (hardened 2026-05-29):
 - **Binary bodies**: a non-UTF-8 body is persisted base64 under `body_base64`
   (a plain `json_string` would silently drop it) and decoded at send time.
 
-The bottom `C_TCP` runs with `timeout_inactivity` (closes the SMTP link when
-idle and does **not** auto-reconnect). So `c_emailsender` drives reconnection
-on demand: when mail is queued and the SMTP child is `ST_DISCONNECTED` it sends
-`EV_CONNECT` (the session re-runs banner→EHLO→AUTH and drains the queue on
-`EV_ON_OPEN`). A `C_TIMER` retries with **exponential backoff** (2s → ×2 → cap
-5 min, reset to the minimum on a successful open) so a down server or bad
-credentials are not hammered. A **permanent session failure** (AUTH `535`,
-EHLO/banner `5xx`) logs a loud `ERROR` and backs off to the cap, but keeps the
-mail queued — it flows once the credentials/config are fixed, never silently
-lost and never tight-looped.
+**Layering — who reconnects:** `c_emailsender` does NOT manage reconnection (no
+timers up here). It just enqueues and dispatches the head message
+(`EV_SEND_MESSAGE`) whenever it is playing, regardless of link state. The bottom
+`C_TCP` runs with `timeout_inactivity` (closes the idle SMTP link), so when the
+link is down it is **`c_smtp_session`** — the gclass that owns the transport and
+must redo the SMTP handshake — that reconnects on demand: on `EV_SEND_MESSAGE`
+in `ST_DISCONNECTED` it kicks its bottom `C_TCP` (`EV_CONNECT`), re-runs
+banner→EHLO→AUTH, and begins the stashed message on entry to `ST_IDLE`. Retry
+pacing for a down server is the C_TCP layer's concern, not the sender's.
 
 Inspect the queues at runtime: `ycommand command-yuno id=<id> command=list-queues`
 (also `remove-emails-failed` to drain the dead-letter queue).

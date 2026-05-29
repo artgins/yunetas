@@ -27,14 +27,19 @@
       EV_ON_MESSAGE; `code>=500` = permanent, 4xx/timeout/drop = transient
       retry). (3) Binary (non-UTF-8) bodies persisted base64 under
       `body_base64` instead of being silently dropped by `json_stringn`.
-      (4) Reconnect-on-demand with exponential backoff (2s→×2→cap 5min,
-      reset on EV_ON_OPEN): mail enqueued after a `timeout_inactivity`
-      idle-close now reconnects (EV_CONNECT) and drains; permanent session
-      failures (AUTH 535, EHLO/banner 5xx) log a loud ERROR and back off,
-      never loop or grow the queue silently. (5) Fixed a shutdown SIGSEGV:
-      the reconnect paths dereferenced the emails queue without a NULL
-      guard, crashing when a deferred TCP disconnect delivered EV_ON_CLOSE
-      after `close_queues()`.
+      (4) Reconnection is owned by `c_smtp_session`, not the sender: after a
+      `timeout_inactivity` idle-close, `c_emailsender` just dispatches the head
+      message (it no longer carries any reconnect timer/backoff), and
+      `c_smtp_session` — which must redo the handshake — reconnects its bottom
+      `C_TCP` on `EV_SEND_MESSAGE` in `ST_DISCONNECTED` and sends on reaching
+      `ST_IDLE`. A handshake failure (AUTH 535, EHLO/banner 5xx) is transient
+      for the in-flight message (the server never saw it); only a 5xx in the
+      message's own MAIL/RCPT/DATA transaction dead-letters it. (5) Fixed a
+      shutdown SIGSEGV at its root: `tira_dela_cola()` now returns early when
+      the yuno is not playing (`gobj_pause()` clears the playing flag before
+      `mt_pause()`/`close_queues()`), so a deferred EV_ON_CLOSE delivered
+      during shutdown no longer touches the closed queue — no defensive NULL
+      check needed.
 
     - **refactor(c_tcp): `timeout_inactivity` / `timeout_between_connections`
       / `rx_buffer_size` are deployment config (`SDF_RD`), not runtime
