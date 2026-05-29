@@ -21,7 +21,12 @@
  *              Constants
  ***************************************************************************/
 #define CLIENT_URL          "tcps://127.0.0.1:7780"
-#define TIMEOUT_INACTIVITY  1500    // milliseconds of silence before closing
+/*
+ *  Realistic inactivity timeout (see c_test1.c): sub-second / ~2s values
+ *  collide with the ~2s auto-reconnect cadence and the >=1s C_TIMER
+ *  resolution. Production uses 30s; the test uses 20s.
+ */
+#define TIMEOUT_INACTIVITY  20000   // milliseconds of silence before closing
 #define MESSAGE             "PING-INACTIVITY-RECONNECT"
 
 typedef enum {

@@ -1,24 +1,23 @@
 /***********************************************************************
- *          C_TEST1.C
+ *          C_TEST3.C
  *
- *          Test C_TCP timeout_inactivity (clear traffic, no TLS)
+ *          Test C_TCP reconnect-with-backoff after a FAILED connect
+ *          (inactivity model, clear traffic, no TLS)
  *
- *          Topology
- *            - server echo: pepon over __input_side__
- *                  (C_IOGATE -> C_TCP_S + C_CHANNEL -> C_PROT_RAW -> C_TCP)
- *            - client under test: a pure C_TCP created directly as a child,
- *                  driven with EV_TX_DATA and observed via its output events.
+ *          Regression for the inactivity-model stall fixed in c_tcp.c: a
+ *          pure C_TCP client with timeout_inactivity > 0 used to clear its
+ *          timer on ANY disconnect, so a failed connect left it stalled (no
+ *          retry, no EV_DISCONNECTED). It must instead retry at
+ *          timeout_between_connections until it succeeds.
  *
- *          Flow (driven by events, not wall-clock guesses)
- *            1) play -> start the echo server, wait a bit, then start client
- *            2) client connects the first time            -> EV_CONNECTED
- *            3) no traffic; client's own inactivity timer fires and closes
- *                                                          -> EV_DISCONNECTED
- *            4) on that close, send EV_TX_DATA to the client while it is
- *               disconnected: it must reconnect on demand  -> EV_CONNECTED
- *            5) the queued data is flushed, the server echoes it back
- *                                                          -> EV_RX_DATA
- *            6) verify the echo and shut down
+ *          Flow (event-driven)
+ *            1) play -> start the client while NO server listens:
+ *               the connect is refused and must keep retrying (~2s apart).
+ *            2) after a few seconds, bring the echo server up.
+ *            3) the next retry connects                       -> EV_CONNECTED
+ *            4) verify and shut down. If the client had stalled on the first
+ *               failure (pre-fix), EV_CONNECTED never arrives and the
+ *               expected-log FIFO fails.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -26,36 +25,26 @@
 #include <string.h>
 
 #include <c_pepon.h>
-#include "c_test1.h"
+#include "c_test3.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define CLIENT_URL          "tcp://127.0.0.1:7779"
+#define CLIENT_URL          "tcp://127.0.0.1:7781"
 /*
- *  Realistic inactivity timeout. Sub-second / ~2s values are meaningless: the
- *  auto-reconnect cadence (timeout_between_connections) is already ~2s and
- *  C_TIMER resolution is >= 1s, so they would collide. Production uses 30s
- *  (OVH drops idle SMTP at ~55s); the test uses 20s.
+ *  Inactivity model (the fix only applies when timeout_inactivity > 0). The
+ *  value itself is irrelevant here: the client never stays connected long
+ *  enough to idle-close. What matters is the retry cadence on a failed
+ *  connect, which is timeout_between_connections (~2s, the default).
  */
-#define TIMEOUT_INACTIVITY  20000   // milliseconds of silence before closing
-#define MESSAGE             "PING-INACTIVITY-RECONNECT"
+#define TIMEOUT_INACTIVITY  20000   // ms
+#define SERVER_DELAY_MS     5000    // bring the server up after ~2-3 failed retries
 
 typedef enum {
-    PHASE_INIT = 0,
-    PHASE_FIRST_CONNECTED,
-    PHASE_INACTIVITY_CLOSED,
-    PHASE_RECONNECTED,
+    PHASE_INIT = 0,         // client started, server down, retrying connect
+    PHASE_SERVER_UP,        // server brought up
     PHASE_DONE,
 } test_phase_t;
-
-/***************************************************************************
- *              Structures
- ***************************************************************************/
-
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -120,8 +109,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->pepon = gobj_create_pure_child("server", C_PEPON, kw_pepon, gobj);
 
     /*
-     *  The client under test: a pure C_TCP with the inactivity timeout set.
-     *  no_tx_ready_event keeps the event stream limited to what we assert.
+     *  The client under test: a pure C_TCP in the inactivity model.
      */
     json_t *kw_cli = json_pack("{s:s, s:I, s:b}",
         "url", CLIENT_URL,
@@ -130,10 +118,6 @@ PRIVATE void mt_create(hgobj gobj)
     );
     priv->gobj_clitcp = gobj_create_pure_child("clitcp", C_TCP, kw_cli, gobj);
 
-    /*
-     *  Do copy of heavy-used parameters, for quick access.
-     *  HACK The writable attributes must be repeated in mt_writing method.
-     */
     SET_PRIV(timeout,               gobj_read_integer_attr)
 }
 
@@ -144,10 +128,11 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Only the timer here. The echo server is brought up LATER (ac_timeout)
+     *  so the client's first connects fail and exercise the retry path.
+     */
     gobj_start(priv->timer);
-    if(!gobj_is_running(priv->pepon)) {
-        gobj_start(priv->pepon);
-    }
 
     return 0;
 }
@@ -164,7 +149,9 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_is_running(priv->gobj_clitcp)) {
         gobj_stop(priv->gobj_clitcp);
     }
-    gobj_stop(priv->pepon);
+    if(gobj_is_running(priv->pepon)) {
+        gobj_stop(priv->pepon);
+    }
 
     return 0;
 }
@@ -177,18 +164,16 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Bring up the echo server, then give it a moment to listen before
-     *  starting the client (with the inactivity model a failed first
-     *  connect would not auto-retry).
+     *  Start the client with NO server listening: the connect is refused and
+     *  the inactivity-model client must keep retrying (timeout_between_connections).
      */
-    gobj_play(priv->pepon);
+    priv->phase = PHASE_INIT;
+    gobj_start(priv->gobj_clitcp);
 
     /*
-     *  The client is a pure child, so C_TCP's mt_create already subscribed us
-     *  (the parent) to its output events. Do NOT subscribe again here.
+     *  Bring the server up after a few failed retries.
      */
-
-    set_timeout(priv->timer, 1000); // timeout to start the client
+    set_timeout(priv->timer, SERVER_DELAY_MS);
 
     return 0;
 }
@@ -201,17 +186,12 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_pause(priv->pepon);
+    if(gobj_is_playing(priv->pepon)) {
+        gobj_pause(priv->pepon);
+    }
 
     return 0;
 }
-
-
-
-
-                    /***************************
-                     *      Local Methods
-                     ***************************/
 
 
 
@@ -224,27 +204,24 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  Test timer, two uses (both deferred to avoid re-entering the client
- *  from inside its own published-event callbacks):
- *    - PHASE_INIT: start the client once the server is listening
- *    - PHASE_INACTIVITY_CLOSED: now that the client settled in ST_DISCONNECTED,
- *      send data to trigger the on-demand reconnection
+ *  Timer fired: bring the echo server up. By now the client has failed to
+ *  connect a few times and must still be retrying.
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->phase == PHASE_INIT) {
-        if(!gobj_is_running(priv->gobj_clitcp)) {
-            gobj_start(priv->gobj_clitcp);
+        priv->phase = PHASE_SERVER_UP;
+        if(!gobj_is_running(priv->pepon)) {
+            gobj_start(priv->pepon);
         }
-    } else if(priv->phase == PHASE_INACTIVITY_CLOSED) {
-        gbuffer_t *gbuf = gbuffer_create(64, 64);
-        gbuffer_printf(gbuf, "%s", MESSAGE);
-        json_t *kw_tx = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(uintptr_t)gbuf
+        gobj_play(priv->pepon);
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Server up after retries",
+            NULL
         );
-        gobj_send_event(priv->gobj_clitcp, EV_TX_DATA, kw_tx, gobj);
     }
 
     JSON_DECREF(kw)
@@ -252,102 +229,46 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Client connected (first time and after the on-demand reconnection)
+ *  Client connected. This only happens once the server is up AND the client
+ *  kept retrying after its earlier failed connects (the regression).
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->phase == PHASE_INIT) {
-        priv->phase = PHASE_FIRST_CONNECTED;
-        gobj_log_info(gobj, 0,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Client connected",
-            NULL
-        );
-        /*
-         *  Do nothing: stay silent so the client's inactivity timer fires.
-         */
-    } else if(priv->phase == PHASE_INACTIVITY_CLOSED) {
-        priv->phase = PHASE_RECONNECTED;
-        gobj_log_info(gobj, 0,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Client reconnected",
-            NULL
-        );
-    }
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  Client disconnected: the first one is the inactivity close.
- *  React by sending data while disconnected, which must reconnect on demand.
- ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->phase == PHASE_FIRST_CONNECTED) {
-        priv->phase = PHASE_INACTIVITY_CLOSED;
-        gobj_log_info(gobj, 0,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Inactivity disconnected",
-            NULL
-        );
-
-        /*
-         *  Defer the tx: EV_DISCONNECTED is published while the client is
-         *  still finishing set_disconnected (not yet in ST_DISCONNECTED).
-         *  Sending now would re-enter the client mid-teardown. Let the loop
-         *  settle, then send from ac_timeout.
-         */
-        set_timeout(priv->timer, 200);
-    }
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  Echo received after the on-demand reconnection
- ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    if(priv->phase == PHASE_RECONNECTED) {
-        size_t len = gbuf? gbuffer_leftbytes(gbuf) : 0;
-        char *p = gbuf? gbuffer_cur_rd_pointer(gbuf) : NULL;
-
-        if(p && len == strlen(MESSAGE) && memcmp(p, MESSAGE, len)==0) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Echo received",
-                NULL
-            );
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "Echo mismatch",
-                NULL
-            );
-        }
+    if(priv->phase == PHASE_SERVER_UP) {
         priv->phase = PHASE_DONE;
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Client connected after retries",
+            NULL
+        );
         set_yuno_must_die();
     }
 
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  A connect failure does NOT publish EV_DISCONNECTED (the socket never
+ *  connected), so this normally won't fire for the retries. Kept as a no-op.
+ ***************************************************************************/
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
  *  Optional/teardown events
  ***************************************************************************/
+PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
 PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
@@ -377,7 +298,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST1);
+GOBJ_DEFINE_GCLASS(C_TEST3);
 
 /*------------------------*
  *      States
@@ -459,7 +380,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test1(void)
+PUBLIC int register_c_test3(void)
 {
-    return create_gclass(C_TEST1);
+    return create_gclass(C_TEST3);
 }

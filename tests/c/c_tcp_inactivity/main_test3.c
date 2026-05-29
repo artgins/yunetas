@@ -1,24 +1,25 @@
 /****************************************************************************
- *          MAIN_TEST2.C
+ *          MAIN_TEST3.C
  *
- *          Test C_TCP timeout_inactivity (secure traffic, TLS)
+ *          Test C_TCP reconnect-with-backoff after a FAILED connect
+ *          (inactivity model, no TLS).
  *
- *          The config declares the echo server (__input_side__) as a TLS
- *          listener using the RAW protocol so bytes are echoed verbatim.
- *          The client under test is a pure secure C_TCP created by C_TEST2.
+ *          The echo server (__input_side__) is declared but is NOT started at
+ *          play time: C_TEST3 starts the client first (connect refused), lets
+ *          it retry, then brings the server up — the client must connect.
  *
  *          Copyright (c) 2024-2026 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
 #include <c_pepon.h>
-#include "c_test2.h"
+#include "c_test3.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_tcp_inactivity_" "test2"
-#define APP_DOC         "Test C_TCP timeout_inactivity (TLS)"
+#define APP_NAME        "test_tcp_inactivity_" "test3"
+#define APP_DOC         "Test C_TCP reconnect-with-backoff on failed connect"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -62,15 +63,15 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcps://0.0.0.0:7780',                 \n\
+            '__input_url__': 'tcp://0.0.0.0:7781',                  \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7780'                                \n\
+            '__input_port__': '7781'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'c_test2',                                      \n\
-            'gclass': 'C_TEST2',                                    \n\
+            'name': 'c_test3',                                      \n\
+            'gclass': 'C_TEST3',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -91,12 +92,6 @@ PRIVATE char variable_config[]= "\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'crypto': {                                 \n\
-                            'library': '" TLS_LIBRARY_NAME "',                  \n\
-'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
-'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
-                            'trace': false                          \n\
-                        },                                          \n\
                         'url': '(^^__input_url__^^)',               \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
@@ -151,7 +146,7 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     result += register_c_pepon();
-    result += register_c_test2();
+    result += register_c_test3();
 
     /*------------------------------------------------*
      *          Traces
@@ -161,19 +156,14 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "connections", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "tls", TRUE);
-
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Client connected",
-        "msg", "Inactivity disconnected",
-        "msg", "Client reconnected",
-        "msg", "Echo received",
+        "msg", "Server up after retries",
+        "msg", "Client connected after retries",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
@@ -237,7 +227,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(30); // > the 20s realistic inactivity timeout + reconnect
+    set_auto_kill_time(20); // server starts ~5s late, retries are ~2s apart
 
     /*------------------------------------------------*
      *          Start yuneta

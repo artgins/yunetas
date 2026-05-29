@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(10);
+    set_auto_kill_time(30); // > the 20s realistic inactivity timeout + reconnect
 
     /*------------------------------------------------*
      *          Start yuneta
