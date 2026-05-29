@@ -41,6 +41,17 @@
       during shutdown no longer touches the closed queue — no defensive NULL
       check needed.
 
+    - **fix(c_tcp): retry with backoff after a failed reconnect in the
+      inactivity model.** `set_disconnected()` always cleared the timer in the
+      `timeout_inactivity` model — correct for a deliberate idle-close, but it
+      also stalled a failed on-demand reconnect (no retry, and no
+      EV_DISCONNECTED for a never-connected socket). Now only an idle-close
+      (`ac_timeout_inactivity` sets `idle_closed`) skips the retry; a connect
+      failure / dropped link schedules the `timeout_between_connections`
+      backoff and retries via `EV_TIMEOUT -> ac_connect`, like the classic
+      model. This is the layer that owns reconnection/backoff (the emailsender
+      rework relies on it).
+
     - **refactor(c_tcp): `timeout_inactivity` / `timeout_between_connections`
       / `rx_buffer_size` are deployment config (`SDF_RD`), not runtime
       knobs** — dropped `SDF_WR` (and the misleading `SDF_PERSIST` on the
