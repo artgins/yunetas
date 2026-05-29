@@ -155,6 +155,7 @@ typedef struct _PRIVATE_DATA {
     int fd_listen;
     json_int_t timeout_inactivity;
     BOOL inform_disconnection;
+    BOOL idle_closed;           // TRUE when the disconnect is an inactivity idle-close (don't auto-reconnect)
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -824,13 +825,23 @@ PRIVATE void set_disconnected(hgobj gobj)
          */
         if(gobj_is_running(gobj)) {
             gobj_change_state(gobj, ST_DISCONNECTED);
-            if(priv->timeout_inactivity > 0) {
+            if(priv->timeout_inactivity > 0 && priv->idle_closed) {
                 /*
-                 *  Inactivity model: do NOT auto-reconnect. Stay disconnected
-                 *  until new tx data arrives (EV_TX_DATA in ST_DISCONNECTED).
+                 *  Inactivity idle-close (connection was up, no pending work):
+                 *  do NOT auto-reconnect. Stay disconnected until the next
+                 *  on-demand reconnection (EV_TX_DATA / EV_CONNECT in
+                 *  ST_DISCONNECTED).
                  */
                 clear_timeout(priv->gobj_timer);
             } else {
+                /*
+                 *  A connect attempt failed or an established link dropped:
+                 *  there IS intent to be connected, so retry with the
+                 *  timeout_between_connections backoff (EV_TIMEOUT -> ac_connect).
+                 *  This covers the classic auto-reconnect model AND a failed
+                 *  on-demand reconnect in the inactivity model — without it the
+                 *  inactivity client would stall after a single failed connect.
+                 */
                 set_timeout(
                     priv->gobj_timer,
                     gobj_read_integer_attr(gobj, "timeout_between_connections")
@@ -844,6 +855,8 @@ PRIVATE void set_disconnected(hgobj gobj)
 
             gobj_publish_event(gobj, EV_STOPPED, 0);
         }
+
+        priv->idle_closed = FALSE;  // consumed; the next disconnect decides afresh
     }
 }
 
@@ -1670,6 +1683,14 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  This is a deliberate idle-close (no pending work). Mark it so
+     *  set_disconnected() stays disconnected and waits for the next on-demand
+     *  reconnection, instead of scheduling a timeout_between_connections retry.
+     */
+    priv->idle_closed = TRUE;
     gobj_log_set_last_message("Inactivity timeout");
     try_to_stop_yevents(gobj);
 
