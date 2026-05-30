@@ -131,10 +131,12 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
 #
 # Key: function name. Value: the header that actually declares it.
 ALLOWED_EXTRAS: dict[str, str] = {
-    # Default authz checker impl; declared in root-linux/src/c_authz.h (a
-    # gclass header, register_c_authz lives on the shared registration page),
+    # Both declared in root-linux/src/c_authz.h (a gclass header whose
+    # register_c_authz lives on the shared registration page, so it can't be
+    # added to HEADER_TO_LANDINGS without dragging in unrelated anchors), and
     # surfaced on the gobj Authorization page next to the gobj_authz* API.
     "authz_checker": "kernel/c/root-linux/src/c_authz.h",
+    "authentication_parser": "kernel/c/root-linux/src/c_authz.h",
 }
 
 
