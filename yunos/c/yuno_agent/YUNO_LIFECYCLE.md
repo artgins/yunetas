@@ -453,6 +453,13 @@ truly want to overwrite — and then only if no yuno is running that version.
 
 All examples assume `ycommand` is talking to the local agent.
 
+> **Bulk reconciliation.** To compare every binary the agent has installed
+> against the freshly built ones in `outputs/yunos` and push the differences in
+> one pass, use `tools/agent/sync_binaries.py` (drives from the agent's
+> installed set; proposes `install-binary` for version bumps and `update-binary`
+> for same-version rebuilds; `-n` for a dry run). The recipes below are the
+> manual, per-yuno equivalents.
+
 ### 6.1 Onboard a brand-new yuno
 
 ```bash
