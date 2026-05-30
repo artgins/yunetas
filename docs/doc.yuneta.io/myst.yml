@@ -339,6 +339,9 @@ project:
           children:
             - file: utilities/keycloak_pkey_to_jwks.md
 
+    - title: Tools
+      file: tools.md
+
     - title: Test Suite
       file: testing.md
 

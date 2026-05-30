@@ -1,9 +1,13 @@
 # Utilities
 
-Command-line tools shipped with Yuneta. All binaries are installed into
-`$YUNETAS_OUTPUTS/bin/` by `yunetas build`.
+Command-line tools shipped with Yuneta. `yunetas build` installs these binaries
+into `/yuneta/bin/`, which `yunetas-env.sh` puts on your `PATH` with top
+priority — so every tool below is runnable by name from any directory.
 
 **Source:** `utils/c/`
+
+See also [Tools](tools.md) for the build infrastructure (`tools/cmake/`) and the
+agent helper scripts (`tools/agent/`).
 
 Each tool has its own page (see the navigation sidebar). Grouped by area:
 
