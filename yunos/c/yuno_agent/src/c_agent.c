@@ -4781,10 +4781,10 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
                 kw  // owned
             );
         }
-        json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`__tag__", 0, KW_REQUIRED);
+        json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, 0);
         if(__tag__ && !force) {
             json_t *comment = json_sprintf(
-                "Cannot delete yuno '%s', it's tagged (%d)",
+                "Cannot delete yuno '%s', it's tagged by snap %d (rollback)",
                 kw_get_str(gobj, node, "id", "", KW_REQUIRED),
                 (int)__tag__
             );

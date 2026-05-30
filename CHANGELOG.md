@@ -1,6 +1,19 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(yuno_agent): `delete-yuno`'s snap-tag guard read the wrong metadata
+      key — it was dead.** `cmd_delete_yuno` read `__md_treedb__`__tag__`, but
+      the metadata key is `tag` (set in `tr_treedb.c`; the kernel guard
+      `treedb_delete_node` reads `__md_treedb__`tag`). So the agent-level guard
+      always saw 0 and never fired — only the kernel `treedb_delete_node`
+      backstopped the actual delete (with a cryptic message), and the bogus
+      `KW_REQUIRED` on a missing key risked log noise. Fixed to read
+      `__md_treedb__`tag` with flag 0 (default 0 = untagged), matching the
+      kernel guard and the `delete-binary` guard, and clarified the message to
+      *"tagged by snap N (rollback)"*. Found while adding the `delete-binary`
+      guard. Verified the key is populated: `snap-content name=<tag>
+      topic_name=yunos` lists the tagged yuno records.
+
     - **fix(yuno_agent): `delete-binary` refuses to purge a binary a snap
       references (clear reason).** A snap pins the binaries it captured:
       `shoot-snap` stamps its id on each topic's current-primary record
