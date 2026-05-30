@@ -1,6 +1,40 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(c_websocket): stop synthesizing `EV_ON_OPEN_ERROR` at the
+      transport layer.** `EV_ON_OPEN_ERROR` is a high-level event owned by
+      the session layer (`c_ievent_cli`, which emits it with the remote-yuno
+      identity). The commit that introduced it ("EV_ON_OPEN_ERROR — close
+      before open") also added an emission in `c_websocket` `ac_disconnected`
+      for the "transport closed before the WS upgrade completed" case. That
+      emission is mislayered and has no consumer: no FSM declares
+      `EV_ON_OPEN_ERROR` as an input action, so `c_websocket` publishing it to
+      its parent (`C_CHANNEL`, sitting in `ST_CLOSED` because it never opened)
+      was rejected by `gobj_send_event` with "Event NOT DEFINED in state". On
+      slower nodes the `run-yuno` reconnect window widens and the race fired
+      once per affected yuno (1:1 with the close-before-upgrade warning).
+      `ac_disconnected` now publishes only `EV_ON_CLOSE` when a real session
+      existed, otherwise returns silently (pre-918be48b9 behavior), and
+      `EV_ON_OPEN_ERROR` was dropped from `c_websocket` `event_types`. The
+      high-level emission in `c_ievent_cli` is unchanged.
+
+    - **fix(c_websocket): raise default `timeout_handshake` 5s → 30s.**
+      During a mass yuno launch (`kill-yuno` + `run-yuno`) every yuno's
+      `agent_client` (`C_IEVENT_CLI` → … → `C_WEBSOCKET`) reconnects to the
+      single-threaded agent at once; the agent's event loop is stalled doing
+      launch work (loading binaries, fork/exec, treedb) and could not complete
+      each WS upgrade handshake within the old 5s window for the yunos at the
+      back of the queue → "Timeout waiting websocket handshake" in synchronized
+      bursts (one per launched yuno). The timeout firing was counterproductive:
+      it `ws_close` + `EV_DROP`s and reconnects after
+      `timeout_between_connections`, adding load to the very herd that caused
+      it. The new 30s default sits comfortably above the observed agent
+      loop-stall during mass launch; the attr is per-instance configurable
+      (`SDF_PERSIST`) so a public-facing WS server that wants faster dead-peer
+      detection can still tighten its own. The remaining root-cause work
+      (jitter on `timeout_between_connections` in `c_tcp` to break the
+      synchronized reconnect herd) is not addressed here.
+
     - **feat(yuno_agent): single command response for `run-yuno`, plus a
       `play` knob.** Scripts driving the agent need exactly ONE answer per
       command to stay in sync; `kill-yuno`/`pause-yuno`/`play-yuno` already

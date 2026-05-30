@@ -74,8 +74,8 @@ Works in both client and server modes.
 | `url` | `string` | Connection URL. |
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `max_pkt_size` | `integer` | Maximum allowed packet size. |
-| `timeout_handshake` | `integer` | Handshake timeout in seconds. |
-| `timeout_payload` | `integer` | Payload reception timeout. |
+| `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
+| `timeout_payload` | `integer` | Payload reception timeout in milliseconds. |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 
 ---
@@ -119,6 +119,6 @@ with frame masking, ping/pong, and graceful close handshake.
 | `url` | `string` | WebSocket URL (`ws://` or `wss://`). |
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `cert_pem` | `string` | TLS certificate (PEM). |
-| `timeout_handshake` | `integer` | Handshake timeout in seconds. |
-| `timeout_payload` | `integer` | Payload reception timeout. |
-| `pingT` | `integer` | Ping interval in seconds (`0` = disabled). |
+| `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
+| `timeout_payload` | `integer` | Payload reception timeout in milliseconds. |
+| `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
