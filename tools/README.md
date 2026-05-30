@@ -1,13 +1,63 @@
 # tools
 
-CMake build infrastructure shared by every module in the Yunetas project. All `CMakeLists.txt` files — kernel libraries, modules, yunos, utils, tests, performance, and stress — include `project.cmake` to get a consistent compiler configuration, library definitions, and install paths driven by the Kconfig `.config` file.
+Shared tooling for the Yunetas project. `tools/` is packaged into the
+installation `.deb`, so anything here is available on a deployed node even when
+the yunetas source tree is absent — unlike `scripts/`, which is repo-only.
+
+It holds the CMake build infrastructure (`cmake/project.cmake`, included by
+every module to get a consistent compiler configuration, library definitions,
+and install paths driven by the Kconfig `.config` file) and operator-facing
+utilities meant to run against a live node (`agent/`).
 
 ## Files
 
 ```
 tools/
-└── cmake/
-    └── project.cmake           # Master build configuration (included by all modules)
+├── cmake/
+│   └── project.cmake           # Master build configuration (included by all modules)
+└── agent/
+    └── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
+```
+
+## agent/sync_binaries.py
+
+Operator utility that reconciles the freshly built yuno binaries with what the
+local `yuneta_agent` already has installed, and (with confirmation) pushes the
+differences via `install-binary` / `update-binary`.
+
+It **drives from the agent's installed binaries**, not from `outputs/yunos`:
+only roles the agent already manages on this node are candidates, so it never
+proposes installing a role this node doesn't run.
+
+- Agent side: `ycommand -c '*list-binaries'` (the leading `*` makes ycommand
+  emit raw JSON instead of the table).
+- Local side: each installed id is looked up in `$YUNETAS_BASE/outputs/yunos/`
+  (the exact directory the agent's `$$(<role>)` macro reads from on upload) and
+  queried with `--print-role` for its version.
+
+Classification per installed binary:
+
+| Status | Condition | Action |
+|--------|-----------|--------|
+| `BUMP` | local version > agent version | `install-binary` |
+| `DOWNGRADE` | local version < agent version | `install-binary` (flagged red) |
+| `REBUILD` | same version, size changed | `update-binary` |
+| `UP-TO-DATE` | same version, same size | skipped |
+| `NO-BUILD` | agent has it, no build in `outputs/yunos` | skipped (informational) |
+
+It shows the candidate table, asks what to apply (all / one-by-one / quit),
+then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
+each chosen role. It does **not** automate the node-wide lifecycle steps
+(`kill-yuno` before a same-version overwrite; `find-new-yunos create=1` +
+`deactivate-snap` after a bump) — it prints them as reminders instead. See
+`yunos/c/yuno_agent/YUNO_LIFECYCLE.md` §6.5/§6.6.
+
+```bash
+tools/agent/sync_binaries.py            # interactive: show table, ask, apply
+tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
+tools/agent/sync_binaries.py -a         # apply every candidate without asking
+tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent url
+tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
 ```
 
 ## project.cmake
