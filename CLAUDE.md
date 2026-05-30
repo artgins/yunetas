@@ -29,8 +29,9 @@ Still applies to lib-yui:
 - preserve backwards compatibility for existing consumers (wattyzer +
   estadodelaire) — additive changes preferred,
 - run the lib-yui test matrix locally (`cd kernel/js/lib-yui && npm test`),
-- update `kernel/js/lib-yui/SHELL.md` and the corresponding skeleton when
-  the contract changes.
+- update `kernel/js/lib-yui/README.md` when the contract changes (the old
+  `SHELL.md` + declarative-shell stack moved to wattyzer in 7.4.x — see the
+  JS GUI scaffold note below).
 
 What no longer applies:
 - the "wait for approval before touching anything" gate. Propose, implement,
