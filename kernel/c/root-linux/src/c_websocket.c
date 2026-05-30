@@ -141,7 +141,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,      "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,    "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,    "30000",     "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,    "3000",      "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,    "5000",      "Timeout to payload"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,    "0",        "Ping interval. If value <= 0 then No ping"),
