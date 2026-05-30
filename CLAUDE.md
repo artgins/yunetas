@@ -557,9 +557,16 @@ ycommand -c 'update-binary id=<role> content64=$$(<role>)'
 # 4. Verify size/date
 ycommand -c 'list-binaries'
 
-# 5. Start the yuno(s)
-ycommand -c 'run-yuno'
+# 5. Start the yuno(s), then play them (two steps = one response each)
+ycommand -c 'run-yuno play=0'
+ycommand -c 'play-yuno'
 ```
+
+`run-yuno play=0` launches the process(es) without the implicit auto-play, so
+it returns a single aggregated response; `play-yuno` then starts the services
+(also a single response). In a script this keeps each command in sync. Plain
+`run-yuno` (auto-play) still works for interactive use but emits one extra
+async answer per `must_play` yuno.
 
 #### Version bump (`APP_VERSION` in `main.c` changed)
 

@@ -458,9 +458,10 @@ ycommand -c 'update-config id=my_role.my_name version=1 zcontent=$$(my_role_my_n
 # 3. create the yuno record (links binary + config to a realm)
 ycommand -c 'create-yuno realm_id=<realm> yuno_role=my_role yuno_name=my_name'
 
-# 4. enable and start
+# 4. enable, launch, then play (two steps = one response each)
 ycommand -c 'enable-yuno id=<yuno_id>'
-ycommand -c 'run-yuno id=<yuno_id>'
+ycommand -c 'run-yuno play=0 id=<yuno_id>'
+ycommand -c 'play-yuno id=<yuno_id>'
 
 # 5. verify
 ycommand -c 'list-yunos'
@@ -492,8 +493,9 @@ ycommand -c 'list-yunos'    # expect yuno_running=false
 ycommand -c 'update-binary id=<role> content64=$$(<role>)'
 ycommand -c 'list-binaries' # verify size/date
 
-# 5. start back
-ycommand -c 'run-yuno'
+# 5. launch back, then play (two steps = one response each)
+ycommand -c 'run-yuno play=0'
+ycommand -c 'play-yuno'
 ```
 
 For a real version bump (`1.3.1.0` → `1.3.1.1`, `7.3.4` → `7.4.0`,
@@ -508,7 +510,8 @@ in `command-yuno` help applies precisely to that misuse.
 ```bash
 ycommand -c 'update-config id=<role>.<name> version=<v> zcontent=$$(<file>.json)'
 ycommand -c 'kill-yuno id=<yuno_id>'
-ycommand -c 'run-yuno  id=<yuno_id>'
+ycommand -c 'run-yuno  play=0 id=<yuno_id>'
+ycommand -c 'play-yuno id=<yuno_id>'
 
 # verify the EFFECTIVE merged config (not the stored one)
 ycommand -c 'command-yuno id=<yuno_id> service=__yuno__ command=view-config'

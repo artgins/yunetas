@@ -14,4 +14,7 @@ fi
 
 bash ./_deploy_all.sh
 
-ycommand -c "run-yuno"
+# Launch then play in two steps so each command returns a single response
+# (run-yuno play=0 only launches; play-yuno starts the services).
+ycommand -c "run-yuno play=0"
+ycommand -c "play-yuno"
