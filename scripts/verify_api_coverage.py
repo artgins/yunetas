@@ -84,7 +84,11 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     KERNEL / "gobj-c/src/stats_parser.h":    ["api/parsers/stats_parser.md"],
     KERNEL / "gobj-c/src/log_udp_handler.h": ["api/logging/log_udp_handler.md"],
     KERNEL / "gobj-c/src/rotatory.h":        ["api/logging/rotatory.md"],
-    KERNEL / "gobj-c/src/testing.h":         ["api/testing/testing.md"],
+    # testing.h is documented on its own page, plus the two timing helpers
+    # (get/set_measure_times) that live on the yev_loop landing because they
+    # are used to measure yev_loop event times.
+    KERNEL / "gobj-c/src/testing.h":         ["api/testing/testing.md",
+                                              "api/yev_loop/yev_loop.md"],
 
     # ---- http parser ----
     # llhttp.h is the upstream third-party parser header used internally;
@@ -108,23 +112,29 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
 
     # ---- event loop & TLS ----
     KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/yev_loop.md"],
+    # ytls.h is the backend-agnostic API; the two backend selectors
+    # (mbed_api_tls / openssl_api_tls) live in their backend headers but are
+    # documented next to the ytls API on the same landing page.
     KERNEL / "ytls/src/ytls.h":          ["api/ytls/ytls.md"],
+    KERNEL / "ytls/src/tls/mbedtls.h":   ["api/ytls/ytls.md"],
+    KERNEL / "ytls/src/tls/openssl.h":   ["api/ytls/ytls.md"],
 }
 
 
-# Symbols that are declared in more than one header but belong
-# conceptually (and canonically) to a single landing page. The other
-# headers' coverage report treats them as satisfied so we never emit a
-# "MISSING" even though the anchor physically lives elsewhere, and the
-# mystmd build does not get a duplicate-identifier warning for having
-# two copies of the same `(anchor)=` section.
+# Functions documented on a landing page but declared in a header that is NOT
+# part of the verified surface (typically a gclass header whose register_c_*
+# lives on the shared registration page, so the header cannot be added to
+# HEADER_TO_LANDINGS without dragging in dozens of unrelated anchors). These
+# are intentional cross-references, not stale symbols, so they must not be
+# flagged as EXTRA. They are still reported (see GLOBAL SUMMARY) so the list
+# stays auditable.
 #
-# Key: function name. Value: the header that owns the canonical
-# landing; every OTHER header that also declares the symbol will skip
-# it.
-CANONICAL_SHARED: dict[str, str] = {
-    "get_measure_times": "kernel/c/yev_loop/src/yev_loop.h",
-    "set_measure_times": "kernel/c/yev_loop/src/yev_loop.h",
+# Key: function name. Value: the header that actually declares it.
+ALLOWED_EXTRAS: dict[str, str] = {
+    # Default authz checker impl; declared in root-linux/src/c_authz.h (a
+    # gclass header, register_c_authz lives on the shared registration page),
+    # surfaced on the gobj Authorization page next to the gobj_authz* API.
+    "authz_checker": "kernel/c/root-linux/src/c_authz.h",
 }
 
 
@@ -188,17 +198,11 @@ def main() -> int:
             landing_headers[rel].add(header)
 
     reports: list[HeaderReport] = []
+    allowed_hits: dict[str, str] = {}  # name -> landing it was documented on
 
     for header, landings in HEADER_TO_LANDINGS.items():
         rep = HeaderReport(header=header, landings=landings)
         rep.exported = set(header_exports[header])
-        # Drop canonical-shared symbols owned by a different header so we
-        # do not double-document them.
-        header_rel = str(header.relative_to(REPO))
-        rep.exported -= {
-            name for name, owner in CANONICAL_SHARED.items()
-            if owner != header_rel
-        }
         for rel in landings:
             for name in landing_anchors[rel]:
                 # Only count the anchor as "documented by this header"
@@ -210,17 +214,23 @@ def main() -> int:
                     rep.documented.add(name)
                     rep.doc_origin.setdefault(name, rel)
                 else:
-                    # Check whether any sibling header exports it. If
-                    # yes, silently skip. If no, it's a genuine EXTRA
-                    # (stale/removed symbol) and we attribute it to the
-                    # first landing that documents it.
+                    # Check whether any sibling header (one that also maps to
+                    # this landing) exports it. If yes, silently skip.
                     owned_by_sibling = any(
                         name in header_exports.get(h, set())
                         for h in landing_headers[rel] if h != header
                     )
-                    if not owned_by_sibling:
-                        rep.documented.add(name)  # keep in set so EXTRA logic flags it
-                        rep.doc_origin.setdefault(name, rel)
+                    if owned_by_sibling:
+                        continue
+                    # Intentional cross-reference to a symbol declared in an
+                    # unverified header — allowed, but recorded for the audit.
+                    if name in ALLOWED_EXTRAS:
+                        allowed_hits.setdefault(name, rel)
+                        continue
+                    # Otherwise it's a genuine EXTRA (stale/removed symbol),
+                    # attributed to the first landing that documents it.
+                    rep.documented.add(name)  # keep in set so EXTRA logic flags it
+                    rep.doc_origin.setdefault(name, rel)
         reports.append(rep)
 
     # ---- per-header report ----
@@ -263,6 +273,12 @@ def main() -> int:
     print(f"  Matched:            {total_matched}")
     print(f"  Missing (gaps):     {sum(len(r.missing) for r in reports)}")
     print(f"  Extra (stale):      {sum(len(r.extra) for r in reports)}")
+    if allowed_hits:
+        print(f"  Allowed extras:     {len(allowed_hits)} "
+              f"(documented cross-header, declared in an unverified header)")
+        for name, rel in sorted(allowed_hits.items()):
+            owner = ALLOWED_EXTRAS.get(name, "?")
+            print(f"      - {name}   ({rel}; declared in {owner})")
 
     return 0 if problems == 0 else 1
 
