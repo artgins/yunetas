@@ -2931,15 +2931,16 @@ PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char *resource = "binaries";
 
     /*
-     *  The 'binaries' topic uses pkey2 (version) to keep one record per
-     *  (role, version). gobj_list_nodes returns ONE row per id (role) —
-     *  the in-memory primary — so multi-version installs were invisible.
-     *  Walk the instances so every installed version surfaces.
+     *  list-binaries shows the binaries IN USE: ONE node per id (role), the
+     *  in-memory primary. Every installed (role, version) is surfaced by the
+     *  sibling `list-binaries-instances` (gobj_list_instances) instead. The
+     *  old "primary is stale after install-binary until deactivate-snap"
+     *  reason for walking instances here was the pkey2 staleness bug, fixed
+     *  in tr_treedb's runtime save_node pkey2 refresh.
      */
-    json_t *jn_data = gobj_list_instances(
+    json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        "",
         kw_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src

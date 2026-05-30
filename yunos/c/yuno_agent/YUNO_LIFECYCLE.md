@@ -145,7 +145,8 @@ config commands only (admin, realm, certs and console commands omitted):
 | `install-binary`  | c_agent.c:3005 | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | c_agent.c:3234 | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
 | `delete-binary`   | c_agent.c:3446 | Refuse if any yuno still references it, then `gobj_delete_node` + `rmrdir`. |
-| `list-binaries`   | c_agent.c:2917 | `gobj_list_instances("binaries", "", filter)`, returns one row per `(role, version)` so multi-version installs are visible. |
+| `list-binaries`   | c_agent.c:2917 | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
+| `list-binaries-instances` | c_agent.c:6313 | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
 ### Configurations
 
@@ -383,11 +384,14 @@ freshly-built binary from `$YUNETAS_YUNOS` = `outputs/yunos/<role>`, so a plain
 `make install` is enough to stage the new build.) For a real release, prefer
 `install-binary` with a bumped version.
 
-> **Note — `list-binaries` returns the in-memory pkey2 index.** After a runtime
-> `update-binary`, `list-binaries` reflects the new size/date immediately
-> *(fixed dbf532ec9 — `treedb_save_node()` now refreshes the pkey2 secondary
-> index at runtime; before that fix it kept showing the previous record until
-> the agent restarted and reloaded the topic from disk)*.
+> **Note — `list-binaries` shows the binary IN USE (the primary node per role).**
+> A runtime `update-binary` (same version) mutates that primary node in place, so
+> the new size/date appear immediately. An `install-binary` of a NEW version does
+> **not** change what `list-binaries` shows until `deactivate-snap` promotes and
+> reloads it — which is correct: the new binary is not in use until then. To see
+> every installed `(role, version)` from the moment it lands, use
+> `list-binaries-instances` (`gobj_list_instances`, the pkey2 iterator refreshed
+> at runtime by dbf532ec9).
 
 ### 5.2 Stale `yuno_running=true` after a hard crash
 

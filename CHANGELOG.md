@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(yuno_agent): `list-binaries` shows the binary in use, not every
+      instance.** `cmd_list_binaries` had been switched (df0e50e70) from
+      `gobj_list_nodes` to `gobj_list_instances`, which made it return one row
+      per `(role, version)` — identical to `list-binaries-instances`, and after
+      a same-version `update-binary` (an append) even two rows for the same
+      `(role, version)`. The reason given at the time ("the new instance is
+      invisible in the primary index until `deactivate-snap`") was the pkey2
+      staleness bug since fixed in `dbf532ec9`. Reverted `list-binaries` to
+      `gobj_list_nodes("binaries", …)`: ONE node per role — the primary, i.e.
+      the binary actually in use. `list-binaries-instances` keeps the full
+      `(role, version)` enumeration. Verified live: `list-binaries` returns 15
+      rows (one per role, the in-use version) while `list-binaries-instances`
+      returns 30 (every record). The primary correctly tracks the in-use
+      version — an `update-binary` updates it in place; an `install-binary` of
+      a new version only changes it once `deactivate-snap` promotes+reloads it
+      (correct: the new binary is not in use until then).
+
     - **feat(ycommand): `history` / `!history` work non-interactively, and
       fix the local-command hang.** Two problems with the history command
       outside `-i`: (1) the line editor (`C_EDITLINE`, `priv->gobj_editline`)
