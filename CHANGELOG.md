@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.4 -- 30/May/2026
     - **fix(c_websocket): stop synthesizing `EV_ON_OPEN_ERROR` at the
       transport layer.** `EV_ON_OPEN_ERROR` is a high-level event owned by
       the session layer (`c_ievent_cli`, which emits it with the remote-yuno
