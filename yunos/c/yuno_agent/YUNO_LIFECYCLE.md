@@ -619,6 +619,38 @@ ycommand -c 'activate-snap name=<rollback-tag>'
 ycommand -c 'deactivate-snap'
 ```
 
+### 6.7 Inspecting a snap (`snaps` / `snap-content`)
+
+A snap is a point-in-time tag (a numeric `user_flag`, `1..65534`) applied
+to the treedb records that were current when it was shot. `snaps` lists
+them; `snap-content` shows what a given snap captured — useful to see what
+a rollback snap (§6.6) would restore *before* you `activate-snap` it.
+
+```bash
+# List the snaps (id, name, date, active, description)
+ycommand -c 'snaps'
+
+# Overview: WHERE the snap points — every topic it tags and how many
+# records each. Select the snap by name, id, or the legacy snap_id.
+ycommand -c 'snap-content name=<tag>'
+#   → realms:3  yunos:16  binaries:15  configurations:16  public_services:2
+#     "snap 2 spans 5 topic(s); add topic_name=<topic> to see the records"
+
+# Drill into one topic's foto (the records as captured in that snap)
+ycommand -c 'snap-content name=<tag> topic_name=yunos'
+```
+
+`snap-content` selects the snap by any of:
+
+- `name=<tag>` — the friendly name, resolved against `__snaps__`,
+- `id=<n>` / `snap_id=<n>` — the numeric id shown by `snaps` (`snap_id` is
+  the legacy form, kept for backward compatibility).
+
+`topic_name` is optional: omit it for the per-topic overview (a cheap
+count-only walk that does not load records), or pass `topic_name=<topic>`
+for the full record foto of that topic. With neither a valid snap nor a
+name it answers `What snap? give snap_id/id (1..65534) or name`.
+
 ---
 
 ## 7. Code pointers (one-pager)
