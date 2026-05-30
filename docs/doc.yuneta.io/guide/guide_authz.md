@@ -18,7 +18,7 @@ built-in parsers and checkers.
 
 ## Core Concepts
 
-(authentication_parser)=
+(guide-authentication_parser)=
 
 ### 1. **Authentication**
 Authentication verifies the identity of a user by validating credentials such as tokens or other identifiers.
