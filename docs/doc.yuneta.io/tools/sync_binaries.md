@@ -1,0 +1,59 @@
+(tool-sync_binaries)=
+# `sync_binaries.py`
+
+Operator utility (`tools/agent/sync_binaries.py`) that reconciles the freshly
+built yuno binaries with what the local `yuneta_agent` already has installed,
+and — after confirmation — pushes the differences via `install-binary` /
+`update-binary`.
+
+It **drives from the agent's installed binaries**, not from `outputs/yunos`:
+only roles the agent already manages on this node are candidates, so it never
+proposes installing a role this node doesn't run.
+
+- **Agent side:** `ycommand -c '*list-binaries'` (the leading `*` makes ycommand
+  emit raw JSON instead of the table).
+- **Local side:** each installed id is looked up in `$YUNETAS_BASE/outputs/yunos/`
+  — the exact directory the agent's `$$(<role>)` macro reads from on upload —
+  and queried with `--print-role` for its version.
+
+## Classification
+
+For each binary the agent has installed:
+
+| Status       | Condition                                  | Action           |
+|--------------|--------------------------------------------|------------------|
+| `BUMP`       | local version > agent version              | `install-binary` |
+| `DOWNGRADE`  | local version < agent version              | `install-binary` (flagged) |
+| `REBUILD`    | same version, size changed                 | `update-binary`  |
+| `UP-TO-DATE` | same version, same size                    | skipped          |
+| `NO-BUILD`   | agent has it, no build in `outputs/yunos`  | skipped (informational) |
+
+It prints the candidate table, asks what to apply (all / one-by-one / quit),
+then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
+each chosen role.
+
+## Lifecycle steps are not automated
+
+The script deliberately does **not** run the node-wide lifecycle steps that have
+side effects — it prints them as reminders instead:
+
+- `kill-yuno` before a same-version overwrite (otherwise `text-file-busy` if the
+  yuno is running from that slot);
+- `find-new-yunos create=1` + `deactivate-snap` after a version bump.
+
+See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
+
+## Usage
+
+```bash
+tools/agent/sync_binaries.py            # interactive: show table, ask, apply
+tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
+tools/agent/sync_binaries.py -a         # apply every candidate without asking
+tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent
+tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
+```
+
+## See also
+
+- [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/main/tools/README.md).

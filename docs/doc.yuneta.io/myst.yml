@@ -341,6 +341,9 @@ project:
 
     - title: Tools
       file: tools.md
+      children:
+        - title: sync_binaries.py
+          file: tools/sync_binaries.md
 
     - title: Test Suite
       file: testing.md
