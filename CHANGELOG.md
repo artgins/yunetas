@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.5 -- 30/May/2026
     - **fix(yuno_agent): `delete-yuno`'s snap-tag guard read the wrong metadata
       key — it was dead.** `cmd_delete_yuno` read `__md_treedb__`__tag__`, but
       the metadata key is `tag` (set in `tr_treedb.c`; the kernel guard
