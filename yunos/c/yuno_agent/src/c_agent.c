@@ -988,6 +988,8 @@ typedef struct _PRIVATE_DATA {
 
     json_t *list_consoles; // Dictionary of console names
 
+    json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
+
     hgobj resource;
     hgobj timer;
     hrotatory_h audit_file;
@@ -1146,6 +1148,11 @@ PRIVATE void mt_create(hgobj gobj)
      *-----------------------------*/
     priv->list_consoles = json_object();
 
+    /*-----------------------------*
+     *      run-yuno play=0
+     *-----------------------------*/
+    priv->no_play_launches = json_object();
+
     /*
      *  SERVICE subscription model
      */
@@ -1186,6 +1193,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->list_consoles);
+    JSON_DECREF(priv->no_play_launches);
     JSON_DECREF(priv->cert_sync_state);
 
     if(priv->audit_file) {
@@ -4909,12 +4917,18 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     json_object_set_new(yuno, "_requester_md_iev", kw_incref(kw_requester));
                 } else {
                     /*
-                     *  Launch-only: tell ac_on_open to skip the auto-play for THIS
-                     *  launch (transient, cleared on connect). A watcher crash
-                     *  relaunch carries no marker, so it still reconciles must_play.
+                     *  Launch-only: remember this launch_id so ac_on_open skips its
+                     *  must_play auto-play once. Kept in-memory (transient), consumed
+                     *  on the first connect. The watcher reuses the same launch_id on
+                     *  a crash relaunch, but by then the marker is gone, so autonomous
+                     *  must_play recovery is intact.
                      */
                     json_object_set_new(yuno, "_requester", json_string(""));
-                    json_object_set_new(yuno, "_run_no_play", json_true());
+                    char s_launch_id[32];
+                    snprintf(s_launch_id, sizeof(s_launch_id), "%lld",
+                        (long long)kw_get_int(gobj, yuno, "launch_id", 0, KW_REQUIRED)
+                    );
+                    json_object_set_new(priv->no_play_launches, s_launch_id, json_true());
                 }
 
                 // Volatil if you don't want historic data
@@ -10645,12 +10659,19 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 // KKK
         /*
          *  run-yuno play=0 launched this process and asked us NOT to auto-play it.
-         *  Honour it once and clear the transient marker; a watcher crash relaunch
-         *  carries no marker, so must_play reconciliation stays intact for it.
+         *  Honour it once and consume the transient marker; a watcher crash relaunch
+         *  reuses the same launch_id but the marker is already gone, so must_play
+         *  reconciliation stays intact for it.
          */
-        BOOL skip_auto_play = kw_get_bool(gobj, yuno, "_run_no_play", 0, 0);
-        if(skip_auto_play) {
-            json_object_set_new(yuno, "_run_no_play", json_false());
+        BOOL skip_auto_play = FALSE;
+        json_int_t launch_id = kw_get_int(gobj, kw, "identity_card`launch_id", 0, 0);
+        if(launch_id) {
+            char s_launch_id[32];
+            snprintf(s_launch_id, sizeof(s_launch_id), "%lld", (long long)launch_id);
+            if(kw_has_key(priv->no_play_launches, s_launch_id)) {
+                skip_auto_play = TRUE;
+                json_object_del(priv->no_play_launches, s_launch_id);
+            }
         }
 
         BOOL must_play = SDATA_GET_BOOL(yuno, "must_play");
