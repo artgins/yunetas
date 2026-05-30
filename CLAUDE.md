@@ -13,29 +13,28 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
-### Exception: `kernel/js/lib-yui/` is in active growth
+### Exception: `kernel/js/lib-yui/` is frozen — develop in wattyzer
 
 The C kernel, `kernel/js/gobj-js/` and the runtime gclasses are consolidated:
 treat them as described above.
 
-`kernel/js/lib-yui/` is different. It is still maturing as more apps adopt it
-(currently wattyzer, estadodelaire) and the declarative shell, nav,
-window and form contracts are expected to grow. **Improvements are welcome**:
-new toolbar item types, new `action.type` values, finer-grained `show_on`,
-nav layouts, CSS hooks, etc. The bar is correctness, not conservatism.
+`kernel/js/lib-yui/` is different, but **not** because it is open for edits here.
+It is **frozen**: do NOT edit `kernel/js/lib-yui/**` in this repo. All lib-yui
+work happens in `wattyzer/gui/src/lib-yui/` — an owned, flat vendored copy that
+wattyzer (and estadodelaire) develop against. The declarative shell, nav, window
+and form contracts moved out in 7.4.x: the old `SHELL.md` + shell stack and the
+JS GUI scaffold now live under `wattyzer/templates/js_gui/` (see the JS GUI
+scaffold note below).
 
-Still applies to lib-yui:
-- read the code in depth before editing,
-- preserve backwards compatibility for existing consumers (wattyzer +
-  estadodelaire) — additive changes preferred,
-- run the lib-yui test matrix locally (`cd kernel/js/lib-yui && npm test`),
-- update `kernel/js/lib-yui/README.md` when the contract changes (the old
-  `SHELL.md` + declarative-shell stack moved to wattyzer in 7.4.x — see the
-  JS GUI scaffold note below).
-
-What no longer applies:
-- the "wait for approval before touching anything" gate. Propose, implement,
-  test, then surface the diff for review.
+Fold-back of the matured lib-yui from wattyzer into yunetas is deferred until the
+user declares wattyzer done. Until then:
+- never modify `kernel/js/lib-yui/**` here — land every lib-yui change in
+  `wattyzer/gui/src/lib-yui/` instead;
+- when fold-back finally happens, the consolidated rules at the top of this file
+  apply in full: read in depth, preserve backwards compatibility for existing
+  consumers (wattyzer + estadodelaire), run the test matrix locally
+  (`cd kernel/js/lib-yui && npm test`), and update `kernel/js/lib-yui/README.md`
+  when the contract changes.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
 
