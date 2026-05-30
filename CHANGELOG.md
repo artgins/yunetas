@@ -1,6 +1,24 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(yuno_agent): single command response for `run-yuno`, plus a
+      `play` knob.** Scripts driving the agent need exactly ONE answer per
+      command to stay in sync; `kill-yuno`/`pause-yuno`/`play-yuno` already
+      do, but `run-yuno` emitted ~2N answers over N yunos. Two independent
+      causes were fixed: (1) `cmd_run_yuno` created one `C_COUNTER` with
+      `max_count=1` INSIDE the per-yuno loop (one answer each); it now
+      aggregates the `EV_ON_OPEN` filters into a single counter with
+      `max_count=total` AFTER the loop, mirroring kill/pause/play — one
+      `"N yunos found to run"` answer. (2) The implicit auto-play: on connect
+      `ac_on_open` reconciles `must_play` by calling `play-yuno`, one async
+      answer per yuno. A new `run-yuno play=0` parameter (default `1`,
+      backward-compatible) launches the process(es) WITHOUT auto-play, so a
+      script does `run-yuno play=0` (1 answer) then `play-yuno` (1 answer,
+      aggregated over already-running yunos). The suppression is per-launch
+      (transient `_run_no_play` node marker, cleared on connect); a watcher
+      crash relaunch carries no marker, so autonomous `must_play` recovery is
+      untouched.
+
     - **fix(tr_treedb): refresh the pkey2 secondary index on a runtime
       `treedb_save_node()`.** The secondary `pkey2` index kept objects
       SEPARATE from the primary `id` index, populated only while loading

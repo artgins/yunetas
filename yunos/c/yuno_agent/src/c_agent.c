@@ -410,6 +410,7 @@ SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno Role")
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno Name"),
 SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno Release"),
 SDATAPM (DTP_STRING,    "yuno_tag",     0,              0,          "Yuno Tag"),
+SDATAPM (DTP_BOOLEAN,   "play",         0,              "1",        "Auto-play on connect (set play=0 to only launch; issue play-yuno later)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_kill_yuno[] = {
@@ -4814,6 +4815,15 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     char *resource = "yunos";
 
     /*
+     *  HACK play=1 (default): auto-play on connect (ac_on_open reconciles must_play).
+     *  play=0: only launch the process(es); the caller must issue play-yuno later.
+     *  Splitting run (launch) from play lets scripts get exactly ONE response per
+     *  command: run-yuno aggregates the launch ACKs into a single counter, and the
+     *  later play-yuno aggregates over already-running yunos.
+     */
+    BOOL do_play = kw_get_bool(gobj, kw, "play", 1, KW_WILD_NUMBER);
+
+    /*
      *  Get a iter of matched resources.
      */
     json_object_set_new(kw, "yuno_disabled", json_false());
@@ -4859,6 +4869,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *      run
      *      add filter for future counter.
      *------------------------------------------------*/
+    json_t *filterlist = json_array();
     int total_run = 0;
 
     /*
@@ -4874,15 +4885,6 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         if(!disabled && !yuno_running) {
 
             const char *id = SDATA_GET_ID(yuno);
-            json_t *iter2 = gobj_list_nodes(
-                priv->resource,
-                resource,
-                json_pack("{s:s}", "id", id), // filter
-                json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-                src
-            );
-
-            json_t *filterlist = json_array();
             int r = run_yuno(gobj, yuno, src);
             if(r==0) {
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:s, s:s, s:I}}",
@@ -4895,11 +4897,25 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 json_array_append_new(filterlist, jn_EvChkItem);
 
 // KKK KKK2
-                json_object_set_new(yuno, "_requester", json_string(requester));
-                json_t *kw_requester = kw_get_dict(
-                    gobj, kw, "__md_iev__", 0, KW_REQUIRED
-                );
-                json_object_set_new(yuno, "_requester_md_iev", kw_incref(kw_requester));
+                if(do_play) {
+                    /*
+                     *  Route the implicit play answer back to this requester:
+                     *  ac_on_open's must_play reconcile will call play-yuno.
+                     */
+                    json_object_set_new(yuno, "_requester", json_string(requester));
+                    json_t *kw_requester = kw_get_dict(
+                        gobj, kw, "__md_iev__", 0, KW_REQUIRED
+                    );
+                    json_object_set_new(yuno, "_requester_md_iev", kw_incref(kw_requester));
+                } else {
+                    /*
+                     *  Launch-only: tell ac_on_open to skip the auto-play for THIS
+                     *  launch (transient, cleared on connect). A watcher crash
+                     *  relaunch carries no marker, so it still reconciles must_play.
+                     */
+                    json_object_set_new(yuno, "_requester", json_string(""));
+                    json_object_set_new(yuno, "_run_no_play", json_true());
+                }
 
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -4915,58 +4931,6 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 );
                 total_run++;
 
-                /*--------------------------------------*
-                 *  Crea con counter un futuro
-                 *  que nos indique cuando han arrancado
-                 *  all yunos arrancados.
-                 *--------------------------------------*/
-                json_t *kw_answer = kw_duplicate(gobj, kw);
-
-                char info[80];
-                snprintf(info, sizeof(info), "%d yunos found to run", 1);
-                json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
-                    "info", info,
-                    "max_count", 1,
-                    "expiration_timeout", priv->timeout_expiration,
-                    "input_schema", filterlist, // owned
-                    "__user_data__",
-                        "iter", iter2,         // HACK free en diferido, en ac_final_count()
-                        "kw_answer", kw_answer // HACK free en diferido, en ac_final_count()
-                );
-
-                hgobj gobj_counter = gobj_create_volatil( // run-yuno
-                    sequence_name(gobj),
-                    C_COUNTER,
-                    kw_counter,
-                    gobj
-                );
-
-                /*
-                 *  Subscribe al objeto counter a los eventos del router
-                 */
-                json_t *kw_sub = json_pack("{s:{s:s}}",
-                    "__config__", "__rename_event_name__", EV_COUNT
-                );
-                gobj_subscribe_event(
-                    priv->gobj_input_side,
-                    EV_ON_OPEN,
-                    kw_sub,
-                    gobj_counter
-                );
-
-                // KKK
-                /*
-                 *  Subscribe me to the counter's final event, with the requester
-                 */
-                json_t *kw_final_count = json_object();
-                json_t *global = json_object();
-                json_object_set_new(kw_final_count, "__global__", global);
-                json_object_set_new(global, "requester", json_string(requester));
-
-                gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
-
-                gobj_start(gobj_counter);
-
             } else {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
@@ -4979,10 +4943,9 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         }
     }
 
-    JSON_DECREF(iter)
-
     if(!total_run) {
         JSON_DECREF(iter)
+        JSON_DECREF(filterlist)
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
@@ -4993,6 +4956,60 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
+
+    /*--------------------------------------*
+     *  Crea con counter un futuro
+     *  que nos indique cuando han arrancado
+     *  all yunos arrancados.
+     *  HACK one counter for the whole set (like kill/pause/play): a single
+     *  command answer when all launched yunos have connected back.
+     *--------------------------------------*/
+    json_t *kw_answer = kw_incref(kw);
+
+    char info[80];
+    snprintf(info, sizeof(info), "%d yunos found to run", total_run);
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
+        "info", info,
+        "max_count", total_run,
+        "expiration_timeout", priv->timeout_expiration,
+        "input_schema", filterlist, // owned
+        "__user_data__",
+            "iter", iter,          // HACK free en diferido, en ac_final_count()
+            "kw_answer", kw_answer // HACK free en diferido, en ac_final_count()
+    );
+
+    hgobj gobj_counter = gobj_create_volatil( // run-yuno
+        sequence_name(gobj),
+        C_COUNTER,
+        kw_counter,
+        gobj
+    );
+
+    /*
+     *  Subscribe al objeto counter a los eventos del router
+     */
+    json_t *kw_sub = json_pack("{s:{s:s}}",
+        "__config__", "__rename_event_name__", EV_COUNT
+    );
+    gobj_subscribe_event(
+        priv->gobj_input_side,
+        EV_ON_OPEN,
+        kw_sub,
+        gobj_counter
+    );
+
+    // KKK
+    /*
+     *  Subscribe me to the counter's final event, with the requester
+     */
+    json_t *kw_final_count = json_object();
+    json_t *global = json_object();
+    json_object_set_new(kw_final_count, "__global__", global);
+    json_object_set_new(global, "requester", json_string(requester));
+
+    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
+
+    gobj_start(gobj_counter);
 
     KW_DECREF(kw);
     return 0;   // Asynchronous response
@@ -10626,8 +10643,18 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *---------------*/
     if(!playing) {
 // KKK
+        /*
+         *  run-yuno play=0 launched this process and asked us NOT to auto-play it.
+         *  Honour it once and clear the transient marker; a watcher crash relaunch
+         *  carries no marker, so must_play reconciliation stays intact for it.
+         */
+        BOOL skip_auto_play = kw_get_bool(gobj, yuno, "_run_no_play", 0, 0);
+        if(skip_auto_play) {
+            json_object_set_new(yuno, "_run_no_play", json_false());
+        }
+
         BOOL must_play = SDATA_GET_BOOL(yuno, "must_play");
-        if(must_play) {
+        if(must_play && !skip_auto_play) {
             json_t *kw_play = json_pack("{s:s, s:s}",
                 "realm_id", realm_id,
                 "id", yuno_id

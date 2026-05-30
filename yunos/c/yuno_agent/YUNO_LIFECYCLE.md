@@ -250,11 +250,34 @@ c_agent.c:4805 → `run_yuno()` at c_agent.c:7943.
    Only after this handshake is `yuno_running` set to `true` (c_agent.c:10408)
    and `yuno_pid` / `watcher_pid` stored (c_agent.c:10410-10411).
 7. If `must_play=true`, the agent fires `play-yuno` automatically right after
-   the open (c_agent.c:10476).
+   the open (`ac_on_open()`), **unless** the command was issued with `play=0`
+   (see below).
 
 **Implication**: a yuno that forks fine but never opens the channel never
 becomes `running` from the agent's point of view, even if `ps` shows the
 process alive. See §5 *Stale pid*.
+
+#### Command response: one answer per command, and the `play=0` knob
+
+`run-yuno` returns a **single** command answer once all launched yunos have
+connected back — like `kill-yuno`/`pause-yuno`/`play-yuno`. It aggregates the
+per-yuno `EV_ON_OPEN` ACKs into one `C_COUNTER` (`max_count=total`) created
+after the launch loop, exactly mirroring the other three commands.
+
+The implicit auto-play of step 7, however, is inherently per-yuno and async
+(each yuno connects at its own time), so in the default `play=1` mode the
+caller also sees one extra `play-yuno` answer per `must_play` yuno. Scripts
+that need exactly one answer per command should split the two phases:
+
+```bash
+ycommand -c 'run-yuno play=0'   # launch only → 1 answer ("N yunos found to run")
+ycommand -c 'play-yuno'         # play already-running yunos → 1 aggregated answer
+```
+
+`play=0` (default `1`, backward-compatible) suppresses the auto-play for that
+launch only, via a transient `_run_no_play` node marker that `ac_on_open()`
+honours once and clears. A watcher crash relaunch carries no marker, so the
+autonomous `must_play` reconciliation of §4.6 is unaffected.
 
 ### 4.4 Pause / Play
 
