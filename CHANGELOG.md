@@ -1,5 +1,40 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(ycommand): `history` / `!history` work non-interactively, and
+      fix the local-command hang.** Two problems with the history command
+      outside `-i`: (1) the line editor (`C_EDITLINE`, `priv->gobj_editline`)
+      is only created in interactive mode, and both `list_history()` (the bare
+      `history` intercept) and `cmd_local_history()` (the `!history`
+      local-table entry) read only that live editor — so `ycommand history` /
+      `ycommand -c history` printed nothing even though the history is
+      persisted to `~/.yuneta/history2.txt`. Both now fall back to that file
+      when there is no live editor. (2) A trailing **local** command in
+      non-interactive mode hung: the shutdown timeout is scheduled from
+      `ac_command_answer`, which only fires for **remote** commands (a local
+      `history` produces no `EV_MT_COMMAND_ANSWER`), so the queue drained and
+      ycommand waited forever for an answer that never came. Added
+      `schedule_exit_if_done()` at the tail of `run_next_pending()` — when the
+      queue is empty, the session is non-interactive, no async command is in
+      flight, and we are not in long-lived stdin-pipe mode, it schedules the
+      same shutdown timeout. Interactive sessions and pipe mode (which waits
+      for EOF) are unaffected.
+
+    - **feat(snap-content): friendlier snap inspection.** The agent's
+      `snap-content` (served by `C_NODE` in `c_node.c`) required the numeric
+      `snap_id` AND an exact `topic_name`, so you could not ask "where does
+      this snap point?" without already knowing the topic names. Two additive,
+      backward-compatible changes: (1) the snap is now selectable by
+      `snap_id`, `id` (alias), or `name` (resolved against `__snaps__`); the
+      legacy `snap_id=` keeps working. (2) `topic_name` is now optional — when
+      omitted, the command returns the **overview** of every topic the snap
+      tags and how many records each (a cheap count-only walk via a new
+      `snap_count_cb`, not a full load), e.g. `snap-content name=pre-744` →
+      `realms:3, yunos:16, binaries:15, configurations:16, public_services:2`.
+      Pass `topic_name=<topic>` to drill into one topic's foto as before. The
+      `id`/`name` params were added to the param schema in both `c_node.c` and
+      the agent's `c_agent.c`.
+
 ## v7.4.4 -- 30/May/2026
     - **fix(c_websocket): stop synthesizing `EV_ON_OPEN_ERROR` at the
       transport layer.** `EV_ON_OPEN_ERROR` is a high-level event owned by

@@ -127,6 +127,11 @@ list. Short aliases follow the `c_cli` convention:
 | `!exit` / `!quit` | `!x`, `!q` | Leave ycommand                             |
 | `!source <file>`  | `!. <file>` | Read commands from `<file>` and splice them at the head of the queue |
 
+`history` (and `!history`) also work **non-interactively**: outside `-i` there is
+no live line editor, so they print the persisted history file
+(`~/.yuneta/history2.txt`). `ycommand history` / `ycommand -c history` show what
+past interactive sessions ran, then exit.
+
 ## Batch / scripting
 
 ycommand can run a list of commands sequentially, each waiting for the

@@ -1359,7 +1359,7 @@ PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = gbuffer_create(512, 64 * 1024);
+    gbuffer_t *gbuf = gbuffer_create(512, 1024 * 1024);
     if(priv->gobj_editline) {
         int n = editline_history_count(priv->gobj_editline);
         for(int i = 1; i <= n; i++) {
@@ -1367,6 +1367,24 @@ PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj
             if(line && *line) {
                 gbuffer_printf(gbuf, "%5d  %s\n", i, line);
             }
+        }
+    } else {
+        /*
+         *  Non-interactive: there is no live line editor, so fall back to the
+         *  persisted history file. This makes `ycommand history` /
+         *  `ycommand -c history` show the saved history. A missing file just
+         *  yields an empty history (not an error: nothing has been typed yet).
+         */
+        char history_file[PATH_MAX];
+        get_history_file(history_file, sizeof(history_file));
+        FILE *file = fopen(history_file, "r");
+        if(file) {
+            char buf[4096];
+            size_t nr;
+            while((nr = fread(buf, 1, sizeof(buf), file)) > 0) {
+                gbuffer_append(gbuf, buf, nr);
+            }
+            fclose(file);
         }
     }
     json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
@@ -1464,6 +1482,24 @@ PRIVATE int list_history(hgobj gobj)
             if(line && *line) {
                 printf("%5d  %s\n", i, line);
             }
+        }
+    } else {
+        /*
+         *  Non-interactive: there is no live line editor, so print the
+         *  persisted history file instead — this makes `ycommand history`
+         *  work outside -i. A missing file just prints nothing (not an
+         *  error: nothing has been typed yet).
+         */
+        char history_file[PATH_MAX];
+        get_history_file(history_file, sizeof(history_file));
+        FILE *file = fopen(history_file, "r");
+        if(file) {
+            char buf[4096];
+            size_t nr;
+            while((nr = fread(buf, 1, sizeof(buf), file)) > 0) {
+                fwrite(buf, 1, nr, stdout);
+            }
+            fclose(file);
         }
     }
     clear_input_line(gobj);
@@ -2342,6 +2378,34 @@ PRIVATE void split_commands_into_queue(hgobj gobj, const char *text)
  *  we clear the queue (unless the entry was prefixed with '-') and on
  *  async dispatch we return and wait for ac_command_answer to resume us.
  ***************************************************************************/
+/***************************************************************************
+ *  Schedule the non-interactive shutdown when the queue is fully drained on
+ *  a SYNCHRONOUS command (a local one like `history`/`!history`, which never
+ *  produces an EV_MT_COMMAND_ANSWER). The remote path already does this from
+ *  ac_command_answer; without this a `-c history` would print and then hang
+ *  waiting for an answer that never comes. Mirrors the ac_command_answer tail:
+ *  interactive sessions stay up, and a long-lived stdin-pipe waits for EOF.
+ ***************************************************************************/
+PRIVATE void schedule_exit_if_done(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->interactive) {
+        return;
+    }
+    if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+        return;
+    }
+    if(priv->cmd_in_flight) {
+        // An async command is still out; its answer will drive the exit.
+        return;
+    }
+    if(priv->stdin_pipe_mode && !priv->stdin_closed) {
+        // Long-lived pipe mode: stay up until stdin closes.
+        return;
+    }
+    set_timeout(priv->timer, priv->wait * 1000);
+}
+
 PRIVATE void run_next_pending(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2358,10 +2422,12 @@ PRIVATE void run_next_pending(hgobj gobj)
         if(ret == -1) {
             /* Sync error and not ignore-fail: drop the rest of the queue. */
             json_array_clear(priv->pending_commands);
+            schedule_exit_if_done(gobj);
             return;
         }
         /* ret == 0: sync success, continue to next. */
     }
+    schedule_exit_if_done(gobj);
 }
 
 /***************************************************************************

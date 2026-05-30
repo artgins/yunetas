@@ -213,8 +213,10 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_snap_content[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id"),
-SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id (numeric, as listed by `snaps`)"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (alias of snap_id)"),
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for the per-topic overview)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
@@ -3096,35 +3098,137 @@ PRIVATE int snap_content_load_cb(
     return 0;
 }
 
+/*
+ *  Overview callback for cmd_snap_content's tranger2_open_list walk:
+ *  it does NOT load records, it only bumps the running total carried in
+ *  the rt's nested "snap_counter" object (cheap for large topics).
+ */
+PRIVATE int snap_count_cb(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record  // owned
+)
+{
+    json_t *counter = json_object_get(list, "snap_counter");
+    if(counter) {
+        json_int_t n = json_integer_value(json_object_get(counter, "n"));
+        json_object_set_new(counter, "n", json_integer(n + 1));
+    }
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
 PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    if(empty_string(topic_name)) {
+    /*
+     *  Resolve the snap id. Accept, in priority order:
+     *      - snap_id / id : the numeric snap id (1..65534), as listed by `snaps`
+     *      - name         : the friendly snap name, resolved against __snaps__
+     */
+    const char *snap_id_s = kw_get_str(gobj, kw, "snap_id", "", 0);
+    if(empty_string(snap_id_s)) {
+        snap_id_s = kw_get_str(gobj, kw, "id", "", 0);
+    }
+    const char *snap_name = kw_get_str(gobj, kw, "name", "", 0);
+
+    json_int_t snap_id = 0;
+    if(!empty_string(snap_id_s)) {
+        snap_id = strtoll(snap_id_s, NULL, 10);
+    } else if(!empty_string(snap_name)) {
+        json_t *snaps = gobj_list_snaps(
+            gobj,
+            json_pack("{s:s}", "name", snap_name),
+            src
+        );
+        json_t *snap0 = json_array_get(snaps, 0);
+        if(snap0) {
+            snap_id = kw_get_int(gobj, snap0, "id", 0, KW_WILD_NUMBER);
+        }
+        JSON_DECREF(snaps)
+        if(snap_id <= 0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Snap name not found: '%s'", snap_name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+    if(snap_id <= 0 || snap_id > 0xFFFE) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What topic_name?"),
+            json_sprintf("What snap? give snap_id/id (1..65534) or name"),
             0,
             0,
             kw  // owned
         );
     }
 
-    /* snap_id arrives as a string (pm_snap_content declares DTP_STRING) */
-    const char *snap_id_s = kw_get_str(gobj, kw, "snap_id", "", 0);
-    json_int_t snap_id = 0;
-    if(!empty_string(snap_id_s)) {
-        snap_id = strtoll(snap_id_s, NULL, 10);
-    }
-    if(snap_id <= 0 || snap_id > 0xFFFE) {
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+
+    /*
+     *  No topic_name: show WHERE the snap points, i.e. every topic that has
+     *  records tagged with this snap, and how many. Drill into one topic by
+     *  passing topic_name=<topic>.
+     */
+    if(empty_string(topic_name)) {
+        json_t *jn_data = json_array();
+        json_t *topics = kw_get_dict(gobj, priv->tranger, "topics", 0, 0);
+        const char *t_name; json_t *t_topic;
+        json_object_foreach(topics, t_name, t_topic) {
+            json_t *match_cond = json_pack(
+                "{s:b, s:I, s:I, s:I}",
+                "backward", 1,
+                "user_flag", (json_int_t)snap_id,
+                "to_rowid", (json_int_t)-1,   // non-zero → not realtime
+                "load_record_callback", (json_int_t)(uintptr_t)snap_count_cb
+            );
+            json_t *jn_extra = json_pack("{s:{s:I}}",
+                "snap_counter", "n", (json_int_t)0
+            );
+            char rt_id[NAME_MAX];
+            snprintf(rt_id, sizeof(rt_id),
+                "snap-overview-%lld-%s", (long long)snap_id, t_name
+            );
+            json_t *rt = tranger2_open_list(
+                priv->tranger,
+                t_name,
+                match_cond,         // owned
+                jn_extra,           // owned
+                rt_id,
+                FALSE,              // rt_by_disk
+                gobj_short_name(gobj)
+            );
+            if(!rt) {
+                // Error already logged
+                continue;
+            }
+            json_int_t records = kw_get_int(gobj, rt, "snap_counter`n", 0, 0);
+            tranger2_close_list(priv->tranger, rt);
+            if(records > 0) {
+                json_array_append_new(jn_data,
+                    json_pack("{s:s, s:I}", "topic_name", t_name, "records", records)
+                );
+            }
+        }
         return msg_iev_build_response(
             gobj,
-            -1,
-            json_sprintf("Invalid snap_id '%s' (must be 1..65534)", snap_id_s),
             0,
+            json_sprintf(
+                "snap %lld spans %zu topic(s); add topic_name=<topic> to see the records",
+                (long long)snap_id, json_array_size(jn_data)
+            ),
             0,
+            jn_data,
             kw  // owned
         );
     }

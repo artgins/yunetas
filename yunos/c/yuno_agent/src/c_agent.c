@@ -744,8 +744,10 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_snap_content[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id"),
-SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id (numeric, as listed by `snaps`)"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (alias of snap_id)"),
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for the per-topic overview)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
