@@ -7,9 +7,10 @@ yuneta shell.
 
 ## What's here
 
-| Script                | Purpose                                                                    |
-|-----------------------|----------------------------------------------------------------------------|
-| `migratev6tov7.py`    | One-shot migration tool: moves a v6 timeranger2 store to the v7 layout. Used during the v6→v7 upgrade window; not needed for greenfield. |
+| Script                  | Purpose                                                                  |
+|-------------------------|--------------------------------------------------------------------------|
+| `migratev6tov7.py`      | One-shot migration tool: moves a v6 timeranger2 store to the v7 layout. Used during the v6→v7 upgrade window; not needed for greenfield. |
+| `verify_api_coverage.py`| Compares every `PUBLIC` kernel C function against the documented API anchors in `docs/doc.yuneta.io`; reports MISSING / EXTRA symbols per header. |
 
 ## Adding new scripts
 
