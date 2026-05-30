@@ -3514,6 +3514,35 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 kw  // owned
             );
         }
+
+        /*
+         *  A snap shot while this binary was the in-use version stamps its id
+         *  on the record (surfaced as __md_treedb__.tag). Deleting it would
+         *  break that snap's rollback ("primary binary not found" on
+         *  activate-snap + run-yuno). The kernel (treedb_delete_node) already
+         *  refuses a tagged node, but check here too for a clear reason and so
+         *  the binary FILE is never rmrdir'd. force=1 overrides (operator
+         *  accepts breaking the snap), matching the kernel's force semantics.
+         */
+        json_int_t snap_tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, 0);
+        if(snap_tag != 0 && !force) {
+            json_t *comment = json_sprintf(
+                "Cannot delete binary '%s' %s: referenced by snap %d (rollback). "
+                "Use force=1 to delete anyway (breaks that snap's rollback)",
+                kw_get_str(gobj, node, "id", "", KW_REQUIRED),
+                kw_get_str(gobj, node, "version", "", 0),
+                (int)snap_tag
+            );
+            JSON_DECREF(iter)
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                comment,
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     /*

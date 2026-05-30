@@ -144,7 +144,7 @@ config commands only (admin, realm, certs and console commands omitted):
 |-------------------|-------------|-------------------------------------------------------------------------|
 | `install-binary`  | c_agent.c:3005 | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | c_agent.c:3234 | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | c_agent.c:3446 | Refuse if any yuno still references it, then `gobj_delete_node` + `rmrdir`. |
+| `delete-binary`   | c_agent.c:3446 | Refuse if any yuno still references it **or a snap tags it** (`__md_treedb__.tag`, unless `force=1`), then `gobj_delete_node` + `rmrdir`. |
 | `list-binaries`   | c_agent.c:2917 | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | c_agent.c:6313 | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -622,6 +622,16 @@ ycommand -c 'activate-snap name=<rollback-tag>'
 # To remove the pin once you've decided:
 ycommand -c 'deactivate-snap'
 ```
+
+> **Snaps pin the binaries they reference — `delete-binary` respects that.**
+> `shoot-snap` stamps the snap's id on every topic's current-primary record
+> (its md2 `user_flag`, surfaced as `__md_treedb__.tag`), `binaries` included.
+> A binary the snap tagged must survive for `activate-snap` to roll back to it —
+> otherwise the treedb pointer is restored but the file is gone and `run-yuno`
+> fails with *"primary binary not found"*. So `delete-binary` refuses to remove
+> a snap-tagged binary (the kernel's `treedb_delete_node` enforces it; the agent
+> also reports it clearly and never reaches the `rmrdir`). Pass `force=1` to
+> delete anyway — that **breaks** the rollback the snap was protecting.
 
 ### 6.7 Inspecting a snap (`snaps` / `snap-content`)
 

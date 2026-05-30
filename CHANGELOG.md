@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(yuno_agent): `delete-binary` refuses to purge a binary a snap
+      references (clear reason).** A snap pins the binaries it captured:
+      `shoot-snap` stamps its id on each topic's current-primary record
+      (md2 `user_flag`, surfaced as `__md_treedb__.tag`), `binaries` included,
+      and `activate-snap` rolls back to exactly those records — so the binary
+      file must survive or `run-yuno` fails with *"primary binary not found"*.
+      The kernel `treedb_delete_node` already refuses a tagged node unless
+      `force`, and `cmd_delete_binary` breaks before the `rmrdir` when the node
+      delete fails — so the file was never actually lost. But unlike the
+      sibling `delete-yuno`, `delete-binary` gave no reason (just a cryptic
+      kernel log + a generic failure). Added the explicit agent-level guard
+      (mirroring `delete-yuno`, reading `__md_treedb__.tag`): a snap-tagged
+      binary is refused with *"referenced by snap N (rollback)"* and `force=1`
+      overrides — which breaks that snap's rollback, as documented. Verified
+      the mechanism live: `snap-content name=<tag> topic_name=binaries` lists
+      the exact binary records the snap pinned.
+
     - **fix(yuno_agent): `list-binaries` shows the binary in use, not every
       instance.** `cmd_list_binaries` had been switched (df0e50e70) from
       `gobj_list_nodes` to `gobj_list_instances`, which made it return one row
