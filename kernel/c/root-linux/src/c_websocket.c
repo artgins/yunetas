@@ -1654,41 +1654,20 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         priv->inform_on_close = FALSE;
 
         gobj_publish_event(gobj, EV_ON_CLOSE, 0);
-    } else {
-        /*
-         *  Transport closed BEFORE the WebSocket upgrade ever
-         *  completed — typical causes: TCP connect failed (port
-         *  closed, backend down), TLS cert refused, non-101 HTTP
-         *  response, handshake timeout, firewall.  We do NOT
-         *  publish EV_ON_CLOSE (would break the EV_ON_OPEN→EV_ON_CLOSE
-         *  FSM contract on subscribers that only handle close in
-         *  their connected state); we publish EV_ON_OPEN_ERROR
-         *  instead.  Declared with EVF_NO_WARN_SUBS so backend FSMs
-         *  that don't care don't trip the no-subscribers warning;
-         *  interactive frontends opt in.  Mirrors the browser
-         *  WebSocket split: .onopen / .onclose / .onerror.
-         *
-         *  log_warning leaves a precise per-attempt trace so
-         *  monitors (logcenter et al.) can alert on it — c_websocket
-         *  itself doesn't retry, but the upper layer typically does,
-         *  and without this line the only sign of trouble would be
-         *  a silent disconnect.
-         */
-        const char *peername = gobj_bottom_gobj(gobj)
-            ? gobj_read_str_attr(gobj_bottom_gobj(gobj), "peername") : "";
-        const char *sockname = gobj_bottom_gobj(gobj)
-            ? gobj_read_str_attr(gobj_bottom_gobj(gobj), "sockname") : "";
-        gobj_log_warning(gobj, 0,
-            "msgset",   "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",      "%s", "EV_ON_OPEN_ERROR: websocket closed before upgrade",
-            "iamServer","%d", (int)priv->iamServer,
-            "peername", "%s", peername,
-            "sockname", "%s", sockname,
-            NULL
-        );
-
-        gobj_publish_event(gobj, EV_ON_OPEN_ERROR, 0);
     }
+    /*
+     *  Transport closed BEFORE the WebSocket upgrade ever completed
+     *  (inform_on_close was FALSE) is a normal, transient condition
+     *  while the upper layer keeps reconnecting — the bottom transport
+     *  just dropped before the 101 handshake.  We publish nothing here:
+     *  EV_ON_OPEN_ERROR is a high-level event and belongs to the
+     *  session layer (C_IEVENT_CLI), which already emits it with the
+     *  remote-yuno identity.  Synthesizing it from this transport gclass
+     *  only reaches gate-stack relays (C_CHANNEL in ST_CLOSED, …) that
+     *  do not declare it, turning a benign reconnect into a spurious
+     *  "Event NOT DEFINED in state".  The connection layer already logs
+     *  the connect failure for monitors.
+     */
 
     KW_DECREF(kw)
 
@@ -2185,7 +2164,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
-        {EV_ON_OPEN_ERROR,      EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TX_READY,           0},
         {EV_TIMEOUT,            0},
         {EV_CONNECTED,          0},
