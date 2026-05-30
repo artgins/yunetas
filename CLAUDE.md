@@ -28,7 +28,7 @@ Still applies to lib-yui:
 - read the code in depth before editing,
 - preserve backwards compatibility for existing consumers (wattyzer +
   estadodelaire) — additive changes preferred,
-- run the lib-yui CI matrix (`.github/workflows/lib-yui.yml`),
+- run the lib-yui test matrix locally (`cd kernel/js/lib-yui && npm test`),
 - update `kernel/js/lib-yui/SHELL.md` and the corresponding skeleton when
   the contract changes.
 
@@ -195,8 +195,9 @@ cd kernel/js/lib-yui && npm install && npm test
 ./install-e2e-deps.sh && npm run test:e2e
 ```
 
-CI runs the lib-yui matrix on every PR touching `kernel/js/lib-yui/**` or
-`kernel/js/gobj-js/**` via `.github/workflows/lib-yui.yml`.
+Run this matrix locally when touching `kernel/js/lib-yui/**` or
+`kernel/js/gobj-js/**`. There is no GitHub Actions workflow for it — by design,
+the only workflow in `.github/` is `release-deb.yml`.
 
 ### When to re-run `yunetas init`
 
