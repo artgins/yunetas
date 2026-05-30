@@ -275,9 +275,12 @@ ycommand -c 'play-yuno'         # play already-running yunos → 1 aggregated an
 ```
 
 `play=0` (default `1`, backward-compatible) suppresses the auto-play for that
-launch only, via a transient `_run_no_play` node marker that `ac_on_open()`
-honours once and clears. A watcher crash relaunch carries no marker, so the
-autonomous `must_play` reconciliation of §4.6 is unaffected.
+launch only. The agent records the `launch_id` in an in-memory set
+(`priv->no_play_launches`); `ac_on_open()` consumes it by matching the
+connecting yuno's `identity_card`launch_id` and deletes it on first connect.
+It is not a treedb column and does not touch `must_play`, so a watcher crash
+relaunch (which reuses the same `launch_id`, now absent) still reconciles
+`must_play` per §4.6.
 
 ### 4.4 Pause / Play
 

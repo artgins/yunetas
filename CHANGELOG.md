@@ -14,10 +14,14 @@
       answer per yuno. A new `run-yuno play=0` parameter (default `1`,
       backward-compatible) launches the process(es) WITHOUT auto-play, so a
       script does `run-yuno play=0` (1 answer) then `play-yuno` (1 answer,
-      aggregated over already-running yunos). The suppression is per-launch
-      (transient `_run_no_play` node marker, cleared on connect); a watcher
-      crash relaunch carries no marker, so autonomous `must_play` recovery is
-      untouched.
+      aggregated over already-running yunos). The suppression is per-launch and
+      kept **in-memory in the agent**: `run-yuno play=0` records each
+      `launch_id` in `priv->no_play_launches`, and `ac_on_open` consumes it by
+      matching the connecting yuno's `identity_card`launch_id`, deleting the
+      marker on first connect. It is NOT a treedb column and does NOT mutate the
+      persistent `must_play`; a watcher crash relaunch reuses the same
+      `launch_id` but the marker is already gone, so autonomous `must_play`
+      recovery is untouched.
 
     - **fix(tr_treedb): refresh the pkey2 secondary index on a runtime
       `treedb_save_node()`.** The secondary `pkey2` index kept objects
