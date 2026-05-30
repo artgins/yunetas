@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-sync_binaries.py — compare freshly built yuno binaries against the ones the
-local yuneta_agent already has, and (optionally) push the differences.
+sync_binaries.py — compare what the local yuneta_agent already has installed
+against the freshly built binaries, and (optionally) push the differences.
 
-Source of truth for the local side is ``$YUNETAS_BASE/outputs/yunos/`` — the
+It DRIVES FROM THE AGENT's installed binaries, not from outputs/yunos: only
+roles the agent already manages on this node are candidates. Not every binary
+in outputs/yunos is meant to be installed here, so iterating the agent avoids
+proposing roles this node doesn't run.
+
+The agent side is read from ``ycommand -c '*list-binaries'`` (the leading ``*``
+makes ycommand emit raw JSON instead of the table). For each installed id its
+freshly built counterpart is looked up in ``$YUNETAS_BASE/outputs/yunos/`` — the
 exact directory the agent's ``$$(<role>)`` macro reads from when it base64-
-encodes a binary for upload. Each file is queried with ``--print-role`` to get
-its role/version/date; the agent side is read from ``ycommand -c '*list-binaries'``
-(the leading ``*`` makes ycommand emit raw JSON instead of the table).
+encodes a binary for upload — and queried with ``--print-role`` for its version.
 
-For every local binary it decides:
+For every installed binary it decides:
 
-  * NEW        — the agent has no binary with this id        -> install-binary
   * BUMP       — local version  >  agent version             -> install-binary
   * DOWNGRADE  — local version  <  agent version             -> install-binary (flagged)
-  * REBUILD    — same version, content changed (size/date)   -> update-binary
+  * REBUILD    — same version, content changed (size)        -> update-binary
   * UP-TO-DATE — same version, same size                     -> skipped
+  * NO-BUILD   — agent has it, but no build in outputs/yunos  -> skipped (informational)
 
 Then it shows the candidates, asks what to apply, and runs the corresponding
 ``install-binary`` / ``update-binary`` for each chosen role.
@@ -219,16 +224,20 @@ def agent_binaries(ycommand, url):
 # ----------------------------------------------------------------------------
 def classify(local, agent):
     """
-    Yield dicts describing each local binary's relationship to the agent's.
-    kind in {new, bump, downgrade, rebuild, uptodate}.
+    Drive from the AGENT's installed binaries (not from outputs/yunos): only
+    roles the agent already manages on this node are candidates. For each one
+    look up its freshly built counterpart and compare.
+
+    kind in {bump, downgrade, rebuild, uptodate, nolocal}.
     """
     rows = []
-    for role, lb in sorted(local.items()):
-        ab = agent.get(role)
-        if ab is None:
+    for role, ab in sorted(agent.items()):
+        lb = local.get(role)
+        if lb is None:
+            # Agent has it installed but there is no build in outputs/yunos.
             rows.append({
-                "role": role, "kind": "new", "action": "install-binary",
-                "local": lb, "agent": None,
+                "role": role, "kind": "nolocal", "action": None,
+                "local": None, "agent": ab,
             })
             continue
         cmp = cmp_versions(lb["version"], ab["version"])
@@ -258,11 +267,11 @@ def classify(local, agent):
 
 
 KIND_LABEL = {
-    "new":       (lambda s: green(s),  "NEW",        "install-binary"),
     "bump":      (lambda s: green(s),  "BUMP",       "install-binary"),
     "downgrade": (lambda s: red(s),    "DOWNGRADE",  "install-binary"),
     "rebuild":   (lambda s: yellow(s), "REBUILD",    "update-binary"),
     "uptodate":  (lambda s: dim(s),    "up-to-date", "-"),
+    "nolocal":   (lambda s: dim(s),    "no-build",   "-"),
 }
 
 
@@ -273,12 +282,12 @@ def print_table(rows, show_uptodate):
     print(dim("-" * 78))
     for r in rows:
         kind = r["kind"]
-        if kind == "uptodate" and not show_uptodate:
+        if kind in ("uptodate", "nolocal") and not show_uptodate:
             continue
         colour, label, _ = KIND_LABEL[kind]
-        lv = r["local"]["version"]
+        lv = r["local"]["version"] if r["local"] else "-"
         av = r["agent"]["version"] if r["agent"] else "-"
-        if r["agent"]:
+        if r["local"] and r["agent"]:
             dsize = r["local"]["size"] - r["agent"]["size"]
             dtxt = ("+%d" % dsize) if dsize >= 0 else ("%d" % dsize)
         else:
