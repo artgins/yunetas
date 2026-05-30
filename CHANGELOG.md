@@ -1,5 +1,26 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(tools): `tools/agent/sync_binaries.py` — reconcile built yunos
+      against the agent and push updates.** Drives from the agent's installed
+      binaries (`ycommand -c '*list-binaries'`), looks each one up in
+      `outputs/yunos` (`--print-role`), and classifies it
+      BUMP/DOWNGRADE/REBUILD/UP-TO-DATE/NO-BUILD. After confirmation it runs
+      `install-binary` / `update-binary id=<role> content64=$$(<role>)` for the
+      chosen roles; it does not automate the node-wide lifecycle steps
+      (`kill-yuno`, `find-new-yunos` + `deactivate-snap`) but prints them as
+      reminders. Lives under `tools/` (shipped in the install `.deb`, usable on
+      a bare node), and is documented at doc.yuneta.io under the new **Tools**
+      section.
+
+    - **chore(tools): retire `tools/docs-migration/`.** The myst migration is
+      done and the Quarto pilot was abandoned, so the two one-off helpers
+      (`myst_to_quarto.py`, `strip_toctrees.py`) were removed.
+      `verify_api_coverage.py` is a repo-dev verifier (not a node tool), so it
+      moved to `scripts/`; its five stale "extra" reports were resolved by
+      correct header→landing mapping (no docs removed). `scripts/` is repo-only;
+      `tools/` ships in the `.deb`.
+
 ## v7.4.5 -- 30/May/2026
     - **fix(yuno_agent): `delete-yuno`'s snap-tag guard read the wrong metadata
       key — it was dead.** `cmd_delete_yuno` read `__md_treedb__`__tag__`, but
