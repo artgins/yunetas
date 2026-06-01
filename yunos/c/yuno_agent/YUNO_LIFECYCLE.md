@@ -152,9 +152,12 @@ config commands only (admin, realm, certs and console commands omitted):
 
 | Command         | At          | Effect                                                          |
 |-----------------|-------------|-----------------------------------------------------------------|
-| `update-config` | c_agent.c:3744 | Upsert a row in `configurations`. Used both for creation and updates (no separate `install-config`). |
-| `delete-config` | c_agent.c:3860 | Remove a config row. Fails if yunos reference it.               |
-| `view-config`   | c_agent.c:9143 | Read the **stored** zcontent for a given `(role.name, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
+| `create-config` (alias `install-config`) | c_agent.c:3633 | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
+| `update-config` | c_agent.c:3793 | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
+| `delete-config` | c_agent.c:3909 | Remove a config row. Fails if yunos reference it (unless `force=1`). |
+| `list-configs`  | c_agent.c:3601 | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
+| `list-configs-instances` | c_agent.c:6378 | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
+| `view-config`   | ycommand console helper | Read the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
 
 ### Yunos
 
@@ -466,8 +469,9 @@ All examples assume `ycommand` is talking to the local agent.
 # 1. install the binary (new role or new version)
 ycommand -c 'install-binary content64=$$(my_role)'
 
-# 2. install/upsert its configuration
-ycommand -c 'update-config id=my_role.my_name version=1 zcontent=$$(my_role_my_name.json)'
+# 2. install its configuration (create-config — the row does not exist yet;
+#    version is read from the __version__ field inside the file)
+ycommand -c 'create-config id=my_role.my_name content64=$$(my_role_my_name.json)'
 
 # 3. create the yuno record (links binary + config to a realm)
 ycommand -c 'create-yuno realm_id=<realm> yuno_role=my_role yuno_name=my_name'
@@ -519,10 +523,12 @@ in `command-yuno` help applies precisely to that misuse.
 
 ### 6.3 Change a yuno's configuration
 
-`update-config` does not hot-reload — the yuno must be restarted.
+`update-config` does not hot-reload — the yuno must be restarted. It overwrites
+an existing config (version is read from the `__version__` field in the file);
+to install a NEW version use `create-config` (alias `install-config`) instead.
 
 ```bash
-ycommand -c 'update-config id=<role>.<name> version=<v> zcontent=$$(<file>.json)'
+ycommand -c 'update-config id=<role>.<name> content64=$$(<file>.json)'
 ycommand -c 'kill-yuno id=<yuno_id>'
 ycommand -c 'run-yuno  play=0 id=<yuno_id>'
 ycommand -c 'play-yuno id=<yuno_id>'

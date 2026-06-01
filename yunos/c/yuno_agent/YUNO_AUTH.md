@@ -621,7 +621,7 @@ The convention from
 4. Provision a TLS cert for `<project>.example` + `auth.<project>.example`
    under `/yuneta/store/certs/` (or however the project's `cert_sync_copy_cmd`
    delivers it).
-5. `install-binary` + `update-config` + `create-yuno` for the auth_bff
+5. `install-binary` + `create-config` + `create-yuno` for the auth_bff
    (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1, [`SCAFFOLDING.md`](SCAFFOLDING.md)
    §10.1).
 

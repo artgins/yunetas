@@ -326,8 +326,9 @@ For a citizen yuno you'll also need to:
 
 1. **Create a binary record** in the agent: `install-binary content64=$$(<role>)`
    (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1).
-2. **Create a configuration**: `update-config id=<role>.<name> version=1
-   zcontent=$$(<role>_<name>.json)`.
+2. **Create a configuration**: `create-config id=<role>.<name>
+   content64=$$(<role>_<name>.json)` (alias `install-config`; the version is
+   read from the `__version__` field inside the file).
 3. **Create the yuno record** linking realm + binary + config.
 4. **Enable + run**.
 
@@ -412,8 +413,8 @@ cmake .. && make
 # 2. install the binary in the agent
 ycommand -c "install-binary content64=\$\$(my_widget_service)"
 
-# 3. install a config (a JSON file you've written)
-ycommand -c "update-config id=my_widget_service.instance_01 version=1 zcontent=\$\$(my_widget_service_instance_01.json)"
+# 3. install a config (a JSON file you've written; version from its __version__)
+ycommand -c "create-config id=my_widget_service.instance_01 content64=\$\$(my_widget_service_instance_01.json)"
 
 # 4. create the yuno record (realm must already exist — see REALMS.md)
 ycommand -c "create-yuno realm_id=<realm-id> yuno_role=my_widget_service yuno_name=instance_01"

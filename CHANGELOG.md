@@ -29,7 +29,19 @@
 
     - **feat(yuno_agent): `install-config` alias for `create-config`.** Added by
       analogy with `install-binary`, so config installs read symmetrically with
-      binary installs (`c_agent.c`).
+      binary installs (`c_agent.c`). Corrected the config-command docs that this
+      exposed as stale: `YUNO_LIFECYCLE.md` claimed there was no `install-config`
+      and that `update-config` "creates and updates" (it only overwrites an
+      existing `(id, version)`); the onboarding recipes in `YUNO_LIFECYCLE.md` /
+      `SCAFFOLDING.md` / `YUNO_AUTH.md` used `update-config … version=<v>
+      zcontent=$$()` — the real form is `create-config … content64=$$()` (version
+      read from the file's `__version__`).
+
+    - **chore(packages): yuno binaries + `tools/agent` on PATH per layout.** In
+      `make-yuneta-agent-deb.sh` the hardcoded `outputs/yunos` PATH entries moved
+      into the profile snippet's layout-detection branch (full source tree vs
+      deployed `.deb` node), and `tools/agent` was added there too, so
+      `sync_binaries.py` / `sync_configs.py` are runnable by name on a node.
 
     - **chore(tools): retire `tools/docs-migration/`.** The myst migration is
       done and the Quarto pilot was abandoned, so the two one-off helpers
