@@ -40,8 +40,13 @@ certbot `deploy-hook` at
 1. Run `/yuneta/store/certs/copy-certs.sh` as root. This reads
    `/etc/letsencrypt/live/*/` (normally `root:root 0700`) and writes
    mirrored copies into `/yuneta/store/certs/` owned by
-   `yuneta:yuneta`. The script uses `install -C` so mtime only bumps
-   when the content actually changes.
+   `yuneta:yuneta`. The script resolves the `live/*.pem` symlinks with
+   `readlink -f` and copies with `install -C -o yuneta -g yuneta`, so the
+   `.crt` mtime only bumps when the content actually changes — both are
+   required: `install -C` never skips a symlink source, and a trailing
+   `chown` would leave a root/yuneta owner mismatch that re-triggers the
+   copy on every run (spurious `reload-certs` broadcast each cert-sync
+   tick).
 2. Reload the web server (`nginx -s reload` or `openresty -s reload`).
 3. Broadcast the yuno-level `reload-certs` command to every running
    yuno:

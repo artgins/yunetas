@@ -1081,13 +1081,25 @@ for CERT in ${CERT_NAMES}; do
 
     # install -C compares and skips the copy (incl. mtime bump) when the
     # content is already identical. This is critical for the agent's
-    # cert-sync timer: without -C, every run of this script would bump
-    # mtimes and trigger a spurious reload-certs broadcast.
-    install -C -m 0644 "${FULLCHAIN}" "${DEST_BASE}/${CERT}.crt"
-    install -C -m 0644 "${CHAIN}"     "${DEST_BASE}/${CERT}.chain"
-    install -C -m 0600 "${PRIVKEY}"   "${DEST_PRIV}/${CERT}.key"
-
-    chown yuneta:yuneta "${DEST_BASE}/${CERT}.crt" "${DEST_BASE}/${CERT}.chain" "${DEST_PRIV}/${CERT}.key" || true
+    # cert-sync timer: every spurious copy bumps the .crt mtime and the
+    # agent (which snapshots size:mtime) broadcasts a reload-certs to every
+    # yuno on every 15-min tick. Two coreutils footguns make -C re-copy
+    # unconditionally unless handled:
+    #
+    #   1) Symlink source: letsencrypt's live/*.pem are symlinks into
+    #      ../archive. `install --compare` lstat()s the source and NEVER
+    #      skips when it is not a regular file. Resolve with readlink -f so
+    #      -C compares the real file content.
+    #   2) Owner mismatch: this script runs as root, so set the final owner
+    #      with -o/-g *inside* install. A trailing `chown yuneta` would leave
+    #      the dest owned by yuneta while -C assumes a root-owned target, so
+    #      the owner mismatch would force a re-copy on the next run too.
+    FULLCHAIN_R="$(readlink -f "${FULLCHAIN}")"
+    CHAIN_R="$(readlink -f "${CHAIN}")"
+    PRIVKEY_R="$(readlink -f "${PRIVKEY}")"
+    install -C -o yuneta -g yuneta -m 0644 "${FULLCHAIN_R}" "${DEST_BASE}/${CERT}.crt"
+    install -C -o yuneta -g yuneta -m 0644 "${CHAIN_R}"     "${DEST_BASE}/${CERT}.chain"
+    install -C -o yuneta -g yuneta -m 0600 "${PRIVKEY_R}"   "${DEST_PRIV}/${CERT}.key"
     echo "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
 done
 

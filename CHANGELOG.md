@@ -1,5 +1,13 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(packages): cert-sync no longer reloads TLS on every tick.**
+      `copy-certs.sh` re-copied the certs each run (mtime bump → spurious
+      `reload-certs` broadcast every 15 min): GNU `install -C` never skips a
+      symlink source (letsencrypt `live/*.pem`) and re-copies on root/yuneta
+      owner mismatch. Now resolves the symlink with `readlink -f` and sets the
+      owner via `install -o/-g`, dropping the trailing `chown`.
+
 ## v7.4.6 -- 01/Jun/2026
     - **feat(tools): `tools/agent/sync_binaries.py` — reconcile built yunos
       against the agent and push updates.** Drives from the agent's installed
