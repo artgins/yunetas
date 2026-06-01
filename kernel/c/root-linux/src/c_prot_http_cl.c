@@ -438,7 +438,15 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     char *resource = gbmem_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
     const char *query = kw_get_str(gobj, kw, "query", "", 0);
     json_t *jn_headers_ = kw_get_dict(gobj, kw, "headers", 0, 0);
-    json_t *jn_data_ = kw_get_dict(gobj, kw, "data", 0, 0);
+    /*
+     *  `data` may be any JSON value, not only an object: a JSON array
+     *  body is required by some REST APIs (e.g. Keycloak's
+     *  execute-actions-email).  kw_get_dict_value returns the value
+     *  whatever its type; the application/json branch below json_dumps()
+     *  it verbatim.  The x-www-form-urlencoded branch only iterates it
+     *  when it is an object (guarded there).
+     */
+    json_t *jn_data_ = kw_get_dict_value(gobj, kw, "data", 0, 0);
     const char *http_version = "1.1";
     size_t content_length = 0;
     char *content = 0;

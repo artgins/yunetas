@@ -1,6 +1,20 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(c_authz): IdP (Keycloak) user provisioning.** New commands
+      `register-idp-user` (create the user in Keycloak via the admin REST API +
+      the local `treedb_authzs` user with the chosen role, then email a
+      set-password invite), plus `set-kc-config` / `view-kc-config` to configure
+      the admin connection. The connection params are neutral persistent attrs
+      (`kc_*`, `SDF_PERSIST`) set at runtime — no endpoints/secrets in code or
+      committed config; the secret is masked by `view-kc-config`. Lives in
+      C_AUTHZ so every auth-enabled yuno inherits it. The outbound work is an
+      async multi-job `C_TASK` over a lazily-created `C_PROT_HTTP_CL`.
+    - **feat(c_prot_http_cl): accept any JSON value as the request body.**
+      `data` is now read with `kw_get_dict_value` instead of `kw_get_dict`, so a
+      JSON array body (e.g. Keycloak `execute-actions-email`) is sent verbatim
+      via `json_dumps`; the x-www-form-urlencoded path is unchanged (it only
+      iterates objects).
     - **fix(packages): cert-sync no longer reloads TLS on every tick.**
       `copy-certs.sh` re-copied the certs each run (mtime bump → spurious
       `reload-certs` broadcast every 15 min): GNU `install -C` never skips a
