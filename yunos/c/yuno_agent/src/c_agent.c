@@ -791,6 +791,8 @@ PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
 
 PRIVATE const char *a_top_yunos[] = {"t", 0};
 
+PRIVATE const char *a_create_config[] = {"install-config", 0};
+
 PRIVATE const char *a_list_yunos[] = {"1", 0};
 PRIVATE const char *a_list_binaries[] = {"2", 0};
 PRIVATE const char *a_list_configs[] = {"3", 0};
@@ -853,7 +855,7 @@ SDATACM2 (DTP_SCHEMA,   "install-binary",   0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "update-binary",    0,                  0,                  pm_update_binary,cmd_update_binary, "Update yuno binary. WARNING: Don't use in production!"),
 SDATACM2 (DTP_SCHEMA,   "delete-binary",    0,                  0,                  pm_delete_binary,cmd_delete_binary, "Delete binary"),
 SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              ""),
-SDATACM2 (DTP_SCHEMA,   "create-config",    0,                  0,                  pm_create_config,cmd_create_config, "Create configuration"),
+SDATACM2 (DTP_SCHEMA,   "create-config",    0,                  a_create_config,    pm_create_config,cmd_create_config, "Create configuration (alias install-config, by analogy with install-binary)"),
 SDATACM2 (DTP_SCHEMA,   "edit-config",      0,                  a_edit_config,      pm_edit_config, 0,              "Edit configuration"),
 SDATACM2 (DTP_SCHEMA,   "view-config",      0,                  a_view_config,      pm_view_config, 0,              "View configuration"),
 SDATACM2 (DTP_SCHEMA,   "update-config",    0,                  0,                  pm_update_config,cmd_update_config, "Update configuration"),

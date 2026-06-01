@@ -14,7 +14,8 @@ tools/
 ├── cmake/
 │   └── project.cmake     # master build configuration, included by every module
 └── agent/
-    └── sync_binaries.py  # reconcile built yunos vs the agent's installed set
+    ├── sync_binaries.py  # reconcile built yunos vs the agent's installed set
+    └── sync_configs.py   # reconcile a directory's configs vs the agent's installed set
 ```
 
 ## `cmake/project.cmake` — build infrastructure
@@ -67,3 +68,7 @@ Helpers for talking to a running `yuneta_agent`.
 - [`sync_binaries.py`](tools/sync_binaries.md) — reconcile the freshly built
   yunos against the agent's installed set and push the differences via
   `install-binary` / `update-binary`, with confirmation.
+- [`sync_configs.py`](tools/sync_configs.md) — reconcile the configs in the
+  current directory (`batches/<host>/`) against the agent's installed set and
+  push the differences via `create-config` (alias `install-config`) /
+  `update-config`, with confirmation.

@@ -16,7 +16,8 @@ tools/
 ├── cmake/
 │   └── project.cmake           # Master build configuration (included by all modules)
 └── agent/
-    └── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
+    ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
+    └── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
 ```
 
 ## agent/sync_binaries.py
@@ -58,6 +59,50 @@ tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothi
 tools/agent/sync_binaries.py -a         # apply every candidate without asking
 tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent url
 tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
+```
+
+## agent/sync_configs.py
+
+Config-side sibling of `sync_binaries.py`. Reconciles the yuno **configs in a
+directory** with what the local `yuneta_agent` already has installed, and (with
+confirmation) pushes the differences via `create-config` (alias `install-config`)
+/ `update-config`.
+
+Configs are **not centralized** like binaries — they live under each yuno's
+`batches/<host>/` directory — so this script **drives from the current
+directory**: you `cd` into the batches directory and run it.
+
+- A config's `id` is the **filename without `.json`** (`auth_bff.1801.json` → id
+  `auth_bff.1801`), matching the agent's config ids.
+- Its `version` is read from the `__version__` field **inside the file** (a file
+  without it is skipped); `_*.json` batch/deploy helpers are skipped too.
+- Agent side: `ycommand -c '*list-configs'`. Content upload uses the same
+  `content64=$$(<path>)` macro (absolute path, resolves regardless of cwd).
+
+Classification per local config:
+
+| Status | Condition | Action |
+|--------|-----------|--------|
+| `NEW` | id not in the agent | `create-config` |
+| `BUMP` | local version > agent version | `create-config` |
+| `UPDATE` | same version, content changed | `update-config` |
+| `UP-TO-DATE` | same version, identical content | skipped |
+| `DOWNGRADE` | local version < agent version | reported only, **not** pushed |
+| `agent-only` | agent has a config absent in the directory | skipped (informational) |
+
+A `DOWNGRADE` is never offered for install (seeding a stale version would break
+the version logic). `create-config` is the new-version install (it refuses to
+overwrite an existing `(id, version)`); `update-config` overwrites a same-version
+record. A yuno reads its config at (re)start, so the script prints the affected
+yuno ids as a `kill-yuno` + `run-yuno` reminder instead of automating it.
+
+```bash
+cd yunos/c/auth_bff/batches/localhost          # stand in the configs directory
+tools/agent/sync_configs.py                    # interactive: show table, ask, apply
+tools/agent/sync_configs.py -n                 # dry-run: print the commands, run nothing
+tools/agent/sync_configs.py -a                 # apply every candidate without asking
+tools/agent/sync_configs.py --show-uptodate    # also list in-sync and agent-only configs
+tools/agent/sync_configs.py -u ws://127.0.0.1:1991   # target a specific agent url
 ```
 
 ## project.cmake

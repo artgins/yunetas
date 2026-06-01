@@ -13,6 +13,24 @@
       a bare node), and is documented at doc.yuneta.io under the new **Tools**
       section.
 
+    - **feat(tools): `tools/agent/sync_configs.py` — reconcile a directory's
+      configs against the agent and push updates.** Config-side sibling of
+      `sync_binaries.py`. Because configs are not centralized like binaries
+      (they live under each yuno's `batches/<host>/`), it drives from the
+      current directory: each `*.json` config's id is its filename (minus
+      `.json`) and its version is the `__version__` field inside the file
+      (`_*.json` batch helpers and files without `__version__` are skipped). It
+      looks each up via `ycommand -c '*list-configs'` and classifies it
+      NEW/BUMP/UPDATE/UP-TO-DATE/DOWNGRADE/agent-only. After confirmation it runs
+      `create-config` / `update-config id='<id>' content64=$$(<path>)`; a
+      DOWNGRADE (local older than the agent) is reported but never pushed. It
+      prints the affected yuno ids as a `kill-yuno` + `run-yuno` reminder rather
+      than automating the restart. Documented at doc.yuneta.io under **Tools**.
+
+    - **feat(yuno_agent): `install-config` alias for `create-config`.** Added by
+      analogy with `install-binary`, so config installs read symmetrically with
+      binary installs (`c_agent.c`).
+
     - **chore(tools): retire `tools/docs-migration/`.** The myst migration is
       done and the Quarto pilot was abandoned, so the two one-off helpers
       (`myst_to_quarto.py`, `strip_toctrees.py`) were removed.
