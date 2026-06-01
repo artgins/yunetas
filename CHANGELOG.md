@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.6 -- 01/Jun/2026
     - **feat(tools): `tools/agent/sync_binaries.py` — reconcile built yunos
       against the agent and push updates.** Drives from the agent's installed
       binaries (`ycommand -c '*list-binaries'`), looks each one up in
