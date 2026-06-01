@@ -291,7 +291,7 @@ cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 #!/bin/sh
 # Yuneta environment
 export YUNETA_DIR=/yuneta
-export PATH="/yuneta/bin:/usr/sbin:/sbin:/home/yuneta/.local/bin:/yuneta/development/yunetas/outputs/yunos:/yuneta/development/outputs/yunos:$PATH"
+export PATH="/yuneta/bin:/usr/sbin:/sbin:/home/yuneta/.local/bin:$PATH"
 
 # Raise core dump and open-files limits for interactive shells
 # (Init/service scripts also raise limits before launching daemons)
@@ -299,19 +299,23 @@ ulimit -c unlimited 2>/dev/null || true
 ulimit -n unlimited 2>/dev/null || true
 ulimit -Hn unlimited 2>/dev/null || true
 
-# Handy aliases
+# Handy aliases, plus the yuno binaries and agent tools on PATH (location
+# depends on the layout: full source tree vs a deployed .deb node).
 if [ -d /yuneta/development/yunetas ]; then
     alias y='cd /yuneta/development/yunetas'
     alias salidas='cd /yuneta/development/yunetas/outputs'
     alias outputs='cd /yuneta/development/yunetas/outputs'
+    export PATH="/yuneta/development/yunetas/outputs/yunos:/yuneta/development/yunetas/tools/agent:$PATH"
 elif [ -d "$HOME/yunetaprojects/yunetas" ]; then
     alias y='cd "$HOME/yunetaprojects/yunetas"'
     alias salidas='cd "$HOME/yunetaprojects/outputs"'
     alias outputs='cd "$HOME/yunetaprojects/outputs"'
+    export PATH="$HOME/yunetaprojects/outputs/yunos:$HOME/yunetaprojects/yunetas/tools/agent:$PATH"
 elif [ -d "/yuneta/development/outputs" ]; then
     alias y='cd /yuneta/development'
     alias salidas='cd /yuneta/development/outputs'
     alias outputs='cd /yuneta/development/outputs'
+    export PATH="/yuneta/development/outputs/yunos:/yuneta/development/tools/agent:$PATH"
 fi
 
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
