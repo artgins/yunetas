@@ -1,6 +1,15 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(yuno_agent): silence spurious "Event NOT DEFINED in state" on every
+      login.** C_AGENT subscribes to all of its `authz` service's output events
+      but had no FSM entry for `EV_AUTHZ_USER_LOGIN`/`LOGOUT`/`NEW` (consumed by
+      controlcenter from its own local authz), so each login/logout logged an
+      error. Added accept-and-ignore handlers.
+    - **fix(ycommand): accept `EV_ON_OPEN_ERROR` in `ST_DISCONNECTED`.** A failed
+      connect / identity-card NAK publishes `EV_ON_OPEN_ERROR` after the close;
+      the FSM lacked it and logged "Event NOT DEFINED in state". Now handled like
+      `EV_ON_ID_NAK` (`ac_on_close`).
     - **feat(tools): sync_binaries.py / sync_configs.py — OAuth2 passthrough for
       remote agents.** Both scripts now log in ONCE (Keycloak password grant via
       stdlib, or a `--jwt` passed verbatim) and thread the token through `-j` to

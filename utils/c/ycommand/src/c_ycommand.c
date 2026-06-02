@@ -3303,6 +3303,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                ac_on_open,             ST_CONNECTED},
         {EV_ON_CLOSE,               ac_on_close,            0},
         {EV_ON_ID_NAK,              ac_on_close,            0},
+        {EV_ON_OPEN_ERROR,          ac_on_close,            0}, // cannot connect / id NAK drop
         {EV_COMMAND,                ac_command,             0}, // avoid traces
         {EV_STOPPED,                0,                      0},
         {0,0,0}
@@ -3371,6 +3372,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
         {EV_ON_ID_NAK,              0},
+        {EV_ON_OPEN_ERROR,          0},
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},
         {NULL, 0}

@@ -11214,6 +11214,19 @@ GOBJ_DEFINE_EVENT(EV_READ_RUNNING_KEYS);
 GOBJ_DEFINE_EVENT(EV_READ_RUNNING_BIN);
 
 /***************************************************************************
+ *  Authz service notifications.  In mt_start the agent subscribes to ALL of
+ *  its authz service's output events; EV_AUTHZ_USER_LOGIN/LOGOUT/NEW are
+ *  consumed by controlcenter directly from its own local authz, so the agent
+ *  only needs to accept-and-ignore them.  Without this they reach the FSM as
+ *  "Event NOT DEFINED in state" on every login/logout.
+ ***************************************************************************/
+PRIVATE int ac_authz_user_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
@@ -11252,6 +11265,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_ON_OPEN,              ac_on_open,             0},
         {EV_ON_CLOSE,             ac_on_close,            0},
+        {EV_AUTHZ_USER_LOGIN,     ac_authz_user_event,    0},
+        {EV_AUTHZ_USER_LOGOUT,    ac_authz_user_event,    0},
+        {EV_AUTHZ_USER_NEW,       ac_authz_user_event,    0},
         {EV_FINAL_COUNT,          ac_final_count,         0},
         {EV_TTY_DATA,             ac_tty_data,            0},
         {EV_TTY_OPEN,             ac_tty_open,            0},
@@ -11291,6 +11307,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WRITE_TTY,            0},
         {EV_ON_OPEN,              0},
         {EV_ON_CLOSE,             0},
+        {EV_AUTHZ_USER_LOGIN,     0},
+        {EV_AUTHZ_USER_LOGOUT,    0},
+        {EV_AUTHZ_USER_NEW,       0},
         {EV_FINAL_COUNT,          0},
         {EV_TIMEOUT,              0},
         {EV_TIMEOUT_PERIODIC,     0},
