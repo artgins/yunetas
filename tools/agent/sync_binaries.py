@@ -26,10 +26,28 @@ For every installed binary it decides:
 Then it shows the candidates, asks what to apply, and runs the corresponding
 ``install-binary`` / ``update-binary`` for each chosen role.
 
-It deliberately does NOT run the surrounding lifecycle steps (kill-yuno before a
-same-version overwrite, or find-new-yunos + deactivate-snap after a version
-bump) — those have side effects across the whole node. It prints the reminder
-instead. See yunos/c/yuno_agent/YUNO_LIFECYCLE.md §6.5/§6.6.
+For a same-version REBUILD (``update-binary``) the agent overwrites the very
+slot the running yuno is executing from, so the copy fails with text-file-busy
+unless the running instance is stopped first. Once the operator has cleared the
+two confirmation gates (Apply-all / Proceed) the intent to deploy is explicit,
+so this script runs the documented per-role hot-patch cycle itself, scoped by
+``yuno_role`` (never node-wide):
+
+    kill-yuno yuno_role=R   (only if running) -> poll until the process exits
+    update-binary id=R
+    run-yuno yuno_role=R play=0   (only if it had been running)
+    play-yuno yuno_role=R         (only if it had been playing)
+
+Prior run/play state is read from ``*list-yunos`` and restored per role, so a
+deliberately stopped or paused yuno is left as it was. Pass ``--no-restart`` to
+keep the old print-only behaviour. A role with several instances across realms
+is handled in one shot: the role-scoped commands act on every instance, which
+all share the one slot.
+
+It still does NOT automate the version-bump path (find-new-yunos +
+deactivate-snap after an install-binary) — that is a node-wide bounce with
+broader side effects. It prints the reminder instead.
+See yunos/c/yuno_agent/YUNO_LIFECYCLE.md §6.5/§6.6.
 """
 
 import argparse
@@ -39,6 +57,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -387,18 +406,18 @@ def print_table(rows, show_uptodate):
 # ----------------------------------------------------------------------------
 #   Execution
 # ----------------------------------------------------------------------------
-def run_one(ycommand, url, jwt, action, role, dry_run):
-    cmd_str = "%s id=%s content64=$$(%s)" % (action, role, role)
+def run_ycmd(ycommand, url, jwt, cmd_str, dry_run, timeout=120):
+    """Run one `ycommand -c '<cmd_str>'`, echoing it. Returns (ok, stdout)."""
     cmd = ycmd_base(ycommand, url, jwt) + ["-c", cmd_str]
     print(cyan(">> ycommand -c '%s'" % cmd_str))
     if dry_run:
         print(dim("   (dry-run, not executed)"))
-        return True
+        return True, ""
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as e:
         print(red("   ERROR: %s" % e))
-        return False
+        return False, ""
     out = (res.stdout or "").strip()
     err = (res.stderr or "").strip()
     if out:
@@ -407,6 +426,84 @@ def run_one(ycommand, url, jwt, action, role, dry_run):
         print(dim(err))
     ok = res.returncode == 0 and "ERROR" not in out
     print(green("   OK") if ok else red("   FAILED"))
+    return ok, out
+
+
+def yuno_states(ycommand, url, jwt, role):
+    """
+    Return the list of instance records for `role` via '*list-yunos
+    yuno_role=R'. Each record carries yuno_running / yuno_playing. A role may
+    have several instances (one per realm); they all share the one slot.
+    Returns [] on any error — the caller treats "unknown" as "not running".
+    """
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-yunos yuno_role=%s" % role]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        data = parse_leading_json(res.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [r for r in data if isinstance(r, dict)]
+
+
+def wait_until_stopped(ycommand, url, jwt, role, timeout_s=15.0, poll_s=0.3):
+    """
+    Poll '*list-yunos yuno_role=R' until no instance reports yuno_running, so
+    the executable is unmapped before update-binary overwrites its slot
+    (otherwise the copy hits text-file-busy again). Returns True if stopped.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        states = yuno_states(ycommand, url, jwt, role)
+        if not any(s.get("yuno_running") for s in states):
+            return True
+        time.sleep(poll_s)
+    return False
+
+
+def deploy_install(ycommand, url, jwt, action, role, dry_run):
+    """install-binary / update-binary with NO lifecycle (--no-restart, or bump)."""
+    ok, _ = run_ycmd(
+        ycommand, url, jwt,
+        "%s id=%s content64=$$(%s)" % (action, role, role),
+        dry_run,
+    )
+    return ok
+
+
+def deploy_update_with_restart(ycommand, url, jwt, role, dry_run):
+    """
+    Same-version REBUILD hot-patch, scoped to `role`: stop the running
+    instance(s) so the slot is free, overwrite it, then restore each
+    instance's prior run/play state. Reads state up front; if nothing is
+    running it degrades to a plain update-binary.
+    """
+    states = yuno_states(ycommand, url, jwt, role)
+    was_running = any(s.get("yuno_running") for s in states)
+    was_playing = any(s.get("yuno_playing") for s in states)
+
+    if was_running:
+        # Orderly shutdown (SIGQUIT, not force) so the gbmem audit runs.
+        run_ycmd(ycommand, url, jwt, "kill-yuno yuno_role=%s" % role, dry_run)
+        if not dry_run and not wait_until_stopped(ycommand, url, jwt, role):
+            print(yellow(
+                "   ! %s still running after kill; update-binary may hit "
+                "text-file-busy" % role))
+
+    ok, _ = run_ycmd(
+        ycommand, url, jwt,
+        "update-binary id=%s content64=$$(%s)" % (role, role),
+        dry_run,
+    )
+
+    # Restore prior state even if the update failed, so we never leave a yuno
+    # we stopped lying dead (it comes back on the old binary in that case).
+    if was_running:
+        run_ycmd(ycommand, url, jwt, "run-yuno yuno_role=%s play=0" % role, dry_run)
+        if was_playing:
+            run_ycmd(ycommand, url, jwt, "play-yuno yuno_role=%s" % role, dry_run)
+
     return ok
 
 
@@ -435,6 +532,10 @@ def main():
                     help="show what would run, execute nothing.")
     ap.add_argument("--show-uptodate", action="store_true",
                     help="also list binaries already in sync.")
+    ap.add_argument("--no-restart", action="store_true",
+                    help="for same-version REBUILDs, do NOT kill/restart the "
+                         "running yuno; run update-binary only and print the "
+                         "manual reminder (old behaviour).")
     auth = ap.add_argument_group(
         "OAuth2 (remote wss:// agent; logs in ONCE, reuses the token via -j)")
     auth.add_argument("-I", "--issuer", default=None,
@@ -532,19 +633,28 @@ def main():
     print()
     ok, fail = 0, 0
     for r in chosen:
-        if run_one(ycommand, args.url, jwt, r["action"], r["role"], args.dry_run):
+        if r["action"] == "update-binary" and not args.no_restart:
+            success = deploy_update_with_restart(
+                ycommand, args.url, jwt, r["role"], args.dry_run)
+        else:
+            success = deploy_install(
+                ycommand, args.url, jwt, r["action"], r["role"], args.dry_run)
+        if success:
             ok += 1
         else:
             fail += 1
     print()
     print(bold("Done: %s, %s." % (green("%d ok" % ok), red("%d failed" % fail) if fail else dim("0 failed"))))
 
-    # Lifecycle reminders (we intentionally do not automate these).
+    # Lifecycle reminders / notes.
     did_update = any(r["action"] == "update-binary" for r in chosen)
     did_install = any(r["action"] == "install-binary" for r in chosen)
-    if did_update:
+    if did_update and args.no_restart:
         print(dim("\nNote: update-binary overwrites the SAME-version slot. If a yuno was running"))
         print(dim("from that slot it must be kill-yuno'd first (text-file-busy), then run-yuno."))
+    elif did_update:
+        print(dim("\nNote: REBUILD roles were kill-yuno'd, overwritten and restored to their"))
+        print(dim("prior run/play state, scoped by yuno_role."))
     if did_install:
         print(dim("\nNote: install-binary created NEW slot(s). To make them primary run:"))
         print(dim("   ycommand -c 'find-new-yunos create=1'"))
