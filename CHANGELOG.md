@@ -1,6 +1,17 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(c_authz): `create-user` password is now optional.** KC/IdP-
+      authenticated users have no local password (`credentials` null) — auth is
+      by JWT. The command no longer rejects an empty password; it only hashes
+      credentials when one is given, otherwise creates the user password-less,
+      the same way `register-idp-user` and the `initial_load` users do.
+    - **fix(c_authz): stop resetting a user's "Created Time" on update.** In
+      `ac_create_user` the `new_user` flag was inverted (`user?TRUE:FALSE` is
+      TRUE when the node already exists), so updating an existing user wrote
+      `time=now` into the record, overwriting its creation timestamp. New users
+      were unaffected (treedb auto-stamps the `time`-flagged column on create).
+      Corrected to `user?FALSE:TRUE`.
     - **fix(yuno_agent): silence spurious "Event NOT DEFINED in state" on every
       login.** C_AGENT subscribes to all of its `authz` service's output events
       but had no FSM entry for `EV_AUTHZ_USER_LOGIN`/`LOGOUT`/`NEW` (consumed by

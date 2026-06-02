@@ -1758,51 +1758,46 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*-----------------------------*
-     *      Has password?
+     *      Optional password
+     *  KC/IdP-authenticated users have no local password (credentials
+     *  null) — auth is by JWT.  Only build credentials when a password is
+     *  explicitly given; otherwise create the user password-less, the same
+     *  way register-idp-user and the initial_load users do.
      *-----------------------------*/
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
-    if(empty_string(password)) {
-        return msg_iev_build_response(
+    if(!empty_string(password)) {
+        int hashIterations = (int)kw_get_int(
             gobj,
-            -1,
-            json_sprintf("What password?"),
-            0,
-            0,
-            kw  // owned
+            kw,
+            "hashIterations",
+            gobj_read_integer_attr(gobj, "hashIterations"),
+            KW_WILD_NUMBER
         );
-    }
-
-    int hashIterations = (int)kw_get_int(
-        gobj,
-        kw,
-        "hashIterations",
-        gobj_read_integer_attr(gobj, "hashIterations"),
-        KW_WILD_NUMBER
-    );
-    const char *algorithm = kw_get_str(
-        gobj,
-        kw,
-        "algorithm",
-        gobj_read_str_attr(gobj, "algorithm"),
-        0
-    );
-    json_t *credentials = hash_password(
-        gobj,
-        password,
-        algorithm,
-        hashIterations
-    );
-    if(!credentials) {
-        return msg_iev_build_response(
+        const char *algorithm = kw_get_str(
             gobj,
-            -1,
-            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
-            0,
-            0,
-            kw  // owned
+            kw,
+            "algorithm",
+            gobj_read_str_attr(gobj, "algorithm"),
+            0
         );
+        json_t *credentials = hash_password(
+            gobj,
+            password,
+            algorithm,
+            hashIterations
+        );
+        if(!credentials) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        json_object_set_new(kw, "credentials", credentials);
     }
-    json_object_set_new(kw, "credentials", credentials);
 
     gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
 
@@ -3880,7 +3875,7 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         0,
         gobj
     );
-    BOOL new_user = user?TRUE:FALSE;
+    BOOL new_user = user?FALSE:TRUE;    // node found => NOT new (was inverted)
     JSON_DECREF(user)
 
     if(empty_string(role)) {
