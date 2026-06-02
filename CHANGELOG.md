@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(c_yuno): `print-role` command — runtime equivalent of `--print-role`.**
+      Every yuno (the agent included) now answers a `print-role` command that
+      returns its basic identity: `role`, `name`, `alias`, **`version`** (the
+      yuno's own APP_VERSION) and **`yuneta_version`** (the framework version),
+      plus description/tags/required_services/public_services/service_descriptor.
+      Until now that info was only printable offline via the binary's
+      `--print-role` flag; there was no way to read a *running* yuno's version.
+      Lives in C_YUNO's command table, so it is inherited by all yunos. Reach it
+      with `service=__yuno__` (e.g. `ycommand -c 'print-role service=__yuno__'`).
+
 ## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-
       authenticated users have no local password (`credentials` null) — auth is

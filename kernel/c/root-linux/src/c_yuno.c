@@ -94,6 +94,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -346,6 +347,7 @@ PRIVATE const sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,                   "Command's help"),
 SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,                 "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,            "View final json configuration"),
+SDATACM (DTP_SCHEMA,    "print-role",               0,      0,          cmd_print_role,             "Basic yuno info at runtime (role, version, yuneta_version, ...) — runtime equivalent of the CLI --print-role"),
 
 /*-CMD2---type----------name------------------------flag---------alias---items-------json_fn-------------description--*/
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
@@ -1040,6 +1042,42 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Basic yuno information at runtime — the equivalent of the binary's CLI
+ *  flags --print-role / --version / --yuneta-version, but queryable from a
+ *  running yuno (e.g. the agent itself).  Reads C_YUNO's own identity attrs,
+ *  so every yuno inherits it.  Includes BOTH the yuno's own APP_VERSION
+ *  ("version") and the framework YUNETA_VERSION ("yuneta_version").
+ ***************************************************************************/
+PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:O, s:O, s:O, s:O}",
+        "role",              gobj_read_str_attr(gobj, "yuno_role"),
+        "name",              gobj_read_str_attr(gobj, "yuno_name"),
+        "alias",             gobj_read_str_attr(gobj, "yuno_tag"),
+        "version",           gobj_read_str_attr(gobj, "yuno_version"),
+        "yuneta_version",    gobj_read_str_attr(gobj, "yuneta_version"),
+        "description",       gobj_read_str_attr(gobj, "appDesc"),
+        "tags",              gobj_read_json_attr(gobj, "tags"),
+        "required_services", gobj_read_json_attr(gobj, "required_services"),
+        "public_services",   gobj_read_json_attr(gobj, "public_services"),
+        "service_descriptor",gobj_read_json_attr(gobj, "service_descriptor")
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s %s (yuneta %s)",
+            gobj_read_str_attr(gobj, "yuno_role"),
+            gobj_read_str_attr(gobj, "yuno_version"),
+            gobj_read_str_attr(gobj, "yuneta_version")
+        ),
+        0,
+        jn_data,
         kw  // owned
     );
 }
