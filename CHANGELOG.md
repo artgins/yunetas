@@ -8,8 +8,9 @@
       plus description/tags/required_services/public_services/service_descriptor.
       Until now that info was only printable offline via the binary's
       `--print-role` flag; there was no way to read a *running* yuno's version.
-      Lives in C_YUNO's command table, so it is inherited by all yunos. Reach it
-      with `service=__yuno__` (e.g. `ycommand -c 'print-role service=__yuno__'`).
+      Lives in C_YUNO's command table, so it is inherited by all yunos. Address
+      the yuno gobj with the `-S __yuno__` flag: `ycommand -S __yuno__ -c
+      'print-role'` (inline `service=...` is a command parameter, not routing).
 
 ## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-
