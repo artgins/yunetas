@@ -50,6 +50,21 @@ The package installs the agent + CLI tools + bundled openresty under
 and PAM limits, and starts the SysV service. Full inventory in
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/main/packages).
 
+> ⚠️ **The agent is a SysV service — manage it with the agent binary's own
+> `--start` / `--stop`, NOT `systemctl`/systemd.** Yuneta runs its own
+> daemon + watchdog, so `systemctl restart yuneta_agent` is effectively a
+> **no-op** (the process keeps its old PID and binary — it is not actually
+> restarted). To start/stop/restart the agent:
+>
+> ```bash
+> /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
+> /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start
+> ```
+>
+> or the init script `/etc/init.d/yuneta_agent {start|stop|restart}` (which
+> also handles the bundled web server). To roll out a new agent binary:
+> overwrite `/yuneta/agent/yuneta_agent`, then `--stop` and `--start`.
+
 > ℹ️ **Build the `.deb` yourself** instead of using the published asset:
 > see `packages/README.md` for the four arch wrapper scripts
 > (`AMD64.sh`, `ARM32.sh`, `ARMhf.sh`, `RISCV64.sh`). Requires the
@@ -277,13 +292,17 @@ cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
 ./configure-libs.sh # configure, build and install
 ```
 
-Then build, install and test yunetas:
+Then build, install and test yunetas with the **`yunetas` CLI** — this is
+the standard build interface (`init` / `build` / `clean` / `test`); prefer
+it over calling `cmake` directly, so the install to `$YUNETAS_OUTPUTS/lib`
+and the per-yuno relinks happen in the right order:
 
 ```bash
 cd ~/yunetaprojects/yunetas
-yunetas init
-yunetas build
-yunetas test
+yunetas init     # configure build dirs + compiler/build-type from .config (menuconfig)
+yunetas build    # regenerate yuneta_version.h + `make install` everything (kernel + yunos)
+yunetas test     # ctest
+# yunetas clean  # wipe the build dirs
 ```
 
 Artefacts land in `$YUNETAS_OUTPUTS/` (= `/yuneta/development/outputs/`
