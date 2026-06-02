@@ -621,8 +621,10 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  TCP layer reports disconnect. Publish EV_ON_CLOSE upward if we had
- *  reported an EV_ON_OPEN, and reset our line buffer.
+ *  TCP layer reports disconnect. Publish EV_ON_CLOSE upward if the socket had
+ *  reached the SMTP layer (inform_on_close, armed in ac_connected) — this also
+ *  covers handshake failures (banner/EHLO/AUTH) that never emitted EV_ON_OPEN,
+ *  so the owner is told the link is down even then. Reset our line buffer.
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
