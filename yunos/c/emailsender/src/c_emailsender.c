@@ -1254,6 +1254,28 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  EV_ON_OPEN arriving while we already have a message in flight
+ *  (ST_WAIT_RESPONSE). This is the reconnect-on-demand path: when the SMTP
+ *  child's bottom C_TCP had idle-closed, tira_dela_cola dispatches the head
+ *  message anyway and the child reconnects + redoes the handshake to deliver
+ *  it. On reaching ST_IDLE the child publishes EV_ON_OPEN BEFORE it begins the
+ *  stashed message — so it lands here, not in ST_IDLE. Just mark the link
+ *  ready; the child drives the in-flight message and EV_ON_MESSAGE resolves
+ *  it. Do NOT dequeue here: a message is already in flight.
+ ***************************************************************************/
+PRIVATE int ac_on_open_waiting(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->smtp) {
+        priv->smtp_ready = TRUE;
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  EV_ON_CLOSE from the SMTP child. If a message was in flight, fail it
  *  so it lands in the failed queue / triggers a retry on the next dequeue.
  ***************************************************************************/
@@ -1378,6 +1400,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_response[] = {
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
+        {EV_ON_OPEN,        ac_on_open_waiting,     0},
         {EV_ON_MESSAGE,     ac_on_message,          0},
         {EV_ON_CLOSE,       ac_on_close,            0},
         {0,0,0}
