@@ -1,6 +1,17 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(emailsender): handle `EV_ON_OPEN` in `ST_WAIT_RESPONSE`
+      (reconnect-on-demand).** When the SMTP link had idle-closed, the head
+      message is dispatched anyway and `c_smtp_session` reconnects to deliver
+      it; on reaching `ST_IDLE` it publishes `EV_ON_OPEN` *before* beginning the
+      stashed message — but `c_emailsender` is already in `ST_WAIT_RESPONSE` (it
+      changes state before `EV_SEND_MESSAGE`), so every reconnect-to-deliver
+      cycle logged a spurious *"Event NOT DEFINED in state"* even though the
+      mail was delivered. `ST_WAIT_RESPONSE` now accepts `EV_ON_OPEN` via
+      `ac_on_open_waiting`, which only marks the link ready and does NOT
+      re-dequeue (a message is already in flight). Also corrected the misleading
+      `ac_disconnected` comment in `c_smtp_session`.
     - **feat(c_authz): IdP (Keycloak) user provisioning.** New commands
       `register-idp-user` (create the user in Keycloak via the admin REST API +
       the local `treedb_authzs` user with the chosen role, then email a

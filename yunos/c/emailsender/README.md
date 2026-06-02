@@ -66,6 +66,16 @@ in `ST_DISCONNECTED` it kicks its bottom `C_TCP` (`EV_CONNECT`), re-runs
 banner→EHLO→AUTH, and begins the stashed message on entry to `ST_IDLE`. Retry
 pacing for a down server is the C_TCP layer's concern, not the sender's.
 
+On that entry to `ST_IDLE` the child also publishes `EV_ON_OPEN` *before* it
+begins the stashed message. Because `c_emailsender` moves to `ST_WAIT_RESPONSE`
+**before** dispatching (`EV_SEND_MESSAGE`), that `EV_ON_OPEN` lands while the
+parent is already in `ST_WAIT_RESPONSE` — so `ST_WAIT_RESPONSE` accepts
+`EV_ON_OPEN` as a no-op (just marks the link ready; it does **not** re-dequeue,
+a message is already in flight). The send completes normally and the following
+`EV_ON_MESSAGE` resolves it. Omitting that handler made every
+reconnect-to-deliver cycle log a spurious *"Event NOT DEFINED in state"* even
+though the mail was delivered.
+
 Inspect the queues at runtime: `ycommand command-yuno id=<id> command=list-queues`
 (also `remove-emails-failed` to drain the dead-letter queue).
 
