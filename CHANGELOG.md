@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-
       authenticated users have no local password (`credentials` null) — auth is
       by JWT. The command no longer rejects an empty password; it only hashes
