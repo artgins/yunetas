@@ -60,12 +60,19 @@ regardless of ycommand's working directory.
 
 Restart handling
 ----------------
-A yuno reads its config only when it (re)starts, so a changed config does not
-take effect until the yunos that use it are restarted. After pushing the chosen
-configs this script restarts those yunos itself — the affected ids come from the
-agent's ``yunos`` field (a config id is ``<role>.<yuno_id>``; the field lists the
-using yuno instance ids) — scoped by yuno ``id`` (never node-wide), preserving
-each one's prior run/play state:
+Installing a config does NOT require stopping the yuno. This is the key
+difference from a binary: ``update-binary`` fails with text-file-busy while the
+yuno is running from that slot, so ``sync_binaries.py`` MUST kill first and then
+must bring it back. A config push has no such constraint — it always succeeds on
+a running yuno; it simply does not take effect until that yuno next (re)starts.
+
+So by default this script only pushes, then prints the affected yuno ids (from
+the agent record's ``yunos`` field; a config id is ``<role>.<yuno_id>``, and the
+field lists the using yuno instance ids) as a ``kill-yuno`` + ``run-yuno``
+reminder. Restarting to apply the change is a separate, optional step.
+
+Pass ``--restart`` to also bounce the using yunos right away, scoped by yuno
+``id`` (never node-wide), preserving each one's prior run/play state:
 
     kill-yuno id=<yuno_id>   (only if running) -> poll *list-yunos until it exits
     run-yuno id=<yuno_id> play=0   (it was running)
@@ -73,10 +80,7 @@ each one's prior run/play state:
 
 A yuno that is not running is left stopped (it reads the new config on its next
 start). NEW configs have no agent record yet (typically a yuno not created here)
-so they are not auto-restarted — their ids are printed as a reminder. Pass
-``--no-restart`` to skip the restarts and only print the reminder. Config pushes
-themselves never hit text-file-busy (unlike binaries), so no pre-kill is needed;
-the restart is what applies the change.
+and are never auto-restarted — their ids are printed as a reminder.
 """
 
 import argparse
@@ -605,9 +609,11 @@ def main():
                     help="show what would run, execute nothing.")
     ap.add_argument("--show-uptodate", action="store_true",
                     help="also list configs already in sync and agent-only ones.")
-    ap.add_argument("--no-restart", action="store_true",
-                    help="do NOT restart the affected yunos after pushing a "
-                         "changed config; only print the reminder (old behaviour).")
+    ap.add_argument("-r", "--restart", action="store_true",
+                    help="after pushing a changed config, also restart the using "
+                         "yunos to apply it (default: push only + print a "
+                         "reminder). Installing a config never needs a kill; the "
+                         "restart is optional.")
     auth = ap.add_argument_group(
         "OAuth2 (remote wss:// agent; logs in ONCE, reuses the token via -j)")
     auth.add_argument("-I", "--issuer", default=None,
@@ -729,7 +735,7 @@ def main():
         else:
             new_only.add(r["id"])
 
-    if affected and not args.no_restart:
+    if affected and args.restart:
         print(dim("\nRestarting affected yuno(s) to apply the new config(s)..."))
         states = yuno_states_by_id(ycommand, args.url, jwt)
         for yid in sorted(affected):

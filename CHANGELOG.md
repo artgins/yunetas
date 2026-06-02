@@ -24,18 +24,18 @@
       across realms is handled in one shot. New `--no-restart` flag keeps the old
       print-only behaviour. The version-bump path (`find-new-yunos` +
       `deactivate-snap`, a node-wide bounce) stays a reminder.
-    - **feat(tools): `sync_configs.py` restarts the using yunos after a config
-      push.** A yuno reads its config only at (re)start, so a changed config was
-      inert until the operator manually bounced the affected yunos. The script
-      now restarts them itself after a successful `create-config`/`update-config`
-      — ids come from the agent record's `yunos` field — scoped by yuno `id`
-      (never node-wide): `kill-yuno` (only if running; orderly SIGQUIT) → poll
+    - **feat(tools): `sync_configs.py` gains an opt-in `--restart`.** Installing
+      a config does NOT need a kill — unlike `update-binary` (which hits
+      `text-file-busy` while the yuno runs), a config push always succeeds on a
+      running yuno; it just does not take effect until that yuno next (re)starts.
+      So by default the script still only pushes and prints the affected yuno ids
+      (from the agent record's `yunos` field) as a `kill-yuno` + `run-yuno`
+      reminder — restarting is a separate, optional step. Pass `--restart` to
+      also bounce the using yunos right away, scoped by yuno `id` (never
+      node-wide): `kill-yuno` (only if running; orderly SIGQUIT) → poll
       `*list-yunos` until it exits → `run-yuno play=0` → `play-yuno` (if it was
-      playing). Prior run/play state is preserved; a stopped yuno is left
-      stopped; NEW configs (no agent record) print a reminder. New `--no-restart`
-      flag keeps the old print-only behaviour. Unlike binaries, a config push
-      never hits `text-file-busy`, so there is no pre-kill — the restart is what
-      applies the change.
+      playing), preserving prior run/play state. A stopped yuno is left stopped;
+      NEW configs (no agent record) print a reminder.
 
 ## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-

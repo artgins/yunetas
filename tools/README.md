@@ -103,14 +103,15 @@ Classification per local config:
 A `DOWNGRADE` is never offered for install (seeding a stale version would break
 the version logic). `create-config` is the new-version install (it refuses to
 overwrite an existing `(id, version)`); `update-config` overwrites a same-version
-record. A yuno reads its config only at (re)start, so after pushing the chosen
-configs the script restarts the using yunos itself — ids come from the agent
-record's `yunos` field — scoped by yuno `id` (never node-wide): `kill-yuno`
-(only if running, orderly SIGQUIT) → poll `*list-yunos` until it exits →
-`run-yuno play=0` → `play-yuno` (if it was playing). A stopped yuno is left
-stopped; NEW configs (no agent record) are printed as a reminder; `--no-restart`
-keeps the old print-only behaviour. Config pushes never hit `text-file-busy`, so
-there is no pre-kill.
+record. Installing a config does **not** need a kill (unlike `update-binary`,
+which hits `text-file-busy` while the yuno runs), so by default the script only
+pushes and prints the affected yuno ids (from the agent record's `yunos` field)
+as a `kill-yuno` + `run-yuno` reminder — a yuno reads its config only at
+(re)start. Pass `--restart` to also bounce the using yunos right away, scoped by
+yuno `id` (never node-wide): `kill-yuno` (only if running, orderly SIGQUIT) →
+poll `*list-yunos` until it exits → `run-yuno play=0` → `play-yuno` (if it was
+playing), preserving prior run/play state. A stopped yuno is left stopped; NEW
+configs (no agent record) are printed as a reminder.
 
 ```bash
 cd yunos/c/auth_bff/batches/localhost          # stand in the configs directory
@@ -118,7 +119,7 @@ tools/agent/sync_configs.py                    # interactive: show table, ask, a
 tools/agent/sync_configs.py -n                 # dry-run: print the commands, run nothing
 tools/agent/sync_configs.py -a                 # apply every candidate without asking
 tools/agent/sync_configs.py --show-uptodate    # also list in-sync and agent-only configs
-tools/agent/sync_configs.py --no-restart       # push only, don't restart the using yunos
+tools/agent/sync_configs.py --restart          # push AND restart the using yunos to apply it
 tools/agent/sync_configs.py -u ws://127.0.0.1:1991   # target a specific agent url
 ```
 

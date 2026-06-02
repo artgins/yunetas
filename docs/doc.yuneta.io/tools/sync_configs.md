@@ -65,14 +65,21 @@ It prints the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `create-config` / `update-config id='<id>' content64=$$(<path>)` for
 each chosen config.
 
-## Restart is automated
+## Restart is optional (opt-in `--restart`)
 
-A yuno reads its config only when it **(re)starts**, so a changed config does
-not take effect until the yunos that use it are restarted. After pushing the
-chosen configs the script restarts those yunos itself — the affected ids come
-from the agent record's `yunos` field (a config id is `<role>.<yuno_id>`; the
-field lists the using yuno instance ids) — **scoped by yuno `id`** (never
-node-wide), preserving each one's prior run/play state:
+Installing a config does **not** require stopping the yuno. This is the key
+difference from a binary: `update-binary` fails with `text-file-busy` while the
+yuno runs from that slot, so [`sync_binaries.py`](sync_binaries.md) must kill
+first; a config push has no such constraint — it always succeeds on a running
+yuno, it just does not take effect until that yuno next **(re)starts**.
+
+So by default this script only pushes, then prints the affected yuno ids (from
+the agent record's `yunos` field; a config id is `<role>.<yuno_id>`, and the
+field lists the using yuno instance ids) as a `kill-yuno` + `run-yuno` reminder.
+Restarting to apply the change is a separate, optional step.
+
+Pass `--restart` to also bounce the using yunos right away, **scoped by yuno
+`id`** (never node-wide), preserving each one's prior run/play state:
 
 ```
 kill-yuno id=<yuno_id>     # only if running; SIGQUIT (orderly), gbmem audit runs
@@ -83,10 +90,7 @@ play-yuno id=<yuno_id>         # only if it had been playing
 
 A yuno that is not running is left stopped (it reads the new config on its next
 start). NEW configs have no agent record yet (typically a yuno not created here),
-so they are not auto-restarted — their ids are printed as a reminder. Pass
-`--no-restart` to skip the restarts and only print the reminder. Unlike binaries,
-a config push never hits `text-file-busy`, so there is no pre-kill — the restart
-is purely what applies the change.
+so they are never auto-restarted — their ids are printed as a reminder.
 
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 
@@ -98,7 +102,7 @@ sync_configs.py                                # interactive: show table, ask, a
 sync_configs.py -n                             # dry-run: print the commands, run nothing
 sync_configs.py -a                             # apply every candidate without asking
 sync_configs.py --show-uptodate                # also list in-sync and agent-only configs
-sync_configs.py --no-restart                   # push only, don't restart the using yunos
+sync_configs.py --restart                      # push AND restart the using yunos to apply it
 sync_configs.py /path/to/batches/localhost     # point at a directory instead of cwd
 sync_configs.py -u ws://127.0.0.1:1991         # target a specific agent
 ```
