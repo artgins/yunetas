@@ -58,11 +58,25 @@ Content upload uses the same ``content64=$$(<path>)`` macro as binaries; ``$$()`
 base64-encodes the file. We pass the file's absolute path so it resolves
 regardless of ycommand's working directory.
 
-Like ``sync_binaries.py`` it deliberately does NOT run the surrounding lifecycle
-steps. A yuno reads its config when it (re)starts, so after pushing a changed
-config the yunos that use it must be restarted (kill-yuno + run-yuno) for it to
-take effect. The affected yuno ids (from the agent's ``yunos`` field) are printed
-as a reminder.
+Restart handling
+----------------
+A yuno reads its config only when it (re)starts, so a changed config does not
+take effect until the yunos that use it are restarted. After pushing the chosen
+configs this script restarts those yunos itself — the affected ids come from the
+agent's ``yunos`` field (a config id is ``<role>.<yuno_id>``; the field lists the
+using yuno instance ids) — scoped by yuno ``id`` (never node-wide), preserving
+each one's prior run/play state:
+
+    kill-yuno id=<yuno_id>   (only if running) -> poll *list-yunos until it exits
+    run-yuno id=<yuno_id> play=0   (it was running)
+    play-yuno id=<yuno_id>         (only if it had been playing)
+
+A yuno that is not running is left stopped (it reads the new config on its next
+start). NEW configs have no agent record yet (typically a yuno not created here)
+so they are not auto-restarted — their ids are printed as a reminder. Pass
+``--no-restart`` to skip the restarts and only print the reminder. Config pushes
+themselves never hit text-file-busy (unlike binaries), so no pre-kill is needed;
+the restart is what applies the change.
 """
 
 import argparse
@@ -72,6 +86,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -485,6 +500,86 @@ def run_one(ycommand, url, jwt, action, cid, path, dry_run):
     return ok
 
 
+def run_ycmd(ycommand, url, jwt, cmd_str, dry_run, timeout=120):
+    """Run one `ycommand -c '<cmd_str>'`, echoing it. Returns (ok, stdout)."""
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", cmd_str]
+    print(cyan(">> ycommand -c '%s'" % cmd_str))
+    if dry_run:
+        print(dim("   (dry-run, not executed)"))
+        return True, ""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(red("   ERROR: %s" % e))
+        return False, ""
+    out = (res.stdout or "").strip()
+    err = (res.stderr or "").strip()
+    if out:
+        print(out)
+    if err:
+        print(dim(err))
+    ok = res.returncode == 0 and "ERROR" not in out
+    print(green("   OK") if ok else red("   FAILED"))
+    return ok, out
+
+
+def yuno_states_by_id(ycommand, url, jwt):
+    """
+    Return {yuno_id: record} for every yuno the agent manages, via '*list-yunos'.
+    Each record carries yuno_running / yuno_playing. {} on any error.
+    """
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-yunos"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        data = parse_leading_json(res.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, list):
+        return {}
+    out = {}
+    for rec in data:
+        if isinstance(rec, dict) and rec.get("id") is not None:
+            out[str(rec["id"])] = rec
+    return out
+
+
+def wait_until_stopped(ycommand, url, jwt, yid, timeout_s=15.0, poll_s=0.3):
+    """
+    Poll '*list-yunos id=<yid>' until the yuno is no longer running, so a later
+    run-yuno relaunches a fully-exited process. Returns True if it stopped.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-yunos id=%s" % yid]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            data = parse_leading_json(res.stdout)
+        except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+            data = []
+        records = data if isinstance(data, list) else []
+        if not any(isinstance(r, dict) and r.get("yuno_running") for r in records):
+            return True
+        time.sleep(poll_s)
+    return False
+
+
+def restart_yuno(ycommand, url, jwt, yid, was_running, was_playing, dry_run):
+    """
+    Bounce one yuno by id so it re-reads its config, restoring prior run/play
+    state. A yuno that was not running is left stopped — it reads the new config
+    on its next start. kill-yuno is orderly (SIGQUIT), so the gbmem audit runs.
+    """
+    if not was_running:
+        print(dim("   %s not running — left stopped (reads new config on next start)" % yid))
+        return
+    run_ycmd(ycommand, url, jwt, "kill-yuno id=%s" % yid, dry_run)
+    if not dry_run and not wait_until_stopped(ycommand, url, jwt, yid):
+        print(yellow("   ! %s still running after kill" % yid))
+    run_ycmd(ycommand, url, jwt, "run-yuno id=%s play=0" % yid, dry_run)
+    if was_playing:
+        run_ycmd(ycommand, url, jwt, "play-yuno id=%s" % yid, dry_run)
+
+
 def ask(prompt):
     try:
         return input(prompt).strip().lower()
@@ -510,6 +605,9 @@ def main():
                     help="show what would run, execute nothing.")
     ap.add_argument("--show-uptodate", action="store_true",
                     help="also list configs already in sync and agent-only ones.")
+    ap.add_argument("--no-restart", action="store_true",
+                    help="do NOT restart the affected yunos after pushing a "
+                         "changed config; only print the reminder (old behaviour).")
     auth = ap.add_argument_group(
         "OAuth2 (remote wss:// agent; logs in ONCE, reuses the token via -j)")
     auth.add_argument("-I", "--issuer", default=None,
@@ -608,24 +706,47 @@ def main():
 
     print()
     ok, fail = 0, 0
+    pushed = []
     for r in chosen:
         if run_one(ycommand, args.url, jwt, r["action"], r["id"], r["local"]["path"], args.dry_run):
             ok += 1
+            pushed.append(r)
         else:
             fail += 1
     print()
     print(bold("Done: %s, %s." % (green("%d ok" % ok), red("%d failed" % fail) if fail else dim("0 failed"))))
 
-    # Lifecycle reminder (we intentionally do not automate this).
+    # A yuno reads its config only at (re)start. Restart the yunos that use a
+    # successfully pushed config so the change takes effect — scoped by yuno id,
+    # preserving prior run/play state. NEW configs have no agent record yet
+    # (typically a yuno not created here) -> reminder only.
     affected = set()
-    for r in chosen:
+    new_only = set()
+    for r in pushed:
         if r["agent"]:
             for y in r["agent"].get("yunos", []) or []:
                 affected.add(str(y))
-    print(dim("\nNote: a yuno reads its config when it (re)starts. For a changed config to"))
-    print(dim("take effect, restart the yunos that use it: kill-yuno then run-yuno."))
-    if affected:
+        else:
+            new_only.add(r["id"])
+
+    if affected and not args.no_restart:
+        print(dim("\nRestarting affected yuno(s) to apply the new config(s)..."))
+        states = yuno_states_by_id(ycommand, args.url, jwt)
+        for yid in sorted(affected):
+            st = states.get(yid, {})
+            restart_yuno(
+                ycommand, args.url, jwt, yid,
+                bool(st.get("yuno_running")), bool(st.get("yuno_playing")),
+                args.dry_run,
+            )
+    elif affected:
+        print(dim("\nNote: a yuno reads its config when it (re)starts. For the change to take"))
+        print(dim("effect, restart the yunos that use it: kill-yuno then run-yuno."))
         print(dim("   affected yuno id(s): %s" % ", ".join(sorted(affected))))
+
+    if new_only:
+        print(dim("\nNote: NEW config(s) %s — start their yuno(s) when ready." %
+                  ", ".join(sorted(new_only))))
 
 
 if __name__ == "__main__":

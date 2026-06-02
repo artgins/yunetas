@@ -65,12 +65,28 @@ It prints the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `create-config` / `update-config id='<id>' content64=$$(<path>)` for
 each chosen config.
 
-## Lifecycle step is not automated
+## Restart is automated
 
-A yuno reads its config when it **(re)starts**. After pushing a changed config,
-the yunos that use it must be restarted (`kill-yuno` then `run-yuno`) for it to
-take effect. The script does not automate this — it prints the affected yuno ids
-(from the agent record's `yunos` field) as a reminder.
+A yuno reads its config only when it **(re)starts**, so a changed config does
+not take effect until the yunos that use it are restarted. After pushing the
+chosen configs the script restarts those yunos itself — the affected ids come
+from the agent record's `yunos` field (a config id is `<role>.<yuno_id>`; the
+field lists the using yuno instance ids) — **scoped by yuno `id`** (never
+node-wide), preserving each one's prior run/play state:
+
+```
+kill-yuno id=<yuno_id>     # only if running; SIGQUIT (orderly), gbmem audit runs
+   ↳ poll *list-yunos until the process exits
+run-yuno id=<yuno_id> play=0   # it was running
+play-yuno id=<yuno_id>         # only if it had been playing
+```
+
+A yuno that is not running is left stopped (it reads the new config on its next
+start). NEW configs have no agent record yet (typically a yuno not created here),
+so they are not auto-restarted — their ids are printed as a reminder. Pass
+`--no-restart` to skip the restarts and only print the reminder. Unlike binaries,
+a config push never hits `text-file-busy`, so there is no pre-kill — the restart
+is purely what applies the change.
 
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 
@@ -82,6 +98,7 @@ sync_configs.py                                # interactive: show table, ask, a
 sync_configs.py -n                             # dry-run: print the commands, run nothing
 sync_configs.py -a                             # apply every candidate without asking
 sync_configs.py --show-uptodate                # also list in-sync and agent-only configs
+sync_configs.py --no-restart                   # push only, don't restart the using yunos
 sync_configs.py /path/to/batches/localhost     # point at a directory instead of cwd
 sync_configs.py -u ws://127.0.0.1:1991         # target a specific agent
 ```

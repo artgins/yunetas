@@ -24,6 +24,18 @@
       across realms is handled in one shot. New `--no-restart` flag keeps the old
       print-only behaviour. The version-bump path (`find-new-yunos` +
       `deactivate-snap`, a node-wide bounce) stays a reminder.
+    - **feat(tools): `sync_configs.py` restarts the using yunos after a config
+      push.** A yuno reads its config only at (re)start, so a changed config was
+      inert until the operator manually bounced the affected yunos. The script
+      now restarts them itself after a successful `create-config`/`update-config`
+      — ids come from the agent record's `yunos` field — scoped by yuno `id`
+      (never node-wide): `kill-yuno` (only if running; orderly SIGQUIT) → poll
+      `*list-yunos` until it exits → `run-yuno play=0` → `play-yuno` (if it was
+      playing). Prior run/play state is preserved; a stopped yuno is left
+      stopped; NEW configs (no agent record) print a reminder. New `--no-restart`
+      flag keeps the old print-only behaviour. Unlike binaries, a config push
+      never hits `text-file-busy`, so there is no pre-kill — the restart is what
+      applies the change.
 
 ## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-
