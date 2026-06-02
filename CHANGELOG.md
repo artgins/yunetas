@@ -1,6 +1,14 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(tools): sync_binaries.py / sync_configs.py — OAuth2 passthrough for
+      remote agents.** Both scripts now log in ONCE (Keycloak password grant via
+      stdlib, or a `--jwt` passed verbatim) and thread the token through `-j` to
+      every `ycommand` call, so they can drive a remote `wss://` agent without
+      SSH. New flags: `-I/--issuer` (OIDC discovery), `-T/--token-endpoint`,
+      `-Z/--client-id`, `--client-secret`, `-x/--user-id`, `-X/--user-passw`,
+      `-j/--jwt`. The no-arg local path is unchanged (no auth). `$$()` already
+      resolves client-side, so the LOCAL build is what gets uploaded.
     - **feat(c_authz): IdP (Keycloak) user provisioning.** New commands
       `register-idp-user` (create the user in Keycloak via the admin REST API +
       the local `treedb_authzs` user with the chosen role, then email a

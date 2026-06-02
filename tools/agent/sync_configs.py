@@ -72,6 +72,9 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 # ----------------------------------------------------------------------------
 #   ANSI colours (only when stdout is a tty)
@@ -208,6 +211,89 @@ def cmp_versions(a, b):
 
 
 # ----------------------------------------------------------------------------
+#   OAuth2 — log in ONCE, reuse the token on every ycommand call
+# ----------------------------------------------------------------------------
+#   ycommand reads its credentials only from argp and does NOT cache a token
+#   between one-shot `-c` invocations, so passing -x/-X would re-run the
+#   password grant on every call. Instead we log in once here (Keycloak
+#   password grant), then thread the resulting jwt through `-j` to every
+#   invocation. This is what lets these scripts drive a REMOTE wss:// agent
+#   with SSH disabled. Stdlib only — no external deps.
+def _http_json(url, data=None, timeout=30):
+    """GET (data=None) or form-urlencoded POST, returning parsed JSON."""
+    body = None
+    headers = {}
+    if data is not None:
+        body = urllib.parse.urlencode(data).encode("utf-8")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    req = urllib.request.Request(url, data=body, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def discover_token_endpoint(issuer, timeout=30):
+    """Read token_endpoint from the issuer's OIDC discovery document."""
+    doc = _http_json(issuer.rstrip("/") + "/.well-known/openid-configuration",
+                     timeout=timeout)
+    ep = doc.get("token_endpoint")
+    if not ep:
+        raise RuntimeError("OIDC discovery document has no token_endpoint")
+    return ep
+
+
+def obtain_jwt(args):
+    """
+    Return one jwt to reuse on every ycommand call, or None for a local/
+    unauthenticated run:
+      * --jwt given                                 -> used verbatim.
+      * user-id + passw + (issuer | token-endpoint) -> password grant, once.
+      * otherwise                                   -> None (local ws:// needs none).
+    """
+    if args.jwt:
+        return args.jwt
+    if not (args.user_id and args.user_passw and (args.issuer or args.token_endpoint)):
+        return None
+    token_endpoint = args.token_endpoint or discover_token_endpoint(args.issuer)
+    form = {
+        "grant_type": "password",
+        "client_id": args.client_id or "",
+        "username": args.user_id,
+        "password": args.user_passw,
+    }
+    if args.client_secret:
+        form["client_secret"] = args.client_secret
+    print(dim("authenticating once at %s ..." % token_endpoint))
+    try:
+        tok = _http_json(token_endpoint, data=form)
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", "replace")
+        except Exception:
+            pass
+        print(red("ERROR: OAuth2 login failed (HTTP %s): %s" % (e.code, detail or e.reason)))
+        sys.exit(2)
+    except Exception as e:
+        print(red("ERROR: OAuth2 login failed: %s" % e))
+        sys.exit(2)
+    jwt = tok.get("access_token")
+    if not jwt:
+        print(red("ERROR: token endpoint returned no access_token."))
+        sys.exit(2)
+    return jwt
+
+
+def ycmd_base(ycommand, url, jwt):
+    """Base ycommand argv: binary + optional -u url + optional -j jwt."""
+    cmd = [ycommand]
+    if url:
+        cmd += ["-u", url]
+    if jwt:
+        cmd += ["-j", jwt]
+    return cmd
+
+
+# ----------------------------------------------------------------------------
 #   Discovery
 # ----------------------------------------------------------------------------
 def local_configs(config_dir):
@@ -249,16 +335,13 @@ def local_configs(config_dir):
     return out
 
 
-def agent_configs(ycommand, url):
+def agent_configs(ycommand, url, jwt):
     """
     Return {id: {version, description, date, zcontent, yunos}} from the agent via
     'ycommand -c *list-configs' (the '*' forces raw JSON). One record per id
     (the current primary version).
     """
-    cmd = [ycommand]
-    if url:
-        cmd += ["-u", url]
-    cmd += ["-c", "*list-configs"]
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-configs"]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
@@ -379,12 +462,9 @@ def print_table(rows, show_uptodate):
 # ----------------------------------------------------------------------------
 #   Execution
 # ----------------------------------------------------------------------------
-def run_one(ycommand, url, action, cid, path, dry_run):
+def run_one(ycommand, url, jwt, action, cid, path, dry_run):
     cmd_str = "%s id='%s' content64=$$(%s)" % (action, cid, path)
-    cmd = [ycommand]
-    if url:
-        cmd += ["-u", url]
-    cmd += ["-c", cmd_str]
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", cmd_str]
     print(cyan(">> ycommand -c '%s'" % cmd_str))
     if dry_run:
         print(dim("   (dry-run, not executed)"))
@@ -430,6 +510,20 @@ def main():
                     help="show what would run, execute nothing.")
     ap.add_argument("--show-uptodate", action="store_true",
                     help="also list configs already in sync and agent-only ones.")
+    auth = ap.add_argument_group(
+        "OAuth2 (remote wss:// agent; logs in ONCE, reuses the token via -j)")
+    auth.add_argument("-I", "--issuer", default=None,
+                      help="OIDC issuer for discovery, e.g. "
+                           "https://auth.artgins.com/realms/artgins")
+    auth.add_argument("-T", "--token-endpoint", default=None,
+                      help="explicit token endpoint (skips discovery).")
+    auth.add_argument("-Z", "--client-id", default=None, help="OAuth2 client_id.")
+    auth.add_argument("--client-secret", default=None,
+                      help="OAuth2 client_secret (confidential client only).")
+    auth.add_argument("-x", "--user-id", default=None, help="OAuth2 username.")
+    auth.add_argument("-X", "--user-passw", default=None, help="OAuth2 password.")
+    auth.add_argument("-j", "--jwt", default=None,
+                      help="reuse this jwt directly (skip the login).")
     args = ap.parse_args()
 
     ycommand = args.ycommand or shutil.which("ycommand")
@@ -442,11 +536,16 @@ def main():
         print(red("ERROR: config dir not found: %s" % config_dir))
         sys.exit(2)
 
+    jwt = obtain_jwt(args)
+
     print(dim("config dir : %s" % config_dir))
-    print(dim("ycommand   : %s%s" % (ycommand, ("  url=" + args.url) if args.url else "")))
+    print(dim("ycommand   : %s%s%s" % (
+        ycommand,
+        ("  url=" + args.url) if args.url else "",
+        "  oauth2=on" if jwt else "")))
 
     print(dim("\nreading agent configs (*list-configs)..."))
-    agent = agent_configs(ycommand, args.url)
+    agent = agent_configs(ycommand, args.url, jwt)
     print(dim("reading local configs (*.json in dir)..."))
     local = local_configs(config_dir)
 
@@ -510,7 +609,7 @@ def main():
     print()
     ok, fail = 0, 0
     for r in chosen:
-        if run_one(ycommand, args.url, r["action"], r["id"], r["local"]["path"], args.dry_run):
+        if run_one(ycommand, args.url, jwt, r["action"], r["id"], r["local"]["path"], args.dry_run):
             ok += 1
         else:
             fail += 1
