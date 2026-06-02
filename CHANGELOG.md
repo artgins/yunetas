@@ -11,6 +11,19 @@
       Lives in C_YUNO's command table, so it is inherited by all yunos. Address
       the yuno gobj with the `-S __yuno__` flag: `ycommand -S __yuno__ -c
       'print-role'` (inline `service=...` is a command parameter, not routing).
+    - **feat(tools): `sync_binaries.py` automates the same-version REBUILD
+      hot-patch.** A `REBUILD` (`update-binary`) overwrites the slot the running
+      yuno executes from, so it failed with `text-file-busy` and the script only
+      printed a "kill-yuno first" reminder. Now, once both confirmation gates are
+      cleared, it runs the documented per-role cycle itself, scoped by
+      `yuno_role` (never node-wide): `kill-yuno` (only if running; orderly
+      SIGQUIT, so the gbmem audit runs) → poll `*list-yunos` until the process
+      exits → `update-binary` → `run-yuno play=0` (if it was running) →
+      `play-yuno` (if it was playing). Prior run/play state is read from
+      `*list-yunos` and restored per role, and a role with several instances
+      across realms is handled in one shot. New `--no-restart` flag keeps the old
+      print-only behaviour. The version-bump path (`find-new-yunos` +
+      `deactivate-snap`, a node-wide bounce) stays a reminder.
 
 ## v7.4.7 -- 02/Jun/2026
     - **feat(c_authz): `create-user` password is now optional.** KC/IdP-

@@ -32,14 +32,33 @@ It prints the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
 each chosen role.
 
-## Lifecycle steps are not automated
+## REBUILD lifecycle is automated; the bump path is not
 
-The script deliberately does **not** run the node-wide lifecycle steps that have
-side effects — it prints them as reminders instead:
+A same-version `REBUILD` overwrites the very slot the running yuno is executing
+from, so `update-binary` fails with `text-file-busy` unless the running instance
+is stopped first. Once both confirmation gates (Apply-all / Proceed) are
+cleared the deploy intent is explicit, so for `REBUILD` roles the script runs
+the documented per-role hot-patch cycle itself, **scoped by `yuno_role`** (never
+node-wide):
 
-- `kill-yuno` before a same-version overwrite (otherwise `text-file-busy` if the
-  yuno is running from that slot);
-- `find-new-yunos create=1` + `deactivate-snap` after a version bump.
+```
+kill-yuno yuno_role=<role>     # only if running; SIGQUIT (orderly), so the
+                               # gbmem shutdown audit runs
+   ↳ poll *list-yunos until the process exits (else text-file-busy again)
+update-binary id=<role> content64=$$(<role>)
+run-yuno yuno_role=<role> play=0   # only if it had been running
+play-yuno yuno_role=<role>         # only if it had been playing
+```
+
+Prior run/play state is read from `*list-yunos` and restored per role, so a
+deliberately stopped or paused yuno is left as it was, and a role with several
+instances across realms is handled in one shot (the role-scoped commands act on
+every instance — they all share the one slot). Pass `--no-restart` to keep the
+old print-only-reminder behaviour.
+
+The **version-bump** path is still **not** automated: after an `install-binary`
+the script prints the `find-new-yunos create=1` + `deactivate-snap` reminder,
+because that is a node-wide bounce with broader side effects.
 
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
 
@@ -49,6 +68,7 @@ See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) §6.
 tools/agent/sync_binaries.py            # interactive: show table, ask, apply
 tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
 tools/agent/sync_binaries.py -a         # apply every candidate without asking
+tools/agent/sync_binaries.py --no-restart   # REBUILD: update-binary only, no kill/restart
 tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent
 tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
 ```

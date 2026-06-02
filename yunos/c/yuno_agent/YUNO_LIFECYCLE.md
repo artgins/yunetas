@@ -460,8 +460,10 @@ All examples assume `ycommand` is talking to the local agent.
 > against the freshly built ones in `outputs/yunos` and push the differences in
 > one pass, use `tools/agent/sync_binaries.py` (drives from the agent's
 > installed set; proposes `install-binary` for version bumps and `update-binary`
-> for same-version rebuilds; `-n` for a dry run). The recipes below are the
-> manual, per-yuno equivalents.
+> for same-version rebuilds; `-n` for a dry run). For a same-version rebuild it
+> also runs the per-role hot-patch cycle below (kill → poll → update → restore
+> run/play state, scoped by `yuno_role`); `--no-restart` keeps it print-only.
+> The recipes below are the manual, per-yuno equivalents.
 
 ### 6.1 Onboard a brand-new yuno
 

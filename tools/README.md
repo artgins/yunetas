@@ -48,15 +48,25 @@ Classification per installed binary:
 
 It shows the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
-each chosen role. It does **not** automate the node-wide lifecycle steps
-(`kill-yuno` before a same-version overwrite; `find-new-yunos create=1` +
-`deactivate-snap` after a bump) — it prints them as reminders instead. See
+each chosen role.
+
+For a same-version `REBUILD` the agent overwrites the slot the running yuno is
+executing from, so `update-binary` would hit `text-file-busy`. Once both
+confirmation gates are cleared the script runs the documented per-role hot-patch
+cycle itself, scoped by `yuno_role` (never node-wide): `kill-yuno` (only if
+running, orderly SIGQUIT) → poll `*list-yunos` until the process exits →
+`update-binary` → `run-yuno play=0` (if it was running) → `play-yuno` (if it was
+playing). Prior run/play state is read from `*list-yunos` and restored per role;
+`--no-restart` keeps the old print-only behaviour. The version-bump path
+(`find-new-yunos create=1` + `deactivate-snap`) is still **not** automated — that
+is a node-wide bounce, printed as a reminder. See
 `yunos/c/yuno_agent/YUNO_LIFECYCLE.md` §6.5/§6.6.
 
 ```bash
 tools/agent/sync_binaries.py            # interactive: show table, ask, apply
 tools/agent/sync_binaries.py -n         # dry-run: print the commands, run nothing
 tools/agent/sync_binaries.py -a         # apply every candidate without asking
+tools/agent/sync_binaries.py --no-restart   # REBUILD: update-binary only, no kill/restart
 tools/agent/sync_binaries.py -u ws://127.0.0.1:1991   # target a specific agent url
 tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build dir
 ```
