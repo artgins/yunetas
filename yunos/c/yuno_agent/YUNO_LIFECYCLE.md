@@ -397,11 +397,18 @@ is merged after #1, so an explicit value in the yuno's own config still wins
 (precedence stays with the deployer). `cpu_core=0` (the default) means no
 affinity boost, i.e. unchanged behaviour.
 
-Set any of the three live, no redeploy:
+Set any of the three live, no redeploy. The `record=` inline form is NOT
+coerced from text by the ycommand CLI ("What record?"), so pass the node as a
+**strict-JSON** file via `content64=$$(<file>)` (single quotes / unquoted keys
+fail to decode):
 
 ```bash
-ycommand -c "command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos record={id:'<yuno_id>',start_priority:1,cpu_core:2,sched_priority:10}"
+printf '{"id":"<yuno_id>","start_priority":1,"cpu_core":2,"sched_priority":10}' > /tmp/rec.json
+ycommand -c "command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos content64=\$\$(/tmp/rec.json)"
 ```
+
+(Over the websocket/JSON API the `record` field is a real dict and works
+directly; the file form is only needed for the text CLI.)
 
 ---
 
