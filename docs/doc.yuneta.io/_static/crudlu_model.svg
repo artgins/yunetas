@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="CRUDLU model: CRUD operates on entities, Link and Unlink operate on relationships">
+  <defs>
+    <marker id="arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7c8f"/>
+    </marker>
+  </defs>
+
+  <!-- transparent background: adopts the page (works on the doc's neutral theme) -->
+
+  <!-- ===== top band: CRUD acts on entities ===== -->
+  <text x="370" y="34" text-anchor="middle" font-size="13" font-weight="600" fill="#1b3a6b">CRUD — operations on entities (nodes)</text>
+  <g font-size="14" font-weight="700" fill="#1b3a6b">
+    <g>
+      <rect x="206" y="46" width="58" height="34" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+      <text x="235" y="68" text-anchor="middle">C</text>
+    </g>
+    <g>
+      <rect x="280" y="46" width="58" height="34" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+      <text x="309" y="68" text-anchor="middle">R</text>
+    </g>
+    <g>
+      <rect x="354" y="46" width="58" height="34" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+      <text x="383" y="68" text-anchor="middle">U</text>
+    </g>
+    <g>
+      <rect x="428" y="46" width="58" height="34" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+      <text x="457" y="68" text-anchor="middle">D</text>
+    </g>
+  </g>
+  <!-- arrows hinting CRUD applies to the entities below -->
+  <path d="M235,82 L150,150" fill="none" stroke="#b9c6d6" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <path d="M457,82 L590,150" fill="none" stroke="#b9c6d6" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+  <!-- ===== entities ===== -->
+  <!-- Entity A (parent) -->
+  <g>
+    <rect x="60" y="158" width="180" height="118" rx="10" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <rect x="60" y="158" width="180" height="34" rx="10" fill="#3b4a5e"/>
+    <rect x="60" y="178" width="180" height="14" fill="#3b4a5e"/>
+    <text x="150" y="180" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">Entity — Parent</text>
+    <text x="150" y="216" text-anchor="middle" font-size="12" fill="#33414f">Role / Class / Topic</text>
+    <text x="150" y="238" text-anchor="middle" font-size="12" fill="#5b6b7f">instance (node, id)</text>
+    <text x="150" y="260" text-anchor="middle" font-size="11" fill="#8593a3">key / value</text>
+  </g>
+
+  <!-- Entity B (child) -->
+  <g>
+    <rect x="500" y="158" width="180" height="118" rx="10" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <rect x="500" y="158" width="180" height="34" rx="10" fill="#3b4a5e"/>
+    <rect x="500" y="178" width="180" height="14" fill="#3b4a5e"/>
+    <text x="590" y="180" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">Entity — Child</text>
+    <text x="590" y="216" text-anchor="middle" font-size="12" fill="#33414f">Role / Class / Topic</text>
+    <text x="590" y="238" text-anchor="middle" font-size="12" fill="#5b6b7f">instance (node, id)</text>
+    <text x="590" y="260" text-anchor="middle" font-size="11" fill="#8593a3">key / value</text>
+  </g>
+
+  <!-- ===== relationship (link) ===== -->
+  <line x1="240" y1="217" x2="500" y2="217" stroke="#6b7c8f" stroke-width="2" marker-end="url(#arrowGray)" marker-start="url(#arrowGray)"/>
+  <text x="370" y="206" text-anchor="middle" font-size="12" font-weight="600" fill="#33414f">relationship (link)</text>
+  <text x="370" y="248" text-anchor="middle" font-size="11" fill="#8593a3">hook (on parent) &#8644; fkey (on child)</text>
+
+  <!-- Link / Unlink chips on the relationship -->
+  <g font-size="12" font-weight="700" fill="#7a3e0e">
+    <g>
+      <rect x="300" y="296" width="64" height="32" rx="7" fill="#fde9d9" stroke="#d98a3d"/>
+      <text x="332" y="317" text-anchor="middle">Link</text>
+    </g>
+    <g>
+      <rect x="376" y="296" width="64" height="32" rx="7" fill="#fde9d9" stroke="#d98a3d"/>
+      <text x="408" y="317" text-anchor="middle">Unlink</text>
+    </g>
+  </g>
+  <path d="M332,296 L362,228" fill="none" stroke="#e3b58a" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <path d="M408,296 L378,228" fill="none" stroke="#e3b58a" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <text x="540" y="316" font-size="13" font-weight="600" fill="#7a3e0e">L / U — on relationships</text>
+
+  <!-- ===== caption ===== -->
+  <text x="370" y="362" text-anchor="middle" font-size="12" fill="#5b6b7f">CRUDLU = Create · Read · Update · Delete on entities, plus Link · Unlink on relationships</text>
+</svg>

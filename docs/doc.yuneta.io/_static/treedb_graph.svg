@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A treedb typed graph: the departments topic hooks users; each user carries a department fkey back. Port colour marks the linked topic.">
+  <defs>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e76f51"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+
+  <!-- transparent background: adopts the page (works on the doc's neutral theme) -->
+
+  <!-- ================= departments topic (parent) ================= -->
+  <g>
+    <rect x="48" y="92" width="214" height="176" rx="10" fill="#f3faf8" stroke="#2a9d8f" stroke-width="1.5"/>
+    <rect x="48" y="92" width="214" height="32" rx="10" fill="#2a9d8f"/>
+    <rect x="48" y="110" width="214" height="14" fill="#2a9d8f"/>
+    <text x="62" y="113" font-size="13" font-weight="700" fill="#ffffff">departments</text>
+    <text x="248" y="113" text-anchor="end" font-size="11" fill="#d7f0ea">topic</text>
+
+    <!-- a node -->
+    <text x="62" y="150" font-size="12" fill="#2c3b3a" font-weight="600">node</text>
+    <text x="120" y="150" font-size="12" fill="#41504f">id: "sales"</text>
+    <line x1="60" y1="162" x2="250" y2="162" stroke="#cfe6e0" stroke-width="1"/>
+
+    <!-- hook field: users -->
+    <text x="62" y="186" font-size="12" fill="#2c3b3a">hook</text>
+    <text x="120" y="186" font-size="12" font-weight="600" fill="#b1532f">users</text>
+    <text x="62" y="204" font-size="10.5" fill="#8aa39d">links child topic "users"</text>
+    <!-- port: colour = the topic it links to (users = orange) -->
+    <circle cx="262" cy="186" r="7" fill="#e76f51" stroke="#ffffff" stroke-width="1.5"/>
+
+    <text x="62" y="246" font-size="10.5" fill="#8aa39d">pkey: id &#183; one node per id</text>
+  </g>
+
+  <!-- ================= users topic (child) ================= -->
+  <g>
+    <rect x="500" y="72" width="214" height="216" rx="10" fill="#fef5f2" stroke="#e76f51" stroke-width="1.5"/>
+    <rect x="500" y="72" width="214" height="32" rx="10" fill="#e76f51"/>
+    <rect x="500" y="90" width="214" height="14" fill="#e76f51"/>
+    <text x="514" y="93" font-size="13" font-weight="700" fill="#ffffff">users</text>
+    <text x="700" y="93" text-anchor="end" font-size="11" fill="#fbdfd6">topic</text>
+
+    <!-- nodes -->
+    <text x="514" y="130" font-size="12" fill="#3b2c28" font-weight="600">node</text>
+    <text x="572" y="130" font-size="12" fill="#50403c">id: "ana"</text>
+    <text x="514" y="150" font-size="12" fill="#3b2c28" font-weight="600">node</text>
+    <text x="572" y="150" font-size="12" fill="#50403c">id: "bob"</text>
+    <line x1="512" y1="164" x2="702" y2="164" stroke="#f4d3c8" stroke-width="1"/>
+
+    <!-- fkey field: department -->
+    <text x="556" y="190" font-size="12" fill="#3b2c28">fkey</text>
+    <text x="610" y="190" font-size="12" font-weight="600" fill="#1f7e72">department</text>
+    <text x="556" y="208" font-size="10.5" fill="#caa99e" >"departments^sales^users"</text>
+    <!-- port: colour = the topic it links to (departments = teal) -->
+    <circle cx="500" cy="190" r="7" fill="#2a9d8f" stroke="#ffffff" stroke-width="1.5"/>
+
+    <text x="514" y="254" font-size="10.5" fill="#caa99e">the fkey is what gets persisted</text>
+    <text x="514" y="272" font-size="10.5" fill="#caa99e">on link / unlink (child is saved)</text>
+  </g>
+
+  <!-- ================= edges ================= -->
+  <!-- hook: departments.users  ->  users  (top route, orange) -->
+  <path d="M269,186 C360,186 410,128 500,128" fill="none" stroke="#e76f51" stroke-width="2.2" marker-end="url(#arrowOrange)"/>
+  <text x="384" y="150" text-anchor="middle" font-size="11.5" font-weight="600" fill="#b1532f">hook: users</text>
+
+  <!-- fkey: users.department -> departments (bottom route, teal) -->
+  <path d="M493,190 C400,210 360,228 269,222" fill="none" stroke="#2a9d8f" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#arrowTeal)"/>
+  <text x="384" y="244" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1f7e72">fkey: department</text>
+
+  <!-- title / flow hint -->
+  <text x="380" y="40" text-anchor="middle" font-size="12.5" font-weight="600" fill="#41504f">A treedb graph: typed nodes, typed links</text>
+
+  <!-- ================= legend ================= -->
+  <g font-size="11" fill="#5b6b7f">
+    <circle cx="60" cy="328" r="6" fill="#e76f51"/>
+    <circle cx="60" cy="328" r="6" fill="none" stroke="#2a9d8f"/>
+    <text x="74" y="332">port colour = the topic it links to</text>
+
+    <line x1="300" y1="328" x2="330" y2="328" stroke="#e76f51" stroke-width="2.2"/>
+    <text x="338" y="332">hook (lives on the parent)</text>
+
+    <line x1="520" y1="328" x2="550" y2="328" stroke="#2a9d8f" stroke-width="2.2" stroke-dasharray="6 4"/>
+    <text x="558" y="332">fkey (lives on the child)</text>
+
+    <text x="60" y="356" font-size="11" fill="#8593a3">Link / Unlink write the child's fkey &#8594; only the child is persisted. The hook is rebuilt in memory.</text>
+  </g>
+</svg>

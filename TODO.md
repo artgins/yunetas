@@ -9,14 +9,21 @@ docs (yunetas, mystmd) are text + tables — zero diagrams. The v6 philosophy do
 (`^yuneta/docs/yuneta/filosofia.rst`) embedded interactive draw.io graphs via
 `.. raw:: html` + `app.diagrams.net`, and framed the model as **Entidad/
 Relación** with **CRUDLU** (Create/Read/Update/Delete + Link/Unlink). Reinstate
-visuals in the onboarding docs + doc.yuneta.io using `mermaid` (mystmd-native,
-also rendered by GitHub in-repo — more maintainable than draw.io embeds):
+visuals in the onboarding docs + doc.yuneta.io as **hand-authored SVG** (no
+mermaid — renders on GitHub + the site with no build/iframe-sandbox, fully
+versionable; interactive G6 embeds can come later for the graph views):
 
-- the **CRUDLU** model over Entidad/Relación (recover the v6 lámina);
-- the **treedb graph** (topics/nodes/hooks/fkeys; left-to-right, port-colour =
-  linkable topic);
-- the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose in
-  `YUNO_LIFECYCLE.md` §4.
+- [x] the **CRUDLU** model over Entidad/Relación (`_static/crudlu_model.svg`,
+  in `philosophy/domain_model.md`);
+- [x] the **treedb graph** (topics/nodes/hooks/fkeys; left-to-right, port-colour
+  = linkable topic) (`_static/treedb_graph.svg`, in `philosophy/typed_graph_model.md`);
+- [ ] the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose
+  in `YUNO_LIFECYCLE.md` §4;
+- [ ] the **"node is its history"** lámina (`node^n` + link as an event in the
+  append history) — the lens that explains the per-instance delete and
+  version-aware unlink fixes (7.5.1);
+- [ ] upgrade the remaining ASCII art in `philosophy/domain_model.md`
+  (Entity/Relationship, Entities, Relationships) to SVG for consistency.
 
 ## Auth: OIDC migration follow-ups
 

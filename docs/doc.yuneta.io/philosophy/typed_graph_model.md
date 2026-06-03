@@ -48,6 +48,18 @@ This is what separates the model from neighbouring designs:
 
 Yuneta types all three at once: the node, the link, and the lifecycle.
 
+```{figure} ../_static/treedb_graph.svg
+:alt: The departments topic hooks the users topic; each user node carries a department fkey pointing back. Port colour marks the linked topic.
+:width: 100%
+
+A treedb graph reads left to right. The `departments` topic declares a
+`users` **hook**; each `users` node carries a `department` **fkey** back.
+The binding is typed — *this* link, between *these* two topics, with
+*this* name. A port's colour marks the topic it links to. Link/Unlink
+write the **child's** fkey, so only the child is persisted; the parent's
+hook list is rebuilt in memory on load.
+```
+
 ## Two graphs, one set of primitives
 
 Yuneta has two graphs running side by side. They are not analogous —

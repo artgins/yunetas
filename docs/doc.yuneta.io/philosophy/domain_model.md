@@ -200,6 +200,16 @@ managed by convention:
 **CRUDLU** = **C**reate, **R**ead, **U**pdate, **D**elete, **L**ink,
 **U**nlink. Every TreeDB API call is one of these six shapes.
 
+```{figure} ../_static/crudlu_model.svg
+:alt: CRUD operates on entities; Link and Unlink operate on the relationships between them.
+:width: 100%
+
+CRUD acts on **entities** (the nodes); **Link** / **Unlink** act on the
+**relationships** between them. A relationship is a `hook` on the parent
+paired with an `fkey` on the child — see
+[The Typed-Graph Model](typed_graph_model.md).
+```
+
 ## Where to go next
 
 - [The Typed-Graph Model](typed_graph_model.md) — the conceptual frame
