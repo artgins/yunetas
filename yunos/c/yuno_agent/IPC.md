@@ -40,6 +40,10 @@ WebSocket frame) enters through a **gate** — a tree of protocol/transport
 gclasses — and becomes an event for the service to handle. Outgoing traffic
 takes the reverse path.
 
+![A message climbs the gate stack: external bytes to the C_TCP_S transport, to the protocol gclass, to C_IEVENT_SRV, to the service action; the response retraces the path back out. Each layer has its own trace level.](../../../docs/doc.yuneta.io/_static/message_pipeline.svg)
+
+The same path in text:
+
 ```
    external bytes  ──► transport gclass ──► protocol gclass ──► service gclass
                        (C_TCP_S, C_UDP_S)   (C_PROT_HTTP_SR,    (your gclass)

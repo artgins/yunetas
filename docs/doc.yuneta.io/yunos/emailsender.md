@@ -65,6 +65,15 @@ service (e.g. `logcenter`'s summary report).
 
 ## Delivery semantics
 
+```{figure} ../_static/emailsender_flow.svg
+:alt: send-email enqueues to the persistent emails_queue; a message is dispatched only while the SMTP session is connected and authenticated. Success removes it; a transient NACK retries up to max_retries while it stays at the head; a link outage keeps it queued; exhausted or permanently-undeliverable messages move to emails_failed, which is not retried.
+:width: 100%
+
+A queued message stays at the head until it is **sent** or its attempts are
+**exhausted**; a transient failure retries, a link outage just waits, and only
+exhaustion or a permanent error moves it to the `emails_failed` dead-letter.
+```
+
 Outgoing messages are held in the persistent `emails_queue` and are never
 dropped while waiting:
 

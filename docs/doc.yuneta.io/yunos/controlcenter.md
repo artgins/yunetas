@@ -6,6 +6,15 @@ control center (the agents are the clients); operators then reach any connected
 node *through* the control center. `C_CONTROLCENTER` is a **server** — it never
 dials out.
 
+```{figure} ../_static/controlcenter_topology.svg
+:alt: Nodes dial in to the control center's __input_side__ (agent on 1994, agent22 on 1995); operators reach the __top_side__ on 1997; a command-agent is routed back down the dial-in link to one node's agent, which runs command-yuno on its yunos.
+:width: 100%
+
+Nodes **dial in** to `__input_side__`; operators reach `__top_side__`. A
+`command-agent` rides **back down** the connection the node opened — which is
+how an operator reaches a node it could never dial directly.
+```
+
 ## How a node connects to a control center
 
 A node connects only when it has an **owner**. The primary

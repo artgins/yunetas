@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Emailsender delivery: send-email enqueues to the persistent emails_queue; a message is dispatched only while the SMTP session is connected and authenticated. Success removes it; a transient NACK retries up to max_retries while it stays at the head; a link outage keeps it queued and never dead-letters it; exhausted retries or a permanently undeliverable message move to emails_failed, which is not retried automatically.">
+  <defs>
+    <marker id="es" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+    <marker id="esG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+    <marker id="esA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d98a3d"/>
+    </marker>
+    <marker id="esR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c0492f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- send-email -->
+  <g>
+    <rect x="18" y="146" width="116" height="58" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="76" y="170" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">send-email</text>
+    <text x="76" y="188" text-anchor="middle" font-size="9.5" fill="#8593a3">EV_SEND_EMAIL</text>
+  </g>
+
+  <!-- emails_queue -->
+  <g>
+    <rect x="166" y="120" width="178" height="116" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="166" y="120" width="178" height="24" rx="9" fill="#4a78c8"/><rect x="166" y="132" width="178" height="12" fill="#4a78c8"/>
+    <text x="255" y="137" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">emails_queue</text>
+    <text x="255" y="162" text-anchor="middle" font-size="10" fill="#22386b">TimeRanger2 · persistent</text>
+    <text x="255" y="182" text-anchor="middle" font-size="9.5" fill="#5b78b0">body stored → survives restart</text>
+    <text x="255" y="204" text-anchor="middle" font-size="9.5" fill="#5b78b0">stays at HEAD until sent</text>
+    <text x="255" y="222" text-anchor="middle" font-size="9.5" fill="#5b78b0">or exhausted</text>
+  </g>
+
+  <!-- SMTP session gate -->
+  <g>
+    <rect x="372" y="128" width="174" height="100" rx="9" fill="#fff4e0" stroke="#d98a3d" stroke-width="1.5"/>
+    <rect x="372" y="128" width="174" height="24" rx="9" fill="#d98a3d"/><rect x="372" y="140" width="174" height="12" fill="#d98a3d"/>
+    <text x="459" y="145" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">C_SMTP_SESSION</text>
+    <text x="459" y="170" text-anchor="middle" font-size="10" fill="#7a4e18">dispatch only while</text>
+    <text x="459" y="186" text-anchor="middle" font-size="10" fill="#7a4e18">connected + authenticated</text>
+    <text x="459" y="208" text-anchor="middle" font-size="9.5" fill="#b08442">SMTPS · AUTH PLAIN</text>
+    <text x="459" y="222" text-anchor="middle" font-size="9.5" fill="#b08442">attempt ≤ max_retries</text>
+  </g>
+
+  <!-- outcomes -->
+  <!-- sent -->
+  <g>
+    <rect x="610" y="58" width="312" height="50" rx="8" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="624" y="79" font-size="11" font-weight="700" fill="#1d6b60">✓ sent</text>
+    <text x="624" y="97" font-size="9.5" fill="#3f9588">removed from queue · info log</text>
+  </g>
+  <!-- retry -->
+  <g>
+    <rect x="610" y="150" width="312" height="56" rx="8" fill="#fff4e0" stroke="#d98a3d" stroke-width="1.5"/>
+    <text x="624" y="171" font-size="11" font-weight="700" fill="#7a4e18">↻ transient NACK / dropped mid-send</text>
+    <text x="624" y="189" font-size="9.5" fill="#b08442">retry up to max_retries — stays at head · warning log</text>
+  </g>
+  <!-- dead-letter -->
+  <g>
+    <rect x="610" y="248" width="312" height="56" rx="8" fill="#fdecea" stroke="#c0492f" stroke-width="1.5"/>
+    <text x="624" y="269" font-size="11" font-weight="700" fill="#9a3a25">✕ exhausted or permanently undeliverable</text>
+    <text x="624" y="287" font-size="9.5" fill="#b56a55">→ emails_failed (dead-letter) · NOT retried · error log</text>
+  </g>
+
+  <!-- arrows -->
+  <line x1="134" y1="175" x2="166" y2="175" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#es)"/>
+  <line x1="344" y1="178" x2="372" y2="178" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#es)"/>
+  <text x="358" y="170" text-anchor="middle" font-size="8.5" fill="#8593a3">poll</text>
+
+  <line x1="546" y1="150" x2="610" y2="86" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#esG)"/>
+  <line x1="546" y1="178" x2="610" y2="178" stroke="#d98a3d" stroke-width="1.8" marker-end="url(#esA)"/>
+  <line x1="546" y1="206" x2="610" y2="270" stroke="#c0492f" stroke-width="1.8" marker-end="url(#esR)"/>
+
+  <!-- retry loop back to queue head -->
+  <path d="M610,196 L578,196 L578,330 L255,330 L255,236" fill="none" stroke="#d98a3d" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#esA)"/>
+  <text x="416" y="346" text-anchor="middle" font-size="9.5" font-weight="600" fill="#b08442">retried from the head — link outage keeps it queued (C_TCP reconnects), never dead-lettered for a transient drop</text>
+</svg>

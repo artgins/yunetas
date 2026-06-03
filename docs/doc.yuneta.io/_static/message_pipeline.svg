@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A message travels up the gate stack: external bytes to C_TCP_S transport, to the protocol gclass, to C_IEVENT_SRV, to the service action; the response travels back down to bytes out. Each layer has its own trace level.">
+  <defs>
+    <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a78c8"/>
+    </marker>
+    <marker id="mpBack" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8593a3"/>
+    </marker>
+    <marker id="mpT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="460" y="30" text-anchor="middle" font-size="12.5" font-weight="600" fill="#41504f">Inbound bytes climb the gate stack to a service event; the response retraces the path out</text>
+
+  <!-- RX arrow (top) -->
+  <text x="460" y="60" text-anchor="middle" font-size="10.5" font-weight="700" fill="#4a78c8">▲ RX  ·  EV_RX_DATA up</text>
+
+  <!-- boxes -->
+  <!-- bytes -->
+  <g>
+    <rect x="16" y="120" width="80" height="92" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="56" y="160" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">external</text>
+    <text x="56" y="176" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">bytes</text>
+  </g>
+  <!-- transport -->
+  <g>
+    <rect x="120" y="120" width="152" height="92" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="120" y="120" width="152" height="24" rx="9" fill="#4a78c8"/><rect x="120" y="132" width="152" height="12" fill="#4a78c8"/>
+    <text x="196" y="137" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">transport</text>
+    <text x="196" y="166" text-anchor="middle" font-size="11" fill="#22386b">C_TCP_S</text>
+    <text x="196" y="186" text-anchor="middle" font-size="10" fill="#5b78b0">C_UDP_S</text>
+    <text x="196" y="203" text-anchor="middle" font-size="9.5" fill="#8aa0c8">socket I/O (io_uring)</text>
+  </g>
+  <!-- protocol -->
+  <g>
+    <rect x="296" y="120" width="168" height="92" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="296" y="120" width="168" height="24" rx="9" fill="#4a78c8"/><rect x="296" y="132" width="168" height="12" fill="#4a78c8"/>
+    <text x="380" y="137" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">protocol</text>
+    <text x="380" y="164" text-anchor="middle" font-size="10.5" fill="#22386b">C_PROT_HTTP_SR</text>
+    <text x="380" y="181" text-anchor="middle" font-size="10.5" fill="#22386b">C_WEBSOCKET · C_PROT_MQTT2</text>
+    <text x="380" y="201" text-anchor="middle" font-size="9.5" fill="#8aa0c8">frames ⇄ events</text>
+  </g>
+  <!-- ievent -->
+  <g>
+    <rect x="488" y="120" width="150" height="92" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="488" y="120" width="150" height="24" rx="9" fill="#4a78c8"/><rect x="488" y="132" width="150" height="12" fill="#4a78c8"/>
+    <text x="563" y="137" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">ievent</text>
+    <text x="563" y="164" text-anchor="middle" font-size="10.5" fill="#22386b">C_IEVENT_SRV</text>
+    <text x="563" y="183" text-anchor="middle" font-size="9.5" fill="#8aa0c8">JSON-over-WS</text>
+    <text x="563" y="200" text-anchor="middle" font-size="9.5" fill="#8aa0c8">__md_iev__ routing</text>
+  </g>
+  <!-- service -->
+  <g>
+    <rect x="662" y="120" width="150" height="92" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <rect x="662" y="120" width="150" height="24" rx="9" fill="#2a9d8f"/><rect x="662" y="132" width="150" height="12" fill="#2a9d8f"/>
+    <text x="737" y="137" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">service</text>
+    <text x="737" y="164" text-anchor="middle" font-size="10.5" fill="#1d6b60">your gclass</text>
+    <text x="737" y="183" text-anchor="middle" font-size="9.5" fill="#3f9588">action(dst, event,</text>
+    <text x="737" y="198" text-anchor="middle" font-size="9.5" fill="#3f9588">kw, src)</text>
+  </g>
+
+  <!-- RX arrows -->
+  <line x1="96" y1="158" x2="120" y2="158" stroke="#4a78c8" stroke-width="2" marker-end="url(#mp)"/>
+  <line x1="272" y1="158" x2="296" y2="158" stroke="#4a78c8" stroke-width="2" marker-end="url(#mp)"/>
+  <line x1="464" y1="158" x2="488" y2="158" stroke="#4a78c8" stroke-width="2" marker-end="url(#mp)"/>
+  <line x1="638" y1="158" x2="662" y2="158" stroke="#4a78c8" stroke-width="2" marker-end="url(#mp)"/>
+
+  <!-- action outcomes -->
+  <line x1="812" y1="166" x2="846" y2="166" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#mpT)"/>
+  <g font-size="9.5" fill="#1d6b60">
+    <text x="848" y="150">gobj_publish_event</text>
+    <text x="848" y="168">treedb append</text>
+    <text x="848" y="186">gobj_command (remote)</text>
+  </g>
+
+  <!-- TX (response) back along the bottom -->
+  <path d="M737,212 L737,248 L56,248 L56,212" fill="none" stroke="#8593a3" stroke-width="1.8" marker-end="url(#mpBack)"/>
+  <text x="396" y="242" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5b6b7f">▼ TX  ·  the response retraces the stack down → EV_TX_DATA → bytes out</text>
+
+  <!-- trace strip -->
+  <rect x="16" y="300" width="796" height="62" rx="8" fill="#f6f7f9" stroke="#d8dee6"/>
+  <text x="28" y="320" font-size="10.5" font-weight="700" fill="#41504f">Where the traces fire (set-gclass-trace / set-global-trace):</text>
+  <text x="28" y="340" font-size="10" fill="#5b6b7f"><tspan font-weight="600">C_TCP</tspan>: connections · traffic · tls    ·    <tspan font-weight="600">protocol</tspan>: traffic    ·    <tspan font-weight="600">C_IEVENT_SRV</tspan>: ievents</text>
+  <text x="28" y="356" font-size="10" fill="#5b6b7f"><tspan font-weight="600">global "machine"</tspan>: every FSM event across all gclasses    ·    <tspan font-weight="600">global "traffic"</tspan>: raw bytes in/out</text>
+</svg>

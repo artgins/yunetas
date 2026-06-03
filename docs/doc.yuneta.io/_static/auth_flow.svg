@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="OIDC/PKCE auth sequence. Phase A login: the browser computes a PKCE verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to the auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Phase B per-request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check is currently commented out, so the handler runs regardless.">
+  <defs>
+    <marker id="af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- phase bands -->
+  <rect x="14" y="92" width="912" height="318" rx="8" fill="#eff4fb"/>
+  <rect x="14" y="420" width="912" height="200" rx="8" fill="#eef7f1"/>
+  <text x="26" y="110" font-size="11.5" font-weight="700" fill="#3b5e8c">Phase A — Login (PKCE, one time)</text>
+  <text x="26" y="438" font-size="11.5" font-weight="700" fill="#1d6b60">Phase B — Per request (every WS / command)</text>
+
+  <!-- lifelines -->
+  <g stroke="#b9c6d6" stroke-width="1.2" stroke-dasharray="3 3">
+    <line x1="120" y1="78" x2="120" y2="616"/>
+    <line x1="370" y1="78" x2="370" y2="616"/>
+    <line x1="610" y1="78" x2="610" y2="616"/>
+    <line x1="850" y1="78" x2="850" y2="616"/>
+  </g>
+
+  <!-- actor headers -->
+  <g>
+    <rect x="58" y="40" width="124" height="36" rx="8" fill="#3b4a5e"/>
+    <text x="120" y="63" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">Browser / SPA</text>
+    <rect x="312" y="40" width="116" height="36" rx="8" fill="#4a78c8"/>
+    <text x="370" y="63" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">auth_bff (BFF)</text>
+    <rect x="552" y="40" width="116" height="36" rx="8" fill="#d98a3d"/>
+    <text x="610" y="63" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">Keycloak (IdP)</text>
+    <rect x="788" y="40" width="124" height="36" rx="8" fill="#2a9d8f"/>
+    <text x="850" y="63" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">Backend yuno</text>
+  </g>
+
+  <!-- ===== Phase A messages ===== -->
+  <!-- self: PKCE gen -->
+  <rect x="60" y="124" width="200" height="30" rx="6" fill="#ffffff" stroke="#9aa7b6"/>
+  <text x="68" y="143" font-size="10" fill="#41504f">gen verifier + challenge (S256) + state</text>
+
+  <!-- browser -> keycloak: auth redirect -->
+  <line x1="120" y1="174" x2="610" y2="174" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="365" y="168" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">1. redirect /auth?response_type=code&amp;code_challenge&amp;state</text>
+
+  <!-- keycloak self: login -->
+  <rect x="540" y="186" width="140" height="28" rx="6" fill="#ffffff" stroke="#9aa7b6"/>
+  <text x="610" y="204" text-anchor="middle" font-size="10" fill="#41504f">user authenticates</text>
+
+  <!-- keycloak -> browser: code -->
+  <line x1="610" y1="232" x2="120" y2="232" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="365" y="226" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">2. 302 → ?code=AUTH_CODE&amp;state  (CSRF-checked)</text>
+
+  <!-- browser -> bff: callback -->
+  <line x1="120" y1="266" x2="370" y2="266" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="245" y="260" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">3. POST /auth/callback {code, code_verifier}</text>
+
+  <!-- bff -> keycloak: token exchange -->
+  <line x1="370" y1="300" x2="610" y2="300" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="490" y="294" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">4. POST /token  grant=code &amp; code_verifier</text>
+  <text x="490" y="316" text-anchor="middle" font-size="9" fill="#8593a3">server-to-server · Keycloak verifies PKCE</text>
+
+  <!-- keycloak -> bff: tokens -->
+  <line x1="610" y1="338" x2="370" y2="338" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="490" y="332" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">5. access + refresh tokens</text>
+
+  <!-- bff -> browser: set-cookie -->
+  <line x1="370" y1="380" x2="120" y2="380" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="245" y="362" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">6. Set-Cookie access_token</text>
+  <text x="245" y="374" text-anchor="middle" font-size="9" fill="#8593a3">HttpOnly · Secure · SameSite=Strict · Domain</text>
+
+  <!-- ===== Phase B messages ===== -->
+  <!-- browser -> backend: WS + cookie -->
+  <line x1="120" y1="468" x2="850" y2="468" stroke="#5b6b7f" stroke-width="1.6" marker-end="url(#af)"/>
+  <text x="470" y="462" text-anchor="middle" font-size="10" font-weight="600" fill="#41504f">7. WS upgrade — Cookie carries access_token (SPA never sees the token)</text>
+
+  <!-- backend self: ievent -> authz -->
+  <rect x="700" y="482" width="226" height="28" rx="6" fill="#ffffff" stroke="#9aa7b6"/>
+  <text x="813" y="500" text-anchor="middle" font-size="9.5" fill="#41504f">C_PROT_WEBSOCKET → C_IEVENT_SRV → C_AUTHZ</text>
+
+  <!-- backend self: jwks verify -->
+  <rect x="700" y="518" width="226" height="30" rx="6" fill="#ffffff" stroke="#9aa7b6"/>
+  <text x="813" y="531" text-anchor="middle" font-size="9.5" fill="#41504f">8. libjwt JWKS verify + claims (iss, azp, exp)</text>
+  <text x="813" y="544" text-anchor="middle" font-size="9.5" fill="#41504f">→ extract username → __username__</text>
+
+  <!-- disabled authz gate -->
+  <rect x="640" y="556" width="286" height="30" rx="6" fill="#fdecea" stroke="#c0492f" stroke-width="1.5"/>
+  <text x="783" y="569" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">⚠ 9. per-command authz (pm_*) is COMMENTED OUT</text>
+  <text x="783" y="581" text-anchor="middle" font-size="9" fill="#b56a55">the handler runs whether or not the user is authorized</text>
+
+  <!-- backend self: handler -->
+  <rect x="700" y="592" width="226" height="22" rx="6" fill="#e6f4ea" stroke="#2a9d8f"/>
+  <text x="813" y="607" text-anchor="middle" font-size="9.5" font-weight="600" fill="#1d6b60">→ handler (cmd_run_yuno, cmd_list_yunos, …)</text>
+</svg>

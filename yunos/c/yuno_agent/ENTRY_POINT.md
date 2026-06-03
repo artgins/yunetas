@@ -23,6 +23,10 @@ canonical example.
 
 ## 1. The picture
 
+![Process tree: init launches the grandparent yuneta_agent; the parent exits leaving a watcher (session leader, waitpid loop) that forks the yuno child; on a crash the watcher re-execs the child. pgrep yuneta_agent returns two pids per yuno.](../../../docs/doc.yuneta.io/_static/process_tree.svg)
+
+The same picture in text:
+
 ```
                  ┌─────────────────────────────────────────┐
 init / sysv ──►  │ grandparent: yuneta_agent --start       │

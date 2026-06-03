@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 430" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Control-center topology. Nodes dial in to the control center's __input_side__ over tcps (agent on 1994, agent22 on 1995). Operators reach the __top_side__ on 1997. A command-agent from an operator is routed by the control center back down the dial-in link to one node's agent, which then runs command-yuno on its yunos.">
+  <defs>
+    <marker id="cc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+    <marker id="ccT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="115" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="#8593a3">NODES (clients)</text>
+  <text x="485" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="#8593a3">CONTROL CENTER (server)</text>
+  <text x="828" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="#8593a3">OPERATORS</text>
+
+  <!-- ===== Node A ===== -->
+  <g>
+    <rect x="22" y="48" width="186" height="150" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <rect x="22" y="48" width="186" height="24" rx="9" fill="#3b4a5e"/><rect x="22" y="60" width="186" height="12" fill="#3b4a5e"/>
+    <text x="115" y="65" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">node (owned)</text>
+    <rect x="36" y="84" width="158" height="26" rx="6" fill="#fff4e0" stroke="#d98a3d"/>
+    <text x="44" y="101" font-size="10.5" fill="#7a4e18">yuneta_agent → :1994</text>
+    <rect x="36" y="116" width="158" height="26" rx="6" fill="#fff4e0" stroke="#d98a3d"/>
+    <text x="44" y="133" font-size="10.5" fill="#7a4e18">agent22 → :1995</text>
+    <rect x="36" y="150" width="158" height="34" rx="6" fill="#e6f4ea" stroke="#2a9d8f"/>
+    <text x="115" y="171" text-anchor="middle" font-size="10.5" fill="#1d6b60">its yunos (gates, dba, …)</text>
+  </g>
+  <!-- ===== Node B ===== -->
+  <g>
+    <rect x="22" y="232" width="186" height="110" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <rect x="22" y="232" width="186" height="24" rx="9" fill="#3b4a5e"/><rect x="22" y="244" width="186" height="12" fill="#3b4a5e"/>
+    <text x="115" y="249" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">node (owned)</text>
+    <text x="115" y="282" text-anchor="middle" font-size="10.5" fill="#41504f">yuneta_agent + agent22</text>
+    <text x="115" y="304" text-anchor="middle" font-size="10.5" fill="#5b6b7f">+ its yunos</text>
+  </g>
+  <text x="115" y="368" text-anchor="middle" font-size="10" fill="#9aa7b6">… N nodes dial in (only when node_owner ≠ "none")</text>
+
+  <!-- ===== Control Center ===== -->
+  <g>
+    <rect x="360" y="60" width="250" height="276" rx="10" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.6"/>
+    <rect x="360" y="60" width="250" height="26" rx="10" fill="#4a78c8"/><rect x="360" y="73" width="250" height="13" fill="#4a78c8"/>
+    <text x="485" y="78" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">C_CONTROLCENTER · :1997</text>
+    <text x="485" y="100" text-anchor="middle" font-size="9.5" fill="#5b78b0">never dials out — nodes are the clients</text>
+    <!-- gates -->
+    <rect x="372" y="116" width="226" height="30" rx="6" fill="#ffffff" stroke="#4a78c8"/>
+    <text x="485" y="135" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">__input_side__  (agents connect here)</text>
+    <rect x="372" y="270" width="226" height="30" rx="6" fill="#ffffff" stroke="#4a78c8"/>
+    <text x="485" y="289" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">__top_side__  (operators connect here)</text>
+    <!-- body -->
+    <text x="485" y="172" text-anchor="middle" font-size="10" fill="#41504f">list-agents = live scan of __input_side__</text>
+    <text x="485" y="188" text-anchor="middle" font-size="10" fill="#41504f">for C_IEVENT_SRV in ST_SESSION</text>
+    <text x="485" y="212" text-anchor="middle" font-size="10" fill="#41504f">addressed by UUID or hostname</text>
+    <text x="485" y="236" text-anchor="middle" font-size="9.5" fill="#8aa0c8">treedb_controlcenter: nodes · users · services</text>
+  </g>
+  <!-- input/top port dots -->
+  <circle cx="360" cy="131" r="6" fill="#4a78c8" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="610" cy="285" r="6" fill="#4a78c8" stroke="#fff" stroke-width="1.5"/>
+
+  <!-- ===== Operators ===== -->
+  <g>
+    <rect x="738" y="240" width="180" height="86" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <text x="828" y="266" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">ycommand / web</text>
+    <text x="828" y="288" text-anchor="middle" font-size="10.5" fill="#5b6b7f">wss://cc:1997</text>
+    <text x="828" y="308" text-anchor="middle" font-size="10" fill="#8593a3">--yuno-role=controlcenter</text>
+  </g>
+
+  <!-- dial-in arrows (nodes -> CC input) -->
+  <line x1="208" y1="110" x2="354" y2="131" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#cc)"/>
+  <text x="262" y="100" text-anchor="middle" font-size="9.5" font-weight="600" fill="#5b6b7f">dial in · tcps</text>
+  <line x1="208" y1="270" x2="354" y2="137" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#cc)"/>
+
+  <!-- operators -> CC top -->
+  <line x1="738" y1="283" x2="616" y2="285" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#cc)"/>
+  <text x="678" y="276" text-anchor="middle" font-size="9.5" font-weight="600" fill="#5b6b7f">:1997</text>
+
+  <!-- command-agent routed back down the dial-in link -->
+  <path d="M372,126 C300,116 250,96 208,86" fill="none" stroke="#2a9d8f" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ccT)"/>
+  <text x="286" y="64" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1d6b60">command-agent → the matching node</text>
+  <!-- node agent -> its yunos -->
+  <line x1="115" y1="142" x2="115" y2="150" stroke="#2a9d8f" stroke-width="1.6" marker-end="url(#ccT)"/>
+
+  <text x="470" y="416" text-anchor="middle" font-size="10.5" fill="#8593a3">An operator reaches a node it cannot dial: the command rides back down the connection the node opened.</text>
+</svg>

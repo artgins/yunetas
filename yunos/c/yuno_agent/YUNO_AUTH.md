@@ -43,6 +43,10 @@ Three independent pieces, often confused:
 
 End-to-end request flow on a real production yuno:
 
+![OIDC/PKCE auth sequence. Login (PKCE): the browser computes a verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Per request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check is currently commented out, so the handler runs regardless.](../../../docs/doc.yuneta.io/_static/auth_flow.svg)
+
+The same flow in text:
+
 ```
    browser SPA
         │
