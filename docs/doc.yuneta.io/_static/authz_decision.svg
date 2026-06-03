@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 320" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Authorization check: gobj_user_has_authz selects a checker by precedence — the gclass mt_authz_checker if defined, else the global_authorization_checker, else the default mechanism (C_AUTHZ). The chosen checker evaluates the user's roles and permissions against the required authz and returns TRUE or FALSE.">
+  <defs>
+    <marker id="az" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+    <marker id="azG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+    <marker id="azR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c0492f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- entry -->
+  <g>
+    <rect x="20" y="118" width="184" height="74" rx="9" fill="#3b4a5e"/>
+    <text x="112" y="148" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">gobj_user_has_authz</text>
+    <text x="112" y="167" text-anchor="middle" font-size="10" fill="#cdd6e1">(authz)</text>
+  </g>
+
+  <!-- checker precedence cascade -->
+  <text x="360" y="32" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5b6b7f">checker selection — first one set wins</text>
+  <g>
+    <rect x="248" y="44" width="224" height="50" rx="8" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <text x="360" y="64" text-anchor="middle" font-size="10.5" font-weight="700" fill="#22386b">mt_authz_checker</text>
+    <text x="360" y="80" text-anchor="middle" font-size="9" fill="#5b78b0">gclass method · if defined</text>
+
+    <rect x="248" y="118" width="224" height="50" rx="8" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <text x="360" y="138" text-anchor="middle" font-size="10.5" font-weight="700" fill="#22386b">global_authorization_checker</text>
+    <text x="360" y="154" text-anchor="middle" font-size="9" fill="#5b78b0">else · if registered</text>
+
+    <rect x="248" y="192" width="224" height="50" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <text x="360" y="212" text-anchor="middle" font-size="10.5" font-weight="700" fill="#33414f">default mechanism</text>
+    <text x="360" y="228" text-anchor="middle" font-size="9" fill="#8593a3">else · C_AUTHZ monoclass</text>
+  </g>
+  <!-- else arrows -->
+  <line x1="360" y1="94" x2="360" y2="118" stroke="#9aa7b6" stroke-width="1.5" marker-end="url(#az)"/>
+  <text x="378" y="110" font-size="8.5" fill="#9aa7b6">else</text>
+  <line x1="360" y1="168" x2="360" y2="192" stroke="#9aa7b6" stroke-width="1.5" marker-end="url(#az)"/>
+  <text x="378" y="184" font-size="8.5" fill="#9aa7b6">else</text>
+
+  <line x1="204" y1="155" x2="248" y2="143" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#az)"/>
+
+  <!-- C_AUTHZ eval -->
+  <g>
+    <rect x="540" y="108" width="180" height="94" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.6"/>
+    <text x="630" y="134" text-anchor="middle" font-size="11" font-weight="700" fill="#1d6b60">evaluate</text>
+    <text x="630" y="154" text-anchor="middle" font-size="9.5" fill="#3f9588">user roles × permissions</text>
+    <text x="630" y="170" text-anchor="middle" font-size="9.5" fill="#3f9588">vs required authz</text>
+    <text x="630" y="190" text-anchor="middle" font-size="9" fill="#8aa39d">(C_AUTHZ)</text>
+  </g>
+  <line x1="472" y1="155" x2="540" y2="155" stroke="#5b6b7f" stroke-width="1.8" marker-end="url(#az)"/>
+  <text x="506" y="147" text-anchor="middle" font-size="8.5" fill="#8593a3">chosen</text>
+
+  <!-- outcomes -->
+  <g>
+    <rect x="764" y="98" width="116" height="44" rx="8" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="822" y="125" text-anchor="middle" font-size="12" font-weight="700" fill="#1d6b60">TRUE ✓</text>
+    <rect x="764" y="168" width="116" height="44" rx="8" fill="#fdecea" stroke="#c0492f" stroke-width="1.5"/>
+    <text x="822" y="195" text-anchor="middle" font-size="12" font-weight="700" fill="#9a3a25">FALSE ✕</text>
+  </g>
+  <line x1="720" y1="142" x2="764" y2="124" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#azG)"/>
+  <line x1="720" y1="170" x2="764" y2="186" stroke="#c0492f" stroke-width="1.8" marker-end="url(#azR)"/>
+
+  <text x="450" y="296" text-anchor="middle" font-size="10" fill="#8593a3">The authentication path (gobj_authenticate → mt_authenticate ?? global parser ?? default) follows the same precedence shape.</text>
+</svg>

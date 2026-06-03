@@ -13,6 +13,10 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) (deploying yunos),
 
 ## 1. Which template to pick
 
+![Template decision tree: a gclass splits into SERVICE (gclass_service) or CHILD (gclass_child); a yuno into citizen (yuno_citizen) or standalone (yuno_standalone); a generic file or pure C project into c_h_file or c_project; a JS gclass uses js_gclass.](../../../docs/doc.yuneta.io/_static/scaffolding_tree.svg)
+
+The same decision in text:
+
 ```
                   what are you starting?
                             │

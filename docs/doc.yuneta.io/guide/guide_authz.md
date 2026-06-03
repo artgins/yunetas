@@ -86,6 +86,14 @@ These are public module-level functions (not GClass methods). They can be passed
 
 ### Authorization Workflow
 
+```{figure} ../_static/authz_decision.svg
+:alt: gobj_user_has_authz selects a checker by precedence — the gclass mt_authz_checker if defined, else the global_authorization_checker, else the default C_AUTHZ; the chosen checker evaluates the user's roles and permissions against the required authz and returns TRUE or FALSE.
+:width: 100%
+
+Checker selection is "first one set wins"; the authentication path
+(`gobj_authenticate`) follows the same precedence shape.
+```
+
 1. **Request Authorization:**
     - Call `gobj_user_has_authz()` with the required permission (`authz`).
 

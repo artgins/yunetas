@@ -33,6 +33,13 @@ message body is JSON (`{...}`) it is also folded into the summary tree.
 
 ## What it does with each record
 
+```{figure} ../_static/logcenter_pipeline.svg
+:alt: A UDP datagram (priority, sequence, message, crc) arrives at C_GSS_UDP_S; logcenter verifies the CRC and sequence, strips the framing, then fans out — counts by priority, writes a disk-guarded rotatory file, and if the body is JSON folds it into a summary tree; the summary is e-mailed and can restart the node on a queue alarm.
+:width: 100%
+
+One datagram fans out three ways; only JSON bodies reach the summary tree.
+```
+
 1. **Counts** it by syslog priority — Alert, Critical, Error, Warning, Info,
    Debug, Audit, Monitor.
 2. **Writes** it to a rotatory log file under the yuno's `logs/` directory,

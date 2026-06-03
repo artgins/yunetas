@@ -2,24 +2,6 @@
 
 Tracks API renames, removals and additions between versions.
 
-## docs: remaining diagram opportunities (from the doc review)
-
-A pass over the docs found ~13 spots that improve with a diagram. **Tier 1 and
-Tier 2 are done** (12 SVGs: process tree, message pipeline, OIDC/PKCE auth flow,
-control-center topology, emailsender retry/dead-letter; gobj tree + bottom
-chain, ievent WS stack, cert hot-swap, cert defense-in-depth, gbuffer layout,
-deploy/sync cycle — all hand-authored SVG, transparent background, no mermaid).
-Remaining:
-
-**Tier 3 (nice-to-have):**
-- [ ] gclass anatomy (coordinate with existing `gclass_diagram.svg`) — `guide/guide_gclass.md`
-- [ ] md2 record + O(1) lookup — `YUNO_TREEDB.md §2.2`
-- [ ] authz check decision path — `guide/guide_authz.md`
-- [ ] logcenter ingest pipeline — `yunos/logcenter.md`
-- [ ] realm on-disk layout + rt_by_disk hardlinks — `YUNO_TREEDB.md §3.8`
-- [ ] layered build stack — `installation.md` / `guide/folders.md`
-- [ ] SCAFFOLDING template decision tree — `SCAFFOLDING.md §1`
-
 ## Auth: OIDC migration follow-ups
 
 The `c_auth_bff` (BFF) and `c_task_authenticate` (ROPC task) gclasses

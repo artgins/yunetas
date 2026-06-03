@@ -74,6 +74,10 @@ everything (realms, yunos, binaries, configurations, users, roles); the
 
 For each opened database (a top-level directory):
 
+![timeranger2 on-disk layout: a database holds __timeranger2__.json and per-topic files; records live under keys/<key>/<date>.json paired with a 32-byte <date>.md2 index; the disks/<rt_id>/ tree holds hardlinks back into the keys/ files, which is how non-master and cross-yuno readers see the same data.](../../../docs/doc.yuneta.io/_static/treedb_ondisk.svg)
+
+The same layout in text:
+
 ```
 <database>/
   __timeranger2__.json                ← metadata + master lock
@@ -109,6 +113,8 @@ naturally rotate every day.
 Each `.md2` file is an array of fixed 32-byte records in big-endian
 order. The struct (`timeranger2.c:77-83`, in-memory shape
 `md2_record_ex_t` at `timeranger2.h:141-151`):
+
+![A md2 record is 32 bytes: four uint64 fields __t__, __tm__, __offset__, __size__. The .md2 file is an array of these indexed by rowid; lookup multiplies rowid by 32, seeks the .md2, reads offset and size, then seeks the paired .json. O(1).](../../../docs/doc.yuneta.io/_static/md2_record.svg)
 
 ```c
 typedef struct {

@@ -13,6 +13,14 @@ Source code in:
 
 ## Components of a GClass
 
+```{figure} ../_static/gclass_anatomy.svg
+:alt: The eleven components of a GClass grouped into identity (name, flags), data (attributes, private variables), behavior (global methods, local methods, event table, state table FSM) and control plane (command table, authz table, trace levels).
+:width: 100%
+
+The eleven components, grouped. The **State Table** (state × event → action)
+is the FSM every gobj of the gclass runs.
+```
+
 A `GClass` consists of several key components that define its operation:
 
 1. [`GClass Name`](#gclass_name_t)

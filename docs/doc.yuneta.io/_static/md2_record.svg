@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A md2 record is 32 bytes: four uint64 fields — __t__, __tm__, __offset__ and __size__. The .md2 file is an array of these records indexed by rowid; lookup multiplies rowid by 32, seeks the .md2, reads offset and size, then seeks the paired .json to read the record. O(1).">
+  <defs>
+    <marker id="mr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d98a3d"/>
+    </marker>
+    <marker id="mrN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="440" y="30" text-anchor="middle" font-size="12.5" font-weight="600" fill="#41504f">md2 record = 32 bytes · 4 × uint64 (big-endian)</text>
+
+  <!-- record block -->
+  <g>
+    <rect x="120" y="46" width="160" height="50" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.3"/>
+    <text x="200" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">__t__</text>
+    <text x="200" y="84" text-anchor="middle" font-size="8.5" fill="#8593a3">storage ts + flags</text>
+    <rect x="280" y="46" width="160" height="50" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.3"/>
+    <text x="360" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">__tm__</text>
+    <text x="360" y="84" text-anchor="middle" font-size="8.5" fill="#8593a3">creation ts + flags</text>
+    <rect x="440" y="46" width="160" height="50" fill="#fff4e0" stroke="#d98a3d" stroke-width="1.5"/>
+    <text x="520" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#7a4e18">__offset__</text>
+    <text x="520" y="84" text-anchor="middle" font-size="8.5" fill="#b08442">byte offset in .json</text>
+    <rect x="600" y="46" width="160" height="50" fill="#fff4e0" stroke="#d98a3d" stroke-width="1.5"/>
+    <text x="680" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#7a4e18">__size__</text>
+    <text x="680" y="84" text-anchor="middle" font-size="8.5" fill="#b08442">byte size</text>
+  </g>
+  <text x="440" y="112" text-anchor="middle" font-size="9" fill="#9aa7b6">8 bytes each · in memory only: system_flag · user_flag · rowid (never set by callers)</text>
+
+  <!-- .md2 file -->
+  <g>
+    <rect x="40" y="200" width="360" height="92" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="40" y="200" width="360" height="24" rx="9" fill="#4a78c8"/><rect x="40" y="212" width="360" height="12" fill="#4a78c8"/>
+    <text x="220" y="217" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">.md2 — fixed 32-byte slots (rowid index)</text>
+    <g font-size="9.5" fill="#22386b">
+      <rect x="56" y="236" width="70" height="44" rx="5" fill="#fff" stroke="#9bbcec"/><text x="91" y="262" text-anchor="middle">rowid 1</text>
+      <rect x="132" y="236" width="70" height="44" rx="5" fill="#fff" stroke="#9bbcec"/><text x="167" y="262" text-anchor="middle">rowid 2</text>
+      <rect x="208" y="236" width="70" height="44" rx="5" fill="#fde9d9" stroke="#d98a3d" stroke-width="1.6"/><text x="243" y="262" text-anchor="middle" fill="#7a4e18">rowid 3</text>
+      <rect x="284" y="236" width="70" height="44" rx="5" fill="#fff" stroke="#9bbcec"/><text x="319" y="262" text-anchor="middle">…</text>
+    </g>
+  </g>
+
+  <!-- .json file -->
+  <g>
+    <rect x="520" y="184" width="320" height="148" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <rect x="520" y="184" width="320" height="24" rx="9" fill="#5b6b7f"/><rect x="520" y="196" width="320" height="12" fill="#5b6b7f"/>
+    <text x="680" y="201" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">.json — appended records (one per line)</text>
+    <rect x="536" y="220" width="288" height="26" rx="4" fill="#fff" stroke="#cdd6e1"/><text x="548" y="237" font-size="9.5" fill="#8593a3">{…}  record at rowid 1</text>
+    <rect x="536" y="252" width="288" height="26" rx="4" fill="#fff" stroke="#cdd6e1"/><text x="548" y="269" font-size="9.5" fill="#8593a3">{…}  record at rowid 2</text>
+    <rect x="536" y="284" width="288" height="26" rx="4" fill="#fde9d9" stroke="#d98a3d" stroke-width="1.4"/><text x="548" y="301" font-size="9.5" fill="#7a4e18">{…}  record at offset .. offset+size</text>
+  </g>
+
+  <!-- lookup arrows -->
+  <text x="243" y="232" text-anchor="middle" font-size="8.5" font-weight="700" fill="#7a4e18">seek = rowid × 32</text>
+  <path d="M278,297 C360,300 440,300 520,297" fill="none" stroke="#d98a3d" stroke-width="1.8" marker-end="url(#mr)"/>
+  <text x="400" y="318" text-anchor="middle" font-size="9.5" font-weight="600" fill="#b08442">read __offset__ + __size__ → seek .json</text>
+
+  <text x="440" y="364" text-anchor="middle" font-size="11" fill="#5b6b7f">Lookup by rowid is <tspan font-weight="700" fill="#7a4e18">O(1)</tspan>: multiply by 32, seek the .md2, read offset+size, seek the .json. (By time range: O(N) over 32-byte records — still fast.)</text>
+</svg>

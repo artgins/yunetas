@@ -27,6 +27,14 @@ The Yuneta SDK is structured into the following top folders:
 
 The core framework of Yuneta, implemented in multiple languages.
 
+```{figure} ../_static/build_stack.svg
+:alt: The layered build-dependency stack, built and installed top to bottom: gobj-c, libjwt, ytls, yev_loop, timeranger2, root-linux, then modules, utils, yunos and tests. Each layer depends on the layers above it.
+:width: 75%
+
+`yunetas build` installs in this dependency order. A kernel-lib change only
+needs the layers that consume it rebuilt — not the whole stack.
+```
+
 - `C`:
 
     - `gobj-c`:

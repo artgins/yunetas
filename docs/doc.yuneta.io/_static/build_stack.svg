@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="The layered build-dependency stack, built and installed top to bottom: gobj-c, libjwt, ytls, yev_loop, timeranger2, root-linux, then modules, utils, yunos and tests. Each layer depends on the layers above it.">
+  <defs>
+    <marker id="bs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="360" y="30" text-anchor="middle" font-size="12.5" font-weight="600" fill="#41504f">Build / install in dependency order — each layer depends on the ones above</text>
+
+  <!-- side guides -->
+  <line x1="64" y1="56" x2="64" y2="470" stroke="#9aa7b6" stroke-width="1.5" marker-end="url(#bs)"/>
+  <text x="40" y="270" text-anchor="middle" font-size="10.5" font-weight="600" fill="#8593a3" transform="rotate(-90 40 270)">build order ↓ (yunetas build)</text>
+  <line x1="656" y1="470" x2="656" y2="56" stroke="#9aa7b6" stroke-width="1.5" marker-end="url(#bs)"/>
+  <text x="684" y="270" text-anchor="middle" font-size="10.5" font-weight="600" fill="#8593a3" transform="rotate(90 684 270)">depends on ↑</text>
+
+  <!-- layers -->
+  <g>
+    <rect x="110" y="50" width="500" height="38" rx="7" fill="#3b4a5e"/>
+    <text x="130" y="74" font-size="11.5" font-weight="700" fill="#fff">kernel/c/gobj-c</text>
+    <text x="600" y="74" text-anchor="end" font-size="9.5" fill="#cdd6e1">core GObject framework · logging · JSON</text>
+
+    <rect x="110" y="92" width="500" height="38" rx="7" fill="#46586e"/>
+    <text x="130" y="116" font-size="11.5" font-weight="700" fill="#fff">kernel/c/libjwt</text>
+    <text x="600" y="116" text-anchor="end" font-size="9.5" fill="#cdd6e1">JWT authentication</text>
+
+    <rect x="110" y="134" width="500" height="38" rx="7" fill="#4a78c8"/>
+    <text x="130" y="158" font-size="11.5" font-weight="700" fill="#fff">kernel/c/ytls</text>
+    <text x="600" y="158" text-anchor="end" font-size="9.5" fill="#e3edfb">TLS abstraction (OpenSSL / mbedTLS)</text>
+
+    <rect x="110" y="176" width="500" height="38" rx="7" fill="#5b86cf"/>
+    <text x="130" y="200" font-size="11.5" font-weight="700" fill="#fff">kernel/c/yev_loop</text>
+    <text x="600" y="200" text-anchor="end" font-size="9.5" fill="#e3edfb">async event loop (io_uring)</text>
+
+    <rect x="110" y="218" width="500" height="38" rx="7" fill="#2a9d8f"/>
+    <text x="130" y="242" font-size="11.5" font-weight="700" fill="#fff">kernel/c/timeranger2</text>
+    <text x="600" y="242" text-anchor="end" font-size="9.5" fill="#d7f0ea">append-only time-series + treedb</text>
+
+    <rect x="110" y="260" width="500" height="38" rx="7" fill="#3fae9f"/>
+    <text x="130" y="284" font-size="11.5" font-weight="700" fill="#fff">kernel/c/root-linux</text>
+    <text x="600" y="284" text-anchor="end" font-size="9.5" fill="#d7f0ea">runtime GClasses (TCP/UDP, timers, protocols, DB)</text>
+
+    <rect x="110" y="302" width="500" height="38" rx="7" fill="#e6f4ea" stroke="#2a9d8f"/>
+    <text x="130" y="326" font-size="11.5" font-weight="700" fill="#1d6b60">modules/c</text>
+    <text x="600" y="326" text-anchor="end" font-size="9.5" fill="#3f9588">optional: console · mqtt · postgres · test</text>
+
+    <rect x="110" y="344" width="500" height="38" rx="7" fill="#eef2f7" stroke="#5b6b7f"/>
+    <text x="130" y="368" font-size="11.5" font-weight="700" fill="#33414f">utils/c</text>
+    <text x="600" y="368" text-anchor="end" font-size="9.5" fill="#8593a3">CLI tools (ycommand, ytests, ylist, …)</text>
+
+    <rect x="110" y="386" width="500" height="38" rx="7" fill="#eef2f7" stroke="#5b6b7f"/>
+    <text x="130" y="410" font-size="11.5" font-weight="700" fill="#33414f">yunos/c</text>
+    <text x="600" y="410" text-anchor="end" font-size="9.5" fill="#8593a3">deployable services (agent, mqtt_broker, …)</text>
+
+    <rect x="110" y="428" width="500" height="38" rx="7" fill="#eef2f7" stroke="#5b6b7f"/>
+    <text x="130" y="452" font-size="11.5" font-weight="700" fill="#33414f">tests/c</text>
+    <text x="600" y="452" text-anchor="end" font-size="9.5" fill="#8593a3">ctest suites</text>
+  </g>
+
+  <text x="360" y="498" text-anchor="middle" font-size="10" fill="#8593a3">A kernel-lib change only needs the layers that consume it rebuilt — not the whole stack.</text>
+</svg>

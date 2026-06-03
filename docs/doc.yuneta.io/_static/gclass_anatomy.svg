@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="The eleven components of a GClass, grouped: identity (name, flags); data (public attributes, private variables); behavior (global methods, local methods, event table, state table FSM); and control plane (command table, authz table, trace levels). A GClass is static, registered once at startup.">
+  <!-- transparent background -->
+  <rect x="16" y="40" width="868" height="312" rx="12" fill="#fbfcfd" stroke="#d8dee6"/>
+  <text x="450" y="30" text-anchor="middle" font-size="13" font-weight="700" fill="#41504f">GClass — static, registered once at process start (the gobj is its runtime instance)</text>
+
+  <!-- group: identity -->
+  <text x="120" y="70" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3b4a5e">IDENTITY</text>
+  <g>
+    <rect x="34" y="80" width="172" height="40" rx="7" fill="#eef2f7" stroke="#3b4a5e"/>
+    <text x="120" y="105" text-anchor="middle" font-size="10.5" font-weight="600" fill="#33414f">GClass Name</text>
+    <rect x="34" y="128" width="172" height="40" rx="7" fill="#eef2f7" stroke="#3b4a5e"/>
+    <text x="120" y="153" text-anchor="middle" font-size="10.5" font-weight="600" fill="#33414f">gclass_flag</text>
+  </g>
+
+  <!-- group: data -->
+  <text x="332" y="70" text-anchor="middle" font-size="10.5" font-weight="700" fill="#4a78c8">DATA</text>
+  <g>
+    <rect x="246" y="80" width="172" height="40" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+    <text x="332" y="98" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">Attributes</text>
+    <text x="332" y="113" text-anchor="middle" font-size="9" fill="#5b78b0">public SData</text>
+    <rect x="246" y="128" width="172" height="40" rx="7" fill="#e8f0fe" stroke="#4a78c8"/>
+    <text x="332" y="146" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">Private Variables</text>
+    <text x="332" y="161" text-anchor="middle" font-size="9" fill="#5b78b0">priv (per instance)</text>
+  </g>
+
+  <!-- group: behavior -->
+  <text x="544" y="70" text-anchor="middle" font-size="10.5" font-weight="700" fill="#2a9d8f">BEHAVIOR</text>
+  <g>
+    <rect x="458" y="80" width="172" height="34" rx="7" fill="#e6f4ea" stroke="#2a9d8f"/>
+    <text x="544" y="101" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">GMETHODS (mt_*)</text>
+    <rect x="458" y="120" width="172" height="34" rx="7" fill="#e6f4ea" stroke="#2a9d8f"/>
+    <text x="544" y="141" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">LMETHODS</text>
+    <rect x="458" y="160" width="172" height="34" rx="7" fill="#e6f4ea" stroke="#2a9d8f"/>
+    <text x="544" y="181" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">Event Table</text>
+    <rect x="458" y="200" width="172" height="34" rx="7" fill="#d3efe6" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="544" y="221" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1d6b60">State Table (FSM)</text>
+  </g>
+
+  <!-- group: control -->
+  <text x="756" y="70" text-anchor="middle" font-size="10.5" font-weight="700" fill="#d98a3d">CONTROL PLANE</text>
+  <g>
+    <rect x="670" y="80" width="190" height="40" rx="7" fill="#fff4e0" stroke="#d98a3d"/>
+    <text x="765" y="105" text-anchor="middle" font-size="10.5" font-weight="600" fill="#7a4e18">Command Table</text>
+    <rect x="670" y="128" width="190" height="40" rx="7" fill="#fff4e0" stroke="#d98a3d"/>
+    <text x="765" y="153" text-anchor="middle" font-size="10.5" font-weight="600" fill="#7a4e18">Authz Table</text>
+    <rect x="670" y="176" width="190" height="40" rx="7" fill="#fff4e0" stroke="#d98a3d"/>
+    <text x="765" y="201" text-anchor="middle" font-size="10.5" font-weight="600" fill="#7a4e18">Trace Levels</text>
+  </g>
+
+  <text x="332" y="272" text-anchor="middle" font-size="10.5" fill="#5b6b7f">The <tspan font-weight="700" fill="#1d6b60">State Table</tspan> is the heart: <tspan font-weight="600">state × event → action</tspan> — the FSM every gobj of this gclass runs.</text>
+  <text x="450" y="332" text-anchor="middle" font-size="10" fill="#8593a3">All eleven are declared once with the SDATA() macro family; the framework calls into the gobj through the GMETHODS table.</text>
+</svg>
