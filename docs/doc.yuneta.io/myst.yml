@@ -358,6 +358,9 @@ project:
     - title: "Appendix: Function Index"
       file: api/appendix_api_index.md
 
+    - title: "Appendix: Diagram Index"
+      file: appendix_diagrams_index.md
+
     - title: Glossary
       file: glossary.md
 
