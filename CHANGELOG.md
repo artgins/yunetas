@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.5.0 -- 03/Jun/2026
     - **fix(agent): version-aware, stale-safe `delete-config`/`delete-binary`
       usage guard.** The "Using in N yunos" guard read the raw `yunos` hook
       count, which is config-id-level (shared across versions) and can carry

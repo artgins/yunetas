@@ -2,6 +2,22 @@
 
 Tracks API renames, removals and additions between versions.
 
+## docs: bring back graphical/diagram docs (v7 lost v6's visuals)
+
+Yuneta is a graph system (treedb = nodes/links, gobj tree, FSMs) but the v7
+docs (yunetas, mystmd) are text + tables — zero diagrams. The v6 philosophy doc
+(`^yuneta/docs/yuneta/filosofia.rst`) embedded interactive draw.io graphs via
+`.. raw:: html` + `app.diagrams.net`, and framed the model as **Entidad/
+Relación** with **CRUDLU** (Create/Read/Update/Delete + Link/Unlink). Reinstate
+visuals in the onboarding docs + doc.yuneta.io using `mermaid` (mystmd-native,
+also rendered by GitHub in-repo — more maintainable than draw.io embeds):
+
+- the **CRUDLU** model over Entidad/Relación (recover the v6 lámina);
+- the **treedb graph** (topics/nodes/hooks/fkeys; left-to-right, port-colour =
+  linkable topic);
+- the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose in
+  `YUNO_LIFECYCLE.md` §4.
+
 ## treedb: multi-version parent reverse-hook hygiene (minor, deeper)
 
 The user-facing symptom (stale `configurations.yunos` refs blocking
