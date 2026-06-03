@@ -32,6 +32,33 @@ if [ ! -f "${ORIGIN}index.html" ]; then
     exit 1
 fi
 
+# Anchor-scroll fix: the mystmd React theme resets scroll to the top on
+# hydration, so a deep link (`/page#fragment`) lands at the page top instead of
+# the anchor — even though the SSR HTML already has the heading id and nginx
+# does no redirect (verified: try_files, no 301). Inject a tiny script into
+# every built page that re-applies the #fragment scroll for ~2.5s after load,
+# beating the theme's reset, and stops as soon as the user scrolls.
+python3 - "$ORIGIN" <<'PYEOF'
+import sys, pathlib
+root = pathlib.Path(sys.argv[1])
+marker = 'location.hash.slice(1)'
+script = ('<script>(function(){if(!location.hash)return;'
+          'var id=decodeURIComponent(location.hash.slice(1)),n=0;'
+          'var iv=setInterval(function(){var el=document.getElementById(id);'
+          'if(el)el.scrollIntoView();if(++n>25)clearInterval(iv);},100);'
+          '["wheel","touchmove","keydown","pointerdown"].forEach(function(e){'
+          'window.addEventListener(e,function(){clearInterval(iv);},'
+          '{passive:true,once:true});});})();</script>')
+count = 0
+for f in root.rglob('index.html'):
+    html = f.read_text(encoding='utf-8')
+    if marker in html or '</body>' not in html:
+        continue
+    f.write_text(html.replace('</body>', script + '</body>', 1), encoding='utf-8')
+    count += 1
+print(f"anchor-scroll fix injected into {count} pages")
+PYEOF
+
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
 # the server too. --delete-after defers removals until the transfer succeeds.
