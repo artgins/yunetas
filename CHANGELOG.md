@@ -1,6 +1,8 @@
 # **Changelog**
 
 ## Unreleased
+
+## v7.4.8 -- 03/Jun/2026
     - **feat(agent): per-yuno `start_priority` launch tiers.** The agent's
       `yunos` topic gains `start_priority` (band 0..9, default 5). `run-yuno`
       launches ascending (utilities first), `kill-yuno`/`pause-yuno` descending
