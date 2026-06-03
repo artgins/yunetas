@@ -126,7 +126,7 @@ The realm owns the middle segment. Each yuno gets its own
 
 **Important nuance**: `create-realm` does **not** create
 `/yuneta/realms/<owner>/<url>/`. It only writes the treedb record. The
-directory is materialised by `mkrdir()` inside
+directory is materialised by [`mkrdir()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L334) inside
 `build_yuno_private_domain()` the first time a yuno of that realm is
 started. Empty realms therefore leave no on-disk trace.
 
@@ -145,28 +145,25 @@ treedb).
 
 ### 5.1 `create-realm`
 
-Handler at `c_agent.c`. Schema `pm_create_realm` at lines
-345-353.
+Handler at `c_agent.c`. Schema `pm_create_realm`.
 
 Required: `realm_owner`, `realm_role`, `realm_name`, `realm_env`.
 Optional: `bind_ip` (default `127.0.0.1`).
 
 Flow:
 
-1. Validate that none of the four required fields is empty (lines
-   2634-2673).
+1. Validate that none of the four required fields is empty.
 2. Compose the `id` (`<name>.<role>.<env>`).
-3. Check if a row with that `id` already exists (lines 2678-2706). If
+3. Check if a row with that `id` already exists. If
    yes, return *"Realm already exists"*.
-4. `gobj_create_node()` (line 2713) — write the row.
+4. `gobj_create_node()` — write the row.
 
 No on-disk directory is created. No bootstrap of a "default" realm exists
 (see §10.4).
 
 ### 5.2 `update-realm`
 
-Handler at `c_agent.c`. Schema `pm_update_realm` at lines
-355-359.
+Handler at `c_agent.c`. Schema `pm_update_realm`.
 
 **The only mutable field is `bind_ip`.** The four pkey components are
 not in the param schema; you cannot mutate them. To "rename" a realm,
@@ -179,11 +176,11 @@ Handler at `c_agent.c`.
 
 **Refusal conditions**:
 
-- If the realm has any child yunos in its `yunos` hook (lines 2864-2882
-  — iterate the hook and bail if `json_array_size > 0`). The check is
+- If the realm has any child yunos in its `yunos` hook (iterate the
+  hook and bail if `json_array_size > 0`). The check is
   *existence*, not *running* — you must `delete-yuno` every yuno first.
 
-On success: removes the treedb row (`gobj_delete_node()`, line 2893). The
+On success: removes the treedb row (`gobj_delete_node()`). The
 on-disk directory `/yuneta/realms/<owner>/<url>/`, if it ever was
 created, is **not** removed automatically — orphan directories survive
 realm deletion. Clean up by hand if it matters.
@@ -229,7 +226,7 @@ range_ports = "[[11100,11199]]"   ← default range
 last_port   = 0
 ```
 
-Allocation in `get_new_service_port()` at `c_agent.c` reads the
+Allocation in [`get_new_service_port()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L9072) at `c_agent.c` reads the
 agent's `range_ports`, advances `last_port` globally, and hands out the
 next port. **All realms on the host share the same pool.** Two realms
 asking for an automatic port get adjacent ports from the same range,
@@ -435,7 +432,7 @@ ycommand -c 'list-yunos'                                  # all yunos with their
 | `delete-realm` handler                            | `c_agent.c`                                              |
 | Realm URL composition (`<name>.<role>.<env>`)     | `c_agent.c`                                              |
 | Yuno working-dir from realm                       | `c_agent.c` (`build_yuno_private_domain`)                |
-| Agent's port pool                                 | `c_agent.c, 8639-8678`                                     |
+| Agent's port pool                                 | `c_agent.c`                                     |
 | Agent's cert sync attrs                           | `c_agent.c`                                                |
 | `bind_ip` default                                 | `treedb_schema_yuneta_agent.c` (realms topic, `bind_ip` field)     |
 | `parent_realm_id` self-fkey                       | `treedb_schema_yuneta_agent.c`                                 |

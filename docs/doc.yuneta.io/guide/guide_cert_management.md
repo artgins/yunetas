@@ -73,7 +73,7 @@ cascade-abort the hook. All output goes to `/var/log/yuneta/deploy-hook.log`.
 
 `command-yuno command=reload-certs service=__yuno__` is routed to
 `c_yuno`'s `reload-certs` handler, which walks the gobj tree and
-invokes each `C_TCP_S` / `C_UDP_S` listener's own `reload-certs`
+invokes each [`C_TCP_S`](#gclass-c-tcp-s) / [`C_UDP_S`](#gclass-c-udp-s) listener's own `reload-certs`
 command. Each listener:
 
 1. Reads its current `crypto` attribute (cert paths).
@@ -85,7 +85,7 @@ command. Each listener:
 
 ## Layer 2 — agent auto-sync (self-healing)
 
-The yuno_agent (`c_agent`) runs a second `C_TIMER` child dedicated to
+The yuno_agent (`c_agent`) runs a second [`C_TIMER`](#gclass-c-timer) child dedicated to
 cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
 30):
 
@@ -95,7 +95,7 @@ cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
    read `/etc/letsencrypt/live/`.
 2. Snapshot `size+mtime` of every `*.crt` under `cert_sync_store_dir`
    before and after the copy.
-3. If any file changed, invoke `cmd_command_yuno` internally to
+3. If any file changed, invoke [`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6070) internally to
    broadcast `reload-certs` to every running yuno — plus `gobj_command(gobj_yuno(), "reload-certs", ...)`
    on the agent itself.
 4. Update the read-only stats attrs:
@@ -138,8 +138,8 @@ The yuno itself (`c_yuno`) piggy-backs on its existing
    [`ytls_get_cert_info()`](../api/ytls/ytls.md#ytls_get_cert_info)
    augmented with `days_remaining`.
 3. For each listener:
-   - `days_remaining <= cert_critical_days` → `gobj_log_critical()`.
-   - `days_remaining <= cert_warn_days`     → `gobj_log_warning()`.
+   - `days_remaining <= cert_critical_days` → [`gobj_log_critical()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L514).
+   - `days_remaining <= cert_warn_days`     → [`gobj_log_warning()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L544).
 
 The monitor only alerts — it never triggers a reload. The auto-sync
 layer owns that responsibility, cleanly separating "something needs
@@ -222,7 +222,7 @@ uses `new_ctx`.
 **mbed-TLS backend.** The ytls layer maintains an explicit
 `mbedtls_state_t` bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` +
 `mbedtls_pk_context`) with a refcount. Each `hsskt` takes a ref on
-creation and releases it on `ytls_free_secure_filter()`; the swap drops
+creation and releases it on [`ytls_free_secure_filter()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L180); the swap drops
 the ytls handle's ref. Same end result: live sessions stay valid.
 
 ## Troubleshooting

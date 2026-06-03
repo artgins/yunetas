@@ -17,10 +17,10 @@ BFF code names everything as *IdP* (`idp_url`, `idp_calls`, `idp_timeouts`,
 |-------|-----------|------|------|
 | **Frontend (JS)** | `C_LOGIN` GClass | `yunos/js/gui_treedb/src/c_login.js` | Initiates PKCE flow, handles redirect callback, schedules token refresh |
 | **Config** | Per-hostname settings | `yunos/js/gui_treedb/src/conf/backend_config.js` | BFF URLs, Keycloak realm/client configuration |
-| **BFF Server (C)** | `C_AUTH_BFF` GClass | `kernel/c/root-linux/src/c_auth_bff.c` | HTTP server on port 1801; exchanges codes for tokens, manages cookies |
-| **WebSocket Bridge** | `C_WEBSOCKET` | `kernel/c/root-linux/src/c_websocket.c` | Captures `Cookie` header from HTTP Upgrade request |
-| **Gatekeeper** | `C_IEVENT_SRV` | `kernel/c/root-linux/src/c_ievent_srv.c` | Extracts `access_token` from cookie, injects into IDENTITY_CARD |
-| **Auth Manager** | `C_AUTHZ` | `kernel/c/root-linux/src/c_authz.c` | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
+| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) GClass | `kernel/c/root-linux/src/c_auth_bff.c` | HTTP server on port 1801; exchanges codes for tokens, manages cookies |
+| **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | `kernel/c/root-linux/src/c_websocket.c` | Captures `Cookie` header from HTTP Upgrade request |
+| **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | `kernel/c/root-linux/src/c_ievent_srv.c` | Extracts `access_token` from cookie, injects into IDENTITY_CARD |
+| **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | `kernel/c/root-linux/src/c_authz.c` | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
 | **JWT Library** | `libjwt` | `kernel/c/libjwt/src/` | Cryptographic JWT verification (RS256, ES256, EdDSA, etc.) |
 
 ---
@@ -331,7 +331,7 @@ in production:
   arrives for a disconnected client, drops it (`responses_dropped`
   counter). No cross-user token leak can occur: each task carries a
   per-browser generation which the reply path re-checks.
-- **Outbound IdP watchdog.** A `C_TIMER0` child arms `idp_timeout_ms` the
+- **Outbound IdP watchdog.** A [`C_TIMER0`](#gclass-c-timer0) child arms `idp_timeout_ms` the
   moment the outbound HTTP client is created and disarms on
   `ac_end_task`. On fire: the BFF sends `504 Gateway Timeout` to the
   browser, drains the task and bumps `idp_timeouts`. Closes the
@@ -344,7 +344,7 @@ in production:
 - **Log hygiene.** 4xx IdP replies are logged as `INFO`, not `ERROR` —
   a wrong password is not a server error. All secrets (cookies,
   authorization headers, client_secret) are redacted by
-  `redact_for_trace()` with case-insensitive key matching.
+  [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L885) with case-insensitive key matching.
 - **Stats.** `mt_stats` exposes:
   `requests_total`, `q_count`, `q_max_seen`, `q_full_drops`,
   `idp_calls`, `idp_ok`, `idp_errors`, `idp_timeouts`,

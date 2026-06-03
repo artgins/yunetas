@@ -97,7 +97,7 @@ The same flags work for [`ybatch`](ybatch.md) and [`ystats`](ystats.md).
 | `!!` | Re-run the last command (bash-style history expansion) |
 | `!N` | Re-run history entry N (1-based, matches `!history` output) |
 | `cmd1 ; cmd2 ; ...` | Chain; each waits for the previous response |
-| `-cmd` | Ignore errors for this command (the `ybatch` convention) |
+| `-cmd` | Ignore errors for this command (the [`ybatch`](#util-ybatch) convention) |
 | `#` at start of line | Comment (ignored by `!source` / stdin piping) |
 
 The `;` split is quote/brace aware: a `;` inside `"..."`, `'...'` or `{...}` is

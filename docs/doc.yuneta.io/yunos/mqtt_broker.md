@@ -63,7 +63,7 @@ transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 | `use_internal_schema` | `true` | Use the hardcoded TreeDB schema |
 | `on_critical_error` | `2` | `LOG_OPT_EXIT_ZERO` (exit, no auto-restart) on error |
 
-Session limits come from `C_AUTHZ` (e.g. `Authz.max_sessions_per_user`,
+Session limits come from [`C_AUTHZ`](#gclass-c-authz) (e.g. `Authz.max_sessions_per_user`,
 default 4 in `main.c`).
 
 Per-connection limits live on `C_PROT_MQTT2` and apply to each client:

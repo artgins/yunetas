@@ -178,12 +178,12 @@ main service. The structural difference is in `main.c_tmpl`.
 
 `skeletons/yuno_citizen/src/main.c_tmpl`:
 
-- Calls `register_c_{{rootname}}()` at line 104.
-- The `environment` block (lines 32-94) wires the standard log handlers:
+- Calls `register_c_{{rootname}}()`.
+- The `environment` block wires the standard log handlers:
   UDP to logcenter, file to local rotatory, stdout when running in
   console mode. See [`DEBUGGING.md`](DEBUGGING.md) §5.4.
-- `fixed_config` (lines 32-39) sets `yuno_role` and tags.
-- `variable_config` (lines 41-94) declares the standard service stack:
+- `fixed_config` sets `yuno_role` and tags.
+- `variable_config` declares the standard service stack:
   an `authz` service plus the app service.
 - Memory tuning aimed at "lots of small services on a host" (~200M).
 
@@ -196,7 +196,7 @@ logcenter by default. Suitable for everything you'd deploy with
 
 `skeletons/yuno_standalone/src/main.c_tmpl`:
 
-- Has its own `argp` CLI parser at lines 58-113 — accepts `-f <config>`
+- Has its own `argp` CLI parser — accepts `-f <config>`
   and `-V`/`--version`.
 - No `authz` service; no agent connection.
 - `fixed_config` + `variable_config` simpler — only the app service.
@@ -237,7 +237,7 @@ Reads:
   child anyway, fall back to subscribing the parent.
 
 Service templates also include `help` and `authzs` commands in their
-`command_table` (lines 31-54).
+`command_table`.
 
 Use for **anything that is registered with `gobj_create_default_service`,
 `gobj_create_service`, or expected to be reachable by name from
@@ -488,7 +488,7 @@ cmake .. && make
 |---------------------------------------------------|------------------------------------------------------------------------|
 | Tool entry point                                  | `utils/c/yuno-skeleton/yuno_skeleton.c`                          |
 | Templating engine (variables + dispatch)          | `utils/c/yuno-skeleton/make_skeleton.c`                        |
-| Directory walker + content rendering              | `utils/c/yuno-skeleton/tmpl_dir.c, 323-394`                     |
+| Directory walker + content rendering              | `utils/c/yuno-skeleton/tmpl_dir.c`                     |
 | Template catalog                                  | `utils/c/yuno-skeleton/skeletons/__skeletons__.json`                   |
 | `yuno_citizen` main template                      | `utils/c/yuno-skeleton/skeletons/yuno_citizen/src/main.c_tmpl`         |
 | `yuno_standalone` main template                   | `utils/c/yuno-skeleton/skeletons/yuno_standalone/src/main.c_tmpl`      |

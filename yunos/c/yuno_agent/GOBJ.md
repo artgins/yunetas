@@ -26,7 +26,7 @@ understand the lifecycle.
 
 | Concept   | Role                                                                     |
 |-----------|--------------------------------------------------------------------------|
-| **gclass** | The *class* (in the OO sense). Static, registered once at process start. Declares attrs, FSM (states + events + actions), command table, methods. Examples: `C_TIMER`, `C_TCP_S`, `C_AUTH_BFF`. |
+| **gclass** | The *class* (in the OO sense). Static, registered once at process start. Declares attrs, FSM (states + events + actions), command table, methods. Examples: [`C_TIMER`](#gclass-c-timer), [`C_TCP_S`](#gclass-c-tcp-s), [`C_AUTH_BFF`](#gclass-c-auth-bff). |
 | **gobj**   | A *runtime instance*. Created by `gobj_create*`, lives in a tree, holds a `priv` data pointer, has an FSM state, a `running`/`playing` flag, subscriptions, etc. |
 
 A gclass declares `mt_*` framework methods (next section). A gobj is the
@@ -119,7 +119,7 @@ Most useful ones, in roughly the order you'll write them:
 | `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
 | `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
-The full table (28+ slots — `mt_create_resource`, `mt_save_resource`,
+The full table (28+ slots — [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L206), `mt_save_resource`,
 `mt_create_node`, `mt_link_nodes`, etc.) is in `gobj.h`. Most
 gclasses use < 10 slots.
 
@@ -597,7 +597,7 @@ internally — `json_*` is fine.
 
 Memory
 `feedback_no_static_json_cache`:
-`static json_t *cached` leaks at `gobj_end` under
+`static json_t *cached` leaks at [`gobj_end`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L613) under
 `CONFIG_DEBUG_TRACK_MEMORY`. Parse on each call or hand the cache to a
 gobj that has a lifecycle.
 
@@ -645,8 +645,7 @@ Sites with this guard today: `c_websocket.c`, `c_prot_tcp4h.c`,
 `c_prot_mqtt.c`, `c_prot_mqtt2.c`. Fixed in commits
 `635b06a41` and `855527770` (2026-05-24).
 
-**Intentionally unguarded:** `c_prot_modbus_m.c` (`ac_rx_data`, lines
-3632-3633). The guard was applied in `855527770` and then reverted in
+**Intentionally unguarded:** `c_prot_modbus_m.c` (`ac_rx_data`). The guard was applied in `855527770` and then reverted in
 `54a2624f8` (2026-05-25): the modbus master flow is polled-master, the
 `EV_ON_MESSAGE` publish does not have an upstream authz NAK path that
 re-enters `ac_disconnected`, so the cascade pattern does not arise.
@@ -753,17 +752,17 @@ if(timer) {
 | Runtime                                           | `kernel/c/gobj-c/src/gobj.c` (~12k lines)                          |
 | `GMETHODS` struct                                 | `gobj.h`                                                   |
 | `gobj_create` family                              | `gobj.h`                                                   |
-| Lifecycle implementation                          | `gobj.c` (create), `4311-4526` (start/stop), `2272-2414` (destroy) |
-| `mt_writing` / `mt_reading` call sites            | `gobj.c`, `3516-3517`                                    |
+| Lifecycle implementation                          | `gobj.c` (create, start/stop, destroy)                     |
+| `mt_writing` / `mt_reading` call sites            | `gobj.c`                                    |
 | `obflag` flags                                    | `gobj.c`                                                     |
 | Attr R/W API                                      | `gobj.h`                                                 |
-| Bulk attr API + `mt_reading` route                | `gobj.c, 3622`                                                |
+| Bulk attr API + `mt_reading` route                | `gobj.c`                                                |
 | Persistent attr load/save                         | `gobj.c`                                                 |
 | SData types (`DTP_*`)                             | `gobj.h`                                                     |
 | SData flags (`SDF_*`)                             | `gobj.h`                                                    |
-| Service registry                                  | `gobj.c, 5076-5121`                                            |
-| Tree navigation                                   | `gobj.c` (children walks), `5076-6298` (predicates)      |
-| `gobj_yuno()` / `__yuno__`                        | `gobj.c, 5953-5959`                                            |
+| Service registry                                  | `gobj.c`                                            |
+| Tree navigation                                   | `gobj.c` (children walks, predicates)                    |
+| `gobj_yuno()` / `__yuno__`                        | `gobj.c`                                            |
 | Canonical minimal gclass                          | `kernel/c/root-linux/src/c_timer.c` (426 lines)                    |
 | Canonical large gclass                            | `kernel/c/root-linux/src/c_yuno.c`, `yunos/c/yuno_agent/src/c_agent.c` |
 | Banner / template conventions                     | `utils/c/yuno-skeleton/skeletons/`, [`SCAFFOLDING.md`](SCAFFOLDING.md) |

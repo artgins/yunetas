@@ -22,7 +22,7 @@ tr2search PATH [options]
 | `--from-t` / `--to-t`, `--from-tm` / `--to-tm` | Time ranges |
 | `--from-rowid` / `--to-rowid` | Rowid range |
 | `--user-flag-set` / `--system-flag-set` (+ `…-not-set`) | Flag filters |
-| `--fields`, `--mode form\|table`, `--show_md2`, `--recursive`, `--verbose`/`-l` | As in `tr2list` |
+| `--fields`, `--mode form\|table`, `--show_md2`, `--recursive`, `--verbose`/`-l` | As in [`tr2list`](#util-tr2list) |
 
 ## See also
 

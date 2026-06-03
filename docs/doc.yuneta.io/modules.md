@@ -10,7 +10,7 @@ Each module has its own page (see the navigation sidebar):
 
 | Module | Kconfig | GClasses | Description |
 |--------|---------|----------|-------------|
-| [**Console**](modules/console.md) | `CONFIG_MODULE_CONSOLE` | `C_EDITLINE` | Interactive terminal line editing with history (based on linenoise). Used by `ycli`, `ycommand` and `mqtt_tui`. |
+| [**Console**](modules/console.md) | `CONFIG_MODULE_CONSOLE` | `C_EDITLINE` | Interactive terminal line editing with history (based on linenoise). Used by [`ycli`](#util-ycli), [`ycommand`](#util-ycommand) and [`mqtt_tui`](#util-mqtt_tui). |
 | [**Modbus**](modules/modbus.md) | `CONFIG_MODULE_MODBUS` | `C_PROT_MODBUS_M` | Modbus protocol master — reads/writes device registers (coils, discrete inputs, input/holding registers). For industrial IoT. |
 | [**MQTT**](modules/mqtt.md) | `CONFIG_MODULE_MQTT` | `C_PROT_MQTT`, `C_PROT_MQTT2`, `C_MQTT_BROKER` | Full MQTT protocol implementation (v3.1.1 + v5.0) with a persistent message broker backed by TreeDB. |
 | [**Postgres**](modules/postgres.md) | `CONFIG_MODULE_POSTGRES` | `C_POSTGRES` | PostgreSQL integration — async query execution with automatic JSON-to-SQL type mapping. Requires `libpq`. |

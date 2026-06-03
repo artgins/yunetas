@@ -38,8 +38,8 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_timer`** | `C_TIMER` GClass — periodic timeout operations. |
-| **`test_c_timer0`** | `C_TIMER0` GClass — basic (low-level) timer. |
+| **`test_c_timer`** | [`C_TIMER`](#gclass-c-timer) GClass — periodic timeout operations. |
+| **`test_c_timer0`** | [`C_TIMER0`](#gclass-c-timer0) GClass — basic (low-level) timer. |
 
 **Source:** `tests/c/c_timer/`, `tests/c/c_timer0/`
 
@@ -50,7 +50,7 @@ Plain and TLS TCP through the full GObj protocol stack.
 | Binary | Description |
 |--------|-------------|
 | **`test_c_tcp test1–4`** | Plain TCP: connect, disconnect, echo, and rapid multi-message burst. |
-| **`test_c_tcp2 test1–4`** | Same scenarios using the newer `C_TCP_S` method (no `child_tree_filter`). |
+| **`test_c_tcp2 test1–4`** | Same scenarios using the newer [`C_TCP_S`](#gclass-c-tcp-s) method (no `child_tree_filter`). |
 | **`test_c_tcps test1–4`** | TLS TCP: connect, disconnect, echo, and multi-message burst. |
 | **`test_c_tcps2 test1–4`** | TLS TCP with the newer method. |
 
@@ -59,13 +59,13 @@ Plain and TLS TCP through the full GObj protocol stack.
 ## TLS certificate hot-reload
 
 Protects the [cert-reload feature](guide/guide_cert_management.md) — validates
-that `ytls_reload_certificates()` swaps certificates atomically without
+that [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L104) swaps certificates atomically without
 dropping live sessions and rolls back cleanly on invalid material.
 
 | Binary | Description |
 |--------|-------------|
 | **`test_cert_reload`** | Swap cert A → B and confirm `view-cert` reflects the new subject/not_after; feed an invalid cert and verify the previous context is kept intact (rollback). |
-| **`test_cert_info`** | `ytls_get_cert_info()` edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
+| **`test_cert_info`** | [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L119) edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
 | **`test_cert_reload_mem`** | 1000 reloads without any live session and asserts `get_cur_system_memory() == 0` (leak gate, run under valgrind for exhaustive checking). |
 | **`test_yevent_reload_live`** | One reload while a TCP session is live; the session keeps working end-to-end. |
 | **`test_yevent_reload_stress`** | 50 reloads with a live session, one echo message per iteration. |
@@ -76,14 +76,14 @@ dropping live sessions and rolls back cleanly on invalid material.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_llhttp_parser`** | Sanity test for the vendored llhttp library and the `ghttp_parser` wrapper: request/response parse, keep-alive pipelining, `HPE_PAUSED_UPGRADE` tail bytes, EOF completion via `ghttp_parser_finish()`. |
+| **`test_c_llhttp_parser`** | Sanity test for the vendored llhttp library and the `ghttp_parser` wrapper: request/response parse, keep-alive pipelining, `HPE_PAUSED_UPGRADE` tail bytes, EOF completion via [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ghttp_parser.c#L195). |
 
 **Source:** `tests/c/c_llhttp_parser/`
 
 ## OAuth2 / BFF (c_auth_bff)
 
 Self-contained yunos that spin up a **mock Keycloak** (signed HS256 JWTs,
-scriptable latency / response status / body override) alongside `C_AUTH_BFF`
+scriptable latency / response status / body override) alongside [`C_AUTH_BFF`](#gclass-c-auth-bff)
 and drive `/auth/login`, `/auth/callback`, `/auth/refresh`, `/auth/logout`
 through happy paths and failure modes. Each test is its own binary so a
 crash or leak cannot mask neighbours.
@@ -122,7 +122,7 @@ crash or leak cannot mask neighbours.
 | Binary | Description |
 |--------|-------------|
 | **`test_subscriptions test1–2`** | GObj event subscribe / unsubscribe lifecycle. |
-| **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the `C_NODE` GClass level. |
+| **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the [`C_NODE`](#gclass-c-node) GClass level. |
 | **`test_tr_treedb_link_events`** | Low-level link/unlink callback mechanism in `tr_treedb`. |
 
 **Source:** `tests/c/c_subscriptions/`, `tests/c/c_node_link_events/`,

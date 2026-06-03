@@ -169,7 +169,7 @@ the section where the diagram appears in context. All are hand-authored SVG
 :link: ./guide/guide_cert_management.md#the-three-layer-defense-in-depth
 ![cert defense](./_static/cert_defense.svg)
 
-**Cert defense in depth** — three layers → `ytls_reload_certificates()`.
+**Cert defense in depth** — three layers → [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L104).
 :::
 
 ::::

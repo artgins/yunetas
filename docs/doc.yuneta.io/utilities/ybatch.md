@@ -54,7 +54,7 @@ they may span multiple lines and any text outside a `{ ... }` block is ignored
 
 | Field | Meaning |
 |-------|---------|
-| `command` | The command string, exactly as you would type it in `ycommand` (with `arg=val`, `service=…`, etc.). Required. |
+| `command` | The command string, exactly as you would type it in [`ycommand`](#util-ycommand) (with `arg=val`, `service=…`, etc.). Required. |
 | `ignore_fail` | If `true`, a failure of this command does not abort the batch. |
 | `-` prefix | A leading `-` on the command value is shorthand for `ignore_fail: true` (the same convention `ycommand` uses). |
 

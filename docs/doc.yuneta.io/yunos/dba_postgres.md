@@ -3,7 +3,7 @@
 
 PostgreSQL data-access yuno. The `Dba_postgres` gclass is the DBA layer on top
 of the `__postgres__` service (the `C_POSTGRES` gclass, backed by `libpq`):
-it issues queries as `C_TASK` jobs and organizes persisted tables by time.
+it issues queries as [`C_TASK`](#gclass-c-task) jobs and organizes persisted tables by time.
 Requires `CONFIG_MODULE_POSTGRES=y` and `libpq`.
 
 ## Architecture

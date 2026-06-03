@@ -224,7 +224,7 @@ json_t *gobj_subscribe_event(publisher, event, kw, subscriber);
 int     gobj_unsubscribe_event(publisher, event, kw, subscriber);
 ```
 
-Storage at `gobj.c, 8525-8536`:
+Storage at `gobj.c`:
 
 - In the **publisher**: `dl_subscriptions` — list of who subscribes to me.
 - In the **subscriber**: `dl_subscribings` — list of whom I subscribe to.
@@ -301,11 +301,11 @@ real bugs.
 
 | End                | File                                              | Role                                                     |
 |--------------------|---------------------------------------------------|----------------------------------------------------------|
-| `C_IEVENT_SRV`     | `kernel/c/root-linux/src/c_ievent_srv.c`          | Listens; receives connections from clients.              |
-| `C_IEVENT_CLI`     | `kernel/c/root-linux/src/c_ievent_cli.c`          | Initiates; connects to a remote `C_IEVENT_SRV`.          |
+| [`C_IEVENT_SRV`](#gclass-c-ievent-srv)     | `kernel/c/root-linux/src/c_ievent_srv.c`          | Listens; receives connections from clients.              |
+| [`C_IEVENT_CLI`](#gclass-c-ievent-cli)     | `kernel/c/root-linux/src/c_ievent_cli.c`          | Initiates; connects to a remote `C_IEVENT_SRV`.          |
 
-Both sit on top of a WebSocket gclass (`C_WEBSOCKET`), which sits on top
-of TCP (`C_TCP` or `C_TCP_S`):
+Both sit on top of a WebSocket gclass ([`C_WEBSOCKET`](#gclass-c-websocket)), which sits on top
+of TCP ([`C_TCP`](#gclass-c-tcp) or [`C_TCP_S`](#gclass-c-tcp-s)):
 
 ![Two yunos over a WebSocket: yuno A stacks C_IEVENT_CLI over C_WEBSOCKET over C_TCP (client); yuno B stacks C_IEVENT_SRV over C_WEBSOCKET over C_TCP (clisrv). JSON-over-WS frames flow between the ievent layers, TCP/TLS between the transport layers; C_TCP_S is the listener that accepted the connection and spawned the clisrv child.](../../../docs/doc.yuneta.io/_static/ievent_stack.svg)
 
@@ -383,7 +383,7 @@ Other top-level keys in `kw` outside `__md_iev__`:
 
 - `__md_yuno__` — set by the responder via `msg_iev_set_back_metadata()`
   (`msg_ievent.c`). Survives the round-trip.
-- `__temp__` — **stripped at the yuno boundary** (`msg_ievent.c, 511`).
+- `__temp__` — **stripped at the yuno boundary** (`msg_ievent.c`).
   Use it freely for transport-local bookkeeping.
 - `__top_side__`, `__bottom_side__` — see §6.5.
 
@@ -407,10 +407,9 @@ When `C_IEVENT_CLI` opens its WS connection, it sends `EV_IDENTITY_CARD`
 
 The server validates (`c_ievent_srv.c`):
 
-1. Role match (line 677).
-2. Optional yuno-name match (line 694).
-3. Destination service exists (`gobj_find_service(iev_dst_service)`,
-   line 743).
+1. Role match.
+2. Optional yuno-name match.
+3. Destination service exists (`gobj_find_service(iev_dst_service)`).
 4. Auth (`jwt` or cookie).
 
 On success: stores `client_yuno_role`, `client_yuno_name`,
@@ -423,13 +422,13 @@ either way.
 
 ### 4.5 Routing inside the receiver
 
-`ac_on_message` in `[c_ievent_srv.c:933](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c#L933)+`:
+`ac_on_message` in [`c_ievent_srv.c:933`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c#L933):
 
 1. `iev_create_from_gbuffer` ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
    frame.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
-   `dst_role`, `dst_service` (`c_ievent_srv.c, 1070, 1092`).
-3. Validate the role/name (lines 1054, 1072).
+   `dst_role`, `dst_service` (`c_ievent_srv.c`).
+3. Validate the role/name.
 4. `gobj_find_service(iev_dst_service)` ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)) — case-insensitive
    lookup. Special names:
    - `__default_service__` (gobj.c) → resolves to the yuno's
@@ -520,7 +519,7 @@ json_t *msg_iev_build_response(
 Note the comment in the source: `// OLD msg_iev_build_webix()`. Legacy
 codebases still mention the old name; treat both as the same thing.
 
-The agent's `YUNO_LIFECYCLE.md` shows the `gobj_yuno_role_plus_name()` prefix
+The agent's `YUNO_LIFECYCLE.md` shows the [`gobj_yuno_role_plus_name()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5992) prefix
 convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
 
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
@@ -577,9 +576,9 @@ States typical of `C_TCP`: `STOPPED`, `DISCONNECTED`, `WAIT_CONNECTED`,
 
 `C_TCP_S` accepts and spawns a clisrv-mode `C_TCP` per connection. The
 filter for what gclass tree to instantiate above each clisrv is held in
-the `child_tree_filter` attribute (`c_tcp_s.c, 680-753`).
+the `child_tree_filter` attribute (`c_tcp_s.c`).
 
-### 6.3 HTTP server example: `C_PROT_HTTP_SR` → `C_TCP_S`
+### 6.3 HTTP server example: [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) → `C_TCP_S`
 
 `c_prot_http_sr.c`: builds a `ghttp_parser` (a wrapper around
 **llhttp** — note that yuneta swapped out the older `http_parser` library;
@@ -592,7 +591,7 @@ Service gclass subscribes to that and dispatches by URL or method.
 
 `C_WEBSOCKET` (`c_websocket.c`) handles the HTTP Upgrade handshake then
 parses RFC 6455 frames. Output `EV_ON_MESSAGE` carries either the text or
-binary payload. The `iamServer` attribute (`c_websocket.c, 217`)
+binary payload. The `iamServer` attribute (`c_websocket.c`)
 distinguishes server-mode from client-mode parsing of masked vs unmasked
 frames.
 
@@ -675,7 +674,7 @@ Anything a C client can. Concretely:
 See `DEBUGGING.md` §8 — the SPA's developer panel uses exactly this
 mechanism to display the wire-level ievent traffic in real time. The
 teardown order gotcha (`set_remote_log_functions(null)` BEFORE
-`do_disconnect`) is documented there.
+[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.5.1/modules/c/mqtt/src/c_prot_mqtt.c#L1572)) is documented there.
 
 ---
 
@@ -728,7 +727,7 @@ event), use `KW_INCREF` or `json_incref` first.
 
 Useful for in-process scratch data inside `kw`. Useless for anything you
 need on the far side of an ievent — that gets discarded by
-`msg_ievent.c, 532`. If you need persistent metadata across hops,
+`msg_ievent.c`. If you need persistent metadata across hops,
 put it under `__md_iev__` or use the stack.
 
 ### 8.7 `msg_iev_build_webix` is the same as `msg_iev_build_response`
@@ -839,7 +838,7 @@ listen for `EV_MT_COMMAND_ANSWER`.
    gobj_command(c_ievent_cli, "my-cmd", { ... }, this);
    ```
 
-5. Verify with `ycommand`:
+5. Verify with [`ycommand`](#util-ycommand):
 
    ```bash
    ycommand -c 'command-yuno id=<yuno> service=<service> command=my-cmd kw="{...}"'
@@ -879,7 +878,7 @@ listen for `EV_MT_COMMAND_ANSWER`.
 | State-before-action ("IMPORTANT HACK")        | `kernel/c/gobj-c/src/gobj.c`                                 |
 | `gobj_publish_event`                          | [`kernel/c/gobj-c/src/gobj.c:8877`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L8877)                                 |
 | `gobj_subscribe_event` config keys            | `kernel/c/gobj-c/src/gobj.h`                                 |
-| Subscription storage                          | `kernel/c/gobj-c/src/gobj.c, 8525-8536`                        |
+| Subscription storage                          | `kernel/c/gobj-c/src/gobj.c`                        |
 | `mt_inject_event` hook                        | `kernel/c/gobj-c/src/gobj.h`, `gobj.c`                        |
 | `KW_DECREF` / `KW_INCREF`                     | `kernel/c/gobj-c/src/kwid.h`                                    |
 | `C_IEVENT_SRV` / `C_IEVENT_CLI`               | `kernel/c/root-linux/src/c_ievent_srv.{c,h}`, `c_ievent_cli.{c,h}`     |
@@ -894,8 +893,8 @@ listen for `EV_MT_COMMAND_ANSWER`.
 | `gobj_command` / `gobj_stats` public API      | `kernel/c/gobj-c/src/gobj.h`                                 |
 | HTTP server protocol                          | `kernel/c/root-linux/src/c_prot_http_sr.c`                             |
 | WebSocket protocol                            | `kernel/c/root-linux/src/c_websocket.c`                                |
-| TCP transport (states + TLS hookup)           | `kernel/c/root-linux/src/c_tcp.c, 564-610`                       |
-| TCP server (`child_tree_filter`)              | `kernel/c/root-linux/src/c_tcp_s.c, 680-769`                        |
+| TCP transport (states + TLS hookup)           | `kernel/c/root-linux/src/c_tcp.c`                       |
+| TCP server (`child_tree_filter`)              | `kernel/c/root-linux/src/c_tcp_s.c`                        |
 | TLS abstraction                               | `kernel/c/ytls/src/ytls.h`                                      |
 | `public_services` / `required_services`       | `kernel/c/root-linux/src/c_yuno.c`                             |
 | JS-side `C_IEVENT_CLI`                        | `kernel/js/gobj-js/src/c_ievent_cli.js`                                |

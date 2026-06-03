@@ -4,7 +4,7 @@
 The primary agent — the supervisor of a Yuneta node. It manages the lifecycle
 of every other yuno (create / run / kill / update / delete), owns the realms
 and their on-disk layout, exposes the control plane, and coordinates inter-yuno
-communication. `ycommand`, `ystats`, `ylist` and `ybatch` talk to this yuno by
+communication. [`ycommand`](#util-ycommand), [`ystats`](#util-ystats), [`ylist`](#util-ylist) and [`ybatch`](#util-ybatch) talk to this yuno by
 default.
 
 ## Control plane ports
@@ -17,7 +17,7 @@ default.
 ## Connecting out to a control center
 
 When the node has an owner (`node_owner` ≠ `"none"`), the agent starts an
-outbound `C_IEVENT_CLI` client service named `controlcenter` and dials the
+outbound [`C_IEVENT_CLI`](#gclass-c-ievent-cli) client service named `controlcenter` and dials the
 control center. The remote URL is assembled from config variables:
 
 ```

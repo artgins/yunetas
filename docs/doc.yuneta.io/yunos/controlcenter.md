@@ -19,7 +19,7 @@ how an operator reaches a node it could never dial directly.
 
 A node connects only when it has an **owner**. The primary
 [`yuneta_agent`](yuneta_agent.md) declares an outbound client service named
-`controlcenter` (gclass `C_IEVENT_CLI`, chain
+`controlcenter` (gclass [`C_IEVENT_CLI`](#gclass-c-ievent-cli), chain
 `C_IEVENT_CLI → C_IOGATE → C_CHANNEL → C_PROT_TCP4H → C_TCP`, TLS). That service
 is `autostart:false` and is started **only** when `node_owner` ≠ `"none"`; an
 empty owner is forced to `"none"`, so by default a node does **not** dial out.
@@ -53,7 +53,7 @@ remote PTY consoles that the control center drives with `write-tty`.
 
 The control center exposes two gates (defined in its realm config, not in the
 binary): `__input_side__` where agents connect, and `__top_side__` where
-operators (web / `ycommand`) connect. In production it listens on port
+operators (web / [`ycommand`](#util-ycommand)) connect. In production it listens on port
 **1997**.
 
 **1 — point `ycommand` at the control center** (role and service are both
@@ -72,7 +72,7 @@ ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
 
 **2 — list the connected nodes** with `list-agents` (UUID, hostname, status).
 Connected nodes are discovered live: the control center scans `__input_side__`
-for `C_IEVENT_SRV` children in state `ST_SESSION` and reads each one's
+for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and reads each one's
 `identity_card` — a node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname**.
 
@@ -99,7 +99,7 @@ connected agents.
 
 ## Configuration
 
-The yuno composes `authz` (`C_AUTHZ`) + `controlcenter` (`C_CONTROLCENTER`,
+The yuno composes `authz` ([`C_AUTHZ`](#gclass-c-authz)) + `controlcenter` (`C_CONTROLCENTER`,
 default service); `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 
 | Attribute | Purpose |

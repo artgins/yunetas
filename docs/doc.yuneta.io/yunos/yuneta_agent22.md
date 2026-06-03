@@ -20,7 +20,7 @@ tcps://<machine>.<node_owner>.yunetacontrol.ovh:1995
 ## Remote consoles (PTY)
 
 `agent22`'s distinctive feature is a remote **console** facility built on a PTY
-(`C_PTY`, `forkpty`). The control center can open an interactive console on the
+([`C_PTY`](#gclass-c-pty), `forkpty`). The control center can open an interactive console on the
 node and stream keystrokes/output to it:
 
 | Command | Parameters | Description |

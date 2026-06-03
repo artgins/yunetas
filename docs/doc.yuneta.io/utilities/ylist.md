@@ -1,5 +1,5 @@
 (util-ylist)=
-# `ylist`
+# [`ylist`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/ylist/ylist.c#L164)
 
 `ylist` lists the Yuneta processes (yunos) running on the **local** machine,
 with their process information. Use it for a quick status check, or `--pids` for

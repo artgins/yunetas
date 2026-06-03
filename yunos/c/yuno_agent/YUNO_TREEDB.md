@@ -292,7 +292,7 @@ the deleted key. Two paths:
   `tranger2_key_deleted_callback_t` fires for each handle whose
   `key` filter matches (`""` = any).
 - **Across-process** (`rt_by_disk` followers): the master
-  `rmrdir`s `topic/disks/<rt_id>/<key>/` BEFORE the live
+  [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422)s `topic/disks/<rt_id>/<key>/` BEFORE the live
   `keys/<key>/` so the follower's inotify watcher catches it as
   `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
   `key_deleted_callback`. `fire_key_deleted_locally()` is split by
@@ -556,7 +556,7 @@ Memory
 `feedback_cross_yuno_via_store_not_command`:
 in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
 queries from the SPA go through `db_history_wz` reading B+ yunos'
-stores *non-master* via this pattern. **`cmd_command_yuno` does not
+stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6070) does not
 work** for B+ yunos because they don't publish their service via
 `__top_side__` — the store path is the right one.
 
@@ -677,7 +677,7 @@ yourself.
 restart
 
 The pointer is valid for the lifetime of the loaded tranger. After a
-`tranger2_stop` + `tranger2_startup` cycle the pointer is stale. If
+[`tranger2_stop`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L527) + `tranger2_startup` cycle the pointer is stale. If
 you keep references across stops, the framework won't notice — your
 crash will.
 
@@ -687,7 +687,7 @@ crash will.
 
 ### 5.1 Browse a topic from the CLI
 
-`yutils/c/ylist/` ships `ylist` for this. Without it, raw `find +
+`yutils/c/ylist/` ships [`ylist`](#util-ylist) for this. Without it, raw `find +
 jq`:
 
 ```bash
@@ -698,7 +698,7 @@ cat /yuneta/store/agent/treedb_yuneta_agent/realms/keys/*/*.json | jq .
 cat /yuneta/store/agent/treedb_yuneta_agent/yunos/keys/<id>/*.json | jq .
 ```
 
-For machine-friendly access, prefer `ycommand` against the agent
+For machine-friendly access, prefer [`ycommand`](#util-ycommand) against the agent
 (`list-yunos`, `list-realms`, `list-binaries`, `list-configs`) —
 those go through the treedb's in-memory state and apply schema
 correctly.
@@ -819,12 +819,12 @@ between the two yunos — pure inode plumbing.
 | Master / non-master lock                          | `timeranger2.c`                                               |
 | `tranger2_append_record`                          | `timeranger2.c` (g_rowid set at 2667, i_rowid at 2634)      |
 | `tranger2_open_rt_disk` (cross-yuno reads)        | `timeranger2.h`                                               |
-| TRACE_FS sites                                    | `timeranger2.c, 774, 794, 3284-4365` (multiple)                   |
+| TRACE_FS sites                                    | `timeranger2.c` (multiple)                   |
 | treedb public API                                 | `kernel/c/timeranger2/src/tr_treedb.h` (617 lines)                    |
 | treedb runtime                                    | `kernel/c/timeranger2/src/tr_treedb.c` (~8.9k lines)                  |
-| `__md_treedb__` builder                           | `tr_treedb.c, 4521-4533`                                    |
+| `__md_treedb__` builder                           | `tr_treedb.c`                                    |
 | Topic schema loader (`topic_cols.json`)           | `tr_treedb.c`                                                 |
-| `topic_version` matching                          | `tr_treedb.c, 526-563`                                            |
+| `topic_version` matching                          | `tr_treedb.c`                                            |
 | `treedb_link_nodes` / `treedb_unlink_nodes`       | `tr_treedb.c` (saves child only)                            |
 | `treedb_create/update/delete/get/list_node[s]`    | `tr_treedb.h`, `tr_treedb.c`                        |
 | Snapshot API                                      | `tr_treedb.h`                                                 |

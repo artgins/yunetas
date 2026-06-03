@@ -19,7 +19,7 @@ full yuno lifecycle, and the runtime subsystems behind them.
 - [Scaffolding new yunos](../../yunos/c/yuno_agent/SCAFFOLDING.md) — the
   `yuno-skeleton` templates and banner conventions.
 - [Auth, permissions, TLS](../../yunos/c/yuno_agent/YUNO_AUTH.md) — OIDC,
-  `auth_bff`, `C_AUTHZ`, and cert-sync.
+  `auth_bff`, [`C_AUTHZ`](#gclass-c-authz), and cert-sync.
 - [gobj framework crash course](../../yunos/c/yuno_agent/GOBJ.md) — gclass,
   `mt_*`, SData, and the runtime tree.
 - [timeranger2 + treedb crash course](../../yunos/c/yuno_agent/YUNO_TREEDB.md) —

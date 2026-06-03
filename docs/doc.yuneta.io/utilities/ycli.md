@@ -5,7 +5,7 @@
 same control plane (connect to a yuno, send commands, read responses), but in a
 windowed terminal UI built for live debugging and browsing rather than
 scripting. Use `ycli` when you want to keep several views open and watch a
-system interactively; use `ycommand` when you want a single command or a
+system interactively; use [`ycommand`](#util-ycommand) when you want a single command or a
 scriptable pipe.
 
 (The source directory was `yunos/c/yuno_cli` before 7.4.x; the binary has always

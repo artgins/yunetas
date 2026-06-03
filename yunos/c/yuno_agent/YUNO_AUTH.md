@@ -84,7 +84,7 @@ The same flow in text:
 
 ## 2. The `auth_bff` yuno — authentication
 
-A standalone Yuneta yuno that runs the `C_AUTH_BFF` kernel gclass. It is
+A standalone Yuneta yuno that runs the [`C_AUTH_BFF`](#gclass-c-auth-bff) kernel gclass. It is
 the **only** thing on the system that talks OAuth2 to the IdP. The SPA
 never sees a token — it just carries the cookie.
 
@@ -110,7 +110,7 @@ Implemented in `kernel/c/root-linux/src/c_auth_bff.c`. URL dispatcher at
 
 ### 2.3 PKCE authorisation-code flow
 
-`c_auth_bff.c, 1383-1476`. The flow:
+`c_auth_bff.c`. The flow:
 
 1. SPA generates `code_verifier`, derives `code_challenge`, redirects to
    IdP `/auth` with the challenge.
@@ -191,9 +191,9 @@ realm. See §7 for the project conventions.
 Two issues are tracked but not fixed (per
 `project_auth_bff_pending_bugs`):
 
-- **HTTP_CL chain leak** (`c_auth_bff.c, 1910-1978`). Under rapid
+- **HTTP_CL chain leak** (`c_auth_bff.c`). Under rapid
   browser-disconnect during a `/token` call, the outbound
-  `C_PROT_HTTP_CL` chain to Keycloak isn't always reclaimed cleanly.
+  [`C_PROT_HTTP_CL`](#gclass-c-prot-http-cl) chain to Keycloak isn't always reclaimed cleanly.
 - **No real-IdP smoke tests.** The auth_bff test suite at
   `tests/c/c_auth_bff/` runs against `c_mock_keycloak.c` only. Live
   Keycloak regressions are caught manually.
@@ -205,9 +205,9 @@ Two issues are tracked but not fixed (per
 ### 3.1 The Cookie crossing the WS upgrade
 
 The browser's WebSocket upgrade request includes the cookies set by the
-BFF (same Domain). `C_PROT_HTTP_SR` parses the headers, and the resulting
+BFF (same Domain). [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) parses the headers, and the resulting
 gobj tree carries the `Cookie` header through the upgrade into
-`C_IEVENT_SRV` (or `C_AUTHZ` acting as the external gate).
+[`C_IEVENT_SRV`](#gclass-c-ievent-srv) (or [`C_AUTHZ`](#gclass-c-authz) acting as the external gate).
 
 ### 3.2 Reading the JWT
 
@@ -224,7 +224,7 @@ runs **inside `C_AUTHZ`**, not `C_IEVENT_SRV`.
 ### 3.3 Signature verification: libjwt
 
 `kernel/c/libjwt/` — Yuneta vendors a copy of libjwt. The verification
-entry point is `jwt_parse()` in [`jwt-verify.c:83`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83). Keys come from JWKS
+entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83) in [`jwt-verify.c:83`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83). Keys come from JWKS
 fetched from the issuer (cached, refreshed on rotation). The crypto
 backend is OpenSSL or mbedTLS, runtime-selectable via the same `ytls`
 abstraction used by TCP.
@@ -250,7 +250,7 @@ Other validated claims: `iss` (must match `issuer`), `exp` (expiry),
 
 ### 3.5 The `__username__` attribute
 
-After successful authn, `c_authz.c, 969, 1177` writes the resolved
+After successful authn, `c_authz.c` writes the resolved
 username into the source gobj's `__username__` attribute:
 
 ```c
@@ -269,7 +269,7 @@ The `C_AUTHZ` gclass (`kernel/c/root-linux/src/c_authz.c`, 4114 lines)
 is the singleton authorisation service. One instance per yuno (created
 as the default `authz` service in the `yuno_citizen` template, see
 [`SCAFFOLDING.md`](SCAFFOLDING.md) §5.1). Other gobjs find it with
-`gobj_find_service_by_gclass(C_AUTHZ, TRUE)` (`c_authz.c, 4099`).
+`gobj_find_service_by_gclass(C_AUTHZ, TRUE)` (`c_authz.c`).
 
 ### 4.1 The `authzs` treedb schema
 
@@ -463,7 +463,7 @@ Declared in the `command_table` at `c_authz.c`. Just the names:
 All are declared with `SDF_AUTHZ_X`, intending to require
 `__execute_command__` — but see §4.5: that flag is currently unread.
 
-Agent-side: `cmd_authzs_yuno` ([`c_agent.c:6190`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6190), registered as
+Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6190) ([`c_agent.c:6190`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6190), registered as
 `authzs-yuno` at `c_agent.c`) is the agent's wrapper to broadcast
 authz data to all running yunos.
 
@@ -552,8 +552,8 @@ The `sudo -n` requires NOPASSWD in sudoers — a wide grant; see §8.10.
 ### 6.4 The reload broadcast
 
 `c_agent.c`: when the post-snapshot diff says "changed",
-`cert_sync_broadcast_reload()` sends `command=reload-certs service=__yuno__`
-to every running yuno via `cmd_command_yuno()`, plus the local agent.
+[`cert_sync_broadcast_reload()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L9366) sends `command=reload-certs service=__yuno__`
+to every running yuno via [`cmd_command_yuno()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6070), plus the local agent.
 
 Yunos without TLS listeners ignore the event. Yunos with TLS handle it
 at `c_tcp_s.c` — re-read the cert paths configured in their
@@ -562,8 +562,8 @@ existing connections alone.
 
 ### 6.5 `cert-sync-now` and `cert-sync-status`
 
-`cmd_cert_sync_now` ([`c_agent.c:6927`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6927)) forces a tick immediately.
-`cmd_cert_sync_status` ([`c_agent.c:6950`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6950)) returns the full state:
+[`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6927) ([`c_agent.c:6927`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6927)) forces a tick immediately.
+[`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6950) ([`c_agent.c:6950`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6950)) returns the full state:
 `enabled`, `interval_sec`, `store_dir`, `copy_cmd`, `last_check`,
 `last_action`, `last_result`, `failures`, plus a
 `deploy_hook_last_run` timestamp read from
@@ -695,7 +695,7 @@ on this — migrate the batches.
 
 ### 8.8 HTTP_CL chain leak on rapid disconnect
 
-`c_auth_bff.c, 1910-1978`. During load testing with aggressive
+`c_auth_bff.c`. During load testing with aggressive
 client disconnects mid-`/token`, the outbound HTTP client chain isn't
 always cleaned up. Watch the process's open-fd count when load is
 unusual.
@@ -869,13 +869,13 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 | `authzs` treedb schema                            | `kernel/c/root-linux/src/treedb_schema_authzs.c`                |
 | Role inheritance walk                             | `c_authz.c` (`get_user_roles`)                               |
 | `yuneta` super-user bypass                        | `c_authz.c`                                                    |
-| `__username__` write-side                         | `c_authz.c, 969, 1177`                                             |
+| `__username__` write-side                         | `c_authz.c`                                             |
 | `gobj_user_has_authz`                             | `gobj.h`, [`gobj.c:9400`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400)                                 |
 | `SDATAPM` / `SDATAAUTHZ` macros                   | `gobj.h`                                                       |
 | Commented-out command authz check                 | `kernel/c/gobj-c/src/command_parser.c`                          |
 | `EVF_AUTHZ_*` flags                               | `gobj.h`                                                       |
 | Agent's cert_sync attrs                           | `yunos/c/yuno_agent/src/c_agent.c`                             |
-| `cert_sync_tick` (diff + broadcast)               | `c_agent.c`                                                  |
+| [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L9384) (diff + broadcast)               | `c_agent.c`                                                  |
 | `cert_sync_broadcast_reload`                      | `c_agent.c`                                                  |
 | `cert-sync-now` / `cert-sync-status` commands     | `c_agent.c`                                                  |
 | `reload-certs` handler in TCP server              | `kernel/c/root-linux/src/c_tcp_s.c`                            |

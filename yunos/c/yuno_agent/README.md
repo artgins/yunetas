@@ -2,10 +2,10 @@
 
 Primary Yuneta agent. One per host. Manages the lifecycle of every yuno on the
 machine (create / run / pause / kill / update / delete), exposes a control
-interface to `ycommand` & friends, owns the local treedb that registers
+interface to [`ycommand`](#util-ycommand) & friends, owns the local treedb that registers
 binaries, configurations, yunos and realms, and brokers inter-yuno traffic.
 
-This is the yuno that `ycommand`, `ystats`, `ybatch` and `controlcenter` talk
+This is the yuno that `ycommand`, [`ystats`](#util-ystats), [`ybatch`](#util-ybatch) and `controlcenter` talk
 to by default.
 
 ## What lives here
@@ -13,7 +13,7 @@ to by default.
 | File                                                | What it is                                               |
 |-----------------------------------------------------|----------------------------------------------------------|
 | [`src/c_agent.c`](src/c_agent.c)                    | The agent gclass (commands, FSM, child yuno spawning)    |
-| [`src/c_agent.h`](src/c_agent.h)                    | Public interface (`register_c_agent`, `GOBJ_DECLARE_GCLASS`) |
+| [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L11593), `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
 | [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | **Minute 0: what every yuno's `main()` actually does.** `yuneta_entry_point()` step-by-step (argp, gbmem-setup + json allocator switch, config merge, log handlers, gclass registration), `ydaemon.c` double-fork supervisor (the watcher that makes a yuno survive without an agent), signals inside the child, how `kill-yuno` interacts with the watcher, `/var/crash/core.%e` forensics wired by the `.deb`. |
@@ -22,7 +22,7 @@ to by default.
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
 | [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and isn't realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
-| [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the `C_AUTHZ` service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
+| [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, `issuer` vs deprecated `idp_url`+`realm`), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas — **⚠ command authz check is commented out in `command_parser.c` today**, cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
 | [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`/`mt_start`/`mt_stop`/`mt_destroy`/`mt_writing`/`mt_reading`/etc.), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of `c_timer.c` (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
 | [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
@@ -45,7 +45,7 @@ to by default.
   the gclass-registration callback). Then `ydaemon.c`: the double-fork
   pattern, the **per-yuno watcher** that auto-relaunches the child on any
   abnormal exit (this is what makes a yuno survive `kill -9 yuneta_agent`),
-  the `waitpid` decision matrix, and `daemon_shutdown()`'s SIGQUIT-then-
+  the `waitpid` decision matrix, and [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L358)'s SIGQUIT-then-
   SIGKILL pair. Then signals inside the yuno child (signalfd, SIGQUIT
   semantics, SIGUSR1/2 as trace toggles). Then how the agent's
   `kill-yuno` interacts with the watcher and why the default doesn't
@@ -67,7 +67,7 @@ to by default.
   (states/actions tables, `EVF_*` flags, `kw` ownership, the "IMPORTANT HACK"
   of state-before-action), intra-yuno dispatch (`gobj_send_event`,
   `gobj_publish_event`, subscriptions, CHILD vs SERVICE), the inter-yuno
-  ievent layer (`C_IEVENT_SRV` / `C_IEVENT_CLI`, the `__md_iev__` metadata
+  ievent layer ([`C_IEVENT_SRV`](#gclass-c-ievent-srv) / [`C_IEVENT_CLI`](#gclass-c-ievent-cli), the `__md_iev__` metadata
   block, identity card handshake, routing), commands / stats (`gobj_command`,
   `msg_iev_build_response`), the gate stack (TCP/HTTP/WebSocket/MQTT, TLS,
   `public_services`), and the browser SPA case.

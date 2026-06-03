@@ -75,7 +75,7 @@ they are isomorphic in primitive shape:
 | `timeranger2` (persistence)| `yev_loop` (scheduler)                |
 
 The same `SDATA()` macro family declares the columns of a user record
-in `treedb_authzs` and the attributes of a `C_TCP` gobj. The same
+in `treedb_authzs` and the attributes of a [`C_TCP`](#gclass-c-tcp) gobj. The same
 notion of "subscriber" expresses both "this gobj listens for events
 from that one" and "this node points to that one". One mental model
 covers both planes — the difference is whether the binding is *static*

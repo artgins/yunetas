@@ -30,7 +30,7 @@ Run `mqtt_tui --help` for the full list. The meaningful groups:
 
 ### Connection & auth
 
-`--url`/`-u`, plus the same OAuth2 / OIDC flags as `ycommand` (`--issuer`/`-I`,
+`--url`/`-u`, plus the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand) (`--issuer`/`-I`,
 `--token-endpoint`/`-T`, `--client-id`/`-Z`, …). With OIDC, `mqtt_tui` fetches a
 JWT from the realm and presents it as the MQTT password; otherwise plain MQTT
 username/password is used. See [Authentication (OAuth2 / OIDC)](#ycommand-auth).

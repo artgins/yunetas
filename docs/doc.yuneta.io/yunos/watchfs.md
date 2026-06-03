@@ -1,7 +1,7 @@
 (yuno-watchfs)=
 # `watchfs`
 
-Directory watcher. It watches a path with the `C_FS` gclass and runs a shell
+Directory watcher. It watches a path with the [`C_FS`](#gclass-c-fs) gclass and runs a shell
 command whenever a matching file changes. Handy for auto-rebuild / auto-reload
 loops during development.
 

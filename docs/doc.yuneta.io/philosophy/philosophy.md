@@ -48,7 +48,7 @@ inside (its state machine, private data, action callbacks). The
 outside of a yuno (its control plane, its statistics, its persisted
 history) mirrors the outside of each gobj it contains. This
 fractal-like consistency is the reason a single set of tools —
-`ycommand`, tracing, logging, persistence — works at every scale.
+[`ycommand`](#util-ycommand), tracing, logging, persistence — works at every scale.
 
 ## Time is the axis everything hangs from
 

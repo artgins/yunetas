@@ -4,7 +4,7 @@
 **Kconfig:** `CONFIG_MODULE_CONSOLE` — **GClasses:** `C_EDITLINE`
 
 Interactive terminal line editing with history (based on linenoise). Used by
-`ycli`, `ycommand` and `mqtt_tui`.
+[`ycli`](#util-ycli), [`ycommand`](#util-ycommand) and [`mqtt_tui`](#util-mqtt_tui).
 
 ## C_EDITLINE
 

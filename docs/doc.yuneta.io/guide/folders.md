@@ -153,34 +153,34 @@ Auxiliary tools for building and compiling Yuneta projects.
 Utility scripts and CLI tools for Yuneta.
 
 - `C`:
-    - `fs_watcher`: Monitors filesystem changes.
-    - `inotify`: Tracks file events using inotify.
-    - `json_diff`: JSON diff utility.
-    - `list_queue_msgs2`: Lists queue messages.
-    - `mqtt_tui`: Interactive MQTT client (text-based UI).
-    - `msg2db_list`: Lists msg2db records.
+    - [`fs_watcher`](#util-fs_watcher): Monitors filesystem changes.
+    - [`inotify`](#util-inotify): Tracks file events using inotify.
+    - [`json_diff`](#util-json_diff): JSON diff utility.
+    - [`list_queue_msgs2`](#util-list_queue_msgs2): Lists queue messages.
+    - [`mqtt_tui`](#util-mqtt_tui): Interactive MQTT client (text-based UI).
+    - [`msg2db_list`](#util-msg2db_list): Lists msg2db records.
     - `pkey_to_jwks`: Converts public keys to JWKS format.
-    - `stats_list`: Lists statistics.
+    - [`stats_list`](#util-stats_list): Lists statistics.
     - `test-static`: Tests for static builds.
-    - `time2date`: Converts timestamps to dates.
-    - `time2range`: Converts timestamps to time ranges.
-    - `tr2keys`: Processes keys in Timeranger2.
-    - `tr2list`: Lists entries in Timeranger2.
-    - `tr2migrate`: Migrates data between Timeranger2 instances.
-    - `tr2search`: Searches in Timeranger2.
-    - `treedb_list`: Lists TreeDB entries.
-    - `ybatch`: Batch operations for yunos.
-    - `ycli`: Interactive ncurses CLI for yunos.
+    - [`time2date`](#util-time2date): Converts timestamps to dates.
+    - [`time2range`](#util-time2range): Converts timestamps to time ranges.
+    - [`tr2keys`](#util-tr2keys): Processes keys in Timeranger2.
+    - [`tr2list`](#util-tr2list): Lists entries in Timeranger2.
+    - [`tr2migrate`](#util-tr2migrate): Migrates data between Timeranger2 instances.
+    - [`tr2search`](#util-tr2search): Searches in Timeranger2.
+    - [`treedb_list`](#util-treedb_list): Lists TreeDB entries.
+    - [`ybatch`](#util-ybatch): Batch operations for yunos.
+    - [`ycli`](#util-ycli): Interactive ncurses CLI for yunos.
     - `yclone-gclass`: Clones a GClass template.
     - `yclone-project`: Clones a project template.
-    - `ycommand`: Control-plane CLI for running yunos.
-    - `ylist`: Lists yunos.
+    - [`ycommand`](#util-ycommand): Control-plane CLI for running yunos.
+    - [`ylist`](#util-ylist): Lists yunos.
     - `ymake-skeleton`: Generates project skeletons.
-    - `yscapec`: Escapes C strings.
-    - `yshutdown`: Shuts down yunos.
-    - `ystats`: Retrieves yuno statistics.
-    - `ytestconfig`: Tests configuration files.
-    - `ytests`: Test runner.
+    - [`yscapec`](#util-yscapec): Escapes C strings.
+    - [`yshutdown`](#util-yshutdown): Shuts down yunos.
+    - [`ystats`](#util-ystats): Retrieves yuno statistics.
+    - [`ytestconfig`](#util-ytestconfig): Tests configuration files.
+    - [`ytests`](#util-ytests): Test runner.
     - `yuno-skeleton`: Generates yuno skeletons.
 
 ---

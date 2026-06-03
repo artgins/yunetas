@@ -18,7 +18,7 @@ binaries are registered as `ctest` targets and run automatically with
 | **`perf_tcps_test5`** | TLS + timeranger2 persistence. ~17,406 op/sec. |
 | **`perf_yev_ping_pong`** | Raw io_uring ping-pong (no GObj overhead). ~173K msg/sec, 177 MB/sec. |
 | **`perf_yev_ping_pong2`** | Same as ping-pong but including timeranger2 persistence overhead. |
-| **`perf_auth_bff`** | Ping-pong-style live throughput over the OAuth2 BFF (`C_AUTH_BFF`). Default 10 s runs, ~180,000 ops on the reference box. |
+| **`perf_auth_bff`** | Ping-pong-style live throughput over the OAuth2 BFF ([`C_AUTH_BFF`](#gclass-c-auth-bff)). Default 10 s runs, ~180,000 ops on the reference box. |
 
 **Source:** `performance/c/perf_c_tcp/`, `performance/c/perf_c_tcps/`,
 `performance/c/perf_yev_ping_pong/`, `performance/c/perf_yev_ping_pong2/`,
@@ -31,7 +31,7 @@ are run manually — they are **not** part of `ctest`.
 
 | Binary | Description |
 |--------|-------------|
-| **`stress_listen`** | TCP server that accepts massive concurrent connections (tested up to 1.5M). Tracks connection/message metrics and resource usage. Architecture: `C_LISTEN` → `C_IOGATE` → `C_TCP_S` → 11,000 pre-allocated `C_CHANNEL` → `C_PROT_TCP4H` → `C_TCP`. |
+| **`stress_listen`** | TCP server that accepts massive concurrent connections (tested up to 1.5M). Tracks connection/message metrics and resource usage. Architecture: `C_LISTEN` → [`C_IOGATE`](#gclass-c-iogate) → [`C_TCP_S`](#gclass-c-tcp-s) → 11,000 pre-allocated [`C_CHANNEL`](#gclass-c-channel) → [`C_PROT_TCP4H`](#gclass-c-prot-tcp4h) → [`C_TCP`](#gclass-c-tcp). |
 | **`stress/auth_bff`** | Drives concurrent OAuth2 BFF login / refresh / logout cycles to expose races between the pending queue, the `kc_timeout` watchdog and the flush-on-disconnect path. |
 
 Companion Node.js scripts for generating load:

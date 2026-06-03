@@ -31,7 +31,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (control-plane)=
 **Control plane**
-:   The built-in mechanism that exposes every yuno's commands and stats over a local socket or WebSocket. Interact with it using `ycommand`, `ybatch`, or `ystats`. See [Utilities](utilities.md).
+:   The built-in mechanism that exposes every yuno's commands and stats over a local socket or WebSocket. Interact with it using [`ycommand`](#util-ycommand), [`ybatch`](#util-ybatch), or [`ystats`](#util-ystats). See [Utilities](utilities.md).
 
 **CRUDLU**
 :   Extended CRUD operations for [TreeDB](#glossary-treedb): **C**reate, **R**ead, **U**pdate, **D**elete, **L**ink, **U**nlink — accounting for graph relationships between nodes.

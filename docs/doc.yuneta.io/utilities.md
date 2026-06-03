@@ -23,7 +23,7 @@ Each tool has its own page (see the navigation sidebar). Grouped by area:
 ## Interactive Clients
 
 Interactive, full-screen front-ends to a running yuno. (Both lived under
-`yunos/c/` before 7.4.x — `yuno_cli` was renamed to `ycli` when it moved here.)
+`yunos/c/` before 7.4.x — `yuno_cli` was renamed to [`ycli`](#util-ycli) when it moved here.)
 
 - [`ycli`](utilities/ycli.md)
 - [`mqtt_tui`](utilities/mqtt_tui.md)

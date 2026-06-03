@@ -20,7 +20,7 @@ event loop, and TLS.
 - [Command Parser](parser_command.md) — exposing commands to the control plane.
 - [Stats Parser](parser_stats.md) — exposing statistics.
 - [Settings](settings.md) — configuration merging and overrides.
-- [Authorization](guide_authz.md) — `C_AUTHZ`, roles, and permissions.
+- [Authorization](guide_authz.md) — [`C_AUTHZ`](#gclass-c-authz), roles, and permissions.
 - [Timeranger2](guide_timeranger2.md) — the append-only time-series store.
 - [Event Loop](guide_yev_loop.md) — the io_uring-based async loop.
 - [ytls](guide_ytls.md) — the runtime-selectable TLS abstraction.

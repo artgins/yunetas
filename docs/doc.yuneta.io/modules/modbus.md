@@ -20,7 +20,7 @@ Modbus master protocol — supports four object types:
 Address range `0x0000`–`0xFFFF`. Configuration-driven slave device
 mapping with data-format conversion and multiplier support.
 
-The master runs over `C_TCP` (`"modbus_protocol": "TCP"`). The slave/register
+The master runs over [`C_TCP`](#gclass-c-tcp) (`"modbus_protocol": "TCP"`). The slave/register
 map is JSON config: a `slaves` array, each with its register definitions
 (`type`, address, format, multiplier). The master polls them on a timer.
 

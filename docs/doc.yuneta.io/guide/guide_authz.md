@@ -56,13 +56,13 @@ The authorization checker:
 
 ---
 
-## GClass `C_AUTHZ`
+## GClass [`C_AUTHZ`](#gclass-c-authz)
 
 Yuneta provides a module `c_authz` with default standalone implementations for authentication and authorization:
 - **Authentication:** `PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)`
 - **Authorization:** `PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)`
 
-These are public module-level functions (not GClass methods). They can be passed directly to `gobj_start_up()` as the global authentication parser and authorization checker. Internally, `authz_checker` locates the `C_AUTHZ` service instance to perform the actual check.
+These are public module-level functions (not GClass methods). They can be passed directly to `gobj_start_up()` as the global authentication parser and authorization checker. Internally, [`authz_checker`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L4725) locates the `C_AUTHZ` service instance to perform the actual check.
 
 ---
 
@@ -71,10 +71,10 @@ These are public module-level functions (not GClass methods). They can be passed
 ### Authentication Workflow
 
 1. **Request Authentication:**
-    - Call `gobj_authenticate()` with user credentials in `kw`.
+    - Call [`gobj_authenticate()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9270) with user credentials in `kw`.
 
 2. **Parser Selection:**
-    - If the GClass defines `mt_authenticate`, it is called.
+    - If the GClass defines [`mt_authenticate`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L796), it is called.
     - Otherwise, the `global_authentication_parser` is used.
     - If no parser is provided, the default mechanism is used.
 

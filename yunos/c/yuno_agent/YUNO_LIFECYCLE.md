@@ -154,7 +154,7 @@ config commands only (admin, realm, certs and console commands omitted):
 |-------------------|-------------|-------------------------------------------------------------------------|
 | `install-binary`  | c_agent.c | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | c_agent.c | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | c_agent.c | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via `gobj_get_node`, so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then `gobj_delete_node` + `rmrdir`. |
+| `delete-binary`   | c_agent.c | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via `gobj_get_node`, so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then `gobj_delete_node` + [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422). |
 | `list-binaries`   | c_agent.c | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | c_agent.c | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -252,7 +252,7 @@ versions to *latest*. Writes the row with `yuno_running=false`,
 c_agent.c → `run_yuno()` at c_agent.c.
 
 1. Select yunos: `disabled=false ∧ running=false` (c_agent.c).
-2. Resolve binary via `get_yuno_binary()` ([c_agent.c:7508](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508)): prefer active
+2. Resolve binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508) ([c_agent.c:7508](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508)): prefer active
    snapshot (`gobj_list_snaps()`, c_agent.c), fallback to direct
    `(role, role_version)` lookup (c_agent.c).
 3. Materialise each `configurations.zcontent` blob to a JSON file under the
@@ -280,7 +280,7 @@ process alive. See §5 *Stale pid*.
 
 `run-yuno` returns a **single** command answer once all launched yunos have
 connected back — like `kill-yuno`/`pause-yuno`/`play-yuno`. It aggregates the
-per-yuno `EV_ON_OPEN` ACKs into one `C_COUNTER` (`max_count=total`) created
+per-yuno `EV_ON_OPEN` ACKs into one [`C_COUNTER`](#gclass-c-counter) (`max_count=total`) created
 after the launch loop, exactly mirroring the other three commands.
 
 The implicit auto-play of step 7, however, is inherently per-yuno and async
@@ -354,9 +354,9 @@ What the agent contributes on top:
   a new child with a new pid that will reconnect to the agent on its own
   (it goes through the normal `EV_ON_OPEN` handshake).
 - At agent boot the timer `ac_timeout()` ([c_agent.c:11393](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L11393)) runs:
-    1. `run_util_yunos()` ([c_agent.c:8822](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8822)) — yunos tagged `util`,
+    1. [`run_util_yunos()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8822) ([c_agent.c:8822](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8822)) — yunos tagged `util`,
        ignoring `disabled`.
-    2. `run_enabled_yunos()` ([c_agent.c:8758](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8758)) — every row with
+    2. [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8758) ([c_agent.c:8758](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8758)) — every row with
        `disabled=false ∧ running=false`.
 
    This reconciliation matters only for yunos that **don't** have a live
@@ -392,15 +392,15 @@ Three planes share the word "priority" — keep them apart:
 
 | Plane | Where | What it controls |
 |-------|-------|------------------|
-| OS scheduling | yuno attr `sched_priority` + `cpu_core` (`c_yuno.c`, `boost_process_performance`) | `sched_setscheduler` + CPU affinity of the process |
+| OS scheduling | yuno attr `sched_priority` + `cpu_core` (`c_yuno.c`, [`boost_process_performance`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c#L4485)) | `sched_setscheduler` + CPU affinity of the process |
 | Intra-yuno | each service's `priority` 0..9 (`manage_services.c`) | order services start **within** a yuno |
 | Inter-yuno | agent col `start_priority` 0..9 (this section) | order yunos start **on this node** |
 
-**Launch order.** `cmd_run_yuno` sorts the matched yunos by `start_priority`
-**ascending** before spawning (`sort_yunos_by_start_priority`, c_agent.c). Lower
+**Launch order.** [`cmd_run_yuno`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L5000) sorts the matched yunos by `start_priority`
+**ascending** before spawning ([`sort_yunos_by_start_priority`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8211), c_agent.c). Lower
 goes first: utilities (logcenter / emailsender / auth_bff) → gates → dba. Use a
 low number for infrastructure a node can't work without. The same ascending sort
-is applied by `run_enabled_yunos`, so a node bounce (`restart_nodes` /
+is applied by `run_enabled_yunos`, so a node bounce ([`restart_nodes`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L9234) /
 `deactivate-snap`) and the at-startup relaunch honour the tiers too. (The force
 SIGKILL pass inside `restart_nodes` is left unordered on purpose: SIGKILL has no
 graceful drain to sequence.)
@@ -418,7 +418,7 @@ hard-coded in the agent; assign app tiers per node with
 `tools/agent/set_start_priorities.py`.
 
 **Inherited across version bumps.** A version-bump deploy (`find-new-yunos
-create=1`) does NOT reset placement: `cmd_find_new_yunos` copies
+create=1`) does NOT reset placement: [`cmd_find_new_yunos`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L4399) copies
 `start_priority` / `sched_priority` / `cpu_core` from the prior primary row of
 the same id into the emitted `create-yuno`, so the operator-set tiers survive the
 bump. `set_start_priorities.py` is therefore a first-time-only step per node, not
@@ -539,7 +539,7 @@ truly want to overwrite — and then only if no yuno is running that version.
 
 ## 6. Operational recipes
 
-All examples assume `ycommand` is talking to the local agent.
+All examples assume [`ycommand`](#util-ycommand) is talking to the local agent.
 
 > **Bulk reconciliation.** To compare every binary the agent has installed
 > against the freshly built ones in `outputs/yunos` and push the differences in
@@ -690,7 +690,7 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
   worth flagging before doing it during a busy window on a realm
   with many citizen yunos. (The version-promotion half of the old
   "force volatil" TODO is now handled by
-  `promote_highest_release_yunos()`; what remains is making the
+  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8686); what remains is making the
   bounce per-role instead of node-wide.)
 
 - **No orderly shutdown.** The SIGKILL means yunos do NOT run their
@@ -783,4 +783,4 @@ name it answers `What snap? give snap_id/id (1..65534) or name`.
 | Launcher script + `--config-file`     | `src/c_agent.c`                                             |
 | `EV_ON_OPEN` handshake                | `src/c_agent.c` (`ac_on_open`)                                  |
 | `EV_ON_CLOSE` (death detection)       | `src/c_agent.c` (`ac_on_close`)                                 |
-| Boot-time reconciliation              | `src/c_agent.c, 10902` (`run_enabled_yunos`, `ac_timeout`)  |
+| Boot-time reconciliation              | `src/c_agent.c` (`run_enabled_yunos`, `ac_timeout`)  |

@@ -79,7 +79,7 @@ dropped while waiting:
 
 - A message is only dispatched while the SMTP session is connected and
   authenticated. If the server is down, the URL is wrong, or credentials are
-  rejected, the message stays in the queue. `C_TCP` keeps reconnecting on its
+  rejected, the message stays in the queue. [`C_TCP`](#gclass-c-tcp) keeps reconnecting on its
   own and delivery resumes once the link is back — nothing is dead-lettered
   just because the link is momentarily unavailable.
 - The body is persisted as part of the queued message (a string), so it

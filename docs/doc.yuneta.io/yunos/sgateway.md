@@ -19,7 +19,7 @@ client  ───▶  __input_side__  ──▶  C_SGATEWAY  ──▶  __output
   accepting client connections.
 - **Output side** (`__output_side__`): a TCP **client** that connects to
   `output_url` (reconnecting every 100 ms).
-- **`C_PROT_RAW`** carries the payload, so bytes pass through untouched — there
+- **[`C_PROT_RAW`](#gclass-c-prot-raw)** carries the payload, so bytes pass through untouched — there
   is no framing, parsing, or protocol awareness.
 - `C_SGATEWAY` relays `EV_ON_MESSAGE`: bytes from the input side are sent to
   the output side and vice-versa.
@@ -65,8 +65,8 @@ per-second gauges `rxMsgsec` / `txMsgsec` with their high-water marks
 | GClass | Level | Shows |
 |--------|-------|-------|
 | `C_SGATEWAY` | `messages` | Relayed messages |
-| `C_TCP` | `connections`, `traffic` | Per-connection events / raw bytes |
-| `C_TCP_S` | `listen`, `accepted`, `not-accepted` | Listener accept activity |
+| [`C_TCP`](#gclass-c-tcp) | `connections`, `traffic` | Per-connection events / raw bytes |
+| [`C_TCP_S`](#gclass-c-tcp-s) | `listen`, `accepted`, `not-accepted` | Listener accept activity |
 
 `sgateway` enables `C_TCP` `connections` and `C_TCP_S` `listen/accepted/
 not-accepted` by default. Enable more with

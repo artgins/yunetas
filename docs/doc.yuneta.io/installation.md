@@ -220,8 +220,8 @@ plus `$YUNETAS_BASE/scripts` to `PATH`:
 > Pick the parent dir freely; keep the sibling relationship.
 
 > ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
-> to source `yunetas-env.sh` again. Without it, `ybatch` / `ycommand` /
-> `yshutdown` are not on `PATH` and deploy scripts fail with
+> to source `yunetas-env.sh` again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
+> [`yshutdown`](#util-yshutdown) are not on `PATH` and deploy scripts fail with
 > "command not found".
 
 **Make it permanent** — add to `~/.bashrc`:

@@ -96,7 +96,7 @@ five uniform mechanisms:
 |---|---|---|
 | Persistent typed state, configurable | **Attribute** (`SDATA` in `attrs_table`) | `gobj_read_*_attr()` / `gobj_write_*_attr()` |
 | Numeric counter / rate / gauge an operator would chart or reset | **Statistic** (`SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS`, or override `mt_stats` — see [parser stats guide](#stats_parser_guide)) | [`gobj_stats()`](../api/gobj/stats.md#gobj_stats) |
-| Synchronous query or operation, also human-callable | **Command** (`SDATACM` in [`command_table`](#command_table)) | [`gobj_command()`](../api/gobj/op.md#gobj_command); also reachable via `ycommand` |
+| Synchronous query or operation, also human-callable | **Command** (`SDATACM` in [`command_table`](#command_table)) | [`gobj_command()`](../api/gobj/op.md#gobj_command); also reachable via [`ycommand`](#util-ycommand) |
 | Asynchronous notification or message flow | **Event** (entry in `event_types[]` + `states[]`) | [`gobj_send_event()`](../api/gobj/events_state.md#gobj_send_event) / [`gobj_publish_event()`](../api/gobj/publish.md#gobj_publish_event) |
 | Tight inter-gobj plumbing without a human use case | **Local method** (entry in [`LMETHOD`](#LMETHOD) table) | `gobj_local_method()` |
 
@@ -469,7 +469,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Custom event-processing logic.
 
 (mt_create_resource)=
-- `mt_create_resource`:
+- [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L206):
    - Purpose: Creates a new resource managed by the GObject.
    - Example: Initializing data structures or external dependencies.
 
@@ -494,7 +494,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Logging state changes or triggering side effects.
 
 (mt_authenticate)=
-- `mt_authenticate`:
+- [`mt_authenticate`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L796):
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
@@ -509,12 +509,12 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Refreshing metrics in real time.
 
 (mt_disable)=
-- `mt_disable`:
+- [`mt_disable`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_channel.c#L118):
    - Purpose: Disables the GObject.
    - Example: Preventing further operations until re-enabled.
 
 (mt_enable)=
-- `mt_enable`:
+- [`mt_enable`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_channel.c#L107):
    - Purpose: Enables the GObject.
    - Example: Allowing operations after being disabled.
 
@@ -569,7 +569,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_topic_desc)=
-- `mt_topic_desc`:
+- [`mt_topic_desc`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L563):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
@@ -630,7 +630,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 - **Read Operations**:
     - `gobj_read_bool_attr()`:
     - `gobj_read_integer_attr()`:
-    - `gobj_read_real_attr()`:
+    - [`gobj_read_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L3853):
     - `gobj_read_str_attr()`:
     - `gobj_read_json_attr()`:
     - `gobj_read_pointer_attr()`:
@@ -640,10 +640,10 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
     - `gobj_write_str_attr()`:
     - `gobj_write_bool_attr()`:
     - `gobj_write_integer_attr()`:
-    - `gobj_write_real_attr()`:
-    - `gobj_write_json_attr()`:
-    - `gobj_write_new_json_attr()`:
-    - `gobj_write_pointer_attr()`:
+    - [`gobj_write_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4087):
+    - [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4117):
+    - [`gobj_write_new_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4148):
+    - [`gobj_write_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4179):
         - `mt_writing`: Updates the specified attribute dynamically.
 
 ---
@@ -753,7 +753,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 #### Snapshots
 - `gobj_shoot_snap()`:
     - `mt_shoot_snap`: Creates a snapshot.
-- `gobj_activate_snap()`:
+- [`gobj_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h#L1929):
     - `mt_activate_snap`: Activates a snapshot.
 - `gobj_list_snaps()`:
     - `mt_list_snaps`: Lists all snapshots.
@@ -761,7 +761,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 ---
 
 #### Tracing
-- `gobj_set_gobj_trace()`:
+- [`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L11256):
     - `mt_trace_on`: Enables tracing for the GObject.
     - `mt_trace_off`: Disables tracing for the GObject.
 
@@ -996,7 +996,7 @@ Retrieve the list of all defined trace levels for a GClass:
 #### 2. **Retrieving Active Trace Levels**
 Retrieve the currently active trace levels at various scopes:
 - **Global Levels:**
-  - `gobj_get_global_trace_level()`: Get active global trace levels.
+  - [`gobj_get_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10794): Get active global trace levels.
 - **GClass Levels:**
   - `gobj_get_gclass_trace_level(hgclass gclass)`: Get active trace levels for a GClass.
   - `gobj_get_gclass_trace_no_level(hgclass gclass)`: Get trace levels explicitly disabled for a GClass.
@@ -1028,7 +1028,7 @@ Enable or disable trace levels dynamically at different scopes:
 #### 6. **Deep Tracing**
 Deep tracing enables comprehensive logging across all levels:
 - `gobj_set_deep_tracing(int level)`: Enable deep tracing with different levels of detail.
-- `gobj_get_deep_tracing()`: Retrieve the current deep tracing level.
+- [`gobj_get_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L11344): Retrieve the current deep tracing level.
 
 ---
 
@@ -1091,7 +1091,7 @@ Values of `gclass_flag_t` Flags
 ## Error Handling Convention — No Silent Errors
 
 In Yuneta, the log is the only window into runtime failures.
-Production debugging starts and ends with `gobj_log_error` and the
+Production debugging starts and ends with [`gobj_log_error`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L529) and the
 trace levels — there is no other observability surface for the C
 side. Any error path that returns without leaving a trace is a blind
 spot.

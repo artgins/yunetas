@@ -40,7 +40,7 @@ Run `ystats --help` for the full flag list.
 | `--config-file=<file>` | `-f` | Load settings from a JSON config file (or files). |
 | `--print` | `-p` | Print the resulting configuration and exit. |
 
-Authentication uses the same OAuth2 / OIDC flags as `ycommand`
+Authentication uses the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand)
 (`--issuer`/`-I`, `--token-endpoint`/`-T`, `--end-session-endpoint`/`-E`,
 `--client-id`/`-Z`, `--user_id`/`-x`, `--user_passw`/`-X`, `--jwt`/`-j`) — see
 [Authentication (OAuth2 / OIDC)](#ycommand-auth).

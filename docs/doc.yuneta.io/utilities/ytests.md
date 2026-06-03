@@ -37,7 +37,7 @@ Run `ytests --help` for the full flag list.
 | `--print` | `-p` | Print the resulting configuration and exit |
 | `--print-role` | `-r` | Print the basic yuno information |
 
-Authentication uses the same OAuth2 / OIDC flags as `ycommand` (`--issuer`/`-I`,
+Authentication uses the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand) (`--issuer`/`-I`,
 `--token-endpoint`/`-T`, `--end-session-endpoint`/`-E`, `--client-id`/`-Z`,
 `--jwt`/`-j`) — see [Authentication (OAuth2 / OIDC)](#ycommand-auth).
 

@@ -90,7 +90,7 @@ it returns. The framework assumes every action is non-blocking.
 The asynchronous engine (`yev_loop`) is built on Linux **`io_uring`**.
 Every file-descriptor operation — accept, connect, read, write, timer,
 signal — is submitted through the same ring and its completion drives
-a callback. Filesystem events go through `fs_watcher` (an inotify
+a callback. Filesystem events go through [`fs_watcher`](#util-fs_watcher) (an inotify
 wrapper in `timeranger2`) whose inotify fd is itself read through
 `io_uring`, so completions still land on the same loop.
 
@@ -178,7 +178,7 @@ mechanics.
 ### 8. The control plane is first-class, not bolted on
 
 Every running yuno exposes **commands** and **stats**. Operators reach
-them through a local socket via the `ycommand` CLI; other yunos reach
+them through a local socket via the [`ycommand`](#util-ycommand) CLI; other yunos reach
 them by sending the same commands as events over the inter-yuno
 protocol. In both cases the surface is identical. Commands are
 declared on the GClass with name, parameters, authorization, and help

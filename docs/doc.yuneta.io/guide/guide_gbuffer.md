@@ -50,7 +50,7 @@ The `gbuffer_t` structure includes the following key fields:
 
 ### 3. **Reading and Writing**
 - Separate read (`curp`) and write (`tail`) pointers allow for efficient reading and writing without interfering with each other.
-- Functions like `gbuffer_get` and `gbuffer_append` provide convenient access to manipulate data.
+- Functions like [`gbuffer_get`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L212) and [`gbuffer_append`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L292) provide convenient access to manipulate data.
 
 ### 4. **Serialization and Encoding**
 - Supports serialization to and from JSON objects.
@@ -73,13 +73,13 @@ The `gbuffer_t` structure includes the following key fields:
 - **Reset Pointer:** Clear written data by resetting the write pointer with `gbuffer_reset_wr`.
 
 ### Utility
-- **Memory Info:** Retrieve statistics like free space (`gbuffer_freebytes`) or total bytes (`gbuffer_totalbytes`).
-- **Markers and Labels:** Set or get markers (`gbuffer_setmark`, `gbuffer_getmark`) and labels (`gbuffer_setlabel`, `gbuffer_getlabel`).
+- **Memory Info:** Retrieve statistics like free space ([`gbuffer_freebytes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L230)) or total bytes ([`gbuffer_totalbytes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L224)).
+- **Markers and Labels:** Set or get markers ([`gbuffer_setmark`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L244), [`gbuffer_getmark`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L250)) and labels ([`gbuffer_setlabel`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L516), [`gbuffer_getlabel`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L238)).
 
 ### Serialization and Encoding
 - **JSON Serialization:** Convert the buffer to and from JSON objects using `gbuffer_serialize` and `gbuffer_deserialize`.
 - **Base64 Encoding/Decoding:** Encode or decode data in Base64 format 
-    with `gbuffer_string_to_base64`, `gbuffer_base64_to_string` and `gbuffer_encode_base64`.
+    with `gbuffer_string_to_base64`, `gbuffer_base64_to_string` and [`gbuffer_encode_base64`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L301).
 
 ---
 
