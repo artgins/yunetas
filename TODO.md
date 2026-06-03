@@ -18,22 +18,6 @@ also rendered by GitHub in-repo — more maintainable than draw.io embeds):
 - the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose in
   `YUNO_LIFECYCLE.md` §4.
 
-## treedb: dedicated regression test for versioned-parent hook hygiene
-
-The two reverse-hook quirks (unlink hitting only the primary parent version;
-duplicate hook entries on repeated link) are FIXED in `tr_treedb.c` — see
-CHANGELOG Unreleased. The fix is verified against the full existing treedb
-suite (`tr_treedb`, `tr_treedb_link_events`, `tr_treedb_delete_instance`,
-`tr_treedb_update_instance`, `tr_treedb_snap`), but there is no fixture that
-combines a **versioned (pkey2) parent topic with a hook to children**, so the
-two fixed paths are not directly asserted. Add a focused test:
-
-1. Link the same child twice → assert the parent hook holds it once and the
-   dedup `gobj_log_warning` fires (strict FIFO `set_expected_results`).
-2. Create parent v1 (primary) + v2; hook a child onto v2; `clean`/delete the
-   child → assert no residue on the v2 hook and no spurious "Child data not
-   found" error.
-
 ## Auth: OIDC migration follow-ups
 
 The `c_auth_bff` (BFF) and `c_task_authenticate` (ROPC task) gclasses
