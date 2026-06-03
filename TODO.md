@@ -2,46 +2,50 @@
 
 Tracks API renames, removals and additions between versions.
 
-## agent: cannot delete a non-primary yuno/config/binary instance
+## treedb: no durable per-instance (pkey2) node delete
 
-`delete-yuno`, `delete-config` and `delete-binary` (`cmd_delete_yuno`
-c_agent.c:4749, `cmd_delete_config` :3913, `cmd_delete_binary` :3470) all
-resolve their target with `gobj_list_nodes(...)`, which returns **one primary
-node per id** — the in-memory primary, not the per-`pkey2` instance. So a filter
-like `delete-yuno id=5000 yuno_release=1.4.6.0-3` (or `delete-config
-id=db_tracks.5000 version=3`) either matches the *primary* release/version or
-nothing at all (`"Select some ... please"`). `cmd_delete_yuno` even hardcodes
-`json_pack("{s:s}", "id", ...)` (c_agent.c:4839), dropping the `pkey2` entirely
-before calling `gobj_delete_node`.
+**Root cause is in the treedb/timeranger2 layer, not the agent commands.**
+`gobj_delete_node` -> `mt_delete_node` -> `treedb_delete_node` uses the pkey2
+only to *locate* the node, then deletes by **key (id)**:
+`treedb_delete_node` (tr_treedb.c:5088) calls `tranger2_delete_key(tranger,
+topic, id)`, which `rmrdir`s the whole `keys/<id>` directory — *all* releases of
+that id (timeranger2.c:2924-2960). The author flags this in-line:
+`// TODO estoy borrando todas las instancias` (tr_treedb.c:5150), and
+`tranger2_delete_record` is just `#define`d to `tranger2_delete_key`
+(timeranger2.h:451). A proper per-instance primitive **already exists** —
+`tranger2_delete_instance()` (timeranger2.h:481) — but `treedb_delete_node`
+does not use it.
 
-Consequence: there is no first-class way to prune a single superseded (or
-mistakenly-created **higher**) release/version of a yuno without a full snap
-rollback. This bites specifically when an instance whose `yuno_release` sorts
-*above* the running primary needs to be removed — left in place,
-`promote_highest_release_yunos` / a treedb reload would promote it on the next
-`deactivate-snap` or agent restart.
+Observed (2026-06-03, agent treedb is master): deleting one yunos instance via
+`command-agent ... delete-node record={"id":"5000","yuno_release":"1.4.6.0-3"}`
+removed `-3` from the **in-memory** indexes only; it did **not** persist — after
+an agent SIGKILL+reload `-3` came back from disk and, being the highest release,
+was promoted to primary and the running yuno was reconciled onto it. So the
+single-instance delete is non-durable, and routing the whole-key path as master
+would instead nuke *every* release of the id.
 
-The underlying treedb already supports it: `C_NODE`'s `delete-node`
-(`cmd_delete_node` / `mt_delete_node`, c_node.c) finds the node by `id` **plus**
-the `pkey2` field(s). The current operator workaround is to bypass the agent
-commands and drive the treedb directly:
+Consequence: there is still no first-class, durable way to prune a single
+superseded (or mistakenly-created **higher**) release/version short of a full
+snap rollback. A higher-release instance left on disk is promoted on the next
+`deactivate-snap` / agent reload.
 
-```
-ycommand -c 'command-agent service=treedb_yuneta_agent command=delete-node \
-    topic_name=yunos record={"id":"5000","yuno_release":"1.4.6.0-3"} \
-    options={"force":1}'
-```
+Fix (treedb layer, core change — needs the kernel test matrix):
+- give `treedb_delete_node` a per-instance path that, when the node carries a
+  pkey2, calls `tranger2_delete_instance()` (durable single-record delete) and
+  updates only that pkey2 index entry, instead of `tranger2_delete_key` +
+  whole-id index teardown;
+- then expose it through the agent: `delete-yuno`/`delete-config`/
+  `delete-binary` (`cmd_delete_yuno` c_agent.c, `cmd_delete_config`,
+  `cmd_delete_binary`) list via `gobj_list_instances` (not `gobj_list_nodes`)
+  and forward the `pkey2` (`yuno_release` / `version`) when supplied, keeping the
+  running-yuno and snap-tag guards. NB: instance records carry a stale
+  `yuno_running` (the live flag lives on the in-memory primary), so the running
+  guard must consult the primary, not the instance record.
 
-Note the `record` JSON must be **double-quoted** — the value reaches the treedb
-parser as a wild string and is coerced via `anystring2json`
-(command_parser.c:534), which rejects single-quoted JSON, so single quotes
-silently drop the field (→ `"field 'id' is required"`).
-
-Fix: have `delete-yuno`/`delete-config`/`delete-binary` forward the `pkey2`
-(`yuno_release` / `version`) into `gobj_delete_node` when supplied — list via
-`gobj_list_instances` (not `gobj_list_nodes`) so a specific instance can be
-selected and deleted, falling back to today's primary behaviour when no `pkey2`
-is given. Keep the running-yuno and snap-tag guards.
+An agent-only forward was prototyped and reverted: it *looks* like it deletes
+the instance (the in-memory view updates) but rides the non-durable / whole-key
+`treedb_delete_node` underneath, so it must not ship until the treedb layer is
+fixed first.
 
 ## c_yuno: `priority` attr renamed to `sched_priority`
 
