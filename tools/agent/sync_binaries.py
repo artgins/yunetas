@@ -607,7 +607,7 @@ def main():
     else:
         mode = ask("\nApply [a]ll, [s]elect one by one, or [q]uit? ")
         if mode in ("q", "quit", ""):
-            print("Aborted.")
+            print("Cancelled - no changes made.")
             return
         if mode in ("a", "all"):
             chosen = candidates
@@ -627,7 +627,7 @@ def main():
         confirm = ask("\nAbout to run %d command(s) against the agent. Proceed? [y/N] "
                       % len(chosen))
         if confirm not in ("y", "yes"):
-            print("Aborted.")
+            print("Cancelled - no changes made.")
             return
 
     print()
