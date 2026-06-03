@@ -56,15 +56,11 @@ The owner of a realm can add other users and define their authorization levels.
 
 We describe reality by classifying it into **Entities** and the **Relationships** between them.
 
-```
-    ┌────────────┐         ┌────────────┐
-    │  Entity A  │─────────│  Entity B  │
-    └────────────┘         └────────────┘
-         │          relationship
-         │
-    ┌────────────┐
-    │  Entity C  │
-    └────────────┘
+```{figure} ../_static/entity_relationship.svg
+:alt: Entities A, B and C; A relates to B and A relates to C.
+:width: 75%
+
+Reality is classified into **entities** and the **relationships** between them.
 ```
 
 ---
@@ -79,15 +75,12 @@ We describe **entities** using the pair model:
 | | **Table** / **Record** |
 | | **Group** / **Element** |
 
-```
-    ┌──────────────────┐
-    │    Role (Class)   │
-    ├──────────────────┤
-    │  instance 1      │
-    │  instance 2      │
-    │  instance 3      │
-    │  ...             │
-    └──────────────────┘
+```{figure} ../_static/entities.svg
+:alt: A Role (class, topic) contains many instances: instance 1, 2, 3, and so on.
+:width: 55%
+
+An **entity** is a **Role** (class / topic) and its many **instances**
+(objects / records / nodes).
 ```
 
 ---
@@ -99,10 +92,12 @@ We describe **relationships** also using pair models:
 - **Parent** / **Child** — The parent (or a factory) creates and connects to the child.
 - **Service** / **Client** — The client knows and connects to the service.
 
-```
-    Parent ──creates──► Child
+```{figure} ../_static/relationships.svg
+:alt: Parent creates and connects to Child; Client knows and connects to Service.
+:width: 80%
 
-    Client ──connects──► Service
+The two pair models for **relationships**: the **parent** creates and
+connects to the **child**; the **client** knows and connects to the **service**.
 ```
 
 ---

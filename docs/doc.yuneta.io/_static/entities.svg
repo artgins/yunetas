@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A Role (class, topic, group) contains many instances: instance 1, 2, 3, and so on.">
+  <!-- transparent background -->
+
+  <!-- Role container -->
+  <rect x="80" y="26" width="240" height="184" rx="10" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+  <rect x="80" y="26" width="240" height="34" rx="10" fill="#3b4a5e"/><rect x="80" y="46" width="240" height="14" fill="#3b4a5e"/>
+  <text x="200" y="49" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Role  ·  Class  ·  Topic</text>
+
+  <!-- instances -->
+  <g font-size="12" fill="#33414f">
+    <rect x="98" y="74" width="204" height="26" rx="6" fill="#ffffff" stroke="#c2cdd9"/>
+    <text x="110" y="91">instance 1  ·  object / record / node</text>
+    <rect x="98" y="106" width="204" height="26" rx="6" fill="#ffffff" stroke="#c2cdd9"/>
+    <text x="110" y="123">instance 2</text>
+    <rect x="98" y="138" width="204" height="26" rx="6" fill="#ffffff" stroke="#c2cdd9"/>
+    <text x="110" y="155">instance 3</text>
+    <text x="200" y="190" text-anchor="middle" font-size="13" fill="#8593a3">…</text>
+  </g>
+
+  <text x="200" y="234" text-anchor="middle" font-size="11" fill="#8593a3">one Role, many instances — the pair model for entities</text>
+</svg>

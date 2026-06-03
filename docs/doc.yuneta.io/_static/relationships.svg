@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 210" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Two relationship pair models: Parent creates and connects to Child; Client knows and connects to Service.">
+  <defs>
+    <marker id="rlNavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b4a5e"/>
+    </marker>
+    <marker id="rlTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- Row 1: Parent / Child -->
+  <g>
+    <rect x="30" y="36" width="150" height="52" rx="9" fill="#eef2f7" stroke="#3b4a5e" stroke-width="1.5"/>
+    <text x="105" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#33414f">Parent</text>
+    <rect x="380" y="36" width="150" height="52" rx="9" fill="#eef2f7" stroke="#3b4a5e" stroke-width="1.5"/>
+    <text x="455" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#33414f">Child</text>
+    <line x1="180" y1="62" x2="380" y2="62" stroke="#3b4a5e" stroke-width="2" marker-end="url(#rlNavy)"/>
+    <text x="280" y="52" text-anchor="middle" font-size="11.5" font-weight="600" fill="#33414f">creates &amp; connects</text>
+  </g>
+
+  <!-- Row 2: Client / Service -->
+  <g>
+    <rect x="30" y="124" width="150" height="52" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="105" y="156" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">Client</text>
+    <rect x="380" y="124" width="150" height="52" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="455" y="156" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">Service</text>
+    <line x1="180" y1="150" x2="380" y2="150" stroke="#2a9d8f" stroke-width="2" marker-end="url(#rlTeal)"/>
+    <text x="280" y="140" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1d6b60">knows &amp; connects</text>
+  </g>
+
+  <text x="280" y="198" text-anchor="middle" font-size="11" fill="#8593a3">the two pair models for relationships — the initiator connects to the other</text>
+</svg>
