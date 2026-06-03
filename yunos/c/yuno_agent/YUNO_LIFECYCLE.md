@@ -383,12 +383,23 @@ Three planes share the word "priority" — keep them apart:
 **Launch order.** `cmd_run_yuno` sorts the matched yunos by `start_priority`
 **ascending** before spawning (`sort_yunos_by_start_priority`, c_agent.c). Lower
 goes first: utilities (logcenter / emailsender / auth_bff) → gates → dba. Use a
-low number for infrastructure a node can't work without.
+low number for infrastructure a node can't work without. The same ascending sort
+is applied by `run_enabled_yunos`, so a node bounce (`restart_nodes` /
+`deactivate-snap`) and the at-startup relaunch honour the tiers too. (The force
+SIGKILL pass inside `restart_nodes` is left unordered on purpose: SIGKILL has no
+graceful drain to sequence.)
 
 **Shutdown order.** `kill-yuno` and `pause-yuno` sort **descending**, so the
 utilities die **last** — e.g. logcenter stays up long enough to capture
 everyone else's shutdown logs. Within one priority, treedb order is preserved
 (stable). Single-target commands (by `id`) are unaffected.
+
+**Default on creation.** `create-yuno` (and so `find-new-yunos`) seeds
+`start_priority = 1` for a yuno carrying the `util` tag — the same set
+`run_util_yunos` starts first — so framework utilities are born at the top tier
+without operator action. Everything else takes the column default (5). No app
+role names are hard-coded in the agent; assign app tiers per node with
+`tools/agent/set_start_priorities.py`.
 
 **CPU placement.** `sched_priority` and `cpu_core` are injected into the
 agent-built config file #1 as the yuno's `sched_priority` / `cpu_core` attrs

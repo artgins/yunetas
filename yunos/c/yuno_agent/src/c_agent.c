@@ -4636,6 +4636,19 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
         json_string(current_date)
     );
 
+    /*
+     *  Seed the launch tier for framework utilities: a 'util'-tagged yuno
+     *  (the same set run_util_yunos starts first) is born at start_priority 1
+     *  unless the caller passed one. App tiers are assigned per node with
+     *  tools/agent/set_start_priorities.py; no app role names belong here.
+     */
+    if(!kw_has_key(kw, "start_priority")) {
+        const char *yuno_tag = kw_get_str(gobj, kw, "yuno_tag", "", 0);
+        if(!empty_string(yuno_tag) && strstr(yuno_tag, "util")) {
+            json_object_set_new(kw, "start_priority", json_integer(1));
+        }
+    }
+
     json_t *yuno = gobj_create_node(
         priv->resource,
         resource,
@@ -8632,6 +8645,12 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         gobj
     );
+
+    /*
+     *  Launch in ascending start_priority order so a node bounce (restart_nodes
+     *  / deactivate-snap) brings utilities up before gates and dba.
+     */
+    sort_yunos_by_start_priority(gobj, iter_yunos, TRUE);
 
     int idx; json_t *yuno;
     json_array_foreach(iter_yunos, idx, yuno) {
