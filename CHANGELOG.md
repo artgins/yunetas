@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(treedb): durable per-instance (pkey2) node delete.**
+      `treedb_delete_instance` now tombstones EVERY md2 row belonging to a
+      `(key, pkey2_value)` via `tranger2_delete_instance()` (enumerated with a
+      transient disk list) and drops the in-memory pkey2 slot — previously it
+      only dropped the in-memory slot, so the instance resurrected on the next
+      reopen (a treedb instance spans several rows: create + each link/update
+      re-appends one with the same id/pkey2; tombstoning just the latest let an
+      earlier row reload). The primary index is untouched (callers route only
+      non-primary instances; the loader re-elects the highest surviving rowid).
+      Whole-key delete (`treedb_delete_node`/`tranger2_delete_key`) is unchanged.
+      Exposed through the agent: `delete-yuno`/`delete-config`/`delete-binary`
+      now accept the pkey2 (`yuno_release`/`version`) to prune a single
+      non-primary release/version, listing via `gobj_list_instances` and
+      reading the running-guard from the primary (instance records carry a
+      stale `yuno_running`). New regression test covers a multi-row instance +
+      close/reopen. (Remaining follow-up: stale reverse-hooks on linked parents
+      — see TODO.md.)
     - **fix(agent): `find-new-yunos` inherits node placement across a version
       bump.** A version-bump deploy (`install-binary` + `find-new-yunos
       create=1` + `deactivate-snap`) created the fresh `yunos` row at schema

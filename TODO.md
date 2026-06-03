@@ -2,70 +2,20 @@
 
 Tracks API renames, removals and additions between versions.
 
-## treedb: no durable per-instance (pkey2) node delete
+## treedb: stale reverse-hooks block sibling deletes (follow-up)
 
-**Root cause is in the treedb/timeranger2 layer, not the agent commands.**
-`gobj_delete_node` -> `mt_delete_node` -> `treedb_delete_node` uses the pkey2
-only to *locate* the node, then deletes by **key (id)**:
-`treedb_delete_node` (tr_treedb.c:5088) calls `tranger2_delete_key(tranger,
-topic, id)`, which `rmrdir`s the whole `keys/<id>` directory — *all* releases of
-that id (timeranger2.c:2924-2960). The author flags this in-line:
-`// TODO estoy borrando todas las instancias` (tr_treedb.c:5150), and
-`tranger2_delete_record` is just `#define`d to `tranger2_delete_key`
-(timeranger2.h:451). A proper per-instance primitive **already exists** —
-`tranger2_delete_instance()` (timeranger2.h:481) — but `treedb_delete_node`
-does not use it.
+Whole-key `delete-yuno id=X force=1` removes the yuno records but does NOT
+clean the reverse hook on linked parents (e.g. the `configurations` node's
+`yunos` hook). The dead references persist across an agent reload, so a later
+`delete-config`/`delete-binary` of a version still in (stale) use fails with
+"Using in N yunos". Link teardown on delete should update both sides, and
+reload should reconcile hooks against live fkeys.
 
-Observed (2026-06-03, agent treedb is master): deleting one yunos instance via
-`command-agent ... delete-node record={"id":"5000","yuno_release":"1.4.6.0-3"}`
-removed `-3` from the **in-memory** indexes only; it did **not** persist — after
-an agent SIGKILL+reload `-3` came back from disk and, being the highest release,
-was promoted to primary and the running yuno was reconciled onto it. So the
-single-instance delete is non-durable, and routing the whole-key path as master
-would instead nuke *every* release of the id.
-
-Consequence: there is still no first-class, durable way to prune a single
-superseded (or mistakenly-created **higher**) release/version short of a full
-snap rollback. A higher-release instance left on disk is promoted on the next
-`deactivate-snap` / agent reload.
-
-Note: a non-durable `treedb_delete_instance()` (tr_treedb.c:5251) and the
-`mt_delete_node` per-instance wiring (c_node.c:1031-1066, routes a NON-primary
-instance here; the primary still falls to whole-key `treedb_delete_node`)
-ALREADY exist. The gap is durability + correctness, not greenfield plumbing.
-
-Fix (treedb layer, core change — needs the kernel test matrix):
-- make `treedb_delete_instance` durable: tombstone the md2 row(s) via
-  `tranger2_delete_instance()` and drop the pkey2 index slot. The primary index
-  needs no re-point (callers only route non-primary instances; on reopen the
-  loader skips the tombstone and re-elects the highest surviving rowid).
-- then expose via the agent: `delete-yuno`/`delete-config`/`delete-binary`
-  list via `gobj_list_instances` and forward the `pkey2` when supplied (the
-  delete-yuno guard must read `yuno_running` from the PRIMARY, not the stale
-  instance record).
-
-**Two blockers found while prototyping this (2026-06-03), both reverted —
-do NOT ship a per-instance delete until BOTH are solved:**
-
-1. **Multi-record instances.** A treedb instance (one pkey2 value) is NOT one
-   md2 row: `treedb_create_node` appends one, then every `gobj_link_nodes`
-   (create-yuno links realm+binary+config = 3 more) and every `treedb_save_node`
-   re-appends another — all with the same `(id, pkey2)`. The pkey2 index keeps
-   only the latest. Tombstoning just the located/latest row makes the loader
-   fall back to an EARLIER non-tombstoned row on reopen → the instance
-   resurrects. Verified live: agent `delete-yuno yuno_release=…` looked clean,
-   but after an agent restart the release came back and was re-promoted.
-   `tranger2_delete_instance` must be called for EVERY md2 row matching
-   `(key, pkey2_value)`, not just one. (A single-record unit test passes
-   deceptively — the new test MUST update/link the instance first.)
-
-2. **Stale reverse-hooks block sibling deletes.** Whole-key `delete-yuno
-   id=X force=1` removes the yuno records but does NOT clean the reverse hook on
-   linked parents (e.g. the `configurations` node's `yunos` hook). The dead
-   references persist across an agent reload, so a later `delete-config`/
-   `delete-binary` fails with "Using in N yunos" forever. Link teardown on
-   delete must update both sides (and reload must reconcile hooks against live
-   fkeys).
+This is the remaining piece split off from the per-instance delete work (the
+durable per-instance delete itself shipped — see CHANGELOG Unreleased). It is
+NOT needed to prune a yuno release (that works durably now); it only blocks
+deleting a config/binary *version* whose reverse-hook still carries dead refs.
+Lower priority; a realm regenerate also clears it.
 
 ## c_yuno: `priority` attr renamed to `sched_priority`
 

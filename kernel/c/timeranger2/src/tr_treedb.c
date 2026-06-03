@@ -5228,24 +5228,63 @@ PUBLIC int treedb_delete_node(
 }
 
 /***************************************************************************
-    Remove this node from ONE secondary `pkey2` index.
+ *  Loading callback used by treedb_delete_instance() to enumerate every
+ *  md2 row of a key that belongs to a given pkey2 value. Collects each
+ *  matching row's (__t__, i_rowid) into the `__del_hits__` array carried
+ *  in the transient list's `extra`.
+ ***************************************************************************/
+PRIVATE int collect_instance_md_cb(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // the transient rt, carries our extra
+    json_int_t rowid,   // global rowid of key (unused)
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned
+)
+{
+    const char *pkey2_name = kw_get_str(0, list, "__del_pkey2_name__", "", 0);
+    const char *pkey2_value = kw_get_str(0, list, "__del_pkey2_value__", "", 0);
+    json_t *hits = kw_get_dict_value(0, list, "__del_hits__", 0, 0);
+
+    const char *v = kw_get_str(0, jn_record, pkey2_name, "", 0);
+    if(!empty_string(v) && strcmp(v, pkey2_value)==0) {
+        json_array_append_new(hits,
+            json_pack("[I, I]",
+                (json_int_t)md_record->__t__,
+                (json_int_t)md_record->rowid
+            )
+        );
+    }
+
+    JSON_DECREF(jn_record)
+    return 0;  // Timeranger: does not load the record, it's mine.
+}
+
+/***************************************************************************
+    Durably delete ONE instance (one `pkey2` value) of a node.
 
     A node is normally registered in:
       - the primary `id` index (indexx);
       - one slot per `pkey2_value` in every secondary `pkey2` index
         declared on the topic (indexy_<pkey2_name>).
 
-    `treedb_delete_instance` cleans only the named secondary slot.
-    The primary index, the other secondary indexes, and the on-disk
-    md2 row stay alive — that work belongs to `treedb_delete_node()`
-    (which calls `tranger2_delete_key()` on the underlying record).
+    This drops the named secondary slot in memory AND tombstones EVERY md2
+    row that belongs to (id, pkey2_value) on disk — a treedb instance can
+    span several rows (create + update + link re-saves all append a row with
+    the same id/pkey2; the index keeps only the latest). Tombstoning only the
+    latest would let the loader fall back to an earlier row on reopen, so we
+    enumerate the key's rows via a transient disk list and tombstone each.
 
-    `force` only relaxes the snapshot-tag guard; secondary-index
-    cleanup is link-safe by construction (children/parents resolve
-    through the primary index, which is not touched here).
+    The primary index is NOT touched: callers (`c_node.c::mt_delete_node`)
+    only route a NON-primary instance here; on reopen the loader skips the
+    tombstones and re-elects the highest surviving rowid as primary. Whole-key
+    delete (all instances of an id) remains `treedb_delete_node()`.
 
-    In-tree caller: `c_node.c::ac_delete_node` iterates the topic's
-    pkey2s and calls this per secondary index before falling back to
+    `force` only relaxes the snapshot-tag guard.
+
+    In-tree caller: `c_node.c::mt_delete_node` iterates the topic's pkey2s
+    and calls this per non-primary instance before falling back to
     `treedb_delete_node()` on the primary.
  ***************************************************************************/
 PUBLIC int treedb_delete_instance(
@@ -5332,6 +5371,61 @@ PUBLIC int treedb_delete_instance(
         pkey2_name,
         node
     );
+
+    /*-------------------------------*
+     *  Durably tombstone EVERY md2
+     *  row of (id, pkey2_value).
+     *-------------------------------*/
+    {
+        json_t *hits = json_array();
+        json_t *match_cond = json_pack("{s:s, s:b, s:I}",
+            "key", id,
+            "backward", 1,
+            "load_record_callback", (json_int_t)(uintptr_t)collect_instance_md_cb
+        );
+        json_t *jn_extra = json_pack("{s:s, s:s, s:O}",
+            "__del_pkey2_name__", pkey2_name,
+            "__del_pkey2_value__", pkey2_value,
+            "__del_hits__", hits
+        );
+        char rt_id[NAME_MAX];
+        snprintf(rt_id, sizeof(rt_id), "delinst`%s`%s`%s", topic_name, id, pkey2_value);
+        json_t *rt = tranger2_open_list(
+            tranger,
+            topic_name,
+            match_cond, // owned
+            jn_extra,   // owned
+            rt_id,
+            TRUE,       // rt_by_disk: one-shot historical load, no realtime-by-mem
+            "treedb_delete_instance"
+        );
+        size_t i; json_t *hit;
+        json_array_foreach(hits, i, hit) {
+            if(tranger2_delete_instance(
+                tranger,
+                topic_name,
+                id,
+                (uint64_t)json_integer_value(json_array_get(hit, 0)),
+                (uint64_t)json_integer_value(json_array_get(hit, 1)),
+                FALSE
+            )<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "tranger2_delete_instance() FAILED",
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", id,
+                    "key2",         "%s", pkey2_value,
+                    NULL
+                );
+            }
+        }
+        if(rt) {
+            tranger2_close_list(tranger, rt);
+        }
+        JSON_DECREF(hits)
+    }
+
     if(delete_secondary_node(indexy, id, pkey2_value)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

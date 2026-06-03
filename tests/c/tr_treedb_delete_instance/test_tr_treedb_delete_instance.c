@@ -243,6 +243,124 @@ PRIVATE int test_delete_node_clears_everything(
 }
 
 /***************************************************************************
+ *  Durability: a per-instance delete must survive a full close + reopen,
+ *  even when the instance accumulated MULTIPLE md2 rows (create + update +
+ *  link re-saves all append a row with the same (id, pkey2)). Tombstoning
+ *  only the latest row lets the loader fall back to an earlier one on reopen.
+ *
+ *  Self-contained (own database) so it never entangles do_test's tranger.
+ ***************************************************************************/
+PRIVATE int test_durable_delete_across_reopen(void)
+{
+    int result = 0;
+    const char *test = "delete_instance is durable across reopen (multi-row)";
+    const char *treedb_name = "treedb_delete_durable";
+    const char *DB = "tr_delete_instance_durable";
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DB, NULL);
+    rmrdir(path_database);
+
+    helper_quote2doublequote(schema_sample);
+
+    /*------------------------------------*
+     *  Phase 1: open, seed, multi-row,
+     *  delete the non-primary v2
+     *------------------------------------*/
+    json_t *tranger;
+    {
+        set_expected_results(test,
+            json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+                "msg", "Creating __timeranger2__.json",
+                "msg", "Creating topic",
+                "msg", "Creating topic",
+                "msg", "Creating topic"),
+            NULL, NULL, 0);
+        json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root, "database", DB, "master", 1,
+            "on_critical_error", LOG_OPT_TRACE_STACK
+        );
+        tranger = tranger2_startup(0, jn_tranger, 0);
+        json_t *jn_schema = legalstring2json(schema_sample, TRUE);
+        if(!treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+            result += -1;
+        }
+
+        treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+            json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v1", "payload", "a"));
+        treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+            json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v2", "payload", "b"));
+        treedb_create_node(tranger, treedb_name, TOPIC_NAME,
+            json_pack("{s:s, s:s, s:s}", "id", "rel-1", "version", "v3", "payload", "c"));
+
+        /*  Make v2 a MULTI-ROW instance: update it so a 2nd md2 row exists.
+         *  (mirrors create-yuno + gobj_link_nodes re-appending the same id/pkey2)  */
+        json_t *v2 = treedb_get_instance(
+            tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2");
+        treedb_update_node(tranger, v2,
+            json_pack("{s:s}", "payload", "b-updated"), TRUE);
+        treedb_update_node(tranger,
+            treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2"),
+            json_pack("{s:s}", "payload", "b-updated-again"), TRUE);
+
+        /*  v2 is non-primary (v3 highest rowid = primary). Delete the instance.  */
+        json_t *v2b = treedb_get_instance(
+            tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2");
+        if(treedb_delete_instance(tranger, v2b, PKEY2_NAME, json_pack("{s:b}", "force", 1)) != 0) {
+            printf("%s  FAIL: delete_instance v2 failed%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2") != NULL) {
+            printf("%s  FAIL: v2 still present in memory after delete%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        treedb_close_db(tranger, treedb_name);
+        tranger2_shutdown(tranger);
+        result += test_json(NULL);
+    }
+
+    /*------------------------------------*
+     *  Phase 2: reopen, v2 must NOT
+     *  resurrect from an earlier row
+     *------------------------------------*/
+    {
+        set_expected_results(test, NULL, NULL, NULL, 0);
+        json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path_root, "database", DB, "master", 1,
+            "on_critical_error", LOG_OPT_TRACE_STACK
+        );
+        tranger = tranger2_startup(0, jn_tranger, 0);
+        json_t *jn_schema = legalstring2json(schema_sample, TRUE);
+        if(!treedb_open_db(tranger, treedb_name, jn_schema, 0)) {
+            result += -1;
+        }
+
+        if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v2") != NULL) {
+            printf("%s  FAIL: v2 RESURRECTED after reopen (multi-row delete not durable)%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v1") == NULL ||
+           treedb_get_instance(tranger, treedb_name, TOPIC_NAME, PKEY2_NAME, "rel-1", "v3") == NULL) {
+            printf("%s  FAIL: v1/v3 lost after reopen%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(treedb_get_node(tranger, treedb_name, TOPIC_NAME, "rel-1") == NULL) {
+            printf("%s  FAIL: rel-1 missing from primary after reopen%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        treedb_close_db(tranger, treedb_name);
+        tranger2_shutdown(tranger);
+        result += test_json(NULL);
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -394,6 +512,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
+    result += test_durable_delete_across_reopen();
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

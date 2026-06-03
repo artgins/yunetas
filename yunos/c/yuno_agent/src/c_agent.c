@@ -657,7 +657,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_binary[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "version",      0,              0,          "binary version"),
+SDATAPM (DTP_STRING,    "version",      0,              0,          "Binary version; if given, delete that exact instance (else the primary)"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
@@ -694,7 +694,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_delete_config[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "version",      0,              0,          "configuration version"),
+SDATAPM (DTP_STRING,    "version",      0,              0,          "Config version; if given, delete that exact instance (else the primary)"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
@@ -735,7 +735,7 @@ SDATAPM (DTP_STRING,    "role_version", 0,              0,          "Role versio
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno name"),
 SDATAPM (DTP_STRING,    "name_version", 0,              0,          "Name version"),
 SDATAPM (DTP_STRING,    "yuno_tag",     0,              0,          "Yuno Tag"),
-SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release"),
+SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release; if given, delete that exact instance (else the primary)"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
@@ -3465,6 +3465,46 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  Select the node(s) a delete-* command will act on.
+ *
+ *  When the caller supplies the topic's pkey2 (yuno_release / version) the
+ *  target is that exact instance, listed with gobj_list_instances; otherwise
+ *  fall back to the in-memory primary node(s) with gobj_list_nodes — the
+ *  historic behaviour. This lets an operator prune a single non-primary
+ *  release/version durably (treedb_delete_instance tombstones its md2 rows).
+ ***************************************************************************/
+PRIVATE json_t *list_delete_targets(
+    hgobj gobj,
+    const char *topic_name,
+    const char *pkey2_field,    // "yuno_release" or "version"
+    json_t *kw,                 // NOT owned, used as filter
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *pkey2_value = kw_get_str(gobj, kw, pkey2_field, "", 0);
+    if(!empty_string(pkey2_value)) {
+        return gobj_list_instances(
+            priv->resource,
+            topic_name,
+            pkey2_field,
+            kw_incref(kw),  // filter
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            src
+        );
+    }
+
+    return gobj_list_nodes(
+        priv->resource,
+        topic_name,
+        kw_incref(kw),  // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        src
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -3477,13 +3517,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Get a iter of matched resources.
      */
-    json_t *iter = gobj_list_nodes(
-        priv->resource,
-        resource,
-        kw_incref(kw),  // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        src
-    );
+    json_t *iter = list_delete_targets(gobj, resource, "version", kw, src);
 
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
@@ -3920,13 +3954,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Get a iter of matched resources.
      */
-    json_t *iter = gobj_list_nodes(
-        priv->resource,
-        resource,
-        kw_incref(kw),  // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        src
-    );
+    json_t *iter = list_delete_targets(gobj, resource, "version", kw, src);
 
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
@@ -4767,15 +4795,15 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     /*
+     *  A yuno_release (the pkey2) targets that exact instance; otherwise the
+     *  in-memory primary. See list_delete_targets().
+     */
+    BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "yuno_release", "", 0));
+
+    /*
      *  Get a iter of matched resources.
      */
-    json_t *iter = gobj_list_nodes(
-        priv->resource,
-        resource,
-        kw_incref(kw),  // filter
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        src
-    );
+    json_t *iter = list_delete_targets(gobj, resource, "yuno_release", kw, src);
 
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
@@ -4794,7 +4822,30 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      */
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        BOOL yuno_running = kw_get_bool(gobj, node, "yuno_running", 0, KW_REQUIRED);
+        /*
+         *  Instance records carry a stale yuno_running (the live runtime flag
+         *  lives on the in-memory primary, not on the per-release record). When
+         *  targeting an instance, a release is "running" only if it IS the
+         *  primary's current running release, so consult the primary.
+         */
+        BOOL yuno_running;
+        if(by_instance) {
+            json_t *primary = gobj_get_node(
+                priv->resource,
+                resource,
+                json_pack("{s:s}", "id", SDATA_GET_ID(node)),
+                json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+                src
+            );
+            yuno_running = kw_get_bool(gobj, primary, "yuno_running", 0, 0) &&
+                strcmp(
+                    kw_get_str(gobj, primary, "yuno_release", "", 0),
+                    SDATA_GET_STR(node, "yuno_release")
+                )==0;
+            JSON_DECREF(primary);
+        } else {
+            yuno_running = kw_get_bool(gobj, node, "yuno_running", 0, KW_REQUIRED);
+        }
         if(yuno_running > 0) {
             json_t *comment = json_sprintf(
                 "Cannot delete yuno '%s', it's running",
@@ -4836,7 +4887,15 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
     int result = 0;
     int deleted = 0;
     json_array_foreach(iter, idx, node) {
+        /*
+         *  In instance mode pass the pkey2 (yuno_release) too, so mt_delete_node
+         *  routes to the durable per-instance delete instead of the whole-key path.
+         */
         json_t *kw_delete = json_pack("{s:s}", "id", SDATA_GET_ID(node));
+        if(by_instance) {
+            json_object_set_new(kw_delete, "yuno_release",
+                json_string(SDATA_GET_STR(node, "yuno_release")));
+        }
         if(gobj_delete_node(
             priv->resource,
             resource,
