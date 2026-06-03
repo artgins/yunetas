@@ -2,6 +2,21 @@
 
 Tracks API renames, removals and additions between versions.
 
+## find-new-yunos should inherit node placement
+
+A version-bump deploy (`install-binary` + `find-new-yunos create=1` +
+`deactivate-snap`) creates a brand-new `yunos` row at the new `role_version`.
+That row does **not** carry over the operator-set `start_priority` /
+`sched_priority` / `cpu_core` from the prior release of the same id — it takes
+the schema defaults (plus the `util`-tag → `start_priority=1` seed in
+`cmd_create_yuno`). So after every version bump the launch tiers collapse to the
+defaults and must be re-applied with `tools/agent/set_start_priorities.py`.
+
+Fix: when `find_new_yunos` creates the row (or `promote_highest_release_yunos`
+runs), copy `start_priority`/`sched_priority`/`cpu_core` from the highest prior
+release of the same id. Same-version REBUILD hot-patches are unaffected (they
+keep the existing row).
+
 ## c_yuno: `priority` attr renamed to `sched_priority`
 
 The `C_YUNO` attr that feeds `sched_setscheduler` (default `20`, only
