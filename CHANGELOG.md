@@ -1,6 +1,16 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(agent): `find-new-yunos` inherits node placement across a version
+      bump.** A version-bump deploy (`install-binary` + `find-new-yunos
+      create=1` + `deactivate-snap`) created the fresh `yunos` row at schema
+      defaults, dropping the operator-set `start_priority`/`sched_priority`/
+      `cpu_core` and forcing a re-run of `tools/agent/set_start_priorities.py`.
+      `cmd_find_new_yunos` now copies those three fields from the prior primary
+      row into the emitted `create-yuno` command (and `pm_create_yuno` accepts
+      them), so launch tiers and CPU placement survive the bump. Same-version
+      REBUILD hot-patches were already unaffected (they keep the existing row);
+      genuinely-new yunos still get defaults plus the `util`-tag seed.
 
 ## v7.4.8 -- 03/Jun/2026
     - **feat(agent): per-yuno `start_priority` launch tiers.** The agent's

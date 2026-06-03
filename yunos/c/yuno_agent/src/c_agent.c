@@ -720,6 +720,9 @@ SDATAPM (DTP_BOOLEAN,   "yuno_disabled",0,              0,          "True if yun
 SDATAPM (DTP_BOOLEAN,   "must_play",    0,              0,          "True if yuno must play"),
 SDATAPM (DTP_BOOLEAN,   "yuno_multiple",0,              0,          "True if yuno can have multiple instances with same name"),
 SDATAPM (DTP_BOOLEAN,   "global",       0,              0,          "Yuno with public service (False: bind to 127.0.0.1, True: bind to realm ip)"),
+SDATAPM (DTP_INTEGER,   "start_priority",0,             0,          "Launch tier (0..9, ascending); inherited on version bump"),
+SDATAPM (DTP_INTEGER,   "sched_priority",0,             0,          "sched_setscheduler priority (applied only when cpu_core > 0)"),
+SDATAPM (DTP_INTEGER,   "cpu_core",     0,              0,          "CPU core to pin to (0 = no pinning)"),
 SDATA_END()
 };
 
@@ -4402,11 +4405,18 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
             SDATA_GET_STR(binary_found, "version"):
             SDATA_GET_STR(yuno, "role_version");
 
+        /*
+         *  Inherit the operator-set node placement from the prior primary row.
+         *  Without this a version-bump deploy would reset start_priority /
+         *  sched_priority / cpu_core to the schema defaults, collapsing the
+         *  launch tiers and forcing a re-run of tools/agent/set_start_priorities.py.
+         */
         json_array_append_new(
             jn_data,
             json_sprintf(
                 "create-yuno id=%s realm_id=%s yuno_role=%s role_version=%s "
-                "yuno_name=%s name_version=%s yuno_tag=%s yuno_multiple=%d",
+                "yuno_name=%s name_version=%s yuno_tag=%s yuno_multiple=%d "
+                "start_priority=%d sched_priority=%d cpu_core=%d",
                 id,
                 realm_id,
                 yuno_role,
@@ -4414,7 +4424,10 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
                 yuno_name,
                 new_name_version,
                 SDATA_GET_STR(yuno, "yuno_tag"),
-                SDATA_GET_BOOL(yuno, "yuno_multiple")
+                SDATA_GET_BOOL(yuno, "yuno_multiple"),
+                (int)kw_get_int(gobj, yuno, "start_priority", 5, KW_REQUIRED),
+                (int)kw_get_int(gobj, yuno, "sched_priority", 20, KW_REQUIRED),
+                (int)kw_get_int(gobj, yuno, "cpu_core", 0, KW_REQUIRED)
             )
         );
 
