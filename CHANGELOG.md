@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## v7.5.1 -- 03/Jun/2026
     - **fix(treedb): multi-version parent reverse-hook hygiene.** Two
       in-memory hook quirks around versioned (pkey2) parents are fixed at the
       treedb layer:
