@@ -14,8 +14,9 @@ tools/
 ├── cmake/
 │   └── project.cmake     # master build configuration, included by every module
 └── agent/
-    ├── sync_binaries.py  # reconcile built yunos vs the agent's installed set
-    └── sync_configs.py   # reconcile a directory's configs vs the agent's installed set
+    ├── sync_binaries.py        # reconcile built yunos vs the agent's installed set
+    ├── sync_configs.py         # reconcile a directory's configs vs the agent's installed set
+    └── set_start_priorities.py # assign each managed yuno's start_priority by role
 ```
 
 ## `cmake/project.cmake` — build infrastructure
@@ -72,3 +73,6 @@ Helpers for talking to a running `yuneta_agent`.
   current directory (`batches/<host>/`) against the agent's installed set and
   push the differences via `create-config` (alias `install-config`) /
   `update-config`, with confirmation.
+- [`set_start_priorities.py`](tools/set_start_priorities.md) — assign each
+  managed yuno's `start_priority` (its launch tier) by role, in one shot, via
+  `update-node`.

@@ -1,6 +1,52 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(agent): per-yuno `start_priority` launch tiers.** The agent's
+      `yunos` topic gains `start_priority` (band 0..9, default 5). `run-yuno`
+      launches ascending (utilities first), `kill-yuno`/`pause-yuno` descending
+      (utilities last, so logcenter captures everyone's shutdown), stable within
+      a tier. The node-wide relaunch (`run_enabled_yunos`, used by
+      `restart_nodes`/`deactivate-snap` and at startup) honours the same order;
+      the force-SIGKILL pass stays unordered (no graceful drain to sequence).
+      `create-yuno` seeds `start_priority=1` for `util`-tagged yunos (the set
+      `run_util_yunos` already starts first) — no app role names in the agent.
+      Schema `topic_version` 19→20 + `schema_version` 22→23; the bump only
+      refreshes the col schema files, record data is untouched (no store wipe).
+      Assign app tiers per node with `tools/agent/set_start_priorities.py`.
+    - **feat(agent): node CPU placement (`sched_priority`, `cpu_core`) from the
+      agent treedb.** Both are new `yunos` columns the agent injects into the
+      launched yuno's config as its `sched_priority`/`cpu_core` attrs, so OS
+      scheduling/affinity is a node-local decision instead of being baked into
+      the config that travels across nodes. Defaults only: the user config file
+      is merged after the agent's and still wins. `cpu_core=0` (default) = no
+      boost, unchanged behaviour.
+    - **refactor(c_yuno): scheduling attr `priority` renamed to `sched_priority`.**
+      The `sched_setscheduler` attr (default 20, applied only when `cpu_core>0`)
+      collided with the per-service start order (0..9) and the agent's
+      `start_priority`; renamed so the name states what it does. `SDF_PERSIST`
+      fallback is a no-op in practice (consulted only at `cpu_core>0`, which no
+      shipped yuno sets); no migration shim. The per-service `priority` is
+      unchanged. See `TODO.md`.
+    - **refactor(agent): `set-ordered-kill` renamed to `set-graceful-kill`.** The
+      command never ordered anything — it only sets `signal2kill=SIGQUIT` (the
+      yuno catches it and shuts itself down cleanly). Renamed to the honest axis
+      (graceful SIGQUIT vs quick SIGKILL, `set-quick-kill`), which also frees
+      "ordered" for the real `start_priority` ordering above. No alias kept.
+    - **feat(tools): `set_start_priorities.py` — assign `start_priority` by role.**
+      One-shot operator tool mapping each managed yuno's role to a launch tier
+      (defaults: utilities=1, `gate_*`=4, `db_*`=7; unmatched left as-is) and
+      writing the differences via `update-node` (record base64'd into
+      `content64`; the inline `record={...}` form is not coerced by the CLI).
+      `--rule PATTERN=PRIO` adds/overrides (matched before the built-ins),
+      `--dry-run`/`--all`/`--show-all`. Same OAuth2-once + `-j` plumbing as the
+      other agent scripts, so it can drive a remote wss:// agent.
+    - **feat(tools): `sync_binaries.py`/`sync_configs.py` order restarts by
+      `start_priority`.** Both bounced yunos alphabetically; now they read the
+      per-yuno `start_priority` the agent exposes via `*list-yunos` and restart
+      ascending, so infrastructure comes back before its dependents. Both
+      degrade to the previous order when the agent has no `start_priority` yet.
+      The quit/decline message also reads `Cancelled - no changes made.` instead
+      of `Aborted.` (which looked like a crash).
     - **feat(c_yuno): `print-role` command — runtime equivalent of `--print-role`.**
       Every yuno (the agent included) now answers a `print-role` command that
       returns its basic identity: `role`, `name`, `alias`, **`version`** (the

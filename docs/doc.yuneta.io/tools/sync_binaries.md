@@ -56,6 +56,12 @@ instances across realms is handled in one shot (the role-scoped commands act on
 every instance — they all share the one slot). Pass `--no-restart` to keep the
 old print-only-reminder behaviour.
 
+When several roles are pushed at once the restarts run in **ascending
+`start_priority`** order (read from the agent via `*list-yunos`), so a `REBUILD`
+brings infrastructure (logcenter/emailsender/auth_bff) back before gates and dba
+instead of alphabetically; it degrades to the previous order when the agent has
+no `start_priority` yet. See [`set_start_priorities.py`](set_start_priorities.md).
+
 The **version-bump** path is still **not** automated: after an `install-binary`
 the script prints the `find-new-yunos create=1` + `deactivate-snap` reminder,
 because that is a node-wide bounce with broader side effects.

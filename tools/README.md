@@ -17,7 +17,8 @@ tools/
 │   └── project.cmake           # Master build configuration (included by all modules)
 └── agent/
     ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
-    └── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
+    ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
+    └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
 ```
 
 ## agent/sync_binaries.py
@@ -121,6 +122,44 @@ tools/agent/sync_configs.py -a                 # apply every candidate without a
 tools/agent/sync_configs.py --show-uptodate    # also list in-sync and agent-only configs
 tools/agent/sync_configs.py --restart          # push AND restart the using yunos to apply it
 tools/agent/sync_configs.py -u ws://127.0.0.1:1991   # target a specific agent url
+```
+
+When several roles are deployed at once the restarts run in ascending
+`start_priority` order (read from the agent via `*list-yunos`, lowest among a
+role's instances), so a `REBUILD` brings infrastructure
+(logcenter/emailsender/auth_bff) back before gates and dba instead of
+alphabetically. It degrades to the previous order when the agent has no
+`start_priority` yet.
+
+## agent/set_start_priorities.py
+
+Assigns each managed yuno's `start_priority` (the agent's per-yuno launch-order
+band 0..9) by role, in one shot. The agent launches yunos ascending (utilities
+first) and stops them descending (utilities last); a fresh agent leaves every
+yuno at the default 5, so the order is effectively insertion order until the
+tiers are assigned. This tool reads the yunos from `*list-yunos`, maps each role
+to a tier, and writes the differences via `update-node` (record base64'd into
+`content64` — the inline `record={...}` form is not coerced by the CLI).
+
+Default tiers (first match wins; lower starts earlier):
+
+| Tier | Roles |
+|------|-------|
+| 1 | `logcenter`, `emailsender`, `auth_bff` (utilities) |
+| 4 | `gate_*` |
+| 7 | `db_*` |
+| 5 | everything else — left untouched unless a rule matches |
+
+`--rule PATTERN=PRIO` adds/overrides a rule (PATTERN is an exact role or a glob
+like `gate_*`), matched **before** the built-ins. Same OAuth2-once + `-j`
+plumbing as the sync scripts, so it can drive a remote agent.
+
+```bash
+tools/agent/set_start_priorities.py            # interactive: show plan, ask, apply
+tools/agent/set_start_priorities.py -n         # dry-run: show the plan, write nothing
+tools/agent/set_start_priorities.py -a         # apply without asking
+tools/agent/set_start_priorities.py --rule 'scheduler_wz=8' --rule 'agregador_wz=8'
+tools/agent/set_start_priorities.py --show-all # also list yunos already at target / with no rule
 ```
 
 ## project.cmake

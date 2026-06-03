@@ -346,6 +346,8 @@ project:
           file: tools/sync_binaries.md
         - title: sync_configs.py
           file: tools/sync_configs.md
+        - title: set_start_priorities.py
+          file: tools/set_start_priorities.md
 
     - title: Test Suite
       file: testing.md

@@ -92,6 +92,11 @@ A yuno that is not running is left stopped (it reads the new config on its next
 start). NEW configs have no agent record yet (typically a yuno not created here),
 so they are never auto-restarted — their ids are printed as a reminder.
 
+The affected yunos are restarted in **ascending `start_priority`** order (read
+from their `*list-yunos` record), so infrastructure comes back before its
+dependents instead of in alphabetical id order. See
+[`set_start_priorities.py`](set_start_priorities.md).
+
 See [Yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
 
 ## Usage
