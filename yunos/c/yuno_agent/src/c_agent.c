@@ -281,7 +281,7 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_okill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_graceful_kill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_qkill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
@@ -820,7 +820,7 @@ SDATACM2 (DTP_SCHEMA,    "close-console",   0,                  0,              
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,                  pm_command_agent,cmd_command_agent,"Command to agent. WARNING: parameter's keys are not checked"),
 SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,                  pm_stats_agent, cmd_stats_agent, "Get statistics of agent"),
-SDATACM2 (DTP_SCHEMA,   "set-ordered-kill", 0,                  0,                  0,              cmd_set_okill,  "Kill yunos with SIGQUIT, ordered kill"),
+SDATACM2 (DTP_SCHEMA,   "set-graceful-kill",0,                  0,                  0,              cmd_set_graceful_kill, "Set kill mode = graceful (SIGQUIT, yuno shuts down itself)"),
 SDATACM2 (DTP_SCHEMA,   "set-quick-kill",   0,                  0,                  0,              cmd_set_qkill,  "Kill yunos with SIGKILL, quick kill"),
 SDATACM2 (DTP_SCHEMA,   "cert-sync-now",    0,                  0,                  0,              cmd_cert_sync_now,"Run cert auto-sync immediately (copy letsencrypt + reload every yuno)"),
 SDATACM2 (DTP_SCHEMA,   "cert-sync-status", 0,                  0,                  0,              cmd_cert_sync_status,"Show cert auto-sync state (last check, last action, failures)"),
@@ -6165,12 +6165,12 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_set_okill(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_set_graceful_kill(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     gobj_write_integer_attr(gobj, "signal2kill", SIGQUIT);
     return msg_iev_build_response(gobj,
         0,
-        json_sprintf("Set kill mode = ordered (with SIGQUIT)"),
+        json_sprintf("Set kill mode = graceful (SIGQUIT)"),
         0,
         0,
         kw  // owned

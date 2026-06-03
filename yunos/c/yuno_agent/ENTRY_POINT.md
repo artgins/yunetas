@@ -355,7 +355,7 @@ if(signal2kill == SIGKILL) {
 Two modes, toggled by the agent's `signal2kill` attribute (SDATA default
 `3` = SIGQUIT, `c_agent.c:919`):
 
-- **Ordered kill (`set-ordered-kill`, default).** SIGQUIT to the child →
+- **Graceful kill (`set-graceful-kill`, default).** SIGQUIT to the child →
   child's signalfd handler runs `set_yuno_must_die()` → clean exit code
   0 → watcher exits on its own. The agent does **not** touch the watcher.
 - **Quick kill (`set-quick-kill`, or `kill-yuno force=1`).** SIGKILL to

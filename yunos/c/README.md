@@ -67,7 +67,7 @@ Agent management:
 | `close-console` | Close a console |
 | `command-agent` | Send command to agent |
 | `stats-agent` | Get agent statistics |
-| `set-ordered-kill` | Kill yunos with SIGQUIT (ordered) |
+| `set-graceful-kill` | Kill yunos with SIGQUIT (graceful, yuno shuts down itself) |
 | `set-quick-kill` | Kill yunos with SIGKILL (quick) |
 
 Filesystem operations:
