@@ -11,6 +11,7 @@ yuneta shell.
 |-------------------------|--------------------------------------------------------------------------|
 | `migratev6tov7.py`      | One-shot migration tool: moves a v6 timeranger2 store to the v7 layout. Used during the v6→v7 upgrade window; not needed for greenfield. |
 | `verify_api_coverage.py`| Compares every `PUBLIC` kernel C function against the documented API anchors in `docs/doc.yuneta.io`; reports MISSING / EXTRA symbols per header. |
+| `check_doc_line_refs.py`| Audits the `file.c:NNNN` source-line references in the docs against the current tree. Default mode reports which are verifiably linkable (a guard; fails on out-of-bounds lines). `--linkify=<TAG>` turns verifiable refs into GitHub source links pinned to the release tag and pointing at the function's current def; re-run when tagging a release. |
 
 ## Adding new scripts
 
