@@ -114,7 +114,7 @@ columns:
 | `yuno_pid`        | last known pid (0 when not running)                                |
 | `must_play`       | bool — auto-play after `EV_ON_OPEN` handshake                      |
 | `start_priority`  | int 0..9 (default 5) — node-local launch order. See §4.8.          |
-| `sched_priority`  | int (default 20) — injected as the yuno's `priority` attr. See §4.8.|
+| `sched_priority`  | int (default 20) — injected as the yuno's `sched_priority` attr. See §4.8.|
 | `cpu_core`        | int (default 0) — injected as the yuno's `cpu_core` attr. See §4.8. |
 | `configurations`  | hook — N:M against `configurations` for multi-file config sets     |
 
@@ -376,7 +376,7 @@ Three planes share the word "priority" — keep them apart:
 
 | Plane | Where | What it controls |
 |-------|-------|------------------|
-| OS scheduling | yuno attr `priority` + `cpu_core` (`c_yuno.c:760`, `boost_process_performance`) | `sched_setscheduler` + CPU affinity of the process |
+| OS scheduling | yuno attr `sched_priority` + `cpu_core` (`c_yuno.c:760`, `boost_process_performance`) | `sched_setscheduler` + CPU affinity of the process |
 | Intra-yuno | each service's `priority` 0..9 (`manage_services.c`) | order services start **within** a yuno |
 | Inter-yuno | agent col `start_priority` 0..9 (this section) | order yunos start **on this node** |
 
@@ -391,7 +391,7 @@ everyone else's shutdown logs. Within one priority, treedb order is preserved
 (stable). Single-target commands (by `id`) are unaffected.
 
 **CPU placement.** `sched_priority` and `cpu_core` are injected into the
-agent-built config file #1 as the yuno's `priority` / `cpu_core` attrs
+agent-built config file #1 as the yuno's `sched_priority` / `cpu_core` attrs
 (`build_yuno_running_script`). They are **defaults only**: the user config file
 is merged after #1, so an explicit value in the yuno's own config still wins
 (precedence stays with the deployer). `cpu_core=0` (the default) means no

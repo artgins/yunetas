@@ -499,7 +499,7 @@ SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "0",            "Limit o
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 
 SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
-SDATA (DTP_INTEGER, "priority",         SDF_WR|SDF_PERSIST, "20",       "Process priority, BE CAREFUL"),
+SDATA (DTP_INTEGER, "sched_priority",   SDF_WR|SDF_PERSIST, "20",       "OS scheduler priority (sched_setscheduler), used if cpu_core > 0. BE CAREFUL"),
 
 SDATA_END()
 };
@@ -755,9 +755,9 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*-----------------------------*
-     *  Set priority and cpu core
+     *  Set scheduler priority and cpu core
      *-----------------------------*/
-    int priority = (int)gobj_read_integer_attr(gobj, "priority");
+    int priority = (int)gobj_read_integer_attr(gobj, "sched_priority");
     int cpu_core = (int)gobj_read_integer_attr(gobj, "cpu_core");
     if(cpu_core > 0) {
         json_t *jn_cpus = get_cpus();

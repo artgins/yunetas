@@ -2,6 +2,24 @@
 
 Tracks API renames, removals and additions between versions.
 
+## c_yuno: `priority` attr renamed to `sched_priority`
+
+The `C_YUNO` attr that feeds `sched_setscheduler` (default `20`, only
+applied when `cpu_core > 0`) was renamed `priority` -> `sched_priority`
+so the name no longer collides with the two *other* "priority" planes:
+the per-service start order (0..9, `manage_services.c`) and the agent's
+per-yuno `start_priority`. Only `c_yuno.c` (the SDATA + its single
+reader) and the agent's config injection (`build_yuno_running_script`)
+were touched; the service-level `priority` field is unchanged.
+
+Backwards-compat: the attr is `SDF_PERSIST`. A yuno store that persisted
+a non-default `priority` will fall back to the `sched_priority` default
+(20) after upgrade, and a yuno's own external config that sets `priority`
+is now ignored. Both are no-ops in practice (the value is only consulted
+when `cpu_core > 0`, which no shipped yuno sets), so no migration shim
+was added. Set the value the node-local way instead: the agent's
+`sched_priority` column (see YUNO_LIFECYCLE.md §4.8).
+
 ## Auth: OIDC migration follow-ups
 
 The `c_auth_bff` (BFF) and `c_task_authenticate` (ROPC task) gclasses

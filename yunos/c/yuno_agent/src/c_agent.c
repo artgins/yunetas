@@ -7805,8 +7805,9 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     json_int_t launch_id = kw_get_int(gobj, yuno, "launch_id", 0, KW_REQUIRED);
 
     /*
-     *  Node placement, injected as __yuno__ attrs (c_yuno reads "priority"/"cpu_core").
-     *  These are only defaults: the user config file, merged after this one, wins.
+     *  Node placement, injected as __yuno__ attrs (c_yuno reads
+     *  "sched_priority"/"cpu_core"). These are only defaults: the user config
+     *  file, merged after this one, wins.
      */
     json_int_t sched_priority = kw_get_int(gobj, yuno, "sched_priority", 20, 0);
     json_int_t cpu_core = kw_get_int(gobj, yuno, "cpu_core", 0, 0);
@@ -7894,7 +7895,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
                 "bind_ip", bind_ip,
                 "yuno_multiple", multiple,
                 "launch_id", (json_int_t)launch_id,
-                "priority", (json_int_t)sched_priority,
+                "sched_priority", (json_int_t)sched_priority,
                 "cpu_core", (json_int_t)cpu_core
         );
         json_t *jn_agent_environment = gobj_read_json_attr(gobj, "agent_environment");
