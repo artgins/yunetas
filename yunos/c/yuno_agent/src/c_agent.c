@@ -3505,6 +3505,55 @@ PRIVATE json_t *list_delete_targets(
 }
 
 /***************************************************************************
+ *  Count yunos that actually USE a config/binary node, robustly.
+ *
+ *  The node's `yunos` hook is config-id-level and can carry STALE refs
+ *  (a yuno whose record was deleted but whose hook entry lingers in
+ *  memory until the next reload — the parent-hook is not always cleaned
+ *  on a multi-version parent). So validate every hooked yuno id with
+ *  gobj_get_node (a deleted yuno returns NULL → skip). When target_version
+ *  is non-empty, count only yunos pinned to THAT version (a yuno uses
+ *  config version = its name_version, binary version = its role_version),
+ *  so an unused/superseded version can be pruned while another is in use.
+ ***************************************************************************/
+PRIVATE int count_yunos_using(
+    hgobj gobj,
+    json_t *node,               // config/binary node with the "yunos" hook
+    const char *version_field,  // "name_version" (config) or "role_version" (binary)
+    const char *target_version, // node's version; "" => count any version
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int use = 0;
+    json_t *yunos = kw_get_list(gobj, node, "yunos", 0, 0);
+    int i; json_t *jn_yuno_id;
+    json_array_foreach(yunos, i, jn_yuno_id) {
+        const char *yuno_id = json_string_value(jn_yuno_id);
+        if(empty_string(yuno_id)) {
+            continue;
+        }
+        json_t *y = gobj_get_node(
+            priv->resource,
+            "yunos",
+            json_pack("{s:s}", "id", yuno_id),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            src
+        );
+        if(!y) {
+            continue;   // stale hook ref: the yuno is gone, not a real user
+        }
+        if(empty_string(target_version) ||
+                strcmp(kw_get_str(gobj, y, version_field, "", 0), target_version)==0) {
+            use++;
+        }
+        JSON_DECREF(y);
+    }
+    return use;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -3534,14 +3583,18 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Check conditions to delete
      */
+    BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "version", "", 0));
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        json_t *yunos = kw_get_list(gobj, node, "yunos", 0, KW_REQUIRED);
-        int use = json_array_size(yunos);
-        if(use > 0) {
+        const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
+        int use = count_yunos_using(gobj, node, "role_version",
+            by_instance? node_version: "", src);
+        if(use > 0 && !force) {
             json_t *comment = json_sprintf(
-                "Cannot delete binary '%s'. Using in %d yunos",
+                "Cannot delete binary '%s' version '%s'. Using in %d yunos "
+                "(use force=1 to override)",
                 kw_get_str(gobj, node, "id", "", KW_REQUIRED),
+                node_version,
                 use
             );
             JSON_DECREF(iter)
@@ -3969,16 +4022,23 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     /*
-     *  Check conditions to delete
+     *  Check conditions to delete.
+     *  In instance mode (version given) only a yuno pinned to THAT version
+     *  blocks; otherwise any using yuno does. Stale hook refs are ignored
+     *  (count_yunos_using validates each via gobj_get_node). force overrides.
      */
+    BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "version", "", 0));
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        json_t *yunos = kw_get_list(gobj, node, "yunos", 0, KW_REQUIRED);
-        int use = json_array_size(yunos);
-        if(use > 0) {
+        const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
+        int use = count_yunos_using(gobj, node, "name_version",
+            by_instance? node_version: "", src);
+        if(use > 0 && !force) {
             json_t *comment = json_sprintf(
-                "Cannot delete configuration '%s'. Using in %d yunos",
+                "Cannot delete configuration '%s' version '%s'. Using in %d yunos "
+                "(use force=1 to override)",
                 kw_get_str(gobj, node, "id", "", KW_REQUIRED),
+                node_version,
                 use
             );
             JSON_DECREF(iter)

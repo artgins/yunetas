@@ -1,6 +1,19 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(agent): version-aware, stale-safe `delete-config`/`delete-binary`
+      usage guard.** The "Using in N yunos" guard read the raw `yunos` hook
+      count, which is config-id-level (shared across versions) and can carry
+      stale/duplicate refs — so an UNUSED config/binary version could not be
+      pruned while another version was in use, and lingering refs blocked
+      deletes. New `count_yunos_using()` validates every hooked yuno id via
+      `gobj_get_node` (a deleted yuno → NULL → skipped) and, when a version is
+      given, counts only yunos pinned to THAT version (config↔`name_version`,
+      binary↔`role_version`). So an unused/superseded version prunes cleanly,
+      only the in-use version blocks, and `force=1` overrides. Combined with the
+      durable per-instance delete below, `delete-config version=`/`delete-binary
+      version=` now remove a single version durably. (Underlying treedb
+      multi-version reverse-hook hygiene remains a minor follow-up — see TODO.md.)
     - **feat(treedb): durable per-instance (pkey2) node delete.**
       `treedb_delete_instance` now tombstones EVERY md2 row belonging to a
       `(key, pkey2_value)` via `tranger2_delete_instance()` (enumerated with a

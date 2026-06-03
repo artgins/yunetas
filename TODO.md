@@ -2,20 +2,31 @@
 
 Tracks API renames, removals and additions between versions.
 
-## treedb: stale reverse-hooks block sibling deletes (follow-up)
+## treedb: multi-version parent reverse-hook hygiene (minor, deeper)
 
-Whole-key `delete-yuno id=X force=1` removes the yuno records but does NOT
-clean the reverse hook on linked parents (e.g. the `configurations` node's
-`yunos` hook). The dead references persist across an agent reload, so a later
-`delete-config`/`delete-binary` of a version still in (stale) use fails with
-"Using in N yunos". Link teardown on delete should update both sides, and
-reload should reconcile hooks against live fkeys.
+The user-facing symptom (stale `configurations.yunos` refs blocking
+`delete-config`/`delete-binary`) is FIXED at the agent layer — see CHANGELOG
+Unreleased: the guard now validates each hooked yuno via `gobj_get_node` (dead
+refs skipped) and counts only yunos pinned to the SPECIFIC version, so unused/
+superseded versions prune cleanly and only the in-use version blocks (force
+overrides). Unused config/binary versions are deletable again.
 
-This is the remaining piece split off from the per-instance delete work (the
-durable per-instance delete itself shipped — see CHANGELOG Unreleased). It is
-NOT needed to prune a yuno release (that works durably now); it only blocks
-deleting a config/binary *version* whose reverse-hook still carries dead refs.
-Lower priority; a realm regenerate also clears it.
+Two underlying treedb quirks remain (low impact, both self-heal on reload, both
+tolerated by the agent guard now):
+
+1. **Unlink targets the primary parent version.** When a parent topic has
+   versions (configs/binaries have pkey2 `version`), a child's fkey resolves to
+   the parent *id*; `treedb_clean_node` -> `treedb_get_node(parent_id)` unlinks
+   from the PRIMARY version's hook, missing the version the child was actually
+   hooked on. So whole-key `delete-yuno` can leave a stale entry on a
+   non-primary parent-version hook (in-memory until reload).
+2. **Duplicate hook entries.** Repeated create/link of the same child id can
+   leave the same id more than once in the parent hook (seen as
+   `yunos: ["5000","5000"]`), inflating the "Using in N" count. Rebuilds clean
+   on reload; the agent guard's per-id `gobj_get_node` validation tolerates it.
+
+Proper fix lives in treedb (unlink across all parent-version instances + dedupe
+hook membership). Lower priority now that the agent guard is robust.
 
 ## c_yuno: `priority` attr renamed to `sched_priority`
 
