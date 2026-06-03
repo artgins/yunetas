@@ -2,6 +2,47 @@
 
 Tracks API renames, removals and additions between versions.
 
+## agent: cannot delete a non-primary yuno/config/binary instance
+
+`delete-yuno`, `delete-config` and `delete-binary` (`cmd_delete_yuno`
+c_agent.c:4749, `cmd_delete_config` :3913, `cmd_delete_binary` :3470) all
+resolve their target with `gobj_list_nodes(...)`, which returns **one primary
+node per id** — the in-memory primary, not the per-`pkey2` instance. So a filter
+like `delete-yuno id=5000 yuno_release=1.4.6.0-3` (or `delete-config
+id=db_tracks.5000 version=3`) either matches the *primary* release/version or
+nothing at all (`"Select some ... please"`). `cmd_delete_yuno` even hardcodes
+`json_pack("{s:s}", "id", ...)` (c_agent.c:4839), dropping the `pkey2` entirely
+before calling `gobj_delete_node`.
+
+Consequence: there is no first-class way to prune a single superseded (or
+mistakenly-created **higher**) release/version of a yuno without a full snap
+rollback. This bites specifically when an instance whose `yuno_release` sorts
+*above* the running primary needs to be removed — left in place,
+`promote_highest_release_yunos` / a treedb reload would promote it on the next
+`deactivate-snap` or agent restart.
+
+The underlying treedb already supports it: `C_NODE`'s `delete-node`
+(`cmd_delete_node` / `mt_delete_node`, c_node.c) finds the node by `id` **plus**
+the `pkey2` field(s). The current operator workaround is to bypass the agent
+commands and drive the treedb directly:
+
+```
+ycommand -c 'command-agent service=treedb_yuneta_agent command=delete-node \
+    topic_name=yunos record={"id":"5000","yuno_release":"1.4.6.0-3"} \
+    options={"force":1}'
+```
+
+Note the `record` JSON must be **double-quoted** — the value reaches the treedb
+parser as a wild string and is coerced via `anystring2json`
+(command_parser.c:534), which rejects single-quoted JSON, so single quotes
+silently drop the field (→ `"field 'id' is required"`).
+
+Fix: have `delete-yuno`/`delete-config`/`delete-binary` forward the `pkey2`
+(`yuno_release` / `version`) into `gobj_delete_node` when supplied — list via
+`gobj_list_instances` (not `gobj_list_nodes`) so a specific instance can be
+selected and deleted, falling back to today's primary behaviour when no `pkey2`
+is given. Keep the running-yuno and snap-tag guards.
+
 ## c_yuno: `priority` attr renamed to `sched_priority`
 
 The `C_YUNO` attr that feeds `sched_setscheduler` (default `20`, only
