@@ -58,7 +58,7 @@ reorder, just merge new code into the existing layout.
 ## 2. CLI usage
 
 The tool is `yuno-skeleton`, installed by the `utils/c/yuno-skeleton/`
-build. Arguments declared at `yuno_skeleton.c:54-61`:
+build. Arguments declared at `yuno_skeleton.c`:
 
 | Flag                          | Meaning                                                |
 |-------------------------------|--------------------------------------------------------|
@@ -128,15 +128,15 @@ PCRE2 regex.
 
 ### 4.1 Content placeholders: `{{varname}}`
 
-`tmpl_dir.c:72-143`. Pattern `(\{\{.+?\}\})`. Every `{{var}}` block in a
+`tmpl_dir.c`. Pattern `(\{\{.+?\}\})`. Every `{{var}}` block in a
 file whose name ends in `_tmpl` is replaced by the matching value from
 `jn_values`. Used inside `main.c_tmpl`, `c_+rootname+.c_tmpl`, etc.
 
 ### 4.2 Filename placeholders: `+varname+`
 
-`tmpl_dir.c:150-251`. Pattern `(\+.+?\+)`. Every `+var+` block in a
+`tmpl_dir.c`. Pattern `(\+.+?\+)`. Every `+var+` block in a
 filename or directory name is replaced. The `_tmpl` suffix is stripped
-on output (`tmpl_dir.c:244-248`). Example:
+on output (`tmpl_dir.c`). Example:
 
 ```
 template path:   skeletons/gclass_child/c_+rootname+.c_tmpl
@@ -486,9 +486,9 @@ cmake .. && make
 
 | What                                              | Where                                                                  |
 |---------------------------------------------------|------------------------------------------------------------------------|
-| Tool entry point                                  | `utils/c/yuno-skeleton/yuno_skeleton.c:54-61`                          |
-| Templating engine (variables + dispatch)          | `utils/c/yuno-skeleton/make_skeleton.c:209-302`                        |
-| Directory walker + content rendering              | `utils/c/yuno-skeleton/tmpl_dir.c:72-251, 323-394`                     |
+| Tool entry point                                  | `utils/c/yuno-skeleton/yuno_skeleton.c`                          |
+| Templating engine (variables + dispatch)          | `utils/c/yuno-skeleton/make_skeleton.c`                        |
+| Directory walker + content rendering              | `utils/c/yuno-skeleton/tmpl_dir.c, 323-394`                     |
 | Template catalog                                  | `utils/c/yuno-skeleton/skeletons/__skeletons__.json`                   |
 | `yuno_citizen` main template                      | `utils/c/yuno-skeleton/skeletons/yuno_citizen/src/main.c_tmpl`         |
 | `yuno_standalone` main template                   | `utils/c/yuno-skeleton/skeletons/yuno_standalone/src/main.c_tmpl`      |

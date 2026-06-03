@@ -65,7 +65,7 @@ The same path in text:
 ### 2.1 Events are declared with `event_type_t`
 
 A gclass lists every event it can produce or receive in an `event_type_t`
-array. Declared at `kernel/c/gobj-c/src/gobj.h:336-339`:
+array. Declared at `kernel/c/gobj-c/src/gobj.h`:
 
 ```c
 typedef struct event_type_s {
@@ -74,7 +74,7 @@ typedef struct event_type_s {
 } event_type_t;
 ```
 
-Flags at `gobj.h:327-334`:
+Flags at `gobj.h`:
 
 | Flag                    | Meaning                                                            |
 |-------------------------|--------------------------------------------------------------------|
@@ -102,7 +102,7 @@ suppressor.
 
 ### 2.2 States and the event→action table
 
-Per-state transitions are declared with `ev_action_t` (`gobj.h:316-320`):
+Per-state transitions are declared with `ev_action_t` (`gobj.h`):
 
 ```c
 typedef struct {
@@ -113,7 +113,7 @@ typedef struct {
 ```
 
 A state is a named array of these rows, terminated by `{0,0,0}`. A gclass
-is a named array of states (`states_t`, `gobj.h:322-325`), terminated by
+is a named array of states (`states_t`, `gobj.h`), terminated by
 `{0,0}`.
 
 Minimal example from `c_timer.c`:
@@ -135,7 +135,7 @@ Every event-carrying API in Yuneta follows the same rule: **the callee
 consumes one reference to `kw`**. If the caller still needs `kw`, it must
 `json_incref()` first.
 
-Macros at `kwid.h:94-103`:
+Macros at `kwid.h`:
 
 ```c
 #define KW_DECREF(ptr) if(ptr) { kw_decref(ptr); (ptr) = 0; }
@@ -147,7 +147,7 @@ the end, or hand `kw` to another consuming API (e.g. `gobj_publish_event`,
 `gobj_send_event`, `msg_iev_build_response`). Failure to consume = leak.
 Double consumption = use-after-free.
 
-The framework itself calls `KW_DECREF(kw)` at `gobj.c:7629` when there's no
+The framework itself calls `KW_DECREF(kw)` at `gobj.c` when there's no
 action declared, so a missing action does not leak.
 
 ---
@@ -156,19 +156,19 @@ action declared, so a missing action does not leak.
 
 ### 3.1 `gobj_send_event(dst, event, kw, src)` — direct dispatch
 
-The workhorse. Entry at `kernel/c/gobj-c/src/gobj.c:7441`. Path:
+The workhorse. Entry at `kernel/c/gobj-c/src/gobj.c`. Path:
 
 1. Find `dst->current_state`.
 2. Look up `event` in the state's `ev_action_list` (`_find_event_action`,
-   gobj.c:7498).
+   gobj.c).
 3. If not found:
-   - If the gclass has `mt_inject_event`, delegate to it (gobj.c:7535).
-   - Else log `"Event NOT DEFINED in state"` and return -1 (gobj.c:7541-7563).
+   - If the gclass has `mt_inject_event`, delegate to it (gobj.c).
+   - Else log `"Event NOT DEFINED in state"` and return -1 (gobj.c).
 4. If found: change state, then exec the action (next section).
 
 ### 3.2 The "IMPORTANT HACK": state changes *before* the action
 
-Quoting verbatim from `kernel/c/gobj-c/src/gobj.c:7611-7619`:
+Quoting verbatim from `kernel/c/gobj-c/src/gobj.c`:
 
 ```c
 /*
@@ -202,12 +202,12 @@ the action.
 
 ### 3.3 `gobj_publish_event(publisher, event, kw)` — broadcast
 
-Entry at `gobj.c:8877`. Loops over `publisher->dl_subscriptions` and calls
+Entry at `gobj.c`. Loops over `publisher->dl_subscriptions` and calls
 `gobj_send_event(subscriber, event, kw2publish, publisher)` for each, after
 applying per-subscription filters (`__filter__`, `__local__`, `__global__`,
 see §3.5).
 
-If there are no subscribers, `gobj.c:9218-9232` logs
+If there are no subscribers, `gobj.c` logs
 *"Publish event WITHOUT subscribers"* at `LOG_WARNING` — unless the
 `event_type_t` declared `EVF_NO_WARN_SUBS`. This is the canonical "I tried
 to publish to nobody" warning; if you're seeing it spuriously, the fix is
@@ -217,14 +217,14 @@ flavour (SERVICE vs CHILD) and that its subscriber chain is correct.
 
 ### 3.4 `gobj_subscribe_event` / `gobj_unsubscribe_event`
 
-Signatures at `gobj.h:1468-1479`:
+Signatures at `gobj.h`:
 
 ```c
 json_t *gobj_subscribe_event(publisher, event, kw, subscriber);
 int     gobj_unsubscribe_event(publisher, event, kw, subscriber);
 ```
 
-Storage at `gobj.c:118-119, 8525-8536`:
+Storage at `gobj.c, 8525-8536`:
 
 - In the **publisher**: `dl_subscriptions` — list of who subscribes to me.
 - In the **subscriber**: `dl_subscribings` — list of whom I subscribe to.
@@ -234,7 +234,7 @@ everyone automatically (subscriptions are not gobj-life-extending — the
 framework cleans up).
 
 `event = NULL` means "any event". `kw` is not a payload — it's a
-configuration dict accepting these keys (gobj.h:1428-1465):
+configuration dict accepting these keys (gobj.h):
 
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
@@ -243,7 +243,7 @@ configuration dict accepting these keys (gobj.h:1428-1465):
 | `__local__`               | Keys to delete from the published kw before delivery              |
 | `__filter__`              | Publish only if the published kw matches this selector            |
 
-Unknown keys at the top level produce a warning (`gobj.c:8438-8445`).
+Unknown keys at the top level produce a warning (`gobj.c`).
 
 ### 3.5 CHILD vs SERVICE patterns
 
@@ -286,7 +286,7 @@ generally.
 
 A gclass can set `gmt->mt_inject_event` to bypass the static FSM table.
 When `gobj_send_event` can't find the event in the current state, it
-delegates to this method (gobj.c:7535). Used for wildcard routing, dynamic
+delegates to this method (gobj.c). Used for wildcard routing, dynamic
 dispatch, gateways that don't know events ahead of time. The method must
 consume `kw` like a normal action.
 
@@ -335,7 +335,7 @@ wire format" header in the WS payload — each frame is a JSON object with
 
 ### 4.2 The wire frame
 
-Serialised in `kernel/c/root-linux/src/msg_ievent.c:140-145`:
+Serialised in `kernel/c/root-linux/src/msg_ievent.c`:
 
 ```c
 json_pack("{s:s, s:o}",
@@ -345,7 +345,7 @@ json_pack("{s:s, s:o}",
 ```
 
 Result is dumped with `JSON_COMPACT` and placed in a WS frame. The receiver
-does `gbuf2json` + `kw_deserialize` (`msg_ievent.c:164-206`).
+does `gbuf2json` + `kw_deserialize` (`msg_ievent.c`).
 
 Concretely, a command call on the wire looks roughly like:
 
@@ -362,7 +362,7 @@ Concretely, a command call on the wire looks roughly like:
 
 ### 4.3 The `__md_iev__` metadata block
 
-Documented in `kernel/c/root-linux/src/msg_ievent.h:16-94`. Top-level
+Documented in `kernel/c/root-linux/src/msg_ievent.h`. Top-level
 shape:
 
 ```
@@ -382,30 +382,30 @@ __md_iev__
 Other top-level keys in `kw` outside `__md_iev__`:
 
 - `__md_yuno__` — set by the responder via `msg_iev_set_back_metadata()`
-  (`msg_ievent.c:520-535`). Survives the round-trip.
-- `__temp__` — **stripped at the yuno boundary** (`msg_ievent.c:532, 511`).
+  (`msg_ievent.c`). Survives the round-trip.
+- `__temp__` — **stripped at the yuno boundary** (`msg_ievent.c, 511`).
   Use it freely for transport-local bookkeeping.
 - `__top_side__`, `__bottom_side__` — see §6.5.
 
 The stack is pushed on outbound, popped+reversed on the response, so the
 client gets back the same structure it sent (with response data added).
-Push/pop helpers: `msg_iev_push_stack` (`msg_ievent.c:327`),
-`msg_iev_get_stack`, `msg_iev_pop_stack` (`msg_ievent.c:316-340`).
+Push/pop helpers: `msg_iev_push_stack` ([`msg_ievent.c:327`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L327)),
+`msg_iev_get_stack`, `msg_iev_pop_stack` ([`msg_ievent.c:419`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L419)).
 
-`IEVENT_STACK_ID = "ievent_gate_stack"` constant at `msg_ievent.h:92`.
+`IEVENT_STACK_ID = "ievent_gate_stack"` constant at `msg_ievent.h`.
 
 ### 4.4 Identity card handshake
 
 When `C_IEVENT_CLI` opens its WS connection, it sends `EV_IDENTITY_CARD`
-(declared at `msg_ievent.h:107`, defined at `msg_ievent.c:32`) carrying:
+(declared at `msg_ievent.h`, defined at `msg_ievent.c`) carrying:
 
 - `src_yuno`, `src_role`, `src_service` — who I am
 - `dst_yuno`, `dst_role`, `dst_service` — who I want to talk to
 - `jwt` — optional bearer for auth (also accepted from Cookie if empty,
-  `c_ievent_srv.c:770-785`)
+  `c_ievent_srv.c`)
 - `user`, `host`, `pid`, `watcher_pid` — caller metadata
 
-The server validates (`c_ievent_srv.c:636-876`):
+The server validates (`c_ievent_srv.c`):
 
 1. Role match (line 677).
 2. Optional yuno-name match (line 694).
@@ -415,35 +415,35 @@ The server validates (`c_ievent_srv.c:636-876`):
 
 On success: stores `client_yuno_role`, `client_yuno_name`,
 `client_yuno_service`, `authenticated` in its own attrs
-(`c_ievent_srv.c:853-876`) and replies with `EV_IDENTITY_CARD_ACK`. The
-client unblocks from `ST_WAIT_IDENTITY_CARD_ACK` (`c_ievent_cli.h:31`).
+(`c_ievent_srv.c`) and replies with `EV_IDENTITY_CARD_ACK`. The
+client unblocks from `ST_WAIT_IDENTITY_CARD_ACK` (`c_ievent_cli.h`).
 
 After the handshake the channel is fully bidirectional — events flow
 either way.
 
 ### 4.5 Routing inside the receiver
 
-`ac_on_message` in `c_ievent_srv.c:933-1300+`:
+`ac_on_message` in `[c_ievent_srv.c:933](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c#L933)+`:
 
-1. `iev_create_from_gbuffer` (`msg_ievent.c:152`) deserialises the WS
+1. `iev_create_from_gbuffer` ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
    frame.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
-   `dst_role`, `dst_service` (`c_ievent_srv.c:1052, 1070, 1092`).
+   `dst_role`, `dst_service` (`c_ievent_srv.c, 1070, 1092`).
 3. Validate the role/name (lines 1054, 1072).
-4. `gobj_find_service(iev_dst_service)` (`gobj.c:5076-5121`) — case-insensitive
+4. `gobj_find_service(iev_dst_service)` ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)) — case-insensitive
    lookup. Special names:
-   - `__default_service__` (gobj.c:5090-5091) → resolves to the yuno's
+   - `__default_service__` (gobj.c) → resolves to the yuno's
      `gobj_default_service()`.
-   - `__yuno__` (gobj.c:5092) → the top-level yuno gobj itself.
-   - `__root__` (gobj.c:5094) → the root gobj.
+   - `__yuno__` (gobj.c) → the top-level yuno gobj itself.
+   - `__root__` (gobj.c) → the root gobj.
 5. Dispatch by `__msg_type__`:
 
 | `__msg_type__`        | Action on the receiver                                       |
 |-----------------------|--------------------------------------------------------------|
-| `__command__`         | `gobj_command(service, cmd, kw, src)` (c_ievent_cli.c:1371)  |
-| `__stats__`           | `gobj_stats(service, stats, kw, src)` (c_ievent_cli.c:1269)  |
-| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)` (c_ievent_srv.c:1135) |
-| `__unsubscribing__`   | symmetric (c_ievent_srv.c:1228)                              |
+| `__command__`         | `gobj_command(service, cmd, kw, src)` (c_ievent_cli.c)  |
+| `__stats__`           | `gobj_stats(service, stats, kw, src)` (c_ievent_cli.c)  |
+| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)` (c_ievent_srv.c) |
+| `__unsubscribing__`   | symmetric (c_ievent_srv.c)                              |
 | `__message__`         | `gobj_send_event(service, event, kw, src)` raw event delivery |
 
 ### 4.6 Subscribing across yunos
@@ -469,12 +469,12 @@ Higher-level API on top of the event machinery.
 
 A gclass exposes commands by declaring them in a `command_table` of
 `SDATACM` / `SDATACM2` rows. Each row: name, parameter schema, permission
-schema, handler function, description. See `c_agent.c:806-900` for a real
+schema, handler function, description. See `c_agent.c` for a real
 example, and the agent's own `YUNO_LIFECYCLE.md` for the table semantics.
 
 ### 5.2 `gobj_command` — the public entry point
 
-Signature at `gobj.h:1170`:
+Signature at `gobj.h`:
 
 ```c
 PUBLIC json_t *gobj_command(hgobj gobj, const char *command, json_t *kw, hgobj src);
@@ -497,13 +497,13 @@ the caller passed an async pattern, the response arrives as a callback.)
 | `EV_MT_COMMAND_ANSWER` | Wire event for the response                         |
 | `EV_ON_COMMAND`      | Local event a service publishes when its command result is ready (mostly for async commands) |
 
-Constants in `msg_ievent.h` / `msg_ievent.c:38-41`. Don't conflate them:
+Constants in `msg_ievent.h` / `msg_ievent.c`. Don't conflate them:
 `SDATACM` is a static declaration, `EV_MT_*` are runtime events that ride
 the wire.
 
 ### 5.4 `msg_iev_build_response`
 
-Defined at `msg_ievent.c:541`. Every command handler returns one of these
+Defined at `msg_ievent.c`. Every command handler returns one of these
 to keep the response shape uniform:
 
 ```c
@@ -526,7 +526,7 @@ convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
 
 Same shape as commands but for "give me a stats dict" calls. Wire events
-are `EV_MT_STATS` / `EV_MT_STATS_ANSWER` (`msg_ievent.c:38-39`). Use
+are `EV_MT_STATS` / `EV_MT_STATS_ANSWER` (`msg_ievent.c`). Use
 commands for actions, stats for observation.
 
 ---
@@ -573,15 +573,15 @@ Headline events:
 | `EV_DROP`              | in        | Close the connection                                   |
 
 States typical of `C_TCP`: `STOPPED`, `DISCONNECTED`, `WAIT_CONNECTED`,
-`CONNECTED`, `WAIT_HANDSHAKE` (if TLS), `IDLE`. See `c_tcp.c:26-62`.
+`CONNECTED`, `WAIT_HANDSHAKE` (if TLS), `IDLE`. See `c_tcp.c`.
 
 `C_TCP_S` accepts and spawns a clisrv-mode `C_TCP` per connection. The
 filter for what gclass tree to instantiate above each clisrv is held in
-the `child_tree_filter` attribute (`c_tcp_s.c:82, 680-753`).
+the `child_tree_filter` attribute (`c_tcp_s.c, 680-753`).
 
 ### 6.3 HTTP server example: `C_PROT_HTTP_SR` → `C_TCP_S`
 
-`c_prot_http_sr.c:85-113`: builds a `ghttp_parser` (a wrapper around
+`c_prot_http_sr.c`: builds a `ghttp_parser` (a wrapper around
 **llhttp** — note that yuneta swapped out the older `http_parser` library;
 see memory note `project_llhttp_integration`). Output event:
 `EV_ON_MESSAGE` with parsed headers, method, URL, body in `kw`.
@@ -592,7 +592,7 @@ Service gclass subscribes to that and dispatches by URL or method.
 
 `C_WEBSOCKET` (`c_websocket.c`) handles the HTTP Upgrade handshake then
 parses RFC 6455 frames. Output `EV_ON_MESSAGE` carries either the text or
-binary payload. The `iamServer` attribute (`c_websocket.c:150, 217`)
+binary payload. The `iamServer` attribute (`c_websocket.c, 217`)
 distinguishes server-mode from client-mode parsing of masked vs unmasked
 frames.
 
@@ -614,7 +614,7 @@ markers in the `kw`, not the same as the gobj-tree convention.
 
 `kernel/c/ytls/` is a runtime-selectable abstraction over OpenSSL and
 mbedTLS. `C_TCP_S` passes its `ytls` pointer down to each accepted clisrv
-(`c_tcp_s.c:769`):
+(`c_tcp_s.c`):
 
 ```c
 gobj_write_pointer_attr(clisrv, "ytls",    priv->ytls);
@@ -622,14 +622,14 @@ gobj_write_bool_attr   (clisrv, "use_ssl", priv->use_ssl);
 ```
 
 In `C_TCP` itself, if `use_ssl=TRUE`, on `EV_CONNECTED` the gobj wraps the
-socket via `ytls_new_secure_filter()` (`c_tcp.c:564-610`), and from then
+socket via `ytls_new_secure_filter()` (`c_tcp.c`), and from then
 on `EV_RX_DATA` carries decrypted plaintext while outbound bytes are
 encrypted before hitting the wire. The protocol gclass above is unaware
 TLS exists.
 
 ### 6.7 `public_services` vs `required_services`
 
-In each yuno's config (`c_yuno.c:471-472`):
+In each yuno's config (`c_yuno.c`):
 
 - **`public_services`**: array of service names this yuno exposes to
   outside clients. Anything listed here is reachable via `gobj_find_service`
@@ -657,7 +657,7 @@ view it's indistinguishable from another yuno.
 The SPA sends `EV_IDENTITY_CARD` over the WS just like a C client. The
 `jwt` field is typically read from the browser session (Keycloak token,
 see auth memory notes). The server's identity card validation is the
-same code path as for C clients (`c_ievent_srv.c:636-876`).
+same code path as for C clients (`c_ievent_srv.c`).
 
 ### 7.2 What a SPA can do
 
@@ -728,24 +728,24 @@ event), use `KW_INCREF` or `json_incref` first.
 
 Useful for in-process scratch data inside `kw`. Useless for anything you
 need on the far side of an ievent — that gets discarded by
-`msg_ievent.c:511, 532`. If you need persistent metadata across hops,
+`msg_ievent.c, 532`. If you need persistent metadata across hops,
 put it under `__md_iev__` or use the stack.
 
 ### 8.7 `msg_iev_build_webix` is the same as `msg_iev_build_response`
 
-The old name lingers in comments (`msg_ievent.c:541`) and possibly in
+The old name lingers in comments (`msg_ievent.c`) and possibly in
 some test fixtures. They are aliases; use the new name in new code.
 
 ### 8.8 `__default_service__` resolution is case-insensitive
 
-`gobj_find_service` lowercases (`gobj.c:5099`). `"My_Service"` and
+`gobj_find_service` lowercases ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)). `"My_Service"` and
 `"my_service"` are the same service. Don't rely on case to disambiguate.
 
 ### 8.9 SPAs see only `public_services`
 
 A common confusion: "I added the command but the SPA can't call it." Check
 the yuno config — the service must be listed in `public_services`
-(`c_yuno.c:471-472`).
+(`c_yuno.c`).
 
 ---
 
@@ -872,30 +872,30 @@ listen for `EV_MT_COMMAND_ANSWER`.
 
 | What                                          | Where                                                                  |
 |-----------------------------------------------|------------------------------------------------------------------------|
-| Event type declarations                       | `kernel/c/gobj-c/src/gobj.h:316-339`                                   |
-| `EVF_*` event flags                           | `kernel/c/gobj-c/src/gobj.h:327-334`                                   |
+| Event type declarations                       | `kernel/c/gobj-c/src/gobj.h`                                   |
+| `EVF_*` event flags                           | `kernel/c/gobj-c/src/gobj.h`                                   |
 | Minimal gclass example                        | `kernel/c/root-linux/src/c_timer.c`                                    |
-| `gobj_send_event` dispatcher                  | `kernel/c/gobj-c/src/gobj.c:7441-7654`                                 |
-| State-before-action ("IMPORTANT HACK")        | `kernel/c/gobj-c/src/gobj.c:7611-7627`                                 |
-| `gobj_publish_event`                          | `kernel/c/gobj-c/src/gobj.c:8877-9232`                                 |
-| `gobj_subscribe_event` config keys            | `kernel/c/gobj-c/src/gobj.h:1428-1479`                                 |
-| Subscription storage                          | `kernel/c/gobj-c/src/gobj.c:118-119, 8525-8536`                        |
-| `mt_inject_event` hook                        | `kernel/c/gobj-c/src/gobj.h:690`, `gobj.c:7535`                        |
-| `KW_DECREF` / `KW_INCREF`                     | `kernel/c/gobj-c/src/kwid.h:94-103`                                    |
+| `gobj_send_event` dispatcher                  | [`kernel/c/gobj-c/src/gobj.c:7441`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L7441)                                 |
+| State-before-action ("IMPORTANT HACK")        | `kernel/c/gobj-c/src/gobj.c`                                 |
+| `gobj_publish_event`                          | [`kernel/c/gobj-c/src/gobj.c:8877`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L8877)                                 |
+| `gobj_subscribe_event` config keys            | `kernel/c/gobj-c/src/gobj.h`                                 |
+| Subscription storage                          | `kernel/c/gobj-c/src/gobj.c, 8525-8536`                        |
+| `mt_inject_event` hook                        | `kernel/c/gobj-c/src/gobj.h`, `gobj.c`                        |
+| `KW_DECREF` / `KW_INCREF`                     | `kernel/c/gobj-c/src/kwid.h`                                    |
 | `C_IEVENT_SRV` / `C_IEVENT_CLI`               | `kernel/c/root-linux/src/c_ievent_srv.{c,h}`, `c_ievent_cli.{c,h}`     |
-| `__md_iev__` structure                        | `kernel/c/root-linux/src/msg_ievent.h:16-94`                           |
-| `IEVENT_STACK_ID`                             | `kernel/c/root-linux/src/msg_ievent.h:92`                              |
-| Stack push/pop                                | `kernel/c/root-linux/src/msg_ievent.c:316-340`                         |
-| Wire frame pack/unpack                        | `kernel/c/root-linux/src/msg_ievent.c:140-206`                         |
-| `msg_iev_build_response`                      | `kernel/c/root-linux/src/msg_ievent.c:541`                             |
-| Identity card validation                      | `kernel/c/root-linux/src/c_ievent_srv.c:636-876`                       |
-| Service routing                               | `kernel/c/root-linux/src/c_ievent_srv.c:933-1300`                      |
-| `gobj_find_service` + special names           | `kernel/c/gobj-c/src/gobj.c:5076-5121`                                 |
-| `gobj_command` / `gobj_stats` public API      | `kernel/c/gobj-c/src/gobj.h:1170-1194`                                 |
+| `__md_iev__` structure                        | `kernel/c/root-linux/src/msg_ievent.h`                           |
+| `IEVENT_STACK_ID`                             | `kernel/c/root-linux/src/msg_ievent.h`                              |
+| Stack push/pop                                | `kernel/c/root-linux/src/msg_ievent.c`                         |
+| Wire frame pack/unpack                        | `kernel/c/root-linux/src/msg_ievent.c`                         |
+| `msg_iev_build_response`                      | [`kernel/c/root-linux/src/msg_ievent.c:541`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L541)                             |
+| Identity card validation                      | `kernel/c/root-linux/src/c_ievent_srv.c`                       |
+| Service routing                               | `kernel/c/root-linux/src/c_ievent_srv.c`                      |
+| `gobj_find_service` + special names           | [`kernel/c/gobj-c/src/gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)                                 |
+| `gobj_command` / `gobj_stats` public API      | `kernel/c/gobj-c/src/gobj.h`                                 |
 | HTTP server protocol                          | `kernel/c/root-linux/src/c_prot_http_sr.c`                             |
 | WebSocket protocol                            | `kernel/c/root-linux/src/c_websocket.c`                                |
-| TCP transport (states + TLS hookup)           | `kernel/c/root-linux/src/c_tcp.c:26-62, 564-610`                       |
-| TCP server (`child_tree_filter`)              | `kernel/c/root-linux/src/c_tcp_s.c:82, 680-769`                        |
-| TLS abstraction                               | `kernel/c/ytls/src/ytls.h:30-100`                                      |
-| `public_services` / `required_services`       | `kernel/c/root-linux/src/c_yuno.c:471-472`                             |
+| TCP transport (states + TLS hookup)           | `kernel/c/root-linux/src/c_tcp.c, 564-610`                       |
+| TCP server (`child_tree_filter`)              | `kernel/c/root-linux/src/c_tcp_s.c, 680-769`                        |
+| TLS abstraction                               | `kernel/c/ytls/src/ytls.h`                                      |
+| `public_services` / `required_services`       | `kernel/c/root-linux/src/c_yuno.c`                             |
 | JS-side `C_IEVENT_CLI`                        | `kernel/js/gobj-js/src/c_ievent_cli.js`                                |

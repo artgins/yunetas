@@ -48,7 +48,7 @@ host.
 
 ## 2. Data model — the `realms` topic
 
-Defined in `treedb_schema_yuneta_agent.c:153-271`. Required fields (all
+Defined in `treedb_schema_yuneta_agent.c`. Required fields (all
 strings unless noted):
 
 | Field            | Notes                                                            |
@@ -94,7 +94,7 @@ The `id` is **not just a label** — it is constructed at create time as
 
 and used as the realm's URL. Where you'll see it:
 
-- `c_agent.c:7152-7153` — builds the URL when computing a yuno's working
+- `c_agent.c` — builds the URL when computing a yuno's working
   directory:
 
   ```c
@@ -113,7 +113,7 @@ on a realm is `bind_ip`** (see §5).
 
 ## 4. On-disk layout
 
-Built by `build_yuno_private_domain()` at `c_agent.c:7135-7161`:
+Built by `build_yuno_private_domain()` at `c_agent.c`:
 
 ```
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
@@ -138,14 +138,14 @@ is shared across all realms on the host.
 
 ## 5. CRUD commands
 
-Registered in the agent's command table at `c_agent.c:845-847`. Same
+Registered in the agent's command table at `c_agent.c`. Same
 patterns as the other agent commands (`pm_<name>` permission schemas,
 `gobj_create_node` / `gobj_update_node` / `gobj_delete_node` against the
 treedb).
 
 ### 5.1 `create-realm`
 
-Handler at `c_agent.c:2624-2748`. Schema `pm_create_realm` at lines
+Handler at `c_agent.c`. Schema `pm_create_realm` at lines
 345-353.
 
 Required: `realm_owner`, `realm_role`, `realm_name`, `realm_env`.
@@ -165,7 +165,7 @@ No on-disk directory is created. No bootstrap of a "default" realm exists
 
 ### 5.2 `update-realm`
 
-Handler at `c_agent.c:2753-2825`. Schema `pm_update_realm` at lines
+Handler at `c_agent.c`. Schema `pm_update_realm` at lines
 355-359.
 
 **The only mutable field is `bind_ip`.** The four pkey components are
@@ -175,7 +175,7 @@ it by `realm_id` (the immutable composed URL).
 
 ### 5.3 `delete-realm`
 
-Handler at `c_agent.c:2830-2912`.
+Handler at `c_agent.c`.
 
 **Refusal conditions**:
 
@@ -193,11 +193,11 @@ realm deletion. Clean up by hand if it matters.
 ## 6. Realm ↔ yunos
 
 The link is the `yunos.realm_id` fkey
-(`treedb_schema_yuneta_agent.c:259-260`). One realm has N yunos
+(`treedb_schema_yuneta_agent.c`). One realm has N yunos
 (`realms.yunos` hook); one yuno belongs to exactly one realm.
 
 At `run-yuno` time the agent reads the realm record to compute the
-working directory (`c_agent.c:7142-7160`):
+working directory (`c_agent.c`):
 
 ```c
 json_t *realm   = get_yuno_realm(gobj, yuno);
@@ -222,14 +222,14 @@ realm-scoped but aren't is the most common cause of surprises.
 
 ### 7.1 Port pool (`range_ports` / `last_port`)
 
-Agent-level attributes (`c_agent.c:921-922`):
+Agent-level attributes (`c_agent.c`):
 
 ```
 range_ports = "[[11100,11199]]"   ← default range
 last_port   = 0
 ```
 
-Allocation in `get_new_service_port()` at `c_agent.c:8639-8678` reads the
+Allocation in `get_new_service_port()` at `c_agent.c` reads the
 agent's `range_ports`, advances `last_port` globally, and hands out the
 next port. **All realms on the host share the same pool.** Two realms
 asking for an automatic port get adjacent ports from the same range,
@@ -241,7 +241,7 @@ write code that reads them.
 
 ### 7.2 Cert sync directory
 
-Agent-level (`c_agent.c:937-944`): a single
+Agent-level (`c_agent.c`): a single
 `cert_sync_store_dir` (default `/yuneta/store/certs`) is watched.
 Changes broadcast a `reload-certs` event to **every** yuno on the host,
 regardless of realm.
@@ -252,7 +252,7 @@ each yuno's config and skip cert-sync.
 
 ### 7.3 `__username__` / authzs
 
-The agent has one `__username__` attribute (`c_agent.c:914`) with
+The agent has one `__username__` attribute (`c_agent.c`) with
 "permission for all" semantics. Per-command `pm_<name>` schemas gate
 access, but the gating is against the *caller's* user, not against the
 realm. There is no built-in *"user X may read realm R but not realm S"*
@@ -349,7 +349,7 @@ operators, not enforcement.
 
 They're still in the schema. Code that "reads the realm's port range"
 will read stale data. The runtime ignores those fields. The real port
-pool is on the agent (`c_agent.c:921-922`). If you find code reading
+pool is on the agent (`c_agent.c`). If you find code reading
 `realm.range_ports`, that's a bug — fix it to read the agent's.
 
 ### 10.7 One agent per host means one port pool per host
@@ -429,14 +429,14 @@ ycommand -c 'list-yunos'                                  # all yunos with their
 
 | What                                              | Where                                                              |
 |---------------------------------------------------|--------------------------------------------------------------------|
-| `realms` topic schema                             | `treedb_schema_yuneta_agent.c:153-271`                             |
-| `create-realm` handler                            | `yunos/c/yuno_agent/src/c_agent.c:2624-2748`                       |
-| `update-realm` handler                            | `c_agent.c:2753-2825`                                              |
-| `delete-realm` handler                            | `c_agent.c:2830-2912`                                              |
-| Realm URL composition (`<name>.<role>.<env>`)     | `c_agent.c:7152-7153`                                              |
-| Yuno working-dir from realm                       | `c_agent.c:7135-7161` (`build_yuno_private_domain`)                |
-| Agent's port pool                                 | `c_agent.c:921-922, 8639-8678`                                     |
-| Agent's cert sync attrs                           | `c_agent.c:937-944`                                                |
+| `realms` topic schema                             | `treedb_schema_yuneta_agent.c`                             |
+| `create-realm` handler                            | `yunos/c/yuno_agent/src/c_agent.c`                       |
+| `update-realm` handler                            | `c_agent.c`                                              |
+| `delete-realm` handler                            | `c_agent.c`                                              |
+| Realm URL composition (`<name>.<role>.<env>`)     | `c_agent.c`                                              |
+| Yuno working-dir from realm                       | `c_agent.c` (`build_yuno_private_domain`)                |
+| Agent's port pool                                 | `c_agent.c, 8639-8678`                                     |
+| Agent's cert sync attrs                           | `c_agent.c`                                                |
 | `bind_ip` default                                 | `treedb_schema_yuneta_agent.c` (realms topic, `bind_ip` field)     |
-| `parent_realm_id` self-fkey                       | `treedb_schema_yuneta_agent.c:174`                                 |
-| `realms.yunos` hook                               | `treedb_schema_yuneta_agent.c:260`                                 |
+| `parent_realm_id` self-fkey                       | `treedb_schema_yuneta_agent.c`                                 |
+| `realms.yunos` hook                               | `treedb_schema_yuneta_agent.c`                                 |

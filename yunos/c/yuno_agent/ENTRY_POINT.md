@@ -16,7 +16,7 @@ lives in two files of `kernel/c/root-linux/src/`:
 
 Every standalone or citizen yuno's `main.c` boils down to one call to
 `yuneta_entry_point()` (optionally preceded by `yuneta_setup()` if it wants
-to override defaults). See `yunos/c/yuno_agent/src/main.c:352` for the
+to override defaults). See `yunos/c/yuno_agent/src/main.c` for the
 canonical example.
 
 ---
@@ -60,15 +60,15 @@ Call before `yuneta_entry_point()` if you want to override any of:
 
 | Knob                             | Default                                                | Where the default is set        |
 |----------------------------------|--------------------------------------------------------|---------------------------------|
-| `persistent_attrs`               | `db_load/save/remove/list_persistent_attrs` (dbsimple) | `entry_point.c:77-80`           |
-| `command_parser`                 | internal `command_parser()`                            | `entry_point.c:82`              |
-| `stats_parser`                   | internal `stats_parser()`                              | `entry_point.c:83`              |
-| `authz_checker`                  | `C_AUTHZ` monoclass checker                            | `entry_point.c:85`              |
-| `authentication_parser`          | `C_AUTHZ` parser                                       | `entry_point.c:86`              |
-| `MEM_MIN_BLOCK` / `MEM_MAX_BLOCK`| 512 B / 16 MiB                                         | `entry_point.c:88-89`           |
-| `MEM_SUPERBLOCK`                 | 16 MiB                                                 | `entry_point.c:90`              |
-| `MEM_MAX_SYSTEM_MEMORY`          | 64 MiB                                                 | `entry_point.c:91`              |
-| `USE_OWN_SYSTEM_MEMORY`          | `FALSE` (use libc malloc under gbmem)                  | `entry_point.c:93`              |
+| `persistent_attrs`               | `db_load/save/remove/list_persistent_attrs` (dbsimple) | `entry_point.c`           |
+| `command_parser`                 | internal `command_parser()`                            | `entry_point.c`              |
+| `stats_parser`                   | internal `stats_parser()`                              | `entry_point.c`              |
+| `authz_checker`                  | `C_AUTHZ` monoclass checker                            | `entry_point.c`              |
+| `authentication_parser`          | `C_AUTHZ` parser                                       | `entry_point.c`              |
+| `MEM_MIN_BLOCK` / `MEM_MAX_BLOCK`| 512 B / 16 MiB                                         | `entry_point.c`           |
+| `MEM_SUPERBLOCK`                 | 16 MiB                                                 | `entry_point.c`              |
+| `MEM_MAX_SYSTEM_MEMORY`          | 64 MiB                                                 | `entry_point.c`              |
+| `USE_OWN_SYSTEM_MEMORY`          | `FALSE` (use libc malloc under gbmem)                  | `entry_point.c`              |
 
 The memory tunables are passed straight to `gbmem_setup()` later. Yunos
 that handle large messages (image proxies, mqtt brokers under load) bump
@@ -79,7 +79,7 @@ for a representative call site.
 
 ## 3. `yuneta_entry_point()` — the choreography
 
-`entry_point.c:286-746`. In execution order:
+`entry_point.c`. In execution order:
 
 ### 3.1 Identity sanity (lines 316-335)
 
@@ -210,7 +210,7 @@ through `ydaemon.c`. Both eventually reach the same `process()` function.
 (entry-point-watcher)=
 ## 4. `ydaemon.c` — the supervision kernel
 
-`ydaemon.c:280-318`. The reason a yuno survives `kill -9 yuneta_agent`.
+`ydaemon.c`. The reason a yuno survives `kill -9 yuneta_agent`.
 
 ### 4.1 Double fork
 
@@ -291,7 +291,7 @@ yuno's identity card. That is how the agent ends up with `yuno_pid` and
 
 ## 5. `process()` — the inner loop
 
-`entry_point.c:751-918`. What every yuno actually runs once the daemon
+`entry_point.c`. What every yuno actually runs once the daemon
 ceremony is done.
 
 1. Emit the startup banner (`MSGSET_STARTUP "Starting yuno"`) with the
@@ -320,9 +320,9 @@ whether the watcher exits cleanly (§4.3).
 
 ## 6. Signals inside the yuno child
 
-`c_yuno.c:4660-4680` installs a `signalfd()` that watches SIGTERM,
+`c_yuno.c` installs a `signalfd()` that watches SIGTERM,
 SIGQUIT, SIGINT, SIGALRM, SIGUSR1, SIGUSR2, SIGPIPE. `yev_loop` pumps it.
-The handler (`c_yuno.c:622-672`):
+The handler (`c_yuno.c`):
 
 | Signal               | First time                                            | Second time                  |
 |----------------------|-------------------------------------------------------|------------------------------|
@@ -357,7 +357,7 @@ if(signal2kill == SIGKILL) {
 ```
 
 Two modes, toggled by the agent's `signal2kill` attribute (SDATA default
-`3` = SIGQUIT, `c_agent.c:919`):
+`3` = SIGQUIT, `c_agent.c`):
 
 - **Graceful kill (`set-graceful-kill`, default).** SIGQUIT to the child →
   child's signalfd handler runs `set_yuno_must_die()` → clean exit code

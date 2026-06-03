@@ -95,7 +95,7 @@ Empty sections still get their banner. Don't reorder.
 
 ## 3. The framework method table (`GMETHODS`)
 
-Declared in `gobj.h:674-739` as `gobj_method_t`. The framework calls
+Declared in `gobj.h` as `gobj_method_t`. The framework calls
 these on your gclass at fixed points in the lifecycle. None is required —
 a gclass with **zero** methods is technically valid (it would just be a
 data bag). In practice you always implement `mt_create` and `mt_destroy`
@@ -107,20 +107,20 @@ Most useful ones, in roughly the order you'll write them:
 |------------------------------|-------------------------------------------------------------------|---------------------------------------------------------|
 | `mt_create(gobj)`            | After the gobj is allocated, attrs initialised, but **before** mt_child_added on the parent | Cache attrs into `priv`, set up the CHILD/SERVICE subscription block (see [`SCAFFOLDING.md`](SCAFFOLDING.md) §6) |
 | `mt_create2(gobj, kw)`       | Alt to `mt_create` when you need the raw `kw` of the creation call | Same as above, plus `kw`-driven config                  |
-| `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** (gobj.c:2392-2403) | Free resources not owned by children                    |
-| `mt_start(gobj)`             | `gobj_start()` flips `running=TRUE` (gobj.c:4368) then calls this  | Start timers, subscribe to peers, open sockets          |
+| `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** (gobj.c) | Free resources not owned by children                    |
+| `mt_start(gobj)`             | `gobj_start()` flips `running=TRUE` ([gobj.c:4311](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311)) then calls this  | Start timers, subscribe to peers, open sockets          |
 | `mt_stop(gobj)`              | `gobj_stop()` flips `running=FALSE` then calls this                | Stop timers, unsubscribe, close sockets                 |
 | `mt_play(gobj)` / `mt_pause(gobj)` | `gobj_play()` / `gobj_pause()`                              | Gate input processing (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.4) |
-| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds (gobj.c:3042-3043)            | Sync `priv->field` from the attr; validate; react       |
-| `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()` (gobj.c:3516-3517)                     | Return a *computed* value — **required for `SDF_RSTATS` counters** |
+| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds (gobj.c)            | Sync `priv->field` from the attr; validate; react       |
+| `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()` (gobj.c)                     | Return a *computed* value — **required for `SDF_RSTATS` counters** |
 | `mt_child_added` / `mt_child_removed` | When children are created/destroyed                       | Track child references, wire subscriptions              |
 | `mt_subscription_added` / `mt_subscription_deleted` | When someone subscribes to your events            | Send initial state, clean up per-subscriber resources   |
 | `mt_inject_event(gobj, ev, kw, src)` | When `gobj_send_event` finds no row in the state table     | The escape hatch — handle the event yourself, or fail   |
 | `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
-| `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed (gobj.c:9423-9433)       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
+| `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
 The full table (28+ slots — `mt_create_resource`, `mt_save_resource`,
-`mt_create_node`, `mt_link_nodes`, etc.) is in `gobj.h:674-739`. Most
+`mt_create_node`, `mt_link_nodes`, etc.) is in `gobj.h`. Most
 gclasses use < 10 slots.
 
 ---
@@ -159,22 +159,22 @@ gclasses use < 10 slots.
 
 Important code points:
 
-- `gobj_create()` (`gobj.c:1453-1707`): allocate, init attrs, set
+- `gobj_create()` ([`gobj.c:1804`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L1804)): allocate, init attrs, set
   `obflag_created`, call `mt_create()`, then call parent's
   `mt_child_added()`.
-- `gobj_start()` (`gobj.c:4311-4375`): set `running=TRUE` (`gobj.c:4368`)
+- `gobj_start()` ([`gobj.c:4311`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311)): set `running=TRUE` ([`gobj.c:4311`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311))
   **before** calling `mt_start()`. Inside your `mt_start`,
   `gobj_is_running(gobj)` already returns `TRUE`.
-- `gobj_stop()` (`gobj.c:4464-4526`): set `running=FALSE` (`gobj.c:4518`)
+- `gobj_stop()` ([`gobj.c:4464`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4464)): set `running=FALSE` ([`gobj.c:4464`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4464))
   before calling `mt_stop()`. Symmetric.
-- `gobj_destroy()` (`gobj.c:2272-2414`): pauses + stops if needed,
+- `gobj_destroy()` ([`gobj.c:2272`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L2272)): pauses + stops if needed,
   unsubscribes the gobj from everyone, destroys all children, **then**
   calls `mt_destroy()`. That ordering is why `mt_destroy` can safely
   touch resources without checking child state.
 
 ### 4.1 `gobj_start_tree` vs `gobj_start`
 
-`gobj_start_tree(gobj)` (`gobj.c:4429`) walks the gobj's subtree and
+`gobj_start_tree(gobj)` ([`gobj.c:4429`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4429)) walks the gobj's subtree and
 starts every child too — **except** ones marked with the
 `gcflag_manual_start` gclass flag. Most CHILD-pattern gclasses do not
 set that flag, so they get started automatically.
@@ -190,7 +190,7 @@ one shot.
 
 ### 4.2 `gobj_create*` flavours
 
-`gobj.h:894-943`:
+`gobj.h`:
 
 | Constructor                        | What you get                                                 |
 |------------------------------------|--------------------------------------------------------------|
@@ -219,7 +219,7 @@ SDATA(type, name, flag, default_value, description)
 
 Three things to know:
 
-### 5.1 The types (`gobj.h:67-76`)
+### 5.1 The types (`gobj.h`)
 
 | `DTP_*`         | Concrete C / JSON type                |
 |-----------------|---------------------------------------|
@@ -233,7 +233,7 @@ Three things to know:
 | `DTP_POINTER`   | `void *` (opaque)                     |
 | `DTP_SCHEMA`    | Sub-schema (commands' parameters)     |
 
-### 5.2 The flags (`gobj.h:98-120`)
+### 5.2 The flags (`gobj.h`)
 
 The ones that matter most often:
 
@@ -252,7 +252,7 @@ The ones that matter most often:
 
 ### 5.3 The R/W API
 
-`gobj.h:1124-1142`. Typed accessors:
+`gobj.h`. Typed accessors:
 
 ```c
 const char *  gobj_read_str_attr     (hgobj gobj, const char *name);
@@ -269,27 +269,27 @@ int           gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t v
 
 Plus bulk APIs:
 
-- `gobj_read_attrs(gobj, include_flag, src)` (`gobj.c:3546`) — returns
+- `gobj_read_attrs(gobj, include_flag, src)` ([`gobj.c:3546`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L3546)) — returns
   a JSON object with every attr matching `include_flag`. Recently
   patched to route through `mt_reading` (memory
   `project_gobj_read_attrs_fix`,
   2026-05-22) so `SDF_RSTATS` counters now show their live values in
   bulk reads. Same fix mirrored in the JS side.
-- `gobj_write_attrs(gobj, kw, include_flag, src)` (`gobj.c:3622`) —
+- `gobj_write_attrs(gobj, kw, include_flag, src)` ([`gobj.c:3622`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L3622)) —
   bulk write.
 
 ### 5.4 `SDF_PERSIST` storage
 
 The framework hands `SDF_PERSIST` attrs to a pluggable backend
 registered at startup. The default backend writes them under the yuno's
-data directory. APIs (`gobj.c:2905-2934`):
+data directory. APIs (`gobj.c`):
 
 - `gobj_load_persistent_attrs(gobj, jn_attrs)` — invoked automatically
   on service-flavour creates.
 - `gobj_save_persistent_attrs(gobj, jn_attrs)` — call after mutating a
   `SDF_PERSIST` attr you want to checkpoint immediately.
 
-Example from `c_yuno.c:428-440`:
+Example from `c_yuno.c`:
 
 ```c
 SDATA(DTP_STRING,  "url_udp_log", SDF_PERSIST, "",  "UDP Log url"),
@@ -327,7 +327,7 @@ The same tree in text:
                        └─ per-connection clisrv gobjs (pure children)
 ```
 
-Navigation helpers (`gobj.c:5076-6298`):
+Navigation helpers (`gobj.c`):
 
 | Function                            | Purpose                                                 |
 |-------------------------------------|---------------------------------------------------------|
@@ -341,7 +341,7 @@ Navigation helpers (`gobj.c:5076-6298`):
 | `gobj_find_gobj(path)`              | Lookup by full path, e.g. `"__yuno__\`auth\`bff"`.      |
 | `gobj_bottom_gobj(gobj)` / `gobj_set_bottom_gobj` | The downward layering pointer (see [`IPC.md`](IPC.md) §6.5). |
 
-Identification helpers (`gobj.c:6046-6120`):
+Identification helpers (`gobj.c`):
 
 ```c
 const char *gobj_name(gobj);                    // instance name
@@ -351,7 +351,7 @@ const char *gobj_full_name(gobj);               // full path
 const char *gobj_yuno_role_plus_name();         // current yuno's role+name (used in command response prefixes — see feedback_build_command_response_yuno_prefix)
 ```
 
-Predicates (`gobj.c:6245-6351`):
+Predicates (`gobj.c`):
 
 ```c
 BOOL gobj_is_running(gobj);
@@ -363,7 +363,7 @@ BOOL gobj_is_pure_child(gobj);
 
 ### 6.1 The service registry
 
-`__jn_services__` (a global dict at `gobj.c:321`) maps service name →
+`__jn_services__` (a global dict at `gobj.c`) maps service name →
 gobj pointer, case-insensitively. Three special names always resolve:
 
 | Name                    | Resolves to                                            |
@@ -400,7 +400,7 @@ You don't have to allocate it — the framework does, sized by the
 
 ### 6.3 The `obflag` lifecycle bits
 
-`gobj.c:69-72`:
+`gobj.c`:
 
 | Bit                  | Meaning                                                  |
 |----------------------|----------------------------------------------------------|
@@ -521,7 +521,7 @@ That's the entire FSM machinery of a real, shipping gclass.
 ### 8.1 The state-before-action HACK
 
 Inside an action, `gobj_current_state(dst)` returns the **new** state,
-not the one that fired the event (`gobj.c:7611-7619`). Documented in
+not the one that fired the event (`gobj.c`). Documented in
 detail in [`IPC.md`](IPC.md) §3.2 — re-read it before writing your
 first FSM with non-trivial state transitions.
 
@@ -533,7 +533,7 @@ this leaks JSON memory. Double-decref crashes.
 
 ### 8.3 `mt_destroy` runs after children are destroyed
 
-(`gobj.c:2392-2403`). You can free shared resources without checking
+(`gobj.c`). You can free shared resources without checking
 child state. **Conversely**: don't free a resource in `mt_destroy` that
 a child might still be using — children get `mt_destroy`'d first, so
 they release their use of the resource before the parent's `mt_destroy`
@@ -559,7 +559,7 @@ hidden ordering dependencies.
 
 ### 8.6 `gobj_create_pure_child` does not auto-start
 
-(`gobj.c:4429`, memory
+(`gobj.c`, memory
 `feedback_gobj_js_gotchas`).
 You must call `gobj_start(child)` or rely on `gobj_start_tree(parent)`.
 
@@ -637,12 +637,12 @@ if(gobj_current_state(gobj) != ST_DISCONNECTED) {
 }
 ```
 
-`c_prot_mqtt2.c:8117` uses the more defensive
+`c_prot_mqtt2.c` uses the more defensive
 `gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)`
 form (also handles the gobj-stopped case). Either is fine.
 
-Sites with this guard today: `c_websocket.c:1158`, `c_prot_tcp4h.c:464`,
-`c_prot_mqtt.c:8038`, `c_prot_mqtt2.c:8117`. Fixed in commits
+Sites with this guard today: `c_websocket.c`, `c_prot_tcp4h.c`,
+`c_prot_mqtt.c`, `c_prot_mqtt2.c`. Fixed in commits
 `635b06a41` and `855527770` (2026-05-24).
 
 **Intentionally unguarded:** `c_prot_modbus_m.c` (`ac_rx_data`, lines
@@ -751,19 +751,19 @@ if(timer) {
 |---------------------------------------------------|--------------------------------------------------------------------|
 | Public API surface                                | `kernel/c/gobj-c/src/gobj.h` (2081 lines)                          |
 | Runtime                                           | `kernel/c/gobj-c/src/gobj.c` (~12k lines)                          |
-| `GMETHODS` struct                                 | `gobj.h:674-739`                                                   |
-| `gobj_create` family                              | `gobj.h:894-943`                                                   |
-| Lifecycle implementation                          | `gobj.c:1453-1707` (create), `4311-4526` (start/stop), `2272-2414` (destroy) |
-| `mt_writing` / `mt_reading` call sites            | `gobj.c:3042-3043`, `3516-3517`                                    |
-| `obflag` flags                                    | `gobj.c:69-72`                                                     |
-| Attr R/W API                                      | `gobj.h:1124-1142`                                                 |
-| Bulk attr API + `mt_reading` route                | `gobj.c:3546, 3622`                                                |
-| Persistent attr load/save                         | `gobj.c:2905-2934`                                                 |
-| SData types (`DTP_*`)                             | `gobj.h:67-76`                                                     |
-| SData flags (`SDF_*`)                             | `gobj.h:98-120`                                                    |
-| Service registry                                  | `gobj.c:321, 5076-5121`                                            |
-| Tree navigation                                   | `gobj.c:5202-5559` (children walks), `5076-6298` (predicates)      |
-| `gobj_yuno()` / `__yuno__`                        | `gobj.c:359, 5953-5959`                                            |
+| `GMETHODS` struct                                 | `gobj.h`                                                   |
+| `gobj_create` family                              | `gobj.h`                                                   |
+| Lifecycle implementation                          | `gobj.c` (create), `4311-4526` (start/stop), `2272-2414` (destroy) |
+| `mt_writing` / `mt_reading` call sites            | `gobj.c`, `3516-3517`                                    |
+| `obflag` flags                                    | `gobj.c`                                                     |
+| Attr R/W API                                      | `gobj.h`                                                 |
+| Bulk attr API + `mt_reading` route                | `gobj.c, 3622`                                                |
+| Persistent attr load/save                         | `gobj.c`                                                 |
+| SData types (`DTP_*`)                             | `gobj.h`                                                     |
+| SData flags (`SDF_*`)                             | `gobj.h`                                                    |
+| Service registry                                  | `gobj.c, 5076-5121`                                            |
+| Tree navigation                                   | `gobj.c` (children walks), `5076-6298` (predicates)      |
+| `gobj_yuno()` / `__yuno__`                        | `gobj.c, 5953-5959`                                            |
 | Canonical minimal gclass                          | `kernel/c/root-linux/src/c_timer.c` (426 lines)                    |
 | Canonical large gclass                            | `kernel/c/root-linux/src/c_yuno.c`, `yunos/c/yuno_agent/src/c_agent.c` |
 | Banner / template conventions                     | `utils/c/yuno-skeleton/skeletons/`, [`SCAFFOLDING.md`](SCAFFOLDING.md) |
