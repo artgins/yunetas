@@ -308,6 +308,10 @@ SDATA(DTP_STRING,  "realm_id",    SDF_RD,      "",  "Realm id"),
 A process is one yuno = one root gobj = `__yuno__`. Everything else
 descends from it. The structure looks like this in production:
 
+![The gobj runtime tree rooted at __yuno__: children authz (C_AUTHZ), the default service, gates (C_TCP_S, C_PROT_HTTP_SR, C_WEBSOCKET, C_IEVENT_SRV) and helpers; gates own per-connection pure children. Below, the bottom chain: a gobj resolves a missing attribute by walking down its bottom links.](../../../docs/doc.yuneta.io/_static/gobj_tree.svg)
+
+The same tree in text:
+
 ```
             __yuno__   (gobj_flag_yuno, C_YUNO instance)
                 │

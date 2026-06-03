@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 410" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Certificate hot-swap by refcount. The ytls handle is repointed from old_ctx to new_ctx and frees its own reference to old_ctx; live SSL sessions still hold their own references, so old_ctx survives until the last in-flight session closes, while new sessions attach to new_ctx.">
+  <defs>
+    <marker id="ch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+    <marker id="chR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c0492f"/>
+    </marker>
+    <marker id="chN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- ytls handle -->
+  <rect x="334" y="22" width="192" height="48" rx="9" fill="#3b4a5e"/>
+  <text x="430" y="42" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">ytls handle</text>
+  <text x="430" y="59" text-anchor="middle" font-size="10" fill="#cdd6e1">① build new_ctx · ② ytls-&gt;ctx = new_ctx</text>
+
+  <!-- old_ctx -->
+  <g>
+    <rect x="52" y="132" width="220" height="86" rx="9" fill="#fdecea" stroke="#c0492f" stroke-width="1.5"/>
+    <text x="162" y="156" text-anchor="middle" font-size="12" font-weight="700" fill="#9a3a25">old_ctx</text>
+    <text x="162" y="176" text-anchor="middle" font-size="10" fill="#b56a55">previous cert files</text>
+    <text x="162" y="198" text-anchor="middle" font-size="11" font-weight="700" fill="#9a3a25">refcount = N (live)</text>
+  </g>
+  <!-- new_ctx -->
+  <g>
+    <rect x="588" y="132" width="220" height="86" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.6"/>
+    <text x="698" y="156" text-anchor="middle" font-size="12" font-weight="700" fill="#1d6b60">new_ctx</text>
+    <text x="698" y="176" text-anchor="middle" font-size="10" fill="#3f9588">fresh cert files</text>
+    <text x="698" y="198" text-anchor="middle" font-size="11" font-weight="700" fill="#1d6b60">refcount = 1 (handle)</text>
+  </g>
+
+  <!-- handle -> new_ctx -->
+  <path d="M470,70 C560,96 620,110 660,130" fill="none" stroke="#2a9d8f" stroke-width="2" marker-end="url(#ch)"/>
+  <text x="600" y="100" text-anchor="middle" font-size="10" font-weight="600" fill="#1d6b60">repoint →</text>
+
+  <!-- handle -> old_ctx (ref dropped) -->
+  <path d="M390,70 C300,96 240,110 200,130" fill="none" stroke="#c0492f" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#chR)"/>
+  <text x="250" y="100" text-anchor="middle" font-size="10" font-weight="600" fill="#9a3a25">③ SSL_CTX_free(old_ctx)</text>
+  <text x="250" y="114" text-anchor="middle" font-size="9" fill="#b56a55">handle drops its ref</text>
+
+  <!-- live sessions on old_ctx -->
+  <g>
+    <rect x="40" y="290" width="76" height="40" rx="7" fill="#ffffff" stroke="#c0492f"/>
+    <text x="78" y="314" text-anchor="middle" font-size="10" fill="#9a3a25">SSL * #1</text>
+    <rect x="124" y="290" width="76" height="40" rx="7" fill="#ffffff" stroke="#c0492f"/>
+    <text x="162" y="314" text-anchor="middle" font-size="10" fill="#9a3a25">SSL * #2</text>
+    <rect x="208" y="290" width="76" height="40" rx="7" fill="#ffffff" stroke="#c0492f"/>
+    <text x="246" y="314" text-anchor="middle" font-size="10" fill="#9a3a25">SSL * #3</text>
+  </g>
+  <g stroke="#c0492f" stroke-width="1.5" fill="none">
+    <line x1="78" y1="290" x2="120" y2="220" marker-end="url(#chR)"/>
+    <line x1="162" y1="290" x2="170" y2="220" marker-end="url(#chR)"/>
+    <line x1="246" y1="290" x2="205" y2="220" marker-end="url(#chR)"/>
+  </g>
+  <text x="162" y="352" text-anchor="middle" font-size="9.5" fill="#b56a55">live sessions each hold their own ref</text>
+
+  <!-- new sessions on new_ctx -->
+  <rect x="600" y="290" width="196" height="40" rx="7" fill="#ffffff" stroke="#2a9d8f"/>
+  <text x="698" y="308" text-anchor="middle" font-size="10" fill="#1d6b60">new ytls_new_secure_filter()</text>
+  <text x="698" y="323" text-anchor="middle" font-size="9.5" fill="#3f9588">→ attaches to new_ctx</text>
+  <line x1="698" y1="290" x2="698" y2="220" stroke="#2a9d8f" stroke-width="1.5" marker-end="url(#ch)"/>
+
+  <text x="430" y="386" text-anchor="middle" font-size="10.5" fill="#8593a3">old_ctx lives until the last in-flight session closes — a cert reload never breaks a live handshake. (mbedTLS: same, via an explicit refcounted state bundle.)</text>
+</svg>

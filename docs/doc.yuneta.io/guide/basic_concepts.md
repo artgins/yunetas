@@ -137,6 +137,14 @@ A `gobj` (Generic Object) is an **instance** of a  [`gclass`](#gclass) (Generic 
 (yuno)=
 ## What is a `yuno`?
 
+```{figure} ../_static/gobj_tree.svg
+:alt: The gobj runtime tree rooted at __yuno__ with children authz, the default service, gates and helpers; gates own per-connection pure children. Below, the bottom chain by which a gobj resolves a missing attribute by walking down its bottom links.
+:width: 100%
+
+A yuno is a tree of gobjs rooted at `__yuno__`. Attribute inheritance runs
+along a separate **bottom** chain, not the parent/child edges.
+```
+
 **What is a Yuno?**
 
 Once a system of gclasses is created, we can build a **yuno**, which is a **single-threaded, asynchronous binary** composed of a **hierarchical tree of gobjs**.

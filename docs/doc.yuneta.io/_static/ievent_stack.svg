@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Two yunos talk over a WebSocket. Yuno A stack: C_IEVENT_CLI over C_WEBSOCKET over C_TCP (client). Yuno B stack: C_IEVENT_SRV over C_WEBSOCKET over C_TCP (clisrv). JSON-over-WS frames flow between the ievent layers, TCP/TLS between the transport layers; C_TCP_S is the listener that accepted the connection and spawned the clisrv child.">
+  <defs>
+    <marker id="iv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a78c8"/>
+    </marker>
+    <marker id="ivG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="150" y="44" text-anchor="middle" font-size="12" font-weight="700" fill="#5b6b7f">yuno A  (client)</text>
+  <text x="650" y="44" text-anchor="middle" font-size="12" font-weight="700" fill="#5b6b7f">yuno B  (server)</text>
+
+  <!-- stack A -->
+  <g>
+    <rect x="60" y="64" width="180" height="52" rx="8" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="150" y="95" text-anchor="middle" font-size="12" font-weight="700" fill="#1d6b60">C_IEVENT_CLI</text>
+    <rect x="60" y="124" width="180" height="52" rx="8" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <text x="150" y="155" text-anchor="middle" font-size="12" font-weight="700" fill="#22386b">C_WEBSOCKET</text>
+    <rect x="60" y="184" width="180" height="52" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <text x="150" y="208" text-anchor="middle" font-size="12" font-weight="700" fill="#33414f">C_TCP</text>
+    <text x="150" y="224" text-anchor="middle" font-size="9.5" fill="#8593a3">client</text>
+  </g>
+  <!-- stack A internal bottom links -->
+  <g stroke="#b9c6d6" stroke-width="1.2" stroke-dasharray="2 2">
+    <line x1="150" y1="116" x2="150" y2="124"/>
+    <line x1="150" y1="176" x2="150" y2="184"/>
+  </g>
+
+  <!-- stack B -->
+  <g>
+    <rect x="560" y="64" width="180" height="52" rx="8" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="650" y="95" text-anchor="middle" font-size="12" font-weight="700" fill="#1d6b60">C_IEVENT_SRV</text>
+    <rect x="560" y="124" width="180" height="52" rx="8" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <text x="650" y="155" text-anchor="middle" font-size="12" font-weight="700" fill="#22386b">C_WEBSOCKET</text>
+    <rect x="560" y="184" width="180" height="52" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.5"/>
+    <text x="650" y="208" text-anchor="middle" font-size="12" font-weight="700" fill="#33414f">C_TCP</text>
+    <text x="650" y="224" text-anchor="middle" font-size="9.5" fill="#8593a3">clisrv</text>
+  </g>
+  <g stroke="#b9c6d6" stroke-width="1.2" stroke-dasharray="2 2">
+    <line x1="650" y1="116" x2="650" y2="124"/>
+    <line x1="650" y1="176" x2="650" y2="184"/>
+  </g>
+
+  <!-- wire arrows -->
+  <line x1="240" y1="90" x2="560" y2="90" stroke="#2a9d8f" stroke-width="2" marker-end="url(#ivG)"/>
+  <text x="400" y="82" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">JSON-over-WS frames  { event, kw }</text>
+
+  <line x1="240" y1="210" x2="560" y2="210" stroke="#5b6b7f" stroke-width="2" marker-end="url(#iv)"/>
+  <text x="400" y="202" text-anchor="middle" font-size="10.5" font-weight="600" fill="#41504f">TCP / TLS</text>
+
+  <!-- listener -->
+  <rect x="560" y="300" width="180" height="48" rx="8" fill="#fff4e0" stroke="#d98a3d" stroke-width="1.5"/>
+  <text x="650" y="320" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7a4e18">C_TCP_S</text>
+  <text x="650" y="337" text-anchor="middle" font-size="9.5" fill="#b08442">listener</text>
+  <line x1="650" y1="300" x2="650" y2="236" stroke="#d98a3d" stroke-width="1.6" marker-end="url(#iv)"/>
+  <text x="664" y="272" font-size="9.5" font-weight="600" fill="#b08442">accept → spawns the clisrv child</text>
+
+  <text x="410" y="378" text-anchor="middle" font-size="10" fill="#8593a3">Each layer is the bottom_gobj of the one above it; the protocol is the same on both sides — only CLI vs SRV differs.</text>
+</svg>

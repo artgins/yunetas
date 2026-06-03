@@ -307,6 +307,10 @@ real bugs.
 Both sit on top of a WebSocket gclass (`C_WEBSOCKET`), which sits on top
 of TCP (`C_TCP` or `C_TCP_S`):
 
+![Two yunos over a WebSocket: yuno A stacks C_IEVENT_CLI over C_WEBSOCKET over C_TCP (client); yuno B stacks C_IEVENT_SRV over C_WEBSOCKET over C_TCP (clisrv). JSON-over-WS frames flow between the ievent layers, TCP/TLS between the transport layers; C_TCP_S is the listener that accepted the connection and spawned the clisrv child.](../../../docs/doc.yuneta.io/_static/ievent_stack.svg)
+
+The same stack in text:
+
 ```
     yuno A                                       yuno B
    ┌────────────────┐                       ┌────────────────┐

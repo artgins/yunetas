@@ -41,6 +41,14 @@ cleared the deploy intent is explicit, so for `REBUILD` roles the script runs
 the documented per-role hot-patch cycle itself, **scoped by `yuno_role`** (never
 node-wide):
 
+```{figure} ../_static/deploy_sync.svg
+:alt: build → diff (*list-binaries) → classify NEW/BUMP/REBUILD/UP-TO-DATE. For REBUILD roles, per role in ascending start_priority: kill-yuno (SIGQUIT, poll until exit), update-binary, run-yuno play=0, play-yuno. Config push always succeeds; a version bump is a separate, non-automated path.
+:width: 100%
+
+The REBUILD hot-patch, scoped by `yuno_role`. Kill first — the running binary
+is mapped, so `update-binary` would hit `text-file-busy` otherwise.
+```
+
 ```
 kill-yuno yuno_role=<role>     # only if running; SIGQUIT (orderly), so the
                                # gbmem shutdown audit runs

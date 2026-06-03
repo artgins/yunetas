@@ -4,18 +4,12 @@ Tracks API renames, removals and additions between versions.
 
 ## docs: remaining diagram opportunities (from the doc review)
 
-A pass over the docs found ~13 spots that improve with a diagram. Tier 1 is
-**done** (process tree, message pipeline, OIDC/PKCE auth flow, control-center
-topology, emailsender retry/dead-letter — all hand-authored SVG, transparent
-background, no mermaid). Remaining, by value:
-
-**Tier 2 (structural mental models):**
-- [ ] gobj runtime tree + bottom chain — `GOBJ.md §6` + `guide/basic_concepts.md` (1 SVG)
-- [ ] gate stack across the WS boundary (two-yuno C_IEVENT_CLI↔SRV) — `IPC.md §4.1`
-- [ ] cert hot-swap by refcount (old_ctx kept alive by live sessions) — `guide/guide_cert_management.md` + `guide/guide_ytls.md` (1 SVG)
-- [ ] cert defense-in-depth (3 layers → `ytls_reload_certificates()`) — `guide/guide_cert_management.md`
-- [ ] gbuffer layout (data + curp/tail cursors) — `guide/guide_gbuffer.md`
-- [ ] deploy/sync sequence (build→diff→kill→update→run→play) — `tools/sync_binaries` + `sync_configs` (1 SVG)
+A pass over the docs found ~13 spots that improve with a diagram. **Tier 1 and
+Tier 2 are done** (12 SVGs: process tree, message pipeline, OIDC/PKCE auth flow,
+control-center topology, emailsender retry/dead-letter; gobj tree + bottom
+chain, ievent WS stack, cert hot-swap, cert defense-in-depth, gbuffer layout,
+deploy/sync cycle — all hand-authored SVG, transparent background, no mermaid).
+Remaining:
 
 **Tier 3 (nice-to-have):**
 - [ ] gclass anatomy (coordinate with existing `gclass_diagram.svg`) — `guide/guide_gclass.md`

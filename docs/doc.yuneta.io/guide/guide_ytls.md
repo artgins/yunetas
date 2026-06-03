@@ -73,6 +73,14 @@ the live cert (not just the file on disk).
 
 ### How live sessions survive the swap
 
+```{figure} ../_static/cert_hotswap.svg
+:alt: The ytls handle is repointed from old_ctx to new_ctx and frees its own reference to old_ctx; live SSL sessions still hold their own refs, so old_ctx survives until the last in-flight session closes, while new sessions attach to new_ctx.
+:width: 100%
+
+The handle drops its ref on `old_ctx`; live sessions keep theirs, so the old
+context outlives the swap.
+```
+
 The invariant is: **live sessions hold their own reference on the old
 context**, so the swap only drops the handle's reference. This is the
 easiest thing to break when touching the reload path.

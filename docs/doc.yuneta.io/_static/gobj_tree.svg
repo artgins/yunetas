@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="The gobj runtime tree rooted at __yuno__ with children authz, default service, gates and helpers; gates own per-connection pure children. Below, the bottom chain: a gobj resolves a missing attribute by walking down its bottom links until one defines it.">
+  <defs>
+    <marker id="gt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+    <marker id="gtB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+  </defs>
+  <!-- transparent background -->
+
+  <!-- root -->
+  <rect x="362" y="20" width="176" height="46" rx="9" fill="#3b4a5e"/>
+  <text x="450" y="40" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">__yuno__</text>
+  <text x="450" y="56" text-anchor="middle" font-size="9.5" fill="#cdd6e1">C_YUNO · the root gobj</text>
+
+  <!-- edges to children -->
+  <g stroke="#5b6b7f" stroke-width="1.6" fill="none">
+    <path d="M450,66 L450,86 L109,86 L109,110" marker-end="url(#gt)"/>
+    <path d="M299,86 L299,110" marker-end="url(#gt)"/>
+    <path d="M519,86 L519,110" marker-end="url(#gt)"/>
+    <path d="M760,86 L760,110" marker-end="url(#gt)"/>
+  </g>
+
+  <!-- authz -->
+  <g>
+    <rect x="24" y="110" width="170" height="74" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="109" y="132" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">authz</text>
+    <text x="109" y="151" text-anchor="middle" font-size="10.5" fill="#5b6b7f">C_AUTHZ</text>
+    <text x="109" y="169" text-anchor="middle" font-size="9.5" fill="#8593a3">service</text>
+  </g>
+  <!-- default -->
+  <g>
+    <rect x="214" y="110" width="170" height="74" rx="9" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.4"/>
+    <text x="299" y="132" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1d6b60">default service</text>
+    <text x="299" y="151" text-anchor="middle" font-size="10.5" fill="#3f9588">your app</text>
+    <text x="299" y="169" text-anchor="middle" font-size="9.5" fill="#8aa39d">__default_service__</text>
+  </g>
+  <!-- gates -->
+  <g>
+    <rect x="404" y="110" width="232" height="112" rx="9" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.5"/>
+    <rect x="404" y="110" width="232" height="24" rx="9" fill="#4a78c8"/><rect x="404" y="122" width="232" height="12" fill="#4a78c8"/>
+    <text x="520" y="127" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">gates</text>
+    <text x="520" y="152" text-anchor="middle" font-size="10" fill="#22386b">C_TCP_S · C_PROT_HTTP_SR</text>
+    <text x="520" y="170" text-anchor="middle" font-size="10" fill="#22386b">C_WEBSOCKET</text>
+    <text x="520" y="188" text-anchor="middle" font-size="10" fill="#22386b">C_IEVENT_SRV</text>
+    <text x="520" y="210" text-anchor="middle" font-size="9.5" fill="#8aa0c8">the inbound stack (see IPC)</text>
+  </g>
+  <!-- helpers -->
+  <g>
+    <rect x="660" y="110" width="200" height="74" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="760" y="132" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">helpers</text>
+    <text x="760" y="151" text-anchor="middle" font-size="10" fill="#5b6b7f">timers · watchdogs</text>
+    <text x="760" y="169" text-anchor="middle" font-size="10" fill="#5b6b7f">internal services</text>
+  </g>
+
+  <!-- per-connection children -->
+  <line x1="520" y1="222" x2="520" y2="250" stroke="#4a78c8" stroke-width="1.6" marker-end="url(#gt)"/>
+  <rect x="404" y="250" width="232" height="46" rx="9" fill="#ffffff" stroke="#4a78c8" stroke-dasharray="4 3"/>
+  <text x="520" y="270" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">per-connection clisrv gobjs</text>
+  <text x="520" y="286" text-anchor="middle" font-size="9.5" fill="#8aa0c8">pure children (one per accepted socket)</text>
+
+  <!-- ===== bottom chain inset ===== -->
+  <rect x="24" y="324" width="836" height="132" rx="10" fill="#f6f7f9" stroke="#d8dee6"/>
+  <text x="40" y="346" font-size="11.5" font-weight="700" fill="#41504f">Attribute inheritance — the <tspan fill="#1d6b60">bottom</tspan> chain (not parent/child)</text>
+
+  <g>
+    <rect x="60" y="364" width="180" height="56" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="150" y="386" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">gobj A</text>
+    <text x="150" y="404" text-anchor="middle" font-size="9.5" fill="#b56a55">attr X not defined</text>
+
+    <rect x="330" y="364" width="180" height="56" rx="8" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="420" y="386" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">gobj B (bottom)</text>
+    <text x="420" y="404" text-anchor="middle" font-size="9.5" fill="#b56a55">attr X not defined</text>
+
+    <rect x="600" y="364" width="180" height="56" rx="8" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.5"/>
+    <text x="690" y="386" text-anchor="middle" font-size="11" font-weight="700" fill="#1d6b60">gobj C (bottom)</text>
+    <text x="690" y="404" text-anchor="middle" font-size="9.5" fill="#1d6b60">attr X = value ✓</text>
+
+    <line x1="240" y1="392" x2="330" y2="392" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#gtB)"/>
+    <line x1="510" y1="392" x2="600" y2="392" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#gtB)"/>
+  </g>
+  <text x="442" y="444" text-anchor="middle" font-size="10" fill="#8593a3">gobj_read_attr walks down the bottom links until a gobj defines the attribute.</text>
+</svg>

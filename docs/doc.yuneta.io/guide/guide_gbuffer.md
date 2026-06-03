@@ -14,6 +14,14 @@ Source code in:
 
 ## Structure Overview
 
+```{figure} ../_static/gbuffer_layout.svg
+:alt: A gbuffer data block with two cursors — curp (read) and tail (write). Bytes before curp are consumed, curp to tail is unread data, tail to data_size is free allocated space, and the buffer grows to max_memory_size.
+:width: 100%
+
+`curp` (read) and `tail` (write) are independent cursors over one `data`
+block, so reading and writing never interfere.
+```
+
 (gbuffer_t)=
 The `gbuffer_t` structure includes the following key fields:
 

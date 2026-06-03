@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 320" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A gbuffer's data block with two independent cursors: curp marks the read position, tail marks the write position. Bytes before curp are consumed, curp to tail is unread data, tail to data_size is free allocated space, and the buffer can grow to max_memory_size.">
+  <defs>
+    <marker id="gb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a78c8"/>
+    </marker>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="#f6f7f9"/>
+      <line x1="0" y1="0" x2="0" y2="7" stroke="#d8dee6" stroke-width="1.4"/>
+    </pattern>
+  </defs>
+  <!-- transparent background -->
+
+  <text x="430" y="32" text-anchor="middle" font-size="12.5" font-weight="600" fill="#41504f">gbuffer_t — independent read (curp) and write (tail) cursors over one data block</text>
+
+  <!-- header fields -->
+  <rect x="24" y="54" width="210" height="96" rx="9" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="36" y="74" font-size="10.5" font-weight="700" fill="#33414f">gbuffer_t</text>
+  <text x="36" y="92" font-size="9.5" fill="#5b6b7f">refcount · label · mark</text>
+  <text x="36" y="109" font-size="9.5" fill="#5b6b7f">data_size  (allocated)</text>
+  <text x="36" y="126" font-size="9.5" fill="#5b6b7f">max_memory_size  (cap)</text>
+  <text x="36" y="143" font-size="9.5" fill="#5b6b7f">curp · tail · *data</text>
+
+  <!-- pointer labels -->
+  <text x="210" y="196" text-anchor="middle" font-size="10.5" font-weight="700" fill="#4a78c8">curp ▾</text>
+  <text x="210" y="208" text-anchor="middle" font-size="9" fill="#5b78b0">read</text>
+  <text x="440" y="196" text-anchor="middle" font-size="10.5" font-weight="700" fill="#2a9d8f">tail ▾</text>
+  <text x="440" y="208" text-anchor="middle" font-size="9" fill="#3f9588">write</text>
+
+  <!-- data bar -->
+  <g>
+    <rect x="40" y="214" width="170" height="52" fill="#eef2f7" stroke="#9aa7b6" stroke-width="1.2"/>
+    <rect x="210" y="214" width="230" height="52" fill="#e8f0fe" stroke="#4a78c8" stroke-width="1.2"/>
+    <rect x="440" y="214" width="180" height="52" fill="#ffffff" stroke="#9aa7b6" stroke-width="1.2"/>
+    <rect x="620" y="214" width="200" height="52" fill="url(#hatch)" stroke="#cdd6e1" stroke-width="1.2"/>
+  </g>
+  <!-- region labels -->
+  <text x="125" y="245" text-anchor="middle" font-size="10" fill="#5b6b7f">consumed</text>
+  <text x="325" y="241" text-anchor="middle" font-size="10.5" font-weight="600" fill="#22386b">unread data</text>
+  <text x="325" y="257" text-anchor="middle" font-size="9" fill="#5b78b0">gbuffer_get reads here</text>
+  <text x="530" y="241" text-anchor="middle" font-size="10" fill="#8593a3">free (allocated)</text>
+  <text x="530" y="257" text-anchor="middle" font-size="9" fill="#3f9588">gbuffer_append writes here</text>
+  <text x="720" y="241" text-anchor="middle" font-size="10" fill="#8593a3">growable →</text>
+  <text x="720" y="257" text-anchor="middle" font-size="9" fill="#9aa7b6">up to max_memory_size</text>
+
+  <!-- pointer ticks -->
+  <line x1="210" y1="210" x2="210" y2="266" stroke="#4a78c8" stroke-width="1.6"/>
+  <line x1="440" y1="210" x2="440" y2="266" stroke="#2a9d8f" stroke-width="1.6"/>
+  <line x1="620" y1="214" x2="620" y2="278" stroke="#9aa7b6" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="620" y="292" text-anchor="middle" font-size="9" fill="#8593a3">data_size</text>
+  <line x1="820" y1="214" x2="820" y2="278" stroke="#9aa7b6" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="820" y="292" text-anchor="middle" font-size="9" fill="#8593a3">max_memory_size</text>
+
+</svg>

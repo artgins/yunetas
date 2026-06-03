@@ -22,6 +22,14 @@ certificate is renewed — typically by Let's Encrypt — we want:
 
 ## The three-layer defense in depth
 
+```{figure} ../_static/cert_defense.svg
+:alt: Layer 1 deploy hook (immediate) and Layer 2 agent auto-sync (≤15 min) both trigger reload-certs → ytls_reload_certificates(); Layer 3 expiry monitor independently logs warning/critical. Each layer covers the one above failing.
+:width: 100%
+
+Two layers drive the reload; a third just makes a missed renewal loud. No
+single layer is required for the others.
+```
+
 | Layer | Trigger | Action | Latency |
 |---|---|---|---|
 | 1. Deploy hook (fast path) | certbot success | Hook copies certs, invokes [`reload-certs`](#reload-certs-yuno) on every yuno | Immediate |
@@ -185,6 +193,14 @@ The yuno never reads `/etc/letsencrypt/`. The privileged bridge is the
 `NOPASSWD:ALL`).
 
 ## How live sessions survive the swap
+
+```{figure} ../_static/cert_hotswap.svg
+:alt: The ytls handle is repointed from old_ctx to new_ctx and frees its own reference to old_ctx; live SSL sessions still hold their own refs, so old_ctx survives until the last in-flight session closes, while new sessions attach to new_ctx.
+:width: 100%
+
+The ytls handle drops its ref on `old_ctx`, but each live session keeps its
+own — so `old_ctx` outlives the swap until the last handshake on it closes.
+```
 
 This is the core correctness property — documented here because it is
 the easiest thing to break when touching the reload path.
