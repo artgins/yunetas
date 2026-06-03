@@ -17,11 +17,12 @@ versionable; interactive G6 embeds can come later for the graph views):
   in `philosophy/domain_model.md`);
 - [x] the **treedb graph** (topics/nodes/hooks/fkeys; left-to-right, port-colour
   = linkable topic) (`_static/treedb_graph.svg`, in `philosophy/typed_graph_model.md`);
-- [ ] the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose
-  in `YUNO_LIFECYCLE.md` §4;
-- [ ] the **"node is its history"** lámina (`node^n` + link as an event in the
+- [x] the **yuno lifecycle FSM** (create→run→play→pause→kill→delete)
+  (`_static/yuno_lifecycle_fsm.svg`, in `YUNO_LIFECYCLE.md` §4.1);
+- [x] the **"node is its history"** lámina (`node^n` + link as an event in the
   append history) — the lens that explains the per-instance delete and
-  version-aware unlink fixes (7.5.1);
+  version-aware unlink fixes (7.5.1) (`_static/node_history.svg`, in
+  `philosophy/typed_graph_model.md`);
 - [ ] upgrade the remaining ASCII art in `philosophy/domain_model.md`
   (Entity/Relationship, Entities, Relationships) to SVG for consistency.
 

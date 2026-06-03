@@ -112,6 +112,18 @@ of organisation as some combination of typed nodes and typed links:
   projection of the latest non-deleted row per `id`. Historical
   reconstruction is a matter of choosing a different cut-off.
 
+```{figure} ../_static/node_history.svg
+:alt: A node id accumulates records by rowid (create, update, link, unlink, update); the current node is a projection of the highest rowid, and a link or unlink is itself a record in the history.
+:width: 100%
+
+A node is not a cell — it is its append history, `node`&#8319;. Each
+**create / update / link / unlink** appends a row; a relationship change
+is an *event in the history* (it saves the child), not an in-place edit.
+The current node is the projection of the highest `g_rowid`. This is why
+a durable delete must tombstone **every** row of the id, and why unlink
+must find the right version — the two fixes shipped in 7.5.1.
+```
+
 ## What this *doesn't* let you model cleanly
 
 The same constraint that gives you uniform composition also has costs.

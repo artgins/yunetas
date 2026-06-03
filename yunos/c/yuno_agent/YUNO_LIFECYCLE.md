@@ -194,6 +194,11 @@ Permission gating is per-command via `pm_<name>` schemas (c_agent.c:849-898).
 
 ### 4.1 State machine of a single yuno (as the agent sees it)
 
+![Yuno lifecycle state machine: create-yuno registers a STOPPED yuno; run-yuno forks it to STARTING; EV_ON_OPEN reaches RUNNING (paused); play-yuno and pause-yuno toggle paused and playing; kill-yuno (SIGQUIT) returns it to STOPPED; delete-yuno (only if stopped) reaches DELETED.](../../../docs/doc.yuneta.io/_static/yuno_lifecycle_fsm.svg)
+
+The same machine in text (the precise transitions the agent drives on the
+per-yuno record fields):
+
 ```
                                   delete-yuno
                               ┌─────────────────────┐
