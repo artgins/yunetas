@@ -81,6 +81,10 @@ Pass ``--restart`` to also bounce the using yunos right away, scoped by yuno
 A yuno that is not running is left stopped (it reads the new config on its next
 start). NEW configs have no agent record yet (typically a yuno not created here)
 and are never auto-restarted — their ids are printed as a reminder.
+
+The affected yunos are restarted in ascending ``start_priority`` order (read
+from the agent's ``*list-yunos`` record), so infrastructure comes back before
+its dependents instead of in alphabetical id order.
 """
 
 import argparse
@@ -738,7 +742,17 @@ def main():
     if affected and args.restart:
         print(dim("\nRestarting affected yuno(s) to apply the new config(s)..."))
         states = yuno_states_by_id(ycommand, args.url, jwt)
-        for yid in sorted(affected):
+
+        # Restart in ascending start_priority order (the agent owns this number)
+        # so infrastructure comes back before its dependents. Default 5 for
+        # yunos that predate the column.
+        def _start_priority(yid):
+            try:
+                return int(states.get(yid, {}).get("start_priority", 5))
+            except (TypeError, ValueError):
+                return 5
+
+        for yid in sorted(affected, key=lambda y: (_start_priority(y), y)):
             st = states.get(yid, {})
             restart_yuno(
                 ycommand, args.url, jwt, yid,

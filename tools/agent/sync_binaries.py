@@ -44,6 +44,11 @@ keep the old print-only behaviour. A role with several instances across realms
 is handled in one shot: the role-scoped commands act on every instance, which
 all share the one slot.
 
+Roles are deployed in ascending ``start_priority`` (read from the agent via
+``*list-yunos``, lowest among a role's instances), so a REBUILD brings
+infrastructure (logcenter/emailsender/auth_bff) back before gates and dba
+instead of in alphabetical order.
+
 It still does NOT automate the version-bump path (find-new-yunos +
 deactivate-snap after an install-binary) — that is a node-wide bounce with
 broader side effects. It prints the reminder instead.
@@ -447,6 +452,38 @@ def yuno_states(ycommand, url, jwt, role):
     return [r for r in data if isinstance(r, dict)]
 
 
+def agent_start_priorities(ycommand, url, jwt):
+    """
+    Return {role: start_priority} from '*list-yunos', taking the LOWEST
+    start_priority among a role's instances (its most-infrastructure instance
+    sets the role's restart rank). The agent owns this number; we order
+    restarts by it instead of alphabetically. Instances that predate the column
+    default to 5. {} on any error — the caller then defaults every role to 5.
+    """
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-yunos"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        data = parse_leading_json(res.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, list):
+        return {}
+    out = {}
+    for rec in data:
+        if not isinstance(rec, dict):
+            continue
+        role = rec.get("yuno_role")
+        if not role:
+            continue
+        try:
+            prio = int(rec.get("start_priority", 5))
+        except (TypeError, ValueError):
+            prio = 5
+        if role not in out or prio < out[role]:
+            out[role] = prio
+    return out
+
+
 def wait_until_stopped(ycommand, url, jwt, role, timeout_s=15.0, poll_s=0.3):
     """
     Poll '*list-yunos yuno_role=R' until no instance reports yuno_running, so
@@ -629,6 +666,12 @@ def main():
         if confirm not in ("y", "yes"):
             print("Cancelled - no changes made.")
             return
+
+    # Deploy in ascending start_priority order so a same-version REBUILD brings
+    # infrastructure (logcenter/emailsender/auth_bff) back before gates and dba.
+    # Harmless for installs (no restart). Single source of truth: the agent.
+    prio_map = agent_start_priorities(ycommand, args.url, jwt)
+    chosen.sort(key=lambda r: (prio_map.get(r["role"], 5), r["role"]))
 
     print()
     ok, fail = 0, 0
