@@ -78,6 +78,7 @@ PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno)
 PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
 PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
+PRIVATE void sort_yunos_by_start_priority(hgobj gobj, json_t *iter, BOOL ascending);
 PRIVATE int run_yuno(
     hgobj gobj,
     json_t *yuno,
@@ -4906,6 +4907,11 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
 
+    /*
+     *  Launch in ascending start_priority order (utilities before gates/dba).
+     */
+    sort_yunos_by_start_priority(gobj, iter, TRUE);
+
     /*------------------------------------------------*
      *  Walk over yunos iter:
      *      run
@@ -5115,6 +5121,12 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
+
+    /*
+     *  Kill in descending start_priority order so utilities die last
+     *  (logcenter stays up to capture everyone's shutdown).
+     */
+    sort_yunos_by_start_priority(gobj, iter, FALSE);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5465,6 +5477,11 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
     );
+
+    /*
+     *  Pause in descending start_priority order (mirror of kill).
+     */
+    sort_yunos_by_start_priority(gobj, iter, FALSE);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -7787,6 +7804,13 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     const char *yuno_release = kw_get_str(gobj, yuno, "yuno_release", "", KW_REQUIRED);
     json_int_t launch_id = kw_get_int(gobj, yuno, "launch_id", 0, KW_REQUIRED);
 
+    /*
+     *  Node placement, injected as __yuno__ attrs (c_yuno reads "priority"/"cpu_core").
+     *  These are only defaults: the user config file, merged after this one, wins.
+     */
+    json_int_t sched_priority = kw_get_int(gobj, yuno, "sched_priority", 20, 0);
+    json_int_t cpu_core = kw_get_int(gobj, yuno, "cpu_core", 0, 0);
+
     json_t *binary = get_yuno_binary(gobj, yuno);
     if(!binary) {
         gobj_log_error(gobj, 0,
@@ -7859,7 +7883,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             "realm_name", realm_name,
             "realm_env", realm_env
         );
-        json_t *jn_content = json_pack("{s:o, s:o, s:{s:s, s:s, s:s, s:s, s:s, s:b, s:I}}",
+        json_t *jn_content = json_pack("{s:o, s:o, s:{s:s, s:s, s:s, s:s, s:s, s:b, s:I, s:I, s:I}}",
             "global", jn_global,
             "environment", jn_environment,
             "yuno",
@@ -7869,7 +7893,9 @@ PRIVATE gbuffer_t *build_yuno_running_script(
                 "yuno_release", yuno_release,
                 "bind_ip", bind_ip,
                 "yuno_multiple", multiple,
-                "launch_id", (json_int_t)launch_id
+                "launch_id", (json_int_t)launch_id,
+                "priority", (json_int_t)sched_priority,
+                "cpu_core", (json_int_t)cpu_core
         );
         json_t *jn_agent_environment = gobj_read_json_attr(gobj, "agent_environment");
         if(jn_agent_environment) {
@@ -8026,6 +8052,67 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     json_decref(binary);
 
     return gbuf_script;
+}
+
+/***************************************************************************
+ *  Reorder a yunos iter in place by the per-yuno 'start_priority' (band 0..9).
+ *  ascending=TRUE for run-yuno (utilities first: logcenter/emailsender/auth_bff,
+ *  then gates, then dba); ascending=FALSE for kill/pause so utilities die last
+ *  (e.g. logcenter stays up to capture everyone's shutdown). Stable: yunos that
+ *  share a priority keep their treedb order. Out-of-range values are clamped to
+ *  the band; a yuno that predates the column reads its default (5).
+ ***************************************************************************/
+PRIVATE void sort_yunos_by_start_priority(hgobj gobj, json_t *iter, BOOL ascending)
+{
+    size_t size = json_array_size(iter);
+    if(size < 2) {
+        return;
+    }
+
+    json_t *sorted = json_array();
+    for(int band=0; band<=9; band++) {
+        int prio = ascending? band : (9 - band);
+        size_t idx; json_t *yuno;
+        json_array_foreach(iter, idx, yuno) {
+            int p = (int)kw_get_int(gobj, yuno, "start_priority", 5, 0);
+            if(p < 0) {
+                p = 0;
+            } else if(p > 9) {
+                p = 9;
+            }
+            if(p == prio) {
+                json_array_append(sorted, yuno);
+            }
+        }
+    }
+
+    if(json_array_size(sorted) != size) {
+        /*
+         *  Must never happen (clamp guarantees a bucket for every yuno): keep
+         *  the original order rather than silently dropping any yuno.
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "sort_yunos_by_start_priority() lost yunos, keeping order",
+            "before",       "%d", (int)size,
+            "after",        "%d", (int)json_array_size(sorted),
+            NULL
+        );
+        json_decref(sorted);
+        return;
+    }
+
+    /*
+     *  Replace iter contents in place: callers keep the same array pointer
+     *  (cmd_run_yuno hands it to the counter's deferred free).
+     */
+    json_array_clear(iter);
+    size_t idx; json_t *yuno;
+    json_array_foreach(sorted, idx, yuno) {
+        json_array_append(iter, yuno);
+    }
+    json_decref(sorted);
 }
 
 /***************************************************************************

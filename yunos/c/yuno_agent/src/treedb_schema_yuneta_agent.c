@@ -147,7 +147,7 @@
 static char treedb_schema_yuneta_agent[]= "\
 {                                                                   \n\
     'id': 'treedb_yuneta_agent',                                    \n\
-    'schema_version': '22',                                         \n\
+    'schema_version': '23',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'realms',                                         \n\
@@ -275,7 +275,7 @@ static char treedb_schema_yuneta_agent[]= "\
             'id': 'yunos',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '19',                                  \n\
+            'topic_version': '20',                                  \n\
             'tkey': '',                                             \n\
             'pkey2s': 'yuno_release',                               \n\
             'cols': {                                               \n\
@@ -375,6 +375,33 @@ static char treedb_schema_yuneta_agent[]= "\
                     'type': 'boolean',                              \n\
                     'flag': [                                       \n\
                         'inherit',                                  \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'start_priority': {                                 \n\
+                    'header': 'start_pri',                          \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 5,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'sched_priority': {                                 \n\
+                    'header': 'sched_pri',                          \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 20,                                  \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'cpu_core': {                                       \n\
+                    'header': 'cpu_core',                           \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
