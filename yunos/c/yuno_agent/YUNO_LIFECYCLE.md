@@ -154,7 +154,7 @@ config commands only (admin, realm, certs and console commands omitted):
 |-------------------|-------------|-------------------------------------------------------------------------|
 | `install-binary`  | c_agent.c:3005 | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | c_agent.c:3234 | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | c_agent.c:3446 | Refuse if any yuno still references it **or a snap tags it** (`__md_treedb__.tag`, unless `force=1`), then `gobj_delete_node` + `rmrdir`. |
+| `delete-binary`   | c_agent.c:3446 | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via `gobj_get_node`, so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then `gobj_delete_node` + `rmrdir`. |
 | `list-binaries`   | c_agent.c:2917 | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | c_agent.c:6313 | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -164,7 +164,7 @@ config commands only (admin, realm, certs and console commands omitted):
 |-----------------|-------------|-----------------------------------------------------------------|
 | `create-config` (alias `install-config`) | c_agent.c:3633 | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
 | `update-config` | c_agent.c:3793 | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
-| `delete-config` | c_agent.c:3909 | Remove a config row. Fails if yunos reference it (unless `force=1`). |
+| `delete-config` | c_agent.c:3909 | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs don't block); `force=1` overrides. |
 | `list-configs`  | c_agent.c:3601 | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
 | `list-configs-instances` | c_agent.c:6378 | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
 | `view-config`   | ycommand console helper | Read the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
@@ -174,7 +174,7 @@ config commands only (admin, realm, certs and console commands omitted):
 | Command            | At          | Effect                                                                      |
 |--------------------|-------------|-----------------------------------------------------------------------------|
 | `create-yuno`      | c_agent.c:4427 | Create row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | c_agent.c:4686 | Refuse if `yuno_running=true` or `tagged` (unless `force=1`); delete row. |
+| `delete-yuno`      | c_agent.c:4686 | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), else the primary. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
 | `enable-yuno`      | c_agent.c:5530 | `yuno_disabled := false`.                                                 |
 | `disable-yuno`     | c_agent.c:5601 | `yuno_disabled := true`. Does **not** stop a running yuno.                |
 | `run-yuno`         | c_agent.c:4805 | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
@@ -370,6 +370,17 @@ c_agent.c:4686. Refuses if `yuno_running=true` (c_agent.c:4721-4735). Optional
 refusal on tagged yunos unless `force=1` (c_agent.c:4738-4752). Removes the
 treedb row; the on-disk `bin/` directory is cleaned by treedb cascade.
 
+**Pruning one release instance.** Without `yuno_release=` the command targets the
+in-memory primary (historic behaviour). With `yuno_release=<rel>` it durably
+prunes that one instance — useful to drop a superseded or mistakenly-created
+**higher** release without a snap rollback. This rides the treedb per-instance
+delete (`treedb_delete_instance`), which tombstones **every** md2 row of the
+`(id, yuno_release)` — a treedb instance spans several rows (create + each
+link/save re-appends one), so a partial tombstone would let an earlier row
+resurrect the release on reload. The running-guard consults the primary (the
+per-instance row carries a stale `yuno_running`). `delete-config`/`delete-binary`
+gained the symmetric `version=` form for config/binary versions.
+
 ### 4.8 Start order and CPU placement
 
 Three planes share the word "priority" — keep them apart:
@@ -394,12 +405,20 @@ utilities die **last** — e.g. logcenter stays up long enough to capture
 everyone else's shutdown logs. Within one priority, treedb order is preserved
 (stable). Single-target commands (by `id`) are unaffected.
 
-**Default on creation.** `create-yuno` (and so `find-new-yunos`) seeds
-`start_priority = 1` for a yuno carrying the `util` tag — the same set
-`run_util_yunos` starts first — so framework utilities are born at the top tier
-without operator action. Everything else takes the column default (5). No app
-role names are hard-coded in the agent; assign app tiers per node with
+**Default on creation.** `create-yuno` seeds `start_priority = 1` for a yuno
+carrying the `util` tag — the same set `run_util_yunos` starts first — so
+framework utilities are born at the top tier without operator action. A
+genuinely new yuno otherwise takes the column default (5). No app role names are
+hard-coded in the agent; assign app tiers per node with
 `tools/agent/set_start_priorities.py`.
+
+**Inherited across version bumps.** A version-bump deploy (`find-new-yunos
+create=1`) does NOT reset placement: `cmd_find_new_yunos` copies
+`start_priority` / `sched_priority` / `cpu_core` from the prior primary row of
+the same id into the emitted `create-yuno`, so the operator-set tiers survive the
+bump. `set_start_priorities.py` is therefore a first-time-only step per node, not
+a per-deploy chore. (Same-version `update-binary` hot-patches keep the existing
+row and were never affected.)
 
 **CPU placement.** `sched_priority` and `cpu_core` are injected into the
 agent-built config file #1 as the yuno's `sched_priority` / `cpu_core` attrs

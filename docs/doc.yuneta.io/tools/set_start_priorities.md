@@ -10,6 +10,11 @@ effectively insertion order until the tiers are assigned. This tool reads the
 yunos from `*list-yunos`, maps each role to a tier, and writes only the
 differences with `update-node`.
 
+Run it **once per node**: a version-bump deploy (`find-new-yunos create=1`) now
+inherits `start_priority` / `sched_priority` / `cpu_core` from the prior release
+of each id, so the tiers survive bumps — re-running after every deploy is no
+longer needed (it remains idempotent if you do).
+
 It is the third agent helper alongside
 [`sync_binaries.py`](sync_binaries.md) and [`sync_configs.py`](sync_configs.md),
 and shares their OAuth2-once + `-j` plumbing, so it can drive a remote `wss://`
