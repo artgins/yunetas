@@ -3507,6 +3507,148 @@ PRIVATE BOOL is_fkey_registered(
 }
 
 /***************************************************************************
+ *  Is `child` already present in a parent's hook ARRAY?
+ *  Dedup key: node identity, or a matching "id" (covers the
+ *  primary-vs-version-instance case, where two node objects share an id).
+ *  Mirrors the membership test _unlink_nodes() uses to remove, so a repeated
+ *  link stays idempotent instead of duplicating the entry.
+ ***************************************************************************/
+PRIVATE BOOL child_in_hook_array(
+    hgobj gobj,
+    json_t *parent_hook_array,  // JSON_ARRAY, NOT owned
+    json_t *child_node,         // NOT owned
+    json_t *child_data,         // NOT owned, used when is_child_hook
+    const char *child_id,
+    BOOL is_child_hook
+)
+{
+    int idx; json_t *data;
+    json_array_foreach(parent_hook_array, idx, data) {
+        if(is_child_hook) {
+            if(data == child_data) {
+                return TRUE;
+            }
+        } else {
+            if(data == child_node) {
+                return TRUE;
+            }
+            if(json_is_object(data)) {
+                const char *eid = kw_get_str(gobj, data, "id", "", 0);
+                if(!empty_string(eid) && strcmp(eid, child_id)==0) {
+                    return TRUE;
+                }
+            }
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Read-only: does this parent instance's hook hold the given child?
+ *  Used to locate the parent-version instance a child is actually hooked
+ *  on (the fkey ref carries only parent_id, not the pkey2/version), so
+ *  clean unlinks the right instance instead of always the primary.
+ *  No logging: absence is expected across sibling versions.
+ ***************************************************************************/
+PRIVATE BOOL parent_hook_holds_child(
+    hgobj gobj,
+    json_t *parent_node,    // NOT owned
+    const char *hook_name,
+    json_t *child_node,     // NOT owned
+    const char *child_id
+)
+{
+    json_t *hook_data = kw_get_dict_value(gobj, parent_node, hook_name, 0, 0);
+    if(!hook_data) {
+        return FALSE;
+    }
+    switch(json_typeof(hook_data)) { // json_typeof PROTECTED
+    case JSON_ARRAY:
+        {
+            int idx; json_t *data;
+            json_array_foreach(hook_data, idx, data) {
+                if(data == child_node) {
+                    return TRUE;
+                }
+                if(json_is_object(data)) {
+                    const char *eid = kw_get_str(gobj, data, "id", "", 0);
+                    if(!empty_string(eid) && strcmp(eid, child_id)==0) {
+                        return TRUE;
+                    }
+                }
+            }
+        }
+        break;
+    case JSON_OBJECT:
+        {
+            const char *key; json_t *v;
+            json_object_foreach(hook_data, key, v) {
+                if(v == child_node) {
+                    return TRUE;
+                }
+            }
+            if(kw_has_key(hook_data, child_id)) {
+                return TRUE;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Locate the parent-version instance (pkey2) of `parent_id` whose hook
+ *  actually holds `child_node`. Returns the instance node (NOT owned) or
+ *  NULL when none holds it (e.g. hook+fkey combos the read-only probe can't
+ *  match, where the caller keeps the legacy primary-instance behaviour).
+ ***************************************************************************/
+PRIVATE json_t *find_parent_version_holding_child( // Return is NOT YOURS
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *parent_topic_name,
+    const char *parent_id,
+    const char *hook_name,
+    json_t *child_node,     // NOT owned
+    const char *child_id
+)
+{
+    json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, parent_topic_name);
+    json_t *found = NULL;
+    int idx; json_t *jn_pkey2_name;
+    json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
+        const char *pkey2_name = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name)) {
+            continue;
+        }
+        json_t *indexy = treedb_get_pkey2_index(
+            tranger, treedb_name, parent_topic_name, pkey2_name
+        );
+        if(!indexy) {
+            continue;
+        }
+        json_t *instances = json_object_get(indexy, parent_id); // dict key2->node
+        if(!instances) {
+            continue;
+        }
+        const char *key2; json_t *instance;
+        json_object_foreach(instances, key2, instance) {
+            if(parent_hook_holds_child(gobj, instance, hook_name, child_node, child_id)) {
+                found = instance;
+                break;
+            }
+        }
+        if(found) {
+            break;
+        }
+    }
+    json_decref(iter_pkey2s);
+    return found;
+}
+
+/***************************************************************************
  *  Loading hook links
  ***************************************************************************/
 PRIVATE int link_child_to_parent(
@@ -3614,11 +3756,31 @@ PRIVATE int link_child_to_parent(
     switch(json_typeof(parent_hook_data)) { // json_typeof PROTECTED
     case JSON_ARRAY:
         {
-            if(is_child_hook) {
-                json_array_append(parent_hook_data, child_data);
-
+            if(!child_in_hook_array(
+                gobj, parent_hook_data, child_node, child_data, child_id, is_child_hook
+            )) {
+                if(is_child_hook) {
+                    json_array_append(parent_hook_data, child_data);
+                } else {
+                    json_array_append(parent_hook_data, child_node);
+                }
             } else {
-                json_array_append(parent_hook_data, child_node);
+                /*
+                 *  Rebuilding hooks on load and the child is already there:
+                 *  a duplicate fkey on disk being self-healed. Warn so the
+                 *  stale data is visible, but keep the hook deduped.
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "Duplicate fkey on load, deduping parent hook",
+                    "parent_topic_name",    "%s", parent_topic_name,
+                    "parent_id",            "%s", parent_id,
+                    "hook_name",            "%s", hook_name,
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    NULL
+                );
             }
         }
         break;
@@ -5870,11 +6032,30 @@ PRIVATE int _link_nodes(
     switch(json_typeof(parent_hook_data)) { // json_typeof PROTECTED
     case JSON_ARRAY:
         {
-            if(is_child_hook) {
-                json_array_append(parent_hook_data, child_data);
-
+            if(!child_in_hook_array(
+                gobj, parent_hook_data, child_node, child_data, child_id, is_child_hook
+            )) {
+                if(is_child_hook) {
+                    json_array_append(parent_hook_data, child_data);
+                } else {
+                    json_array_append(parent_hook_data, child_node);
+                }
             } else {
-                json_array_append(parent_hook_data, child_node);
+                /*
+                 *  Already hooked: idempotent link. Suspicious (double link
+                 *  or stale duplicate) but not fatal: warn, don't duplicate.
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "Child already in parent hook, skipping duplicate link",
+                    "parent_topic_name",    "%s", parent_topic_name,
+                    "parent_id",            "%s", parent_id,
+                    "hook_name",            "%s", hook_name,
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    NULL
+                );
             }
         }
         break;
@@ -5925,10 +6106,36 @@ PRIVATE int _link_nodes(
                 parent_id,
                 hook_name
             );
-            json_array_append_new(
-                child_data,
-                json_string(pref)
-            );
+            BOOL present = FALSE;
+            int idx; json_t *data;
+            json_array_foreach(child_data, idx, data) {
+                if(json_typeof(data)==JSON_STRING &&
+                        strcmp(pref, json_string_value(data))==0) {
+                    present = TRUE;
+                    break;
+                }
+            }
+            if(!present) {
+                json_array_append_new(
+                    child_data,
+                    json_string(pref)
+                );
+            } else {
+                /*
+                 *  fkey ref already present: idempotent link. Warn, don't
+                 *  duplicate the parent reference on the child.
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "Parent ref already in child fkey, skipping duplicate",
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    "child_field",          "%s", child_field,
+                    "parent_ref",           "%s", pref,
+                    NULL
+                );
+            }
         }
         break;
     case JSON_OBJECT:
@@ -6526,6 +6733,7 @@ PUBLIC int treedb_clean_node(
      *-------------------------------*/
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
+    const char *child_id = kw_get_str(gobj, node, "id", "", 0);
 
     int ret = 0;
     BOOL to_save = FALSE;
@@ -6561,18 +6769,49 @@ PUBLIC int treedb_clean_node(
                 continue;
             }
 
-            json_t *parent_node = treedb_get_node( // Return is NOT YOURS, pure node
+            /*
+             *  The fkey ref carries only parent_id, not the pkey2/version,
+             *  so a child hooked on a non-primary parent-version must be
+             *  located across all instances; unlinking the primary alone
+             *  would leave a stale hook entry on the real version-instance.
+             */
+            json_t *parent_node = treedb_get_node( // primary, NOT YOURS
                 tranger,
                 treedb_name,
                 parent_topic_name,
                 parent_id
             );
-            if(parent_node) {
+            json_t *holder = NULL;
+            if(parent_node &&
+                    parent_hook_holds_child(gobj, parent_node, hook_name, node, child_id)) {
+                holder = parent_node;
+            }
+            if(!holder) {
+                holder = find_parent_version_holding_child(
+                    gobj,
+                    tranger,
+                    treedb_name,
+                    parent_topic_name,
+                    parent_id,
+                    hook_name,
+                    node,           // NOT owned
+                    child_id
+                );
+            }
+            if(!holder) {
+                /*
+                 *  Not located on any instance (e.g. hook+fkey combos the
+                 *  read-only probe can't match): keep legacy behaviour and
+                 *  unlink from the primary if it exists.
+                 */
+                holder = parent_node;
+            }
+            if(holder) {
                 ret += _unlink_nodes(
                     gobj,
                     tranger,
                     hook_name,
-                    parent_node,    // NOT owned
+                    holder,         // NOT owned
                     node,           // NOT owned
                     FALSE
                 );

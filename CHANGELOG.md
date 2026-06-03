@@ -1,5 +1,26 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(treedb): multi-version parent reverse-hook hygiene.** Two
+      in-memory hook quirks around versioned (pkey2) parents are fixed at the
+      treedb layer:
+        - **Unlink targeted only the primary parent version.** A child's fkey
+          ref carries just `parent_topic^parent_id^hook` (no version), so
+          `treedb_clean_node` unlinked from the PRIMARY instance, leaving a
+          stale entry on the non-primary version the child was actually hooked
+          on. It now locates the parent-version instance that really holds the
+          child (`find_parent_version_holding_child` over the pkey2 index) and
+          unlinks that one; the primary-instance behaviour is the fallback for
+          hook+fkey combos the read-only probe can't match.
+        - **Duplicate hook entries.** Repeated create/link of the same child id
+          left it more than once in the parent hook (`yunos:["5000","5000"]`),
+          inflating "Using in N". `_link_nodes` and the loader
+          `link_child_to_parent` now dedup by child id before appending
+          (idempotent link), and the child-side fkey array is deduped too.
+      A skipped duplicate is **warned** (not silently swallowed): a re-link, or
+      a duplicate fkey self-healed on load, is surfaced via `gobj_log_warning`.
+      Closes the TODO follow-up; both quirks also self-heal on reload.
+
 ## v7.5.0 -- 03/Jun/2026
     - **fix(agent): version-aware, stale-safe `delete-config`/`delete-binary`
       usage guard.** The "Using in N yunos" guard read the raw `yunos` hook

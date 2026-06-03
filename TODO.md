@@ -18,31 +18,21 @@ also rendered by GitHub in-repo — more maintainable than draw.io embeds):
 - the **yuno lifecycle FSM** (create→run→play→pause→kill→delete), today prose in
   `YUNO_LIFECYCLE.md` §4.
 
-## treedb: multi-version parent reverse-hook hygiene (minor, deeper)
+## treedb: dedicated regression test for versioned-parent hook hygiene
 
-The user-facing symptom (stale `configurations.yunos` refs blocking
-`delete-config`/`delete-binary`) is FIXED at the agent layer — see CHANGELOG
-Unreleased: the guard now validates each hooked yuno via `gobj_get_node` (dead
-refs skipped) and counts only yunos pinned to the SPECIFIC version, so unused/
-superseded versions prune cleanly and only the in-use version blocks (force
-overrides). Unused config/binary versions are deletable again.
+The two reverse-hook quirks (unlink hitting only the primary parent version;
+duplicate hook entries on repeated link) are FIXED in `tr_treedb.c` — see
+CHANGELOG Unreleased. The fix is verified against the full existing treedb
+suite (`tr_treedb`, `tr_treedb_link_events`, `tr_treedb_delete_instance`,
+`tr_treedb_update_instance`, `tr_treedb_snap`), but there is no fixture that
+combines a **versioned (pkey2) parent topic with a hook to children**, so the
+two fixed paths are not directly asserted. Add a focused test:
 
-Two underlying treedb quirks remain (low impact, both self-heal on reload, both
-tolerated by the agent guard now):
-
-1. **Unlink targets the primary parent version.** When a parent topic has
-   versions (configs/binaries have pkey2 `version`), a child's fkey resolves to
-   the parent *id*; `treedb_clean_node` -> `treedb_get_node(parent_id)` unlinks
-   from the PRIMARY version's hook, missing the version the child was actually
-   hooked on. So whole-key `delete-yuno` can leave a stale entry on a
-   non-primary parent-version hook (in-memory until reload).
-2. **Duplicate hook entries.** Repeated create/link of the same child id can
-   leave the same id more than once in the parent hook (seen as
-   `yunos: ["5000","5000"]`), inflating the "Using in N" count. Rebuilds clean
-   on reload; the agent guard's per-id `gobj_get_node` validation tolerates it.
-
-Proper fix lives in treedb (unlink across all parent-version instances + dedupe
-hook membership). Lower priority now that the agent guard is robust.
+1. Link the same child twice → assert the parent hook holds it once and the
+   dedup `gobj_log_warning` fires (strict FIFO `set_expected_results`).
+2. Create parent v1 (primary) + v2; hook a child onto v2; `clean`/delete the
+   child → assert no residue on the v2 hook and no spurious "Child data not
+   found" error.
 
 ## Auth: OIDC migration follow-ups
 
