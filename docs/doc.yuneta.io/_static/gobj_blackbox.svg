@@ -31,8 +31,9 @@
 
   <!-- identity: gclass (role) + name (instance) -->
   <text x="380" y="130" text-anchor="middle" font-size="16" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan font-weight="800" fill="#ffffff">C_TCP</tspan><tspan fill="#5b6b7f"> · </tspan><tspan font-weight="600" fill="#aebfcf">"server-1"</tspan></text>
-  <text x="380" y="144" text-anchor="middle" font-size="7.5" fill="#7f93a8" letter-spacing="0.4">gclass (role) · name (instance)</text>
-  <line x1="252" y1="152" x2="508" y2="152" stroke="#2b333c"/>
+  <text x="318" y="146" text-anchor="middle" font-size="9" fill="#9fb2c5" letter-spacing="0.3">gclass · role</text>
+  <text x="418" y="146" text-anchor="middle" font-size="9" fill="#9fb2c5" letter-spacing="0.3">name · instance</text>
+  <line x1="252" y1="156" x2="508" y2="156" stroke="#2b333c"/>
 
   <!-- the FSM sub-box -->
   <rect x="256" y="160" width="248" height="110" rx="9" fill="#18222a" stroke="#2c5b54"/>
