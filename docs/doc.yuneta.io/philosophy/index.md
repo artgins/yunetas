@@ -5,16 +5,18 @@ finite-state objects (GObjects) that communicate only through events, and
 the model that shapes every design decision in the framework.
 
 ```{figure} ../_static/gobj_blackbox.svg
-:alt: A gobj is a black box — an instance (its name) of a gclass (its role, e.g. C_TCP). Events are its communication channel, flowing in and out; commands, attributes and statistics are ports on its surface. Links between gobjs come later, with the typed graph.
+:alt: A gobj is a black box — an instance (its name) of a gclass (its role, e.g. C_TCP). Inside runs a finite-state machine: state times event maps to an action. Events are its communication channel, flowing in and out; commands, attributes and statistics are ports on its surface. Links between gobjs come later, with the typed graph.
 :width: 100%
 
 A **gobj** is a black box. It is an *instance* — identified by its **name**
 (e.g. `"server-1"`) — of a **gclass**, the *role* it plays (e.g. `C_TCP`).
-You never reach inside it. **Events** are its communication channel: it
-receives them and sends them, and they are the *only* way gobjs talk to
-each other. **Commands**, **attributes** and **statistics** are ports on
-its surface — how *you* drive and inspect it. There are no links here yet:
-how gobjs connect into a graph comes next. → *Continues in*
+Inside runs a **finite-state machine**: `state × event → action` (an
+`EV_CONNECTED` in `ST_IDLE` moves it to `ST_OPEN`). You never reach inside
+it. **Events** are its communication channel: it receives them — they drive
+the FSM — and it sends them, and they are the *only* way gobjs talk to each
+other. **Commands**, **attributes** and **statistics** are ports on its
+surface — how *you* drive and inspect it. There are no links here yet: how
+gobjs connect into a graph comes next. → *Continues in*
 [**The Typed-Graph Model**](typed_graph_model.md).
 ```
 

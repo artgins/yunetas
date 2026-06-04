@@ -1,49 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A gobj is a black box: an instance (its name, like server-1) of a gclass (its role, like C_TCP). Its interface is part of the box itself, not separate linked nodes. Events are the communication channel: they flow in from the left, through the box, and out to the right — the only way gobjs talk to each other. Commands, attributes and statistics are ports on the box's surface: how you drive and inspect it. You never reach inside. Links between gobjs come later, with the typed graph.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 348" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="A gobj is a black box: an instance (its name, like server-1) of a gclass (its role, like C_TCP). Inside it runs a finite-state machine (FSM): state times event maps to an action, e.g. ST_IDLE on EV_CONNECTED becomes ST_OPEN. Events are the communication channel — they flow in from the left, drive the FSM, and flow out to the right; events are the only way gobjs talk to each other. Commands, attributes and statistics are ports on the box's surface: how you drive and inspect it. You never reach inside. Links between gobjs come later, with the typed graph.">
   <defs>
     <marker id="evArrow" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 Z" fill="#2a9d8f"/>
     </marker>
+    <marker id="fsmArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#4fd1c0"/>
+    </marker>
   </defs>
 
-  <title>A gobj — a black box: an instance (name) of a gclass (role), talking through events</title>
+  <title>A gobj — a black box: an instance (name) of a gclass (role), with an FSM inside, driven by events</title>
 
   <text x="380" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#41504f">A <tspan font-style="italic">gobj</tspan> is a black box — an instance (<tspan font-weight="700">name</tspan>) of a <tspan font-weight="700">gclass</tspan> (its role)</text>
 
   <!-- frame -->
-  <rect x="16" y="42" width="728" height="282" rx="12" fill="#fbfcfd" stroke="#d8dee6"/>
+  <rect x="16" y="42" width="728" height="292" rx="12" fill="#fbfcfd" stroke="#d8dee6"/>
 
-  <!-- control & inspection: ports ON the box surface (no links — these are facets, not nodes) -->
-  <text x="380" y="86" text-anchor="middle" font-size="10" font-weight="700" fill="#9aa7b6" letter-spacing="0.5">CONTROL &amp; INSPECTION</text>
-  <text x="300" y="106" text-anchor="middle" font-size="9.5" font-weight="700" fill="#7a4e18">COMMANDS</text>
-  <text x="380" y="106" text-anchor="middle" font-size="9.5" font-weight="700" fill="#22386b">ATTRIBUTES</text>
-  <text x="460" y="106" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">STATISTICS</text>
-
-  <!-- the facet pins straddle the box's top edge -->
+  <!-- control & inspection: ports ON the box surface (facets, not linked nodes) -->
+  <text x="380" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#9aa7b6" letter-spacing="0.5">CONTROL &amp; INSPECTION</text>
+  <text x="300" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#7a4e18">COMMANDS</text>
+  <text x="380" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#22386b">ATTRIBUTES</text>
+  <text x="460" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">STATISTICS</text>
   <g stroke="#ffffff" stroke-width="1">
-    <rect x="271" y="113" width="58" height="14" rx="3" fill="#d98a3d"/>
-    <rect x="351" y="113" width="58" height="14" rx="3" fill="#4a78c8"/>
-    <rect x="431" y="113" width="58" height="14" rx="3" fill="#c0492f"/>
+    <rect x="271" y="97" width="58" height="14" rx="3" fill="#d98a3d"/>
+    <rect x="351" y="97" width="58" height="14" rx="3" fill="#4a78c8"/>
+    <rect x="431" y="97" width="58" height="14" rx="3" fill="#c0492f"/>
   </g>
 
   <!-- the black box -->
-  <rect x="240" y="120" width="280" height="150" rx="12" fill="#14181d" stroke="#05070a" stroke-width="1.5"/>
-  <text x="380" y="160" text-anchor="middle" font-size="9" fill="#7f93a8" letter-spacing="0.5">GCLASS · the role</text>
-  <text x="380" y="188" text-anchor="middle" font-size="25" font-weight="800" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">C_TCP</text>
-  <text x="380" y="220" text-anchor="middle" font-size="9" fill="#7f93a8" letter-spacing="0.5">NAME · this instance</text>
-  <text x="380" y="245" text-anchor="middle" font-size="16" font-weight="600" fill="#cdd9e6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">"server-1"</text>
+  <rect x="238" y="104" width="284" height="178" rx="12" fill="#14181d" stroke="#05070a" stroke-width="1.5"/>
 
-  <!-- EVENTS: the communication channel — flows in -> through -> out -->
-  <text x="150" y="184" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">EVENTS in</text>
-  <line x1="92" y1="200" x2="238" y2="200" stroke="#2a9d8f" stroke-width="4.2" marker-end="url(#evArrow)"/>
-  <text x="610" y="184" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">EVENTS out</text>
-  <line x1="522" y1="200" x2="668" y2="200" stroke="#2a9d8f" stroke-width="4.2" marker-end="url(#evArrow)"/>
+  <!-- identity: gclass (role) + name (instance) -->
+  <text x="380" y="130" text-anchor="middle" font-size="16" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan font-weight="800" fill="#ffffff">C_TCP</tspan><tspan fill="#5b6b7f"> · </tspan><tspan font-weight="600" fill="#aebfcf">"server-1"</tspan></text>
+  <text x="380" y="144" text-anchor="middle" font-size="7.5" fill="#7f93a8" letter-spacing="0.4">gclass (role) · name (instance)</text>
+  <line x1="252" y1="152" x2="508" y2="152" stroke="#2b333c"/>
 
-  <!-- event ports on the box sides -->
+  <!-- the FSM sub-box -->
+  <rect x="256" y="160" width="248" height="110" rx="9" fill="#18222a" stroke="#2c5b54"/>
+  <text x="272" y="180" font-size="11" font-weight="700" fill="#4fd1c0">FSM</text>
+  <text x="332" y="180" font-size="8" fill="#6f9089">finite-state machine</text>
+
+  <text x="380" y="197" text-anchor="middle" font-size="8" fill="#8fb7b0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">EV_CONNECTED</text>
+  <rect x="270" y="201" width="86" height="27" rx="13.5" fill="#233039" stroke="#3a6f67"/>
+  <text x="313" y="219" text-anchor="middle" font-size="10.5" fill="#d7e6e2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ST_IDLE</text>
+  <rect x="400" y="201" width="86" height="27" rx="13.5" fill="#233039" stroke="#3a6f67"/>
+  <text x="443" y="219" text-anchor="middle" font-size="10.5" fill="#d7e6e2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ST_OPEN</text>
+  <line x1="357" y1="214.5" x2="399" y2="214.5" stroke="#4fd1c0" stroke-width="1.8" marker-end="url(#fsmArrow)"/>
+
+  <text x="380" y="254" text-anchor="middle" font-size="8.5" fill="#7f93a8">state × event → action</text>
+
+  <!-- EVENTS: the communication channel — in -> drives the FSM -> out -->
+  <text x="152" y="198" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">EVENTS in</text>
+  <line x1="94" y1="214" x2="236" y2="214" stroke="#2a9d8f" stroke-width="4.2" marker-end="url(#evArrow)"/>
+  <text x="608" y="198" text-anchor="middle" font-size="13" font-weight="700" fill="#1d6b60">EVENTS out</text>
+  <line x1="524" y1="214" x2="666" y2="214" stroke="#2a9d8f" stroke-width="4.2" marker-end="url(#evArrow)"/>
   <g stroke="#ffffff" stroke-width="1">
-    <rect x="235" y="195" width="10" height="10" rx="2.5" fill="#2a9d8f"/>
-    <rect x="515" y="195" width="10" height="10" rx="2.5" fill="#2a9d8f"/>
+    <rect x="233" y="209" width="10" height="10" rx="2.5" fill="#2a9d8f"/>
+    <rect x="513" y="209" width="10" height="10" rx="2.5" fill="#2a9d8f"/>
   </g>
 
-  <text x="380" y="298" text-anchor="middle" font-size="10.5" fill="#5b6b7f"><tspan font-weight="700" fill="#1d6b60">Events</tspan> are the channel — the only way gobjs talk to <tspan font-style="italic">each other</tspan>. Commands, attributes &amp; statistics are how <tspan font-style="italic">you</tspan> drive and inspect it.</text>
-  <text x="380" y="314" text-anchor="middle" font-size="9.5" fill="#8593a3">You never reach inside the box. (Links <tspan font-style="italic">between</tspan> gobjs come later, with the typed graph.)</text>
+  <text x="380" y="306" text-anchor="middle" font-size="10.5" fill="#5b6b7f"><tspan font-weight="700" fill="#1d6b60">Events</tspan> drive the FSM inside, and are the only way gobjs talk to <tspan font-style="italic">each other</tspan>.</text>
+  <text x="380" y="322" text-anchor="middle" font-size="9.5" fill="#8593a3">Commands, attributes &amp; statistics are how <tspan font-style="italic">you</tspan> drive and inspect it. You never reach inside the box.</text>
 </svg>
