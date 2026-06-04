@@ -89,10 +89,13 @@ Defined in `treedb_schema_yuneta_agent.c`. Composite key:
 | `version`   | pkey2                                                               |
 | `zcontent`  | compressed JSON payload — the actual config                         |
 
-The blob lives in treedb. At start time the agent **materialises** it to disk
-under the yuno's `bin/` directory and hands the path to the binary via
-`--config-file='[<paths>]'`. The materialisation site is c_agent.c
-and 7857-7868; the launcher line is c_agent.c.
+The blob lives in treedb. At start time the agent **materialises** it to a
+`.json` file under the yuno's `bin/` directory and hands that path to the binary
+via `--config-file='[<paths>]'` when it launches the process. Both steps run
+inside [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8267):
+it writes the config through
+[`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7903),
+then exec's the binary with the materialised paths.
 
 ### 2.3 The `yunos` topic
 
@@ -118,8 +121,10 @@ columns:
 | `cpu_core`        | int (default 0) — injected as the yuno's `cpu_core` attr. See §4.8. |
 | `configurations`  | hook — N:M against `configurations` for multi-file config sets     |
 
-A yuno record without a matching `binaries` row or `configurations` row will
-fail at create time, not at start time (c_agent.c, 4487-4492).
+A yuno record without a matching `binaries` row or `configurations` row fails at
+create time, not at start time:
+[`cmd_create_yuno()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L4578)
+rejects the request as soon as either lookup comes back empty.
 
 `start_priority` / `sched_priority` / `cpu_core` are node placement decisions:
 they live with the agent (this node), not in the binary or its config that
@@ -145,48 +150,48 @@ config files from. The actual binary lives in `/yuneta/repos/` (see §2.1).
 
 ## 3. Command inventory
 
-Registered in the agent's command table at c_agent.c. Yuno + binary +
-config commands only (admin, realm, certs and console commands omitted):
+Registered in the agent's command table. Yuno + binary + config commands only
+(admin, realm, certs and console commands omitted):
 
 ### Binaries
 
-| Command           | At          | Effect                                                                  |
-|-------------------|-------------|-------------------------------------------------------------------------|
-| `install-binary`  | c_agent.c | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
-| `update-binary`   | c_agent.c | Same as install but **overwrites** existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | c_agent.c | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via `gobj_get_node`, so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then `gobj_delete_node` + [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422). |
-| `list-binaries`   | c_agent.c | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
-| `list-binaries-instances` | c_agent.c | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
+| Command           | Effect                                                                  |
+|-------------------|-------------------------------------------------------------------------|
+| `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
+| `update-binary`   | Same as install but **overwrites** the existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
+| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via `gobj_get_node`, so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then `gobj_delete_node` + [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422). |
+| `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
+| `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
 ### Configurations
 
-| Command         | At          | Effect                                                          |
-|-----------------|-------------|-----------------------------------------------------------------|
-| `create-config` (alias `install-config`) | c_agent.c | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
-| `update-config` | c_agent.c | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
-| `delete-config` | c_agent.c | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs don't block); `force=1` overrides. |
-| `list-configs`  | c_agent.c | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
-| `list-configs-instances` | c_agent.c | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
-| `view-config`   | ycommand console helper | Read the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
+| Command         | Effect                                                          |
+|-----------------|-----------------------------------------------------------------|
+| `create-config` (alias `install-config`) | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
+| `update-config` | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
+| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs don't block); `force=1` overrides. |
+| `list-configs`  | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
+| `list-configs-instances` | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
+| `view-config`   | A ycommand console helper (not an agent command): reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
 
 ### Yunos
 
-| Command            | At          | Effect                                                                      |
-|--------------------|-------------|-----------------------------------------------------------------------------|
-| `create-yuno`      | c_agent.c | Create row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | c_agent.c | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), else the primary. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
-| `enable-yuno`      | c_agent.c | `yuno_disabled := false`.                                                 |
-| `disable-yuno`     | c_agent.c | `yuno_disabled := true`. Does **not** stop a running yuno.                |
-| `run-yuno`         | c_agent.c | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
-| `kill-yuno`        | c_agent.c | Orderly shutdown of matching running yunos. Sends `signal2kill` (SIGQUIT by default). See §4. |
-| `play-yuno`        | c_agent.c | Send `EV_PLAY_YUNO` event over the yuno's channel; flip `must_play=true`. |
-| `pause-yuno`       | c_agent.c | Send `EV_PAUSE_YUNO` event over the yuno's channel; flip `must_play=false`. |
-| `command-yuno`     | c_agent.c  | Wildcard: forward an arbitrary command to a running yuno's service.       |
-| `list-yunos`       | c_agent.c  | All `yunos` rows with current pid + state.                                |
-| `view-yuno-config` | c_agent.c  | The stored configs attached to a yuno (still not the effective merged one). |
-| `stats-yuno`       | c_agent.c  | Forward a stats request to the running yuno.                              |
+| Command            | Effect                                                                      |
+|--------------------|-----------------------------------------------------------------------------|
+| `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
+| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), else the primary. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
+| `enable-yuno`      | `yuno_disabled := false`.                                                 |
+| `disable-yuno`     | `yuno_disabled := true`. Does **not** stop a running yuno.                |
+| `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
+| `kill-yuno`        | Orderly shutdown of matching running yunos. Sends `signal2kill` (SIGQUIT by default). See §4. |
+| `play-yuno`        | Send `EV_PLAY_YUNO` event over the yuno's channel; flip `must_play=true`. |
+| `pause-yuno`       | Send `EV_PAUSE_YUNO` event over the yuno's channel; flip `must_play=false`. |
+| `command-yuno`     | Wildcard: forward an arbitrary command to a running yuno's service.       |
+| `list-yunos`       | All `yunos` rows with current pid + state.                                |
+| `view-yuno-config` | The stored configs attached to a yuno (still not the effective merged one). |
+| `stats-yuno`       | Forward a stats request to the running yuno.                              |
 
-Permission gating is per-command via `pm_<name>` schemas (c_agent.c).
+Permission gating is per-command via `pm_<name>` schemas.
 
 ---
 
@@ -236,38 +241,38 @@ per-yuno record fields):
                                                └─────────┘
 ```
 
-Note: the agent itself stays in `ST_IDLE` always (c_agent.c). It is the
-**event types** (c_agent.c) that drive transitions on the per-yuno
-record fields (`yuno_running`, `yuno_playing`, `yuno_pid`).
+Note: the agent itself stays in `ST_IDLE` always. The diagram above is **not**
+the agent's own FSM — it is the lifecycle of a *managed yuno* as the agent tracks
+it through the per-yuno record fields (`yuno_running`, `yuno_playing`,
+`yuno_pid`), driven by the event types it receives over each yuno's channel.
 
 ### 4.2 Registration: `create-yuno`
 
-c_agent.c. Requires realm + binary `(yuno_role, role_version)` + config
+Requires realm + binary `(yuno_role, role_version)` + config
 `(yuno_role.yuno_name, name_version)` to already exist. Defaults missing
 versions to *latest*. Writes the row with `yuno_running=false`,
-`yuno_disabled=false`, `yuno_pid=0` (c_agent.c).
+`yuno_disabled=false`, `yuno_pid=0`.
 
 ### 4.3 Start: `run-yuno`
 
-c_agent.c → `run_yuno()` at c_agent.c.
+Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8267):
 
-1. Select yunos: `disabled=false ∧ running=false` (c_agent.c).
-2. Resolve binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508) ([c_agent.c:7508](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508)): prefer active
-   snapshot (`gobj_list_snaps()`, c_agent.c), fallback to direct
-   `(role, role_version)` lookup (c_agent.c).
+1. Select yunos: `disabled=false ∧ running=false`.
+2. Resolve the binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7508):
+   prefer the active snapshot (`gobj_list_snaps()`), falling back to a direct
+   `(role, role_version)` lookup.
 3. Materialise each `configurations.zcontent` blob to a JSON file under the
-   yuno's `bin/` directory (c_agent.c, 7857-7868).
+   yuno's `bin/` directory ([`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7903)).
 4. Build a launcher shell script that runs the binary with:
    ```
    <binary> --config-file='["bin/1-role_name.json", "bin/2-role_name.json", …]' "$@"
    ```
-   (c_agent.c).
-5. `run_process2(bfbinary, argv)` (c_agent.c) — `fork`/`exec` via a
-   wrapper.
+5. `run_process2(bfbinary, argv)` — `fork`/`exec` via a wrapper.
 6. The yuno opens a channel back to the agent and emits **`EV_ON_OPEN`**
-   carrying its `pid` and `watcher_pid` (handler `ac_on_open()`, c_agent.c).
-   Only after this handshake is `yuno_running` set to `true` (c_agent.c)
-   and `yuno_pid` / `watcher_pid` stored (c_agent.c).
+   carrying its `pid` and `watcher_pid` (handler
+   [`ac_on_open()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L10707)).
+   Only after this handshake does the agent set `yuno_running` to `true` and
+   store `yuno_pid` / `watcher_pid`.
 7. If `must_play=true`, the agent fires `play-yuno` automatically right after
    the open (`ac_on_open()`), **unless** the command was issued with `play=0`
    (see below).
@@ -307,28 +312,26 @@ These are **not** process signals. They are gobj events delivered through the
 yuno's open channel:
 
 - `play-yuno` → `EV_PLAY_YUNO` → yuno does whatever "playing" means for it →
-  `EV_PLAY_YUNO_ACK` → agent sets `yuno_playing=true` (c_agent.c).
+  `EV_PLAY_YUNO_ACK` → agent sets `yuno_playing=true`.
 - `pause-yuno` → `EV_PAUSE_YUNO` → … → `EV_PAUSE_YUNO_ACK` → agent sets
-  `yuno_playing=false` (c_agent.c).
+  `yuno_playing=false`.
 
 Most yunos use the play/paused gate to enable/disable I/O processing without
 exiting. The process never stops; only its inputs are gated.
 
 ### 4.5 Stop: `kill-yuno`
 
-c_agent.c → `kill_yuno()` at c_agent.c. **Orderly shutdown**, not a
-SIGKILL.
+An **orderly shutdown**, not a SIGKILL, performed by
+[`kill_yuno()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8369):
 
-1. Read the `signal2kill` attribute (default `SIGQUIT`, c_agent.c).
-2. `kill(yuno_pid, signal2kill)` (c_agent.c).
-3. If the chosen signal is `SIGKILL`, the watcher is killed too
-   (c_agent.c).
+1. Read the `signal2kill` attribute (default `SIGQUIT`).
+2. `kill(yuno_pid, signal2kill)`.
+3. If the chosen signal is `SIGKILL`, the watcher is killed too.
 4. **No timer-based escalation in code**. The agent trusts the yuno's signal
    handler to actually shut down. If it doesn't, the yuno stays "running"
    from the agent's record forever (see §5).
-5. When the channel closes, `ac_on_close()` ([c_agent.c:10992](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L10992)) flips
-   `yuno_running=false`, `yuno_playing=false`, `yuno_pid=0`
-   (c_agent.c).
+5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L10992)
+   flips `yuno_running=false`, `yuno_playing=false`, `yuno_pid=0`.
 
 ### 4.6 Crash detection and reconciliation
 
@@ -371,9 +374,9 @@ The watcher emits a `Daemon relaunched` log line on every relaunch
 
 ### 4.7 Deletion: `delete-yuno`
 
-c_agent.c. Refuses if `yuno_running=true` (c_agent.c). Optional
-refusal on tagged yunos unless `force=1` (c_agent.c). Removes the
-treedb row; the on-disk `bin/` directory is cleaned by treedb cascade.
+Refuses if `yuno_running=true`. Optionally refuses on tagged yunos unless
+`force=1`. Removes the treedb row; the on-disk `bin/` directory is cleaned by
+treedb cascade.
 
 **Pruning one release instance.** Without `yuno_release=` the command targets the
 in-memory primary (historic behaviour). With `yuno_release=<rel>` it durably
@@ -451,7 +454,7 @@ directly; the file form is only needed for the text CLI.)
 
 ### 5.1 `update-binary` fails while the yuno is running (text-file-busy)
 
-`update-binary` (c_agent.c) base64-decodes `content64` to
+`update-binary` base64-decodes `content64` to
 `/yuneta/realms/agent/agent/temp/<role>`, then copies it over
 `/yuneta/repos/<tags>/<role>/<version>/<role>`. The agent **execs running
 yunos directly from that repos path**, so if a process is running that exact
@@ -464,7 +467,7 @@ ERROR -1: Cannot copy '/yuneta/realms/agent/agent/temp/<role>'
 
 It does **not** corrupt the live process — Linux simply won't let you overwrite
 a busy executable. The command's description still says *"WARNING: Don't use in
-production!"* (c_agent.c).
+production!"*.
 
 **So the same-version hot-patch order is mandatory: `kill-yuno <role>` FIRST,
 then `update-binary`, then `run-yuno`.** (`$$(<role>)` in ycommand reads the
@@ -487,9 +490,9 @@ If the yuno dies in a way that leaves the channel open (rare, but
 `SIGKILL`-from-outside is one of them) `ac_on_close()` is never invoked. The
 record keeps `yuno_running=true` and `yuno_pid=<old-pid>`.
 
-On the next `run-yuno`, `ac_on_open()` checks `getpgid(_pid) >= 0`
-(c_agent.c). If the old pid happens to have been reused, the agent
-**kills the new occupant** (c_agent.c). This is the worst flavour of
+On the next `run-yuno`, `ac_on_open()` checks `getpgid(_pid) >= 0`.
+If the old pid happens to have been reused, the agent
+**kills the new occupant**. This is the worst flavour of
 flapping. If you suspect a stale pid, manually clear `yuno_running` and
 `yuno_pid` in treedb before retrying.
 
