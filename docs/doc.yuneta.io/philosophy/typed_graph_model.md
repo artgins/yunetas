@@ -68,7 +68,7 @@ they are isomorphic in primitive shape:
 | Information plane (treedb) | Behavior plane (gobj-tree)            |
 |----------------------------|---------------------------------------|
 | `topic`                    | `gclass`                              |
-| `node` (with `id`)         | `gobj` (with `gobj_name`)             |
+| `node` (with `id`)         | `gobj` (with [`gobj_name`](#gobj_name)) |
 | `hook` / `fkey`            | `parent` / `subscribe` / `bottom_gobj`|
 | field schema (`sdata_desc_t`) | attribute schema (`sdata_desc_t`) — *same macro family* |
 | `EV_TREEDB_UPDATE_NODE`    | `EV_ON_OPEN`, `EV_TIMEOUT`, …         |
@@ -180,13 +180,13 @@ The payoffs that justify the upfront typing cost:
   protocol on top is a gobj that owns the socket as `bottom_gobj`; a
   service is a gobj that owns the protocol; a yuno is a gobj that
   owns services; the agent is a gobj that owns yunos. The same
-  primitive (`gobj_subscribe_event`, `gobj_send_event`) works at
-  every level.
+  primitive ([`gobj_subscribe_event`](#gobj_subscribe_event),
+  [`gobj_send_event`](#gobj_send_event)) works at every level.
 - **Substitution by contract.** Swap OpenSSL ↔ mbedTLS under `C_YTLS`
   and the layers above do not notice. Swap `c_tcp` for
   `c_unix_socket` and the protocols stay blind. The contract is the
   gclass signature; the implementation behind it is interchangeable.
-- **Structural traceability.** `gobj_short_name(g)` returns the full
+- **Structural traceability.** [`gobj_short_name(g)`](#gobj_short_name) returns the full
   path through the tree
   (`C_YUNO^...^C_AUTH_BFF^auth_bff^C_HTTPS_CL^...^C_TCP^...`). You
   know *where* in the graph something is happening without bolting on
