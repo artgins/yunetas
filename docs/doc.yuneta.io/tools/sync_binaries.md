@@ -1,7 +1,7 @@
 (tool-sync_binaries)=
-# `sync_binaries.py`
+# [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_binaries.py)
 
-Operator utility (`tools/agent/sync_binaries.py`) that reconciles the freshly
+Operator utility ([`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_binaries.py)) that reconciles the freshly
 built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.

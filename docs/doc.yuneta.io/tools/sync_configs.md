@@ -1,7 +1,7 @@
 (tool-sync_configs)=
-# `sync_configs.py`
+# [`sync_configs.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_configs.py)
 
-Operator utility (`tools/agent/sync_configs.py`) that reconciles the yuno
+Operator utility ([`tools/agent/sync_configs.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_configs.py)) that reconciles the yuno
 **configs in a directory** with what the local `yuneta_agent` already has
 installed, and — after confirmation — pushes the differences via `create-config`
 (alias `install-config`) / `update-config`.
@@ -10,10 +10,10 @@ It is the config-side sibling of [`sync_binaries.py`](sync_binaries.md). The two
 differ in how they discover work, because configs are **not centralized** the way
 binaries are:
 
-- `sync_binaries.py` drives from `$YUNETAS_BASE/outputs/yunos/` — every built
+- [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_binaries.py) drives from `$YUNETAS_BASE/outputs/yunos/` — every built
   binary lives in one well-known directory.
 - Configs live scattered under each yuno's `batches/<host>/` directory, so
-  `sync_configs.py` **drives from the current directory**. You `cd` into the
+  [`sync_configs.py`](https://github.com/artgins/yunetas/blob/7.5.1/tools/agent/sync_configs.py) **drives from the current directory**. You `cd` into the
   batches directory holding the `*.json` configs you want to sync, then run it.
 
 ## Identity and matching

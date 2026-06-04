@@ -39,7 +39,7 @@ will/keepalive).
 ## Persistence
 
 When `mqtt_persistent_db` is true (default), the broker keeps state in a TreeDB
-(`treedb_mqtt_broker`, schema `treedb_schema_mqtt_broker.c`) plus TimeRanger2
+(`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.1/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
 queues:
 
 - **clients / sessions / subscriptions** — TreeDB nodes.

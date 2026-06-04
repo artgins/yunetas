@@ -157,7 +157,7 @@ Return the result via [`build_stats_response`](#build_stats_response)
 (`{result, comment, schema, data}`) so the envelope is identical to
 what the default parser would return.
 
-#### Example — `c_auth_bff.c`
+#### Example — [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c)
 
 [`C_AUTH_BFF`](#gclass-c-auth-bff) is the per-channel BFF processor of the auth_bff yuno.
 Each browser request crosses several increment points ([`enqueue`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L1058),
@@ -233,7 +233,7 @@ PRIVATE const GMETHODS gmt = {
 };
 ```
 
-The full source is in `kernel/c/root-linux/src/c_auth_bff.c`.
+The full source is in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c).
 
 ### Quick rule of thumb
 

@@ -252,15 +252,15 @@ source.
 
 Five tests ship in-tree to protect the feature:
 
-- `tests/c/ytls/test_cert_reload.c` — swap A→B + rollback on invalid cert.
-- `tests/c/ytls/test_cert_info.c` — cert introspection edge cases
+- [`tests/c/ytls/test_cert_reload.c`](https://github.com/artgins/yunetas/blob/7.5.1/tests/c/ytls/test_cert_reload.c) — swap A→B + rollback on invalid cert.
+- [`tests/c/ytls/test_cert_info.c`](https://github.com/artgins/yunetas/blob/7.5.1/tests/c/ytls/test_cert_info.c) — cert introspection edge cases
   (short / long validity, self-signed invariant, serial shape,
   client-side NULL, already-expired cert).
-- `tests/c/ytls/test_cert_reload_mem.c` — 1000 reloads with no live
+- [`tests/c/ytls/test_cert_reload_mem.c`](https://github.com/artgins/yunetas/blob/7.5.1/tests/c/ytls/test_cert_reload_mem.c) — 1000 reloads with no live
   session, asserts `get_cur_system_memory() == 0`.
-- `tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c` — one
+- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c`](https://github.com/artgins/yunetas/blob/7.5.1/tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c) — one
   reload while a TCP session is live; the session keeps working.
-- `tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c` — 50
+- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c`](https://github.com/artgins/yunetas/blob/7.5.1/tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c) — 50
   reloads with a live session, one echo message per iteration.
 
 Run the full suite under valgrind for an exhaustive leak check:

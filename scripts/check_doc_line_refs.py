@@ -34,6 +34,14 @@ Four modes:
   Events, states, types, kw keys and ambiguous names have no stable target and
   stay as code. Test helpers and the ESP32 port are excluded as link targets.
 
+  --link-files[=TAG]  Make backticked bare file paths in narrative prose
+  clickable. A span that is EXACTLY a source path (`kernel/.../c_yuno.c`,
+  `glogger.c`) and resolves to a real file -> GitHub FILE link (no line anchor,
+  so it never drifts; re-pinned to TAG per release). The two locator forms
+  `--linkify` / `--link-symbols` never reach: bare filenames in prose and the
+  §"Code pointers" reference tables. Every occurrence, all pages (api/ skipped).
+  Ambiguous basenames and non-existent paths stay as code.
+
 A `file.c:NNN` ref earns a link two ways: it sits right after a backticked
 function name (`fn()` (file.c:N)) — a definition citation, linked to the current
 def even if N drifted; or the cited line is provably inside some nearby
@@ -47,6 +55,7 @@ Usage:
     scripts/check_doc_line_refs.py --linkify       # link/strip file.c:NNN refs
     scripts/check_doc_line_refs.py --strip-prose   # drop prose/comma line nums
     scripts/check_doc_line_refs.py --link-symbols  # link symbols to source/docs
+    scripts/check_doc_line_refs.py --link-files    # link bare file paths to source
 """
 import os
 import re
@@ -466,6 +475,99 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
     return nf, ng, nt
 
 
+# ----------------------------------------------------------------------------
+# File links (problem 3) — a backticked bare file path in narrative prose
+# (`kernel/c/root-linux/src/c_yuno.c`, `glogger.c`) is rendered coloured by the
+# theme yet leads nowhere: `--linkify` only sees the colon-form `file:NNN` and
+# `--link-symbols` only sees function / gclass / tool symbols. Link every
+# occurrence of a backticked span that is EXACTLY a path resolving to a real
+# source file to its GitHub FILE url — no line anchor, so it is drift-proof and
+# just re-pinned to TAG per release. This is what reaches the bare filenames in
+# prose and the "Code pointers" reference tables. Skips code fences and spans
+# already inside a [..](..) link.
+# ----------------------------------------------------------------------------
+FILE_SPAN = re.compile(
+    r"(?<!\[)`((?:[\w./+-]+/)?[\w+.-]+\.(?:c|h|js|py))`(?!\])"
+)
+
+
+def build_file_index():
+    """basename -> [paths] for the CANONICAL source only: the same exclusion as
+    the symbol linker (FUNC_INDEX_SKIP drops tests / perf / stress / the ESP32
+    port). A prose `c_timer.c` then resolves to `root-linux/src/c_timer.c`
+    instead of going ambiguous against the ESP32 port's copy. Explicit full
+    paths (`tests/c/.../main.c`) still link — those hit the verbatim-path branch
+    of resolve_file and never consult this index."""
+    idx = {}
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d not in FUNC_INDEX_SKIP]
+        for f in files:
+            if f.endswith(SRC_EXT):
+                idx.setdefault(f, []).append(Path(root) / f)
+    return idx
+
+
+def gh_file_url(path, tag):
+    rel = path.relative_to(REPO).as_posix()
+    return f"{GH_BLOB}/{tag}/{rel}"
+
+
+def resolve_file(raw, basename_index):
+    """Resolve a backticked path token to a real source file, or None.
+
+    Three steps, each only firing when UNIQUE:
+      - full repo path that exists verbatim;
+      - abbreviated / doc-relative path (`src/c_agent.c`, `tls/openssl.c`,
+        `yuno_agent/src/main.c`) -> the one real file whose repo-path ends with
+        it. This is intentionally a SUFFIX match: a path written under the wrong
+        directory (`kernel/c/gobj-c/src/msg_ievent.c` for a file that really
+        lives under `root-linux/src/`) is NOT a suffix of the real path, so it
+        stays bare and surfaces as a doc bug rather than being silently relinked;
+      - a bare basename with a single definition in the tree.
+    Ambiguous matches (e.g. `src/main.c`) return None and stay as code."""
+    if "/" in raw:
+        p = REPO / raw
+        if p.exists():
+            return p
+        base = raw.rsplit("/", 1)[1]
+        suf = "/" + raw
+        cands = [c for c in basename_index.get(base, []) if c.as_posix().endswith(suf)]
+        return cands[0] if len(cands) == 1 else None
+    cands = basename_index.get(raw, [])
+    return cands[0] if len(cands) == 1 else None
+
+
+def link_files_doc(doc, basename_index, tag):
+    """Link every backticked bare file path that resolves to a real source file
+    to its GitHub file url. Returns the number of paths linked."""
+    text = doc.read_text()
+    n = 0
+    out_lines, in_fence = [], False
+    for line in text.splitlines(keepends=True):
+        if FENCE.match(line):
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        if in_fence:
+            out_lines.append(line)
+            continue
+
+        def repl(m):
+            nonlocal n
+            raw = m.group(1)
+            path = resolve_file(raw, basename_index)
+            if path is None:
+                return m.group(0)
+            n += 1
+            return f"[`{raw}`]({gh_file_url(path, tag)})"
+
+        out_lines.append(FILE_SPAN.sub(repl, line))
+    new = "".join(out_lines)
+    if n:
+        doc.write_text(new)
+    return n
+
+
 def narrative_docs():
     """Doc files that are hand-written prose (skip the generated api/ tree)."""
     for doc in doc_files():
@@ -479,11 +581,14 @@ def main():
     do_linkify = any(a == "--linkify" or a.startswith("--linkify=") for a in sys.argv)
     do_strip = "--strip-prose" in sys.argv
     do_symbols = any(a == "--link-symbols" or a.startswith("--link-symbols=") for a in sys.argv)
+    do_files = any(a == "--link-files" or a.startswith("--link-files=") for a in sys.argv)
     tag = "7.5.1"
     for a in sys.argv:
         if a.startswith("--linkify="):
             tag = a.split("=", 1)[1]
         if a.startswith("--link-symbols="):
+            tag = a.split("=", 1)[1]
+        if a.startswith("--link-files="):
             tag = a.split("=", 1)[1]
     basename_index = build_basename_index()
 
@@ -509,6 +614,14 @@ def main():
             f"link-symbols (pinned to {tag}): linked {tf} functions to source, "
             f"{tg} gclasses and {tt} CLI tools to their doc page."
         )
+        return 0
+
+    if do_files:
+        file_index = build_file_index()
+        total = 0
+        for doc in narrative_docs():
+            total += link_files_doc(doc, file_index, tag)
+        print(f"link-files (pinned to {tag}): linked {total} bare file paths to GitHub source.")
         return 0
 
     if do_linkify:
