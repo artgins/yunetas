@@ -22,8 +22,10 @@ article img[data-canonical-url] {
     inset: 0;
     z-index: 9999;
     display: none;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.85rem;
     padding: 2rem;
     background: rgba(0, 0, 0, 0.85);
     cursor: zoom-out;
@@ -35,12 +37,20 @@ article img[data-canonical-url] {
 
 #yuneta-lightbox img {
     max-width: 95vw;
-    max-height: 95vh;
+    max-height: 86vh;
     width: auto;
     height: auto;
     background: #fff;
     border-radius: 4px;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+#yuneta-lightbox-cap {
+    max-width: 90vw;
+    color: #f0f0f0;
+    font-size: 1rem;
+    line-height: 1.35;
+    text-align: center;
 }
 
 .danger {

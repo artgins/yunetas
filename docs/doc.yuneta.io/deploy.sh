@@ -61,9 +61,11 @@ PYEOF
 
 # Diagram lightbox: clicking any content image (the markdown-embedded diagrams,
 # identified by data-canonical-url — theme chrome lacks it) opens it full-screen
-# over a dark backdrop. Click anywhere or press Esc to close. Styling lives in
-# _static/custom.css; this only wires the behaviour. mystmd's book-theme has no
-# native custom-JS hook, so inject it the same way as the anchor-scroll fix.
+# over a dark backdrop, with a caption taken from the image's alt text (falling
+# back to title, then a sibling <figcaption>). Click anywhere or press Esc to
+# close. Styling lives in _static/custom.css; this only wires the behaviour.
+# mystmd's book-theme has no native custom-JS hook, so inject it the same way as
+# the anchor-scroll fix.
 python3 - "$ORIGIN" <<'PYEOF'
 import sys, pathlib
 root = pathlib.Path(sys.argv[1])
@@ -72,15 +74,25 @@ script = ('<script>(function(){'
           'function close(){var o=document.getElementById("yuneta-lightbox");'
           'if(o){o.classList.remove("open");o.firstChild.removeAttribute("src");}'
           'document.documentElement.style.overflow="";}'
-          'function open(src){var o=document.getElementById("yuneta-lightbox");'
+          'function open(src,cap){var o=document.getElementById("yuneta-lightbox");'
           'if(!o){o=document.createElement("div");o.id="yuneta-lightbox";'
           'o.appendChild(document.createElement("img"));'
+          'var fc=document.createElement("figcaption");'
+          'fc.id="yuneta-lightbox-cap";o.appendChild(fc);'
           'o.addEventListener("click",close);document.body.appendChild(o);}'
-          'o.firstChild.src=src;o.classList.add("open");'
+          'o.firstChild.src=src;'
+          'var c=document.getElementById("yuneta-lightbox-cap");'
+          'c.textContent=cap||"";c.style.display=cap?"block":"none";'
+          'o.classList.add("open");'
           'document.documentElement.style.overflow="hidden";}'
           'document.addEventListener("click",function(e){'
           'var img=e.target.closest&&e.target.closest("img[data-canonical-url]");'
-          'if(!img)return;e.preventDefault();open(img.currentSrc||img.src);});'
+          'if(!img)return;e.preventDefault();'
+          'var cap=img.getAttribute("alt")||img.getAttribute("title")||"";'
+          'if(!cap){var fig=img.closest("figure");'
+          'var fc=fig&&fig.querySelector("figcaption");'
+          'if(fc){cap=fc.textContent.trim();}}'
+          'open(img.currentSrc||img.src,cap);});'
           'document.addEventListener("keydown",function(e){'
           'if(e.key==="Escape")close();});})();</script>')
 count = 0
