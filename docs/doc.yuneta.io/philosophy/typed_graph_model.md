@@ -182,8 +182,9 @@ The payoffs that justify the upfront typing cost:
   owns services; the agent is a gobj that owns yunos. The same
   primitive ([`gobj_subscribe_event`](#gobj_subscribe_event),
   [`gobj_send_event`](#gobj_send_event)) works at every level.
-- **Substitution by contract.** Swap OpenSSL ↔ mbedTLS under `C_YTLS`
-  and the layers above do not notice. Swap `c_tcp` for
+- **Substitution by contract.** Swap [OpenSSL](https://www.openssl.org/) ↔
+  [mbedTLS](https://github.com/Mbed-TLS/mbedtls) under [`C_YTLS`](#ytls)
+  and the layers above do not notice. Swap [`c_tcp`](#gclass-c-tcp) for
   `c_unix_socket` and the protocols stay blind. The contract is the
   gclass signature; the implementation behind it is interchangeable.
 - **Structural traceability.** [`gobj_short_name(g)`](#gobj_short_name) returns the full
