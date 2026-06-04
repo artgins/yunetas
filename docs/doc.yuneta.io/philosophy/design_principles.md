@@ -177,9 +177,14 @@ log by [hook](#hook)/[fkey](#fkey) relationships in memory and write only
 the children on link / unlink — which is exactly what TreeDB does. One
 primitive, several views.
 
-**Trade-off.** You need disk space and you need to think about
-compaction. Yuneta exposes compaction tools but does not hide the
-mechanics.
+**Trade-off.** You trade disk space for keeping everything — append-only
+means there is no in-place rewrite or compaction. What timeranger2 gives
+you to manage that is **time-segmented data files**: each topic's file
+name is a `strftime` `filename_mask` applied to the record's timestamp
+(default `%Y-%m-%d`, one file per day; set `%Y` or `%Y-%m` to segment by
+year or month, or a constant for a single file). Old segments are then
+just plain files on disk, so archiving or backing up everything past a
+cutoff date is an ordinary file copy.
 
 ### 8. The control plane is first-class, not bolted on
 
