@@ -162,18 +162,20 @@ This is by design (see decision 1) but takes getting used to.
 
 ### 7. Persistence is append-only time-series, with a graph on top
 
-`timeranger2` is the one persistence primitive. It writes append-only
-records per topic, per key, and indexes them by monotonic
-`g_rowid` / `i_rowid` and by time. Everything else — the `tr_msg2db`
-dict store, the `tr_queue` durable queue, the `tr_treedb` in-memory
-graph — is built on top of the same log.
+[`timeranger2`](#timeranger2) is the one persistence primitive. It writes
+[append-only](#append-only) records per topic, per key, and indexes them by
+monotonic [`g_rowid`](#g_rowid) / [`i_rowid`](#i_rowid) and by time.
+Everything else — the [`tr_msg2db`](../api/timeranger2/tr_msg2db.md) dict
+store, the [`tr_queue`](#tr_queue) durable queue, the
+[`tr_treedb`](#glossary-treedb) in-memory graph — is built on top of the
+same log.
 
 **Why.** Append-only logs are the simplest data structure that gives
 you crash safety, audit trails, replay, and zero-copy reads. A graph
-database (TreeDB) emerges naturally when you index the log by
-hook/fkey relationships in memory and write only the children on
-link / unlink — which is exactly what TreeDB does. One primitive,
-several views.
+database ([TreeDB](#glossary-treedb)) emerges naturally when you index the
+log by [hook](#hook)/[fkey](#fkey) relationships in memory and write only
+the children on link / unlink — which is exactly what TreeDB does. One
+primitive, several views.
 
 **Trade-off.** You need disk space and you need to think about
 compaction. Yuneta exposes compaction tools but does not hide the

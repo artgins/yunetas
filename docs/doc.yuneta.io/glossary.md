@@ -7,6 +7,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **Action callback**
 :   Function executed when an event fires in a given FSM state. Signature: `int (*)(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)`. See [GClass guide](guide/guide_gclass.md).
 
+(append-only)=
 **Append-only log**
 :   Timeranger2's fundamental storage model — records are only appended, never overwritten. Each record gets a monotonically increasing `g_rowid`. See [Timeranger2 guide](guide/guide_timeranger2.md).
 
@@ -63,6 +64,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **gobj** (GObject)
 :   A runtime instance of a [GClass](#glossary-gclass): a modular, event-driven component with its own FSM, attributes, and position in the gobj tree. See [Basic concepts](guide/basic_concepts.md).
 
+(g_rowid)=
 **g_rowid**
 :   Global record identifier in timeranger2 — monotonically increasing counter for a given key within a topic. Never resets.
 
@@ -82,6 +84,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **Horizontal scaling**
 :   Yuneta's scaling strategy: run one yuno per CPU core and communicate via inter-event messaging. No threads, no locks.
 
+(i_rowid)=
 **i_rowid**
 :   Row index within a key's md2 file in timeranger2 — monotonically increasing per key.
 
