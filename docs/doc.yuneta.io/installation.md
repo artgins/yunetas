@@ -35,7 +35,7 @@ The script:
 Pin a version (must exist as a published Release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.3.1
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.5.1
 ```
 
 Or download the `.deb` manually from the

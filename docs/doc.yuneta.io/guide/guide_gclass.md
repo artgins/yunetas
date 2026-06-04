@@ -1160,6 +1160,19 @@ zero risk.
 
 
 (__global_list_persistent_attrs_fn__)=
-## __global_list_persistent_attrs_fn__
+## `__global_list_persistent_attrs_fn__`
 
-    TODO
+A process-global callback that backs
+[`gobj_list_persistent_attrs()`](../api/gobj/attrs.md#gobj_list_persistent_attrs).
+It is one of the persistent-attribute hooks installed at boot by `gobj_start_up()`
+— the `list` field of the `persistent_attrs_t` struct, alongside `startup`,
+`end`, `load`, `save`, and `remove`:
+
+```c
+typedef json_t *(*list_persistent_attrs_fn)(hgobj gobj, json_t *keys /* owned */);
+```
+
+When set, it returns the persistent attributes currently stored for `gobj` (or
+for every service when `gobj` is `NULL`). When it is **not** set — the default
+when the application installs no persistence backend — `gobj_list_persistent_attrs()`
+returns an empty JSON object.
