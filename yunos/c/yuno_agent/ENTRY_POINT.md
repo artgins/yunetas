@@ -376,7 +376,7 @@ its signalfd handler, `set-quick-kill` is the escape hatch.
 (entry-point-crash-forensics)=
 ## 8. Crash forensics (`/var/crash/core.%e`)
 
-The `.deb` (see `packages/make-yuneta-agent-deb.sh`) wires this up
+The `.deb` (see [`packages/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.5.1/packages/make-yuneta-agent-deb.sh)) wires this up
 end-to-end. Everything below is on every machine where the package is
 installed; on developer boxes you may need to apply it by hand.
 
