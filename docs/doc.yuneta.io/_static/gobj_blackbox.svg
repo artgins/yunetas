@@ -16,7 +16,7 @@
   <rect x="16" y="42" width="728" height="292" rx="12" fill="#fbfcfd" stroke="#d8dee6"/>
 
   <!-- control & inspection: ports ON the box surface (facets, not linked nodes) -->
-  <text x="380" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#9aa7b6" letter-spacing="0.5">CONTROL &amp; INSPECTION</text>
+  <text x="380" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#6f5fc0" letter-spacing="0.5">CONTROL &amp; INSPECTION</text>
   <text x="300" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#7a4e18">COMMANDS</text>
   <text x="380" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#22386b">ATTRIBUTES</text>
   <text x="460" y="90" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">STATISTICS</text>
