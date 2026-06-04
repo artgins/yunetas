@@ -14,7 +14,8 @@ You never reach inside it. **Events** are its communication channel: it
 receives them and sends them, and they are the *only* way gobjs talk to
 each other. **Commands**, **attributes** and **statistics** are ports on
 its surface — how *you* drive and inspect it. There are no links here yet:
-how gobjs connect into a graph comes next, in the typed-graph model.
+how gobjs connect into a graph comes next. → *Continues in*
+[**The Typed-Graph Model**](typed_graph_model.md).
 ```
 
 ## In this section
