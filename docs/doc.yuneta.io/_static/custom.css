@@ -8,6 +8,41 @@
     align-items: center;
 }
 
+/* Diagram lightbox: click any content image (the markdown-embedded SVG/PNG
+   diagrams carry data-canonical-url; theme chrome does not) to view it
+   full-screen. Behaviour is wired by the script injected in deploy.sh.
+   No transitions by design. */
+.myst img[data-canonical-url],
+article img[data-canonical-url] {
+    cursor: zoom-in;
+}
+
+#yuneta-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.85);
+    cursor: zoom-out;
+}
+
+#yuneta-lightbox.open {
+    display: flex;
+}
+
+#yuneta-lightbox img {
+    max-width: 95vw;
+    max-height: 95vh;
+    width: auto;
+    height: auto;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
 .danger {
     color: red;
     font-weight: bold;

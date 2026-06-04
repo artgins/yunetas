@@ -59,6 +59,40 @@ for f in root.rglob('index.html'):
 print(f"anchor-scroll fix injected into {count} pages")
 PYEOF
 
+# Diagram lightbox: clicking any content image (the markdown-embedded diagrams,
+# identified by data-canonical-url — theme chrome lacks it) opens it full-screen
+# over a dark backdrop. Click anywhere or press Esc to close. Styling lives in
+# _static/custom.css; this only wires the behaviour. mystmd's book-theme has no
+# native custom-JS hook, so inject it the same way as the anchor-scroll fix.
+python3 - "$ORIGIN" <<'PYEOF'
+import sys, pathlib
+root = pathlib.Path(sys.argv[1])
+marker = 'yuneta-lightbox'
+script = ('<script>(function(){'
+          'function close(){var o=document.getElementById("yuneta-lightbox");'
+          'if(o){o.classList.remove("open");o.firstChild.removeAttribute("src");}'
+          'document.documentElement.style.overflow="";}'
+          'function open(src){var o=document.getElementById("yuneta-lightbox");'
+          'if(!o){o=document.createElement("div");o.id="yuneta-lightbox";'
+          'o.appendChild(document.createElement("img"));'
+          'o.addEventListener("click",close);document.body.appendChild(o);}'
+          'o.firstChild.src=src;o.classList.add("open");'
+          'document.documentElement.style.overflow="hidden";}'
+          'document.addEventListener("click",function(e){'
+          'var img=e.target.closest&&e.target.closest("img[data-canonical-url]");'
+          'if(!img)return;e.preventDefault();open(img.currentSrc||img.src);});'
+          'document.addEventListener("keydown",function(e){'
+          'if(e.key==="Escape")close();});})();</script>')
+count = 0
+for f in root.rglob('index.html'):
+    html = f.read_text(encoding='utf-8')
+    if marker in html or '</body>' not in html:
+        continue
+    f.write_text(html.replace('</body>', script + '</body>', 1), encoding='utf-8')
+    count += 1
+print(f"diagram lightbox injected into {count} pages")
+PYEOF
+
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
 # the server too. --delete-after defers removals until the transfer succeeds.
