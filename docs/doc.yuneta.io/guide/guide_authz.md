@@ -56,7 +56,7 @@ The authorization checker:
 
 ---
 
-## GClass [`C_AUTHZ`](#gclass-c-authz)
+## The `c_authz` standalone module
 
 Yuneta provides a module `c_authz` with default standalone implementations for authentication and authorization:
 - **Authentication:** `PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)`
