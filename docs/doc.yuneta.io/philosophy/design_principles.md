@@ -10,21 +10,21 @@ the framework.
 Just enough vocabulary to read the rest of the document. Full
 definitions live in [Basic Concepts](../guide/basic_concepts.md).
 
-- **yuno** — a Yuneta process. One single-threaded binary holding
+- [**yuno**](#yuno) — a Yuneta process. One single-threaded binary holding
   a tree of gobjs plus the runtime that drives them.
-- **gobj** — the runtime instance: an event-driven object with its
+- [**gobj**](#basic_gobj) — the runtime instance: an event-driven object with its
   own finite state machine and attributes.
-- **GClass** — the *template* a gobj is instantiated from. Declares
+- [**GClass**](#basic_gclass) — the *template* a gobj is instantiated from. Declares
   states, events, attribute schema, commands, and action callbacks.
   There is no inheritance.
-- **event + `kw`** — the only way gobjs talk to each other. An event
+- **[event](#event) + [`kw`](#kw)** — the only way gobjs talk to each other. An event
   is a typed name; `kw` is its JSON key-value payload (`json_t *`).
-- **SData** — the typed schema used for a GClass's attributes and
+- [**SData**](#glossary-sdata) — the typed schema used for a GClass's attributes and
   commands. Carries type, default, persistence and authorization
   flags in one declaration.
-- **bottom gobj** — the optional delegate a gobj points at to share
+- [**bottom gobj**](#glossary-bottom-gobj) — the optional delegate a gobj points at to share
   attributes and forward events (Yuneta's alternative to inheritance).
-- **timeranger2 / TreeDB** — the append-only time-series store and
+- [**timeranger2**](#glossary-timeranger2) / [**TreeDB**](#glossary-treedb) — the append-only time-series store and
   the in-memory graph view built on top of it.
 :::
 
@@ -87,12 +87,14 @@ it returns. The framework assumes every action is non-blocking.
 
 ### 3. `io_uring` instead of `epoll`
 
-The asynchronous engine (`yev_loop`) is built on Linux **`io_uring`**.
-Every file-descriptor operation — accept, connect, read, write, timer,
-signal — is submitted through the same ring and its completion drives
-a callback. Filesystem events go through [`fs_watcher`](#util-fs_watcher) (an inotify
-wrapper in `timeranger2`) whose inotify fd is itself read through
-`io_uring`, so completions still land on the same loop.
+The asynchronous engine ([`yev_loop`](#yev-loop)) is built on Linux
+[**`io_uring`**](https://github.com/axboe/liburing). Every file-descriptor
+operation — accept, connect, read, write, timer, signal — is submitted
+through the same ring and its completion drives a callback. Filesystem
+events go through [`fs_watcher`](#util-fs_watcher) (an
+[inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) wrapper in
+`timeranger2`) whose inotify fd is itself read through `io_uring`, so
+completions still land on the same loop.
 
 **Why.** `io_uring` unifies the API (one ring for I/O, timers,
 signals, and — via the inotify fd — fs events) and cuts the syscall
@@ -101,12 +103,14 @@ which matters for the per-yuno message throughput Yuneta targets.
 
 **Trade-off.** Requires a reasonably recent Linux kernel. Not portable
 to non-Linux systems; the ESP32 port (`kernel/c/root-esp32`) lives
-outside `yev_loop` and relies on the ESP-IDF runtime instead.
+outside `yev_loop` and relies on the
+[ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) runtime instead.
 
 ### 4. JSON is the *only* in-flight data format
 
 Every event payload, every persistent record, every log entry, every
-command, every stats response is a `json_t` from Jansson. There is no
+command, every stats response is a `json_t` from
+[Jansson](https://github.com/akheron/jansson). There is no
 "struct for speed, JSON for the wire" split.
 
 **Why.** A single format means: one serializer, one schema tool, one

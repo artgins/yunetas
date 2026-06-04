@@ -20,6 +20,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **Authorization**
 :   Access control that determines whether an authenticated user may perform a specific action. Defined per GClass in the `authz_table`. See [Authorization guide](guide/guide_authz.md).
 
+(glossary-bottom-gobj)=
 **Bottom gobj**
 :   A designated child gobj that shares attributes and forwards events with its parent — Yuneta's alternative to class inheritance. See [Basic concepts](guide/basic_concepts.md).
 
@@ -89,7 +90,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (io-uring)=
 **io_uring**
-:   Modern Linux asynchronous I/O interface used by [yev_loop](#yev-loop) for all non-blocking operations (sockets, timers, signals, filesystem).
+:   Modern Linux asynchronous I/O interface used by [yev_loop](#yev-loop) for all non-blocking operations (sockets, timers, signals, filesystem). See [liburing](https://github.com/axboe/liburing), the userspace library Yuneta links against.
 
 **JSON**
 :   The **only** data format in Yuneta — used for events, messages, logs, stats, configuration, and persistence. All payloads are `json_t *` objects (Jansson library).
