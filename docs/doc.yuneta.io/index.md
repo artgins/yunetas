@@ -49,8 +49,7 @@ Versions in **C** (reference implementation) and **JavaScript** (browser/Node).
 
 This site is built with [mystmd (Jupyter Book 2)](https://mystmd.org). The
 full table of contents is in the left sidebar — use it to browse by
-section. Every page is authored in MyST Markdown, the same format the
-previous Sphinx site used, so sources migrated one-to-one.
+section.
 
 Suggested reading order:
 
