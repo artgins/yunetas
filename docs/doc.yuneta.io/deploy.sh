@@ -10,6 +10,12 @@ TODAY=$(date +%Y-%m-%d)
 sed -i "s|\*\*Current version: \[.*\](.*)\*\*|\*\*Current version: [${VERSION}](https://github.com/artgins/yunetas/tree/${VERSION})\*\*|" index.md
 sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" index.md
 
+# Stamp the yunetas CLI (PyPI) version into installation.md from its single
+# source of truth (the package's __version__.py). Pattern matches the whole
+# "(currently …)" parenthetical, so it is idempotent across re-runs.
+CLI_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO_ROOT/utils/python/tui_yunetas/yunetas/__version__.py")
+sed -i "s|management/build CLI (currently [^)]*)|management/build CLI (currently ${CLI_VERSION})|" installation.md
+
 # Build static HTML with empty BASE_URL so the site works at the domain root
 # myst build --html spawns a temporary node server that doesn't always exit;
 # snapshot node PIDs before and kill only the new ones after the build.
