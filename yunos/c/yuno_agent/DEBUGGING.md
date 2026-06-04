@@ -154,8 +154,8 @@ gobj.c.
 
 ### 3.5 Deep trace mode
 
-`gobj_set_deep_tracing(level)` at gobj.c forces all traces on
-regardless of masks. **Not exposed as a [`ycommand`](#util-ycommand)** — only via the C API,
+[`gobj_set_deep_tracing(level)`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L11338)
+forces all traces on regardless of masks. **Not exposed as a [`ycommand`](#util-ycommand)** — only via the C API,
 mostly used internally for emergency dumps. Avoid unless you are willing to
 deal with the volume.
 
@@ -296,14 +296,14 @@ Add or remove handlers at runtime via `c_yuno.c`
 
 Single most useful trace when debugging gobj behaviour. Defined in
 `glogger.c` (`trace_machine`). Called from the event dispatcher in
-`kernel/c/gobj-c/src/gobj.c`:
+[`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L7507):
 
-- Before dispatch (gobj.c): a `🔜` line per event entry.
-- "Event NOT DEFINED" error (gobj.c): a `📛` line — this is the
-  canonical "parent FSM doesn't declare the child's event" failure (see
-  CLAUDE.md "CHILD vs SERVICE" section).
-- After dispatch (gobj.c): a `🔄` line per executed event.
-- State change (gobj.c → 7775): a `🔀🔀` line.
+- Before dispatch: a `🔜` line per event entry.
+- "Event NOT DEFINED" error: a `📛` line — this is the canonical "parent FSM
+  doesn't declare the child's event" failure (see CLAUDE.md "CHILD vs SERVICE"
+  section).
+- After dispatch: a `🔄` line per executed event.
+- State change: a `🔀🔀` line.
 
 Two output formats, switched by the integer variable `trace_machine_format`:
 
@@ -351,17 +351,17 @@ Canonical request flow on a typical Yuneta service:
    external client
          │
          ▼
-  ┌─────────────┐   gclass trace 'traffic'  (c_tcp_s.c, 566)
+  ┌─────────────┐   gclass trace 'traffic'
   │   C_TCP_S   │   gobj_trace_dump_gbuf(gobj, gbuf, …)
   └──────┬──────┘
          │
          ▼
-  ┌─────────────────┐   gclass trace 'traffic'  (c_prot_http_sr.c, 285, 370)
+  ┌─────────────────┐   gclass trace 'traffic'
   │ C_PROT_HTTP_SR  │
   └────────┬────────┘
            │
            ▼
-  ┌─────────────────┐   gclass trace 'ievents' / 'ievents2'  (c_ievent_srv.c, 483)
+  ┌─────────────────┐   gclass trace 'ievents' / 'ievents2'
   │   C_IEVENT_SRV  │   trace_inter_event2(gobj, prefix, event, kw)
   └────────┬────────┘
            │
@@ -371,7 +371,7 @@ Canonical request flow on a typical Yuneta service:
   └────────┬────────┘
            │
            ▼
-  ┌─────────────────┐   global trace 'fs'  (timeranger2.c, 2361)
+  ┌─────────────────┐   global trace 'fs'
   │   timeranger2   │   record append + rowid emitted
   │   (treedb)      │
   └────────┬────────┘
@@ -457,15 +457,14 @@ the local log file, plus the ievent message bodies.
 - C side: nothing special — inter-events flow as usual through `C_IEVENT_SRV`
   → `C_WEBSOCKET`.
 - JS side: `C_IEVENT_CLI` (`kernel/js/gobj-js/src/c_ievent_cli.js`) parses
-  incoming inter-events in `ac_on_message()` at [c_ievent_cli.js:1092](https://github.com/artgins/yunetas/blob/7.5.1/kernel/js/gobj-js/src/c_ievent_cli.js#L1092) and, if
-  configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`
-  at c_ievent_cli.js.
+  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/js/gobj-js/src/c_ievent_cli.js#L1092) and, if
+  configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`.
 - The SPA installs that callback by writing the attribute:
   `gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic)`
   (`kernel/js/lib-yui/src/yui_dev.js`).
 - The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.5.1/kernel/js/lib-yui/src/yui_dev.js#L29)) appends the message into the
   DOM container `#developer-traffic-logger`, which lives inside either:
-  - the **legacy** `C_YUI_WINDOW` modal (yui_dev.js), or
+  - the **legacy** `C_YUI_WINDOW` modal, or
   - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.5.1/kernel/js/lib-yui/src/yui_dev.js#L452)).
 
 Both still ship — apps pick one based on the shell version.
@@ -477,7 +476,7 @@ Both still ship — apps pick one based on the shell version.
 - Body: read-only vanilla-jsoneditor (`pinned ^0.23.0`, see project memory
   note about not bumping it).
 - Footer: ON/OFF traffic counter.
-- Auto-scroll to bottom on each message (yui_dev.js).
+- Auto-scroll to bottom on each message.
 
 ### Filtering on the SPA side
 
@@ -516,13 +515,12 @@ UDP if its config lists a `udp` handler.
 
 ### What it does on receipt
 
-`c_logcenter.c`:
+In `c_logcenter.c`:
 
-- `ac_on_message()` at c_logcenter.c parses each packet
-  (c_logcenter.c).
+- [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/logcenter/src/c_logcenter.c#L1202) parses each packet.
 - Writes the JSON record to its own rotatory file `W.log` via
-  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L943) (c_logcenter.c, 1290). Default size
-  cap 8 MB (`max_rotatoryfile_size`, c_logcenter.c).
+  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L943).
+  Default size cap **600 MB** (`max_rotatoryfile_size`, in megabytes).
 - Updates in-memory counters per severity / `msgset` / `msg`
   ([`do_log_stats()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/logcenter/src/c_logcenter.c#L858), [c_logcenter.c:858](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/logcenter/src/c_logcenter.c#L858)).
 
@@ -700,7 +698,7 @@ clears them.
 
 ### 11.6 Spot the canonical "Event NOT DEFINED in state" error
 
-That single string at gobj.c is the most common FSM failure (parent
+That single string is the most common FSM failure (parent
 FSM didn't declare a child's published event — see CLAUDE.md "CHILD vs
 SERVICE"). It's logged at `LOG_ERR` regardless of trace settings, so:
 
