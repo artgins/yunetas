@@ -90,4 +90,4 @@ tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build d
 ## See also
 
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/main/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/tools/README.md).

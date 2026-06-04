@@ -20,4 +20,4 @@ are required. No options beyond argp's built-in `--help` / `--version`.
 ## See also
 
 - [`yclone-project`](yclone-project.md) — clone a whole project.
-- [`utils/c/yclone-gclass/README.md`](https://github.com/artgins/yunetas/blob/main/utils/c/yclone-gclass/README.md).
+- [`utils/c/yclone-gclass/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/yclone-gclass/README.md).

@@ -27,7 +27,7 @@ A config in the agent is keyed by `(id, version)`:
 - **`version`** is *not* a parameter: the agent reads it from the `__version__`
   field **inside the file content**. `__description__` is read the same way.
   (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L3724) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L3884) in
-  [`c_agent.c`](https://github.com/artgins/yunetas/blob/main/yunos/c/yuno_agent/src/c_agent.c).)
+  [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c).)
 
 So for every `*.json` in the directory (skipping `_*.json` batch/deploy helpers
 such as `_deploy_*.json` / `_update-configs.json`), the script derives the id
@@ -116,4 +116,4 @@ sync_configs.py -u ws://127.0.0.1:1991         # target a specific agent
 
 - [`sync_binaries.py`](sync_binaries.md) — the binary-side sibling.
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/main/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/tools/README.md).

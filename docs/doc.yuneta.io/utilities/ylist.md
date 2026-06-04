@@ -16,4 +16,4 @@ ylist --pids       # pids only (for scripting)
 
 - [`ycommand -c 'list-yunos'`](ycommand.md) — the agent's view of managed yunos
   (id, role, status), as opposed to `ylist`'s local-process view.
-- [`utils/c/ylist/README.md`](https://github.com/artgins/yunetas/blob/main/utils/c/ylist/README.md).
+- [`utils/c/ylist/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/ylist/README.md).

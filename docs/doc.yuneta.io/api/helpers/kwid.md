@@ -4,8 +4,8 @@ Structured access to nested JSON (`kw`) payloads using dotted or `id`-based path
 
 Source code:
 
-- [`kwid.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/kwid.h)
-- [`kwid.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/kwid.c)
+- [`kwid.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/kwid.h)
+- [`kwid.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/kwid.c)
 
 (kw_add_binary_type)=
 ## `kw_add_binary_type()`

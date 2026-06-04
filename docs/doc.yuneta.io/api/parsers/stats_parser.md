@@ -4,8 +4,8 @@ Default parser for the control-plane `stats` verb. Resolves the target gobj and 
 
 Source code:
 
-- [`stats_parser.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.h)
-- [`stats_parser.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.c)
+- [`stats_parser.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/stats_parser.h)
+- [`stats_parser.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/stats_parser.c)
 
 (build_stats)=
 ## `build_stats()`

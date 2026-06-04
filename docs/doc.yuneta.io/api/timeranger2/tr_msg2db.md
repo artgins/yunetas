@@ -4,8 +4,8 @@ Dict-style message store: one value per key, backed by timeranger2. Updates are 
 
 Source code:
 
-- [`tr_msg2db.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_msg2db.h)
-- [`tr_msg2db.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_msg2db.c)
+- [`tr_msg2db.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_msg2db.h)
+- [`tr_msg2db.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_msg2db.c)
 
 (build_msg2db_index_path)=
 ## `build_msg2db_index_path()`

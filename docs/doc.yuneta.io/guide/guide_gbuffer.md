@@ -6,8 +6,8 @@ The `gbuffer_t` structure is a flexible, dynamic buffer designed to handle data 
 
 Source code in:
 
-- [gbuffer.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gbuffer.c)
-- [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
+- [gbuffer.c](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c)
+- [gobj.h](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
 
 
 ---

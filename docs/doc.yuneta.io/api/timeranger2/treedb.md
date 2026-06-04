@@ -4,8 +4,8 @@ Graph memory database with hook/fkey relationships, persisted through timeranger
 
 Source code:
 
-- [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.h)
-- [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c)
+- [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h)
+- [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)
 
 (_treedb_create_topic_cols_desc)=
 ## `_treedb_create_topic_cols_desc()`

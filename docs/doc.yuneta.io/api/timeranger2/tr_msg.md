@@ -4,8 +4,8 @@ Low-level message store built on top of timeranger2. Used as the common substrat
 
 Source code:
 
-- [`tr_msg.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_msg.h)
-- [`tr_msg.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_msg.c)
+- [`tr_msg.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_msg.h)
+- [`tr_msg.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_msg.c)
 
 (trmsg_active_records)=
 ## `trmsg_active_records()`

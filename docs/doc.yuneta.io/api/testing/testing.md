@@ -4,8 +4,8 @@ Helpers used by Yuneta's C test suite: expected-log capture, JSON result compari
 
 Source code:
 
-- [`testing.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/testing.h)
-- [`testing.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/testing.c)
+- [`testing.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/testing.h)
+- [`testing.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/testing.c)
 
 (capture_log_write)=
 ## `capture_log_write()`

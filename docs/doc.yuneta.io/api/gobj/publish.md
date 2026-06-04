@@ -4,8 +4,8 @@ Publish events from a gobj and subscribe other gobjs to them. Subscriptions are 
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_find_subscribings)=
 ## `gobj_find_subscribings()`

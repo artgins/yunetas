@@ -28,4 +28,4 @@ All inputs are flags — `stats_list` takes **no positional arguments**.
 ## See also
 
 - [`ystats`](ystats.md) — live stats subscription on a running yuno.
-- [`utils/c/stats_list/README.md`](https://github.com/artgins/yunetas/blob/main/utils/c/stats_list/README.md).
+- [`utils/c/stats_list/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/stats_list/README.md).

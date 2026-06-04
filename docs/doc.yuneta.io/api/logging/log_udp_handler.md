@@ -4,8 +4,8 @@ Log handler that sends each record over UDP to a collector. Useful for aggregati
 
 Source code:
 
-- [`log_udp_handler.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/log_udp_handler.h)
-- [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/log_udp_handler.c)
+- [`log_udp_handler.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/log_udp_handler.h)
+- [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/log_udp_handler.c)
 
 (udpc_close)=
 ## `udpc_close()`

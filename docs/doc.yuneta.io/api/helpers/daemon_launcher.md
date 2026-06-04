@@ -4,8 +4,8 @@ Turn a process into a well-behaved Unix daemon: detach, redirect stdio, write a 
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
 
 (launch_daemon)=
 ### `launch_daemon()`
@@ -48,7 +48,7 @@ Returns the PID of the first child process if successful, or `-1` if an error oc
 ## Linux daemon supervisor
 
 Declared in
-[`ydaemon.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/root-linux/src/ydaemon.h).
+[`ydaemon.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.h).
 These entry points run a yuno under a parent "watcher" process that
 relaunches the child on crash. They are only compiled on Linux
 (`#ifdef __linux__`).

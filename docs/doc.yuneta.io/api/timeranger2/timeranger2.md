@@ -62,8 +62,8 @@ on-disk changes. See the **fs_watcher** page in the sidebar.
 
 ## Source code
 
-- [`timeranger2.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/timeranger2.h)
-- [`timeranger2.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/timeranger2.c)
+- [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)
+- [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)
 
 ## Function reference
 

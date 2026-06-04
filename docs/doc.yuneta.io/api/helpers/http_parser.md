@@ -4,8 +4,8 @@ Incremental HTTP/1.x parser used by the HTTP gclasses. Feeds bytes from a `gbuff
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
 
 (ghttp_parser_create)=
 ## `ghttp_parser_create()`

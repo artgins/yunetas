@@ -4,8 +4,8 @@ Rotating file-based log handler with size and age limits. Creates the output dir
 
 Source code:
 
-- [`rotatory.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/rotatory.h)
-- [`rotatory.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/rotatory.c)
+- [`rotatory.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/rotatory.h)
+- [`rotatory.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/rotatory.c)
 
 (rotatory_close)=
 ## `rotatory_close()`

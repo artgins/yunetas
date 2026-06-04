@@ -37,8 +37,8 @@ available in a fully static build.
 
 ## Source code
 
-- [`yev_loop.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/yev_loop/src/yev_loop.c)
-- [`yev_loop.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/yev_loop/src/yev_loop.h)
+- [`yev_loop.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/yev_loop/src/yev_loop.c)
+- [`yev_loop.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/yev_loop/src/yev_loop.h)
 
 ## Function reference
 

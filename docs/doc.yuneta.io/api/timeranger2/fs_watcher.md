@@ -4,8 +4,8 @@ inotify-based filesystem watcher used by timeranger2 and by the `C_FS` gclass to
 
 Source code:
 
-- [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/fs_watcher.h)
-- [`fs_watcher.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/fs_watcher.c)
+- [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/fs_watcher.h)
+- [`fs_watcher.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/fs_watcher.c)
 
 (fs_create_watcher_event)=
 ## `fs_create_watcher_event()`
