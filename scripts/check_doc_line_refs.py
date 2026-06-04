@@ -38,8 +38,9 @@ Four modes:
 
   --link-files[=TAG]  Make backticked bare file paths in narrative prose
   clickable. A span that is EXACTLY a source path (`kernel/.../c_yuno.c`,
-  `glogger.c`) and resolves to a real file -> GitHub FILE link (no line anchor,
-  so it never drifts; re-pinned to TAG per release). The two locator forms
+  `glogger.c`) or a shell script (`yunetas-env.sh`) and resolves to a real file
+  -> GitHub FILE link (no line anchor, so it never drifts; re-pinned to TAG per
+  release; `.sh` is covered here only, not by the audit/symbol modes). The two locator forms
   `--linkify` / `--link-symbols` never reach: bare filenames in prose and the
   §"Code pointers" reference tables. Every occurrence, all pages (api/ skipped).
   Ambiguous basenames and non-existent paths stay as code.
@@ -524,10 +525,20 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
 # just re-pinned to TAG per release. This is what reaches the bare filenames in
 # prose and the "Code pointers" reference tables. Skips code fences and spans
 # already inside a [..](..) link.
+#
+# Shell scripts (`.sh`) are in scope here even though they are not "source" for
+# the audit / symbol modes (which only know C/H/JS/PY): a prose `yunetas-env.sh`
+# / `set_compiler.sh` is just as much a "click to see the file" pointer. This is
+# the ONLY mode that indexes `.sh`, via FILE_LINK_EXT below — SRC_EXT (audit,
+# symbol linking) is left untouched.
 # ----------------------------------------------------------------------------
 FILE_SPAN = re.compile(
-    r"(?<!\[)`((?:[\w./+-]+/)?[\w+.-]+\.(?:c|h|js|py))`(?!\])"
+    r"(?<!\[)`((?:[\w./+-]+/)?[\w+.-]+\.(?:c|h|js|py|sh))`(?!\])"
 )
+
+# Extensions the file linker resolves. A superset of SRC_EXT (adds shell
+# scripts) used ONLY by build_file_index / link_files_doc.
+FILE_LINK_EXT = SRC_EXT + (".sh",)
 
 
 def build_file_index():
@@ -536,12 +547,14 @@ def build_file_index():
     port). A prose `c_timer.c` then resolves to `root-linux/src/c_timer.c`
     instead of going ambiguous against the ESP32 port's copy. Explicit full
     paths (`tests/c/.../main.c`) still link — those hit the verbatim-path branch
-    of resolve_file and never consult this index."""
+    of resolve_file and never consult this index. Indexes FILE_LINK_EXT, so the
+    `.sh` scripts the file linker also covers are resolvable (a non-unique
+    basename like `build.sh` stays ambiguous -> bare, as for any other file)."""
     idx = {}
     for root, dirs, files in os.walk(REPO):
         dirs[:] = [d for d in dirs if d not in FUNC_INDEX_SKIP]
         for f in files:
-            if f.endswith(SRC_EXT):
+            if f.endswith(FILE_LINK_EXT):
                 idx.setdefault(f, []).append(Path(root) / f)
     return idx
 
@@ -563,10 +576,17 @@ def resolve_file(raw, basename_index):
         lives under `root-linux/src/`) is NOT a suffix of the real path, so it
         stays bare and surfaces as a doc bug rather than being silently relinked;
       - a bare basename with a single definition in the tree.
-    Ambiguous matches (e.g. `src/main.c`) return None and stay as code."""
+    Ambiguous matches (e.g. `src/main.c`) return None and stay as code.
+
+    An ABSOLUTE token (`/yuneta/store/certs/copy-certs.sh`) is a runtime path,
+    not a repo source file: it is rejected outright. (Without this guard
+    `REPO / raw` collapses to the absolute path, which may exist on a deployed
+    box, and gh_file_url's relative_to(REPO) then blows up.)"""
+    if raw.startswith("/"):
+        return None
     if "/" in raw:
         p = REPO / raw
-        if p.exists():
+        if p.exists() and REPO in p.resolve().parents:
             return p
         base = raw.rsplit("/", 1)[1]
         suf = "/" + raw

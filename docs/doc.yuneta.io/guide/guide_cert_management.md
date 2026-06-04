@@ -41,7 +41,7 @@ failing. Layer 3 covers **both** failing.
 
 ## Layer 1 — deploy hook (fast path)
 
-The `.deb` package (`packages/make-yuneta-agent-deb.sh`) installs a
+The `.deb` package ([`packages/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.5.1/packages/make-yuneta-agent-deb.sh)) installs a
 certbot `deploy-hook` at
 `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`:
 
