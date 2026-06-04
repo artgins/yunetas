@@ -146,7 +146,7 @@ rootname=foo →   ./c_foo.c
 ### 4.3 Derived variables
 
 User-prompted vars come from the catalog. The engine adds derived ones
-automatically (`make_skeleton.c:209-302`):
+automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/yuno-skeleton/make_skeleton.c):
 
 | Variable      | Derivation                                                |
 |---------------|-----------------------------------------------------------|
@@ -156,7 +156,7 @@ automatically (`make_skeleton.c:209-302`):
 | `yunorole`    | Yuno role, lowercased (for yuno templates)                |
 | `Yunorole`    | Capitalised                                               |
 | `YUNOROLE`    | Uppercased                                                |
-| `__year__`    | Current year from system time (`make_skeleton.c:222-224`) |
+| `__year__`    | Current year from system time                             |
 
 Use the right case form in your edits. Mixing them silently produces
 ugly identifiers (`C_my_service` instead of `C_MY_SERVICE`).

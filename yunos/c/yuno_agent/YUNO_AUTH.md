@@ -419,7 +419,7 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical
-form is the lowercase `authz.*` used in `yuno_agent/src/main.c:97`.
+form is the lowercase `authz.*` used in `yuno_agent/src/main.c`.
 
 There is also a JWKS migration analogous to §2.5:
 

@@ -162,10 +162,10 @@ Important code points:
 - `gobj_create()` ([`gobj.c:1804`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L1804)): allocate, init attrs, set
   `obflag_created`, call `mt_create()`, then call parent's
   `mt_child_added()`.
-- `gobj_start()` ([`gobj.c:4311`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311)): set `running=TRUE` ([`gobj.c:4311`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311))
+- `gobj_start()` ([`gobj.c:4311`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311)): set `running=TRUE`
   **before** calling `mt_start()`. Inside your `mt_start`,
   `gobj_is_running(gobj)` already returns `TRUE`.
-- `gobj_stop()` ([`gobj.c:4464`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4464)): set `running=FALSE` ([`gobj.c:4464`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4464))
+- `gobj_stop()` ([`gobj.c:4464`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4464)): set `running=FALSE`
   before calling `mt_stop()`. Symmetric.
 - `gobj_destroy()` ([`gobj.c:2272`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L2272)): pauses + stops if needed,
   unsubscribes the gobj from everyone, destroys all children, **then**

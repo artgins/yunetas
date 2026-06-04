@@ -829,6 +829,6 @@ between the two yunos — pure inode plumbing.
 | `treedb_create/update/delete/get/list_node[s]`    | `tr_treedb.h`, `tr_treedb.c`                        |
 | Snapshot API                                      | `tr_treedb.h`                                                 |
 | gobj wrappers (`gobj_*node`)                      | `gobj.h`                                                    |
-| `gobj_list_snaps`                                 | `gobj.h:~10645-10674`                                                 |
+| `gobj_list_snaps`                                 | `gobj.h`                                                    |
 | Canonical schemas                                 | `yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c`, `kernel/c/root-linux/src/treedb_schema_authzs.c` |
 | Treedb gclass (gobj wrapper)                      | `kernel/c/root-linux/src/c_treedb.c`, `c_node.c`                      |
