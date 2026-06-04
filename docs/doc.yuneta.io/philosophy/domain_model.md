@@ -188,7 +188,7 @@ managed by convention:
 
 - **L**ink — attach an existing child to an existing parent via a
   declared hook. The operation is persisted by writing the child's
-  `fkey` field (see [TreeDB in CLAUDE.md](../guide/guide_timeranger2.md)).
+  `fkey` field (see the [Timeranger2 Guide](../guide/guide_timeranger2.md)).
 - **U**nlink — the inverse: clear the child's `fkey`, persist the
   change.
 
