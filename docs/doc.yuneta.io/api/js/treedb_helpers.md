@@ -2,8 +2,9 @@
 
 Utilities for interacting with the Yuneta **TreeDB** — the
 schema-driven graph database built on top of `timeranger2`. See the
-[Timeranger2 API](../timeranger2/timeranger2.md) and the TreeDB
-section of `CLAUDE.md` for the underlying semantics.
+[Timeranger2 API](../timeranger2/timeranger2.md) and the
+[TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for the
+underlying semantics.
 
 ## Available helpers
 
@@ -56,5 +57,5 @@ encoding so application code rarely has to look at the raw string.
 In TreeDB, **link/unlink operations persist only the child node** (the
 one carrying the fkey field), never the parent. Every link or unlink
 appends a new record to the child's topic in `timeranger2`, bumping its
-`g_rowid`. See `CLAUDE.md` for the full rules and traced examples.
+`g_rowid`. See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for the full rules and traced examples.
 :::

@@ -1,6 +1,6 @@
 # tr_treedb
 
-Graph memory database with hook/fkey relationships, persisted through timeranger2. See the TreeDB section in the top-level `CLAUDE.md` for link/unlink rules and `g_rowid` semantics.
+Graph memory database with hook/fkey relationships, persisted through timeranger2. See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for link/unlink rules and `g_rowid` semantics.
 
 Source code:
 

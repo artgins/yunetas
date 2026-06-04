@@ -10,8 +10,9 @@ range or row id.
 - **`tr_queue`** — message queue with at-least-once semantics (used by
   the MQTT broker).
 - **TreeDB** — graph memory database with hook/fkey relationships. See
-  `kernel/c/root-linux/src/c_treedb.c` and the `CLAUDE.md` TreeDB section
-  for the full rules.
+  the [`tr_treedb` API](treedb.md) and the
+  [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for
+  the full rules.
 
 ## Core API (selected)
 
@@ -31,8 +32,9 @@ increments the per-key `g_rowid` (monotonic, never resets) and `i_rowid`
 :::{important}
 TreeDB relies on these semantics for its `link` / `unlink` behaviour:
 **link/unlink saves only the child node** (the one carrying the fkey
-field), never the parent. See `CLAUDE.md` for the full rules and
-`g_rowid` tracing examples.
+field), never the parent. See the
+[TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for the
+full rules and `g_rowid` tracing examples.
 :::
 
 ## Filesystem watcher

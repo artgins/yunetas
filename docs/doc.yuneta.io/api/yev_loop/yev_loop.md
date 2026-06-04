@@ -27,8 +27,8 @@ CPU core and exchanging events between them.
 `yuneta_freeaddrinfo()` — a UDP DNS resolver that reads `/etc/resolv.conf`
 and `/etc/hosts` directly, bypassing glibc's NSS layer. When
 `CONFIG_FULLY_STATIC` is enabled, all `getaddrinfo` / `freeaddrinfo` call
-sites are redirected to these via macros. See the top-level `CLAUDE.md`
-for the full static-binary notes.
+sites are redirected to these via macros, since glibc's resolver is not
+available in a fully static build.
 
 ## Benchmarks & tests
 
