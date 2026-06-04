@@ -23,7 +23,7 @@ way it is.
 A graph in mathematics has nodes and edges. The distinctive choice in
 Yuneta is that **every edge carries a contract**:
 
-- A treedb `hook` is not "there is a link" — it is "this kind of link,
+- A treedb [`hook`](#hook) is not "there is a link" — it is "this kind of link,
   between *these* two topics, with *this* name, with *this*
   cardinality, validated at insert time".
 - A gobj event like `EV_ON_OPEN` is not a string — it is a declared
@@ -39,10 +39,11 @@ Yuneta is that **every edge carries a contract**:
 
 This is what separates the model from neighbouring designs:
 
-- **Untyped graph databases** (RDF, basic property graphs) type the
-  nodes but treat the edge as opaque metadata.
-- **Untyped actor systems** (Erlang/OTP, classic Akka) type the
-  process but pass arbitrary terms as messages.
+- **Untyped graph databases** ([RDF](https://www.w3.org/RDF/), basic
+  property graphs) type the nodes but treat the edge as opaque metadata.
+- **Untyped actor systems** ([Erlang/OTP](https://www.erlang.org/), classic
+  [Akka](https://akka.io/)) type the process but pass arbitrary terms as
+  messages.
 - **Object-oriented frameworks** type the object but rarely enforce a
   declared FSM per class.
 
@@ -72,9 +73,9 @@ they are isomorphic in primitive shape:
 | `hook` / `fkey`            | `parent` / `subscribe` / `bottom_gobj`|
 | field schema (`sdata_desc_t`) | attribute schema (`sdata_desc_t`) — *same macro family* |
 | `EV_TREEDB_UPDATE_NODE`    | `EV_ON_OPEN`, `EV_TIMEOUT`, …         |
-| `timeranger2` (persistence)| `yev_loop` (scheduler)                |
+| [`timeranger2`](#timeranger2) (persistence)| [`yev_loop`](#yev-loop) (scheduler) |
 
-The same `SDATA()` macro family declares the columns of a user record
+The same [`SDATA()`](#glossary-sdata) macro family declares the columns of a user record
 in `treedb_authzs` and the attributes of a [`C_TCP`](#gclass-c-tcp) gobj. The same
 notion of "subscriber" expresses both "this gobj listens for events
 from that one" and "this node points to that one". One mental model
@@ -94,7 +95,7 @@ of organisation as some combination of typed nodes and typed links:
 - **Strict hierarchies** — a single parent hook. The gobj-tree itself
   is built this way; so is any topic that links back to a parent of
   the same type.
-- **Matrix or many-to-many** — multiple `fkey` fields on a child node,
+- **Matrix or many-to-many** — multiple [`fkey`](#fkey) fields on a child node,
   each pointing to a different parent topic. Bipartite (users ↔ roles)
   or multipartite (users ↔ roles ↔ permissions ↔ services) just fall
   out of the schema. `treedb_authzs` is exactly this shape.
@@ -108,7 +109,7 @@ of organisation as some combination of typed nodes and typed links:
   what to whom, with delivery semantics (sync command vs. published
   event vs. queued message) baked into the binding type.
 - **Versioned relations over time** — every treedb write appends a new
-  record with a fresh `g_rowid` and a timestamp; the current view is a
+  record with a fresh [`g_rowid`](#g_rowid) and a timestamp; the current view is a
   projection of the latest non-deleted row per `id`. Historical
   reconstruction is a matter of choosing a different cut-off.
 
@@ -131,16 +132,20 @@ Worth being honest about where the model strains:
 
 - **Schemaless, rapidly-iterating data** — you pay the cost of
   declaring topics, fields and hooks upfront. Tools that let you stuff
-  arbitrary JSON and worry later (MongoDB, Firestore) get you faster
+  arbitrary JSON and worry later ([MongoDB](https://www.mongodb.com/),
+  [Firestore](https://firebase.google.com/docs/firestore)) get you faster
   to a first running prototype.
 - **OLAP / analytical workloads over large relations** —
   `timeranger2` is an append-only OLTP store optimised for primary-key
   and time-range access. Aggregate joins across tens of millions of
-  rows live elsewhere (Postgres, ClickHouse), with Yuneta acting as
+  rows live elsewhere ([Postgres](https://www.postgresql.org/),
+  [ClickHouse](https://clickhouse.com/)), with Yuneta acting as
   the upstream that *produces* those rows.
 - **Eventually-consistent distributed state** — Yuneta is one yuno per
   CPU core, and multi-yuno coordination happens through explicit
-  message gates. The model is closer to CSP than to Paxos. If you
+  message gates. The model is closer to
+  [CSP](https://en.wikipedia.org/wiki/Communicating_sequential_processes)
+  than to [Paxos](https://en.wikipedia.org/wiki/Paxos_%28computer_science%29). If you
   need transparent multi-master replication, that is a layer you
   build *on top of* Yuneta, not something the framework gives you.
 - **Truly opaque payloads** — anything that genuinely cannot be typed
