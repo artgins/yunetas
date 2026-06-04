@@ -13,7 +13,9 @@ Four modes:
   (default) AUDIT — report how many `file.c:NNN` refs are verifiably *linkable*
   (the cited line is provably at / inside a known function in the current
   source) vs not (globals, macros, internal lines whose function moved, plain
-  prose). Exit 1 only on out-of-bounds refs (a line past EOF).
+  prose). Also flags GitHub blob links pinned to a MOVING ref (`main`, a branch)
+  instead of an immutable release tag — those drift and should be re-pinned.
+  Exit 1 on out-of-bounds refs (a line past EOF) or any unpinned blob link.
 
   --linkify[=TAG]  TRANSFORM the docs (hybrid policy): a `file.c:NNN` ref that
   is verifiably a function citation becomes a GitHub source link pinned to TAG
@@ -259,6 +261,11 @@ def doc_files():
 
 
 GH_BLOB = "https://github.com/artgins/yunetas/blob"
+# The ref in a blob URL (`/blob/<ref>/...`). A PINNED ref is an immutable
+# release tag (`7.5.1`, `7.6`); anything else (`main`, `master`, a branch) moves
+# under the link and is flagged by the audit. Re-pin with `--repin=<tag>`.
+BLOB_REF = re.compile(re.escape(GH_BLOB) + r"/(?P<ref>[^/]+)/")
+PINNED_REF = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
 
 def gh_url(path, l1, l2, tag):
@@ -822,7 +829,7 @@ def main():
 
     # Default: audit only. Report what is verifiably linkable vs not.
     n_total = n_link = n_oob = n_strip = n_unres = 0
-    oobs, unres = [], []
+    oobs, unres, unpinned = [], [], []
     for doc in doc_files():
         rel = doc.relative_to(REPO)
         for lineno, line in enumerate(doc.read_text(errors="replace").splitlines(), 1):
@@ -845,21 +852,35 @@ def main():
                         oobs.append((rel, lineno, m.group(0), flen))
                     else:
                         n_strip += 1
+            # A GitHub blob link on a moving ref (main / a branch) instead of a
+            # release tag — it will drift. Same guard class as out-of-bounds.
+            for m in BLOB_REF.finditer(line):
+                ref = m.group("ref")
+                if not PINNED_REF.match(ref):
+                    unpinned.append((rel, lineno, ref))
 
     print(f"Scanned {n_total} code-location references.\n")
     print(f"  linkable (line is inside a known function): {n_link}")
     print(f"  not verifiable (would drop the number)    : {n_strip}")
     print(f"  out of bounds (past EOF)                  : {n_oob}")
     print(f"  unresolvable file (missing/ambiguous)     : {n_unres}")
+    print(f"  unpinned blob links (moving ref, not tag) : {len(unpinned)}")
     if oobs:
         print("\n--- OUT OF BOUNDS ---")
         for rel, ln, ref, flen in oobs:
             print(f"  {rel}:{ln}  {ref}  (file has {flen} lines)")
+    if unpinned:
+        refs = ", ".join(sorted({r for _, _, r in unpinned}))
+        print(f"\n--- UNPINNED BLOB LINKS ({refs}) — re-pin with --repin=<tag> ---")
+        for rel, ln, ref in unpinned[:40]:
+            print(f"  {rel}:{ln}  /blob/{ref}/")
+        if len(unpinned) > 40:
+            print(f"  … and {len(unpinned) - 40} more")
     if verbose and unres:
         print("\n--- UNRESOLVABLE FILE (basename missing or ambiguous) ---")
         for rel, ln, ref in unres[:40]:
             print(f"  {rel}:{ln}  {ref}")
-    return 1 if oobs else 0
+    return 1 if (oobs or unpinned) else 0
 
 
 if __name__ == "__main__":
