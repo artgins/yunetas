@@ -10,7 +10,7 @@ the model that shapes every design decision in the framework.
 
 A **gobj** is a black box. It is an *instance* — identified by its **name**
 (e.g. `"server-1"`) — of a **gclass**, the *role* it plays (e.g. `C_TCP`).
-Inside runs a **finite-state machine**: `state × event → action` (an
+Inside runs a [**finite-state machine**](#gclass-fsm): `state × event → action` (an
 `EV_CONNECTED` in `ST_IDLE` moves it to `ST_OPEN`). You never reach inside
 it. **Events** are its communication channel: it receives them — they drive
 the FSM — and it sends them, and they are the *only* way gobjs talk to each

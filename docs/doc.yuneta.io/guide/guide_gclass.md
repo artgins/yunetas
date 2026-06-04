@@ -257,6 +257,7 @@ Attributes can represent metadata about the GClass or its environment, including
 - **Documentation:** Descriptions provide built-in documentation for each attribute.
 
 
+(gclass-fsm)=
 ## Finite State Machine
 
 In Yuneta, `gobj_state_t` and `gobj_event_t` define the behavior of `GObj` finite state machines (FSM). This event-driven architecture allows for structured and predictable execution.
