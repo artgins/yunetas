@@ -107,12 +107,12 @@ Most useful ones, in roughly the order you'll write them:
 |------------------------------|-------------------------------------------------------------------|---------------------------------------------------------|
 | `mt_create(gobj)`            | After the gobj is allocated, attrs initialised, but **before** mt_child_added on the parent | Cache attrs into `priv`, set up the CHILD/SERVICE subscription block (see [`SCAFFOLDING.md`](SCAFFOLDING.md) §6) |
 | `mt_create2(gobj, kw)`       | Alt to `mt_create` when you need the raw `kw` of the creation call | Same as above, plus `kw`-driven config                  |
-| `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** (gobj.c) | Free resources not owned by children                    |
+| `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** | Free resources not owned by children                    |
 | `mt_start(gobj)`             | `gobj_start()` flips `running=TRUE` ([gobj.c:4311](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4311)) then calls this  | Start timers, subscribe to peers, open sockets          |
 | `mt_stop(gobj)`              | `gobj_stop()` flips `running=FALSE` then calls this                | Stop timers, unsubscribe, close sockets                 |
 | `mt_play(gobj)` / `mt_pause(gobj)` | `gobj_play()` / `gobj_pause()`                              | Gate input processing (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.4) |
-| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds (gobj.c)            | Sync `priv->field` from the attr; validate; react       |
-| `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()` (gobj.c)                     | Return a *computed* value — **required for `SDF_RSTATS` counters** |
+| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds                     | Sync `priv->field` from the attr; validate; react       |
+| `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()`                              | Return a *computed* value — **required for `SDF_RSTATS` counters** |
 | `mt_child_added` / `mt_child_removed` | When children are created/destroyed                       | Track child references, wire subscriptions              |
 | `mt_subscription_added` / `mt_subscription_deleted` | When someone subscribes to your events            | Send initial state, clean up per-subscriber resources   |
 | `mt_inject_event(gobj, ev, kw, src)` | When `gobj_send_event` finds no row in the state table     | The escape hatch — handle the event yourself, or fail   |

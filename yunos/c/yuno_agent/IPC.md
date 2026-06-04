@@ -159,11 +159,11 @@ action declared, so a missing action does not leak.
 The workhorse. Entry at `kernel/c/gobj-c/src/gobj.c`. Path:
 
 1. Find `dst->current_state`.
-2. Look up `event` in the state's `ev_action_list` (`_find_event_action`,
-   gobj.c).
+2. Look up `event` in the state's `ev_action_list`
+   ([`_find_event_action`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L883)).
 3. If not found:
-   - If the gclass has `mt_inject_event`, delegate to it (gobj.c).
-   - Else log `"Event NOT DEFINED in state"` and return -1 (gobj.c).
+   - If the gclass has `mt_inject_event`, delegate to it.
+   - Else log `"Event NOT DEFINED in state"` and return -1.
 4. If found: change state, then exec the action (next section).
 
 ### 3.2 The "IMPORTANT HACK": state changes *before* the action
@@ -234,7 +234,7 @@ everyone automatically (subscriptions are not gobj-life-extending — the
 framework cleans up).
 
 `event = NULL` means "any event". `kw` is not a payload — it's a
-configuration dict accepting these keys (gobj.h):
+configuration dict accepting these keys:
 
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
@@ -286,7 +286,7 @@ generally.
 
 A gclass can set `gmt->mt_inject_event` to bypass the static FSM table.
 When `gobj_send_event` can't find the event in the current state, it
-delegates to this method (gobj.c). Used for wildcard routing, dynamic
+delegates to this method. Used for wildcard routing, dynamic
 dispatch, gateways that don't know events ahead of time. The method must
 consume `kw` like a normal action.
 
@@ -429,20 +429,19 @@ either way.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
    `dst_role`, `dst_service` (`c_ievent_srv.c`).
 3. Validate the role/name.
-4. `gobj_find_service(iev_dst_service)` ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)) — case-insensitive
-   lookup. Special names:
-   - `__default_service__` (gobj.c) → resolves to the yuno's
-     `gobj_default_service()`.
-   - `__yuno__` (gobj.c) → the top-level yuno gobj itself.
-   - `__root__` (gobj.c) → the root gobj.
+4. [`gobj_find_service(iev_dst_service)`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L5076)
+   — case-insensitive lookup. Special names:
+   - `__default_service__` → the yuno's `gobj_default_service()`.
+   - `__yuno__` and `__root__` → both resolve to the top-level yuno gobj
+     (treated as aliases by `gobj_find_service`).
 5. Dispatch by `__msg_type__`:
 
 | `__msg_type__`        | Action on the receiver                                       |
 |-----------------------|--------------------------------------------------------------|
-| `__command__`         | `gobj_command(service, cmd, kw, src)` (c_ievent_cli.c)  |
-| `__stats__`           | `gobj_stats(service, stats, kw, src)` (c_ievent_cli.c)  |
-| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)` (c_ievent_srv.c) |
-| `__unsubscribing__`   | symmetric (c_ievent_srv.c)                              |
+| `__command__`         | `gobj_command(service, cmd, kw, src)`  |
+| `__stats__`           | `gobj_stats(service, stats, kw, src)`  |
+| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)` |
+| `__unsubscribing__`   | symmetric                              |
 | `__message__`         | `gobj_send_event(service, event, kw, src)` raw event delivery |
 
 ### 4.6 Subscribing across yunos
