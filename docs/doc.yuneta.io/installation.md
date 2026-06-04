@@ -5,10 +5,16 @@
 
 There are two ways to install Yunetas, depending on what you want to do:
 
-- **[Quick install](#quick-install)** — pre-built `.deb`, no compiler needed.
-  Use this to *run* yunos on a server.
-- **[Build from source](#build-from-source)** — full SDK. Use this to
-  *develop* with the framework or hack on it.
+- **[Quick install](#quick-install)** — pre-built `.deb`. Installs the
+  runtime (agent, CLI tools, bundled web server) **and** the Yuneta
+  libraries, headers and CMake toolchain under `/yuneta/development/`,
+  so you can both *run* yunos and *compile your own projects* against
+  the published runtime. What it does **not** include is Yuneta's own
+  source tree.
+- **[Build from source](#build-from-source)** — the full source tree.
+  Use this to develop the framework itself, or to produce a customised
+  runtime with different build options (TLS backend, modules,
+  static/dynamic, build type — see `menuconfig`).
 
 > ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
 > management/build CLI (currently 0.x), **not** the C framework runtime
@@ -47,8 +53,22 @@ sudo apt install ./yuneta-agent-<version>-<release>-<arch>.deb
 
 The package installs the agent + CLI tools + bundled openresty under
 `/yuneta/`, creates the `yuneta` system user, applies kernel tuning
-and PAM limits, and starts the SysV service. Full inventory in
+and PAM limits, and starts the SysV service. It also lays down the
+Yuneta libraries, headers, CMake toolchain and the build `.config`
+under `/yuneta/development/` (`outputs/`, `outputs_ext/`, `tools/`),
+so projects can compile against the published runtime without the
+source tree. Full inventory in
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/main/packages).
+
+> ℹ️ **Build options of the published `.deb`.** The release asset is
+> compiled with the Kconfig defaults (`alldefconfig`): **GCC**,
+> **RelWithDebInfo**, **fully static** binaries, **OpenSSL** TLS
+> backend (mbedTLS off), and every module enabled (console, mqtt,
+> postgres, test, modbus). The exact configuration is installed at
+> `/yuneta/development/.config` — inspect it to confirm what a given
+> package was built with. Need a different combination (e.g. mbedTLS
+> for smaller binaries, or a leaner module set)? Build from source and
+> pick your options with `menuconfig`.
 
 > ⚠️ **The agent is a SysV service — manage it with the agent binary's own
 > `--start` / `--stop`, NOT `systemctl`/systemd.** Yuneta runs its own
