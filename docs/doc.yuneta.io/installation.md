@@ -14,7 +14,7 @@ There are two ways to install Yunetas, depending on what you want to do:
 - **[Build from source](#build-from-source)** — the full source tree.
   Use this to develop the framework itself, or to produce a customised
   runtime with different build options (TLS backend, modules,
-  static/dynamic, build type — see `menuconfig`).
+  static/dynamic, build type — see [`menuconfig`](#configure-menuconfig)).
 
 > ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
 > management/build CLI (currently 0.8.0), **not** the C framework runtime
@@ -68,7 +68,7 @@ source tree. Full inventory in
 > `/yuneta/development/.config` — inspect it to confirm what a given
 > package was built with. Need a different combination (e.g. mbedTLS
 > for smaller binaries, or a leaner module set)? Build from source and
-> pick your options with `menuconfig`.
+> pick your options with [`menuconfig`](#configure-menuconfig).
 
 > ⚠️ **The agent is a SysV service — manage it with the agent binary's own
 > `--start` / `--stop`, NOT `systemctl`/systemd.** Yuneta runs its own
@@ -254,6 +254,7 @@ source yunetas-env.sh
 The script also sources `~/.yunetasrc` if it exists — use that file
 for your own personal additions.
 
+(configure-menuconfig)=
 ### 6. Configure (`menuconfig`)
 
 ```bash
