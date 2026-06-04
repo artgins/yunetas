@@ -42,6 +42,20 @@ Four modes:
   §"Code pointers" reference tables. Every occurrence, all pages (api/ skipped).
   Ambiguous basenames and non-existent paths stay as code.
 
+  --repin=NEWTAG  RELEASE-TIME re-pin. The --linkify / --link-symbols /
+  --link-files modes are one-shot (they link bare refs and now skip anything
+  already linked), so they do NOT move existing links to a new release tag.
+  --repin does: it rewrites every `/blob/<anytag>/` -> `/blob/NEWTAG/` and
+  recomputes the `#L` anchor of every SYMBOL link from that symbol's CURRENT
+  definition line, keeping `[`fn`](...) at [file:line](...)` row twins in sync.
+  File-level links just get the new tag. Symbols whose definition vanished are
+  reported for a human. Run this once when tagging a release; idempotent.
+
+  The one-shot link modes are now idempotent too: --linkify leaves refs already
+  inside a `[..](..)` link untouched; --link-symbols seeds itself from symbols
+  already linked on the page so it never links a second occurrence. Re-running
+  any mode over already-processed docs is a safe no-op.
+
 A `file.c:NNN` ref earns a link two ways: it sits right after a backticked
 function name (`fn()` (file.c:N)) — a definition citation, linked to the current
 def even if N drifted; or the cited line is provably inside some nearby
@@ -56,6 +70,7 @@ Usage:
     scripts/check_doc_line_refs.py --strip-prose   # drop prose/comma line nums
     scripts/check_doc_line_refs.py --link-symbols  # link symbols to source/docs
     scripts/check_doc_line_refs.py --link-files    # link bare file paths to source
+    scripts/check_doc_line_refs.py --repin=7.6.0   # release-time: re-pin to a new tag
 """
 import os
 import re
@@ -279,6 +294,16 @@ def linkify_doc(doc, basename_index, tag):
             dl = func_def_for_ref(pre, path, l1, l2) if path is not None else None
 
             span_s, span_e = (s - 1, e + 1) if bt else (s, e)
+            # Already the text of a `[file:line](url)` link (a previous pass, or
+            # a hand-written link): leave it verbatim. Without this guard a
+            # re-run would either strip the visible line (the anchoring function
+            # name gets pushed out of the 80-char window by the inserted URL) or
+            # double-wrap into a broken `[[..](..)](..)`. This is what makes
+            # `--linkify` idempotent.
+            if span_s > 0 and line[span_s - 1] == "[" and line[span_e:span_e + 2] == "](":
+                out.append(line[pos:span_e])
+                pos = span_e
+                continue
             out.append(line[pos:span_s])
             if dl is not None:
                 # link the file:def_line of the function this ref lives in
@@ -370,6 +395,11 @@ JS_FUNC_DEF = re.compile(
 LABEL_DEF = re.compile(r"^\(([a-z0-9_-]+)\)=", re.M)
 # A backticked single symbol not already inside a [..](..) link.
 SYMBOL_SPAN = re.compile(r"(?<!\[)`([A-Za-z_][A-Za-z0-9_]{2,}(?:\(\))?)`(?!\])")
+# A symbol that is ALREADY linked: `[`name`](...)` / `[`name()`](...)`. Used to
+# seed `seen` so a re-run never links a second occurrence of an already-linked
+# symbol (the first linked hit is skipped by SYMBOL_SPAN, so without seeding the
+# next bare occurrence would wrongly become the new "first").
+LINKED_SYMBOL = re.compile(r"\[`([A-Za-z_][A-Za-z0-9_]{2,})(?:\(\))?`\]\(")
 FENCE = re.compile(r"^\s*(```|~~~)")
 
 
@@ -427,7 +457,9 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
     """Link the first occurrence per page of each resolvable symbol. Returns
     (n_func, n_gclass, n_tool)."""
     text = doc.read_text()
-    seen = set()
+    # Seed with symbols that already have a linked occurrence anywhere on the
+    # page -> they stay first-only and a re-run is a no-op (idempotent).
+    seen = set(LINKED_SYMBOL.findall(text))
     nf = ng = nt = 0
     out_lines, in_fence = [], False
     for line in text.splitlines(keepends=True):
@@ -568,6 +600,130 @@ def link_files_doc(doc, basename_index, tag):
     return n
 
 
+# ----------------------------------------------------------------------------
+# Re-pin (release-time) — the `--linkify` / `--link-symbols` / `--link-files`
+# modes are ONE-SHOT transforms that find bare refs and link them; they are not
+# re-pin operations and (now) skip anything already linked. When you cut a NEW
+# release the existing links still point at the OLD tag with anchors computed
+# against the OLD source. `--repin=<newtag>` is the release-time pass:
+#
+#   - rewrite every `/blob/<anytag>/` -> `/blob/<newtag>/` (mechanical, always);
+#   - recompute the `#L` anchor of every SYMBOL link (`[`fn`](...#Ln)` /
+#     `[`fn()`](...#Ln)`) from that symbol's CURRENT definition line in the
+#     linked file — so the anchor is accurate for the new release even if the
+#     function moved;
+#   - keep the two columns of a `[`fn`](...) at [file:line](...)` row in sync:
+#     a locator-form `[file:line]` link whose old anchor matches a symbol link
+#     recomputed earlier on the SAME line is moved to the same new line (text
+#     `:N` and `#LN` both updated);
+#   - file-level links (`[`path.c`](...)`, no anchor) just get the tag.
+#
+# A symbol whose definition can no longer be found is reported (its anchor is
+# left as-is) so a human can fix the stale reference. Idempotent: re-running
+# with the same tag rewrites nothing and recomputes anchors to the same lines.
+# ----------------------------------------------------------------------------
+GH_LINK = re.compile(
+    r"\[(?P<txt>`[^`]+`|[^\]]+)\]\("
+    r"(?P<url>" + re.escape(GH_BLOB) + r"/(?P<tag>[^/]+)/(?P<rel>[^)#]+)"
+    r"(?:#L(?P<l1>\d+)(?:-L(?P<l2>\d+))?)?)\)"
+)
+SYMBOL_TEXT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+FILELINE_TEXT = re.compile(r":(\d+)`?$")
+
+
+def symbol_of_text(txt):
+    """The bare symbol named by a link's text, or None. `` `fn()` `` -> 'fn'."""
+    t = txt.strip()
+    if t.startswith("`") and t.endswith("`"):
+        t = t[1:-1]
+    if t.endswith("()"):
+        t = t[:-2]
+    return t if SYMBOL_TEXT.match(t) else None
+
+
+def repin_line(line, newtag, missing):
+    """Re-pin every GitHub blob link on one line. Returns (newline, n_tag,
+    n_anchor, n_drift)."""
+    links = list(GH_LINK.finditer(line))
+    if not links:
+        return line, 0, 0, 0
+
+    # Sub-pass 1: recompute single-line symbol-link anchors; map old line -> new
+    # so locator twins on the same line can follow.
+    anchor_map = {}
+    for m in links:
+        l1, l2 = m.group("l1"), m.group("l2")
+        if not l1 or l2:
+            continue
+        sym = symbol_of_text(m.group("txt"))
+        if not sym:
+            continue
+        path = REPO / m.group("rel")
+        nl = def_line_of(sym, path) if path.exists() else None
+        if nl is not None:
+            anchor_map[int(l1)] = nl
+
+    # Sub-pass 2: rebuild the line.
+    out, pos = [], 0
+    n_tag = n_anchor = n_drift = 0
+    for m in links:
+        out.append(line[pos:m.start()])
+        txt, tag, rel = m.group("txt"), m.group("tag"), m.group("rel")
+        l1, l2 = m.group("l1"), m.group("l2")
+        new_txt, new_l1 = txt, None
+        if l1 and not l2:
+            sym = symbol_of_text(txt)
+            if sym:
+                path = REPO / rel
+                nl = def_line_of(sym, path) if path.exists() else None
+                if nl is not None:
+                    new_l1 = nl
+                else:
+                    missing.append((rel, sym))
+            elif int(l1) in anchor_map:
+                # locator twin (`file:line`) of a recomputed symbol link
+                new_l1 = anchor_map[int(l1)]
+                new_txt = FILELINE_TEXT.sub(
+                    lambda mm: f":{new_l1}" + ("`" if txt.endswith("`") else ""), txt
+                )
+        if l1:
+            if l2:
+                anchor = f"#L{l1}-L{l2}"
+            else:
+                final = new_l1 if new_l1 is not None else int(l1)
+                anchor = f"#L{final}"
+                if new_l1 is not None:
+                    n_anchor += 1
+                    if new_l1 != int(l1):
+                        n_drift += 1
+        else:
+            anchor = ""
+        if tag != newtag:
+            n_tag += 1
+        out.append(f"[{new_txt}]({GH_BLOB}/{newtag}/{rel}{anchor})")
+        pos = m.end()
+    out.append(line[pos:])
+    return "".join(out), n_tag, n_anchor, n_drift
+
+
+def repin_doc(doc, newtag, missing):
+    """Re-pin all GitHub blob links in one doc. Returns (n_tag, n_anchor,
+    n_drift, changed)."""
+    text = doc.read_text()
+    out, n_tag, n_anchor, n_drift = [], 0, 0, 0
+    for line in text.splitlines(keepends=True):
+        nl, a, b, c = repin_line(line, newtag, missing)
+        out.append(nl)
+        n_tag += a
+        n_anchor += b
+        n_drift += c
+    new = "".join(out)
+    changed = new != text
+    if changed:
+        doc.write_text(new)
+    return n_tag, n_anchor, n_drift, 1 if changed else 0
+
+
 def narrative_docs():
     """Doc files that are hand-written prose (skip the generated api/ tree)."""
     for doc in doc_files():
@@ -582,6 +738,10 @@ def main():
     do_strip = "--strip-prose" in sys.argv
     do_symbols = any(a == "--link-symbols" or a.startswith("--link-symbols=") for a in sys.argv)
     do_files = any(a == "--link-files" or a.startswith("--link-files=") for a in sys.argv)
+    repin_tag = None
+    for a in sys.argv:
+        if a.startswith("--repin="):
+            repin_tag = a.split("=", 1)[1]
     tag = "7.5.1"
     for a in sys.argv:
         if a.startswith("--linkify="):
@@ -591,6 +751,28 @@ def main():
         if a.startswith("--link-files="):
             tag = a.split("=", 1)[1]
     basename_index = build_basename_index()
+
+    if repin_tag:
+        missing = []
+        t_tag = t_anchor = t_drift = t_changed = 0
+        for doc in doc_files():
+            a, b, c, ch = repin_doc(doc, repin_tag, missing)
+            t_tag += a
+            t_anchor += b
+            t_drift += c
+            t_changed += ch
+        print(
+            f"repin -> {repin_tag}: {t_tag} tags rewritten, {t_anchor} symbol "
+            f"anchors recomputed ({t_drift} drifted), {t_changed} files changed."
+        )
+        if missing:
+            print(
+                f"\n--- {len(missing)} symbol links whose target no longer "
+                f"resolves (anchor left as-is; fix by hand) ---"
+            )
+            for rel, sym in missing[:40]:
+                print(f"  {sym}  ->  {rel}")
+        return 0
 
     if do_strip:
         total = 0
