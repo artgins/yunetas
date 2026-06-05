@@ -17,7 +17,7 @@ The abstract terms below have direct equivalents in the framework:
 |---|---|
 | **Role** (class) | A [GClass](../guide/basic_concepts.md#basic_gclass) registered at startup |
 | **Instance** | A [gobj](../guide/basic_concepts.md#basic_gobj) created by [`gobj_create(name, gclass, kw, parent)`](#gobj_create) |
-| **Realm** | A running [yuno](../guide/basic_concepts.md#yuno) or a logically-grouped set of them |
+| **Realm** | A logical partition of a host that groups a set of [yuno](../guide/basic_concepts.md#yuno)s (with its own Role / Name / Owner) |
 | **Parent / Child** | A gobj and the gobjs it created (`parent` argument of `gobj_create`) |
 | **Service / Client** | A gobj registered with [`gobj_create_service()`](#gobj_create_service) and the gobjs that address it by service name |
 | **Message** | An event name + a [`kw`](#kw) JSON payload sent with [`gobj_send_event()`](#gobj_send_event) |
