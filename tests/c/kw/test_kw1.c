@@ -362,6 +362,127 @@ static int test2_false(void)
 }
 
 /***************************************************************************
+ *  Regression f001: gbuffer_deserialize() must reject a serialized blob whose
+ *  "data" field is missing/non-string instead of crashing on strlen(NULL).
+ ***************************************************************************/
+static int test_reg_f001_gbuffer_deserialize_null_data(void)
+{
+    int result = 0;
+    set_expected_results(
+        "reg_f001_gbuffer_deserialize_null_data",
+        json_pack("[{s:s}]",    // exactly this error must be logged, nothing else
+            "msg", "gbuffer_deserialize: 'data' field missing or not a string"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    json_t *jn = json_pack("{s:s, s:i}",    // a serialized blob with NO "data" field
+        "label", "x",
+        "mark", 0
+    );
+    gbuffer_t *gbuf = gbuffer_deserialize(0, jn);
+    if(gbuf != NULL) {
+        result += -1;   // must reject, not return a buffer
+        gbuffer_decref(gbuf);
+    }
+    json_decref(jn);
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
+ *  Regression f003: kw_find_path() must bound recursion depth so a deeply
+ *  nested kw plus a long backtick-delimited path cannot exhaust the stack.
+ ***************************************************************************/
+static int test_reg_f003_kw_find_path_depth(void)
+{
+    int result = 0;
+    int N = 100;    // > KW_MAX_PATH_DEPTH (64)
+
+    /* kw nested N deep: {"a":{"a":{...}}} */
+    json_t *root = json_object();
+    json_t *cur = root;
+    for(int i=0; i<N; i++) {
+        json_t *child = json_object();
+        json_object_set_new(cur, "a", child);
+        cur = child;
+    }
+
+    /* path "a`a`...`a" with N segments */
+    char path[256];
+    int off = 0;
+    for(int i=0; i<N; i++) {
+        if(i) {
+            path[off++] = '`';
+        }
+        path[off++] = 'a';
+    }
+    path[off] = 0;
+
+    set_expected_results(
+        "reg_f003_kw_find_path_depth",
+        json_pack("[{s:s}]",
+            "msg", "kw_find_path: max nesting depth exceeded"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    json_t *found = kw_find_path(0, root, path, FALSE);
+    if(found != NULL) {
+        result += -1;   // must abort to not-found, not keep recursing
+    }
+    json_decref(root);
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  Regression f004: the kwid comparators must bound recursion depth so
+ *  deeply nested JSON cannot exhaust the stack or amplify via deep-copy.
+ ***************************************************************************/
+static int test_reg_f004_kwid_compare_records_depth(void)
+{
+    int result = 0;
+    int N = 100;    // > KWID_MAX_COMPARE_DEPTH (64)
+
+    /* two identical records nested N deep: {"a":{"a":{...}}} */
+    json_t *rec = json_object();
+    json_t *cur = rec;
+    for(int i=0; i<N; i++) {
+        json_t *child = json_object();
+        json_object_set_new(cur, "a", child);
+        cur = child;
+    }
+    json_t *expected = json_deep_copy(rec);
+
+    set_expected_results(
+        "reg_f004_kwid_compare_records_depth",
+        json_pack("[{s:s}]",
+            "msg", "compare: max nesting depth exceeded"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    BOOL eq = kwid_compare_records(0, rec, expected, NULL, FALSE, FALSE, FALSE);
+    if(eq != FALSE) {
+        result += -1;   // must bail to FALSE at the depth cap, not recurse off the stack
+    }
+    json_decref(rec);
+    json_decref(expected);
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
@@ -374,6 +495,10 @@ PRIVATE int do_test(void)
     result += test1_false();
     result += test2_true();
     result += test2_false();
+
+    result += test_reg_f001_gbuffer_deserialize_null_data();
+    result += test_reg_f003_kw_find_path_depth();
+    result += test_reg_f004_kwid_compare_records_depth();
 
     /*-------------------------------*
      *      Shutdown timeranger
