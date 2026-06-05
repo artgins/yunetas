@@ -77,3 +77,31 @@ When a fixture exists, verify end-to-end:
 
 Note: `open_list` loads all matching records into memory (the v1 path was a
 lazy cursor) — point it at a bounded range for large topics.
+
+## Security: re-enable per-command authorization in command_parser
+
+The `SDF_AUTHZ_X` / `gobj_user_has_authz` check at the command-dispatch
+boundary in `kernel/c/gobj-c/src/command_parser.c:86-124` is **commented out**,
+and has been since before the folder refactor (`299409d74`). A default global
+authz checker is registered (`entry_point.c:85`) and would work if called, but
+the only call site is disabled — so the 131 `SDF_AUTHZ_X` command entries carry
+an authz flag that nothing reads.
+
+Impact: **broken access control** — any *authenticated* principal can run any
+`SDF_AUTHZ_X` command regardless of role/permission. This is NOT a remote-unauth
+issue: authentication is enforced upstream (the `st_session` FSM gate plus the
+explicit `authenticated` recheck at `c_ievent_srv.c:1492`).
+
+Re-enabling is the canonical fix but is **not** a blind change — the role model
+is data-driven (the `c_authz` treedb). Before re-arming the block:
+
+1. Enumerate which roles/permissions the `SDF_AUTHZ_X` commands require.
+2. Confirm internal `src`=self callers are granted (e.g. `c_mqtt_broker.c:4411`,
+   `c_yuno.c:5305`) so internal command flows don't break.
+3. Re-arm `command_parser.c:86-124`; do **not** substitute transport-layer authz
+   (that proves identity, not permission).
+4. Regression-test internal command paths after.
+
+Found by a security review of gobj-c (finding f002, 2026-06-05). Note:
+`gobj_user_has_authz` also fails open (`gobj.c:9451` returns TRUE when no checker
+is registered) — keep in mind if the checker is ever deregistered.
