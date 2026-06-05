@@ -1980,6 +1980,25 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                 frame->slave_id = head->slave_id;
                 frame->byte_count = head->byte_count;
                 head->length = ntohs(head->length);
+                if(head->length < 3) {
+                    /*
+                     *  MBAP length must cover at least unit_id + function +
+                     *  byte_count. length < 3 underflows the size_t
+                     *  payload_length below (length==2 -> SIZE_MAX, which sizes
+                     *  a malloc(0)-backed gbuffer that data_size still records as
+                     *  SIZE_MAX -> the response memmove overruns it: heap
+                     *  overflow). Reject the frame; the caller drops the
+                     *  connection on a negative return.
+                     */
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PROTOCOL,
+                        "msg",          "%s", "modbus TCP: bad MBAP length",
+                        "length",       "%d", (int)head->length,
+                        NULL
+                    );
+                    return -1;
+                }
                 frame->payload_length = head->length - 3;
                 break;
 
