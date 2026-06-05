@@ -7494,6 +7494,46 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
 
+    /*
+     *  Harden against corrupt/forged on-disk md2 records: __offset__ and
+     *  __size__ come straight off disk (big-endian, byte-swapped) and below
+     *  drive lseek/gbmem_malloc/read with no other bound. Validate them
+     *  against the actual data-file size before use, so a bad header cannot
+     *  oversize the allocation/read or seek out of range. Defense-in-depth
+     *  for the case where topic files are authored by a less-trusted writer
+     *  (e.g. an rt_by_disk follower); harmless for trusted single-writer use.
+     */
+    struct stat content_st;
+    if(fstat(fd, &content_st) < 0) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot read record data, fstat FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return NULL;
+    }
+    if(md_record_ex->__size__ == 0 ||
+            md_record_ex->__offset__ > (uint64_t)content_st.st_size ||
+            md_record_ex->__size__ > (uint64_t)content_st.st_size - md_record_ex->__offset__) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Bad on-disk record: __offset__/__size__ out of range",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,
+            "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
+            "filesize",     "%lu", (unsigned long)content_st.st_size,
+            NULL
+        );
+        return NULL;
+    }
+
     off_t offset = (off_t)md_record_ex->__offset__;
     off_t offset_ = lseek(fd, offset, SEEK_SET);
     if(offset != offset_) {
@@ -7574,7 +7614,9 @@ PRIVATE json_t *read_record_content(
     if(empty_string(p)) {
         record = json_object();
     } else {
-        record = anystring2json(p, strlen(p), FALSE);
+        // strnlen, not strlen: p is exactly __size__ bytes and a forged/corrupt
+        // record need not be NUL-terminated, so bound the scan to the buffer.
+        record = anystring2json(p, strnlen(p, md_record_ex->__size__), FALSE);
     }
 
     gbmem_free(p);
