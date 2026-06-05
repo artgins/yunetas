@@ -28,6 +28,14 @@
  */
 #define KW_MAX_PATH_DEPTH 64
 
+/*
+ *  Maximum nesting depth for the path-tracked kwid comparators. Bounds the
+ *  mutual recursion between _kwid_compare_records_path/_kwid_compare_lists_path
+ *  (each level also json_deep_copy's its operands) so deeply-nested JSON cannot
+ *  exhaust the stack or amplify memory use without limit.
+ */
+#define KWID_MAX_COMPARE_DEPTH 64
+
 /***************************************************************
  *              Log Structures
  ***************************************************************/
@@ -1132,7 +1140,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose,
-    const char *path
+    const char *path,
+    int depth
 );
 
 PRIVATE void _build_compare_path(
@@ -1156,10 +1165,22 @@ PRIVATE BOOL _kwid_compare_records_path(
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose,
-    const char *path
+    const char *path,
+    int depth
 )
 {
     BOOL ret = TRUE;
+    if(depth >= KWID_MAX_COMPARE_DEPTH) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "compare: max nesting depth exceeded",
+            "path",         "%s", path,
+            "depth",        "%d", depth,
+            NULL
+        );
+        return FALSE;
+    }
     json_t *record = json_deep_copy(record_);
     json_t *expected = json_deep_copy(expected_);
     if(!record) {
@@ -1216,7 +1237,8 @@ PRIVATE BOOL _kwid_compare_records_path(
                             without_metadata,
                             without_private,
                             verbose,
-                            path)) {
+                            path,
+                            depth+1)) {
                         ret = FALSE;
                     }
                 }
@@ -1277,7 +1299,8 @@ PRIVATE BOOL _kwid_compare_records_path(
                                     without_metadata,
                                     without_private,
                                     verbose,
-                                    child_path
+                                    child_path,
+                                    depth+1
                                 )) {
                                 ret = FALSE;
                                 /* Recursive call already logged with full path */
@@ -1382,10 +1405,22 @@ PRIVATE BOOL _kwid_compare_lists_path(
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose,
-    const char *path
+    const char *path,
+    int depth
 )
 {
     BOOL ret = TRUE;
+    if(depth >= KWID_MAX_COMPARE_DEPTH) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "compare: max nesting depth exceeded",
+            "path",         "%s", path,
+            "depth",        "%d", depth,
+            NULL
+        );
+        return FALSE;
+    }
     json_t *list = json_deep_copy(list_);
     json_t *expected = json_deep_copy(expected_);
     if(!list) {
@@ -1471,7 +1506,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
                             without_metadata,
                             without_private,
                             verbose,
-                            child_path)
+                            child_path,
+                            depth+1)
                         ) {
                             ret = FALSE;
                             /* Recursive call already logged with full path */
@@ -1499,7 +1535,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
                                 without_metadata,
                                 without_private,
                                 FALSE,  // don't verbose during search
-                                "")
+                                "",
+                                depth+1)
                             ) {
                                 found = TRUE;
                                 json_array_remove(expected, idx2);
@@ -1590,7 +1627,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
                     without_metadata,
                     without_private,
                     verbose,
-                    path)
+                    path,
+                    depth+1)
                 ) {
                     ret = FALSE;
                 }
@@ -1642,7 +1680,7 @@ PUBLIC BOOL kwid_compare_records(
 {
     return _kwid_compare_records_path(
         gobj, record_, expected_, ignore_keys,
-        without_metadata, without_private, verbose, ""
+        without_metadata, without_private, verbose, "", 0
     );
 }
 
@@ -1663,7 +1701,7 @@ PUBLIC BOOL kwid_compare_lists(
 {
     return _kwid_compare_lists_path(
         gobj, list_, expected_, ignore_keys,
-        without_metadata, without_private, verbose, ""
+        without_metadata, without_private, verbose, "", 0
     );
 }
 
