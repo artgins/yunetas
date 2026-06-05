@@ -2226,7 +2226,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(strcmp(url, "/auth/logout") == 0) {
         /* POST /auth/logout  (reads httpOnly cookie) */
         char rt[4096];
-        extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt));
+        if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
+                empty_string(rt)) {
+            send_error_response(gobj, src, 401, status_str(401),
+                "missing_refresh_token",
+                "Missing refresh_token cookie", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         pa.action = BFF_LOGOUT;
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
