@@ -331,6 +331,43 @@ PRIVATE void test_ghttp_parser_pipelined(void) {
 /****************************************************************
  *      Entry point
  ****************************************************************/
+/***************************************************************************
+ *  Regression for f001: on_url() accumulates the URL across chunks and does
+ *  `pos = strlen(parser->url)` on every chunk, so each chunk MUST leave the
+ *  accumulator NUL-terminated. Feeding a request one byte at a time fires
+ *  on_url repeatedly, exercising the gbmem_realloc grow path; without the
+ *  terminator write the next strlen() over-reads adjacent heap and corrupts
+ *  `pos`, mangling the reassembled URL. Assert it comes back byte-for-byte.
+ *  (on_message_event is NULL, so the wrapper keeps parser->url and
+ *  message_completed instead of freeing/resetting them on completion.)
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_fragmented_url(void) {
+    fprintf(stderr, "\n== ghttp_parser: fragmented URL reassembled (f001 regression) ==\n");
+
+    static const char EXPECTED_URL[] = "/api/v1/aaaa/bbbb/cccc/dddd/eeee/ffff/gggg";
+    char req[256];
+    int reqlen = snprintf(req, sizeof(req),
+        "GET %s HTTP/1.1\r\nHost: h\r\n\r\n", EXPECTED_URL);
+
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    EXPECT(parser != NULL, "ghttp_parser_create (request) returns non-NULL");
+
+    int consumed = 0;
+    for(int i = 0; i < reqlen; i++) {       /* one byte per call => on_url fires repeatedly */
+        int rc = ghttp_parser_received(parser, req + i, 1);
+        if(rc < 0) {
+            break;
+        }
+        consumed += rc;
+    }
+    EXPECT(consumed == reqlen, "byte-by-byte feed consumed the whole request");
+    EXPECT(parser && parser->message_completed == 1, "wrapper saw message_completed");
+    EXPECT(parser && parser->url && strcmp(parser->url, EXPECTED_URL) == 0,
+        "fragmented URL reassembled exactly (no over-read / pos corruption)");
+
+    ghttp_parser_destroy(parser);
+}
+
 int main(int argc, char *argv[])
 {
     setlocale(LC_ALL, "");
@@ -373,6 +410,7 @@ int main(int argc, char *argv[])
     test_ghttp_parser_create_idle_recreate_received(2);
     test_ghttp_parser_pipelined();
     test_ghttp_parser_finish_eof();
+    test_ghttp_parser_fragmented_url();
 
     gobj_end();
 

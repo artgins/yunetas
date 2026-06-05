@@ -423,6 +423,7 @@ PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length)
         return -1;
     }
     memcpy(parser->url + pos, at, length);
+    parser->url[pos + length] = 0;
     return 0;
 }
 
@@ -470,6 +471,7 @@ PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
         return -1;
     }
     memcpy(parser->cur_key + pos, at, length);
+    parser->cur_key[pos + length] = 0;
     strntoupper(parser->cur_key + pos, length);
     return 0;
 }
