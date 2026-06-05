@@ -253,6 +253,17 @@ static int __check_hmac(jwt_t *jwt)
 {
 	int key_bits = jwt->key->bits;
 
+	/* Defensive backstop: an HMAC algorithm requires an octet key. Without
+	 * this, an RSA/EC/OKP key reaches the HMAC routine, which reads
+	 * jwt->key->oct.{key,len} from a union shared with provider_data and
+	 * would HMAC against a zero-length key (GHSA-q843-6q5f-w55g). The
+	 * __setkey_check / __verify_config_post bindings make this unreachable
+	 * in practice; this is the final chokepoint shared by all backends. */
+	if (jwt->key->kty != JWK_KEY_TYPE_OCT) {
+		jwt_write_error(jwt, "Key type does not match HMAC alg");
+		return 1;
+	}
+
 	switch (jwt->alg) {
 	case JWT_ALG_HS256:
 		if (key_bits >= 256)

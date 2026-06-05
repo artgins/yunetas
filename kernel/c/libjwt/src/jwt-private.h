@@ -242,3 +242,38 @@ JWT_NO_EXPORT
 int jwt_head_setup(jwt_t *jwt);
 
 #define __trace() fprintf(stderr, "%s:%d\n", __func__, __LINE__)
+
+/* Returns the jwk_key_type_t that the given JWA algorithm requires, or
+ * JWK_KEY_TYPE_NONE for JWT_ALG_NONE / unknown values. Authoritative
+ * kty<->alg mapping used to prevent algorithm-confusion attacks
+ * (GHSA-q843-6q5f-w55g): e.g. an RSA JWK must never be usable for an HS*
+ * token, regardless of whether the JWK carries an optional "alg" hint. */
+static inline jwk_key_type_t jwt_alg_required_kty(jwt_alg_t alg)
+{
+	switch (alg) {
+	case JWT_ALG_HS256:
+	case JWT_ALG_HS384:
+	case JWT_ALG_HS512:
+		return JWK_KEY_TYPE_OCT;
+
+	case JWT_ALG_RS256:
+	case JWT_ALG_RS384:
+	case JWT_ALG_RS512:
+	case JWT_ALG_PS256:
+	case JWT_ALG_PS384:
+	case JWT_ALG_PS512:
+		return JWK_KEY_TYPE_RSA;
+
+	case JWT_ALG_ES256:
+	case JWT_ALG_ES256K:
+	case JWT_ALG_ES384:
+	case JWT_ALG_ES512:
+		return JWK_KEY_TYPE_EC;
+
+	case JWT_ALG_EDDSA:
+		return JWK_KEY_TYPE_OKP;
+
+	default:
+		return JWK_KEY_TYPE_NONE;
+	}
+}

@@ -288,6 +288,17 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 		// LCOV_EXCL_STOP
 	}
 
+	/* Algorithm is now bound from the token (jwt->alg). Defensively confirm
+	 * the JWK's actual key type can carry it. This blocks algorithm
+	 * confusion (GHSA-q843-6q5f-w55g): the alg-vs-alg checks above never
+	 * compare the token alg when both config->alg and key->alg are set and
+	 * equal, so an HS* token verified against an RSA/EC key would otherwise
+	 * slip through to the HMAC path. */
+	if (jwt_alg_required_kty(jwt->alg) != config->key->kty) {
+		jwt_write_error(jwt, "Key type does not match JWT alg");
+		return JWT_CLAIM_JWT;
+	}
+
 	return 0;
 }
 
