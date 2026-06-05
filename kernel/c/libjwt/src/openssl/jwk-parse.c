@@ -130,11 +130,16 @@ static unsigned char *set_one_octet(OSSL_PARAM_BLD *build,
 {
 	unsigned char *bin;
 	const char *str;
-	int len;
+	int len = 0;
 
 	/* decode it */
 	str = json_string_value(val);
+	if (str == NULL)			/* cfd8902: non-string/absent JWK member */
+		return NULL;
+
 	bin = jwt_base64uri_decode(str, &len);
+	if (bin == NULL || len <= 0)		/* cfd8902: bad base64url -> no param */
+		return NULL;
 
 	OSSL_PARAM_BLD_push_octet_string(build, ossl_name, bin, len);
 
@@ -340,10 +345,10 @@ int openssl_process_rsa(json_t *jwk, jwk_item_t *item)
 	}
 
 	/* Check alg to see if we can sniff RSA vs RSA-PSS */
-	if (alg) {
+	if (alg && json_is_string(alg)) {	/* cfd8902: non-string alg -> NULL deref */
 		alg_str = json_string_value(alg);
 
-		if (alg_str[0] == 'P')
+		if (alg_str && alg_str[0] == 'P')
 			is_rsa_pss = 1;
 	}
 

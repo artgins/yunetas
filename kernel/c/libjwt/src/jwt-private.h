@@ -43,10 +43,12 @@ extern struct jwt_crypto_ops *jwt_ops;
 	(__obj)->error = 1;				\
 })
 
-#define jwt_copy_error(__dst, __src)			\
-({							\
-	strcpy((__dst)->error_msg, (__src)->error_msg);	\
-	(__dst)->error = (__src)->error;		\
+#define jwt_copy_error(__dst, __src)				\
+({								\
+	strncpy((__dst)->error_msg, (__src)->error_msg,		\
+		sizeof((__dst)->error_msg) - 1);		\
+	(__dst)->error_msg[sizeof((__dst)->error_msg) - 1] = '\0';	\
+	(__dst)->error = (__src)->error;			\
 })
 
 /******************************/
