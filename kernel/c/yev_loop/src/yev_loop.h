@@ -141,6 +141,9 @@ struct yev_event_s {
     unsigned poll_mask;     // Used in POLL
     struct msghdr *msghdr;  // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
     struct iovec iov;       // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
+
+    int in_flight;             // # of submitted SQEs whose CQE has not been reaped yet
+    uint8_t destroy_requested; // set when destroyed while in-flight; free is deferred to callback_cqe
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
