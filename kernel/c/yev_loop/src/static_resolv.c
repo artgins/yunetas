@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/random.h>     /* getrandom() — unpredictable DNS transaction id */
 
 #include "static_resolv.h"
 
@@ -164,6 +165,7 @@ static int dns_decode_name(
         if((len & 0xC0) == 0xC0) {
             if(off + 1 >= msglen) return -1;
             size_t ptr = ((size_t)(len & 0x3F) << 8) | msg[off + 1];
+            if(ptr >= msglen) return -1;    // F-002: pointer must stay inside the message
             if(!jumped) { saved_off = off + 2; jumped = 1; }
             if(++ptr_count > 10) return -1;
             off = ptr;
@@ -171,6 +173,7 @@ static int dns_decode_name(
         }
         off++;
         if(len == 0) break;
+        if(off + len > msglen) return -1;   // F-001: label bytes must lie within the message
         if(out_pos + len + 2 > outsz) return -1;
         if(out_pos > 0) out[out_pos++] = '.';
         memcpy(out + out_pos, msg + off, len);
@@ -279,6 +282,8 @@ static int dns_parse_response(
     }
 
     int found = 0;
+    if(off > msglen) return found;  // F-003: a malformed question section must not run past the buffer
+
     for(int i = 0; i < ancount; i++) {
         if(off >= msglen) break;
         /* Skip name */
@@ -309,8 +314,23 @@ static int dns_parse_response(
     return found;
 }
 
-/* Monotonically-increasing DNS transaction ID */
-static uint16_t yuneta_dns_id = 1;
+/*
+ * DNS transaction ID. Use the kernel CSPRNG: a predictable/monotonic ID makes
+ * off-path response forgery (cache/answer poisoning) far easier, so each query
+ * gets an unpredictable 16-bit id. The source port is left to the OS ephemeral
+ * assignment, which modern Linux randomizes (RFC 6056). (F-004)
+ */
+static uint16_t dns_random_id(void)
+{
+    uint16_t id;
+    if(getrandom(&id, sizeof(id), 0) != (ssize_t)sizeof(id)) {
+        // Fallback if getrandom is unavailable: mix a stack address with a
+        // per-call counter — weaker than the CSPRNG, but not a fixed sequence.
+        static uint16_t fallback_counter;
+        id = (uint16_t)(((uintptr_t)&id >> 4) ^ ++fallback_counter);
+    }
+    return id;
+}
 
 /***************************************************************
  *              Public API
@@ -475,7 +495,7 @@ int yuneta_getaddrinfo(
 
             /* A record query */
             if(ai_family == AF_INET || ai_family == AF_UNSPEC) {
-                uint16_t qid4 = yuneta_dns_id++;
+                uint16_t qid4 = dns_random_id();
                 int qlen = dns_build_query(
                     qbuf, sizeof(qbuf), qid4, node, 1 /* A */);
                 if(qlen > 0) {
@@ -505,7 +525,7 @@ int yuneta_getaddrinfo(
 
             /* AAAA record query */
             if(ai_family == AF_INET6 || ai_family == AF_UNSPEC) {
-                uint16_t qid6 = yuneta_dns_id++;
+                uint16_t qid6 = dns_random_id();
                 int qlen = dns_build_query(
                     qbuf, sizeof(qbuf), qid6, node, 28 /* AAAA */);
                 if(qlen > 0) {
