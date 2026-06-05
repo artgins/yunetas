@@ -16,12 +16,12 @@ The abstract terms below have direct equivalents in the framework:
 | Concept here | In the framework |
 |---|---|
 | **Role** (class) | A [GClass](../guide/basic_concepts.md#basic_gclass) registered at startup |
-| **Instance** | A [gobj](../guide/basic_concepts.md#basic_gobj) created by `gobj_create(name, gclass, kw, parent)` |
+| **Instance** | A [gobj](../guide/basic_concepts.md#basic_gobj) created by [`gobj_create(name, gclass, kw, parent)`](#gobj_create) |
 | **Realm** | A running [yuno](../guide/basic_concepts.md#yuno) or a logically-grouped set of them |
 | **Parent / Child** | A gobj and the gobjs it created (`parent` argument of `gobj_create`) |
-| **Service / Client** | A gobj registered with `gobj_create_service()` and the gobjs that address it by service name |
-| **Message** | An event name + a `kw` JSON payload sent with `gobj_send_event()` |
-| **Persisted record** | A row in a `timeranger2` topic, or a node in a `tr_treedb` graph |
+| **Service / Client** | A gobj registered with [`gobj_create_service()`](#gobj_create_service) and the gobjs that address it by service name |
+| **Message** | An event name + a [`kw`](#kw) JSON payload sent with [`gobj_send_event()`](#gobj_send_event) |
+| **Persisted record** | A row in a [`timeranger2`](#timeranger2) topic, or a node in a [`tr_treedb`](#glossary-treedb) graph |
 
 Read the next sections as *the words we use*; the reference to *what
 the code actually calls them* is always in this table.
@@ -187,8 +187,8 @@ graph store makes relationships first-class citizens, not foreign keys
 managed by convention:
 
 - **L**ink — attach an existing child to an existing parent via a
-  declared hook. The operation is persisted by writing the child's
-  `fkey` field (see the [Timeranger2 Guide](../guide/guide_timeranger2.md)).
+  declared [hook](#hook). The operation is persisted by writing the child's
+  [`fkey`](#fkey) field (see the [Timeranger2 Guide](../guide/guide_timeranger2.md)).
 - **U**nlink — the inverse: clear the child's `fkey`, persist the
   change.
 
