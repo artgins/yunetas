@@ -364,7 +364,7 @@ MIT, except for `kernel/c/libjwt/*` which is **MPL-2.0**.
 
 ### Build dependencies (C / Linux)
 
-- [Jansson](http://jansson.readthedocs.io/en/latest/) — MIT
+- [Jansson](https://jansson.readthedocs.io/en/latest/) — MIT
 - [libjwt](https://github.com/benmcollins/libjwt) — MPL-2.0
 - [liburing](https://github.com/axboe/liburing) — MIT, LGPL-2.1, GPL-2.0
 - [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) — Apache-2.0 or GPL-2.0
