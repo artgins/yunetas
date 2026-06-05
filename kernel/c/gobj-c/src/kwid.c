@@ -21,6 +21,13 @@
  ***************************************************************/
 #define MAX_SERIALIZED_FIELDS 4
 
+/*
+ *  Maximum nesting depth walked by kw_find_path. Bounds attacker-driven
+ *  recursion on deeply-nested kw JSON (delimiter-separated path) so a
+ *  hostile message cannot exhaust the stack.
+ */
+#define KW_MAX_PATH_DEPTH 64
+
 /***************************************************************
  *              Log Structures
  ***************************************************************/
@@ -526,8 +533,21 @@ PRIVATE char *search_delimiter(const char *s, char delimiter_)
 /***************************************************************************
     Return the json's value find by path, walking over lists and dicts
  ***************************************************************************/
-PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+PRIVATE json_t *kw_find_path_depth(
+    hgobj gobj, json_t *kw, const char *path, BOOL verbose, int depth)
 {
+    if(depth >= KW_MAX_PATH_DEPTH) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "kw_find_path: max nesting depth exceeded",
+            "path",         "%s", path?path:"",
+            "depth",        "%d", depth,
+            NULL
+        );
+        return 0;
+    }
+
     if(!(json_is_object(kw) || json_is_array(kw))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -640,7 +660,12 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
         }
     }
 
-    return kw_find_path(gobj, next_json, p+1, verbose);
+    return kw_find_path_depth(gobj, next_json, p+1, verbose, depth+1);
+}
+
+PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+{
+    return kw_find_path_depth(gobj, kw, path, verbose, 0);
 }
 
 /***************************************************************************
