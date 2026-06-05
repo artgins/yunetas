@@ -4,6 +4,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 ---
 
+(action-callback)=
 **Action callback**
 :   Function executed when an event fires in a given FSM state. Signature: `int (*)(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)`. See [GClass guide](guide/guide_gclass.md).
 

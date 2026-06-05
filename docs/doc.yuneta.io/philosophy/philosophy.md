@@ -1,7 +1,8 @@
 # Inspiration
 
-Yuneta is an engineering framework, but its vocabulary — *events*,
-*actions*, *gobjs*, *hierarchy*, [*realms*](domain_model.md#realms) —
+Yuneta is an engineering framework, but its vocabulary — [*events*](#event),
+[*actions*](#action-callback), [*gobjs*](../guide/basic_concepts.md#basic_gobj),
+*hierarchy*, [*realms*](domain_model.md#realms) —
 did not come out of a specification document. It came from looking at
 how **life itself** is organised and borrowing the words that fit.
 
@@ -38,13 +39,13 @@ ones to make progress.
 ## What is above is below; what is inside is outside
 
 A Yuneta system is organised as a **tree of gobjs**, and that tree
-has the same shape at every scale: a yuno contains gobjs; a gobj can
+has the same shape at every scale: a [yuno](../guide/basic_concepts.md#yuno) contains gobjs; a gobj can
 contain child gobjs; two yunos can be connected as if they were a
 single bigger tree. The interaction patterns — parent to child,
 service to client, publisher to subscriber — repeat at every level.
 
 The outside of a gobj (its events, commands, attributes) mirrors its
-inside (its state machine, private data, action callbacks). The
+inside (its [state machine](#fsm), private data, action callbacks). The
 outside of a yuno (its control plane, its statistics, its persisted
 history) mirrors the outside of each gobj it contains. This
 fractal-like consistency is the reason a single set of tools —
@@ -53,7 +54,7 @@ fractal-like consistency is the reason a single set of tools —
 ## Time is the axis everything hangs from
 
 Events happen **in order**, and Yuneta never forgets the order.
-Persistence is append-only and indexed by monotonically growing row
+Persistence is [append-only](#append-only) and indexed by monotonically growing row
 ids. Logs, traces, queues, message stores, and the graph database are
 all views over the same time-ordered stream. Nothing is ever
 overwritten without leaving a trace.
