@@ -896,6 +896,26 @@ PRIVATE q_msg_t *enqueue_failing_message(
  *  Async: the response (success / failure) comes back via EV_ON_MESSAGE
  *  handled by ac_on_message.
  ***************************************************************************/
+/***************************************************************************
+ *  TRUE if a single-line email header / envelope field contains a control
+ *  char (CR, LF, NUL, ...). Such a char lets the caller inject extra SMTP
+ *  commands (RCPT/DATA smuggling) or extra MIME headers/body — header /
+ *  command injection. These fields (to/cc/bcc/from/reply_to/subject) must
+ *  never contain one.
+ ***************************************************************************/
+PRIVATE BOOL email_field_has_ctrl(const char *s)
+{
+    if(!s) {
+        return FALSE;
+    }
+    for(; *s; s++) {
+        if((unsigned char)*s < 0x20) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 PRIVATE int tira_dela_cola(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -952,6 +972,30 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     const char *bcc = kw_get_str(gobj, msg, "bcc", "", 0);
     const char *reply_to = kw_get_str(gobj, msg, "reply_to", "", 0);
     const char *subject = kw_get_str(gobj, msg, "subject", "", 0);
+
+    /*
+     *  Reject CR/LF/control chars in any single-line header / envelope field
+     *  before they reach an SMTP command line (MAIL FROM/RCPT TO) or a MIME
+     *  header. Without this a newline injects extra SMTP commands (RCPT, DATA
+     *  smuggling) or extra MIME headers/body — SMTP command / email header
+     *  injection. Treated as a permanent send failure.
+     */
+    const char *single_line_fields[] = {from, from_beautiful, to, cc, bcc, reply_to, subject};
+    for(unsigned f = 0; f < sizeof(single_line_fields)/sizeof(single_line_fields[0]); f++) {
+        if(email_field_has_ctrl(single_line_fields[f])) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "email field has CR/LF/control char (injection); rejected",
+                NULL
+            );
+            priv->qmsg_cur_email = NULL;
+            process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, to?to:"");
+            KW_DECREF(msg);
+            return -1;
+        }
+    }
+
     const char *attachment = kw_get_str(gobj, msg, "attachment", "", 0);
     if(empty_string(attachment)) {
         /* Legacy alias from c_curl era. */
