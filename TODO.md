@@ -175,3 +175,28 @@ on main. One finding is parked on a branch for review rather than merged:
   assignment (RFC 6056 randomized) rather than explicitly randomized — adequate,
   noted for completeness. `dns_parse_response` record-count/`rdlen` advances are
   bounded by the existing per-RR guards plus the F-001 decode fix.
+
+## Security: vendored libjwt is behind upstream — follow-ups
+
+The vendored libjwt (`kernel/c/libjwt`) is at **upstream v3.2.1+2 (375e539)**,
+26 commits behind v3.3.3. A security review (2026-06-05) backported the two
+reachable items that landed on main:
+
+- **CRITICAL — done:** `49c730a` / GHSA-q843-6q5f-w55g algorithm-confusion JWT
+  forgery (RSA/EC JWK used as HMAC key). Was reachable from `c_authz.c`'s verify
+  loop (RS256 checker + attacker HS256 token slipped past `__verify_config_post`).
+  Backported (all 4 layers). **Recommended follow-up: port upstream's
+  `jwt_security.c` test suite** (76 cases incl. the forgery PoC) — yuneta has no
+  jwt-level test harness, so the forgery-rejection isn't covered by a
+  deterministic test here.
+- **Hardening — done:** the reachable subset of `cfd8902` (JWK octet/RSA-PSS
+  NULL/bounds guards in `openssl/jwk-parse.c`, `strncpy` error-copy, volatile
+  constant-time compare).
+
+Still MISSING from `cfd8902`, lower severity, to backport when convenient:
+key-material scrub before free (`OPENSSL_cleanse` in `openssl_process_item_free`
++ `jwks.c`), `secure_getenv` for JWT_CRYPTO selection, builder/checker
+OOM-path JSON leak, missing-alg-header error message. N/A here: the JWKS-curl
+Content-Length/atol fixes (`jwks-curl.c` is disabled in CMakeLists; JWKS is
+loaded from a config attr). Consider a periodic re-vendor from upstream. Full
+analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
