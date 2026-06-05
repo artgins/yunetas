@@ -63,7 +63,8 @@ int jwt_strcmp(const char *str1, const char *str2)
 	int len2 = strlen(str2);
 	int len_max = len1 >= len2 ? len1 : len2;
 
-	int i, ret = 0;
+	int i;
+	volatile int ret = 0;	/* cfd8902: prevent the compiler from short-circuiting the constant-time compare */
 
 	/* Iterate the entire longest string no matter what. Only testing
 	 * the shortest string would still allow attacks for

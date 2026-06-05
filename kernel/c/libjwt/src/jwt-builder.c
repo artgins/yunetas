@@ -63,7 +63,19 @@ static int __setkey_check(jwt_builder_t *__cmd, const jwt_alg_t alg,
             return 0;
 
         jwt_write_error(__cmd, "Cannot set alg without a key");
-    } else if(key->alg == JWT_ALG_NONE) {
+        return 1;
+    }
+
+    /* Bind algorithm acceptance to the JWK's actual key type, not just its
+     * optional "alg" hint (RFC 7517 4.4 makes "alg" optional). Prevents
+     * algorithm confusion (GHSA-q843-6q5f-w55g): e.g. an RSA JWK must never
+     * be usable for an HS* token regardless of any alg hint. */
+    if(alg != JWT_ALG_NONE && jwt_alg_required_kty(alg) != key->kty) {
+        jwt_write_error(__cmd, "Key type does not match algorithm");
+        return 1;
+    }
+
+    if(key->alg == JWT_ALG_NONE) {
         if(alg != JWT_ALG_NONE)
             return 0;
 
