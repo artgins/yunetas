@@ -105,3 +105,51 @@ is data-driven (the `c_authz` treedb). Before re-arming the block:
 Found by a security review of gobj-c (finding f002, 2026-06-05). Note:
 `gobj_user_has_authz` also fails open (`gobj.c:9451` returns TRUE when no checker
 is registered) — keep in mind if the checker is ever deregistered.
+
+## Security: ytls TLS posture (deployment decisions)
+
+From a security review of `kernel/c/ytls` (2026-06-05). These are
+configuration/posture choices, not memory-safety bugs — they need a policy
+decision, so they're tracked here rather than blindly changed.
+
+- **Protocol floor hardcoded to SSLv3/TLS1.0** (`src/tls/openssl.c:367`,
+  `min_proto_version=0`). There is **no config knob** to raise it, so embedders
+  can't opt into a modern floor. Decide a minimum (TLS1.2+ recommended) and
+  optionally expose it via config; weigh against any legacy client that still
+  needs old TLS.
+- **mbedTLS `VERIFY_NONE` when no CA file is set** (`src/tls/mbedtls.c:332`);
+  the server-with-CA path uses `VERIFY_OPTIONAL` with **no** `get_verify_result`
+  check. Client connections without a configured CA therefore do not validate
+  the peer certificate. Decide the desired default (fail-closed vs. opt-in) per
+  client/server role.
+- **TLS renegotiation left enabled** (`SSL_OP_NO_RENEGOTIATION` is commented
+  out, openssl backend). Consider disabling unless a use case needs it.
+
+(The memory-safety/integrity defects found in the same review — the
+encrypt_data re-entrant UAF and the double `gbuffer_get` — were fixed
+separately; see the `fix(ytls): re-entrant UAF in encrypt_data ...` commit.
+The UAF's reachability — `SSL_write` returning WANT_* during egress while the
+app frees the session from `on_clear_data_cb` — was not reproduced in a
+deterministic test and would benefit from an execution-verified PoC.)
+
+## Security: timeranger2 on-disk record hardening (contingent / local)
+
+From a security review of `kernel/c/timeranger2` (2026-06-05). The on-disk
+md2 record header (`__offset__`/`__size__`, big-endian) is read and used to
+drive I/O. The dominant read sink (`read_record_content`) was hardened in the
+`fix(timeranger2): validate on-disk md2 record offset/size ...` commit. Two
+follow-ups remain, both **contingent on the on-disk topic files being a trust
+boundary** — which is LOCAL only (replication is by hard-link, same host/fs)
+and OFF by default in production (`rt_by_disk=FALSE` in `c_mqtt_broker`/`c_node`;
+only the `emu_device` test yuno enables it):
+
+- **`tranger2_delete_instance` zero-payload write loop** (`timeranger2.c:3404`)
+  uses disk `__offset__`/`__size__` to drive a zeroing `write` into the data
+  file with no span-within-own-segment guard — a forged header gives a
+  cross-record overwrite/data-destruction primitive. Add the same
+  offset+size-vs-filesize validation there (and ideally a same-segment check).
+- **`fs_watcher.c:368` inotify parse loop** advances `ptr += sizeof(event) +
+  event->len` with no remaining-bytes guard before dereferencing the next
+  header/`event->name`. Kernel-framed input (low attacker reach), defense-in-depth.
+- Also noted: `publish_new_rt_disk_records` (`timeranger2.c:4872`) doesn't check
+  `read_md`'s return before using the record.
