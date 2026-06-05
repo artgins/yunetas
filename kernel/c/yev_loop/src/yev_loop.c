@@ -257,6 +257,62 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Free the event for real. Factored out of yev_destroy_event so the free
+ *  can be deferred to callback_cqe when the event still has CQEs in flight.
+ ***************************************************************************/
+PRIVATE void really_free_yev_event(yev_event_t *yev_event)
+{
+    yev_loop_t *yev_loop = yev_event->yev_loop;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
+
+    GBUFFER_DECREF(yev_event->gbuf)
+    GBMEM_FREE(yev_event->sock_info)
+    GBMEM_FREE(yev_event->msghdr)
+
+    switch((yev_type_t)yev_event->type) {
+        case YEV_READ_TYPE:
+        case YEV_WRITE_TYPE:
+        case YEV_RECVMSG_TYPE:
+        case YEV_SENDMSG_TYPE:
+        case YEV_POLL_TYPE:
+            break;
+        case YEV_CONNECT_TYPE:
+        case YEV_ACCEPT_TYPE:
+        case YEV_TIMER_TYPE:
+            if(yev_event->fd > 0) {
+                if(gobj_trace_level(0) & (TRACE_URING)) {
+                    gobj_log_debug(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket",
+                        "msg2",         "%s", "💥🟥 close socket",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
+                close(yev_event->fd);
+                yev_event->fd = -1;
+            }
+            break;
+    }
+
+    GBMEM_FREE(yev_event)
+}
+
+/***************************************************************************
+ *  Attach an event to an SQE and account for the CQE it will produce.
+ *  Every event-carrying submit must go through here so in_flight stays
+ *  balanced against the decrement in callback_cqe (multishot is disabled,
+ *  so each submitted SQE yields exactly one CQE).
+ ***************************************************************************/
+PRIVATE void track_submit(yev_event_t *yev_event, struct io_uring_sqe *sqe)
+{
+    io_uring_sqe_set_data(sqe, yev_event);
+    yev_event->in_flight++;
+}
+
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
     if(!cqe) {
@@ -273,6 +329,24 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     if(!yev_event) {
         // HACK CQE event without data is loop ending
         return -1; /* Break the loop */
+    }
+
+    /*------------------------------------------------------------------*
+     *  One CQE reaped for this event. If the event was destroyed while
+     *  it still had ops in flight (destroy_requested), do NOT dispatch
+     *  its callback or touch its state — just drain, and free it once
+     *  the last outstanding CQE has been reaped. This is what makes a
+     *  destroy-while-in-flight safe: the struct stays alive until its
+     *  CQEs drain, so this very handler never lands on freed memory.
+     *------------------------------------------------------------------*/
+    if(yev_event->in_flight > 0) {
+        yev_event->in_flight--;
+    }
+    if(yev_event->destroy_requested) {
+        if(yev_event->in_flight <= 0) {
+            really_free_yev_event(yev_event);
+        }
+        return 0;
     }
 
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
@@ -506,7 +580,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *  Rearm accept event
                          */
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
+                        track_submit(yev_event, sqe);
                         io_uring_prep_accept(
                             sqe,
                             yev_event->fd,
@@ -612,7 +686,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *  Rearm periodic timer event
                          */
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
+                        track_submit(yev_event, sqe);
                         io_uring_prep_read(
                             sqe,
                             yev_event->fd,
@@ -1169,7 +1243,7 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
+                track_submit(yev_event, sqe);
                 /*
                  *  Use the file descriptor fd to start connecting to the destination
                  *  described by the socket address at addr and of structure length addrlen.
@@ -1209,7 +1283,7 @@ PUBLIC int yev_start_event(
                      *  described by the socket address at addr and of structure length addrlen
                      */
                     struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                    io_uring_sqe_set_data(sqe, yev_event);
+                    track_submit(yev_event, sqe);
 
                     if(multishot_available) {
                         io_uring_prep_multishot_accept(
@@ -1280,7 +1354,7 @@ PUBLIC int yev_start_event(
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 if(sqe) {
-                    io_uring_sqe_set_data(sqe, yev_event);
+                    track_submit(yev_event, sqe);
                     io_uring_prep_write(
                         sqe,
                         yev_event->fd,
@@ -1346,7 +1420,7 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
+                track_submit(yev_event, sqe);
                 io_uring_prep_read(
                     sqe,
                     yev_event->fd,
@@ -1414,7 +1488,7 @@ PUBLIC int yev_start_event(
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 if(sqe) {
-                    io_uring_sqe_set_data(sqe, yev_event);
+                    track_submit(yev_event, sqe);
 
                     yev_event->iov.iov_base = gbuffer_cur_rd_pointer(yev_event->gbuf);
                     yev_event->iov.iov_len = gbuffer_leftbytes(yev_event->gbuf);
@@ -1483,7 +1557,7 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
+                track_submit(yev_event, sqe);
 
                 yev_event->iov.iov_base = gbuffer_cur_wr_pointer(yev_event->gbuf);
                 yev_event->iov.iov_len = gbuffer_freebytes(yev_event->gbuf);
@@ -1515,7 +1589,7 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
+                track_submit(yev_event, sqe);
                 io_uring_prep_poll_add(
                     sqe,
                     yev_event->fd,
@@ -1692,7 +1766,7 @@ PUBLIC int yev_start_timer_event(
     struct io_uring_sqe *sqe;
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
     sqe = io_uring_get_sqe(&yev_loop->ring);
-    io_uring_sqe_set_data(sqe, (char *)yev_event);
+    track_submit(yev_event, sqe);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_loop->ring);
     yev_set_state(yev_event, YEV_ST_RUNNING);
@@ -1814,7 +1888,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     switch(cur_state) {
         case YEV_ST_RUNNING:
             sqe = io_uring_get_sqe(&yev_loop->ring);
-            io_uring_sqe_set_data(sqe, yev_event);
+            track_submit(yev_event, sqe);
             io_uring_prep_cancel(sqe, yev_event, 0);
             io_uring_submit(&yev_loop->ring);
             yev_set_state(yev_event, YEV_ST_CANCELING);
@@ -1916,6 +1990,12 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
      *      Check state
      *---------------------------*/
     yev_state_t yev_state = yev_get_state(yev_event);
+
+    if(yev_event->destroy_requested) {
+        // Already being destroyed: its deferred free is pending in callback_cqe.
+        return;
+    }
+
     if(yev_state == YEV_ST_RUNNING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1934,48 +2014,29 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
             // Don't call callback if stopping loop
             yev_event->callback = NULL;
         }
-        yev_stop_event(yev_event);
+        yev_stop_event(yev_event);  // submits a cancel -> CANCELING, bumps in_flight
     }
 
-    /*---------------------------*
+    /*-----------------------------------------------------------------*
      *      Free
-     *---------------------------*/
-    GBUFFER_DECREF(yev_event->gbuf)
-    GBMEM_FREE(yev_event->sock_info)
-    GBMEM_FREE(yev_event->msghdr)
-
-    /*-------------------------------*
-     *      destroying
-     *-------------------------------*/
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-        case YEV_WRITE_TYPE:
-        case YEV_RECVMSG_TYPE:
-        case YEV_SENDMSG_TYPE:
-        case YEV_POLL_TYPE:
-            break;
-        case YEV_CONNECT_TYPE:  // it must not happen
-        case YEV_ACCEPT_TYPE:   // it must not happen
-        case YEV_TIMER_TYPE:
-            if(yev_event->fd > 0) {
-                if(gobj_trace_level(0) & (TRACE_URING)) {
-                    gobj_log_debug(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "close socket",
-                        "msg2",         "%s", "💥🟥 close socket",
-                        "fd",           "%d", yev_event->fd ,
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                }
-                close(yev_event->fd);
-                yev_event->fd = -1;
-            }
-            break;
+     *  Defer the free only while the loop is actively reaping. If this
+     *  event still has a CQE outstanding (it was RUNNING/CANCELING, or a
+     *  cancel was just submitted) and the loop is running, freeing here
+     *  would let a later completion re-enter callback_cqe on freed memory
+     *  (use-after-free). Mark it dying and let callback_cqe free it when
+     *  the last in-flight CQE drains.
+     *
+     *  Once the loop is no longer running (teardown, after yev_loop_run
+     *  returned), no more CQEs are dispatched, so a synchronous free can't
+     *  UAF — and deferring then would leak the event (nothing left to drain
+     *  it). Free synchronously in that case.
+     *-----------------------------------------------------------------*/
+    if(yev_event->in_flight > 0 && yev_loop->running) {
+        yev_event->destroy_requested = TRUE;
+        return;
     }
 
-    GBMEM_FREE(yev_event)
+    really_free_yev_event(yev_event);
 }
 
 /***************************************************************************
