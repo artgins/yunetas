@@ -200,3 +200,32 @@ OOM-path JSON leak, missing-alg-header error message. N/A here: the JWKS-curl
 Content-Length/atol fixes (`jwks-curl.c` is disabled in CMakeLists; JWKS is
 loaded from a config attr). Consider a periodic re-vendor from upstream. Full
 analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
+
+## Security: modules/yunos review — fixed + follow-ups
+
+A security review of `modules/c` (MQTT/Modbus) and `yunos/c` (apps), 2026-06-05,
+landed these fixes on main: Modbus MBAP `length<3` heap-overflow guard
+(`c_prot_modbus_m.c`); dba_postgres SQL-injection (conn-less escaping in
+`record2insertsql`); emailsender CR/LF header/command injection (central reject
+in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
+
+- **F-004 — post-publish reentrancy/UAF (needs_manual_test).** In both codecs
+  (`c_prot_mqtt2.c` ~6688/8099) `priv->protocol_version` etc. are read AFTER a
+  synchronous publish that can cascade into a disconnect/`gobj_destroy`; the
+  `state != ST_DISCONNECTED` guard added by commit 855527770 sits at ~8117,
+  *after* those reads. Whether `priv` is actually freed on that path needs a
+  runtime PoC. Same class as the tcp4h fix (635b06a41).
+- **F-005 — MQTT broker publish-side ACL missing.** Both `mosquitto_acl_check`
+  calls in `c_mqtt_broker.c` are commented out; no `MOSQ_ACL_WRITE` check exists
+  — any client that can connect (gated only by `allow_anonymous`) can publish to
+  any topic. Authorization decision for the broker owner.
+- **F-002/F-003 — MQTT property-length underflow (LOW).** `*len -= 2 + slen`
+  without a `*len >= 2+slen` check, duplicated in `c_prot_mqtt2.c` (~2785) and
+  `c_prot_mqtt.c` (~3463). Pre-auth reachable but bounded by `gbuffer_get` (no
+  OOB) → intra-packet parse desync only; a robustness fix, two files.
+
+Not reviewed for memory-safety (delegated to libpq / lower priority):
+modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs
+command-exec (prior fixes 8c03eb686/5dbede6a1 + authz gating — re-audit if the
+agent's `SDF_WR` command attrs become remote-writable). Findings detail in the
+security-review workspace (`modules/`, `yunos/`).
