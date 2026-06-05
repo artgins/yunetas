@@ -1059,7 +1059,12 @@ PRIVATE int encrypt_data(
                     );
                 }
                 flush_encrypted_data(sskt);
-                flush_clear_data(sskt);
+                if(flush_clear_data(sskt) == -2222) {
+                    // on_clear_data_cb freed sskt re-entrantly inside flush_clear_data;
+                    // do NOT touch sskt again (the loop re-test below would deref it).
+                    GBUFFER_DECREF(gbuf)
+                    return -1;
+                }
                 continue;
 
             default:
@@ -1084,7 +1089,6 @@ PRIVATE int encrypt_data(
         if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, (int)len);
         }
-        gbuffer_get(gbuf, written);    // Pop data
         if(flush_encrypted_data(sskt)<0) {
             // Error already logged
             GBUFFER_DECREF(gbuf)
@@ -1161,7 +1165,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
          * Do NOT touch sskt after this point.
          */
         if(!sskt_alive) {
-            return ret;
+            return -2222; // sskt freed re-entrantly inside on_clear_data_cb; signal callers not to touch it
         }
     }
     sskt->alive = NULL;

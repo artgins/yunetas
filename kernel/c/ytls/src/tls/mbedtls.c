@@ -1045,7 +1045,12 @@ PRIVATE int encrypt_data(
                     return -1;
                 }
                 flush_encrypted_data(sskt); // Send what we have to make progress
-                flush_clear_data(sskt);
+                if(flush_clear_data(sskt) == -2222) {
+                    // on_clear_data_cb freed sskt re-entrantly inside flush_clear_data;
+                    // do NOT touch sskt again (the loop re-test below would deref it).
+                    GBUFFER_DECREF(gbuf);
+                    return -1;
+                }
                 continue;
             } else {
                 char error_buf[256];
@@ -1141,7 +1146,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
              * Do NOT touch sskt after this point.
              */
             if(!sskt_alive) {
-                return ret;
+                return -2222; // sskt freed re-entrantly inside on_clear_data_cb; signal callers not to touch it
             }
         } else {
             gbuffer_decref(gbuf);
