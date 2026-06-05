@@ -54,7 +54,7 @@ The `gbuffer_t` structure includes the following key fields:
 
 ### 4. **Serialization and Encoding**
 - Supports serialization to and from JSON objects.
-- Provides Base64 encoding and decoding for binary data.
+- Provides [Base64](https://datatracker.ietf.org/doc/html/rfc4648) encoding and decoding for binary data.
 
 ### 5. **Utility Functions**
 - Functions for setting markers (`mark`) and labels (`label`).

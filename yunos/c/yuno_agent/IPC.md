@@ -589,7 +589,7 @@ Service gclass subscribes to that and dispatches by URL or method.
 ### 6.4 WebSocket: `C_WEBSOCKET` → `C_PROT_HTTP_SR` → `C_TCP_S`
 
 `C_WEBSOCKET` ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_websocket.c)) handles the HTTP Upgrade handshake then
-parses RFC 6455 frames. Output `EV_ON_MESSAGE` carries either the text or
+parses [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455) frames. Output `EV_ON_MESSAGE` carries either the text or
 binary payload. The `iamServer` attribute ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_websocket.c))
 distinguishes server-mode from client-mode parsing of masked vs unmasked
 frames.
@@ -653,7 +653,7 @@ view it's indistinguishable from another yuno.
 ### 7.1 Handshake
 
 The SPA sends `EV_IDENTITY_CARD` over the WS just like a C client. The
-`jwt` field is typically read from the browser session (Keycloak token,
+`jwt` field is typically read from the browser session ([Keycloak](https://www.keycloak.org/) token,
 see auth memory notes). The server's identity card validation is the
 same code path as for C clients ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c)).
 

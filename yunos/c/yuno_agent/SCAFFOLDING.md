@@ -124,7 +124,7 @@ parses this file at startup to populate the prompts.
 ## 4. The templating engine
 
 `make_skeleton.c` + [`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/yuno-skeleton/tmpl_dir.c). Two substitution layers, both using
-PCRE2 regex.
+[PCRE2](https://www.pcre.org/) regex.
 
 ### 4.1 Content placeholders: `{{varname}}`
 

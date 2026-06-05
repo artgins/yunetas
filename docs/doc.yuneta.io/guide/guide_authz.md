@@ -79,7 +79,7 @@ These are public module-level functions (not GClass methods). They can be passed
     - If no parser is provided, the default mechanism is used.
 
 3. **Validation:**
-    - Credentials are validated, possibly using external systems (e.g., OAuth2, JWT).
+    - Credentials are validated, possibly using external systems (e.g., [OAuth2](https://oauth.net/2/), [JWT](https://datatracker.ietf.org/doc/html/rfc7519)).
 
 4. **Response:**
     - A JSON response indicates authentication success or failure.

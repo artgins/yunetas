@@ -40,7 +40,7 @@ What it provides:
   `OPENSSL_LIBS` / `MBEDTLS_LIBS`, …) that modules pick from in their
   `target_link_libraries()`.
 - ESP32 awareness: skips the Linux-only `_GNU_SOURCE`, external paths and
-  linker flags when building under ESP-IDF.
+  linker flags when building under [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/).
 
 Every module includes it with the same boilerplate:
 

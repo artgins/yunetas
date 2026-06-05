@@ -31,7 +31,7 @@ BFF code names everything as *IdP* (`idp_url`, `idp_calls`, `idp_timeouts`,
 
 Instead of the application ever seeing the user's password, the browser redirects to Keycloak's login page. After the user authenticates, Keycloak redirects back with a short-lived **authorization code**. This code is then exchanged server-side for tokens.
 
-### 2. PKCE (Proof Key for Code Exchange) — RFC 7636
+### 2. PKCE (Proof Key for Code Exchange) — [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)
 
 PKCE prevents authorization code interception attacks. Before redirecting to Keycloak, the browser:
 1. Generates a random `code_verifier` (32 bytes, base64url-encoded)

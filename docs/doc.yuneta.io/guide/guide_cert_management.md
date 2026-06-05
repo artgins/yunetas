@@ -9,7 +9,7 @@ point of failure.
 
 A Yuneta agent can hold thousands of persistent TLS connections (MQTT
 brokers, intake gates, control-plane channels). Whenever the server
-certificate is renewed — typically by Let's Encrypt — we want:
+certificate is renewed — typically by [Let's Encrypt](https://letsencrypt.org/) — we want:
 
 1. **Zero dropped connections** — existing TLS sessions keep working.
 2. **New connections use the new cert** — from the moment the swap

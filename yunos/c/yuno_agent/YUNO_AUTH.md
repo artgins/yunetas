@@ -85,7 +85,7 @@ The same flow in text:
 ## 2. The `auth_bff` yuno — authentication
 
 A standalone Yuneta yuno that runs the [`C_AUTH_BFF`](#gclass-c-auth-bff) kernel gclass. It is
-the **only** thing on the system that talks OAuth2 to the IdP. The SPA
+the **only** thing on the system that talks [OAuth2](https://oauth.net/2/) to the IdP. The SPA
 never sees a token — it just carries the cookie.
 
 ### 2.1 Why a BFF (and not the SPA talking to Keycloak)
@@ -224,7 +224,7 @@ runs **inside `C_AUTHZ`**, not `C_IEVENT_SRV`.
 ### 3.3 Signature verification: libjwt
 
 `kernel/c/libjwt/` — Yuneta vendors a copy of libjwt. The verification
-entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83) in [`jwt-verify.c:83`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83). Keys come from JWKS
+entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83) in [`jwt-verify.c:83`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/libjwt/src/jwt-verify.c#L83). Keys come from [JWKS](https://datatracker.ietf.org/doc/html/rfc7517)
 fetched from the issuer (cached, refreshed on rotation). The crypto
 backend is OpenSSL or mbedTLS, runtime-selectable via the same `ytls`
 abstraction used by TCP.
@@ -477,7 +477,7 @@ boolean. See [`IPC.md`](IPC.md) §6.6 for how TLS is hooked into the
 gate stack.
 
 The interesting operational machinery in production is **certificate
-auto-sync**: keeping cert files fresh as letsencrypt rotates them.
+auto-sync**: keeping cert files fresh as [letsencrypt](https://letsencrypt.org/) rotates them.
 
 ### 6.1 cert_sync — overview
 

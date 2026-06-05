@@ -610,7 +610,7 @@ braced, even single-statement ones. See `CLAUDE.md` for the rationale.
 
 `gobj_publish_event` delivers to every subscriber **synchronously**;
 when the call returns, every subscriber has fully processed the event,
-including any cascades they triggered. Under io_uring this is
+including any cascades they triggered. Under [io_uring](#io-uring) this is
 unforgiving: a single publish can travel up the chain, react with
 `EV_DROP` going down, hit `C_TCP::set_disconnected`, which publishes
 `EV_DISCONNECTED` back up, etc. — your gobj can re-enter `ac_disconnected`

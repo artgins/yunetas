@@ -293,7 +293,7 @@ the deleted key. Two paths:
   `key` filter matches (`""` = any).
 - **Across-process** (`rt_by_disk` followers): the master
   [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422)s `topic/disks/<rt_id>/<key>/` BEFORE the live
-  `keys/<key>/` so the follower's inotify watcher catches it as
+  `keys/<key>/` so the follower's [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) watcher catches it as
   `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
   `key_deleted_callback`. `fire_key_deleted_locally()` is split by
   transport (`fs_followers` flag): the master in-process call
@@ -320,7 +320,7 @@ Memory: `project_tranger2_delete_record_deferred`.
 
 `tranger2_append_record` performs the write but **does not `fsync`**
 ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)). Durability is whatever the OS gives you —
-on EXT4 with the default journal, that's "data on disk within the
+on [EXT4](https://en.wikipedia.org/wiki/Ext4) with the default journal, that's "data on disk within the
 journal commit interval, usually 5 s". If you need stronger guarantees,
 add an explicit `fsync` in the wrapping code, but understand the
 throughput cost.
@@ -628,7 +628,7 @@ two delete primitives operate on it:
 - `tranger2_delete_instance()` tombstones one row of the `.md2` index
   in place (bit `sf_deleted_instance = 0x0400`); readers skip it,
   rowids do not renumber. Opt-in `zero_payload` overwrites the
-  matching bytes in the `.json` for GDPR-style wipes.
+  matching bytes in the `.json` for [GDPR](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation)-style wipes.
 
 Both are master-only and irrecoverable. The append-only contract
 still holds at the data-log level — only the index is mutated.

@@ -2,7 +2,7 @@
 # **TLS**
 
 ## **ytls.h**
-The **ytls.h** header file defines the interface for the TLS (Transport Layer Security) functionality in the Yuneta framework. It provides function declarations and structures for handling secure communication using TLS. Key features include:
+The **ytls.h** header file defines the interface for the [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) (Transport Layer Security) functionality in the Yuneta framework. It provides function declarations and structures for handling secure communication using TLS. Key features include:
 
 - **Initialization & Cleanup:** Functions to initialize and clean up TLS resources.
 - **TLS Context Management:** Creation and management of TLS contexts for secure communication.

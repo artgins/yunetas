@@ -1,7 +1,7 @@
 # Test Suite
 
 Functional and integration tests that verify correctness of every layer —
-from raw io_uring events up to full GObj protocol stacks.
+from raw [io_uring](#io-uring) events up to full GObj protocol stacks.
 All tests are registered as `ctest` targets and run automatically with
 `yunetas test`.
 
@@ -66,7 +66,7 @@ dropping live sessions and rolls back cleanly on invalid material.
 |--------|-------------|
 | **`test_cert_reload`** | Swap cert A → B and confirm `view-cert` reflects the new subject/not_after; feed an invalid cert and verify the previous context is kept intact (rollback). |
 | **`test_cert_info`** | [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L119) edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
-| **`test_cert_reload_mem`** | 1000 reloads without any live session and asserts `get_cur_system_memory() == 0` (leak gate, run under valgrind for exhaustive checking). |
+| **`test_cert_reload_mem`** | 1000 reloads without any live session and asserts `get_cur_system_memory() == 0` (leak gate, run under [valgrind](https://valgrind.org/) for exhaustive checking). |
 | **`test_yevent_reload_live`** | One reload while a TCP session is live; the session keeps working end-to-end. |
 | **`test_yevent_reload_stress`** | 50 reloads with a live session, one echo message per iteration. |
 
