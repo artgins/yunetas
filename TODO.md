@@ -153,3 +153,25 @@ only the `emu_device` test yuno enables it):
   header/`event->name`. Kernel-framed input (low attacker reach), defense-in-depth.
 - Also noted: `publish_new_rt_disk_records` (`timeranger2.c:4872`) doesn't check
   `read_md`'s return before using the record.
+
+## Security: yev_loop — event UAF fix awaiting review
+
+From a security review of `kernel/c/yev_loop` (2026-06-05). The DNS-parser
+hardening (bounds in `static_resolv.c` + unpredictable transaction id) landed
+on main. One finding is parked on a branch for review rather than merged:
+
+- **F-005 use-after-free in `yev_destroy_event`** — destroying a still-running
+  event freed the `yev_event` while its io_uring cancel/op CQE was still in
+  flight; the completion later re-entered `callback_cqe` on freed memory
+  (deref + indirect call through a freed `->callback`). The fix (in-flight CQE
+  refcount + deferred free) is implemented on branch
+  **`fix/yev-destroy-uaf`** (commit 394b00d5f), left UNMERGED: it touches the
+  core reap path reached by every socket/file/timer op. It passes 25 event-loop
+  tests with the mem-not-free check clean, but the UAF itself was not
+  reproduced deterministically (needs an abrupt destroy-while-in-flight + ASAN).
+  Review + decide whether to merge; see the commit message for the load-bearing
+  edge case (stopping-but-still-running teardown).
+- Lower-priority / by-design: the DNS source port is left to the OS ephemeral
+  assignment (RFC 6056 randomized) rather than explicitly randomized — adequate,
+  noted for completeness. `dns_parse_response` record-count/`rdlen` advances are
+  bounded by the existing per-RR guards plus the F-001 decode fix.
