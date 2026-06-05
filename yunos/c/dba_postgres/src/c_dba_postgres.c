@@ -610,6 +610,39 @@ PRIVATE json_t *record2createtable(
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Conn-less SQL escaping. The PGconn lives in the C_POSTGRES child gobj, not
+ *  here, so PQescapeLiteral/Identifier aren't reachable. Field values AND the
+ *  schema arrive over the wire, so everything interpolated into the SQL must be
+ *  escaped to prevent SQL injection.
+ *    identifier: "x"  with any interior " doubled
+ *    literal:    'x'  with any interior ' doubled (safe under PostgreSQL
+ *                standard_conforming_strings, on by default, where backslash is
+ *                an ordinary character)
+ ***************************************************************************/
+PRIVATE void append_sql_identifier(gbuffer_t *gbuf, const char *s)
+{
+    gbuffer_append_char(gbuf, '"');
+    for(; s && *s; s++) {
+        if(*s == '"') {
+            gbuffer_append_char(gbuf, '"');
+        }
+        gbuffer_append_char(gbuf, (uint8_t)*s);
+    }
+    gbuffer_append_char(gbuf, '"');
+}
+PRIVATE void append_sql_literal(gbuffer_t *gbuf, const char *s)
+{
+    gbuffer_append_char(gbuf, '\'');
+    for(; s && *s; s++) {
+        if(*s == '\'') {
+            gbuffer_append_char(gbuf, '\'');
+        }
+        gbuffer_append_char(gbuf, (uint8_t)*s);
+    }
+    gbuffer_append_char(gbuf, '\'');
+}
+
 PRIVATE json_t *record2insertsql(
     hgobj gobj,
     json_t *schema, // not owned
@@ -621,7 +654,9 @@ PRIVATE json_t *record2insertsql(
 
     gbuffer_t *gbuf = gbuffer_create(32*1024, 32*1024);
 
-    gbuffer_printf(gbuf, "INSERT INTO %s (", topic_name);
+    gbuffer_append_string(gbuf, "INSERT INTO ");
+    append_sql_identifier(gbuf, topic_name);
+    gbuffer_append_string(gbuf, " (");
 
     json_t *cols = kw_get_dict(gobj, schema, "cols", 0, KW_REQUIRED);
 
@@ -631,12 +666,10 @@ PRIVATE json_t *record2insertsql(
         if(idx > 0) {
             gbuffer_printf(gbuf, "," );
         }
-        if(use_header) {
-            const char *header = kw_get_str(gobj, col, "header", "", KW_REQUIRED);
-            gbuffer_printf(gbuf, "%s", header);
-        } else {
-            gbuffer_printf(gbuf, "%s", col_name);
-        }
+        const char *cname = use_header
+            ? kw_get_str(gobj, col, "header", "", KW_REQUIRED)
+            : col_name;
+        append_sql_identifier(gbuf, cname);
 
         idx++;
     }
@@ -655,11 +688,18 @@ PRIVATE json_t *record2insertsql(
             CASES("string")
                 json_t *value = kw_get_dict_value(gobj, record, col_name, 0, KW_REQUIRED);
                 if(value) {
-                    char *s = json2uglystr(value);
-                    change_char(s, '"', '\'');
-                    // TODO IMPORTANTE char *ss = PQescapeLiteral(priv->conn, s, strlen(s));
-                    gbuffer_append_string(gbuf, s);
-                    gbmem_free(s);
+                    /*
+                     *  Emit a properly-escaped SQL string literal. The previous
+                     *  json2uglystr + change_char('"','\'') did NOT double interior
+                     *  single quotes -> SQL injection.
+                     */
+                    if(json_is_string(value)) {
+                        append_sql_literal(gbuf, json_string_value(value));
+                    } else {
+                        char *s = json2uglystr(value);
+                        append_sql_literal(gbuf, s?s:"");
+                        gbmem_free(s);
+                    }
                 }
                 break;
 
@@ -672,16 +712,33 @@ PRIVATE json_t *record2insertsql(
             CASES("time")
                 json_t *value = kw_get_dict_value(gobj, record, col_name, 0, KW_REQUIRED);
                 if(value) {
-                    char *s = json2uglystr(value);
-                    char temp[256];
-                    snprintf(temp, sizeof(temp),
-                        "('epoch'::timestamp + %s * '1 second'::interval)", s
-                    );
-                    gbmem_free(s);
-
-                    s = gbmem_strdup(temp);
-                    gbuffer_append_string(gbuf, s);
-                    gbmem_free(s);
+                    /*
+                     *  The time value is interpolated UNQUOTED into an arithmetic
+                     *  expression, so it must be numeric — a string here would be
+                     *  raw SQL injection. Coerce to a number; reject otherwise.
+                     */
+                    if(!json_is_number(value)) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_POSTGRES,
+                            "msg",          "%s", "time column value is not numeric",
+                            "column",       "%s", col_name,
+                            NULL
+                        );
+                        GBUFFER_DECREF(gbuf)
+                        return NULL;
+                    }
+                    if(json_is_integer(value)) {
+                        gbuffer_printf(gbuf,
+                            "('epoch'::timestamp + %"JSON_INTEGER_FORMAT" * '1 second'::interval)",
+                            json_integer_value(value)
+                        );
+                    } else {
+                        gbuffer_printf(gbuf,
+                            "('epoch'::timestamp + %f * '1 second'::interval)",
+                            json_real_value(value)
+                        );
+                    }
                 }
                 break;
 
