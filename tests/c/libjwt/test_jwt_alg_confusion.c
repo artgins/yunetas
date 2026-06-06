@@ -54,6 +54,23 @@ static const char *LEGIT_HS256 =
     "eyJzdWIiOiAibGVnaXQtdXNlciJ9."
     "OCrX7FnQNBRKxGw-s8WYrBGtqjSXKHi6l5ESlRbXTtQ";
 
+/* EC P-256 and Ed25519 (OKP) PUBLIC keys — the asymmetric-confusion siblings
+ * of the RSA case: presenting the same HS256 token against either must be
+ * rejected by the kty<->alg guard. */
+static const char *EC_JWK =
+    "{\"kty\":\"EC\",\"kid\":\"test-ec\",\"crv\":\"P-256\",\"alg\":\"ES256\","
+    "\"x\":\"hdDVnG87UkyLwriVoB2sHO7MUAlgS3QeQMXwVjMoEn8\","
+    "\"y\":\"zOnl6oZn0r0X0Tmfpu2GKuqmKGRukajReTxwX7zPJ9c\"}";
+static const char *OKP_JWK =
+    "{\"kty\":\"OKP\",\"kid\":\"test-okp\",\"crv\":\"Ed25519\",\"alg\":\"EdDSA\","
+    "\"x\":\"5RJJy6yoVz8qPUotL-SwaP95OwC3jHLivx00c7yyY_M\"}";
+
+/* alg:none token (no signature). The classic alg-stripping attack: a checker
+ * bound to a real key/alg must reject it. */
+static const char *NONE_TOKEN =
+    "eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0."
+    "eyJzdWIiOiAiYXR0YWNrZXIiLCAiYWRtaW4iOiB0cnVlfQ.";
+
 /***************************************************************************
  *  Tiny assert harness
  ***************************************************************************/
@@ -92,45 +109,78 @@ static jwk_item_t *load_jwk(jwk_set_t *keyring, const char *jwk_json)
 }
 
 /***************************************************************************
- *  Case 1+2+3: RSA key — forgery rejection (verify + setkey) and the
- *  RS256 positive control.
+ *  Asymmetric-key forgery (RSA / EC / OKP): an HS256 token must never verify
+ *  against an asymmetric key, and that key must not be settable as an HMAC
+ *  key. Parameterized over the three asymmetric key types.
+ *
+ *  NOTE the verify2 contract: it ALWAYS returns the parsed claims (incref'd) —
+ *  success/failure is signalled only by jwt_checker_error(), exactly the flag
+ *  c_authz keys "validated" off (c_authz.c: `if(!jwt_checker->error) validated
+ *  = TRUE;`). Checking the return pointer alone would accept the forgery.
  ***************************************************************************/
-static void test_rsa_key(void)
+static void test_asym_forgery(const char *label, const char *jwk_json,
+    jwt_alg_t native_alg, const char *native_alg_name)
 {
-    printf("RSA key (GHSA-q843 forgery):\n");
+    printf("%s key (GHSA-q843 forgery):\n", label);
 
     jwk_set_t *keyring = jwks_create(NULL);
-    jwk_item_t *rsa = load_jwk(keyring, RSA_JWK);
-    check(rsa != NULL, "RSA JWK parses into a jwk_item");
-    if(rsa == NULL) {
+    jwk_item_t *key = load_jwk(keyring, jwk_json);
+    check(key != NULL, "JWK parses into a jwk_item");
+    if(key == NULL) {
         jwks_free(keyring);
         return;
     }
 
-    /* (3) Positive control: RS256 + RSA must be a valid pairing, so a later
-     *     NULL from verify can only be the HS256 rejection, not a bad setup. */
+    /* Positive control: the key's native alg is a valid pairing, so a later
+     * rejection can only be the HS256 confusion, not a broken setup. */
     jwt_checker_t *ok = jwt_checker_new();
-    check(jwt_checker_setkey(ok, JWT_ALG_RS256, rsa) == 0,
-        "setkey(RS256, RSA) accepted (legit config)");
+    check(jwt_checker_setkey(ok, native_alg, key) == 0,
+        "setkey(native alg, key) accepted (legit config)");
+    printf("        native alg: %s\n", native_alg_name);
 
-    /* (1) The forgery: an HS256 token verified against the RSA-key checker
-     *     must be rejected. NOTE the verify2 contract: it ALWAYS returns the
-     *     parsed claims (incref'd) — success/failure is signalled only by
-     *     jwt_checker_error(), exactly the flag c_authz keys "validated" off
-     *     (c_authz.c: `if(!jwt_checker->error) validated = TRUE;`). Checking the
-     *     return pointer alone would accept the forgery. */
+    /* The forgery: an HS256 token verified against the asymmetric-key checker
+     * must be rejected. */
     json_t *payload = jwt_checker_verify2(ok, FORGED_HS256);
     check(jwt_checker_error(ok) != 0,
-        "verify(HS256 token, RSA-key checker) REJECTED (alg confusion blocked)");
+        "verify(HS256 token, asym-key checker) REJECTED (alg confusion blocked)");
     printf("        reason: %s\n", jwt_checker_error_msg(ok));
     json_decref(payload);
     jwt_checker_free(ok);
 
-    /* (2) The same confusion blocked one layer earlier, at setkey time. */
+    /* The same confusion blocked one layer earlier, at setkey time. */
     jwt_checker_t *bad = jwt_checker_new();
-    check(jwt_checker_setkey(bad, JWT_ALG_HS256, rsa) != 0,
-        "setkey(HS256, RSA) rejected (RSA key cannot be an HMAC key)");
+    check(jwt_checker_setkey(bad, JWT_ALG_HS256, key) != 0,
+        "setkey(HS256, asym key) rejected (cannot be an HMAC key)");
     jwt_checker_free(bad);
+
+    jwks_free(keyring);
+}
+
+/***************************************************************************
+ *  alg:none stripping — a checker bound to a real key/alg must reject a token
+ *  that declares alg=none and carries no signature.
+ ***************************************************************************/
+static void test_alg_none(void)
+{
+    printf("alg:none (stripping attack):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *rsa = load_jwk(keyring, RSA_JWK);
+    if(rsa == NULL) {
+        check(0, "RSA JWK parses for alg:none test");
+        jwks_free(keyring);
+        return;
+    }
+
+    jwt_checker_t *checker = jwt_checker_new();
+    jwt_checker_setkey(checker, JWT_ALG_RS256, rsa);
+
+    json_t *payload = jwt_checker_verify2(checker, NONE_TOKEN);
+    check(jwt_checker_error(checker) != 0,
+        "verify(alg:none token, real-key checker) REJECTED");
+    printf("        reason: %s\n", jwt_checker_error_msg(checker));
+    json_decref(payload);
+    jwt_checker_free(checker);
 
     jwks_free(keyring);
 }
@@ -178,7 +228,10 @@ int main(int argc, char *argv[])
 
     printf("test_jwt_alg_confusion: GHSA-q843-6q5f-w55g regression\n");
 
-    test_rsa_key();
+    test_asym_forgery("RSA", RSA_JWK, JWT_ALG_RS256, "RS256");
+    test_asym_forgery("EC", EC_JWK, JWT_ALG_ES256, "ES256");
+    test_asym_forgery("OKP/EdDSA", OKP_JWK, JWT_ALG_EDDSA, "EdDSA");
+    test_alg_none();
     test_oct_key();
 
     if(failed) {

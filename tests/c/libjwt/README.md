@@ -13,12 +13,22 @@ It mirrors the live reachable path in `kernel/c/root-linux/src/c_authz.c`:
 
 ## Cases
 
-| # | Setup | Expectation |
-|---|-------|-------------|
-| 1 | RSA-key checker (RS256), verify an `HS256` token | rejected — `jwt_checker_error()` set |
-| 2 | `setkey(HS256, RSA jwk)` | rejected — RSA key can't be an HMAC key |
-| 3 | `setkey(RS256, RSA jwk)` | accepted — guard not over-rejecting a legit pairing |
-| 4 | OCT-key checker, verify a genuinely HMAC-signed `HS256` token | accepted — HMAC path still works |
+Asymmetric confusion is checked for all three key families (RSA, EC, OKP/EdDSA),
+each with the same three sub-checks:
+
+| Setup | Expectation |
+|-------|-------------|
+| asym-key checker (native alg), verify an `HS256` token | rejected — `jwt_checker_error()` set |
+| `setkey(HS256, asym jwk)` | rejected — an asymmetric key can't be an HMAC key |
+| `setkey(native alg, asym jwk)` | accepted — guard not over-rejecting a legit pairing |
+
+Plus:
+
+| Setup | Expectation |
+|-------|-------------|
+| real-key checker, verify an `alg:none` (unsigned) token | rejected — "Expected a signature, but JWT has none" |
+| OCT-key checker, verify a genuinely HMAC-signed `HS256` token | accepted — HMAC path still works |
+| (above) verified payload | carries the expected `sub` claim |
 
 **Verify contract (footgun).** `jwt_checker_verify2()` *always* returns the
 parsed claims (incref'd) — success/failure is signalled only by
