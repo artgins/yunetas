@@ -9905,6 +9905,48 @@ PRIVATE int ac_view_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 }
 
 /***************************************************************************
+ *  Confine a caller-supplied read path to the yuneta tree (the same roots the
+ *  dir-* browse commands expose: yuneta_root_dir() and "/yuneta"). realpath()
+ *  canonicalizes "." / ".." and resolves symlinks, so it blocks traversal and
+ *  symlink escapes and requires the file to exist. Returns 0 and fills
+ *  `resolved` on success, -1 if the path is empty, missing, or escapes the
+ *  allowed roots. Closes the arbitrary-file-read surface (e.g. /etc/shadow,
+ *  ~/.ssh) while preserving every legitimate read under the yuneta install.
+ ***************************************************************************/
+PRIVATE BOOL path_is_under(const char *rp, const char *root)
+{
+    if(empty_string(root)) {
+        return FALSE;
+    }
+    size_t n = strlen(root);
+    while(n > 1 && root[n-1] == '/') {
+        n--;  // ignore trailing slashes on the root
+    }
+    if(strncmp(rp, root, n) != 0) {
+        return FALSE;
+    }
+    return rp[n] == '/' || rp[n] == 0;  // exact root or a child, not a sibling prefix
+}
+
+PRIVATE int safe_read_path(const char *filename, char *resolved, size_t resolved_sz)
+{
+    if(empty_string(filename)) {
+        return -1;
+    }
+    char rp[PATH_MAX];
+    if(realpath(filename, rp) == NULL) {
+        return -1;  // missing/unreadable path (also rejects non-existent files)
+    }
+    if(!path_is_under(rp, yuneta_root_dir()) && !path_is_under(rp, "/yuneta")) {
+        return -1;
+    }
+    if(snprintf(resolved, resolved_sz, "%s", rp) >= (int)resolved_sz) {
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -9924,13 +9966,14 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-    if(access(filename, 0)!=0) {
+    char resolved[PATH_MAX];
+    if(safe_read_path(filename, resolved, sizeof(resolved)) < 0) {
         return gobj_send_event(
             src,
             event,
             msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("File '%s' not found", filename),
+                json_sprintf("File '%s' not found or not allowed", filename),
                 0,
                 0,
                 kw  // owned
@@ -9938,7 +9981,7 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-    int fp = open(filename, O_RDONLY|O_CLOEXEC);
+    int fp = open(resolved, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,
@@ -10043,13 +10086,14 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
     }
-    if(access(filename, 0)!=0) {
+    char resolved[PATH_MAX];
+    if(safe_read_path(filename, resolved, sizeof(resolved)) < 0) {
         return gobj_send_event(
             src,
             event,
             msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("File '%s' not found", filename),
+                json_sprintf("File '%s' not found or not allowed", filename),
                 0,
                 0,
                 kw  // owned
@@ -10058,7 +10102,7 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    int fp = open(filename, O_RDONLY|O_CLOEXEC);
+    int fp = open(resolved, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,
@@ -10162,13 +10206,14 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             gobj
         );
     }
-    if(access(filename, 0)!=0) {
+    char resolved[PATH_MAX];
+    if(safe_read_path(filename, resolved, sizeof(resolved)) < 0) {
         return gobj_send_event(
             src,
             event,
             msg_iev_build_response(gobj,
                 -201,
-                json_sprintf("File '%s' not found", filename),
+                json_sprintf("File '%s' not found or not allowed", filename),
                 0,
                 0,
                 kw  // owned
@@ -10177,7 +10222,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         );
     }
     size_t max_size = gbmem_get_maximum_block();
-    uint64_t size = filesize(filename);
+    uint64_t size = filesize(resolved);
     if(size > max_size) {
         return gobj_send_event(
             src,
@@ -10196,7 +10241,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         );
     }
 
-    int fp = open(filename, O_RDONLY|O_CLOEXEC);
+    int fp = open(resolved, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,
