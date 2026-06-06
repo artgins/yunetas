@@ -36,6 +36,23 @@ parsed claims (incref'd) — success/failure is signalled only by
 forgery. The test (and `c_authz`: `if(!jwt_checker->error) validated = TRUE;`)
 key off the error flag.
 
+### Robustness cases (ported from upstream `tests/jwt_security.c`)
+
+Beyond the forgery proper, the test sweeps malformed inputs to confirm the
+parser degrades gracefully rather than crashing or silently accepting:
+
+| Group | Cases | Expectation |
+|-------|-------|-------------|
+| Malformed JWKs | non-string `alg` (int/null/bool); missing `kty`/unknown `kty`; missing RSA `n`/`e`; missing EC `x`/`crv`; missing OKP `x`; non-string `n`/`e`; deeply-nested `n`; bad-base64 `oct` `k`; empty string | handled — rejected via `jwks_item_error()`, or (non-string `alg`) handled without the `alg_str` NULL-deref |
+| Malformed tokens | `NULL`/empty; no/one/many dots; empty header; header-not-JSON; header missing `alg`; invalid `alg`; `alg` as integer; `alg:none` + bad-base64 payload | rejected by a real-key checker, no crash |
+| `jwt_checker_*` NULL-safety | `verify`/`error`/`error_msg`/`setkey` on a NULL checker | no crash, reports failure |
+
+Scope note: upstream also hardens the `jwks_*` keyring API against `NULL`
+(`jwks_item_get(NULL)` / `jwks_free(NULL)`); the vendored v3.2.1+2 copy has
+**not** backported those guards (`jwks_item_get` derefs `jwk_set->head` —
+`jwks.c:201`), so they are deliberately not asserted. Not reachable from
+`c_authz` (the keyring is always valid there) — tracked as a drift item.
+
 ## Fixtures
 
 The JWKs and tokens in the `.c` are deterministically generated (RSA-2048

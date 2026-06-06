@@ -136,10 +136,16 @@ defects from the same review — the `encrypt_data` re-entrant UAF and the doubl
 
 The GHSA-q843-6q5f-w55g algorithm-confusion fix, the full `cfd8902` hardening,
 and an in-tree regression test (`tests/c/libjwt/test_jwt_alg_confusion.c`) all
-shipped in 7.5.2. Remaining (no code change):
+shipped in 7.5.2. The forgery test was **broadened** (malformed JWKs, malformed
+/ `none` / `null` tokens, and `jwt_checker_*` NULL-safety, ported from upstream
+`tests/jwt_security.c` — 48 checks). Remaining (no code change):
 
-- **Broaden the forgery test** toward the rest of upstream's `jwt_security.c`
-  (malformed JWKs, more `none`/`null` variants).
+- **`jwks_*` keyring NULL-safety not backported.** Upstream hardens
+  `jwks_item_get(NULL)` / `jwks_free(NULL)` against a NULL set; the vendored
+  v3.2.1+2 copy still derefs `jwk_set->head` (`jwks.c:201`) and crashes. NOT
+  reachable from `c_authz` (keyring always valid), so left as a low-sev drift
+  item rather than backported; the regression test documents and skips it. Fold
+  into the next re-vendor.
 - **Periodic re-vendor from upstream** — the vendored copy is at v3.2.1+2
   (`375e539`); step-by-step procedure documented in
   [`kernel/c/libjwt/README.md`](kernel/c/libjwt/README.md) (§ Re-vendor

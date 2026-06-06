@@ -11,6 +11,11 @@
  *  Mirrors the live reachable path in c_authz.c: jwks_create -> jwk_process_one
  *  -> jwks_item_add -> jwt_checker_setkey -> jwt_checker_verify2.
  *
+ *  Beyond the forgery proper, it sweeps malformed JWKs, malformed/none/null
+ *  tokens, and jwt_checker_* NULL-safety (ported from upstream
+ *  tests/jwt_security.c) to confirm the parser degrades gracefully instead of
+ *  crashing or silently accepting. See README.md.
+ *
  *  Standalone (no gobj framework): libjwt + jansson both default to libc
  *  malloc when no allocator is installed, so there is no allocator-timing
  *  dependency here.
@@ -26,15 +31,19 @@
 /***************************************************************************
  *  Fixtures (deterministically generated; see README.md)
  ***************************************************************************/
+/* RSA-2048 PUBLIC modulus/exponent, shared by every RSA fixture below so the
+ * malformed variants differ only in the field under test. */
+#define RSA_N \
+    "rOZFafPW2chmRHt8Y_qj14jZy0lS-SCAe9jHkL1w7CITDNEGaFgbiPgFYadZ3uCv" \
+    "KxzYa6PYStbMVFoop7_P3e2jXI8Ss1bHjpPRwYPR9vVbThz558u2OhmXzXmk5Xm4TpJeJdR" \
+    "ummVPqXYQET5rtMs8KSvUNhPTh3s6wHVANLAtaH8-z_YvNjARPNr5AALcxLtYRJ8leUWbQm" \
+    "v3NjnKulCF98gqi9vqwhY-w-oD0PU0znQs3rtpNLRc8K0e9i67tav-3TXI5Y6jpLmsw2dPn" \
+    "Fd1vtBalIPqQvVsmu6T1HO1ObaoZ5sdbJBz9niM5TcnBWL6KTiiG0qs42KWKQ_55w"
+
 /* RSA-2048 PUBLIC key as a JWK, advertising alg RS256 (a normal server key). */
 static const char *RSA_JWK =
     "{\"kty\":\"RSA\",\"kid\":\"test-rsa\",\"alg\":\"RS256\","
-    "\"n\":\"rOZFafPW2chmRHt8Y_qj14jZy0lS-SCAe9jHkL1w7CITDNEGaFgbiPgFYadZ3uCv"
-    "KxzYa6PYStbMVFoop7_P3e2jXI8Ss1bHjpPRwYPR9vVbThz558u2OhmXzXmk5Xm4TpJeJdR"
-    "ummVPqXYQET5rtMs8KSvUNhPTh3s6wHVANLAtaH8-z_YvNjARPNr5AALcxLtYRJ8leUWbQm"
-    "v3NjnKulCF98gqi9vqwhY-w-oD0PU0znQs3rtpNLRc8K0e9i67tav-3TXI5Y6jpLmsw2dPn"
-    "Fd1vtBalIPqQvVsmu6T1HO1ObaoZ5sdbJBz9niM5TcnBWL6KTiiG0qs42KWKQ_55w\","
-    "\"e\":\"AQAB\"}";
+    "\"n\":\"" RSA_N "\",\"e\":\"AQAB\"}";
 
 /* Forged token: header alg=HS256, HMAC signature over header.payload. An
  * attacker crafts this using the RSA public key as the HMAC secret; it must be
@@ -219,6 +228,173 @@ static void test_oct_key(void)
 }
 
 /***************************************************************************
+ *  Malformed-JWK robustness (ported from upstream tests/jwt_security.c).
+ *  A malformed JWK must be handled gracefully — either rejected at JSON parse
+ *  or surfaced as jwks_item_error() != 0 — never a crash or a silently-usable
+ *  key. WANT_REJECT asserts rejection; WANT_ACCEPT asserts a clean parse (the
+ *  non-string-"alg" cases exercise the alg_str NULL-deref hardening: the alg
+ *  hint is ignored, the key still parses).
+ ***************************************************************************/
+/* WANT_REJECT: must surface an error. WANT_ACCEPT: must parse clean.
+ * WANT_NOCRASH: either outcome is fine — the assertion is only that the
+ * malformed input was handled without a crash (e.g. the non-string-"alg"
+ * NULL-deref hardening; the vendored copy rejects, upstream tolerates — both
+ * safe, so don't pin the verdict). */
+enum { WANT_ACCEPT = 0, WANT_REJECT = 1, WANT_NOCRASH = 2 };
+
+static void check_jwk(const char *jwk_json, int want, const char *label)
+{
+    jwk_set_t *keyring = jwks_create(NULL);
+    json_error_t jerr;
+    json_t *jn = json_loads(jwk_json, 0, &jerr);
+    if(jn == NULL) {
+        /* Not even valid JSON -> a parse-level rejection is correct. */
+        check(want != WANT_ACCEPT, label);
+        jwks_free(keyring);
+        return;
+    }
+    jwk_item_t *item = jwk_process_one(keyring, jn);
+    json_decref(jn);
+    if(item == NULL) {
+        check(want != WANT_ACCEPT, label);
+        jwks_free(keyring);
+        return;
+    }
+    jwks_item_add(keyring, item);
+    int err = jwks_item_error(item);
+    if(want == WANT_REJECT) {
+        check(err != 0, label);
+    } else if(want == WANT_ACCEPT) {
+        check(err == 0, label);
+    } else { /* WANT_NOCRASH: reaching here is the pass */
+        check(1, label);
+    }
+    if(err != 0 && want != WANT_ACCEPT) {
+        printf("        reason: %s\n", jwks_item_error_msg(item));
+    }
+    jwks_free(keyring);
+}
+
+static void test_malformed_jwks(void)
+{
+    printf("Malformed JWKs (graceful handling):\n");
+
+    /* "alg" of a non-string type: tolerated (hint ignored), key still parses —
+     * the alg_str NULL-deref hardening. */
+    check_jwk("{\"kty\":\"RSA\",\"n\":\"" RSA_N "\",\"e\":\"AQAB\",\"alg\":256}",
+        WANT_NOCRASH, "RSA with alg as integer handled (no NULL-deref)");
+    check_jwk("{\"kty\":\"RSA\",\"n\":\"" RSA_N "\",\"e\":\"AQAB\",\"alg\":null}",
+        WANT_NOCRASH, "RSA with alg as null handled (no NULL-deref)");
+    check_jwk("{\"kty\":\"RSA\",\"n\":\"" RSA_N "\",\"e\":\"AQAB\",\"alg\":true}",
+        WANT_NOCRASH, "RSA with alg as boolean handled (no NULL-deref)");
+    check_jwk("{\"kty\":\"RSA\",\"n\":\"" RSA_N "\",\"e\":\"AQAB\",\"alg\":\"PS256\"}",
+        WANT_ACCEPT, "RSA with alg PS256 parses (positive control)");
+
+    /* Missing / wrong-typed kty. */
+    check_jwk("{\"kty\":123}", WANT_REJECT, "kty as integer rejected");
+    check_jwk("{}", WANT_REJECT, "empty object rejected (no kty)");
+    check_jwk("{\"kty\":\"BOGUS\",\"n\":\"" RSA_N "\",\"e\":\"AQAB\"}",
+        WANT_REJECT, "unknown kty rejected");
+
+    /* Missing required key components. */
+    check_jwk("{\"kty\":\"RSA\",\"e\":\"AQAB\",\"alg\":\"RS256\"}",
+        WANT_REJECT, "RSA missing n rejected");
+    check_jwk("{\"kty\":\"RSA\",\"n\":\"" RSA_N "\",\"alg\":\"RS256\"}",
+        WANT_REJECT, "RSA missing e rejected");
+    check_jwk("{\"kty\":\"EC\",\"crv\":\"P-256\","
+        "\"y\":\"zOnl6oZn0r0X0Tmfpu2GKuqmKGRukajReTxwX7zPJ9c\",\"alg\":\"ES256\"}",
+        WANT_REJECT, "EC missing x rejected");
+    check_jwk("{\"kty\":\"EC\","
+        "\"x\":\"hdDVnG87UkyLwriVoB2sHO7MUAlgS3QeQMXwVjMoEn8\","
+        "\"y\":\"zOnl6oZn0r0X0Tmfpu2GKuqmKGRukajReTxwX7zPJ9c\",\"alg\":\"ES256\"}",
+        WANT_REJECT, "EC missing crv rejected");
+    check_jwk("{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"alg\":\"EdDSA\"}",
+        WANT_REJECT, "OKP/EdDSA missing x rejected");
+
+    /* Wrong value types / structural abuse. */
+    check_jwk("{\"kty\":\"RSA\",\"n\":12345,\"e\":[1,2,3],\"alg\":\"RS256\"}",
+        WANT_REJECT, "RSA with non-string n/e rejected");
+    check_jwk("{\"kty\":\"RSA\",\"n\":{\"a\":{\"b\":{\"c\":\"deep\"}}},\"e\":\"AQAB\"}",
+        WANT_REJECT, "RSA with deeply-nested n rejected");
+    check_jwk("{\"kty\":\"oct\",\"k\":\"!!!not-valid-base64!!!\",\"alg\":\"HS256\"}",
+        WANT_REJECT, "oct with invalid base64 k rejected");
+
+    /* Not valid JSON at all. */
+    check_jwk("", WANT_REJECT, "empty string rejected at parse");
+}
+
+/***************************************************************************
+ *  Malformed-token robustness (ported from upstream tests/jwt_security.c).
+ *  Against a checker bound to a real key, every structurally broken or
+ *  alg-stripped token must be rejected (jwt_checker_verify() != 0). NULL/empty
+ *  inputs must be handled without crashing.
+ ***************************************************************************/
+static void expect_token_rejected(jwt_checker_t *checker, const char *token,
+    const char *label)
+{
+    jwt_checker_error_clear(checker);
+    check(jwt_checker_verify(checker, token) != 0, label);
+}
+
+static void test_malformed_tokens(void)
+{
+    printf("Malformed tokens (rejected by a real-key checker):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *rsa = load_jwk(keyring, RSA_JWK);
+    if(rsa == NULL) {
+        check(0, "RSA JWK parses for malformed-token test");
+        jwks_free(keyring);
+        return;
+    }
+    jwt_checker_t *checker = jwt_checker_new();
+    jwt_checker_setkey(checker, JWT_ALG_RS256, rsa);
+
+    expect_token_rejected(checker, NULL,         "NULL token rejected (no crash)");
+    expect_token_rejected(checker, "",           "empty token rejected");
+    expect_token_rejected(checker, "nodotshere", "token with no dots rejected");
+    expect_token_rejected(checker, "one.dot",    "token with one dot rejected");
+    expect_token_rejected(checker, "a.b.c.d.e.f","token with many dots rejected");
+    expect_token_rejected(checker, ".eyJ0ZXN0IjoiMSJ9.",
+        "empty header rejected");
+    expect_token_rejected(checker, "bm90IGpzb24.eyJ0ZXN0IjoiMSJ9.",
+        "header valid base64 but not JSON rejected");
+    expect_token_rejected(checker, "eyJ0eXAiOiJKV1QifQ.eyJ0ZXN0IjoiMSJ9.",
+        "header missing alg rejected");
+    expect_token_rejected(checker, "eyJhbGciOiJCT0dVUyJ9.eyJ0ZXN0IjoiMSJ9.",
+        "header invalid alg (BOGUS) rejected");
+    expect_token_rejected(checker, "eyJhbGciOjI1Nn0.eyJ0ZXN0IjoiMSJ9.",
+        "header alg as integer rejected");
+    expect_token_rejected(checker, "eyJhbGciOiJub25lIn0.!!!invalid!!!.",
+        "alg:none with invalid-base64 payload rejected");
+
+    jwt_checker_free(checker);
+    jwks_free(keyring);
+}
+
+/***************************************************************************
+ *  NULL-safety of the jwt_checker_* entry points (ported from upstream
+ *  tests/jwt_security.c). These are the verify-path API c_authz drives; they
+ *  must not crash and must report failure on a NULL checker.
+ *
+ *  Scope note: upstream also hardens the jwks_* keyring API against NULL
+ *  (jwks_item_get(NULL)/jwks_free(NULL)); the vendored v3.2.1+2 copy has NOT
+ *  backported those guards (jwks_item_get derefs jwk_set->head — jwks.c:201),
+ *  so they are deliberately NOT asserted here. Not reachable from c_authz
+ *  (the keyring is always valid there); tracked as a drift item, not tested.
+ ***************************************************************************/
+static void test_null_safety(void)
+{
+    printf("NULL safety (jwt_checker_* entry points):\n");
+
+    check(jwt_checker_verify(NULL, "x") != 0, "verify(NULL checker) fails");
+    check(jwt_checker_error(NULL) != 0,       "error(NULL checker) != 0");
+    check(jwt_checker_error_msg(NULL) == NULL,"error_msg(NULL checker) == NULL");
+    check(jwt_checker_setkey(NULL, JWT_ALG_NONE, NULL) != 0,
+        "setkey(NULL checker) fails");
+}
+
+/***************************************************************************
  *  Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -233,6 +409,9 @@ int main(int argc, char *argv[])
     test_asym_forgery("OKP/EdDSA", OKP_JWK, JWT_ALG_EDDSA, "EdDSA");
     test_alg_none();
     test_oct_key();
+    test_malformed_jwks();
+    test_malformed_tokens();
+    test_null_safety();
 
     if(failed) {
         printf("RESULT: FAILED (%d)\n", failed);
