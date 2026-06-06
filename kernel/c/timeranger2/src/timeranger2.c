@@ -3385,6 +3385,45 @@ PUBLIC int tranger2_delete_instance(
             // Error already logged
             return -1;
         }
+
+        /*
+         *  Bound the wipe to within the data file before zeroing. payload_offset/
+         *  payload_size come straight off the on-disk md row; a forged/corrupt
+         *  header would otherwise drive a zeroing write across an arbitrary span
+         *  of the data file (cross-record overwrite / data-destruction). Same
+         *  offset+size-vs-filesize validation as read_record_content. Order
+         *  matters: check offset <= filesize first so the subtraction can't wrap.
+         */
+        struct stat data_st;
+        if(fstat(data_fd, &data_st) < 0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "fstat() on data file FAILED",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+        if(payload_offset > (uint64_t)data_st.st_size ||
+                payload_size > (uint64_t)data_st.st_size - payload_offset) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Bad on-disk record: __offset__/__size__ out of range; refusing payload wipe",
+                "topic",        "%s", topic_name,
+                "key",          "%s", key,
+                "offset",       "%lu", (unsigned long)payload_offset,
+                "size",         "%lu", (unsigned long)payload_size,
+                "filesize",     "%lu", (unsigned long)data_st.st_size,
+                NULL
+            );
+            return -1;
+        }
+
         off_t off_ = lseek(data_fd, (off_t)payload_offset, SEEK_SET);
         if(off_ != (off_t)payload_offset) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,

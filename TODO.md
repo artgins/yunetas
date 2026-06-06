@@ -137,19 +137,20 @@ deterministic test and would benefit from an execution-verified PoC.)
 From a security review of `kernel/c/timeranger2` (2026-06-05). The on-disk
 md2 record header (`__offset__`/`__size__`, big-endian) is read and used to
 drive I/O. The dominant read sink (`read_record_content`) was hardened in the
-`fix(timeranger2): validate on-disk md2 record offset/size ...` commit. Two
-follow-ups remain, both **contingent on the on-disk topic files being a trust
-boundary** — which is LOCAL only (replication is by hard-link, same host/fs)
-and OFF by default in production (`rt_by_disk=FALSE` in `c_mqtt_broker`/`c_node`;
-only the `emu_device` test yuno enables it):
+`fix(timeranger2): validate on-disk md2 record offset/size ...` commit. The
+follow-ups below are now all **DONE**; they were **contingent on the on-disk
+topic files being a trust boundary** — which is LOCAL only (replication is by
+hard-link, same host/fs) and OFF by default in production (`rt_by_disk=FALSE` in
+`c_mqtt_broker`/`c_node`; only the `emu_device` test yuno enables it):
 
-- **`tranger2_delete_instance` zero-payload write loop** (`timeranger2.c:3288`)
-  uses disk `__offset__`/`__size__` to drive a zeroing `write` into the data
-  file with no span-within-own-segment guard — a forged header gives a
-  cross-record overwrite/data-destruction primitive. Add the same
-  offset+size-vs-filesize validation there (and ideally a same-segment check).
-  STILL OPEN — this is a write path in core persistence; held for a careful
-  pass rather than batched with the read-side guards.
+- **`tranger2_delete_instance` zero-payload write loop — DONE.** Before zeroing,
+  it now `fstat`s the data file and rejects the wipe (LOG_CRITICAL + return -1)
+  if `payload_offset`/`payload_size` (straight off the on-disk md row) don't lie
+  within the file — same offset+size-vs-filesize validation as
+  `read_record_content`, offset-checked first so the subtraction can't wrap.
+  This removes the cross-record overwrite / data-destruction primitive a forged
+  header gave. (A finer same-segment check would need segment boundaries; the
+  file-bound guard is the primary fix and matches the read sink.)
 - **`fs_watcher.c` inotify parse loop — DONE.** The loop now bounds each event
   to the buffer (header fits + `sizeof(event)+event->len` within `buffer+len`)
   before dereferencing `event->len`/`event->name`. Kernel-framed input (low
