@@ -219,9 +219,18 @@ were already backported in `f85c26031`. N/A here: the JWKS-curl
 Content-Length/atol fixes (`jwks-curl.c` is disabled in CMakeLists; JWKS is
 loaded from a config attr).
 
-Remaining (no code change): **port upstream's `jwt_security.c` test suite** (no
-in-tree forgery regression test) and a periodic re-vendor from upstream. Full
-analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
+Test coverage **DONE**: `tests/c/libjwt/test_jwt_alg_confusion.c` is the in-tree
+regression test for the GHSA-q843 forgery (RSA-key checker rejects an HS256
+token; setkey HS256+RSA rejected; RS256+RSA and legit HMAC positive controls).
+Wired into ctest (`libjwt/test_jwt_alg_confusion`), passes. It is a focused
+equivalent of upstream's `jwt_security.c` rather than a verbatim port (no jwt
+test harness existed; this one is standalone). Pins down the verify2 footgun
+too: `jwt_checker_verify2` returns the claims even on failure — only
+`jwt_checker_error()` is authoritative (the flag `c_authz` keys off).
+
+Remaining (no code change): broaden to the rest of upstream's `jwt_security.c`
+cases (EC/EdDSA confusion, `none` alg, malformed JWKs) and a periodic re-vendor
+from upstream. Full analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
 
 ## Security: modules/yunos review — fixed + follow-ups
 
