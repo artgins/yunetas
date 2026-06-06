@@ -228,9 +228,12 @@ test harness existed; this one is standalone). Pins down the verify2 footgun
 too: `jwt_checker_verify2` returns the claims even on failure — only
 `jwt_checker_error()` is authoritative (the flag `c_authz` keys off).
 
-Remaining (no code change): broaden to the rest of upstream's `jwt_security.c`
-cases (EC/EdDSA confusion, `none` alg, malformed JWKs) and a periodic re-vendor
-from upstream. Full analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
+The test now also covers EC/EdDSA confusion and `alg:none` stripping. Remaining
+(no code change): broaden toward the rest of upstream's `jwt_security.c`
+(malformed JWKs, more `none`/`null` variants) and a periodic re-vendor from
+upstream — concrete re-vendor procedure now documented in
+[`kernel/c/libjwt/README.md`](kernel/c/libjwt/README.md) (§ Re-vendor procedure).
+Full analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
 
 ## Security: modules/yunos review — fixed + follow-ups
 

@@ -57,27 +57,60 @@ A security review of this vendored copy against upstream was done on
 - **`cfd8902` (reachable subset):** JWK octet/RSA-PSS NULL+bounds guards
   (`openssl/jwk-parse.c`), `strncpy` in `jwt_copy_error` (`jwt-private.h`),
   and a `volatile` constant-time compare (`jwt-memory.c`).
+- **`cfd8902` (low-severity remainder):** key-material scrub before free
+  (portable `jwt_scrub_and_free` in `jwt-private.h` for the HMAC key in
+  `jwks.c`; `OPENSSL_cleanse` for the PEM in `openssl/jwk-parse.c`),
+  `secure_getenv` for crypto-provider selection (`jwt-crypto-ops.c`),
+  builder/checker OOM-path JSON leak (`jwt-builder.c`/`jwt-checker.c`), and the
+  missing-alg-header error message (`jwt-verify.c`).
+- **Forgery regression test:** [`tests/c/libjwt/test_jwt_alg_confusion.c`](../../../tests/c/libjwt/test_jwt_alg_confusion.c)
+  pins the GHSA-q843 fix shut (RSA/EC/OKP confusion + `alg:none` + positive
+  controls), wired into ctest. A focused equivalent of upstream's
+  `jwt_security.c`, not a verbatim port.
 
 ### Still to do — see the repo [`TODO.md`](../../../TODO.md)
 
-- **Port upstream's `jwt_security.c` test suite** (76 cases incl. the
-  forgery PoC). This tree has **no jwt-level test harness**, so the
-  forgery rejection is not covered by a deterministic test here — the
-  backport is a faithful port of the official fix, build- and
-  no-regression-verified (`c_auth_bff` RS256 flow) only.
-- **Remaining `cfd8902` items (lower severity):** key-material scrub
-  before free (`OPENSSL_cleanse`), `secure_getenv` for crypto-provider
-  selection, builder/checker OOM-path JSON leak, missing-alg-header error
-  message. N/A here: the JWKS-curl `Content-Length`/`atol` fixes
-  (`jwks-curl.c` is disabled in CMakeLists; JWKS is loaded from a config
-  attr, not libjwt's curl path).
-- **Consider a periodic re-vendor from upstream** rather than carrying a
-  growing backport list. Full analysis lives in the security-review
-  workspace `UPSTREAM-DRIFT.md`.
+- **Broaden the forgery test** toward the rest of upstream's `jwt_security.c`
+  (malformed JWKs, more `none`/`null` variants).
+- **N/A here:** the JWKS-curl `Content-Length`/`atol` fixes (`jwks-curl.c` is
+  disabled in CMakeLists; JWKS is loaded from a config attr, not libjwt's curl
+  path). Re-classify if the curl backend is ever enabled.
+- **Periodic re-vendor from upstream** rather than growing the backport list —
+  procedure below. Full analysis lives in the security-review workspace
+  `UPSTREAM-DRIFT.md`.
 
-When re-checking the gap: the upstream clone at
-`/yuneta/development/projects/libjwt.original` is `git pull`ed on demand,
-so re-derive `375e539..<new HEAD>` if it has moved.
+### Re-vendor procedure
+
+The upstream clone lives at `/yuneta/development/projects/libjwt.original`
+(OpenSSL+Jansson subset only — this tree does not compile gnutls/mbedtls or
+`jwks-curl.c`). To re-check drift and pull fixes:
+
+```bash
+# 1. Refresh upstream and re-derive the gap from the recorded base.
+cd /yuneta/development/projects/libjwt.original && git pull
+git log --oneline 375e539..HEAD        # base is upstream 375e539 (v3.2.1+2)
+
+# 2. For each new commit, classify: SEC / BUG / N-A (file not in our subset).
+#    Map hunks carefully — the vendored copy SPLIT jwt-common.c into
+#    jwt-builder.c + jwt-checker.c, so every jwt-common.c hunk lands in BOTH.
+
+# 3. Backport SEC/reachable-BUG hunks by hand into kernel/c/libjwt/src/**,
+#    matching local style (tabs; builder/checker use 4-space). Keep the
+#    backend-agnostic headers free of an OpenSSL dependency.
+
+# 4. Rebuild + run the regression test.
+cd /yuneta/development/yunetas/kernel/c/libjwt/build && make install
+cd /yuneta/development/yunetas/tests/c/libjwt/build && cmake .. && make \
+    && ./test_jwt_alg_confusion
+
+# 5. Update the recorded base commit + the lists above, and relink the JWT
+#    consumers (auth_bff + the agent's OAuth2 path) per TODO.md.
+```
+
+When the backport list outgrows hand-porting, the cleaner move is a full
+re-vendor: drop in upstream's OpenSSL+Jansson sources at a new tagged release,
+re-apply the local split + the `// ArtGins` additions (e.g. `jwt_checker_verify2`,
+`jwk_process_one`/`jwks_item_add` exports), and re-run the test.
 
 ## Public API
 
