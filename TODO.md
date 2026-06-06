@@ -97,19 +97,64 @@ Impact: **broken access control** — any *authenticated* principal can run any
 issue: authentication is enforced upstream (the `st_session` FSM gate plus the
 explicit `authenticated` recheck at `c_ievent_srv.c:1492`).
 
-Re-enabling is the canonical fix but is **not** a blind change — the role model
-is data-driven (the `c_authz` treedb). Before re-arming the block:
+Re-enabling is the canonical fix but is **not** a blind change. A deeper
+analysis (2026-06-06) found a migration landmine that makes a naive re-arm
+unsafe:
 
-1. Enumerate which roles/permissions the `SDF_AUTHZ_X` commands require.
-2. Confirm internal `src`=self callers are granted (e.g. `c_mqtt_broker.c:4411`,
-   `c_yuno.c:5305`) so internal command flows don't break.
-3. Re-arm `command_parser.c:86-124`; do **not** substitute transport-layer authz
-   (that proves identity, not permission).
-4. Regression-test internal command paths after.
+### The deny-all landmine
 
-Found by a security review of gobj-c (finding f002, 2026-06-05). Note:
-`gobj_user_has_authz` also fails open (`gobj.c:9451` returns TRUE when no checker
-is registered) — keep in mind if the checker is ever deregistered.
+`entry_point.c` registers `authz_checker` (from `c_authz.c`) as the global
+checker **by default in every root-linux yuno** (`entry_point.c:85,499`). That
+checker is **fail-closed**: if it can't find a running `C_AUTHZ` service
+(`gobj_find_service_by_gclass(C_AUTHZ, TRUE)`), it returns `FALSE` — deny.
+But a `C_AUTHZ` service is instantiated only by a few yunos (mqtt_broker,
+yuno_agent, controlcenter); **most yunos don't run one.**
+
+So simply un-commenting `command_parser.c:86-124` would, on every yuno without
+a `C_AUTHZ` service, **deny all ~133 `SDF_AUTHZ_X` commands** — including
+internal flows (cert reload, node/treedb CRUD). Widespread breakage. The
+`gobj.c:9451` fail-open (`TRUE` when no checker) is *not* reached in practice
+because the checker is always registered.
+
+### Resolution model (verified)
+
+`gobj_user_has_authz(gobj, "__execute_command__", kw, src)` →
+per-gclass `mt_authz_checker` (none defined) → global `authz_checker` →
+else `TRUE`. `authz_checker` pulls `__username__` from `kw`, else from
+`src`'s attr; missing → deny. `__execute_command__` is a global authz
+(`gobj.c` `global_authz_table`); permissions come from the `c_authz` treedb
+role model. There is **no `src==gobj` self bypass** today, so internal
+`gobj_command(child, "...", ..., child)` calls (e.g. `c_yuno.c` cert-reload
+walk, `c_yuno.c:5305/5350`) would be denied.
+
+### Re-arm plan (for the framework owner to decide)
+
+1. **Pick a migration posture** (policy call):
+   - *Gated opt-in (recommended):* a yuno attr `enable_command_authz`
+     (default FALSE); the check runs only when ON. Zero breakage by default;
+     authz-using deployments opt in. Closes the hole where authz is actually
+     configured.
+   - *Fail-open without C_AUTHZ:* re-arm + make `authz_checker` **allow** when
+     no `C_AUTHZ` service is configured (enforce only where authz exists).
+   - *Strict:* always enforce; breaks every non-authz yuno until roles are
+     configured.
+2. **Add a `src==gobj` self bypass** (needed in all postures) so internal
+   self-issued commands aren't denied — at the `command_parser` SDF_AUTHZ_X
+   gate or in `gobj_user_has_authz`.
+3. **Fix the leak in the commented block**: the `kw_authz` built with
+   `json_pack`/`json_object_set` is never `decref`'d — must be freed on re-arm.
+4. Enumerate which roles/permissions the `SDF_AUTHZ_X` commands require
+   (data-driven via the `c_authz` treedb).
+5. Confirm internal `src`=self / `__username__`-bearing callers are granted
+   (e.g. `c_mqtt_broker.c:1008/1124` pass `__username__` in `kw` — good
+   pattern; the `c_yuno.c` cert walk relies on the self bypass).
+6. Re-arm `command_parser.c:86-124`; do **not** substitute transport-layer
+   authz (that proves identity, not permission).
+7. Regression-test internal command paths after.
+
+Found by a security review of gobj-c (finding f002, 2026-06-05; deepened
+2026-06-06). **Deferred to the framework owner** — the posture in step 1 is a
+deployment-policy decision, not a mechanical fix. No code changed yet.
 
 ## Security: ytls TLS posture (deployment decisions)
 
