@@ -143,34 +143,39 @@ boundary** — which is LOCAL only (replication is by hard-link, same host/fs)
 and OFF by default in production (`rt_by_disk=FALSE` in `c_mqtt_broker`/`c_node`;
 only the `emu_device` test yuno enables it):
 
-- **`tranger2_delete_instance` zero-payload write loop** (`timeranger2.c:3404`)
+- **`tranger2_delete_instance` zero-payload write loop** (`timeranger2.c:3288`)
   uses disk `__offset__`/`__size__` to drive a zeroing `write` into the data
   file with no span-within-own-segment guard — a forged header gives a
   cross-record overwrite/data-destruction primitive. Add the same
   offset+size-vs-filesize validation there (and ideally a same-segment check).
-- **`fs_watcher.c:368` inotify parse loop** advances `ptr += sizeof(event) +
-  event->len` with no remaining-bytes guard before dereferencing the next
-  header/`event->name`. Kernel-framed input (low attacker reach), defense-in-depth.
-- Also noted: `publish_new_rt_disk_records` (`timeranger2.c:4872`) doesn't check
-  `read_md`'s return before using the record.
+  STILL OPEN — this is a write path in core persistence; held for a careful
+  pass rather than batched with the read-side guards.
+- **`fs_watcher.c` inotify parse loop — DONE.** The loop now bounds each event
+  to the buffer (header fits + `sizeof(event)+event->len` within `buffer+len`)
+  before dereferencing `event->len`/`event->name`. Kernel-framed input (low
+  attacker reach), defense-in-depth.
+- **`publish_new_rt_disk_records` (`timeranger2.c`) — DONE.** Now checks
+  `read_md`'s return and `continue`s on failure (the struct is uninitialized on
+  a failed read, so the prior code fed garbage `__offset__`/`__size__` into
+  `is_deleted_instance` / `read_record_content`).
 
-## Security: yev_loop — event UAF fix awaiting review
+## Security: yev_loop — event UAF fix (MERGED)
 
 From a security review of `kernel/c/yev_loop` (2026-06-05). The DNS-parser
 hardening (bounds in `static_resolv.c` + unpredictable transaction id) landed
-on main. One finding is parked on a branch for review rather than merged:
+on main.
 
-- **F-005 use-after-free in `yev_destroy_event`** — destroying a still-running
-  event freed the `yev_event` while its io_uring cancel/op CQE was still in
-  flight; the completion later re-entered `callback_cqe` on freed memory
-  (deref + indirect call through a freed `->callback`). The fix (in-flight CQE
-  refcount + deferred free) is implemented on branch
-  **`fix/yev-destroy-uaf`** (commit 394b00d5f), left UNMERGED: it touches the
-  core reap path reached by every socket/file/timer op. It passes 25 event-loop
-  tests with the mem-not-free check clean, but the UAF itself was not
-  reproduced deterministically (needs an abrupt destroy-while-in-flight + ASAN).
-  Review + decide whether to merge; see the commit message for the load-bearing
-  edge case (stopping-but-still-running teardown).
+- **F-005 use-after-free in `yev_destroy_event` — DONE (merged 60d531d31).**
+  Destroying a still-running event freed the `yev_event` while its io_uring
+  cancel/op CQE was still in flight; the completion later re-entered
+  `callback_cqe` on freed memory (deref + indirect call through a freed
+  `->callback`). Fixed with an in-flight CQE refcount + deferred free
+  (`really_free_yev_event` / `track_submit` / `destroy_requested` in
+  `yev_loop.c`). Merged on main (was branch `fix/yev-destroy-uaf`, commit
+  394b00d5f). Caveat retained for completeness: the UAF itself was not
+  reproduced deterministically (would need an abrupt destroy-while-in-flight +
+  ASAN); the accounting is safe only while multishot accept stays disabled
+  (`multishot_available=0`), since multishot yields many CQEs per submit.
 - Lower-priority / by-design: the DNS source port is left to the OS ephemeral
   assignment (RFC 6056 randomized) rather than explicitly randomized — adequate,
   noted for completeness. `dns_parse_response` record-count/`rdlen` advances are
@@ -234,10 +239,14 @@ in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
   from both gclasses), not merely wired. Any client that can connect (gated only
   by `allow_anonymous`) can publish to any topic. Deferred — broker-owner
   design decision.
-- **F-002/F-003 — MQTT property-length underflow (LOW).** `*len -= 2 + slen`
-  without a `*len >= 2+slen` check, duplicated in `c_prot_mqtt2.c` (~2785) and
-  `c_prot_mqtt.c` (~3463). Pre-auth reachable but bounded by `gbuffer_get` (no
-  OOB) → intra-packet parse desync only; a robustness fix, two files.
+- **F-002/F-003 — MQTT property-length underflow (LOW) — DONE in C_PROT_MQTT2.**
+  `property_read` (`c_prot_mqtt2.c`) now routes every `2+slen` string/binary
+  decrement through `property_len_consume()`, which rejects the packet (malformed)
+  instead of letting the unsigned `*len` wrap and desync the property parse. The
+  4 sites (string, binary, user-property×2) are covered. The mirror in
+  `c_prot_mqtt.c` (~3463) was intentionally NOT patched — that gclass is
+  DEPRECATED (see the C_PROT_MQTT deprecation note); it stays a robustness-only
+  desync (bounded by `gbuffer_get`, no OOB) until removed.
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs
