@@ -2,6 +2,12 @@
  *          C_MQTT.H
  *          GClass of MQTT protocol.
  *
+ *  ⚠️ DEPRECATED — do NOT use in new developments.
+ *  C_PROT_MQTT is kept only until the gates still using it migrate to
+ *  C_PROT_MQTT2. Use c_prot_mqtt2.h (C_PROT_MQTT2), the complete MQTT
+ *  implementation, for all new work. This gclass will be removed once the
+ *  last consumer migrates.
+ *
  *  Implementation of the MQTT protocol.
  *
 
