@@ -2668,6 +2668,29 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
     "user-property" is stored as a JSON array to support duplicate keys (MQTT spec §2.2.2.2)
 
 ***************************************************************************/
+/***************************************************************************
+ *  Subtract `consumed` from the remaining property-length `*len`, rejecting
+ *  the packet if it would underflow. `*len` is uint32: a string/binary whose
+ *  2+slen exceeds the declared property length would wrap it to a huge value
+ *  and desync the rest of the property parse. Returns -1 (malformed) on
+ *  underflow, 0 otherwise. (F-002/F-003)
+ ***************************************************************************/
+PRIVATE int property_len_consume(hgobj gobj, uint32_t *len, uint32_t consumed, const char *property_name)
+{
+    if(*len < consumed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "MQTT property length underflow",
+            "property",     "%s", property_name?property_name:"",
+            NULL
+        );
+        return -1;
+    }
+    *len -= consumed;
+    return 0;
+}
+
 PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *all_properties)
 {
     uint8_t byte;
@@ -2782,7 +2805,11 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 JSON_DECREF(property);
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            *len = (*len) - 2 - slen1; /* uint16, string len */
+            if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
+                // Error already logged
+                JSON_DECREF(property);
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
             json_object_set_new(property, "value", json_stringn(str1, slen1));
             break;
 
@@ -2793,7 +2820,11 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 JSON_DECREF(property);
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            *len = (*len) - 2 - slen1; /* uint16, binary len */
+            if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
+                // Error already logged
+                JSON_DECREF(property);
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
 
             // Save binary data in base64
             gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(str1, slen1);
@@ -2807,14 +2838,22 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 JSON_DECREF(property);
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            *len = (*len) - 2 - slen1; /* uint16, string len */
+            if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
+                // Error already logged
+                JSON_DECREF(property);
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
 
             if(mqtt_read_string(gobj, gbuf, &str2, &slen2)<0) {
                 // Error already logged
                 JSON_DECREF(property);
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            *len = (*len) - 2 - slen2; /* uint16, string len */
+            if(property_len_consume(gobj, len, 2 + (uint32_t)slen2, property_name)<0) {
+                // Error already logged
+                JSON_DECREF(property);
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
 
             json_object_set_new(property, "name", json_stringn(str1, slen1));
             json_object_set_new(property, "value", json_stringn(str2, slen2));
