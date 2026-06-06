@@ -2,6 +2,11 @@
 
 Tracks API renames, removals and additions between versions.
 
+> The 2026-06 security-hardening batch (gobj-c / root-linux / ytls / yev_loop /
+> timeranger2 / libjwt / modbus / dba_postgres / emailsender / mqtt) shipped in
+> **7.5.2** — see [`CHANGELOG.md`](CHANGELOG.md). Only the still-open follow-ups
+> remain below.
+
 ## Auth: OIDC migration follow-ups
 
 The `c_auth_bff` (BFF) and `c_task_authenticate` (ROPC task) gclasses
@@ -110,7 +115,9 @@ is registered) — keep in mind if the checker is ever deregistered.
 
 From a security review of `kernel/c/ytls` (2026-06-05). These are
 configuration/posture choices, not memory-safety bugs — they need a policy
-decision, so they're tracked here rather than blindly changed.
+decision, so they're tracked here rather than blindly changed. (The memory-safety
+defects from the same review — the `encrypt_data` re-entrant UAF and the double
+`gbuffer_get` — shipped in 7.5.2.)
 
 - **Protocol floor hardcoded to SSLv3/TLS1.0** (`src/tls/openssl.c:367`,
   `min_proto_version=0`). There is **no config knob** to raise it, so embedders
@@ -125,167 +132,41 @@ decision, so they're tracked here rather than blindly changed.
 - **TLS renegotiation left enabled** (`SSL_OP_NO_RENEGOTIATION` is commented
   out, openssl backend). Consider disabling unless a use case needs it.
 
-(The memory-safety/integrity defects found in the same review — the
-encrypt_data re-entrant UAF and the double `gbuffer_get` — were fixed
-separately; see the `fix(ytls): re-entrant UAF in encrypt_data ...` commit.
-The UAF's reachability — `SSL_write` returning WANT_* during egress while the
-app frees the session from `on_clear_data_cb` — was not reproduced in a
-deterministic test and would benefit from an execution-verified PoC.)
+## Security: vendored libjwt — maintenance follow-ups
 
-## Security: timeranger2 on-disk record hardening (contingent / local)
+The GHSA-q843-6q5f-w55g algorithm-confusion fix, the full `cfd8902` hardening,
+and an in-tree regression test (`tests/c/libjwt/test_jwt_alg_confusion.c`) all
+shipped in 7.5.2. Remaining (no code change):
 
-From a security review of `kernel/c/timeranger2` (2026-06-05). The on-disk
-md2 record header (`__offset__`/`__size__`, big-endian) is read and used to
-drive I/O. The dominant read sink (`read_record_content`) was hardened in the
-`fix(timeranger2): validate on-disk md2 record offset/size ...` commit. The
-follow-ups below are now all **DONE**; they were **contingent on the on-disk
-topic files being a trust boundary** — which is LOCAL only (replication is by
-hard-link, same host/fs) and OFF by default in production (`rt_by_disk=FALSE` in
-`c_mqtt_broker`/`c_node`; only the `emu_device` test yuno enables it):
+- **Broaden the forgery test** toward the rest of upstream's `jwt_security.c`
+  (malformed JWKs, more `none`/`null` variants).
+- **Periodic re-vendor from upstream** — the vendored copy is at v3.2.1+2
+  (`375e539`); step-by-step procedure documented in
+  [`kernel/c/libjwt/README.md`](kernel/c/libjwt/README.md) (§ Re-vendor
+  procedure). N/A here: the JWKS-curl `Content-Length`/`atol` fixes
+  (`jwks-curl.c` is disabled in CMakeLists). Full drift analysis: the
+  security-review workspace `UPSTREAM-DRIFT.md`.
 
-- **`tranger2_delete_instance` zero-payload write loop — DONE.** Before zeroing,
-  it now `fstat`s the data file and rejects the wipe (LOG_CRITICAL + return -1)
-  if `payload_offset`/`payload_size` (straight off the on-disk md row) don't lie
-  within the file — same offset+size-vs-filesize validation as
-  `read_record_content`, offset-checked first so the subtraction can't wrap.
-  This removes the cross-record overwrite / data-destruction primitive a forged
-  header gave. (A finer same-segment check would need segment boundaries; the
-  file-bound guard is the primary fix and matches the read sink.)
-- **`fs_watcher.c` inotify parse loop — DONE.** The loop now bounds each event
-  to the buffer (header fits + `sizeof(event)+event->len` within `buffer+len`)
-  before dereferencing `event->len`/`event->name`. Kernel-framed input (low
-  attacker reach), defense-in-depth.
-- **`publish_new_rt_disk_records` (`timeranger2.c`) — DONE.** Now checks
-  `read_md`'s return and `continue`s on failure (the struct is uninitialized on
-  a failed read, so the prior code fed garbage `__offset__`/`__size__` into
-  `is_deleted_instance` / `read_record_content`).
+## Security: MQTT broker — open follow-ups
 
-## Security: yev_loop — event UAF fix (MERGED)
+The Modbus / dba_postgres / emailsender / MQTT property-length-underflow fixes
+shipped in 7.5.2. The F-004 post-publish UAF was analyzed and ruled a likely
+false positive (publish delivery bottoms out in async io_uring `EV_TX_DATA`, so
+the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
 
-From a security review of `kernel/c/yev_loop` (2026-06-05). The DNS-parser
-hardening (bounds in `static_resolv.c` + unpredictable transaction id) landed
-on main.
-
-- **F-005 use-after-free in `yev_destroy_event` — DONE (merged 60d531d31).**
-  Destroying a still-running event freed the `yev_event` while its io_uring
-  cancel/op CQE was still in flight; the completion later re-entered
-  `callback_cqe` on freed memory (deref + indirect call through a freed
-  `->callback`). Fixed with an in-flight CQE refcount + deferred free
-  (`really_free_yev_event` / `track_submit` / `destroy_requested` in
-  `yev_loop.c`). Merged on main (was branch `fix/yev-destroy-uaf`, commit
-  394b00d5f). Caveat retained for completeness: the UAF itself was not
-  reproduced deterministically (would need an abrupt destroy-while-in-flight +
-  ASAN); the accounting is safe only while multishot accept stays disabled
-  (`multishot_available=0`), since multishot yields many CQEs per submit.
-- Lower-priority / by-design: the DNS source port is left to the OS ephemeral
-  assignment (RFC 6056 randomized) rather than explicitly randomized — adequate,
-  noted for completeness. `dns_parse_response` record-count/`rdlen` advances are
-  bounded by the existing per-RR guards plus the F-001 decode fix.
-
-## Security: vendored libjwt is behind upstream — follow-ups
-
-The vendored libjwt (`kernel/c/libjwt`) is at **upstream v3.2.1+2 (375e539)**,
-26 commits behind v3.3.3. A security review (2026-06-05) backported the two
-reachable items that landed on main:
-
-- **CRITICAL — done:** `49c730a` / GHSA-q843-6q5f-w55g algorithm-confusion JWT
-  forgery (RSA/EC JWK used as HMAC key). Was reachable from `c_authz.c`'s verify
-  loop (RS256 checker + attacker HS256 token slipped past `__verify_config_post`).
-  Backported (all 4 layers). **Recommended follow-up: port upstream's
-  `jwt_security.c` test suite** (76 cases incl. the forgery PoC) — yuneta has no
-  jwt-level test harness, so the forgery-rejection isn't covered by a
-  deterministic test here.
-- **Hardening — done:** the reachable subset of `cfd8902` (JWK octet/RSA-PSS
-  NULL/bounds guards in `openssl/jwk-parse.c`, `strncpy` error-copy, volatile
-  constant-time compare).
-
-The low-severity `cfd8902` remainder is now **DONE** (ranks 5-8 of the drift
-doc's "to incorporate" list):
-- **Key-material scrub before free** — portable `jwt_scrub_and_free()` helper in
-  `jwt-private.h` (volatile secure-zero, no OpenSSL coupling for the generic
-  header); HMAC key scrubbed in `jwks.c __item_free`; PEM scrubbed with
-  `OPENSSL_cleanse` in `openssl_process_item_free` (different allocator, kept on
-  `OPENSSL_free`).
-- **`secure_getenv("JWT_CRYPTO")`** under `__GLIBC__` (with `_GNU_SOURCE`) in
-  `jwt-crypto-ops.c`, falling back to `getenv` elsewhere.
-- **builder/checker OOM JSON leak** — `jwt_builder_new`/`jwt_checker_new` now
-  `json_decref` the object that did allocate before dropping `__cmd` (and return
-  NULL explicitly).
-- **Missing-alg error message** — `jwt_parse_head` writes
-  `Cannot find "alg" in header` before its terminal `return 1`.
-
-Ranks 1-4 (JWK octet bounds, RSA-PSS alg guard, `strncpy`, volatile compare)
-were already backported in `f85c26031`. N/A here: the JWKS-curl
-Content-Length/atol fixes (`jwks-curl.c` is disabled in CMakeLists; JWKS is
-loaded from a config attr).
-
-Test coverage **DONE**: `tests/c/libjwt/test_jwt_alg_confusion.c` is the in-tree
-regression test for the GHSA-q843 forgery (RSA-key checker rejects an HS256
-token; setkey HS256+RSA rejected; RS256+RSA and legit HMAC positive controls).
-Wired into ctest (`libjwt/test_jwt_alg_confusion`), passes. It is a focused
-equivalent of upstream's `jwt_security.c` rather than a verbatim port (no jwt
-test harness existed; this one is standalone). Pins down the verify2 footgun
-too: `jwt_checker_verify2` returns the claims even on failure — only
-`jwt_checker_error()` is authoritative (the flag `c_authz` keys off).
-
-The test now also covers EC/EdDSA confusion and `alg:none` stripping. Remaining
-(no code change): broaden toward the rest of upstream's `jwt_security.c`
-(malformed JWKs, more `none`/`null` variants) and a periodic re-vendor from
-upstream — concrete re-vendor procedure now documented in
-[`kernel/c/libjwt/README.md`](kernel/c/libjwt/README.md) (§ Re-vendor procedure).
-Full analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
-
-## Security: modules/yunos review — fixed + follow-ups
-
-A security review of `modules/c` (MQTT/Modbus) and `yunos/c` (apps), 2026-06-05,
-landed these fixes on main: Modbus MBAP `length<3` heap-overflow guard
-(`c_prot_modbus_m.c`); dba_postgres SQL-injection (conn-less escaping in
-`record2insertsql`); emailsender CR/LF header/command injection (central reject
-in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
-
-- **F-004 — post-publish reentrancy/UAF — ANALYZED, likely FALSE POSITIVE on the
-  publish path; no code change.** In `handle__publish_s` (`c_prot_mqtt2.c`)
-  `priv->protocol_version` is read and `send__puback(gobj,...)` called after the
-  synchronous `gobj_publish_event(...)` "to broker". Static reachability trace:
-  that publish lands in the broker's `sub__messages_queue`, which delivers to
-  each subscriber via `send__publish` → `gobj_send_event(bottom, EV_TX_DATA)` →
-  c_tcp **enqueues on io_uring (async)**. No `gobj_stop`/`gobj_destroy`/`EV_DROP`
-  runs synchronously on the publish path; the only synchronous broker `EV_DROP`
-  (`c_mqtt_broker.c:3757`) is CONNECT-time session takeover of the *previous*
-  channel — a different gobj. So the publisher gobj is not freed inside
-  `gobj_publish_event`, and the post-publish reads are safe. Note: were it
-  reachable, a post-hoc `gobj_is_running(gobj)` guard would NOT fix it (the
-  pointer would already be dangling) — it would need deferred destroy, not a
-  guard. A definitive close still nominally wants the runtime PoC the review
-  asked for, but the static evidence points to false-positive. Left unpatched on
-  purpose (no blind guard).
 - **F-005 — MQTT broker publish-side ACL missing.** Design/implement the
-  `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c:6524` (`C_PROT_MQTT2`),
-  the complete MQTT implementation. `c_prot_mqtt.c:7349` (`C_PROT_MQTT`) has the
-  same gap (`rc = 0; // TODO ...`, with the
-  `if(rc==MOSQ_ERR_ACL_DENIED){...MQTT_RC_NOT_AUTHORIZED}` block already in
-  place) but it is DEPRECATED — to be removed once its gates migrate to
-  C_PROT_MQTT2 — so don't invest ACL work there; just be aware it remains an
-  unauthorized-publish surface until it is deleted. The read/subscribe stubs in
+  `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c:6524` (`C_PROT_MQTT2`,
+  the complete implementation; the `c_prot_mqtt.c` mirror is DEPRECATED — don't
+  invest ACL work there). `mosquitto_acl_check()` does NOT exist in this tree
+  (comments only), and there is **no authorization data model**: the `users`
+  topic in `treedb_schema_mqtt_broker.c` carries no per-topic publish/subscribe
+  ACL field and there is no `acls` topic. Authentication exists
+  (`mqtt_check_password` vs the `users` credentials); authorization must be
+  **DESIGNED** (policy source + per-user/group topic-filter schema + a shared
+  `mqtt_acl_check()` helper called from both gclasses), not merely wired. Any
+  client that can connect (gated only by `allow_anonymous`) can publish to any
+  topic. Deferred — broker-owner design decision. The read/subscribe stubs in
   `c_mqtt_broker.c` (3102, 4263) are separate.
-  NOTE: `mosquitto_acl_check()` is the upstream mosquitto plugin API and does
-  NOT exist in this tree (only in comments) — there is nothing to uncomment.
-  There is also NO authorization data model: the `users` topic in
-  `treedb_schema_mqtt_broker.c` carries no per-topic publish/subscribe ACL field
-  and there is no `acls` topic. Authentication exists (`mqtt_check_password` vs
-  the `users` credentials); authorization must be DESIGNED (policy source +
-  per-user/group topic-filter schema + a shared `mqtt_acl_check()` helper called
-  from both gclasses), not merely wired. Any client that can connect (gated only
-  by `allow_anonymous`) can publish to any topic. Deferred — broker-owner
-  design decision.
-- **F-002/F-003 — MQTT property-length underflow (LOW) — DONE in C_PROT_MQTT2.**
-  `property_read` (`c_prot_mqtt2.c`) now routes every `2+slen` string/binary
-  decrement through `property_len_consume()`, which rejects the packet (malformed)
-  instead of letting the unsigned `*len` wrap and desync the property parse. The
-  4 sites (string, binary, user-property×2) are covered. The mirror in
-  `c_prot_mqtt.c` (~3463) was intentionally NOT patched — that gclass is
-  DEPRECATED (see the C_PROT_MQTT deprecation note); it stays a robustness-only
-  desync (bounded by `gbuffer_get`, no OOB) until removed.
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs
