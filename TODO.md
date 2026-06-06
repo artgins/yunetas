@@ -215,10 +215,23 @@ in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
   `state != ST_DISCONNECTED` guard added by commit 855527770 sits at ~8117,
   *after* those reads. Whether `priv` is actually freed on that path needs a
   runtime PoC. Same class as the tcp4h fix (635b06a41).
-- **F-005 — MQTT broker publish-side ACL missing.** Both `mosquitto_acl_check`
-  calls in `c_mqtt_broker.c` are commented out; no `MOSQ_ACL_WRITE` check exists
-  — any client that can connect (gated only by `allow_anonymous`) can publish to
-  any topic. Authorization decision for the broker owner.
+- **F-005 — MQTT broker publish-side ACL missing.** The `MOSQ_ACL_WRITE` check
+  on PUBLISH lives in BOTH protocol gclasses — `c_prot_mqtt.c:7349`
+  (`rc = 0; // TODO mosquitto_acl_check(...)`, with the
+  `if(rc==MOSQ_ERR_ACL_DENIED){...MQTT_RC_NOT_AUTHORIZED}` block already in
+  place) and `c_prot_mqtt2.c:6524` (commented out). Fixing only one is a bypass:
+  a client just connects with the other protocol version. The read/subscribe
+  stubs in `c_mqtt_broker.c` (3102, 4263) are separate.
+  NOTE: `mosquitto_acl_check()` is the upstream mosquitto plugin API and does
+  NOT exist in this tree (only in comments) — there is nothing to uncomment.
+  There is also NO authorization data model: the `users` topic in
+  `treedb_schema_mqtt_broker.c` carries no per-topic publish/subscribe ACL field
+  and there is no `acls` topic. Authentication exists (`mqtt_check_password` vs
+  the `users` credentials); authorization must be DESIGNED (policy source +
+  per-user/group topic-filter schema + a shared `mqtt_acl_check()` helper called
+  from both gclasses), not merely wired. Any client that can connect (gated only
+  by `allow_anonymous`) can publish to any topic. Deferred — broker-owner
+  design decision.
 - **F-002/F-003 — MQTT property-length underflow (LOW).** `*len -= 2 + slen`
   without a `*len >= 2+slen` check, duplicated in `c_prot_mqtt2.c` (~2785) and
   `c_prot_mqtt.c` (~3463). Pre-auth reachable but bounded by `gbuffer_get` (no
