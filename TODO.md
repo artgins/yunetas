@@ -164,18 +164,26 @@ decision, so they're tracked here rather than blindly changed. (The memory-safet
 defects from the same review — the `encrypt_data` re-entrant UAF and the double
 `gbuffer_get` — shipped in 7.5.2.)
 
-- **Protocol floor hardcoded to SSLv3/TLS1.0** (`src/tls/openssl.c:367`,
-  `min_proto_version=0`). There is **no config knob** to raise it, so embedders
-  can't opt into a modern floor. Decide a minimum (TLS1.2+ recommended) and
-  optionally expose it via config; weigh against any legacy client that still
-  needs old TLS.
-- **mbedTLS `VERIFY_NONE` when no CA file is set** (`src/tls/mbedtls.c:332`);
-  the server-with-CA path uses `VERIFY_OPTIONAL` with **no** `get_verify_result`
-  check. Client connections without a configured CA therefore do not validate
-  the peer certificate. Decide the desired default (fail-closed vs. opt-in) per
-  client/server role.
-- **TLS renegotiation left enabled** (`SSL_OP_NO_RENEGOTIATION` is commented
-  out, openssl backend). Consider disabling unless a use case needs it.
+**Config knobs added (2026-06-06, non-breaking — defaults preserve historical
+behavior exactly).** Embedders can now harden via `jn_config` without a code
+change; the remaining decision is whether/when to flip the *defaults* (a
+deployment-policy call — validate on staging before prod):
+
+- **Protocol floor** (`src/tls/openssl.c`) — new `ssl_min_version` knob
+  (`SSLv3`/`TLS1.0`/`TLS1.1`/`TLS1.2`/`TLS1.3`). Default unset keeps the
+  historical SSLv3/TLS1.0 floor. TLS1.2+ recommended; weigh against legacy
+  clients. **Default still to decide.**
+- **mbedTLS verify mode** (`src/tls/mbedtls.c`) — new `ssl_verify_mode` knob
+  (`required`/`optional`/`none`). Default unset keeps the computed behavior
+  (no CA → `NONE`; server+CA → `OPTIONAL`; client+CA → `REQUIRED`). A client
+  without a configured CA still doesn't validate the peer unless
+  `ssl_verify_mode=required` (+ a CA chain). **Fail-closed default still to
+  decide;** note the server-with-CA path still lacks a `get_verify_result`
+  check.
+- **TLS renegotiation** (`src/tls/openssl.c`) — new `ssl_disable_renegotiation`
+  bool knob (default false = enabled, historical). Set true to apply
+  `SSL_OP_NO_RENEGOTIATION`. Recommended on unless a use case needs reneg;
+  **default still to decide.**
 
 ## Security: vendored libjwt — maintenance follow-ups
 

@@ -365,8 +365,49 @@ PRIVATE SSL_CTX *build_ssl_ctx(
 
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
     SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_TLSv1);
-    SSL_CTX_set_min_proto_version(ctx, 0);
+
+    /*
+     *  Protocol floor. Default 0 keeps the historical SSLv3/TLS1.0 floor
+     *  (backward compatible). The optional "ssl_min_version" config knob lets
+     *  an embedder raise it without a code change (TLS1.2+ recommended).
+     *  Accepts: SSLv3, TLS1.0 (alias TLS1), TLS1.1, TLS1.2, TLS1.3.
+     */
+    int min_proto_version = 0;
+    const char *ssl_min_version = kw_get_str(gobj, jn_config, "ssl_min_version", "", 0);
+    if(!empty_string(ssl_min_version)) {
+        if(strcasecmp(ssl_min_version, "SSLv3")==0) {
+            min_proto_version = SSL3_VERSION;
+        } else if(strcasecmp(ssl_min_version, "TLS1.0")==0 ||
+                  strcasecmp(ssl_min_version, "TLS1")==0) {
+            min_proto_version = TLS1_VERSION;
+        } else if(strcasecmp(ssl_min_version, "TLS1.1")==0) {
+            min_proto_version = TLS1_1_VERSION;
+        } else if(strcasecmp(ssl_min_version, "TLS1.2")==0) {
+            min_proto_version = TLS1_2_VERSION;
+        } else if(strcasecmp(ssl_min_version, "TLS1.3")==0) {
+            min_proto_version = TLS1_3_VERSION;
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL,
+                "msg",          "%s", "Unknown ssl_min_version, keeping default floor",
+                "ssl_min_version", "%s", ssl_min_version,
+                NULL
+            );
+        }
+    }
+    SSL_CTX_set_min_proto_version(ctx, min_proto_version);
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+
+    /*
+     *  TLS renegotiation stays enabled by default (historical behavior). The
+     *  optional "ssl_disable_renegotiation" knob turns it off (recommended:
+     *  closes renegotiation-based DoS/abuse) for embedders that don't need it.
+     */
+    if(kw_get_bool(gobj, jn_config, "ssl_disable_renegotiation", 0, 0)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_RENEGOTIATION);
+    }
+
     SSL_CTX_set_read_ahead(ctx, 1);
 
     if(trace_tls) {
@@ -783,7 +824,8 @@ PRIVATE hsskt new_secure_filter(
         }
     }
 
-// Esto jode?    SSL_set_options(sskt->ssl, SSL_OP_NO_RENEGOTIATION); // New to openssl 1.1.1
+    // Renegotiation is now controlled at ctx build time by the
+    // "ssl_disable_renegotiation" config knob (SSL_OP_NO_RENEGOTIATION).
 
     sskt->rbio = BIO_new(BIO_s_mem());
     sskt->wbio = BIO_new(BIO_s_mem());

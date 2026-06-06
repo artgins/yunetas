@@ -332,6 +332,32 @@ PRIVATE mbedtls_state_t *build_state(
         mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_NONE);
     }
 
+    /*
+     *  Optional override of the verify mode computed above. Default "" keeps
+     *  the historical behavior (no CA -> NONE; server+CA -> OPTIONAL; client+CA
+     *  -> REQUIRED). The "ssl_verify_mode" knob lets an embedder force a posture
+     *  without a code change: "required" (fail-closed — note it rejects all
+     *  peers unless a CA chain is also configured), "optional", or "none".
+     */
+    const char *ssl_verify_mode = kw_get_str(gobj, jn_config, "ssl_verify_mode", "", 0);
+    if(!empty_string(ssl_verify_mode)) {
+        if(strcasecmp(ssl_verify_mode, "required")==0) {
+            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+        } else if(strcasecmp(ssl_verify_mode, "optional")==0) {
+            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+        } else if(strcasecmp(ssl_verify_mode, "none")==0) {
+            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_NONE);
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "Unknown ssl_verify_mode, keeping computed default",
+                "ssl_verify_mode",  "%s", ssl_verify_mode,
+                NULL
+            );
+        }
+    }
+
     if(trace_tls && trace_arg) {
         mbedtls_debug_set_threshold(1);
         mbedtls_ssl_conf_dbg(&s->conf, mbedtls_debug_callback, trace_arg);
