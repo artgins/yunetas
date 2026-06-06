@@ -77,6 +77,8 @@ static int jwt_parse_head(jwt_t *jwt, char *head)
 		return 0;
 	}
 
+	/* cfd8902: emit a diagnostic when the header carries no usable "alg" */
+	jwt_write_error(jwt, "Cannot find \"alg\" in header");
 	return 1;
 }
 

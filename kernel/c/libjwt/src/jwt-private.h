@@ -195,6 +195,24 @@ static inline void jwt_freememp(char **mem) {
 }
 #define char_auto char  __attribute__((cleanup(jwt_freememp)))
 
+/*
+ * cfd8902: zero key material before releasing it (defense-in-depth, so key
+ * bytes don't linger in freed heap). Portable secure-zero via a volatile
+ * pointer (upstream uses OPENSSL_cleanse; this keeps the backend-agnostic
+ * header free of an OpenSSL dependency). Frees with __jwt_freemem, so it must
+ * only be used on jwt_malloc'd buffers (not OpenSSL-allocated ones).
+ */
+static inline void jwt_scrub_and_free(void *ptr, size_t len) {
+	if (ptr != NULL) {
+		volatile unsigned char *p = (volatile unsigned char *)ptr;
+		while (len) {
+			*p++ = 0;
+			len--;
+		}
+		__jwt_freemem(ptr);
+	}
+}
+
 JWT_NO_EXPORT
 void jwt_free(jwt_t *jwt);
 

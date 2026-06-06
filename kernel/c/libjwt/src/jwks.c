@@ -326,7 +326,7 @@ jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)
 static void __item_free(jwk_item_t *todel)
 {
 	if (todel->provider == JWT_CRYPTO_OPS_ANY)
-		jwt_freemem(todel->oct.key);
+		jwt_scrub_and_free(todel->oct.key, todel->oct.len);	/* cfd8902: scrub HMAC key */
 	else
 		jwt_ops->process_item_free(todel);
 

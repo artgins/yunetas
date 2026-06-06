@@ -554,6 +554,9 @@ void openssl_process_item_free(jwk_item_t *item)
 		return;
 
 	EVP_PKEY_free(item->provider_data);
+	/* cfd8902: scrub the PEM (may hold private-key material) before release */
+	if (item->pem != NULL)
+		OPENSSL_cleanse(item->pem, strlen(item->pem));
 	OPENSSL_free(item->pem);
 
 	item->pem = NULL;

@@ -39,8 +39,13 @@ jwt_builder_t *jwt_builder_new(void)
     __cmd->c.headers = json_object();
     __cmd->c.claims = JWT_CLAIM_IAT;
 
-    if(!__cmd->c.payload || !__cmd->c.headers)
+    if(!__cmd->c.payload || !__cmd->c.headers) {
+        /* cfd8902: free the json object that DID allocate before dropping __cmd */
+        json_decref(__cmd->c.payload);
+        json_decref(__cmd->c.headers);
         jwt_freemem(__cmd);
+        return NULL;
+    }
 
     return __cmd;
 }

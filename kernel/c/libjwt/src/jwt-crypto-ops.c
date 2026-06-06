@@ -6,6 +6,11 @@
    License, v. 2.0. If a copy of the MPL was not distributed with this
    file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* cfd8902: secure_getenv() (below) needs _GNU_SOURCE before <stdlib.h> */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -97,7 +102,12 @@ int jwt_crypto_ops_supports_jwk(void)
 JWT_CONSTRUCTOR
 void jwt_init(void)
 {
+#if defined(__GLIBC__)
+	/* cfd8902: don't trust the environment in setuid/privileged contexts */
+	const char *opname = secure_getenv("JWT_CRYPTO");
+#else
 	const char *opname = getenv("JWT_CRYPTO");
+#endif
 
 	/* By default, we choose the top spot */
 	if (opname == NULL || opname[0] == '\0') {

@@ -199,12 +199,28 @@ reachable items that landed on main:
   NULL/bounds guards in `openssl/jwk-parse.c`, `strncpy` error-copy, volatile
   constant-time compare).
 
-Still MISSING from `cfd8902`, lower severity, to backport when convenient:
-key-material scrub before free (`OPENSSL_cleanse` in `openssl_process_item_free`
-+ `jwks.c`), `secure_getenv` for JWT_CRYPTO selection, builder/checker
-OOM-path JSON leak, missing-alg-header error message. N/A here: the JWKS-curl
+The low-severity `cfd8902` remainder is now **DONE** (ranks 5-8 of the drift
+doc's "to incorporate" list):
+- **Key-material scrub before free** — portable `jwt_scrub_and_free()` helper in
+  `jwt-private.h` (volatile secure-zero, no OpenSSL coupling for the generic
+  header); HMAC key scrubbed in `jwks.c __item_free`; PEM scrubbed with
+  `OPENSSL_cleanse` in `openssl_process_item_free` (different allocator, kept on
+  `OPENSSL_free`).
+- **`secure_getenv("JWT_CRYPTO")`** under `__GLIBC__` (with `_GNU_SOURCE`) in
+  `jwt-crypto-ops.c`, falling back to `getenv` elsewhere.
+- **builder/checker OOM JSON leak** — `jwt_builder_new`/`jwt_checker_new` now
+  `json_decref` the object that did allocate before dropping `__cmd` (and return
+  NULL explicitly).
+- **Missing-alg error message** — `jwt_parse_head` writes
+  `Cannot find "alg" in header` before its terminal `return 1`.
+
+Ranks 1-4 (JWK octet bounds, RSA-PSS alg guard, `strncpy`, volatile compare)
+were already backported in `f85c26031`. N/A here: the JWKS-curl
 Content-Length/atol fixes (`jwks-curl.c` is disabled in CMakeLists; JWKS is
-loaded from a config attr). Consider a periodic re-vendor from upstream. Full
+loaded from a config attr).
+
+Remaining (no code change): **port upstream's `jwt_security.c` test suite** (no
+in-tree forgery regression test) and a periodic re-vendor from upstream. Full
 analysis: the security-review workspace `UPSTREAM-DRIFT.md`.
 
 ## Security: modules/yunos review — fixed + follow-ups
