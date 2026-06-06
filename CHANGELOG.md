@@ -1,5 +1,27 @@
 # **Changelog**
 
+## v7.5.2 -- 06/Jun/2026
+    - **security: hardening batch (memory-safety + injection across the stack).**
+      - **gobj-c:** NULL-guard in `gbuffer_deserialize`; bounded recursion in
+        `kw_find_path` and the kwid comparators (hostile-JSON stack exhaustion).
+      - **root-linux:** NUL-terminate accumulated URL / header field / header
+        value in `ghttp_parser` (over-read fed to `json_string`); guard
+        `/auth/logout` against an uninitialized refresh-token read.
+      - **ytls:** re-entrant use-after-free in `encrypt_data` WANT path + a
+        double `gbuffer_get` (stream corruption).
+      - **yev_loop:** bound DNS response parsing + unpredictable transaction id;
+        defer event free until in-flight io_uring CQEs drain (UAF).
+      - **timeranger2:** validate on-disk md2 `__offset__`/`__size__` before
+        read AND before the `delete_instance` payload wipe (cross-record
+        overwrite); guard `read_md` return; bound the inotify parse loop.
+      - **libjwt:** backport GHSA-q843-6q5f-w55g algorithm-confusion JWT forgery
+        fix + the full cfd8902 hardening; add an in-tree regression test
+        (`tests/c/libjwt/`, RSA/EC/EdDSA/`alg:none`).
+      - **modbus:** reject MBAP length < 3 (heap overflow). **dba_postgres:**
+        escape SQL identifiers/literals in insert + create-table (SQLi).
+      - **emailsender:** reject CR/LF in header/envelope fields (SMTP/MIME
+        injection). **mqtt:** reject property-length underflow in C_PROT_MQTT2.
+
 ## v7.5.1 -- 03/Jun/2026
     - **fix(treedb): multi-version parent reverse-hook hygiene.** Two
       in-memory hook quirks around versioned (pkey2) parents are fixed at the
