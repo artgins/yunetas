@@ -137,6 +137,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t txMsgs;
     uint64_t rxMsgs;
     hgobj gobj_output_side;
+    hgobj gobj_output_tcp;  /* the C_TCP bottom; manual_start, so started explicitly */
 
     json_t *tranger;
     json_t *jn_list;        /* tranger2_open_list handle */
@@ -455,10 +456,16 @@ PRIVATE int mt_play(hgobj gobj)
     }
 
     /*
-     *  Start the output side: when it connects it publishes EV_ON_OPEN, which
-     *  sends the leading frame and kicks the window/interval emission.
+     *  Start the output side. C_TCP is gcflag_manual_start, so gobj_start_tree
+     *  skips it — start the transport explicitly (as every C_TCP client does,
+     *  cf. c_prot_http_cl / c_websocket). When it connects it publishes
+     *  EV_ON_OPEN, which sends the leading frame and kicks the window/interval
+     *  emission.
      */
     gobj_start_tree(priv->gobj_output_side);
+    if(priv->gobj_output_tcp) {
+        gobj_start(priv->gobj_output_tcp);
+    }
 
     return 0;
 }
@@ -611,12 +618,13 @@ PRIVATE int create_output_side(hgobj gobj)
     hgobj gobj_prot_raw = gobj_create("output", C_PROT_RAW, 0, gobj_channel);
     gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
 
-    json_t *kw_connex = json_pack("{s:i, s:[s]}",
+    json_t *kw_connex = json_pack("{s:i, s:s}",
         "timeout_between_connections", 2000,
-        "urls", gobj_read_str_attr(gobj, "url")
+        "url", gobj_read_str_attr(gobj, "url")    // C_TCP client attr is "url" (singular)
     );
-    hgobj gobj_connex = gobj_create_service("output", C_TCP, kw_connex, gobj_prot_raw);
+    hgobj gobj_connex = gobj_create_pure_child("output", C_TCP, kw_connex, gobj_prot_raw);
     gobj_set_bottom_gobj(gobj_prot_raw, gobj_connex);
+    priv->gobj_output_tcp = gobj_connex;
 
     gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
 

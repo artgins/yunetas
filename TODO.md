@@ -60,25 +60,46 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## emu_device: runtime-validate the replay path
+## emu_device: finish the output-side replay path
 
-`emu_device`'s frame-emission was ported from the removed timeranger v1
-API to v7 (`tranger2_open_list` + collect callback; output side built in
-code like `sgateway`; `window`/`interval` emission of base64 `frame64`
-records). It is **compile-verified only** — not yet runtime-tested,
-because validating it needs a timeranger2 topic whose records carry a
-base64 `frame64` field plus a TCP sink, neither of which was available.
+`emu_device`'s frame-emission was ported from the removed timeranger v1 API to
+v7. A 2026-06-06 runtime validation (fixture generator added at
+`yunos/c/emu_device/tests/gen_frame64_fixture.c` — builds a timeranger2 topic
+of base64 `frame64` records; driven against a TCP sink) found the **replay/load
+path works** but the **output side had never run** and carried a chain of
+integration bugs:
 
-When a fixture exists, verify end-to-end:
+**Validated working:** `mt_play` opens the v7 tranger, `tranger2_open_list` +
+the collect callback loads every `frame64` record into memory (e.g. 5/5),
+config (`url`/`path`/`topic`) applies, autoplay fires, and `ac_on_open` is
+delivered (`is_playing=1`).
 
-- Point `emu_device` at a `frame64` topic (`path`/`database`/`topic`) and
-  a TCP sink (`url`, e.g. `nc -lk <port>`), with `window`/`interval` set.
-- Confirm on connect it sends the `leading` frame then `window` frames per
-  `interval`; `read-parameters` shows "frames sent" advancing and "frames
-  loaded" = the number matched.
-- Specifically check: `tranger2_open_list` collects via the load callback,
-  the output side connects and emits, and `mt_pause` cleans up with no
-  gbmem leak (run a start/stop cycle for the shutdown audit).
+**Fixed (this commit):**
+1. C_TCP's client attr is `url` (string); `create_output_side` passed
+   `urls`:[…] (array) → "GClass Attribute NOT FOUND: urls", url never set.
+   Now passes `url`.
+2. C_TCP is `gcflag_manual_start`, so `gobj_start_tree` skips it and the
+   transport never started/connected. Now started explicitly (as every C_TCP
+   client does, cf. `c_prot_http_cl.c:188` / `c_websocket.c:336`). With 1+2 the
+   sink now sees a connection.
+
+**Still open — emission (0 bytes at the sink despite a connection):**
+`send_frame_b64` sends `EV_SEND_MESSAGE` to the `C_IOGATE` (`__output_side__`),
+whose `ac_send_message` routes via `send_one_rotate` over its pool of *opened*
+channels. The hand-built `C_CHANNEL` is not registered in that pool (the manual
+`create_output_side` stack doesn't integrate with C_IOGATE's channel
+management), so nothing is emitted. Fix options: send `EV_SEND_MESSAGE`
+directly to the hand-built channel/`C_PROT_RAW` instead of the gate, or make
+the channel register with the IOGATE pool. Then re-verify end-to-end:
+
+- Build a fixture: `gen_frame64_fixture <path> <db> <topic> <n>`; sink with
+  `nc -lk <port>` (or the python sink used in validation).
+- `emu_device --url=tcp://127.0.0.1:<port> --path=<path> --database=<db>
+  --topic=<topic> --window=1 --interval=300`.
+- Confirm the `leading` then `window` frames/`interval` arrive at the sink;
+  `read-parameters` shows "frames sent" advancing, "frames loaded" = matched;
+  and a start/stop (play/pause) cycle is gbmem-leak-clean (the binary's
+  `set_memory_check_list` reports at exit).
 
 Note: `open_list` loads all matching records into memory (the v1 path was a
 lazy cursor) — point it at a bounded range for large topics.
