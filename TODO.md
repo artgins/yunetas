@@ -234,19 +234,49 @@ shipped in 7.5.2. The F-004 post-publish UAF was analyzed and ruled a likely
 false positive (publish delivery bottoms out in async io_uring `EV_TX_DATA`, so
 the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
 
-- **F-005 — MQTT broker publish-side ACL missing.** Design/implement the
-  `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c:6524` (`C_PROT_MQTT2`,
-  the complete implementation; the `c_prot_mqtt.c` mirror is DEPRECATED — don't
-  invest ACL work there). `mosquitto_acl_check()` does NOT exist in this tree
-  (comments only), and there is **no authorization data model**: the `users`
-  topic in `treedb_schema_mqtt_broker.c` carries no per-topic publish/subscribe
-  ACL field and there is no `acls` topic. Authentication exists
-  (`mqtt_check_password` vs the `users` credentials); authorization must be
-  **DESIGNED** (policy source + per-user/group topic-filter schema + a shared
-  `mqtt_acl_check()` helper called from both gclasses), not merely wired. Any
-  client that can connect (gated only by `allow_anonymous`) can publish to any
-  topic. Deferred — broker-owner design decision. The read/subscribe stubs in
-  `c_mqtt_broker.c` (3102, 4263) are separate.
+- **F-005 — MQTT broker publish-side ACL missing.** Any client that can connect
+  (gated only by `allow_anonymous`) can publish to ANY topic. The
+  `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c` (~line 6557; the gate
+  has the denial scaffolding — `rc=0` hardcoded, then `MQTT_RC_NOT_AUTHORIZED →
+  process_bad_message`) is the only enforcement point to add. **Work only in
+  `c_prot_mqtt2.c`** (`C_PROT_MQTT2`, the complete impl); `c_prot_mqtt.c` is
+  DEPRECATED — do not touch.
+
+  **Design proposal (deferred to the broker owner — 2026-06-06 analysis).** The
+  building blocks already exist; what's missing is the ACL data + the check:
+  - *Identity:* the connection carries `__username__` (SDF_VOLATIL, set after
+    `gobj_authenticate`); `clients` rows fkey to `client_groups`.
+  - *Matcher:* `topic_matches_sub()` (`c_mqtt_broker.c:2121`) already does MQTT
+    wildcard (`+`/`#`) matching — reuse it.
+  - *Recommended model — group-based ACL in the treedb:* add `publish_acl` and
+    `subscribe_acl` cols (arrays of topic-filter patterns) to the
+    `client_groups` topic in `treedb_schema_mqtt_broker.c` (bump
+    `schema_version`/`topic_version`; treedb migrates additively). A shared
+    helper `mqtt_acl_check(broker, username_or_client, topic, access)` in
+    `c_mqtt_broker.c` resolves the client's group and matches the topic against
+    that group's pattern list via `topic_matches_sub`. Scales per-group (not
+    per-user) and integrates with the existing treedb/UI.
+  - *Wiring:* `c_prot_mqtt2.c` asks the broker over an event (the in-code TODO's
+    suggestion: "create a new event and publish to broker, if returns 0 is
+    permitted") — add e.g. `EV_MQTT_ACL_CHECK` handled by `c_mqtt_broker`,
+    returning allow/deny. One helper, two call sites (publish here; subscribe
+    later).
+  - *Default posture (backward-compatible):* gate enforcement behind a broker
+    attr `enable_acl` (default FALSE) OR treat "no ACL patterns defined for the
+    group" as allow-all — so existing brokers (wattyzer/estadodelaire) don't
+    break until ACLs are authored. Flip to default-deny is a later, separate
+    decision (validate on staging first).
+  - *Alternatives considered:* (B) reuse the framework C_AUTHZ via
+    `gobj_user_has_authz` — one authz system, but its checker is per-authz-name
+    allow/deny, not topic-pattern, so it'd need extending + couples MQTT to the
+    global authz treedb; (C) a broker config attr holding the pattern map — no
+    schema migration, fastest, but config-file-managed and off the treedb/UI.
+  - *Symmetry:* the read/subscribe stubs (`c_mqtt_broker.c:3102`, `4263`;
+    `c_prot_mqtt2.c` SUBSCRIBE/UNSUBSCRIBE) should use the same helper once the
+    model lands. Out of scope until the model is chosen.
+
+  No code changed — the model choice (A/B/C) and default posture are the
+  broker-owner's call.
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs
