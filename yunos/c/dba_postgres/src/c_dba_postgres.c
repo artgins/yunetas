@@ -37,6 +37,8 @@ PRIVATE json_t *record2insertsql(
     json_t *schema, // not owned
     json_t *record // not owned
 );
+PRIVATE void append_sql_identifier(gbuffer_t *gbuf, const char *s);
+PRIVATE void append_sql_literal(gbuffer_t *gbuf, const char *s);
 
 PRIVATE int send_ack(
     hgobj gobj,
@@ -517,10 +519,14 @@ PRIVATE json_t *record2createtable(
 
     gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024);
 
-    gbuffer_printf(gbuf,
-        "CREATE TABLE IF NOT EXISTS %s (",
-        topic_name
-    );
+    /*
+     *  Escape the table name as an identifier: topic_name arrives over the wire
+     *  in the schema, so a raw %s here is SQL injection (same sink class fixed in
+     *  record2insertsql).
+     */
+    gbuffer_append_string(gbuf, "CREATE TABLE IF NOT EXISTS ");
+    append_sql_identifier(gbuf, topic_name);
+    gbuffer_append_string(gbuf, " (");
     json_t *cols = kw_get_dict(gobj, schema, "cols", 0, KW_REQUIRED);
 
     int idx = 0;
@@ -531,43 +537,39 @@ PRIVATE json_t *record2createtable(
         }
         const char *header = kw_get_str(gobj, col, "header", "", KW_REQUIRED);
         const char *type = kw_get_str(gobj, col, "type", "", KW_REQUIRED);
+        /*
+         *  Escape the column name as an identifier (it arrives over the wire in
+         *  the schema -> SQL injection if interpolated raw). The SQL type is a
+         *  fixed keyword chosen by the switch below, never attacker-controlled.
+         */
+        const char *cname = use_header?header:col_name;
         SWITCHS(type) {
             CASES("str")
             CASES("string")
-                gbuffer_printf(gbuf, "%s %s",
-                    use_header?header:col_name,
-                    "text"
-                );
+                append_sql_identifier(gbuf, cname);
+                gbuffer_append_string(gbuf, " text");
                 break;
 
             CASES("int")
             CASES("integer")
-                gbuffer_printf(gbuf, "%s %s",
-                    use_header?header:col_name,
-                    "bigint"
-                );
+                append_sql_identifier(gbuf, cname);
+                gbuffer_append_string(gbuf, " bigint");
                 break;
 
             CASES("time")
-                gbuffer_printf(gbuf, "%s %s",
-                    use_header?header:col_name,
-                    "timestamp"
-                );
+                append_sql_identifier(gbuf, cname);
+                gbuffer_append_string(gbuf, " timestamp");
                 break;
 
             CASES("real")
-                gbuffer_printf(gbuf, "%s %s",
-                    use_header?header:col_name,
-                    "double precision"
-                );
+                append_sql_identifier(gbuf, cname);
+                gbuffer_append_string(gbuf, " double precision");
                 break;
 
             CASES("bool")
             CASES("boolean")
-                gbuffer_printf(gbuf, "%s %s",
-                    use_header?header:col_name,
-                    "boolean"
-                );
+                append_sql_identifier(gbuf, cname);
+                gbuffer_append_string(gbuf, " boolean");
                 break;
 
             DEFAULTS
