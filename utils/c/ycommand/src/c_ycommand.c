@@ -204,7 +204,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
 SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
 SDATA (DTP_BOOLEAN,     "interactive",      0,          0,              "Interactive."),
-SDATA (DTP_INTEGER,     "wait",             0,          "2",            "Wait n seconds until exit"),
+SDATA (DTP_INTEGER,     "wait",             0,          "1",            "Wait n seconds until exit"),
 SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
 SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),

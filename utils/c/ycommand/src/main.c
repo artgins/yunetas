@@ -154,7 +154,7 @@ static struct argp_option options[] = {
 {0,                 0,      0,          0,      "Remote Service keys", 10},
 {"command",         'c',    "COMMAND",  0,      "Command.", 10},
 {"interactive",     'i',    0,          0,      "Interactive.", 10},
-{"wait",            'w',    "SECONDS",  0,      "Wait until exit, default 2.", 10},
+{"wait",            'w',    "SECONDS",  0,      "Wait until exit, default 1.", 10},
 
 {0,                 0,      0,          0,      "OAuth2 / OIDC keys", 20},
 {"issuer",          'I',    "ISSUER",   0,      "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery", 20},
@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
     arguments.user_passw = "";
     arguments.jwt = "";
     arguments.editor = "vim";
-    arguments.wait = 2;
+    arguments.wait = 1;
 
     /*
      *  Save args
