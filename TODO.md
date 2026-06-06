@@ -231,12 +231,22 @@ landed these fixes on main: Modbus MBAP `length<3` heap-overflow guard
 `record2insertsql`); emailsender CR/LF header/command injection (central reject
 in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
 
-- **F-004 — post-publish reentrancy/UAF (needs_manual_test).** In both codecs
-  (`c_prot_mqtt2.c` ~6688/8099) `priv->protocol_version` etc. are read AFTER a
-  synchronous publish that can cascade into a disconnect/`gobj_destroy`; the
-  `state != ST_DISCONNECTED` guard added by commit 855527770 sits at ~8117,
-  *after* those reads. Whether `priv` is actually freed on that path needs a
-  runtime PoC. Same class as the tcp4h fix (635b06a41).
+- **F-004 — post-publish reentrancy/UAF — ANALYZED, likely FALSE POSITIVE on the
+  publish path; no code change.** In `handle__publish_s` (`c_prot_mqtt2.c`)
+  `priv->protocol_version` is read and `send__puback(gobj,...)` called after the
+  synchronous `gobj_publish_event(...)` "to broker". Static reachability trace:
+  that publish lands in the broker's `sub__messages_queue`, which delivers to
+  each subscriber via `send__publish` → `gobj_send_event(bottom, EV_TX_DATA)` →
+  c_tcp **enqueues on io_uring (async)**. No `gobj_stop`/`gobj_destroy`/`EV_DROP`
+  runs synchronously on the publish path; the only synchronous broker `EV_DROP`
+  (`c_mqtt_broker.c:3757`) is CONNECT-time session takeover of the *previous*
+  channel — a different gobj. So the publisher gobj is not freed inside
+  `gobj_publish_event`, and the post-publish reads are safe. Note: were it
+  reachable, a post-hoc `gobj_is_running(gobj)` guard would NOT fix it (the
+  pointer would already be dangling) — it would need deferred destroy, not a
+  guard. A definitive close still nominally wants the runtime PoC the review
+  asked for, but the static evidence points to false-positive. Left unpatched on
+  purpose (no blind guard).
 - **F-005 — MQTT broker publish-side ACL missing.** Design/implement the
   `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c:6524` (`C_PROT_MQTT2`),
   the complete MQTT implementation. `c_prot_mqtt.c:7349` (`C_PROT_MQTT`) has the
