@@ -215,13 +215,15 @@ in `tira_dela_cola`). Remaining MQTT items (modules/c/mqtt), tracked not fixed:
   `state != ST_DISCONNECTED` guard added by commit 855527770 sits at ~8117,
   *after* those reads. Whether `priv` is actually freed on that path needs a
   runtime PoC. Same class as the tcp4h fix (635b06a41).
-- **F-005 — MQTT broker publish-side ACL missing.** The `MOSQ_ACL_WRITE` check
-  on PUBLISH lives in BOTH protocol gclasses — `c_prot_mqtt.c:7349`
-  (`rc = 0; // TODO mosquitto_acl_check(...)`, with the
+- **F-005 — MQTT broker publish-side ACL missing.** Design/implement the
+  `MOSQ_ACL_WRITE` check on PUBLISH in `c_prot_mqtt2.c:6524` (`C_PROT_MQTT2`),
+  the complete MQTT implementation. `c_prot_mqtt.c:7349` (`C_PROT_MQTT`) has the
+  same gap (`rc = 0; // TODO ...`, with the
   `if(rc==MOSQ_ERR_ACL_DENIED){...MQTT_RC_NOT_AUTHORIZED}` block already in
-  place) and `c_prot_mqtt2.c:6524` (commented out). Fixing only one is a bypass:
-  a client just connects with the other protocol version. The read/subscribe
-  stubs in `c_mqtt_broker.c` (3102, 4263) are separate.
+  place) but it is DEPRECATED — to be removed once its gates migrate to
+  C_PROT_MQTT2 — so don't invest ACL work there; just be aware it remains an
+  unauthorized-publish surface until it is deleted. The read/subscribe stubs in
+  `c_mqtt_broker.c` (3102, 4263) are separate.
   NOTE: `mosquitto_acl_check()` is the upstream mosquitto plugin API and does
   NOT exist in this tree (only in comments) — there is nothing to uncomment.
   There is also NO authorization data model: the `users` topic in
