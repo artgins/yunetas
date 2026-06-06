@@ -539,6 +539,7 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
         return -1;
     }
     memcpy(value+pos, at, length);
+    value[pos + length] = 0;    // NUL-terminate before json_string() strlen's it (matches on_url/on_header_field)
     json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value));
     GBMEM_FREE(value);
 
