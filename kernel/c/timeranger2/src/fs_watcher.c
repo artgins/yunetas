@@ -360,7 +360,19 @@ PRIVATE int yev_callback(
                     char *buffer = gbuffer_cur_rd_pointer(gbuf);
                     char *ptr = buffer;
                     while (ptr < buffer + len) {
+                        /*
+                         *  Bound the parse: the fixed header must fit, and so
+                         *  must the variable-length name, before we dereference
+                         *  event->len / event->name. A truncated tail (short
+                         *  read) would otherwise over-read past the buffer.
+                         */
+                        if(ptr + sizeof(struct inotify_event) > buffer + len) {
+                            break;
+                        }
                         struct inotify_event *event = (struct inotify_event *) ptr;
+                        if(ptr + sizeof(struct inotify_event) + event->len > buffer + len) {
+                            break;
+                        }
 
                         // Handle the file modification event
                         handle_inotify_event(fs_event, event);

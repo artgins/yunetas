@@ -4869,7 +4869,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
 
     for(json_int_t rowid=from_rowid; rowid<=to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
-        read_md(
+        if(read_md(
             gobj,
             tranger,
             topic,
@@ -4877,7 +4877,10 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
             file_id,
             rowid,
             &md_record_ex
-        );
+        )<0) {
+            // Error already logged; md_record_ex is uninitialized on failure, skip it
+            continue;
+        }
         if(is_deleted_instance(&md_record_ex)) {
             continue;
         }
