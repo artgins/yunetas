@@ -1979,6 +1979,18 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  Get content in base64 and decode
          */
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        if(!gbuf_content) {
+            // Invalid base64: gbuffer_base64_to_binary returns NULL; do NOT
+            // pass it to gbuffer_cur_rd_pointer (would deref NULL -> crash).
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Invalid base64 in content64"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content);
         if(!jn_content) {
@@ -2073,6 +2085,17 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  Get content in base64 and decode
          */
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        if(!gbuf_content) {
+            // Invalid base64 -> NULL; avoid the NULL deref in gbuffer_cur_rd_pointer.
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Invalid base64 in content64"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content)
         if(!jn_content) {
@@ -3446,6 +3469,22 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     BOOL with_metadata = kw_get_bool(gobj, kw, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid = kw_get_bool(gobj, kw, "without_rowid", 0, KW_WILD_NUMBER);
 
+    /*
+     *  The export is written under the realm "temp" dir; the caller-supplied
+     *  filename must stay a bare name. Reject path separators / traversal so it
+     *  cannot escape the realm dir (build_path does not normalize "..").
+     */
+    if(!empty_string(filename) && (strchr(filename, '/') || strstr(filename, ".."))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Invalid filename: '/' and '..' are not allowed"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     char path[PATH_MAX];
     char name[NAME_MAX];
     char date[100];
@@ -3534,6 +3573,17 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+    if(!gbuf_content) {
+        // Invalid base64 -> NULL; gbuf2json would deref it (gbuffer_cur_rd_pointer).
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Invalid base64 in content64"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     jn_db = gbuf2json(
         gbuf_content,  // owned
         2

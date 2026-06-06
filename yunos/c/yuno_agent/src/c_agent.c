@@ -3031,6 +3031,26 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     const char *id = kw_get_str(gobj, kw, "id", "", 0);
 
+    /*
+     *  `id` becomes a filename under the realm "temp" dir AND is interpolated
+     *  into a shell command by yuno_basic_information() (run_command/popen).
+     *  Restrict it to a bare, safe binary name: this closes both the shell
+     *  command-injection and the path-traversal-to-executable-write. build_path
+     *  does not strip shell metacharacters or "..".
+     */
+    static const char id_allowed[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
+    if(empty_string(id) || strspn(id, id_allowed) != strlen(id) || strstr(id, "..")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Invalid 'id': only [A-Za-z0-9._-] allowed, no '..'"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(empty_string(content64)) {
         return msg_iev_build_response(

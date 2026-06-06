@@ -581,6 +581,28 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(bf && bflen > 0) {
+        bf[0] = 0;  // fail closed: callers that ignore the return get an empty
+                    // (open/unlink-failing) path rather than a traversed one
+    }
+
+    /*
+     *  The resource name becomes a filename under path_database. Reject path
+     *  separators and traversal so a caller-supplied name (which may be remote,
+     *  e.g. an MQTT client_id) cannot escape the resource directory; build_path
+     *  does not normalize "..".
+     */
+    if(empty_string(resource) || strchr(resource, '/') || strstr(resource, "..")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid resource name: '/' and '..' not allowed",
+            "resource",     "%s", resource?resource:"",
+            NULL
+        );
+        return -1;
+    }
+
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.json", resource);
 
@@ -602,7 +624,9 @@ PRIVATE int save_record(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char path[PATH_MAX];
-    build_resource_path(gobj, path, sizeof(path), resource);
+    if(build_resource_path(gobj, path, sizeof(path), resource) < 0) {
+        return -1;  // invalid resource name (already logged)
+    }
 
     int ret;
     if(priv->ignore_private) {
@@ -644,7 +668,9 @@ PRIVATE int delete_record(
 )
 {
     char path[PATH_MAX];
-    build_resource_path(gobj, path, sizeof(path), resource);
+    if(build_resource_path(gobj, path, sizeof(path), resource) < 0) {
+        return -1;  // invalid resource name (already logged)
+    }
 
     int ret = unlink(path);
     if(ret < 0) {
