@@ -76,6 +76,7 @@ socket write of encrypted data.
 #include <openssl/err.h>
 #include <openssl/bn.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <time.h>
 
 #include <kwid.h>
@@ -332,6 +333,42 @@ PRIVATE void ssl_tls_trace(
 }
 
 /***************************************************************************
+ *  Verify callbacks. Both log the chain error (no silent verify failures).
+ *  The strict one (REQUIRED) propagates preverify_ok so a bad cert aborts the
+ *  handshake; the tolerant one (OPTIONAL) returns 1 so the handshake completes
+ *  and the failure is surfaced post-handshake via SSL_get_verify_result().
+ ***************************************************************************/
+PRIVATE void log_chain_verify_error(X509_STORE_CTX *x509_ctx)
+{
+    int err = X509_STORE_CTX_get_error(x509_ctx);
+    if(err == X509_V_OK) {
+        return;
+    }
+    gobj_log_warning(0, 0,
+        "function",     "%s", "ytls_verify_callback",
+        "msgset",       "%s", MSGSET_OPENSSL,
+        "msg",          "%s", "TLS peer certificate chain verify error",
+        "error",        "%s", X509_verify_cert_error_string(err),
+        "depth",        "%d", X509_STORE_CTX_get_error_depth(x509_ctx),
+        NULL
+    );
+}
+PRIVATE int verify_cb_strict(int preverify_ok, X509_STORE_CTX *x509_ctx)
+{
+    if(!preverify_ok) {
+        log_chain_verify_error(x509_ctx);
+    }
+    return preverify_ok;
+}
+PRIVATE int verify_cb_tolerant(int preverify_ok, X509_STORE_CTX *x509_ctx)
+{
+    if(!preverify_ok) {
+        log_chain_verify_error(x509_ctx);
+    }
+    return 1;   /* tolerate; reported via SSL_get_verify_result() post-handshake */
+}
+
+/***************************************************************************
  *  Build a fully-configured SSL_CTX from jn_config.
  *
  *  If fatal is TRUE, fatal errors use LOG_OPT_EXIT_ZERO (used on first init
@@ -525,36 +562,100 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             }
         }
 
-        if(!empty_string(ssl_trusted_certificate)) {
-            SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
-            if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
-                unsigned long err = ERR_get_error();
-                gobj_log_error(gobj, log_fatal,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL,
-                    "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
-                    "error",        "%s", ERR_error_string(err, NULL),
-                    "cert",         "%s", ssl_trusted_certificate,
+        /* Certificate/key ops may leave non-fatal entries in the error queue. */
+        ERR_clear_error();
+    }
+    /* (client SNI is per-connection: applied on the SSL object in
+     *  new_secure_filter(), not here on the SSL_CTX.) */
+
+    /*
+     *  Peer verification (both client and server). Computed default mirrors
+     *  the mbedTLS backend:
+     *    - no CA configured -> NONE     (preserves historical behavior; IoT /
+     *                                    self-signed / PSK keep working)
+     *    - server + CA      -> OPTIONAL (request + verify the client cert if
+     *                                    presented; tolerate absent)
+     *    - client + CA      -> REQUIRED (validate the server cert + hostname;
+     *                                    closes the MITM hole)
+     *  The "ssl_verify_mode" knob (required/optional/none) overrides; an
+     *  optional "ssl_use_system_ca" bool adds the OS trust store. Nothing is
+     *  silent: a tolerated failure (OPTIONAL) is logged in do_handshake() via
+     *  SSL_get_verify_result(), a rejected one by the verify callback, and a
+     *  client left unverified is logged here. Hostname is checked
+     *  per-connection in new_secure_filter() (SSL_set1_host).
+     */
+    {
+        BOOL use_system_ca = kw_get_bool(gobj, jn_config, "ssl_use_system_ca", 0, 0);
+        BOOL has_ca = !empty_string(ssl_trusted_certificate) || use_system_ca;
+
+        int vmode; /* 0=NONE 1=OPTIONAL 2=REQUIRED */
+        const char *ssl_verify_mode = kw_get_str(gobj, jn_config, "ssl_verify_mode", "", 0);
+        if(!empty_string(ssl_verify_mode)) {
+            if(strcasecmp(ssl_verify_mode, "none")==0) {
+                vmode = 0;
+            } else if(strcasecmp(ssl_verify_mode, "optional")==0) {
+                vmode = 1;
+            } else if(strcasecmp(ssl_verify_mode, "required")==0) {
+                vmode = 2;
+            } else {
+                vmode = has_ca ? (server ? 1 : 2) : 0;
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "Unknown ssl_verify_mode, keeping computed default",
+                    "ssl_verify_mode",  "%s", ssl_verify_mode,
                     NULL
                 );
-                if(!fatal) {
-                    SSL_CTX_free(ctx);
-                    return NULL;
-                }
             }
+        } else {
+            vmode = has_ca ? (server ? 1 : 2) : 0;
         }
 
-        /*
-         * SSL_CTX_load_verify_locations() may leave errors in the error queue
-         * while returning success
-         */
-        ERR_clear_error();
+        if(vmode != 0) {
+            SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
+            if(!empty_string(ssl_trusted_certificate)) {
+                if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
+                    unsigned long err = ERR_get_error();
+                    gobj_log_error(gobj, fatal?LOG_OPT_EXIT_ZERO:0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_OPENSSL,
+                        "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
+                        "error",        "%s", ERR_error_string(err, NULL),
+                        "cert",         "%s", ssl_trusted_certificate,
+                        NULL
+                    );
+                    if(!fatal) {
+                        SSL_CTX_free(ctx);
+                        return NULL;
+                    }
+                }
+            }
+            if(use_system_ca && SSL_CTX_set_default_verify_paths(ctx)!=1) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL,
+                    "msg",          "%s", "SSL_CTX_set_default_verify_paths() FAILED",
+                    NULL
+                );
+            }
+            ERR_clear_error();
 
-    } else {
-        /*
-         *  SNI (server_name extension) is per-connection, so it is applied on
-         *  the SSL object in new_secure_filter(), not here on the SSL_CTX.
-         */
+            int vflags = SSL_VERIFY_PEER;
+            if(vmode==2 && server) {
+                vflags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+            }
+            SSL_CTX_set_verify(ctx, vflags, (vmode==1) ? verify_cb_tolerant : verify_cb_strict);
+        } else {
+            SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+            if(!server) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL,
+                    "msg",          "%s", "TLS client WITHOUT server-certificate validation (MITM surface): set ssl_trusted_certificate or ssl_use_system_ca",
+                    NULL
+                );
+            }
+        }
     }
 
     return ctx;
@@ -852,6 +953,35 @@ PRIVATE hsskt new_secure_filter(
                 );
             }
         }
+
+        /*
+         *  Hostname verification. SSL_VERIFY_PEER validates the chain but NOT
+         *  that it matches the target host — without this a chain-valid cert
+         *  for the wrong host is still a MITM. Apply only when verification is
+         *  on (mode inherited from the ctx).
+         */
+        if(SSL_get_verify_mode(sskt->ssl) != SSL_VERIFY_NONE) {
+            if(ytls->ssl_server_name[0] != '\0') {
+                X509_VERIFY_PARAM *vp = SSL_get0_param(sskt->ssl);
+                X509_VERIFY_PARAM_set_hostflags(vp, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+                if(SSL_set1_host(sskt->ssl, ytls->ssl_server_name) != 1) {
+                    gobj_log_warning(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_OPENSSL,
+                        "msg",              "%s", "SSL_set1_host() FAILED (hostname not checked)",
+                        "ssl_server_name",  "%s", ytls->ssl_server_name,
+                        NULL
+                    );
+                }
+            } else {
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "TLS client verify ON but no ssl_server_name: hostname NOT checked",
+                    NULL
+                );
+            }
+        }
     }
 
     // Renegotiation is now controlled at ctx build time by the
@@ -1049,6 +1179,23 @@ PRIVATE int do_handshake(hsskt sskt_)
         */
         if(!sskt->handshake_informed) {
             sskt->handshake_informed = TRUE;
+            /*
+             *  No silent verification failures: under VERIFY_OPTIONAL the
+             *  handshake completes even if the peer cert did not verify;
+             *  SSL_get_verify_result() is the only way to learn it. (With
+             *  VERIFY_NONE it returns X509_V_OK, so this never false-fires.)
+             */
+            long vr = SSL_get_verify_result(sskt->ssl);
+            if(vr != X509_V_OK) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL,
+                    "msg",          "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
+                    "error",        "%s", X509_verify_cert_error_string(vr),
+                    "userp",        "%p", sskt->user_data,
+                    NULL
+                );
+            }
             sskt->on_handshake_done_cb(sskt->user_data, 0);
         }
         GBUFFER_DECREF(sskt->handshake_transcript) // handshake succeeded: transcript no longer needed

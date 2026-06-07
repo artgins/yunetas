@@ -239,13 +239,33 @@ reneg per-gate). The mbedTLS verify *defaults* are deliberately left as-is
   IoT (PSK/self-signed/no-CA), so fail-closed stays opt-in via
   `ssl_verify_mode=required`. The decision to require verification on specific
   gates is a per-gate deployment call.
-- **OpenSSL peer verification — still a GAP** (`src/tls/openssl.c`). The
-  OpenSSL backend never calls `SSL_CTX_set_verify`, so its default verify mode
-  is `VERIFY_NONE`: a **client does not validate the server certificate** (MITM
-  surface) and a server never requests/verifies client certs even with a CA
-  loaded. Flipping this on by default is breaking (every gate would need a CA
-  configured), so it needs its own decision + an `ssl_verify_mode`-style knob
-  for the OpenSSL backend (symmetry with mbedTLS). Not done here.
+- **OpenSSL peer verification — DONE** (`src/tls/openssl.c`, branch
+  `security/tls-openssl-verify`, 2026-06-07). The backend now calls
+  `SSL_CTX_set_verify` with an `ssl_verify_mode` knob (`required`/`optional`/
+  `none`) mirroring the mbedTLS backend, plus the computed default:
+  - no CA → `NONE`; **server**+CA → `OPTIONAL`; **client**+CA → `REQUIRED`.
+  - **Chosen posture (Rosa, 2026-06-07): non-breaking.** With no CA the client
+    stays `NONE` (preserves current behavior — IoT/self-signed/private-CA keep
+    working), but that unverified client is **logged** ("TLS client WITHOUT
+    server-certificate validation (MITM surface)") so the gaps are enumerable
+    and closed per-gate by configuring `ssl_trusted_certificate` (or the new
+    `ssl_use_system_ca` bool → OS trust store).
+  - **Hostname verification** is applied per-connection on the client
+    (`SSL_set1_host` with `ssl_server_name`, NO_PARTIAL_WILDCARDS) — chain-valid
+    but wrong-host is rejected. A client with verify on but no `ssl_server_name`
+    is logged (hostname not checked).
+  - OPTIONAL uses a tolerant verify callback (handshake completes) + a
+    post-handshake `SSL_get_verify_result()` warning; REQUIRED uses a strict
+    callback that logs the chain error and aborts. No silent failures either
+    way.
+  - Test `tests/c/ytls/test_tls_verify_openssl.c` (loopback client/server pump):
+    trusted+host-match → OK; host mismatch → rejected; unknown CA → rejected;
+    no-CA client → warning. Full suite green.
+  - Remaining deployment step (Rosa): turn on verification per high-level gate
+    (set `ssl_trusted_certificate`/`ssl_use_system_ca`) — staging (e.com) →
+    prod (h.es); IoT gates stay `NONE`/`optional` as needed. The mbedTLS
+    no-CA→NONE default is likewise kept (fail-closed opt-in via
+    `ssl_verify_mode=required`).
 
 ## Security: vendored libjwt — maintenance follow-ups
 
