@@ -219,7 +219,7 @@ reneg per-gate). The mbedTLS verify *defaults* are deliberately left as-is
     traced. Full suite green.
   - Remaining deployment step (Rosa): roll out per-gate configs — raise
     high-level gates explicitly where wanted, set the IoT-compat profile on the
-    legacy gates — validated on staging (e.com) before prod (h.es).
+    legacy gates — validated on staging before production.
 - **TLS renegotiation** (`src/tls/openssl.c`) — `ssl_disable_renegotiation`.
   **DONE — flipped to secure-by-default** (branch `security/tls-posture-knobs`,
   2026-06-07). Default is now DISABLED (`SSL_OP_NO_RENEGOTIATION`; TLS1.3 has no
@@ -262,8 +262,8 @@ reneg per-gate). The mbedTLS verify *defaults* are deliberately left as-is
     trusted+host-match → OK; host mismatch → rejected; unknown CA → rejected;
     no-CA client → warning. Full suite green.
   - Remaining deployment step (Rosa): turn on verification per high-level gate
-    (set `ssl_trusted_certificate`/`ssl_use_system_ca`) — staging (e.com) →
-    prod (h.es); IoT gates stay `NONE`/`optional` as needed. The mbedTLS
+    (set `ssl_trusted_certificate`/`ssl_use_system_ca`) — staging →
+    production; IoT gates stay `NONE`/`optional` as needed. The mbedTLS
     no-CA→NONE default is likewise kept (fail-closed opt-in via
     `ssl_verify_mode=required`).
 
@@ -324,7 +324,7 @@ the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
     later).
   - *Default posture (backward-compatible):* gate enforcement behind a broker
     attr `enable_acl` (default FALSE) OR treat "no ACL patterns defined for the
-    group" as allow-all — so existing brokers (wattyzer/estadodelaire) don't
+    group" as allow-all — so existing brokers don't
     break until ACLs are authored. Flip to default-deny is a later, separate
     decision (validate on staging first).
   - *Alternatives considered:* (B) reuse the framework C_AUTHZ via
