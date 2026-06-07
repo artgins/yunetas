@@ -489,14 +489,14 @@ int main(int argc, char *argv[])
             json_object_set_new(
                 kw_emu_device,
                 "Emu_device.window",
-                json_string(arguments.window)
+                json_integer(atoi(arguments.window))   // DTP_INTEGER attr, not a string
             );
         }
         if(arguments.interval) {
             json_object_set_new(
                 kw_emu_device,
                 "Emu_device.interval",
-                json_string(arguments.interval)
+                json_integer(atoi(arguments.interval))  // DTP_INTEGER attr, not a string
             );
         }
 

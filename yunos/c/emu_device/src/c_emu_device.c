@@ -533,8 +533,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_write_interval(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *interval_ = kw_get_str(gobj, kw, "interval", "1000", 0);
-    gobj_write_integer_attr(gobj, "interval", atoi(interval_));
+    int interval_ = (int)kw_get_int(gobj, kw, "interval", 1000, KW_WILD_NUMBER);
+    gobj_write_integer_attr(gobj, "interval", interval_);
     gobj_save_persistent_attrs(gobj, 0);
 
     return msg_iev_build_response(
@@ -553,8 +553,8 @@ PRIVATE json_t *cmd_write_interval(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_write_window(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *window_ = kw_get_str(gobj, kw, "window", "1", 0);
-    gobj_write_integer_attr(gobj, "window", atoi(window_));
+    int window_ = (int)kw_get_int(gobj, kw, "window", 1, KW_WILD_NUMBER);
+    gobj_write_integer_attr(gobj, "window", window_);
     gobj_save_persistent_attrs(gobj, 0);
 
     return msg_iev_build_response(

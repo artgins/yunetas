@@ -83,14 +83,23 @@ delivered (`is_playing=1`).
    client does, cf. `c_prot_http_cl.c:188` / `c_websocket.c:336`). With 1+2 the
    sink now sees a connection.
 
-**Still open — emission (0 bytes at the sink despite a connection):**
-`send_frame_b64` sends `EV_SEND_MESSAGE` to the `C_IOGATE` (`__output_side__`),
-whose `ac_send_message` routes via `send_one_rotate` over its pool of *opened*
-channels. The hand-built `C_CHANNEL` is not registered in that pool (the manual
-`create_output_side` stack doesn't integrate with C_IOGATE's channel
-management), so nothing is emitted. Fix options: send `EV_SEND_MESSAGE`
-directly to the hand-built channel/`C_PROT_RAW` instead of the gate, or make
-the channel register with the IOGATE pool. Then re-verify end-to-end:
+**Emission — FIXED 2026-06-07.** The earlier "channel not in the IOGATE pool"
+diagnosis was WRONG: a trace (`gobj_set_global_trace("machine")`) shows the full
+path works — `EV_SEND_MESSAGE` flows C_EMU_DEVICE → C_IOGATE → C_CHANNEL
+(ST_OPENED) → C_PROT_RAW → `EV_TX_DATA` C_TCP (ST_CONNECTED). The hand-built
+channel DOES open (its `opened` attr is set by its own `ac_on_open`, found by
+`get_next_destination`). The real bug was that **`window` was 0**, so
+`send_window()`'s `for(i=0;i<window;i++)` never iterated — nothing was sent.
+Root cause: old code passed the `--window`/`--interval` CLI values as
+`json_string(...)` into the `DTP_INTEGER` `window`/`interval` attrs, which
+coerced to 0; and the `cmd_write_window`/`cmd_write_interval` commands used
+`kw_get_str()+atoi()` instead of `kw_get_int()`. Fixed both (main.c →
+`json_integer(atoi(...))`; commands → `kw_get_int(..., KW_WILD_NUMBER)`).
+Verified end-to-end: a base64 `frame64` topic replays decoded frames to a TCP
+sink (`FRAME-0\n`, `FRAME-1\n`, … received). Minor follow-up (not this fix): in
+standalone CLI mode `finish_replay()` calls `exit(0)` immediately after the last
+send, which can truncate the final TCP flush — harmless in agent-managed mode.
+Re-verify recipe:
 
 - Build a fixture: `gen_frame64_fixture <path> <db> <topic> <n>`; sink with
   `nc -lk <port>` (or the python sink used in validation).
