@@ -185,10 +185,14 @@ decision, so they're tracked here rather than blindly changed. (The memory-safet
 defects from the same review — the `encrypt_data` re-entrant UAF and the double
 `gbuffer_get` — shipped in 7.5.2.)
 
-**Config knobs added (2026-06-06, non-breaking — defaults preserve historical
-behavior exactly).** Embedders can now harden via `jn_config` without a code
-change; the remaining decision is whether/when to flip the *defaults* (a
-deployment-policy call — validate on staging before prod):
+**Config knobs added 2026-06-06 (non-breaking); secure-by-default flips applied
+2026-06-07.** The protocol-floor and renegotiation *defaults* have now been
+flipped to the secure posture (TLS1.2 floor, reneg disabled) — these ARE
+behavior changes, but each downgrade and each rejection is logged (yuneta "no
+silent" norm) so the reduced-security gates and the rejected legacy peers are
+enumerable. The IoT escape hatch is preserved (lower the floor / re-enable
+reneg per-gate). The mbedTLS verify *defaults* are deliberately left as-is
+(IoT). Per-gate config rollout + the OpenSSL-verify gap remain (see below):
 
 - **Protocol floor** — `ssl_min_version` knob
   (`SSLv3`/`TLS1.0`/`TLS1.1`/`TLS1.2`/`TLS1.3`).
@@ -216,17 +220,32 @@ deployment-policy call — validate on staging before prod):
   - Remaining deployment step (Rosa): roll out per-gate configs — raise
     high-level gates explicitly where wanted, set the IoT-compat profile on the
     legacy gates — validated on staging (e.com) before prod (h.es).
-- **mbedTLS verify mode** (`src/tls/mbedtls.c`) — new `ssl_verify_mode` knob
-  (`required`/`optional`/`none`). Default unset keeps the computed behavior
-  (no CA → `NONE`; server+CA → `OPTIONAL`; client+CA → `REQUIRED`). A client
-  without a configured CA still doesn't validate the peer unless
-  `ssl_verify_mode=required` (+ a CA chain). **Fail-closed default still to
-  decide;** note the server-with-CA path still lacks a `get_verify_result`
-  check.
-- **TLS renegotiation** (`src/tls/openssl.c`) — new `ssl_disable_renegotiation`
-  bool knob (default false = enabled, historical). Set true to apply
-  `SSL_OP_NO_RENEGOTIATION`. Recommended on unless a use case needs reneg;
-  **default still to decide.**
+- **TLS renegotiation** (`src/tls/openssl.c`) — `ssl_disable_renegotiation`.
+  **DONE — flipped to secure-by-default** (branch `security/tls-posture-knobs`,
+  2026-06-07). Default is now DISABLED (`SSL_OP_NO_RENEGOTIATION`; TLS1.3 has no
+  reneg anyway). Set `ssl_disable_renegotiation: false` to re-enable on a gate
+  that needs it — that explicit downgrade logs a `gobj_log_warning`
+  ("renegotiation explicitly enabled", enumerable). Test C in
+  `test_tls_floor_openssl.c`.
+- **mbedTLS verify mode** (`src/tls/mbedtls.c`) — `ssl_verify_mode` knob
+  (`required`/`optional`/`none`). The `get_verify_result` gap is **DONE** (same
+  branch): after a successful handshake the backend now calls
+  `mbedtls_ssl_get_verify_result()` and, when a CA was configured
+  (`has_ca_cert`), logs a `gobj_log_warning` decoding the flags if the peer cert
+  did NOT verify — so a cert tolerated under `VERIFY_OPTIONAL` is no longer
+  silently accepted. The accept/reject decision is unchanged.
+  **Defaults deliberately NOT flipped** (no CA → `NONE`; server+CA →
+  `OPTIONAL`; client+CA → `REQUIRED`): flipping no-CA→fail-closed would break
+  IoT (PSK/self-signed/no-CA), so fail-closed stays opt-in via
+  `ssl_verify_mode=required`. The decision to require verification on specific
+  gates is a per-gate deployment call.
+- **OpenSSL peer verification — still a GAP** (`src/tls/openssl.c`). The
+  OpenSSL backend never calls `SSL_CTX_set_verify`, so its default verify mode
+  is `VERIFY_NONE`: a **client does not validate the server certificate** (MITM
+  surface) and a server never requests/verifies client certs even with a CA
+  loaded. Flipping this on by default is breaking (every gate would need a CA
+  configured), so it needs its own decision + an `ssl_verify_mode`-style knob
+  for the OpenSSL backend (symmetry with mbedTLS). Not done here.
 
 ## Security: vendored libjwt — maintenance follow-ups
 

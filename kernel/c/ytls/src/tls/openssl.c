@@ -419,12 +419,23 @@ PRIVATE SSL_CTX *build_ssl_ctx(
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
 
     /*
-     *  TLS renegotiation stays enabled by default (historical behavior). The
-     *  optional "ssl_disable_renegotiation" knob turns it off (recommended:
-     *  closes renegotiation-based DoS/abuse) for embedders that don't need it.
+     *  TLS renegotiation. Secure-by-default: DISABLED (closes the
+     *  renegotiation-based DoS/abuse surface; TLS1.3 has no renegotiation at
+     *  all). The "ssl_disable_renegotiation" knob defaults to true now; set it
+     *  to false to re-enable renegotiation on a gate that genuinely needs it —
+     *  that is an explicit, auditable downgrade and is logged (yuneta "no
+     *  silent" norm).
      */
-    if(kw_get_bool(gobj, jn_config, "ssl_disable_renegotiation", 0, 0)) {
+    if(kw_get_bool(gobj, jn_config, "ssl_disable_renegotiation", 1, 0)) {
         SSL_CTX_set_options(ctx, SSL_OP_NO_RENEGOTIATION);
+    } else {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPENSSL,
+            "msg",          "%s", "TLS renegotiation explicitly enabled (DoS/abuse surface)",
+            "server",       "%d", server?1:0,
+            NULL
+        );
     }
 
     SSL_CTX_set_read_ahead(ctx, 1);

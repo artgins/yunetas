@@ -1004,6 +1004,32 @@ PRIVATE int do_handshake(hsskt sskt_)
 
     if(!sskt->handshake_informed) {
         sskt->handshake_informed = TRUE;
+        /*
+         *  No silent verification failures. Under VERIFY_OPTIONAL (the
+         *  computed default for a server WITH a CA) the handshake completes
+         *  even if the peer certificate did not verify; mbedtls_ssl_get_verify_result()
+         *  is the only way to learn that. Surface it as a warning so a
+         *  tolerated-but-invalid peer cert is not swallowed. Guarded by
+         *  has_ca_cert: when no CA is configured (IoT PSK/self-signed, authmode
+         *  NONE) verification was never meant to run, so there is nothing to
+         *  report. The accept/reject decision itself is unchanged (that is the
+         *  configured ssl_verify_mode's job).
+         */
+        if(sskt->state_ref && sskt->state_ref->has_ca_cert) {
+            uint32_t vrfy = mbedtls_ssl_get_verify_result(&sskt->ssl);
+            if(vrfy != 0 && vrfy != 0xFFFFFFFFu) {
+                char vrfy_buf[512];
+                mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ", vrfy);
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MBEDTLS,
+                    "msg",          "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
+                    "verify_flags", "%s", vrfy_buf,
+                    "userp",        "%p", sskt->user_data,
+                    NULL
+                );
+            }
+        }
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
     }
 

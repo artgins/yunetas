@@ -214,6 +214,34 @@ int main(int argc, char *argv[])
         ytls_cleanup(ytls);
     }
 
+    /*================================================================*
+     *  Test C: re-enabling TLS renegotiation must be logged
+     *          (default is now disabled; explicit enable = downgrade)
+     *================================================================*/
+    capture_reset();
+    {
+        json_t *cfg = json_pack("{s:s, s:s, s:s, s:b}",
+            "library",                   "openssl",
+            "ssl_certificate",           CERT_PATH,
+            "ssl_certificate_key",       KEY_PATH,
+            "ssl_disable_renegotiation", 0   /* explicitly re-enable reneg */
+        );
+        hytls ytls = ytls_init(0, cfg, TRUE /* server */);
+        JSON_DECREF(cfg);
+        if(!ytls) {
+            fprintf(stderr, "%s[C]: ytls_init FAILED\n", APP);
+            result++;
+        } else {
+            if(!strstr(capture_buf, "renegotiation explicitly enabled")) {
+                fprintf(stderr, "%s[C]: reneg re-enable NOT logged\n", APP);
+                result++;
+            } else {
+                printf("%s[C]: ok - reneg re-enable logged\n", APP);
+            }
+            ytls_cleanup(ytls);
+        }
+    }
+
     if(result == 0) {
         printf("%s: PASS\n", APP);
     } else {
