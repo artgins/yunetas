@@ -116,6 +116,71 @@ Each [`C_TCP_S`](#gclass-c-tcp-s) / [`C_UDP_S`](#gclass-c-udp-s) listener also e
 `view-cert` directly, so a single listener can be targeted from
 [`ycommand`](#util-ycommand) without touching the rest of the yuno.
 
+## TLS security posture (hardening)
+
+`ytls` is **secure-by-default**: a gate that sets no TLS knobs gets the hardened
+behaviour, and every deliberate relaxation is an explicit, **logged** downgrade —
+the yuneta *"no silent errors"* axiom applied to crypto. The knobs below live in
+the gate's `crypto` config; the same key means the same thing on both backends.
+
+### Protocol floor — `ssl_min_version`
+
+Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
+
+- **OpenSSL** accepts `SSLv3` / `TLS1.0` / `TLS1.1` / `TLS1.2` / `TLS1.3`. A floor
+  **below TLS 1.2** is the IoT/legacy escape hatch: it must be paired with
+  `ssl_ciphers "@SECLEVEL=0"` for OpenSSL to actually negotiate the old suite, and
+  it logs a warning at context build (*"legacy floor below TLS1.2 / IoT-compat
+  downgrade"*) so downgraded gates stay enumerable in the logs.
+- **mbed-TLS** accepts only `TLS1.2` / `TLS1.3` — it can raise the floor, never
+  lower it; legacy peers must use the OpenSSL backend.
+- A peer offering a version below the floor is rejected, and the rejected
+  handshake is logged **by default** (not only under `trace_tls`) in
+  [`ytls_do_handshake()`](#ytls_do_handshake).
+
+### Renegotiation — `ssl_disable_renegotiation`
+
+Defaults to **`true`** (renegotiation disabled), closing the renegotiation-based
+DoS/abuse surface; TLS 1.3 has no renegotiation at all. Set it to `false` only on
+a gate that genuinely needs it — that re-enable is logged as an auditable
+downgrade. OpenSSL backend only.
+
+### Peer verification — `ssl_verify_mode`
+
+When unset, the mode is **computed** from the gate's role and whether a CA is
+configured:
+
+| Situation | Computed default |
+|---|---|
+| no CA configured | `none` — preserves historical IoT / PSK / self-signed behaviour |
+| **server** with a CA | `optional` — request + verify the client cert if presented |
+| **client** with a CA | `required` — validate the server cert + hostname |
+
+`ssl_verify_mode` (`required` / `optional` / `none`) overrides the computed
+default; `ssl_use_system_ca` adds the OS trust store; `ssl_verify_depth` bounds
+the chain. A verify failure is **never silent**: under `optional` a non-verifying
+peer is accepted but logged post-handshake (OpenSSL `SSL_get_verify_result()`,
+mbed-TLS `mbedtls_ssl_get_verify_result()`); under `required` the verify callback
+logs the chain error and aborts the handshake. The mbed-TLS verify *default* is
+deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
+`ssl_verify_mode=required`.
+
+### Knob summary
+
+| Knob | Default | Effect |
+|---|---|---|
+| `ssl_min_version` | TLS 1.2 floor | minimum negotiated protocol version |
+| `ssl_disable_renegotiation` | `true` | OpenSSL renegotiation off |
+| `ssl_verify_mode` | computed (table above) | `required` / `optional` / `none` |
+| `ssl_use_system_ca` | `false` | also trust the OS CA store |
+| `ssl_verify_depth` | `1` | max certificate chain depth |
+| `ssl_ciphers` | backend default | cipher list (`@SECLEVEL=0` to reach legacy suites) |
+
+Regression coverage:
+[`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.2/tests/c/ytls/test_tls_floor_openssl.c)
+asserts that an explicit sub-TLS1.2 floor is logged and that a real TLS1.0
+ClientHello is rejected by the default floor.
+
 ## Philosophy of ytls
 The **ytls** module is built with the core philosophy of Yuneta in mind:
 
