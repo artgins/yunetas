@@ -305,8 +305,15 @@ were deferred from the 7.5.2 batch for separate review.
   traversal-confinement set); full kernel suite (timeranger2/treedb/kw/…)
   green against the reinstalled lib.
 
-- **`gbuffer_cur_rd_pointer()` (gbuffer.h) — still open.** Derefs without a
-  NULL guard; a central guard in gobj-c would harden the whole
-  content64/base64 NULL-deref family at once (per-site guards already shipped
-  for the reachable ones). Deemed not-low-risk as a tree-wide hot helper —
-  needs its own reviewed change + full test pass.
+- **`gbuffer_cur_rd_pointer()` (gbuffer.h) — DONE.** Added a central NULL guard
+  (`if(!gbuf) return NULL;`) to the three inline pointer accessors
+  `gbuffer_cur_rd_pointer` / `gbuffer_cur_wr_pointer` / `gbuffer_head_pointer`,
+  hardening the whole content64/base64 NULL-deref family at the source.
+  Zero-regression: the guard only fires when `gbuf == NULL`, which already
+  crashed (`gbuffer_create` always allocs `data` for a valid gbuf, or returns
+  NULL), so valid usage is unchanged; it just turns a SIGSEGV into a NULL
+  return that the common `json_string(...)` sinks absorb gracefully. Per-site
+  guards remain where explicit error logging is wanted. Unit test:
+  `tests/c/gbuffer/test_gbuffer_guards.c` (NULL paths + valid path + the
+  json_string sink); full kernel suite green incl. the gbuffer-serialize
+  heavy tests (tr_msg, msg_interchange).

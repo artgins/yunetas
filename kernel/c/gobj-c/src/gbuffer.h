@@ -112,6 +112,9 @@ static inline void gbuffer_decref(gbuffer_t *gbuf) /* Decr ref */
  */
 static inline void * gbuffer_cur_rd_pointer(gbuffer_t *gbuf) /* Return current reading pointer */
 {
+    if(!gbuf) {     /* central NULL guard: hardens the content64/base64 NULL-deref family */
+        return NULL;
+    }
     return gbuf->data + gbuf->curp;
 }
 
@@ -165,6 +168,9 @@ PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator); /* Separator is n
  */
 static inline void *gbuffer_cur_wr_pointer(gbuffer_t *gbuf) /* Return current writing pointer */
 {
+    if(!gbuf) {     /* central NULL guard (symmetry with the read-side accessor) */
+        return NULL;
+    }
     return gbuf->data + gbuf->tail;
 }
 
@@ -205,6 +211,9 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap) JANS
  */
 static inline void *gbuffer_head_pointer(gbuffer_t *gbuf)
 {
+    if(!gbuf) {     /* central NULL guard (symmetry with the read-side accessor) */
+        return NULL;
+    }
     return gbuf->data; /* Return pointer to first position of data */
 }
 
