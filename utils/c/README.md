@@ -47,4 +47,10 @@ Command-line utilities written in C that ship with Yuneta. They fall in three br
 | `time2date` / `time2range` | Timestamp conversion helpers |
 | `pkey_to_jwks` | Convert RSA private key to JWKS |
 
+## Testing / emulation
+
+| Tool | Purpose |
+|---|---|
+| `emu_device` | Device-gate emulator — replays recorded TimeRanger2 frames to an ingest endpoint at a controlled rate |
+
 Each tool has its own `README.md` with CLI usage details. All are built by `yunetas build` and installed into `$YUNETAS_OUTPUTS/bin/`.

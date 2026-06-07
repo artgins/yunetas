@@ -15,13 +15,13 @@ yunos/
     ├── emailsender/        # Email sending service (native SMTPS)
     ├── dba_postgres/       # PostgreSQL database adapter
     ├── sgateway/           # Simple gateway for protocol bridging
-    ├── emu_device/         # Device emulator for testing
     └── watchfs/            # Filesystem watcher — run commands on file changes
 ```
 
-> The interactive clients `ycli` and `mqtt_tui` used to live here; they moved to
-> [`utils/c/`](../../utils/c/) (`utils/c/ycli`, `utils/c/mqtt_tui`) since they are
-> client tools installed in `/yuneta/bin`, not deployable services.
+> The interactive clients `ycli` and `mqtt_tui`, and the `emu_device` emulator,
+> used to live here; they moved to [`utils/c/`](../../utils/c/)
+> (`utils/c/ycli`, `utils/c/mqtt_tui`, `utils/c/emu_device`) since they are CLI
+> tools installed in `/yuneta/bin`, not deployable services.
 
 ## Yuno Summary
 
@@ -36,7 +36,6 @@ yunos/
 | emailsender | `emailsender` | `C_EMAILSENDER`, `C_SMTP_SESSION` | `${YUNOS_DEST_DIR}` | Email sending via native SMTPS |
 | dba_postgres | `dba_postgres` | `C_DBA_POSTGRES` | `${YUNOS_DEST_DIR}` | PostgreSQL adapter |
 | sgateway | `sgateway` | `C_SGATEWAY` | `${YUNOS_DEST_DIR}` | Simple gateway |
-| emu_device | `emu_device` | `C_EMU_DEVICE` | `${YUNOS_DEST_DIR}` | Device gate emulator |
 | watchfs | `watchfs` | `C_WATCHFS` | `${YUNOS_DEST_DIR}`, `/yuneta/bin` | Filesystem watcher |
 
 ---
@@ -302,46 +301,14 @@ Filesystem watcher that executes a shell command when monitored files change. Us
 
 ---
 
-## Client Yunos
+## Client / utility yunos (moved out)
 
-> The interactive clients `ycli` and `mqtt_tui` moved to `utils/c/` — see
-> [`utils/c/ycli/README.md`](../../utils/c/ycli/README.md) and
-> [`utils/c/mqtt_tui/README.md`](../../utils/c/mqtt_tui/README.md).
-
-### emu_device
-
-Device gate emulator for testing. Injects messages from a TimeRanger2 database into a remote service at configurable speed.
-
-**Command-line options:**
-
-```
-Database:
-  -u, --url URL              Target URL
-  -a, --path PATH            Data path
-  -b, --database DATABASE    Database name
-  -c, --topic TOPIC          Topic name
-  -d, --leading LEADING      Leading data (base64)
-
-Search conditions:
-  --from-t TIME              Start time
-  --to-t TIME                End time
-  --from-rowid ROWID         Start row ID
-  --to-rowid ROWID           End row ID
-  --user-flag-set MASK       User flag mask (set)
-  --user-flag-not-set MASK   User flag mask (not set)
-  --system-flag-set MASK     System flag mask (set)
-  --system-flag-not-set MASK System flag mask (not set)
-
-Injection speed:
-  -w, --window NUMBER        Messages per interval (default: 1)
-  -i, --interval MS          Interval in milliseconds (default: 1000)
-
-Local:
-  -p, --print                Print configuration
-  -l, --verbose LEVEL        Verbose level
-  -v, --version              Print version
-  -V, --yuneta-version       Print Yuneta version
-```
+> The interactive clients `ycli` and `mqtt_tui`, and the `emu_device` emulator,
+> moved to `utils/c/` — they are CLI tools installed in `/yuneta/bin`, not
+> deployable services. See
+> [`utils/c/ycli/README.md`](../../utils/c/ycli/README.md),
+> [`utils/c/mqtt_tui/README.md`](../../utils/c/mqtt_tui/README.md) and
+> [`utils/c/emu_device/README.md`](../../utils/c/emu_device/README.md).
 
 ---
 

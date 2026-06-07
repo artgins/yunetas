@@ -231,6 +231,27 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Release the replay resources (list, tranger, match_cond, frames).
+ *  Single source of truth shared by mt_pause and the mt_play error paths:
+ *  if play fails mid-setup the framework leaves the gobj not-playing, so
+ *  mt_pause never runs — these objects would leak without this cleanup.
+ ***************************************************************************/
+PRIVATE void clear_replay_resources(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tranger && priv->jn_list) {
+        tranger2_close_list(priv->tranger, priv->jn_list);
+        priv->jn_list = 0;
+    }
+    EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
+
+    JSON_DECREF(priv->match_cond);
+    JSON_DECREF(priv->jn_frames);
+    priv->frame_idx = 0;
+}
+
+/***************************************************************************
  *      Framework Method play
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
@@ -417,6 +438,7 @@ PRIVATE int mt_play(hgobj gobj)
             NULL
         );
         if(agent_client) {
+            clear_replay_resources(gobj);
             gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
             return -1;
         }
@@ -433,6 +455,7 @@ PRIVATE int mt_play(hgobj gobj)
             NULL
         );
         if(agent_client) {
+            clear_replay_resources(gobj);
             gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
             return -1;
         }
@@ -487,15 +510,7 @@ PRIVATE int mt_pause(hgobj gobj)
         gobj_stop_tree(priv->gobj_output_side);
     }
 
-    if(priv->tranger && priv->jn_list) {
-        tranger2_close_list(priv->tranger, priv->jn_list);
-        priv->jn_list = 0;
-    }
-    EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
-
-    JSON_DECREF(priv->match_cond);
-    JSON_DECREF(priv->jn_frames);
-    priv->frame_idx = 0;
+    clear_replay_resources(gobj);
 
     return 0;
 }
@@ -705,6 +720,13 @@ PRIVATE int send_window(hgobj gobj)
 
         const char *frame64 = kw_get_str(gobj, rec, "frame64", "", 0);
         if(empty_string(frame64)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "replay record without 'frame64' field, skipped",
+                "frame_idx",    "%d", (int)(priv->frame_idx - 1),
+                NULL
+            );
             continue;
         }
         send_frame_b64(gobj, frame64);

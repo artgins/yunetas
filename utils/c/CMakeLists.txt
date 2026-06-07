@@ -32,6 +32,7 @@ add_subdirectory(ytestconfig)
 add_subdirectory(ytests)
 add_subdirectory(yuno-skeleton)
 add_subdirectory(mqtt_tui)
+add_subdirectory(emu_device)
 
 add_subdirectory(time2date)
 add_subdirectory(time2range)

@@ -36,13 +36,17 @@ static char *b64(const unsigned char *in, size_t n)
 {
     static const char *T =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    char *out = malloc(((n + 2) / 3) * 4 + 1);
+    char *out = gbmem_malloc(((n + 2) / 3) * 4 + 1);
     size_t o = 0;
     for(size_t i = 0; i < n; i += 3) {
         unsigned v = in[i] << 16;
         int rem = (int)(n - i);
-        if(rem > 1) v |= in[i+1] << 8;
-        if(rem > 2) v |= in[i+2];
+        if(rem > 1) {
+            v |= in[i+1] << 8;
+        }
+        if(rem > 2) {
+            v |= in[i+2];
+        }
         out[o++] = T[(v >> 18) & 0x3F];
         out[o++] = T[(v >> 12) & 0x3F];
         out[o++] = (rem > 1) ? T[(v >> 6) & 0x3F] : '=';
@@ -101,7 +105,7 @@ int main(int argc, char *argv[])
             "tm", (json_int_t)(BASE_T + (unsigned)j),
             "frame64", frame64
         );
-        free(frame64);
+        gbmem_free(frame64);
 
         md2_record_ex_t md;
         if(tranger2_append_record(tranger, topic, BASE_T + (unsigned)j, 0, &md, jn_record) < 0) {
