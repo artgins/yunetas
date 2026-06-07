@@ -4,8 +4,8 @@ Wall-clock and monotonic time helpers: format and parse ISO-8601 timestamps, con
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (current_timestamp)=
 ## `current_timestamp()`

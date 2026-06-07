@@ -82,12 +82,12 @@ is `sha512` with **27500 iterations**.
 
 ## Source code
 
-- [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c) /
-  [`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.h)
-- [`openssl.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/tls/openssl.c) /
-  [`openssl.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/tls/openssl.h)
-- [`mbedtls.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/tls/mbedtls.c) /
-  [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/tls/mbedtls.h)
+- [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.c) /
+  [`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.h)
+- [`openssl.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/tls/openssl.c) /
+  [`openssl.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/tls/openssl.h)
+- [`mbedtls.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/tls/mbedtls.c) /
+  [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/tls/mbedtls.h)
 
 ## Function reference
 

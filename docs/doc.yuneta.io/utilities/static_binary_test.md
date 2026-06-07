@@ -3,7 +3,7 @@
 
 A minimal "hello world" smoke test that confirms the fully-static build
 (`CONFIG_FULLY_STATIC`) produces a self-contained ELF. (Source dir:
-`utils/c/test-static`, file [`hello.c`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/test-static/hello.c); the built binary is
+`utils/c/test-static`, file [`hello.c`](https://github.com/artgins/yunetas/blob/7.5.2/utils/c/test-static/hello.c); the built binary is
 `static_binary_test`.)
 
 ## Usage
@@ -18,4 +18,4 @@ No arguments. Use it to verify a static toolchain/link is healthy.
 ## See also
 
 - [Fully Static Binaries](../installation.md) — the `CONFIG_FULLY_STATIC` build.
-- [`utils/c/test-static/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/test-static/README.md).
+- [`utils/c/test-static/README.md`](https://github.com/artgins/yunetas/blob/7.5.2/utils/c/test-static/README.md).

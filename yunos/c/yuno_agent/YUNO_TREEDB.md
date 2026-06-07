@@ -103,7 +103,7 @@ The same layout in text:
     …
 ```
 
-Path-building lives in [`kernel/c/timeranger2/src/timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c).
+Path-building lives in [`kernel/c/timeranger2/src/timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c).
 The data filename mask is `"%Y-%m-%d"` by default — each appended
 record lands in the file whose mask matches its `__t__`. Big topics
 naturally rotate every day.
@@ -111,8 +111,8 @@ naturally rotate every day.
 ### 2.2 Records and the `md2` index
 
 Each `.md2` file is an array of fixed 32-byte records in big-endian
-order. The struct ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c), in-memory shape
-`md2_record_ex_t` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)):
+order. The struct ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c), in-memory shape
+`md2_record_ex_t` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)):
 
 ![A md2 record is 32 bytes: four uint64 fields __t__, __tm__, __offset__, __size__. The .md2 file is an array of these indexed by rowid; lookup multiplies rowid by 32, seeks the .md2, reads offset and size, then seeks the paired .json. O(1).](../../../docs/doc.yuneta.io/_static/md2_record.svg)
 
@@ -130,7 +130,7 @@ typedef struct {
 ```
 
 The high 16 bits of `__t__` and `__tm__` are reserved for flags. Macros
-at [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c) extract and pack them. Lookup by rowid is
+at [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c) extract and pack them. Lookup by rowid is
 O(1) — multiply by 32, seek the `.md2`, read offset+size, seek the
 `.json`. Lookup by time range is O(N) over `.md2` records, which is
 still fast because they're 32 bytes apiece.
@@ -144,10 +144,10 @@ Two rowids per record, both maintained **only** by timeranger2:
 | `g_rowid`   | Global rowid for that key — cumulative across all files, never reset |
 | `i_rowid`   | Rowid within the current `.md2` file — `(offset / sizeof(md2_record_t)) + 1` |
 
-[`tranger2_append_record`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2332) ([`timeranger2.c:2332`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2332)) computes both and
-returns them in `md_record_ex->rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)). **Callers
+[`tranger2_append_record`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L2332) ([`timeranger2.c:2332`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L2332)) computes both and
+returns them in `md_record_ex->rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c)). **Callers
 never set them.** For topics with `sf_rowid_key`, timeranger2 also
-asserts `g_rowid == i_rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)) — a mismatch is
+asserts `g_rowid == i_rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c)) — a mismatch is
 a data-corruption indicator.
 
 If you're writing test fixtures and you find yourself populating
@@ -171,7 +171,7 @@ imported it".
 ### 2.5 Topic declaration
 
 When you create a topic you provide a `topic_desc_t`
-([`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)):
+([`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)):
 
 ```c
 typedef struct {
@@ -184,7 +184,7 @@ typedef struct {
 } topic_desc_t;
 ```
 
-`system_flag` bits ([`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)):
+`system_flag` bits ([`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)):
 
 | Flag              | Meaning                                                |
 |-------------------|--------------------------------------------------------|
@@ -196,12 +196,12 @@ typedef struct {
 | `sf_zip_record`   | `.json` records are zlib-compressed.                   |
 | `sf_cipher_record`| `.json` records are encrypted.                         |
 
-Persisted in `topic_desc.json` at create time ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c))
+Persisted in `topic_desc.json` at create time ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c))
 and loaded on open.
 
 ### 2.6 Public API in 12 calls
 
-[`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h). Grouped by purpose:
+[`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h). Grouped by purpose:
 
 ```c
 // lifecycle
@@ -233,16 +233,16 @@ json_t *tranger2_open_rt_mem (…);   // master-side realtime (writes pushed via
 json_t *tranger2_open_rt_disk(…);   // non-master realtime (watches hardlinks)
 ```
 
-[`tranger2_open_rt_disk`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3757) is the workhorse for **cross-yuno** reads —
+[`tranger2_open_rt_disk`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L3757) is the workhorse for **cross-yuno** reads —
 see §4.5.
 
 ### 2.7 Master / non-master
 
-[`tranger2_startup`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L330) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
+[`tranger2_startup`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L330) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
 lock** on `__timeranger2__.json`. Whoever gets it is the master:
 
 - The master can **read AND write**. Only the master may
-  `tranger2_append_record`, [`tranger2_delete_topic`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L1335), etc.
+  `tranger2_append_record`, [`tranger2_delete_topic`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L1335), etc.
 - Non-masters can only read. They are expected to use
   `tranger2_open_rt_disk` so the master can push updates to them via
   hardlinks in the `disks/<rt_id>/` directory.
@@ -264,8 +264,8 @@ the directory was wired.
 Two granularities, both implemented in v7 as of 2026-05-26.
 
 - **Whole record** (= a primary key + every instance under it).
-  **[`tranger2_delete_key()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2872)** (renamed from `tranger2_delete_record`
-  on 2026-05-25; legacy alias kept as a `#define` in [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)).
+  **[`tranger2_delete_key()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L2872)** (renamed from `tranger2_delete_record`
+  on 2026-05-25; legacy alias kept as a `#define` in [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)).
   Removes `keys/<key>/` and drops the key from `topic_cache`.
   Irrecoverable. Used today by `treedb_delete_node`.
 - **One instance** (one row in the `.md2` file).
@@ -275,11 +275,11 @@ Two granularities, both implemented in v7 as of 2026-05-26.
   side of the mask so `rt_by_disk` followers see the tombstone).
   Optional `zero_payload` overwrites the matching `__size__` bytes in
   the data `.json` for sensitive-data wipes. Read paths
-  ([`tranger2_open_iterator`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L5789) history, [`tranger2_iterator_get_page`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L6156),
-  [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L4887)) skip dead rows. Master-only,
+  ([`tranger2_open_iterator`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L5789) history, [`tranger2_iterator_get_page`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L6156),
+  [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L4887)) skip dead rows. Master-only,
   idempotent. Slot ids do NOT renumber — `iterator_size` /
   `total_rows` keep counting slots, not live rows.
-  **Treedb is NOT a consumer**: [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L5452) is
+  **Treedb is NOT a consumer**: [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L5452) is
   per-`pkey2`-index in-memory cleanup only.
 
 #### Propagation to subscribers (2026-05-26)
@@ -292,10 +292,10 @@ the deleted key. Two paths:
   `tranger2_key_deleted_callback_t` fires for each handle whose
   `key` filter matches (`""` = any).
 - **Across-process** (`rt_by_disk` followers): the master
-  [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422)s `topic/disks/<rt_id>/<key>/` BEFORE the live
+  [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L422)s `topic/disks/<rt_id>/<key>/` BEFORE the live
   `keys/<key>/` so the follower's [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) watcher catches it as
   `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
-  `key_deleted_callback`. [`fire_key_deleted_locally()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2755) is split by
+  `key_deleted_callback`. [`fire_key_deleted_locally()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L2755) is split by
   transport (`fs_followers` flag): the master in-process call
   serves non-watcher subscribers, the inotify branch serves the
   fs-watcher followers — each subscriber fires exactly once. No new
@@ -310,7 +310,7 @@ Register with:
 tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
 ```
 
-…on any handle returned by [`tranger2_open_rt_mem`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3525),
+…on any handle returned by [`tranger2_open_rt_mem`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L3525),
 `tranger2_open_rt_disk` or `tranger2_open_iterator`. Pre-2026-05-26
 followers that polled their cache on a timer can drop the timer.
 
@@ -319,7 +319,7 @@ Memory: `project_tranger2_delete_record_deferred`.
 ### 2.10 Durability
 
 `tranger2_append_record` performs the write but **does not `fsync`**
-([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)). Durability is whatever the OS gives you —
+([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c)). Durability is whatever the OS gives you —
 on [EXT4](https://en.wikipedia.org/wiki/Ext4) with the default journal, that's "data on disk within the
 journal commit interval, usually 5 s". If you need stronger guarantees,
 add an explicit `fsync` in the wrapping code, but understand the
@@ -377,10 +377,10 @@ Six things to notice:
    `topic_desc_t.pkey`.
 2. **`pkey2s`** — optional secondary key (composite). Allows multiple
    records per primary key (e.g. multiple versions of a binary).
-   Queried via [`treedb_get_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7413) / [`treedb_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7744) and the
+   Queried via [`treedb_get_instance()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L7413) / [`treedb_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L7744) and the
    agent's `instances` command. **Invariant (since dbf532ec9):** the pkey2
    secondary index shares the SAME node object as the primary index;
-   [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L4861) re-points it on every runtime save. Before that fix
+   [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L4861) re-points it on every runtime save. Before that fix
    it held a separate object only filled at disk-load, so a runtime
    `update-node` was invisible through `list_instances` until the next
    reload — the bug behind `list-binaries` showing a stale binary right
@@ -396,12 +396,12 @@ Six things to notice:
 
 ### 3.3 Column types and flags
 
-Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c). Common
+Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c). Common
 ones: `string`, `integer`, `boolean`, `real`, `array`, `object`,
 `blob`, `enum`, `wild`. Plus semantic decorations: `email`, `url`,
 `password`, `time`.
 
-Flags (parsed by [`kw_has_word`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/kwid.c#L3617) throughout [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)):
+Flags (parsed by [`kw_has_word`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/kwid.c#L3617) throughout [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)):
 
 | Flag         | Effect                                                                  |
 |--------------|-------------------------------------------------------------------------|
@@ -422,8 +422,8 @@ in-memory only.
 
 ### 3.4 The `__md_treedb__` metadata block
 
-Every loaded node carries a metadata sidecar ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c),
-attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)):
+Every loaded node carries a metadata sidecar ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c),
+attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)):
 
 ```json
 "__md_treedb__": {
@@ -456,7 +456,7 @@ Memory
 > `topic_cols.json` keeps masking the new schema; wipe `store/` when
 > reproducing.
 
-What happens: [`treedb_open_db()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L485) ([`tr_treedb.c:485`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L485)) reads the
+What happens: [`treedb_open_db()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L485) ([`tr_treedb.c:485`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L485)) reads the
 persisted `topic_cols.json` and compares its `topic_version` against
 the schema in code. If they match, the persisted file wins. If you
 edited the schema in code but forgot to bump `topic_version`, your
@@ -475,7 +475,7 @@ The fix:
 Two layers — `treedb_*` (the low-level graph API) and `gobj_*node` (the
 gobj wrappers most user code uses).
 
-Low-level ([`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h)):
+Low-level ([`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.h)):
 
 ```c
 json_t *treedb_create_node(json_t *tranger, const char *treedb_name,
@@ -495,7 +495,7 @@ int     treedb_unlink_nodes(json_t *tranger, const char *hook_name,
                             json_t *parent_node, json_t *child_node);
 ```
 
-gobj-level wrappers ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)):
+gobj-level wrappers ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)):
 
 ```c
 json_t *gobj_create_node(hgobj, const char *topic, json_t *kw, json_t *opt, hgobj src);
@@ -515,7 +515,7 @@ treedb based on the gobj's `priv` and integrate authzs, traces, etc.
 
 ### 3.7 The link/unlink-saves-child rule
 
-CLAUDE.md hard rule, reproduced verbatim from [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c):
+CLAUDE.md hard rule, reproduced verbatim from [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c):
 
 ```c
 PUBLIC int treedb_link_nodes(...) {
@@ -556,18 +556,18 @@ Memory
 `feedback_cross_yuno_via_store_not_command`:
 in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
 queries from the SPA go through `db_history_wz` reading B+ yunos'
-stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L6070) does not
+stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L6090) does not
 work** for B+ yunos because they don't publish their service via
 `__top_side__` — the store path is the right one.
 
-Code: `tranger2_open_rt_disk` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h). The
+Code: `tranger2_open_rt_disk` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h). The
 mechanism is purely filesystem-mediated — no socket between the master
 and the watchers.
 
 ### 3.9 Snapshots (treedb-level)
 
 Snapshots tag a point in time across the treedb. APIs at
-[`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h):
+[`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.h):
 
 ```c
 int     treedb_shoot_snap   (json_t *tranger, const char *treedb_name,
@@ -583,7 +583,7 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
 Snapshots are how the agent picks which binary version to run when
 multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
-([`gobj_list_snaps`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10645), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
+([`gobj_list_snaps`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10645), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
 direct `(role, role_version)` lookup.
 
 ---
@@ -625,7 +625,7 @@ two delete primitives operate on it:
 - `tranger2_delete_key()` removes a key's directory wholesale (every
   instance with it) and propagates the deletion to in-process and
   cross-process subscribers via inotify + callback fan-out.
-- [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3288) tombstones one row of the `.md2` index
+- [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L3288) tombstones one row of the `.md2` index
   in place (bit `sf_deleted_instance = 0x0400`); readers skip it,
   rowids do not renumber. Opt-in `zero_payload` overwrites the
   matching bytes in the `.json` for [GDPR](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation)-style wipes.
@@ -673,11 +673,11 @@ CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through
 `gbmem_*`, so all `json_*` APIs are safe; never `free()` a `json_t`
 yourself.
 
-### 4.12 Don't cache `json_t *` returned by [`treedb_get_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7370) past a
+### 4.12 Don't cache `json_t *` returned by [`treedb_get_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L7370) past a
 restart
 
 The pointer is valid for the lifetime of the loaded tranger. After a
-[`tranger2_stop`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L527) + `tranger2_startup` cycle the pointer is stale. If
+[`tranger2_stop`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c#L527) + `tranger2_startup` cycle the pointer is stale. If
 you keep references across stops, the framework won't notice — your
 crash will.
 
@@ -811,24 +811,24 @@ between the two yunos — pure inode plumbing.
 
 | What                                              | Where                                                                 |
 |---------------------------------------------------|-----------------------------------------------------------------------|
-| timeranger2 public API                            | [`kernel/c/timeranger2/src/timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h) (747 lines)                  |
-| timeranger2 runtime                               | [`kernel/c/timeranger2/src/timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c) (~7.8k lines)                |
-| `md2_record_t` (32-byte index)                    | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)                                                 |
-| `md2_record_ex_t` (in-memory)                     | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)                                               |
-| `system_flag2_t` (sf_string_key, sf_int_key, …)   | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)                                               |
-| Master / non-master lock                          | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)                                               |
-| `tranger2_append_record`                          | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c) (g_rowid set at 2667, i_rowid at 2634)      |
-| `tranger2_open_rt_disk` (cross-yuno reads)        | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)                                               |
-| TRACE_FS sites                                    | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c) (multiple)                   |
-| treedb public API                                 | [`kernel/c/timeranger2/src/tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h) (617 lines)                    |
-| treedb runtime                                    | [`kernel/c/timeranger2/src/tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c) (~8.9k lines)                  |
-| `__md_treedb__` builder                           | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)                                    |
-| Topic schema loader (`topic_cols.json`)           | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)                                                 |
-| `topic_version` matching                          | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)                                            |
-| `treedb_link_nodes` / `treedb_unlink_nodes`       | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c) (saves child only)                            |
-| `treedb_create/update/delete/get/list_node[s]`    | [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h), [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)                        |
-| Snapshot API                                      | [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.h)                                                 |
-| gobj wrappers (`gobj_*node`)                      | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)                                                    |
-| `gobj_list_snaps`                                 | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)                                                    |
-| Canonical schemas                                 | [`yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c), [`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/treedb_schema_authzs.c) |
-| Treedb gclass (gobj wrapper)                      | [`kernel/c/root-linux/src/c_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_treedb.c), [`c_node.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c)                      |
+| timeranger2 public API                            | [`kernel/c/timeranger2/src/timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h) (747 lines)                  |
+| timeranger2 runtime                               | [`kernel/c/timeranger2/src/timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c) (~7.8k lines)                |
+| `md2_record_t` (32-byte index)                    | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c)                                                 |
+| `md2_record_ex_t` (in-memory)                     | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)                                               |
+| `system_flag2_t` (sf_string_key, sf_int_key, …)   | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)                                               |
+| Master / non-master lock                          | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c)                                               |
+| `tranger2_append_record`                          | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c) (g_rowid set at 2667, i_rowid at 2634)      |
+| `tranger2_open_rt_disk` (cross-yuno reads)        | [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.h)                                               |
+| TRACE_FS sites                                    | [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/timeranger2.c) (multiple)                   |
+| treedb public API                                 | [`kernel/c/timeranger2/src/tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.h) (617 lines)                    |
+| treedb runtime                                    | [`kernel/c/timeranger2/src/tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c) (~8.9k lines)                  |
+| `__md_treedb__` builder                           | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)                                    |
+| Topic schema loader (`topic_cols.json`)           | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)                                                 |
+| `topic_version` matching                          | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)                                            |
+| `treedb_link_nodes` / `treedb_unlink_nodes`       | [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c) (saves child only)                            |
+| `treedb_create/update/delete/get/list_node[s]`    | [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.h), [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c)                        |
+| Snapshot API                                      | [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.h)                                                 |
+| gobj wrappers (`gobj_*node`)                      | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)                                                    |
+| `gobj_list_snaps`                                 | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)                                                    |
+| Canonical schemas                                 | [`yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c), [`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/treedb_schema_authzs.c) |
+| Treedb gclass (gobj wrapper)                      | [`kernel/c/root-linux/src/c_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_treedb.c), [`c_node.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c)                      |

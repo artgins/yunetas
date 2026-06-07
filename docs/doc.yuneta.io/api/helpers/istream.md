@@ -4,8 +4,8 @@ Input-stream reader over a gbuffer: read by delimiter, by fixed length, or by co
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (istream_clear)=
 ## `istream_clear()`

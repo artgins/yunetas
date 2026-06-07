@@ -4,8 +4,8 @@ Helpers to build and parse Yuneta's "common protocol" — a small JSON-over-stre
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (comm_prot_free)=
 ## `comm_prot_free()`

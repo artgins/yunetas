@@ -4,8 +4,8 @@ Send events to a gobj, change and inspect its FSM state, and query the event typ
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_change_state)=
 ## `gobj_change_state()`

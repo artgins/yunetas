@@ -1,7 +1,7 @@
 (util-ytestconfig)=
 # `ytestconfig`
 
-Validate a JSON configuration file by parsing it through Yuneta's [`json_config`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c#L333)
+Validate a JSON configuration file by parsing it through Yuneta's [`json_config`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/json_config.c#L333)
 and reporting any syntax/structural error. Exits non-zero on failure — handy in
 CI or pre-deploy checks.
 
@@ -19,4 +19,4 @@ ytestconfig <FILE>
 ## See also
 
 - [`json_diff`](json_diff.md) — compare two JSON files.
-- [`utils/c/ytestconfig/README.md`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/ytestconfig/README.md).
+- [`utils/c/ytestconfig/README.md`](https://github.com/artgins/yunetas/blob/7.5.2/utils/c/ytestconfig/README.md).

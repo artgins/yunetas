@@ -4,8 +4,8 @@ Introspection helpers: retrieve a gobj's name, short name, full name, parent, yu
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
 
 (get_attrs_schema)=
 ## `get_attrs_schema()`

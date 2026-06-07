@@ -4,8 +4,8 @@ Lightweight intrusive doubly-linked list (`dl_list_t`) used by many internal sub
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
 
 (dl_add)=
 ## `dl_add()`

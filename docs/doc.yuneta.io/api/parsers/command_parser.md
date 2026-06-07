@@ -4,8 +4,8 @@ Default parser for the control-plane `command` verb. Dispatches a textual comman
 
 Source code:
 
-- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/command_parser.h)
-- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/command_parser.c)
+- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.h)
+- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)
 
 (command_parser)=
 ## `command_parser()`

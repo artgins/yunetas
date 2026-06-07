@@ -8,8 +8,8 @@ A `GClass` (short for GObject Class) is a core construct in the Yuneta framework
 A `GClass` in Yuneta is the foundation for defining the behavior and structure of objects in the framework. It encapsulates attributes, methods, and finite state machines, enabling the creation of reusable, modular, and extensible components.
 
 Source code in:
-- [gobj.c](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
-- [gobj.h](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
+- [gobj.c](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
+- [gobj.h](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
 
 ## Components of a GClass
 
@@ -470,22 +470,22 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Custom event-processing logic.
 
 (mt_create_resource)=
-- [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L206):
+- [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_resource2.c#L206):
    - Purpose: Creates a new resource managed by the GObject.
    - Example: Initializing data structures or external dependencies.
 
 (mt_list_resource)=
-- [`mt_list_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L425):
+- [`mt_list_resource`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_resource2.c#L425):
    - Purpose: Lists resources managed by the GObject.
    - Example: Returning an iterator or JSON representation.
 
 (mt_save_resource)=
-- [`mt_save_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L310):
+- [`mt_save_resource`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_resource2.c#L310):
    - Purpose: Saves or updates a resource.
    - Example: Persisting data to storage.
 
 (mt_delete_resource)=
-- [`mt_delete_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L359):
+- [`mt_delete_resource`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_resource2.c#L359):
    - Purpose: Deletes a resource.
    - Example: Removing an entry from a database.
 
@@ -495,7 +495,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Logging state changes or triggering side effects.
 
 (mt_authenticate)=
-- [`mt_authenticate`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L796):
+- [`mt_authenticate`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_authz.c#L796):
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
@@ -510,12 +510,12 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Refreshing metrics in real time.
 
 (mt_disable)=
-- [`mt_disable`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_channel.c#L118):
+- [`mt_disable`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_channel.c#L118):
    - Purpose: Disables the GObject.
    - Example: Preventing further operations until re-enabled.
 
 (mt_enable)=
-- [`mt_enable`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_channel.c#L107):
+- [`mt_enable`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_channel.c#L107):
    - Purpose: Enables the GObject.
    - Example: Allowing operations after being disabled.
 
@@ -545,42 +545,42 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Enforcing access control policies.
 
 (mt_create_node)=
-- [`mt_create_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L733)
+- [`mt_create_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L733)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_update_node)=
-- [`mt_update_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L817)
+- [`mt_update_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L817)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_delete_node)=
-- [`mt_delete_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L942)
+- [`mt_delete_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L942)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_link_nodes)=
-- [`mt_link_nodes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1076)
+- [`mt_link_nodes`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1076)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_unlink_nodes)=
-- [`mt_unlink_nodes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1200):
+- [`mt_unlink_nodes`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1200):
    - Purpose: Methods for managing nodes in TreeDB.
    - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_topic_desc)=
-- [`mt_topic_desc`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L563):
+- [`mt_topic_desc`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L563):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
 (mt_topic_links)=
-- [`mt_topic_links`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L612):
+- [`mt_topic_links`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L612):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
 (mt_topic_hooks)=
-- [`mt_topic_hooks`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L672):
+- [`mt_topic_hooks`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L672):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
@@ -590,17 +590,17 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Describing topics or retrieving metadata.
 
 (mt_shoot_snap)=
-- [`mt_shoot_snap`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1849):
+- [`mt_shoot_snap`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1849):
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
 (mt_activate_snap)=
-- [`mt_activate_snap`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1872):
+- [`mt_activate_snap`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1872):
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
 (mt_list_snaps)=
-- [`mt_list_snaps`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1893):
+- [`mt_list_snaps`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1893):
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
@@ -631,9 +631,9 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 - **Read Operations**:
     - `gobj_read_bool_attr()`:
     - `gobj_read_integer_attr()`:
-    - [`gobj_read_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L3853):
+    - [`gobj_read_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L3853):
     - `gobj_read_str_attr()`:
-    - [`gobj_read_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L3885):
+    - [`gobj_read_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L3885):
     - `gobj_read_pointer_attr()`:
         - `mt_reading`: Retrieves the requested attribute dynamically.
 
@@ -641,10 +641,10 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
     - `gobj_write_str_attr()`:
     - `gobj_write_bool_attr()`:
     - `gobj_write_integer_attr()`:
-    - [`gobj_write_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4087):
-    - [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4117):
-    - [`gobj_write_new_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4148):
-    - [`gobj_write_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4179):
+    - [`gobj_write_real_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4087):
+    - [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4117):
+    - [`gobj_write_new_json_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4148):
+    - [`gobj_write_pointer_attr()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4179):
         - `mt_writing`: Updates the specified attribute dynamically.
 
 ---
@@ -658,9 +658,9 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
     - `mt_play`: Resumes the GObject after being paused.
 - `gobj_pause()`:
     - `mt_pause`: Pauses the GObject's operation.
-- [`gobj_disable()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4754):
+- [`gobj_disable()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4754):
     - `mt_disable`: Disables the GObject.
-- [`gobj_enable()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4786):
+- [`gobj_enable()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L4786):
     - `mt_enable`: Enables the GObject.
 
 ---
@@ -682,16 +682,16 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 ---
 
 #### Resource Management
-- [`gobj_create_resource()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9642):
+- [`gobj_create_resource()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9642):
     - `mt_create_resource`: Called when a resource is created.
-- [`gobj_save_resource()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9680):
+- [`gobj_save_resource()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9680):
     - `mt_save_resource`: Called when a resource is saved.
-- [`gobj_delete_resource()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9726):
+- [`gobj_delete_resource()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9726):
     - `mt_delete_resource`: Called when a resource is deleted.
-- [`gobj_list_resource()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9774):
+- [`gobj_list_resource()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9774):
     - `mt_list_resource`: Called when a resource is list.
-- [`gobj_get_resource()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9811):
-    - [`mt_get_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L486): Called when a resource is get.
+- [`gobj_get_resource()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9811):
+    - [`mt_get_resource`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_resource2.c#L486): Called when a resource is get.
 
 ---
 
@@ -712,57 +712,57 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 ---
 
 #### Authorization
-- [`gobj_user_has_authz()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400):
+- [`gobj_user_has_authz()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9400):
     - `mt_authz_checker`: Verifies if the user has the necessary permissions.
 
 ---
 
 #### TreeDB Management
-- [`gobj_treedbs()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9860):
+- [`gobj_treedbs()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9860):
     - `mt_treedbs`: Lists the TreeDBs associated with the GObject.
-- [`gobj_treedb_topics()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9894):
-    - [`mt_treedb_topics`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L544): Lists the topics within a TreeDB.
-- [`gobj_topic_desc()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9929):
+- [`gobj_treedb_topics()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9894):
+    - [`mt_treedb_topics`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L544): Lists the topics within a TreeDB.
+- [`gobj_topic_desc()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9929):
     - `mt_topic_desc`: Describes a topic in the TreeDB.
-- [`gobj_topic_links()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9960):
+- [`gobj_topic_links()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9960):
     - `mt_topic_links`: Lists the links for a topic.
-- [`gobj_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9996):
+- [`gobj_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9996):
     - `mt_topic_hooks`: Lists the hooks for a topic.
-- [`gobj_create_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10064):
+- [`gobj_create_node()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10064):
     - `mt_create_node`: Creates a new node in the TreeDB.
-- [`gobj_update_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10102):
+- [`gobj_update_node()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10102):
     - `mt_update_node`: Updates an existing node in the TreeDB.
-- [`gobj_delete_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10140):
+- [`gobj_delete_node()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10140):
     - `mt_delete_node`: Deletes a node from the TreeDB.
-- [`gobj_get_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10274):
-    - [`mt_get_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1324): Retrieves a specific node.
-- [`gobj_list_nodes()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10312):
-    - [`mt_list_nodes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1374): Lists all nodes in a topic.
-- [`gobj_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10351):
-    - [`mt_list_instances`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1459): Lists instances of nodes.
-- [`gobj_node_parents()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10395):
-    - [`mt_node_parents`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1525): Lists the parent nodes of a specific node.
-- [`gobj_node_children()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10435):
-    - [`mt_node_children`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1612): Lists the child nodes of a specific node.
-- [`gobj_topic_jtree()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10479):
-    - [`mt_topic_jtree`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1706): Retrieves the JSON representation of a topic's tree structure.
-- [`gobj_node_tree()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10531):
-    - [`mt_node_tree`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1778): Retrieves the tree structure of nodes.
+- [`gobj_get_node()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10274):
+    - [`mt_get_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1324): Retrieves a specific node.
+- [`gobj_list_nodes()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10312):
+    - [`mt_list_nodes`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1374): Lists all nodes in a topic.
+- [`gobj_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10351):
+    - [`mt_list_instances`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1459): Lists instances of nodes.
+- [`gobj_node_parents()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10395):
+    - [`mt_node_parents`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1525): Lists the parent nodes of a specific node.
+- [`gobj_node_children()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10435):
+    - [`mt_node_children`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1612): Lists the child nodes of a specific node.
+- [`gobj_topic_jtree()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10479):
+    - [`mt_topic_jtree`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1706): Retrieves the JSON representation of a topic's tree structure.
+- [`gobj_node_tree()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10531):
+    - [`mt_node_tree`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_node.c#L1778): Retrieves the tree structure of nodes.
 
 ---
 
 #### Snapshots
-- [`gobj_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10575):
+- [`gobj_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10575):
     - `mt_shoot_snap`: Creates a snapshot.
-- [`gobj_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h#L1929):
+- [`gobj_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h#L1929):
     - `mt_activate_snap`: Activates a snapshot.
-- [`gobj_list_snaps()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10645):
+- [`gobj_list_snaps()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10645):
     - `mt_list_snaps`: Lists all snapshots.
 
 ---
 
 #### Tracing
-- [`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L11256):
+- [`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11256):
     - `mt_trace_on`: Enables tracing for the GObject.
     - `mt_trace_off`: Disables tracing for the GObject.
 
@@ -997,7 +997,7 @@ Retrieve the list of all defined trace levels for a GClass:
 #### 2. **Retrieving Active Trace Levels**
 Retrieve the currently active trace levels at various scopes:
 - **Global Levels:**
-  - [`gobj_get_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10794): Get active global trace levels.
+  - [`gobj_get_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10794): Get active global trace levels.
 - **GClass Levels:**
   - `gobj_get_gclass_trace_level(hgclass gclass)`: Get active trace levels for a GClass.
   - `gobj_get_gclass_trace_no_level(hgclass gclass)`: Get trace levels explicitly disabled for a GClass.
@@ -1029,7 +1029,7 @@ Enable or disable trace levels dynamically at different scopes:
 #### 6. **Deep Tracing**
 Deep tracing enables comprehensive logging across all levels:
 - `gobj_set_deep_tracing(int level)`: Enable deep tracing with different levels of detail.
-- [`gobj_get_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L11344): Retrieve the current deep tracing level.
+- [`gobj_get_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11344): Retrieve the current deep tracing level.
 
 ---
 
@@ -1092,7 +1092,7 @@ Values of `gclass_flag_t` Flags
 ## Error Handling Convention — No Silent Errors
 
 In Yuneta, the log is the only window into runtime failures.
-Production debugging starts and ends with [`gobj_log_error`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L529) and the
+Production debugging starts and ends with [`gobj_log_error`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L529) and the
 trace levels — there is no other observability surface for the C
 side. Any error path that returns without leaving a trace is a blind
 spot.

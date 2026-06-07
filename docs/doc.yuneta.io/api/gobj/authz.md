@@ -4,9 +4,9 @@ Authorization checks and helpers used by the control plane. A gobj declares an `
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
-- [`c_authz.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.h)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
+- [`c_authz.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_authz.h)
 
 (gobj_authenticate)=
 ## `gobj_authenticate()`

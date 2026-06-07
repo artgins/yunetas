@@ -4,8 +4,8 @@ Miscellaneous helpers that don't fit anywhere else: byte-order conversion, base6
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (get_hostname)=
 ## `get_hostname()`

@@ -20,10 +20,10 @@ the function:
 
 Source code in:
 
-- [json_config.c](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c)
+- [json_config.c](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/json_config.c)
 
 
-The [`json_config()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c#L333) function is a utility in Yuneta designed to generate a final JSON configuration by merging multiple JSON inputs. It supports advanced features like comment handling, variable substitution, and range-based expansion. The function can output the resulting configuration, validate it, and handle errors robustly.
+The [`json_config()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/json_config.c#L333) function is a utility in Yuneta designed to generate a final JSON configuration by merging multiple JSON inputs. It supports advanced features like comment handling, variable substitution, and range-based expansion. The function can output the resulting configuration, validate it, and handle errors robustly.
 
 
 The `json_config()` function merges multiple JSON configurations into a single final configuration string, following a specific order of precedence. It also includes features like comment handling, variable substitution, and range-based expansion for flexibility and advanced use cases.

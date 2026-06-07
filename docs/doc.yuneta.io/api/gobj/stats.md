@@ -14,8 +14,8 @@ Pick one store per metric and stick with it: mixing them in the same gobj makes 
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_stats)=
 ## `gobj_stats()`

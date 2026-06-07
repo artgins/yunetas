@@ -4,8 +4,8 @@ Jansson helpers: load and dump JSON, copy/merge objects, traverse trees, and con
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (anystring2json)=
 ## `anystring2json()`

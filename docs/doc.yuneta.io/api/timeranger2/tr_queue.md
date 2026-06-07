@@ -4,8 +4,8 @@ Persistent message queue with at-least-once semantics, built on timeranger2. Use
 
 Source code:
 
-- [`tr_queue.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_queue.h)
-- [`tr_queue.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_queue.c)
+- [`tr_queue.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_queue.h)
+- [`tr_queue.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_queue.c)
 
 (trq_answer)=
 ## `trq_answer()`

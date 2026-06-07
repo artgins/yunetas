@@ -1,4 +1,4 @@
-# Entry point: [`yuneta_entry_point`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L286) + `ydaemon`
+# Entry point: [`yuneta_entry_point`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c#L286) + `ydaemon`
 
 > **Read this first.** Everything else under *Operating Yuneta* assumes you
 > already know what `main()` does, who is the parent of who, and why a yuno
@@ -11,12 +11,12 @@ lives in two files of `kernel/c/root-linux/src/`:
 
 | File              | Role                                                                 |
 |-------------------|----------------------------------------------------------------------|
-| [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)   | The `int main()` body every yuno calls. argp, gbmem, config, log, gobj_start_up, registration, then either daemon or foreground. |
-| [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c)       | The supervision kernel under `--start`. Double fork, watcher process, auto-relaunch on abnormal exit. |
+| [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)   | The `int main()` body every yuno calls. argp, gbmem, config, log, gobj_start_up, registration, then either daemon or foreground. |
+| [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c)       | The supervision kernel under `--start`. Double fork, watcher process, auto-relaunch on abnormal exit. |
 
 Every standalone or citizen yuno's `main.c` boils down to one call to
-`yuneta_entry_point()` (optionally preceded by [`yuneta_setup()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L230) if it wants
-to override defaults). See [`yunos/c/yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/main.c) for the
+`yuneta_entry_point()` (optionally preceded by [`yuneta_setup()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c#L230) if it wants
+to override defaults). See [`yunos/c/yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/main.c) for the
 canonical example.
 
 ---
@@ -60,26 +60,26 @@ Call before `yuneta_entry_point()` if you want to override any of:
 
 | Knob                             | Default                                                | Where the default is set        |
 |----------------------------------|--------------------------------------------------------|---------------------------------|
-| `persistent_attrs`               | `db_load/save/remove/list_persistent_attrs` (dbsimple) | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)           |
-| `command_parser`                 | internal `command_parser()`                            | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| `stats_parser`                   | internal `stats_parser()`                              | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| [`authz_checker`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L4725)                  | [`C_AUTHZ`](#gclass-c-authz) monoclass checker                            | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| [`authentication_parser`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L4813)          | `C_AUTHZ` parser                                       | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| `MEM_MIN_BLOCK` / `MEM_MAX_BLOCK`| 512 B / 16 MiB                                         | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)           |
-| `MEM_SUPERBLOCK`                 | 16 MiB                                                 | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| `MEM_MAX_SYSTEM_MEMORY`          | 64 MiB                                                 | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
-| `USE_OWN_SYSTEM_MEMORY`          | `FALSE` (use libc malloc under gbmem)                  | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
+| `persistent_attrs`               | `db_load/save/remove/list_persistent_attrs` (dbsimple) | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)           |
+| `command_parser`                 | internal `command_parser()`                            | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| `stats_parser`                   | internal `stats_parser()`                              | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| [`authz_checker`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_authz.c#L4725)                  | [`C_AUTHZ`](#gclass-c-authz) monoclass checker                            | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| [`authentication_parser`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_authz.c#L4813)          | `C_AUTHZ` parser                                       | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| `MEM_MIN_BLOCK` / `MEM_MAX_BLOCK`| 512 B / 16 MiB                                         | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)           |
+| `MEM_SUPERBLOCK`                 | 16 MiB                                                 | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| `MEM_MAX_SYSTEM_MEMORY`          | 64 MiB                                                 | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
+| `USE_OWN_SYSTEM_MEMORY`          | `FALSE` (use libc malloc under gbmem)                  | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c)              |
 
-The memory tunables are passed straight to [`gbmem_setup()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbmem.c#L80) later. Yunos
+The memory tunables are passed straight to [`gbmem_setup()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gbmem.c#L80) later. Yunos
 that handle large messages (image proxies, mqtt brokers under load) bump
-`MEM_MAX_BLOCK` and `MEM_MAX_SYSTEM_MEMORY`. See [`yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/main.c)
+`MEM_MAX_BLOCK` and `MEM_MAX_SYSTEM_MEMORY`. See [`yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/main.c)
 for a representative call site.
 
 ---
 
 ## 3. `yuneta_entry_point()` — the choreography
 
-[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c). In execution order:
+[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c). In execution order:
 
 ### 3.1 Identity sanity
 
@@ -107,7 +107,7 @@ for a representative call site.
 
 When `--start`, every fd in `[0, sysconf(_SC_OPEN_MAX))` is closed, then
 `/dev/null` is opened to grab fd 0 and `dup2`'d to fd 1 and fd 2. After
-this, no inherited fd survives. [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L6920) warns if anything stays
+this, no inherited fd survives. [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6920) warns if anything stays
 open beyond 4.
 
 ### 3.4 Allocator switch — **this is load-bearing**
@@ -122,7 +122,7 @@ gbmem_setup(MEM_MAX_BLOCK, MEM_MAX_SYSTEM_MEMORY, USE_OWN_SYSTEM_MEMORY,
 After this line, every `json_*` allocation goes through `gbmem_*` and is
 tracked under `CONFIG_DEBUG_TRACK_MEMORY`.
 
-**Test-author trap:** any `json_pack()` / [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/testing.c#L113) called
+**Test-author trap:** any `json_pack()` / [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/testing.c#L113) called
 **before** `yuneta_entry_point` returns gets libc-tracked memory that
 `gbmem` later can't free → false leaks. Put that setup inside
 `register_yuno_and_more()` (which runs at §3.10 below), never in `main()`.
@@ -130,13 +130,13 @@ See memory `feedback_test_json_allocator_timing`.
 
 ### 3.5 Logging boot
 
-[`glog_init()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/glogger.c#L189) registers the available log handler types (`stdout`, `file`,
-`udp`). [`rotatory_start_up()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/rotatory.c#L91) arms the rotation timer. No handlers are
+[`glog_init()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L189) registers the available log handler types (`stdout`, `file`,
+`udp`). [`rotatory_start_up()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/rotatory.c#L91) arms the rotation timer. No handlers are
 attached yet.
 
 ### 3.6 Merge the config
 
-[`json_config()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c#L333) merges, in order:
+[`json_config()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/json_config.c#L333) merges, in order:
 
 ```
 fixed_config (compiled into the yuno) +
@@ -152,8 +152,8 @@ the on-disk file. See memory `feedback_yuno_runtime_config`.
 ### 3.7 Environment registration
 
 Reads `environment.{work_dir, domain_dir, xpermission, rpermission}` from
-the merged config and calls [`register_yuneta_environment()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L30). This is what
-later powers [`yuneta_realm_file()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L112), [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L141) and the rest of
+the merged config and calls [`register_yuneta_environment()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_environment.c#L30). This is what
+later powers [`yuneta_realm_file()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_environment.c#L112), [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_environment.c#L141) and the rest of
 the path helpers.
 
 ### 3.8 `gobj_start_up()`
@@ -172,7 +172,7 @@ Reads `environment.{daemon|console}_log_handlers` depending on
 - `handler_type: file` → opens a rotatory at the path resolved by
   `yuneta_log_file()`, honouring `bf_size`, `max_megas_rotatoryfile_size`,
   `min_free_disk_percentage`.
-- `handler_type: udp` (or legacy typo `upd`) → [`udpc_open()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/log_udp_handler.c#L154) to the
+- `handler_type: udp` (or legacy typo `upd`) → [`udpc_open()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/log_udp_handler.c#L154) to the
   configured `url`. This is the logcenter feed.
 
 ### 3.10 Register gclasses
@@ -202,23 +202,23 @@ if(__as_daemon__) {
 }
 ```
 
-The foreground path runs [`process()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L115) directly; the daemon path goes
-through [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c). Both eventually reach the same `process()` function.
+The foreground path runs [`process()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c#L115) directly; the daemon path goes
+through [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c). Both eventually reach the same `process()` function.
 
 ---
 
 (entry-point-watcher)=
-## 4. [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c) — the supervision kernel
+## 4. [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c) — the supervision kernel
 
-[`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c). The reason a yuno survives `kill -9 yuneta_agent`.
+[`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c). The reason a yuno survives `kill -9 yuneta_agent`.
 
 ### 4.1 Double fork
 
-[`continue_as_daemon()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L59): `fork()` once. Parent `_exit(EXIT_SUCCESS)`;
+[`continue_as_daemon()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c#L59): `fork()` once. Parent `_exit(EXIT_SUCCESS)`;
 child becomes session leader via `setsid()` and records `watcher_pid =
 getpid()`. This is the **watcher** process.
 
-[`relauncher()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L111): `fork()` again. The watcher's `waitpid()`s on
+[`relauncher()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c#L111): `fork()` again. The watcher's `waitpid()`s on
 the grandchild; the grandchild is the **actual yuno**. The grandchild
 inherits umask 0, chdirs to `work_dir`, and calls `process()`.
 
@@ -265,12 +265,12 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
   watcher has already spawned a new yuno child with a new pid.
 - If you `kill -9` the agent itself, every yuno on the box keeps running.
   Each one still has its watcher. Restarting the agent re-discovers them
-  via `getpgid(pid) >= 0` checks plus the boot-time [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L8758).
+  via `getpgid(pid) >= 0` checks plus the boot-time [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L8778).
 
-### 4.5 `--stop` / [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L358)
+### 4.5 `--stop` / [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c#L358)
 
 `daemon_shutdown()` scans `/proc/*/comm` for entries matching
-`process_name` and calls [`kill_proc()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L323) for each:
+`process_name` and calls [`kill_proc()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c#L323) for each:
 
 ```c
 kill(pid, SIGQUIT);   // soft exit — let it delete pid file, flush logs
@@ -281,9 +281,9 @@ kill(pid, SIGKILL);   // hard — guarantee it goes
 The second `kill()` is what stops the watcher (per §4.3). Without it, the
 SIGQUIT would only bring down the child and the watcher would relaunch.
 
-### 4.6 [`get_watcher_pid()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L475)
+### 4.6 [`get_watcher_pid()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c#L475)
 
-Exported so [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c) can include both `pid` and `watcher_pid` in the
+Exported so [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c) can include both `pid` and `watcher_pid` in the
 yuno's identity card. That is how the agent ends up with `yuno_pid` and
 `watcher_pid` rows in its treedb (used by `kill-yuno`, see §7).
 
@@ -291,7 +291,7 @@ yuno's identity card. That is how the agent ends up with `yuno_pid` and
 
 ## 5. `process()` — the inner loop
 
-[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c). What every yuno actually runs once the daemon
+[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c). What every yuno actually runs once the daemon
 ceremony is done.
 
 1. Emit the startup banner (`MSGSET_STARTUP "Starting yuno"`) with the
@@ -300,33 +300,33 @@ ceremony is done.
    gobj of the runtime tree.
 3. For every entry in `config.services[]`: `gobj_service_factory(name,
    tree)` instantiates the service subtree.
-4. [`run_services()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/manage_services.c#L36) → start every service in declared order.
+4. [`run_services()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/manage_services.c#L36) → start every service in declared order.
 5. `yev_loop_run(yuno_event_loop(), -1)` → block here for the rest of the
-   process's life. Returns only when [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c#L5623) flips the
+   process's life. Returns only when [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c#L5623) flips the
    stop flag (§6).
-6. [`stop_services()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/manage_services.c#L62) → graceful shutdown in reverse order.
-7. [`gobj_end()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L613) → destroy yuno, free baseline allocations.
-8. [`yev_loop_stop()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/yev_loop/src/yev_loop.c#L884) + [`yuno_event_detroy()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c#L5612).
-9. [`rotatory_end()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/rotatory.c#L109), `json_decref(__jn_config__)`, optional `cleaning_fn()`.
-10. [`print_track_mem()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbmem.c#L275) — under `CONFIG_DEBUG_TRACK_MEMORY`, dumps any
+6. [`stop_services()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/manage_services.c#L62) → graceful shutdown in reverse order.
+7. [`gobj_end()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L613) → destroy yuno, free baseline allocations.
+8. [`yev_loop_stop()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/yev_loop/src/yev_loop.c#L958) + [`yuno_event_detroy()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c#L5612).
+9. [`rotatory_end()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/rotatory.c#L109), `json_decref(__jn_config__)`, optional `cleaning_fn()`.
+10. [`print_track_mem()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gbmem.c#L275) — under `CONFIG_DEBUG_TRACK_MEMORY`, dumps any
     surviving blocks. **`gobj_end()` must run before any
-    [`get_cur_system_memory()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbmem.c#L253) check**, per the test rule in `CLAUDE.md`.
+    [`get_cur_system_memory()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gbmem.c#L253) check**, per the test rule in `CLAUDE.md`.
 
 When `process()` returns, the daemon child reaches the bottom of
-`relauncher()` and exits with [`gobj_get_exit_code()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L605) — which determines
+`relauncher()` and exits with [`gobj_get_exit_code()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L605) — which determines
 whether the watcher exits cleanly (§4.3).
 
 ---
 
 ## 6. Signals inside the yuno child
 
-[`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c) installs a `signalfd()` that watches SIGTERM,
+[`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c) installs a `signalfd()` that watches SIGTERM,
 SIGQUIT, SIGINT, SIGALRM, SIGUSR1, SIGUSR2, SIGPIPE. `yev_loop` pumps it.
-The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c)):
+The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c)):
 
 | Signal               | First time                                            | Second time                  |
 |----------------------|-------------------------------------------------------|------------------------------|
-| SIGQUIT / SIGINT / SIGALRM | `set_yuno_must_die()` → exit code 0 → [`yev_loop_run`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/yev_loop/src/yev_loop.c#L655) returns → clean shutdown → watcher does **not** relaunch | `_exit(0)` immediately (still exit code 0, still no relaunch) |
+| SIGQUIT / SIGINT / SIGALRM | `set_yuno_must_die()` → exit code 0 → [`yev_loop_run`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/yev_loop/src/yev_loop.c#L729) returns → clean shutdown → watcher does **not** relaunch | `_exit(0)` immediately (still exit code 0, still no relaunch) |
 | SIGUSR1              | cycle global trace level (off → L0 → L1 → L2 → off)   | same                         |
 | SIGUSR2              | toggle deep tracing                                   | same                         |
 | SIGTERM / SIGPIPE    | ignored                                               | ignored                      |
@@ -357,7 +357,7 @@ if(signal2kill == SIGKILL) {
 ```
 
 Two modes, toggled by the agent's `signal2kill` attribute (SDATA default
-`3` = SIGQUIT, [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c)):
+`3` = SIGQUIT, [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c)):
 
 - **Graceful kill (`set-graceful-kill`, default).** SIGQUIT to the child →
   child's signalfd handler runs `set_yuno_must_die()` → clean exit code
@@ -376,7 +376,7 @@ its signalfd handler, `set-quick-kill` is the escape hatch.
 (entry-point-crash-forensics)=
 ## 8. Crash forensics (`/var/crash/core.%e`)
 
-The `.deb` (see [`packages/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.5.1/packages/make-yuneta-agent-deb.sh)) wires this up
+The `.deb` (see [`packages/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.5.2/packages/make-yuneta-agent-deb.sh)) wires this up
 end-to-end. Everything below is on every machine where the package is
 installed; on developer boxes you may need to apply it by hand.
 
@@ -487,7 +487,7 @@ the core in `/var/crash/` is from the previous incarnation.
   end-to-end tracing.
 - [`GOBJ.md`](GOBJ.md) — the gobj framework once `gobj_start_up()` has
   run.
-- [`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c) — 934 lines, the source.
-- [`kernel/c/root-linux/src/ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c) — 480 lines, the supervisor.
+- [`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c) — 934 lines, the source.
+- [`kernel/c/root-linux/src/ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c) — 480 lines, the supervisor.
 - `packages/make-yuneta-agent-deb.sh:324-358` — the sysctl + limits
   block that enables core dumps.
