@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="OIDC/PKCE auth sequence. Phase A login: the browser computes a PKCE verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to the auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Phase B per-request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check is currently commented out, so the handler runs regardless.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="OIDC/PKCE auth sequence. Phase A login: the browser computes a PKCE verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to the auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Phase B per-request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check then runs only if the yuno has enable_command_authz set (off by default), otherwise the handler runs regardless.">
   <defs>
     <marker id="af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
@@ -81,10 +81,10 @@
   <text x="813" y="531" text-anchor="middle" font-size="9.5" fill="#41504f">8. libjwt JWKS verify + claims (iss, azp, exp)</text>
   <text x="813" y="544" text-anchor="middle" font-size="9.5" fill="#41504f">→ extract username → __username__</text>
 
-  <!-- disabled authz gate -->
+  <!-- gated authz gate (enable_command_authz, off by default) -->
   <rect x="640" y="556" width="286" height="30" rx="6" fill="#fdecea" stroke="#c0492f" stroke-width="1.5"/>
-  <text x="783" y="569" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">⚠ 9. per-command authz (pm_*) is COMMENTED OUT</text>
-  <text x="783" y="581" text-anchor="middle" font-size="9" fill="#b56a55">the handler runs whether or not the user is authorized</text>
+  <text x="783" y="569" text-anchor="middle" font-size="9.5" font-weight="700" fill="#9a3a25">⚠ 9. per-command authz (pm_*): gated, OFF by default</text>
+  <text x="783" y="581" text-anchor="middle" font-size="9" fill="#b56a55">runs only if enable_command_authz=TRUE, else handler runs regardless</text>
 
   <!-- backend self: handler -->
   <rect x="700" y="592" width="226" height="22" rx="6" fill="#e6f4ea" stroke="#2a9d8f"/>

@@ -124,7 +124,7 @@ spelunking through `c_agent.c` and `gobj.c`. The README is an index.
 | 4 | [`IPC.md`](yunos/c/yuno_agent/IPC.md)                                   | Events, ievents, gates, the SPA case.                             |
 | 5 | [`REALMS.md`](yunos/c/yuno_agent/REALMS.md)                             | Multi-tenancy, on-disk layout, CRUD, what is NOT realm-scoped.    |
 | 6 | [`SCAFFOLDING.md`](yunos/c/yuno_agent/SCAFFOLDING.md)                   | `yuno-skeleton` templates, banner conventions.                    |
-| 7 | [`YUNO_AUTH.md`](yunos/c/yuno_agent/YUNO_AUTH.md)                       | OIDC/auth_bff, `C_AUTHZ`, cert-sync. **Read §4.5**: the per-command authz check is currently commented out. |
+| 7 | [`YUNO_AUTH.md`](yunos/c/yuno_agent/YUNO_AUTH.md)                       | OIDC/auth_bff, `C_AUTHZ`, cert-sync. **Read §4.5**: the per-command authz check is re-armed but gated off by default (`enable_command_authz`). |
 | 8 | [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md)                                 | Framework crash course (gclass, mt_*, SData, runtime tree).       |
 | 9 | [`YUNO_TREEDB.md`](yunos/c/yuno_agent/YUNO_TREEDB.md)                   | timeranger2 + treedb (link-saves-child rule, `topic_version` trap). |
 

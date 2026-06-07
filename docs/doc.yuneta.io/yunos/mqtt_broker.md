@@ -57,6 +57,7 @@ transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 |-----------|---------|---------|
 | `mqtt_persistent_db` | `true` | Persist clients/sessions/subscriptions/queues/retained |
 | `enable_new_clients` | `false` | Auto-create unknown clients on connect |
+| `enable_acl` | `false` | Enforce per-group publish/subscribe ACLs (see [Authorization](#mqtt-acl)) |
 | `deny_subscribes` | — | JSON list of topics for which SUBSCRIBE is refused |
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
@@ -78,6 +79,84 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it; 0 = no limit) |
+
+(mqtt-acl)=
+## Authorization (publish/subscribe ACL)
+
+Authentication (who the client is) is handled by [`C_AUTHZ`](#gclass-c-authz) —
+see [Authentication, authorisation, and TLS](#yuno-auth). Authorization of
+*which topics a client may use* is a separate, broker-local mechanism: a
+**per-group topic ACL** stored in the broker's own TreeDB.
+
+The model (model A — group-based ACL in the treedb):
+
+- The `client_groups` topic
+  ([`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.2/modules/c/mqtt/src/treedb_schema_mqtt_broker.c))
+  carries two array columns: **`publish_acl`** and **`subscribe_acl`**, each a
+  list of MQTT topic-filter patterns (`+` / `#` wildcards).
+- A `clients` row fkeys to one or more `client_groups`. A client is allowed an
+  access if **any** of its groups has a pattern matching the topic, using the
+  same `topic_matches_sub()` wildcard logic the broker uses for routing.
+
+### Posture (backward-compatible, default off)
+
+Enforcement is gated by the `enable_acl` attr on `C_MQTT_BROKER` (default
+`false`). The ACL helper allows when:
+
+- `enable_acl` is **off** (default) — no enforcement, allow-all; OR
+- the client's groups define **no patterns** for that access — allow-all
+  (so adding the columns doesn't break an existing broker until ACLs are
+  authored).
+
+With `enable_acl` **on** and patterns authored, a topic must match one of the
+client's group patterns. An **unknown client** (with ACL on) is **denied**. A
+denied PUBLISH is rejected with `MQTT_RC_NOT_AUTHORIZED` and **logged** (never
+silently dropped).
+
+### Wiring
+
+The protocol FSM (`C_PROT_MQTT2`) asks the broker over a **direct**
+`EV_MQTT_ACL_CHECK` event (returning `0` = allowed / `-1` = denied) — a direct
+`gobj_send_event`, not a publish, because the published path runs through the
+intermediate `C_CHANNEL` / `C_IOGATE` which don't carry the event. If no
+`C_MQTT_BROKER` service is found the protocol **fails open** (allows) with a
+warning, never silently blocking traffic.
+
+```{note}
+**Publish-side is enforced; subscribe-side is not yet wired.** The broker helper
+already supports `access: "read"` and the `subscribe_acl` column is in the schema
+(and covered by the ACL test), but the SUBSCRIBE gate in `C_PROT_MQTT2` does not
+yet call it. Until it does, `subscribe_acl` has no runtime effect. The A/B/C
+model choice and a future default-deny flip remain a deployment decision — see
+`TODO.md` § *Security: MQTT broker — open follow-ups* (F-005).
+```
+
+### Authoring an ACL
+
+```bash
+# 1. Turn enforcement on for the broker (config attr, then restart the yuno):
+#      "enable_acl": true   (SDF_WR|SDF_PERSIST)
+
+# 2. Give a group publish/subscribe patterns (broker's own treedb):
+ycommand -c 'command-yuno id=<yuno> service=<mqtt_service> command=update-node \
+    topic_name=client_groups \
+    record={"id":"g_limited","publish_acl":["sensors/+/up"],"subscribe_acl":["sensors/+/cmd"]} \
+    options={"create":1}'
+
+# 3. Link the client to the group (clients.client_groups fkey):
+ycommand -c 'command-yuno id=<yuno> service=<mqtt_service> command=link-nodes \
+    hook=client_groups parent_topic=client_groups parent_id=g_limited \
+    child_topic=clients child_id=<client_id>'
+```
+
+A group with empty `publish_acl`/`subscribe_acl` keeps allow-all for that access
+(useful for an unrestricted `g_open` group while others are constrained).
+
+Regression test: `tests/c/c_mqtt/acl`
+(`main_acl.c` + `c_acl.c`) drives `EV_MQTT_ACL_CHECK` at an embedded broker —
+the exact path the protocol gate uses — across matching/non-matching publish and
+subscribe, `#` wildcard (incl. the parent level), the two allow-all fallbacks,
+and the unknown-client deny.
 
 ## Commands
 

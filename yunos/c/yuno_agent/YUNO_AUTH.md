@@ -9,11 +9,14 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.
 [`IPC.md`](IPC.md), [`REALMS.md`](REALMS.md), [`SCAFFOLDING.md`](SCAFFOLDING.md).
 
 > ⚠️ **Read §4.5 and §8.3 before assuming anything about authz enforcement.**
-> The per-command authz check is currently **commented out** in the framework
-> ([`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)). Every `pm_*` schema you
-> see on commands is **decorative**: declared, present in the binary,
-> never consulted. Treat commands as authenticated-but-not-authorised
-> until that block is uncommented.
+> The per-command authz check is **re-armed but gated** in the framework
+> ([`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)). It runs only when the yuno
+> sets the `enable_command_authz` attr TRUE; **by default it is OFF**, so a
+> stock deployment is still authenticated-but-not-authorised at the command
+> boundary. The difference from the old "commented out" state: the `SDF_AUTHZ_X`
+> flag is now **consulted** — turning the gate on enforces every `pm_*`/authz
+> declaration without a code change. Event-level authz (`EVF_AUTHZ_*`) is still
+> unenforced (§4.6, §8.4).
 
 ---
 
@@ -31,7 +34,8 @@ Three independent pieces, often confused:
   ┌─────────────────────────────────────────────────────────────────┐
   │  authorisation = "is the caller allowed to do X"                │
   │     (C_AUTHZ gclass + authzs treedb + pm_* schemas)             │
-  │     ⚠️  Per-command check is COMMENTED OUT (see §4.5, §8.3)     │
+  │     ⚠️  Per-command check is GATED OFF by default               │
+  │         (enable_command_authz; see §4.5, §8.3)                  │
   └────────────────────────────────────────────────┬────────────────┘
                                                    │
                                                    ▼
@@ -43,7 +47,7 @@ Three independent pieces, often confused:
 
 End-to-end request flow on a real production yuno:
 
-![OIDC/PKCE auth sequence. Login (PKCE): the browser computes a verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Per request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check is currently commented out, so the handler runs regardless.](../../../docs/doc.yuneta.io/_static/auth_flow.svg)
+![OIDC/PKCE auth sequence. Login (PKCE): the browser computes a verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Per request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check then runs only if the yuno has enable_command_authz set (off by default), otherwise the handler runs regardless.](../../../docs/doc.yuneta.io/_static/auth_flow.svg)
 
 The same flow in text:
 
@@ -73,8 +77,9 @@ The same flow in text:
         ▼
    command dispatch (gobj_command)
         │
-        │  6. ⚠️ The pm_* check that should fire here is COMMENTED OUT.
-        │     The handler runs whether or not the user has the authz.
+        │  6. ⚠️ The pm_* / SDF_AUTHZ_X check fires here ONLY if the yuno has
+        │     enable_command_authz = TRUE (off by default). When off, the
+        │     handler runs whether or not the user has the authz.
         │
         ▼
    the handler (cmd_run_yuno, cmd_list_yunos, …)
@@ -348,62 +353,98 @@ PRIVATE sdata_desc_t pm_run_yuno[] = {
 
 The framework treats `pm_run_yuno` as a parameter schema for input
 validation (which **is** enforced). The authz-flag handling on commands
-is the part that is commented out (next section).
+is gated behind a yuno attr (next section).
 
-### 4.5 ⚠️ The command authz check is commented out
+### 4.5 The command authz check — re-armed, gated opt-in
 
-[`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c):
+The `SDF_AUTHZ_X` check at the command-dispatch boundary in
+[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)
+was commented out for years. It is now **re-armed** but **gated** behind a
+yuno attr, so the default stays non-breaking:
 
 ```c
-/*-----------------------------------------------*
- *  Check AUTHZ
- *-----------------------------------------------*/
-//     if(cnf_cmd->flag & SDF_AUTHZ_X) {
-//         json_t *kw_authz = json_pack("{s:s}", "command", command);
-//         …
-//         if(!gobj_user_has_authz(gobj, "__execute_command__", kw_authz, src)) {
-//             …
-//             return msg_iev_build_response(…, -403, "No permission to execute command", …);
-//         }
-//     }
+if(cnf_cmd->flag & SDF_AUTHZ_X) {
+    hgobj yuno = gobj_yuno();
+    BOOL authz_enabled = yuno &&
+        gobj_has_attr(yuno, "enable_command_authz") &&
+        gobj_read_bool_attr(yuno, "enable_command_authz");
+
+    if(authz_enabled && src != gobj) {              // self-issued cmds bypass
+        json_t *kw_authz = json_pack("{s:s}", "command", command);
+        json_object_set(kw_authz, "kw", kw);        // checker owns kw_authz
+        if(!gobj_user_has_authz(gobj, "__execute_command__", kw_authz, src)) {
+            // logged (MSGSET_AUTH), then:
+            return build_command_response(gobj, -403,
+                json_sprintf("No permission to execute command: '%s'", command), 0, 0);
+        }
+    }
+}
 ```
 
-The entire block is **commented**. Effects:
+The three pieces that make it safe:
 
-- The `SDF_AUTHZ_X` flag on a command is parsed but never read.
-- `gobj_user_has_authz("__execute_command__", …)` is never invoked from
-  the command dispatcher.
-- Every authenticated caller can execute every command on every gobj.
+- **The gate — `enable_command_authz`.** A new `SDF_RD` boolean attr on
+  `c_yuno` (`enable_command_authz`, default `"0"`,
+  [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c)).
+  The check runs **only** when this is TRUE. `SDF_RD` (not `SDF_WR`) on purpose:
+  the runtime `write-attr` command cannot turn authz *off* at runtime — only
+  config or code can set it. Absent attr → off.
+- **The self-bypass — `src == gobj`.** A command a gobj issues to itself
+  (e.g. the `c_yuno` cert-reload walk `gobj_command(child, …, child)`) carries
+  no external principal and must never be denied. Only commands from an
+  *external* `src` are checked.
+- **Deny is logged, not silent** (`MSGSET_AUTH`), and returns `-403` via
+  `build_command_response` (gobj-c), not the old root-linux
+  `msg_iev_build_response` the commented block referenced.
 
-The other places that *do* invoke `gobj_user_has_authz` (custom code in
-specific gclasses) still work, but there is no framework-level
-enforcement for commands.
+Effects with the gate **OFF (default):** identical to the old commented state —
+every authenticated caller runs every command; the `SDF_AUTHZ_X` flag is read
+but short-circuits to allow.
 
-When this is uncommented, every existing `pm_*` schema starts mattering.
-Production deployments that have not exercised role assignments yet will
-suddenly see denials. Treat it as a coming breaking change.
+Effects with the gate **ON:** every `SDF_AUTHZ_X` command requires
+`__execute_command__`, resolved through the global `authz_checker` against the
+`c_authz` role model. **This needs a running `C_AUTHZ` service** — the default
+checker is fail-closed (denies when it can't find one), so turning the gate on
+in a yuno *without* a `C_AUTHZ` role model denies all ~133 `SDF_AUTHZ_X`
+commands. Enable it only where a role model exists, and validate on staging
+first (it is a breaking change for deployments that have not assigned roles).
+
+> Implemented 2026-06-07 (gated opt-in posture). The fail-open-without-`C_AUTHZ`
+> and strict-always-enforce postures were considered and remain available if the
+> gate proves too coarse — see `TODO.md` § *Security: re-enable per-command
+> authorization*. Regression test: `tests/c/command_authz/test_command_authz.c`
+> (default-off runs; on+deny → -403; on+self-bypass runs; on+granted runs).
 
 ### 4.6 `EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`
 
 [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h) declares the flags; [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c) declares the
 matching global authzs (`__inject_event__`, `__subscribe_event__`). The
 **enforcement** for these flags is not found in the dispatcher
-(`gobj_send_event`, `gobj_subscribe_event`). Same status as the command
-check: declared, not enforced.
+(`gobj_send_event`, `gobj_subscribe_event`). Unlike the command check (§4.5,
+now re-armed behind a gate), event-level authz is still **declared, not
+enforced** — there is no `enable_event_authz` equivalent yet.
 
 ### 4.7 Where authz **is** actually enforced today
 
-Custom code inside specific gclasses that calls `gobj_user_has_authz`
-directly. Examples worth knowing about:
+Two paths, in priority order:
 
-- Inside `C_AUTHZ`'s own commands (you cannot list users without
-  authority over the auth service itself).
-- Inside `auth_bff` for things like cookie-domain validation
-  ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching, SEC-06).
+1. **The framework command gate** — when the yuno sets
+   `enable_command_authz` TRUE (§4.5), every `SDF_AUTHZ_X` command from an
+   external `src` is checked. This is the canonical path; prefer it over
+   per-handler checks for new services that have a `C_AUTHZ` role model.
+2. **Custom code inside specific gclasses** that calls `gobj_user_has_authz`
+   directly. Examples worth knowing about:
+   - Inside `C_AUTHZ`'s own commands (you cannot list users without
+     authority over the auth service itself).
+   - Inside `auth_bff` for things like cookie-domain validation
+     ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching, SEC-06).
+   - The MQTT broker's per-group publish/subscribe ACL (a topic-pattern model
+     in the broker's own treedb, not `gobj_user_has_authz` — see the
+     `mqtt_broker` doc's *Authorization* section).
 
-For any user-facing service that exposes commands and needs them
-authorised right now, **add an explicit `gobj_user_has_authz` call at
-the top of each command handler**. Don't rely on the framework flag.
+If a yuno has **no** `C_AUTHZ` role model and you still need a command gated
+right now, add an explicit `gobj_user_has_authz` call at the top of that
+handler rather than turning on the (fail-closed) global gate.
 
 ### 4.8 Per-instance config keys (`authz.*`)
 
@@ -460,8 +501,8 @@ Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yune
 | `user-authzs`      | Effective authzs of a user (after role inheritance)           |
 | `set-max-sessions` | Bound concurrent sessions for a user                          |
 
-All are declared with `SDF_AUTHZ_X`, intending to require
-`__execute_command__` — but see §4.5: that flag is currently unread.
+All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
+only when the broker yuno sets `enable_command_authz` (§4.5); off by default.
 
 Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L6210) ([`c_agent.c:6210`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L6210), registered as
 `authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
@@ -650,26 +691,30 @@ placeholder, but the private repos have the real value). See
 pending env-var migration + rotation as of 2026-05-15. The same secret
 also lives in the agent's treedb at runtime.
 
-### 8.3 The command authz check is commented out
+### 8.3 The command authz check is OFF by default
 
 [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c). The most important thing in this document.
-`gobj_user_has_authz` is **not invoked** for commands. `SDF_AUTHZ_X` is
-silently ignored. Until that block is uncommented, every authenticated
-user can run every command. Plan accordingly:
+The check is re-armed (§4.5) but **gated behind `enable_command_authz`, default
+OFF**. So out of the box `gobj_user_has_authz` is **not invoked** for commands
+and every authenticated user can run every command — same effective posture as
+the old commented-out state. Plan accordingly:
 
-- Don't rely on `pm_*` schemas for security today.
-- For commands that **must** be gated right now, call
-  `gobj_user_has_authz` explicitly at the top of the handler.
-- Be aware that uncommenting it is a breaking change for any deployment
-  that hasn't already assigned roles.
+- On a stock yuno, don't rely on `pm_*`/`SDF_AUTHZ_X` for security — the gate is
+  off.
+- Turning the gate **on** requires a running `C_AUTHZ` role model in that yuno;
+  the global checker is **fail-closed**, so enabling it without a role model
+  denies all `SDF_AUTHZ_X` commands. Validate on staging first.
+- For commands that **must** be gated on a yuno with no role model, call
+  `gobj_user_has_authz` explicitly at the top of the handler instead.
 
 ### 8.4 Event-level authz is also unenforced
 
 `EVF_AUTHZ_INJECT` and `EVF_AUTHZ_SUBSCRIBE` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)) are
 declared and the global authzs `__inject_event__` /
 `__subscribe_event__` are registered ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)), but no check
-runs in `gobj_send_event` or `gobj_subscribe_event`. Same status as
-commands: declared, not enforced.
+runs in `gobj_send_event` or `gobj_subscribe_event`. Unlike the command check
+(§4.5, now gated-but-enforceable), event-level authz has **no gate and no
+enforcement** — declared only.
 
 ### 8.5 Authz default is allow
 
@@ -800,9 +845,27 @@ ycommand -c 'command-yuno id=<yuno> service=authz command=create-role id=read_on
 ycommand -c 'command-yuno id=<yuno> service=authz command=user-roles user_id=alice'
 ```
 
-Remember §8.3 — until the command authz check is uncommented in
-[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c), role assignments don't actually restrict command
-execution.
+Remember §8.3 — role assignments restrict command execution only on a yuno that
+has `enable_command_authz` set (and a running `C_AUTHZ` role model). With the
+gate off (default) the roles exist but are not consulted at the command
+boundary.
+
+### 9.4b Turn the command authz gate ON for a yuno
+
+```bash
+# Set it in the yuno's config (SDF_RD — cannot be flipped via write-attr).
+# Effective config = main.c fixed/variable_config merged with external JSON;
+# add to the external batch JSON or main.c variable_config:
+#   "enable_command_authz": true
+#
+# Pre-flight: the yuno MUST run a C_AUTHZ role model, else the fail-closed
+# global checker denies every SDF_AUTHZ_X command. Verify first:
+ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=view-config' | grep -i enable_command_authz
+ycommand -c 'command-yuno id=<yuno> service=authz command=user-authzs user_id=<me>'
+
+# Then restart the yuno so the new config is read, and smoke-test a gated
+# command as a low-privilege user (expect -403) and as an authorised one.
+```
 
 ### 9.5 Rotate TLS certs
 
@@ -830,9 +893,11 @@ openssl s_client -connect <host>:<port> -showcerts </dev/null 2>/dev/null \
 
 ### 9.6 Diagnose "no permission" failures
 
-Today (`SDF_AUTHZ_X` unread) "no permission" only fires from explicit
-`gobj_user_has_authz` calls inside specific gclasses (e.g. `C_AUTHZ`'s
-own self-management commands).
+With the command gate **off** (default), "no permission" only fires from
+explicit `gobj_user_has_authz` calls inside specific gclasses (e.g. `C_AUTHZ`'s
+own self-management commands). With `enable_command_authz` **on**, a `-403 No
+permission to execute command` from the dispatcher itself is also possible —
+check the yuno's `enable_command_authz` first to know which path denied you.
 
 ```bash
 # 1. who am I, according to the yuno?
@@ -872,7 +937,9 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 | `__username__` write-side                         | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_authz.c)                                             |
 | `gobj_user_has_authz`                             | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h), [`gobj.c:9400`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9400)                                 |
 | `SDATAPM` / `SDATAAUTHZ` macros                   | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)                                                       |
-| Commented-out command authz check                 | [`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)                          |
+| Command authz check (gated opt-in)                | [`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/command_parser.c)                          |
+| `enable_command_authz` attr (`c_yuno`)            | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_yuno.c)                              |
+| Command authz regression test                     | `tests/c/command_authz/test_command_authz.c`                           |
 | `EVF_AUTHZ_*` flags                               | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h)                                                       |
 | Agent's cert_sync attrs                           | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c)                             |
 | [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L9404) (diff + broadcast)               | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c)                                                  |

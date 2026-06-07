@@ -54,7 +54,7 @@ The BFF is a thin server-side component (`C_AUTH_BFF` on port 1801) that acts as
 ## Complete Authentication Flow
 
 ```{figure} ../_static/auth_flow.svg
-:alt: OIDC/PKCE auth sequence across Browser, auth_bff, Keycloak and the backend yuno — login phase (PKCE code exchange, HttpOnly cookie) and per-request phase (WS + cookie, JWKS verify, the commented-out authz gate).
+:alt: OIDC/PKCE auth sequence across Browser, auth_bff, Keycloak and the backend yuno — login phase (PKCE code exchange, HttpOnly cookie) and per-request phase (WS + cookie, JWKS verify, the per-command authz gate that runs only when enable_command_authz is set).
 :width: 100%
 
 Overview of the two phases. The detailed step-by-step is below.
