@@ -399,11 +399,35 @@ the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
   - **Tested:** compiles clean; the embedded-broker test `tests/c/c_mqtt/test1`
     passes (schema parses → broker starts; publish round-trip works with ACL
     off → backward-compatible).
-  - **Reviewer's verification step (not yet automated):** set `enable_acl: true`
-    + author a group `publish_acl` (e.g. `["allowed/#"]`) on a client's group,
-    then confirm a PUBLISH to a non-matching topic gets `NOT_AUTHORIZED` and a
-    matching one passes. The subscribe-side stub still uses the same helper with
-    `access:"read"` once wired (symmetry, left for the same review).
+  - **Enforcement test — AUTOMATED 2026-06-07** (`tests/c/c_mqtt/acl`,
+    `main_acl.c` + `c_acl.c`, ctest `c_mqtt/acl`). An embedded broker created
+    with `enable_acl=true` + a `C_ACL` driver that authors the model in the
+    broker treedb (group `g_limited` `publish_acl=["allowed/#"]`
+    `subscribe_acl=["sub/+/ok"]`, group `g_open` with no patterns, clients
+    `c_limited`/`c_open` linked via `gobj_link_nodes`) and fires
+    `EV_MQTT_ACL_CHECK` directly at the broker — the exact path the
+    `c_prot_mqtt2` gate uses — asserting the 0/-1 verdict across: matching
+    publish allowed, `#` wildcard (incl. the parent level, per MQTT spec),
+    non-matching publish DENIED, matching/non-matching subscribe, the two
+    allow-all fallbacks (`enable_acl` off; group with no patterns), and the
+    unknown-client deny. Deterministic — no sockets; the ACL decision is a
+    direct broker event. Full suite green incl. `c_mqtt/test1` and
+    `msg_interchange/test_mqtt_qos0`.
+  - **Latent bug found + fixed by the test** (`c_mqtt_broker.c` `mqtt_acl_check`).
+    `client_groups` is an fkey col; `gobj_get_node()` with `options=NULL` returns
+    fkeys in the default **list_dict** shape (`[{"id","topic_name","hook_name"}]`),
+    NOT plain id strings, so the original `json_string_value(jn_group_id)` loop
+    read NULL → no group resolved → `any_pattern` stayed FALSE → the helper
+    returned **allow-all even with ACL on and patterns authored** (enforcement
+    silently did nothing). Fixed by passing `{"fkey_only_id": 1}` to the client
+    `gobj_get_node()` so `client_groups` comes back as plain ids and the existing
+    loop is correct. Verified the test catches it: reverting the one-line fix
+    flips the deny cases to allow and the test fails (6 enforcement assertions),
+    re-applying it → green.
+  - **Still open:** subscribe-side wiring in `c_prot_mqtt2.c` (the helper already
+    supports `access:"read"` and the test covers it; the SUBSCRIBE gate just
+    needs to call it, symmetry). The A/B/C model choice + the default-deny flip
+    remain Rosa's call.
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs

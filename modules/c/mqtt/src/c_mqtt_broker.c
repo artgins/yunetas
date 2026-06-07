@@ -3550,7 +3550,7 @@ PRIVATE BOOL mqtt_acl_check(
         priv->gobj_treedb_mqtt_broker,
         "clients",
         json_pack("{s:s}", "id", client_id?client_id:""),
-        NULL,
+        json_pack("{s:b}", "fkey_only_id", 1),  // client_groups as plain id strings
         gobj
     );
     if(!client) {
