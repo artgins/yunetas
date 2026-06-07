@@ -38,8 +38,8 @@ Companion Node.js scripts for generating load:
 
 | Script | Description |
 |--------|-------------|
-| [`stress-connections.js`](https://github.com/artgins/yunetas/blob/7.5.2/stress/c/listen/stress-connections.js) | Connection load generator. |
-| [`stress-traffic.js`](https://github.com/artgins/yunetas/blob/7.5.2/stress/c/listen/stress-traffic.js) | Message traffic generator. |
+| [`stress-connections.js`](https://github.com/artgins/yunetas/blob/7.5.3/stress/c/listen/stress-connections.js) | Connection load generator. |
+| [`stress-traffic.js`](https://github.com/artgins/yunetas/blob/7.5.3/stress/c/listen/stress-traffic.js) | Message traffic generator. |
 
 **Source:** `stress/c/listen/`, `stress/c/auth_bff/`
 

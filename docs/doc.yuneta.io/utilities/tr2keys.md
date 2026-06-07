@@ -20,4 +20,4 @@ The topic/database are deduced from `PATH`.
 ## See also
 
 - [`tr2list`](tr2list.md) — full records; [`tr2search`](tr2search.md) — content search.
-- [`utils/c/tr2keys/README.md`](https://github.com/artgins/yunetas/blob/7.5.2/utils/c/tr2keys/README.md).
+- [`utils/c/tr2keys/README.md`](https://github.com/artgins/yunetas/blob/7.5.3/utils/c/tr2keys/README.md).

@@ -4,8 +4,12 @@ Tracks API renames, removals and additions between versions.
 
 > The 2026-06 security-hardening batch (gobj-c / root-linux / ytls / yev_loop /
 > timeranger2 / libjwt / modbus / dba_postgres / emailsender / mqtt) shipped in
-> **7.5.2** — see [`CHANGELOG.md`](CHANGELOG.md). Only the still-open follow-ups
-> remain below.
+> **7.5.2** — see [`CHANGELOG.md`](CHANGELOG.md).
+>
+> **7.5.3** shipped the per-command authorization gate (`enable_command_authz`),
+> the MQTT publish-side ACL (model A, default off), and the `emu_device`
+> frame-emission fix + its move to `utils/c/`. Only the still-open follow-ups
+> (deployment steps, subscribe-side ACL wiring, ROPC) remain below.
 
 ## Auth: OIDC migration follow-ups
 
@@ -60,55 +64,28 @@ real IdP discovery documents.
   for the current migration; flagged here so it surfaces when
   the ROPC failure mode hits the first non-Keycloak deployment.
 
-## emu_device: finish the output-side replay path
+## emu_device: replay path (SHIPPED 7.5.3) — one minor follow-up
 
-`emu_device`'s frame-emission was ported from the removed timeranger v1 API to
-v7. A 2026-06-06 runtime validation (fixture generator added at
-`yunos/c/emu_device/tests/gen_frame64_fixture.c` — builds a timeranger2 topic
-of base64 `frame64` records; driven against a TCP sink) found the **replay/load
-path works** but the **output side had never run** and carried a chain of
-integration bugs:
+The frame-emission port from the removed timeranger v1 API to v7 was completed
+and verified end-to-end in **7.5.3** (the `window`/`interval` zero-coercion fix
+plus the C_TCP `url`/manual-start wiring); `emu_device` also **moved from
+`yunos/c/` to `utils/c/`** (it is a standalone CLI utility, installed to
+`/yuneta/bin`). Fixture generator: `utils/c/emu_device/tests/gen_frame64_fixture.c`.
 
-**Validated working:** `mt_play` opens the v7 tranger, `tranger2_open_list` +
-the collect callback loads every `frame64` record into memory (e.g. 5/5),
-config (`url`/`path`/`topic`) applies, autoplay fires, and `ac_on_open` is
-delivered (`is_playing=1`).
-
-**Fixed (this commit):**
-1. C_TCP's client attr is `url` (string); `create_output_side` passed
-   `urls`:[…] (array) → "GClass Attribute NOT FOUND: urls", url never set.
-   Now passes `url`.
-2. C_TCP is `gcflag_manual_start`, so `gobj_start_tree` skips it and the
-   transport never started/connected. Now started explicitly (as every C_TCP
-   client does, cf. `c_prot_http_cl.c:188` / `c_websocket.c:336`). With 1+2 the
-   sink now sees a connection.
-
-**Emission — FIXED 2026-06-07.** The earlier "channel not in the IOGATE pool"
-diagnosis was WRONG: a trace (`gobj_set_global_trace("machine")`) shows the full
-path works — `EV_SEND_MESSAGE` flows C_EMU_DEVICE → C_IOGATE → C_CHANNEL
-(ST_OPENED) → C_PROT_RAW → `EV_TX_DATA` C_TCP (ST_CONNECTED). The hand-built
-channel DOES open (its `opened` attr is set by its own `ac_on_open`, found by
-`get_next_destination`). The real bug was that **`window` was 0**, so
-`send_window()`'s `for(i=0;i<window;i++)` never iterated — nothing was sent.
-Root cause: old code passed the `--window`/`--interval` CLI values as
-`json_string(...)` into the `DTP_INTEGER` `window`/`interval` attrs, which
-coerced to 0; and the `cmd_write_window`/`cmd_write_interval` commands used
-`kw_get_str()+atoi()` instead of `kw_get_int()`. Fixed both (main.c →
-`json_integer(atoi(...))`; commands → `kw_get_int(..., KW_WILD_NUMBER)`).
-Verified end-to-end: a base64 `frame64` topic replays decoded frames to a TCP
-sink (`FRAME-0\n`, `FRAME-1\n`, … received). Minor follow-up (not this fix): in
-standalone CLI mode `finish_replay()` calls `exit(0)` immediately after the last
-send, which can truncate the final TCP flush — harmless in agent-managed mode.
 Re-verify recipe:
 
 - Build a fixture: `gen_frame64_fixture <path> <db> <topic> <n>`; sink with
-  `nc -lk <port>` (or the python sink used in validation).
+  `nc -lk <port>` (or a python sink).
 - `emu_device --url=tcp://127.0.0.1:<port> --path=<path> --database=<db>
   --topic=<topic> --window=1 --interval=300`.
 - Confirm the `leading` then `window` frames/`interval` arrive at the sink;
   `read-parameters` shows "frames sent" advancing, "frames loaded" = matched;
-  and a start/stop (play/pause) cycle is gbmem-leak-clean (the binary's
-  `set_memory_check_list` reports at exit).
+  and a start/stop (play/pause) cycle is gbmem-leak-clean.
+
+**Open (LOW):** in standalone CLI mode `finish_replay()` calls `exit(0)`
+immediately after the last send, which can truncate the final TCP flush —
+harmless in agent-managed mode (the branch is skipped when `agent_client`
+exists). Defer the exit by one event-loop tick or wait for tx-drain.
 
 Note: `open_list` loads all matching records into memory (the v1 path was a
 lazy cursor) — point it at a bounded range for large topics.

@@ -286,7 +286,6 @@ project:
           file: yunos/development-and-testing.md
           children:
             - file: yunos/watchfs.md
-            - file: yunos/emu_device.md
 
     - title: Utilities
       file: utilities.md
@@ -330,6 +329,7 @@ project:
           children:
             - file: utilities/fs_watcher.md
             - file: utilities/inotify.md
+            - file: utilities/emu_device.md
             - file: utilities/ytestconfig.md
             - file: utilities/time2date.md
             - file: utilities/time2range.md

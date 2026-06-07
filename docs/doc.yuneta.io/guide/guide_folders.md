@@ -194,6 +194,7 @@ Auxiliary tools for building and compiling Yuneta projects.
 Utility scripts and CLI tools for Yuneta.
 
 - `C`:
+    - [`emu_device`](#util-emu_device): Device-gate emulator (replays recorded frames).
     - [`fs_watcher`](#util-fs_watcher): Monitors filesystem changes.
     - [`inotify`](#util-inotify): Tracks file events using inotify.
     - [`json_diff`](#util-json_diff): JSON diff utility.
@@ -236,7 +237,6 @@ Pre-supplied full applications built with Yuneta.
     - `controlcenter`: Control center service.
     - `dba_postgres`: PostgreSQL database agent.
     - `emailsender`: Email sending service.
-    - `emu_device`: Device emulator.
     - `logcenter`: Log aggregation center.
     - `mqtt_broker`: MQTT v3.1.1 + v5.0 broker with persistence.
     - `sgateway`: Service gateway.

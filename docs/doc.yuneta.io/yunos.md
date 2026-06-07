@@ -36,4 +36,3 @@ The baseline services every node runs.
 ## Development & Testing
 
 - [`watchfs`](yunos/watchfs.md)
-- [`emu_device`](yunos/emu_device.md)

@@ -1,9 +1,12 @@
-(yuno-emu_device)=
+(util-emu_device)=
 # `emu_device`
 
 Device-gate emulator — replays recorded device frames to an ingest endpoint at
 a controlled rate, so device-facing GClasses and ingest pipelines can be tested
 without real hardware.
+
+A standalone utility yuno (built under `utils/c/emu_device`, installed to
+`/yuneta/bin`); run it from the CLI, not deployed as a managed service.
 
 ## How it works
 

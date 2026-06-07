@@ -1,5 +1,39 @@
 # **Changelog**
 
+## v7.5.3 -- 08/Jun/2026
+    - **feat(security): per-command authorization re-armed (gated opt-in).** The
+      `SDF_AUTHZ_X` check at the command-dispatch boundary in `command_parser.c`
+      (commented out for years) now runs again, but only when the yuno sets the
+      new `enable_command_authz` attr (`c_yuno`, `SDF_RD`, default `"0"`), so the
+      default posture is unchanged and non-breaking. Self-issued commands
+      (`src == gobj`) bypass the check; a denial returns `-403` and is logged
+      (`MSGSET_AUTH`). Turning the gate on requires a running `C_AUTHZ` role
+      model (the global checker is fail-closed). Test:
+      `tests/c/command_authz/`.
+    - **feat(mqtt): publish-side ACL (model A, group-based, default off).** New
+      `enable_acl` attr on `C_MQTT_BROKER` plus `publish_acl`/`subscribe_acl`
+      array columns on the `client_groups` topic (schema_version 25→26,
+      topic_version 3→4; additive). `C_PROT_MQTT2` queries the broker over a
+      direct `EV_MQTT_ACL_CHECK` event on PUBLISH; allow when ACL off or no
+      patterns authored, deny unknown clients, deny logged. Subscribe-side
+      wiring is staged (schema + helper ready) but not yet enforced. Test:
+      `tests/c/c_mqtt/acl`. Also fixed a latent fkey bug: the helper now passes
+      `{fkey_only_id:1}` so `client_groups` resolves as plain ids (otherwise the
+      ACL silently allowed all).
+    - **fix(emu_device): frame emission path.** `window`/`interval` were coerced
+      to 0 (CLI values passed as `json_string` into `DTP_INTEGER` attrs;
+      `cmd_write_*` used `kw_get_str`+`atoi`), so the replay sent nothing. Now
+      `json_integer(atoi(...))` on the CLI side and `kw_get_int(KW_WILD_NUMBER)`
+      in the commands; also freed the replay resources on `mt_play` error paths
+      and log a skipped record with no `frame64`.
+    - **refactor(emu_device): moved from `yunos/c/` to `utils/c/`.** It is a
+      standalone CLI utility yuno (a device-gate emulator run by hand for
+      testing), not a deployable service — now installed to `/yuneta/bin` like
+      the other `utils/c` tools.
+    - **docs:** `YUNO_AUTH.md` rewritten to describe the gated authz (was
+      documented as "commented out", including the auth-flow diagram);
+      `mqtt_broker.md` gains an Authorization (ACL) section.
+
 ## v7.5.2 -- 06/Jun/2026
     - **security: hardening batch (memory-safety + injection across the stack).**
       - **gobj-c:** NULL-guard in `gbuffer_deserialize`; bounded recursion in
