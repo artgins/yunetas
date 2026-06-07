@@ -1,7 +1,7 @@
 # Inspiration
 
 Yuneta is an engineering framework, but its vocabulary — [*events*](#event),
-[*actions*](#action-callback), [*gobjs*](../guide/basic_concepts.md#basic_gobj),
+[*actions*](#action-callback), [*gobjs*](../guide/guide_basic_concepts.md#basic_gobj),
 *hierarchy*, [*realms*](domain_model.md#realms) —
 did not come out of a specification document. It came from looking at
 how **life itself** is organised and borrowing the words that fit.
@@ -39,7 +39,7 @@ ones to make progress.
 ## What is above is below; what is inside is outside
 
 A Yuneta system is organised as a **tree of gobjs**, and that tree
-has the same shape at every scale: a [yuno](../guide/basic_concepts.md#yuno) contains gobjs; a gobj can
+has the same shape at every scale: a [yuno](../guide/guide_basic_concepts.md#yuno) contains gobjs; a gobj can
 contain child gobjs; two yunos can be connected as if they were a
 single bigger tree. The interaction patterns — parent to child,
 service to client, publisher to subscriber — repeat at every level.
@@ -95,5 +95,5 @@ engineering decision you can measure and test.
   as engineering trade-offs.
 - [Domain Model](domain_model.md) — the vocabulary used to model real
   systems.
-- [Basic Concepts](../guide/basic_concepts.md) — GClass, gobj, yuno
+- [Basic Concepts](../guide/guide_basic_concepts.md) — GClass, gobj, yuno
   from the code side.

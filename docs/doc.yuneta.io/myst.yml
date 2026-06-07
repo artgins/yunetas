@@ -67,21 +67,21 @@ project:
     - title: Guides
       file: guide/index.md
       children:
-        - file: guide/basic_concepts.md
+        - file: guide/guide_basic_concepts.md
         - file: guide/guide_gclass.md
         - file: guide/guide_gobj.md
         - file: guide/guide_sdata.md
         - file: guide/guide_kwid.md
         - file: guide/guide_gbuffer.md
-        - file: guide/folders.md
-        - file: guide/persistent_attrs.md
-        - file: guide/parser_command.md
-        - file: guide/parser_stats.md
-        - file: guide/settings.md
+        - file: guide/guide_folders.md
+        - file: guide/guide_persistent_attrs.md
+        - file: guide/guide_parser_command.md
+        - file: guide/guide_parser_stats.md
+        - file: guide/guide_settings.md
         - file: guide/guide_authz.md
         - file: guide/guide_timeranger2.md
         - file: guide/guide_yev_loop.md
-        - file: guide/guide_ytls.md
+        - file: guide/guide_tls.md
         - file: guide/guide_cert_management.md
         - file: guide/guide_oauth2_pkce_bff.md
 

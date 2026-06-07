@@ -1,6 +1,6 @@
 # Stats
 
-Runtime statistics exposed by gobjs. The global stats parser dispatches `stats` commands to the matching gobj and returns a JSON response. See the [Statistics Parser guide](../../guide/parser_stats.md) for the full picture, including when to use `SDF_*STATS` attributes vs. overriding `mt_stats`.
+Runtime statistics exposed by gobjs. The global stats parser dispatches `stats` commands to the matching gobj and returns a JSON response. See the [Statistics Parser guide](../../guide/guide_parser_stats.md) for the full picture, including when to use `SDF_*STATS` attributes vs. overriding `mt_stats`.
 
 ```{note}
 **Two distinct stat stores live inside every gobj — do not confuse them.**
@@ -9,7 +9,7 @@ Runtime statistics exposed by gobjs. The global stats parser dispatches `stats` 
 
 2. **A free-form integer dict `jn_stats`** owned by every gobj. The helpers on this page — [`gobj_set_stat()`](#gobj_set_stat), [`gobj_incr_stat()`](#gobj_incr_stat), [`gobj_decr_stat()`](#gobj_decr_stat), [`gobj_get_stat()`](#gobj_get_stat), [`gobj_jn_stats()`](#gobj_jn_stats) — operate **only on this dict**, never on `SDF_*STATS` attributes. The default `stats_parser` includes the contents of `jn_stats` in the response after the `SDF_*STATS` attributes.
 
-Pick one store per metric and stick with it: mixing them in the same gobj makes the stats output ambiguous. For high-traffic counters, prefer the third path described in the [Statistics Parser guide](../../guide/parser_stats.md#when-to-override-mt_stats) — plain `uint64_t` fields in `PRIVATE_DATA` exposed via a custom [`mt_stats`](../../guide/parser_stats.md#when-to-override-mt_stats) — which avoids both stores entirely on the hot path.
+Pick one store per metric and stick with it: mixing them in the same gobj makes the stats output ambiguous. For high-traffic counters, prefer the third path described in the [Statistics Parser guide](../../guide/guide_parser_stats.md#when-to-override-mt_stats) — plain `uint64_t` fields in `PRIVATE_DATA` exposed via a custom [`mt_stats`](../../guide/guide_parser_stats.md#when-to-override-mt_stats) — which avoids both stores entirely on the hot path.
 ```
 
 Source code:
@@ -48,10 +48,10 @@ A webix-style response (owned by the caller) — `{result, comment, schema, data
 
 `gobj_stats()` chooses the implementation in this order:
 
-1. If the gclass defines [`mt_stats`](../../guide/parser_stats.md#when-to-override-mt_stats), it is called and its return value is used as-is. The default parser is bypassed.
-2. Otherwise the global stats parser (default: [`stats_parser`](../../guide/parser_stats.md#stats_parser_guide) in `stats_parser.c`) walks the gobj's `SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS` attributes plus the contents of the free-form `jn_stats` dict and builds the response automatically.
+1. If the gclass defines [`mt_stats`](../../guide/guide_parser_stats.md#when-to-override-mt_stats), it is called and its return value is used as-is. The default parser is bypassed.
+2. Otherwise the global stats parser (default: [`stats_parser`](../../guide/guide_parser_stats.md#stats_parser_guide) in `stats_parser.c`) walks the gobj's `SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS` attributes plus the contents of the free-form `jn_stats` dict and builds the response automatically.
 
-See the [Statistics Parser guide](../../guide/parser_stats.md) for the full picture, including the trade-off between attribute-backed stats (default parser) and `PRIVATE_DATA`-backed stats (`mt_stats` override) for high-traffic gobjs.
+See the [Statistics Parser guide](../../guide/guide_parser_stats.md) for the full picture, including the trade-off between attribute-backed stats (default parser) and `PRIVATE_DATA`-backed stats (`mt_stats` override) for high-traffic gobjs.
 
 ---
 

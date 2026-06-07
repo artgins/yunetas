@@ -242,7 +242,7 @@ Plus any extra variables that have been published by upper layers via [`gobj_add
 
 **Notes**
 
-The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/settings.md#global-variable-substitution).
+The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/guide_settings.md#global-variable-substitution).
 
 ---
 

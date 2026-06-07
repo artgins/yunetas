@@ -58,7 +58,7 @@ Suggested reading order:
 2. [Domain Model](philosophy/domain_model.md) — the vocabulary the
    framework uses to model reality (realms, entities, messages, CRUDLU).
 3. [Installation](installation.md) — get a working build environment.
-4. [Basic concepts](guide/basic_concepts.md) — GClass, gobj, yuno,
+4. [Basic concepts](guide/guide_basic_concepts.md) — GClass, gobj, yuno,
    events.
 5. [Guides](guide/guide_gclass.md) — how to actually build with them.
 6. The **API reference** sections in the sidebar — organised by

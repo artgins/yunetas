@@ -24,10 +24,10 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (glossary-bottom-gobj)=
 **Bottom gobj**
-:   A designated child gobj that shares attributes and forwards events with its parent — Yuneta's alternative to class inheritance. See [Basic concepts](guide/basic_concepts.md).
+:   A designated child gobj that shares attributes and forwards events with its parent — Yuneta's alternative to class inheritance. See [Basic concepts](guide/guide_basic_concepts.md).
 
 **Command**
-:   A named operation exposed by a gobj's `command_table`, executable from the control plane regardless of FSM state. See [Command parser guide](guide/parser_command.md).
+:   A named operation exposed by a gobj's `command_table`, executable from the control plane regardless of FSM state. See [Command parser guide](guide/guide_parser_command.md).
 
 **Composition**
 :   Yuneta's object-reuse pattern: behavior is assembled by nesting gobjs (parent → child → bottom) and routing events between them, instead of using class inheritance.
@@ -63,7 +63,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (glossary-gobj)=
 **gobj** (GObject)
-:   A runtime instance of a [GClass](#glossary-gclass): a modular, event-driven component with its own FSM, attributes, and position in the gobj tree. See [Basic concepts](guide/basic_concepts.md).
+:   A runtime instance of a [GClass](#glossary-gclass): a modular, event-driven component with its own FSM, attributes, and position in the gobj tree. See [Basic concepts](guide/guide_basic_concepts.md).
 
 (g_rowid)=
 **g_rowid**
@@ -117,7 +117,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   Gobjs form a hierarchical tree. Every gobj has exactly one parent (except the root yuno). Parents create and manage their children.
 
 **Persistent attribute**
-:   An attribute with the `SDF_PERSIST` flag — automatically saved to and loaded from disk. See [Persistent attrs guide](guide/persistent_attrs.md).
+:   An attribute with the `SDF_PERSIST` flag — automatically saved to and loaded from disk. See [Persistent attrs guide](guide/guide_persistent_attrs.md).
 
 **Publish / Subscribe**
 :   Pattern where a gobj publishes output events to all subscribed gobjs via `gobj_publish_event()` / `gobj_subscribe_event()`. See [Publish API](api/gobj/publish.md).
@@ -177,4 +177,4 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (glossary-yuno)=
 **Yuno**
-:   A deployable, single-threaded process composed of a hierarchical tree of gobjs. The root gobj is always a [C_YUNO](api/gclass/system.md#gclass-c-yuno). See [Basic concepts](guide/basic_concepts.md).
+:   A deployable, single-threaded process composed of a hierarchical tree of gobjs. The root gobj is always a [C_YUNO](api/gclass/system.md#gclass-c-yuno). See [Basic concepts](guide/guide_basic_concepts.md).

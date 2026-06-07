@@ -207,7 +207,7 @@ the section where the diagram appears in context. All are hand-authored SVG
 :::
 
 :::{card}
-:link: ./guide/folders.md#kernel
+:link: ./guide/guide_folders.md#kernel
 ![build stack](./_static/build_stack.svg)
 
 **Build dependency stack** — gobj-c → … → yunos → tests.
