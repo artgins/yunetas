@@ -730,13 +730,15 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-          "msg", "Client: secure connected",
-          "msg", "Server: secure connected",
-          "msg", "client: send request",
-          "msg", "Server: query from the client",
-          "msg", "Client: response from the server",
-          "msg", "Client and Server messages MATCH"
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "TLS client WITHOUT server-certificate validation (MITM surface): set ssl_trusted_certificate or ssl_use_system_ca",
+        "msg", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
+        "msg", "Client: secure connected",
+        "msg", "Server: secure connected",
+        "msg", "client: send request",
+        "msg", "Server: query from the client",
+        "msg", "Client: response from the server",
+        "msg", "Client and Server messages MATCH"
     );
 
     set_expected_results( // Check that no logs happen

@@ -575,8 +575,9 @@ int main(int argc, char *argv[])
      *  MATCH" each fire twice, sandwiched around "TLS certificates
      *  reloaded". The expected-log FIFO must mirror that order exactly.
      */
-    json_t *error_list = json_pack(
-        "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "TLS client WITHOUT server-certificate validation (MITM surface): set ssl_trusted_certificate or ssl_use_system_ca",
+        "msg", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
         "msg", "Client: secure connected",
         "msg", "Server: secure connected",
         "msg", "Server: query from the client",
