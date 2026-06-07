@@ -6557,28 +6557,48 @@ PRIVATE int handle__publish_s(
      *      Check permissions
      *-----------------------------------*/
 
-    /* Check for topic access */
-    // TODO acl, one solution is to create a new event and publish to broker, if returns 0 is permitted.
-    rc = 0;
-    // rc = mosquitto_acl_check(context, msg->topic, msg->payloadlen, msg->payload, msg->qos, msg->retain, MOSQ_ACL_WRITE);
-    if(rc == -1) {
-        //     gobj_log_error(gobj, 0,
-        //         "function",         "%s", __FUNCTION__,
-        //         "msgset",           "%s", MSGSET_MQTT,
-        //         "msg",              "%s", "Mqtt: Denied PUBLISH",
-        //         "client_id",        "%s", priv->client_id,
-        //         "topic",            "%d", msg->topic,
-            // "mid",          "%d", (int)mid,
-        //         NULL
-        //     );
+    /*
+     *  Check for topic access (publish-side ACL). Ask the broker directly via
+     *  EV_MQTT_ACL_CHECK: it returns 0 = allowed, <0 = denied. (A direct
+     *  gobj_send_event, not gobj_publish_event — the published path goes to the
+     *  intermediate C_CHANNEL/C_IOGATE, which don't carry this event.)
+     *  When the broker has `enable_acl` off (default) or the client's groups
+     *  define no publish_acl patterns, it returns allowed — so existing brokers
+     *  are unaffected until ACLs are authored. If no broker is found we fail
+     *  open (allow) but say so, never silently block traffic.
+     */
+    if(priv->iamServer) {
+        hgobj broker = gobj_find_service_by_gclass("C_MQTT_BROKER", FALSE);
+        if(broker) {
+            json_t *kw_acl = json_pack("{s:s, s:s, s:s, s:s}",
+                "client_id",    priv->client_id?priv->client_id:"",
+                "username",     gobj_read_str_attr(gobj, "__username__"),
+                "topic",        topic?topic:"",
+                "access",       "write"
+            );
+            rc = gobj_send_event(broker, EV_MQTT_ACL_CHECK, kw_acl, gobj);
+        } else {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt: ACL skipped, C_MQTT_BROKER service not found",
+                NULL
+            );
+        }
+    }
+    if(rc < 0) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MQTT,
+            "msg",              "%s", "Mqtt: Denied PUBLISH (ACL)",
+            "client_id",        "%s", priv->client_id,
+            "topic",            "%s", topic?topic:"",
+            NULL
+        );
         reason_code = MQTT_RC_NOT_AUTHORIZED;
         goto process_bad_message;
-    } else if(rc != MOSQ_ERR_SUCCESS) {
-        GBMEM_FREE(topic)
-        JSON_DECREF(properties)
-        GBUFFER_DECREF(payload)
-        return rc;
     }
+    rc = 0; // allowed
 
     /*-----------------------------------*
      *      Build our json message
@@ -9371,6 +9391,7 @@ GOBJ_DEFINE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_MESSAGE);
+GOBJ_DEFINE_EVENT(EV_MQTT_ACL_CHECK);
 
 /***************************************************************************
  *

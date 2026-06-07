@@ -373,8 +373,37 @@ the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
     `c_prot_mqtt2.c` SUBSCRIBE/UNSUBSCRIBE) should use the same helper once the
     model lands. Out of scope until the model is chosen.
 
-  No code changed — the model choice (A/B/C) and default posture are the
-  broker-owner's call.
+  **Model A IMPLEMENTED on branch `security/mqtt-publish-acl`** (2026-06-07,
+  for review — NOT merged; the A/B/C choice + default-deny flip remain Rosa's
+  call). What the branch does, default-off and backward-compatible:
+  - **Schema:** `publish_acl` + `subscribe_acl` array cols added to the
+    `client_groups` topic (`treedb_schema_mqtt_broker.c`, topic_version 3→4,
+    schema_version 25→26; treedb migrates additively).
+  - **Broker:** new `enable_acl` attr (SDF_WR|SDF_PERSIST, default `"0"`) on
+    `c_mqtt_broker`; helper `mqtt_acl_check(gobj, client_id, topic, access)`
+    resolves the client → its `client_groups` → each group's `publish_acl`/
+    `subscribe_acl`, matching via the existing `topic_tokenize` +
+    `topic_matches_sub`. Allow when: `enable_acl` off, OR the client's groups
+    define no patterns (allow-all), OR a pattern matches. Unknown client with
+    ACL on → deny. Handled via a new `EV_MQTT_ACL_CHECK` action returning
+    0=allow / -1=deny.
+  - **Wiring:** `c_prot_mqtt2.c` PUBLISH gate (was the hardcoded `rc=0` stub)
+    now resolves the broker with `gobj_find_service_by_gclass("C_MQTT_BROKER")`
+    and queries it with a **direct `gobj_send_event(broker, EV_MQTT_ACL_CHECK)`**,
+    reading the 0/-1 verdict. (NOT `gobj_publish_event` — the published path goes
+    to the intermediate C_CHANNEL/C_IOGATE, which don't carry this event and
+    would error→deny; a direct send returns the broker's handler verdict.)
+    `rc<0` → `MQTT_RC_NOT_AUTHORIZED` (logged, not silent); broker-not-found →
+    fail-open with a warning. Only when `iamServer`. Event declared in
+    `c_prot_mqtt2.h`, defined in `c_prot_mqtt2.c`, input-event on the broker.
+  - **Tested:** compiles clean; the embedded-broker test `tests/c/c_mqtt/test1`
+    passes (schema parses → broker starts; publish round-trip works with ACL
+    off → backward-compatible).
+  - **Reviewer's verification step (not yet automated):** set `enable_acl: true`
+    + author a group `publish_acl` (e.g. `["allowed/#"]`) on a client's group,
+    then confirm a PUBLISH to a non-matching topic gets `NOT_AUTHORIZED` and a
+    matching one passes. The subscribe-side stub still uses the same helper with
+    `access:"read"` once wired (symmetry, left for the same review).
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs

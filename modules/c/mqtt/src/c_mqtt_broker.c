@@ -124,6 +124,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_BOOLEAN, "enable_new_clients",0,         "0",        "Set true if you want auto-create new clients if they don't exist"),
+SDATA (DTP_BOOLEAN, "enable_acl",        SDF_WR|SDF_PERSIST, "0", "Enforce per-group publish/subscribe ACLs (client_groups.publish_acl/subscribe_acl). Default off = no ACL enforcement (allow-all). A group with no patterns also allows all."),
 
 SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,         "1",        "Set true if you want persistent database for Clients, Topics, Inflight and Queued Messages in mqtt broker side"),
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it'll be used the yuno_role"),
@@ -170,6 +171,7 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
     BOOL enable_new_clients;
+    BOOL enable_acl;
 
     hgobj gobj_authz;
     hgobj gobj_input_side;
@@ -233,6 +235,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout,                   gobj_read_integer_attr)
     SET_PRIV(enable_new_clients,        gobj_read_bool_attr)
+    SET_PRIV(enable_acl,                gobj_read_bool_attr)
     SET_PRIV(deny_subscribes,           gobj_read_json_attr)
 }
 
@@ -245,6 +248,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(enable_new_clients,    gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(enable_acl,            gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(deny_subscribes,       gobj_read_json_attr)
     END_EQ_SET_PRIV()
 }
@@ -3512,6 +3516,128 @@ PRIVATE size_t sub__messages_queue(
 
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Per-group publish/subscribe ACL check (model A: group-based ACL in treedb).
+ *  Returns TRUE = allowed, FALSE = denied.
+ *
+ *  Backward-compatible by design — allows when:
+ *    - `enable_acl` is off (default), OR
+ *    - the client's groups define no patterns for this access (allow-all).
+ *  Otherwise the topic must match one of the group patterns (MQTT +/# wildcards
+ *  via topic_matches_sub). An unknown client with ACL on is denied.
+ ***************************************************************************/
+PRIVATE BOOL mqtt_acl_check(
+    hgobj gobj,
+    const char *client_id,
+    const char *topic,
+    const char *access   // "write" (publish) or "read" (subscribe)
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->enable_acl) {
+        return TRUE;    // enforcement off -> allow all (historical behaviour)
+    }
+    if(empty_string(topic)) {
+        return FALSE;   // defensive: no topic, nothing to authorize
+    }
+
+    const char *acl_col = (strcmp(access?access:"", "read")==0)
+        ? "subscribe_acl"
+        : "publish_acl";
+
+    json_t *client = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "clients",
+        json_pack("{s:s}", "id", client_id?client_id:""),
+        NULL,
+        gobj
+    );
+    if(!client) {
+        return FALSE;   // ACL on + unknown client -> no group grants it
+    }
+
+    char *local_topic = NULL;
+    char **topic_levels = NULL;
+    const char *topic_sharename = NULL;
+    if(topic_tokenize(topic, &local_topic, &topic_levels, &topic_sharename) < 0) {
+        JSON_DECREF(client)
+        return FALSE;
+    }
+
+    BOOL any_pattern = FALSE;
+    BOOL allowed = FALSE;
+
+    json_t *groups = json_object_get(client, "client_groups");  // array of group ids
+    size_t gidx; json_t *jn_group_id;
+    json_array_foreach(groups, gidx, jn_group_id) {
+        const char *group_id = json_string_value(jn_group_id);
+        if(empty_string(group_id)) {
+            continue;
+        }
+        json_t *group = gobj_get_node(
+            priv->gobj_treedb_mqtt_broker,
+            "client_groups",
+            json_pack("{s:s}", "id", group_id),
+            NULL,
+            gobj
+        );
+        if(!group) {
+            continue;
+        }
+        json_t *patterns = json_object_get(group, acl_col);     // array of topic filters
+        size_t pidx; json_t *jn_pat;
+        json_array_foreach(patterns, pidx, jn_pat) {
+            const char *pattern = json_string_value(jn_pat);
+            if(empty_string(pattern)) {
+                continue;
+            }
+            any_pattern = TRUE;
+            char *local_sub = NULL;
+            char **sub_levels = NULL;
+            const char *sub_sharename = NULL;
+            if(topic_tokenize(pattern, &local_sub, &sub_levels, &sub_sharename) >= 0) {
+                if(topic_matches_sub(sub_levels, topic_levels)) {
+                    allowed = TRUE;
+                }
+                GBMEM_FREE(local_sub)
+                GBMEM_FREE(sub_levels)
+            }
+            if(allowed) {
+                break;
+            }
+        }
+        JSON_DECREF(group)
+        if(allowed) {
+            break;
+        }
+    }
+
+    GBMEM_FREE(local_topic)
+    GBMEM_FREE(topic_levels)
+    JSON_DECREF(client)
+
+    if(!any_pattern) {
+        return TRUE;    // no ACL patterns defined for this client -> allow-all
+    }
+    return allowed;
+}
+
+/***************************************************************************
+ *  EV_MQTT_ACL_CHECK from c_prot_mqtt2: 0 = allowed, -1 = denied.
+ ***************************************************************************/
+PRIVATE int ac_mqtt_acl_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    const char *access = kw_get_str(gobj, kw, "access", "write", 0);
+
+    BOOL allowed = mqtt_acl_check(gobj, client_id, topic, access);
+
+    KW_DECREF(kw)
+    return allowed ? 0 : -1;
+}
+
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4696,6 +4822,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_MQTT_MESSAGE,           ac_mqtt_message,        0},
+        {EV_MQTT_ACL_CHECK,         ac_mqtt_acl_check,      0},
         {EV_MQTT_SUBSCRIBE,         ac_mqtt_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsubscribe,    0},
         {EV_ON_MESSAGE,             ac_on_message,          0},
@@ -4723,6 +4850,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             0},
         {EV_MQTT_MESSAGE,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_MQTT_ACL_CHECK,         0},
         {EV_MQTT_SUBSCRIBE,         0},
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},

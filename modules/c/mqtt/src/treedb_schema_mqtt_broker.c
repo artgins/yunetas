@@ -164,13 +164,13 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '25',                                         \n\
+    'schema_version': '26',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '3',                                   \n\
+            'topic_version': '4',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Group',                       \n\
@@ -227,6 +227,28 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
+                'publish_acl': {                                   \n\
+                    'header': 'Publish ACL',                        \n\
+                    'fillspace': 20,                          \n\
+                    'description': 'MQTT topic-filter patterns this group may PUBLISH to (+/# wildcards). Empty = allow-all (backward compat).',\n\
+                    'type': 'array',                          \n\
+                    'default': [],                            \n\
+                    'flag': [                                 \n\
+                        'writable',                           \n\
+                        'persistent'                          \n\
+                    ]                                         \n\
+                },                                           \n\
+                'subscribe_acl': {                                   \n\
+                    'header': 'Subscribe ACL',                        \n\
+                    'fillspace': 20,                          \n\
+                    'description': 'MQTT topic-filter patterns this group may SUBSCRIBE to (+/# wildcards). Empty = allow-all (backward compat).',\n\
+                    'type': 'array',                          \n\
+                    'default': [],                            \n\
+                    'flag': [                                 \n\
+                        'writable',                           \n\
+                        'persistent'                          \n\
+                    ]                                         \n\
+                },                                           \n\
                 'icon': {                                           \n\
                     'header': 'Icon',                               \n\
                     'fillspace': 10,                                \n\
