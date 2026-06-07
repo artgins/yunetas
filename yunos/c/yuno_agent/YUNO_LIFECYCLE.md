@@ -147,8 +147,8 @@ Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob
 The `bin/` directory is **not** the binary. It is the working dir the yuno gets
 config files from. The actual binary lives in `/yuneta/repos/` (see §2.1).
 
-The `data/` directory holds the **persistent attributes of the yuno's
-services** — `SDF_PERSIST` attrs that a service changed and saved at run-time,
+The `data/` directory holds the [**persistent attributes**](#persistent_attrs)
+of the yuno's services — `SDF_PERSIST` attrs that a service changed and saved at run-time,
 one `<GClass>-<name>-persistent-attrs.json` per service
 ([`db_save_persistent_attrs()`](#db_save_persistent_attrs)). It is created
 **lazily**: it does not exist until the first attr is actually saved — a load
