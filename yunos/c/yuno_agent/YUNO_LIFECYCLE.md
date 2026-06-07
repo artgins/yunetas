@@ -43,7 +43,7 @@ claim below cites the file:line it comes from.
    version    │                                              │
               ▼                                              ▼
    /yuneta/repos/<tags>/                          /yuneta/realms/<owner>/
-   <role>/<version>/<role>                        <realm>/<yuno>/{bin,logs}
+   <role>/<version>/<role>                        <realm>/<yuno>/{bin,data,logs}
 ```
 
 The agent is the **only** thing that should touch those directories. Manual
@@ -140,11 +140,24 @@ Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob
 ```
 <yuneta_root_dir>/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
   ├── bin/        ← N-<role>_<name>.json (materialised configs)
+  ├── data/       ← <GClass>-<name>-persistent-attrs.json (only once a service saves one)
   └── logs/       ← N.log files
 ```
 
 The `bin/` directory is **not** the binary. It is the working dir the yuno gets
 config files from. The actual binary lives in `/yuneta/repos/` (see §2.1).
+
+The `data/` directory holds the **persistent attributes of the yuno's
+services** — `SDF_PERSIST` attrs that a service changed and saved at run-time,
+one `<GClass>-<name>-persistent-attrs.json` per service
+([`db_save_persistent_attrs()`](#db_save_persistent_attrs)). It is created
+**lazily**: it does not exist until the first attr is actually saved — a load
+never creates it ([`db_load_persistent_attrs()`](#db_load_persistent_attrs)
+reports "nothing saved" when the file is absent). At startup each service is
+seeded from its merged config and **then** these saved values are written on
+top — so **a persisted attr takes precedence over the same key in any
+configuration file**. Only services (and `__root__`) load them; pure children
+do not.
 
 ---
 
