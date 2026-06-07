@@ -306,7 +306,7 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup; `yuneta` happens to typically
 own every role in production deployments.
 
-### 4.3 [`gobj_user_has_authz`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L9400)
+### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 
 The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c):
 

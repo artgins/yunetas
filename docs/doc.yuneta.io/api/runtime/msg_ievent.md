@@ -36,7 +36,7 @@ The modified `kw` with `__iev_event__` added, or `NULL` on error.
 ---
 
 (iev_create2)=
-## `iev_create2()`
+## [`iev_create2()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L81)
 
 Creates an inter-event object and copies the `__temp__` metadata from a
 request `kw`.
@@ -66,7 +66,7 @@ The modified `kw`, or `NULL` on error.
 ---
 
 (iev_create_to_gbuffer)=
-## `iev_create_to_gbuffer()`
+## [`iev_create_to_gbuffer()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L107)
 
 Serializes an inter-event message into a `gbuffer_t` for sending to the
 outside world.
@@ -94,7 +94,7 @@ gbuffer_t *iev_create_to_gbuffer(
 ---
 
 (iev_create_from_gbuffer)=
-## `iev_create_from_gbuffer()`
+## [`iev_create_from_gbuffer()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L152)
 
 Deserializes an inter-event message received from the outside world.
 
@@ -182,7 +182,7 @@ Top record (not owned — do not free), or `NULL` if not found.
 ---
 
 (msg_iev_pop_stack)=
-## `msg_iev_pop_stack()`
+## [`msg_iev_pop_stack()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L419)
 
 Pops and returns the top record from an inter-event stack.
 
@@ -209,7 +209,7 @@ Popped record (owned — caller must free), or `NULL` if not found.
 ---
 
 (msg_iev_set_back_metadata)=
-## `msg_iev_set_back_metadata()`
+## [`msg_iev_set_back_metadata()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L500)
 
 Copies inter-event metadata from a request into a response.
 Optionally reverses `src`/`dst` in the `ievent_gate_stack`.
@@ -239,7 +239,7 @@ The `kw_response` with metadata set.
 ---
 
 (msg_iev_build_response)=
-## `msg_iev_build_response()`
+## [`msg_iev_build_response()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L541)
 
 Builds a complete command/stats response with result code, comment,
 schema, and data fields. Sets metadata with reversed `src`/`dst`.
@@ -273,7 +273,7 @@ Complete response kw ready to send.
 ---
 
 (msg_iev_build_response_without_reverse_dst)=
-## `msg_iev_build_response_without_reverse_dst()`
+## [`msg_iev_build_response_without_reverse_dst()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L557)
 
 Same as [`msg_iev_build_response()`](#msg_iev_build_response) but does
 **not** reverse `src`/`dst` in the metadata.
@@ -300,7 +300,7 @@ Complete response kw with metadata set but `src`/`dst` not reversed.
 ---
 
 (msg_iev_clean_metadata)=
-## `msg_iev_clean_metadata()`
+## [`msg_iev_clean_metadata()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L578)
 
 Removes all inter-event metadata from `kw`: `__md_iev__`, `__temp__`,
 `__md_tranger__`, and `__md_yuno__`.
@@ -406,7 +406,7 @@ This function does not return a value.
 ---
 
 (trace_inter_event2)=
-## `trace_inter_event2()`
+## [`trace_inter_event2()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/msg_ievent.c#L641)
 
 Traces an inter-event with the **full** kw content.
 

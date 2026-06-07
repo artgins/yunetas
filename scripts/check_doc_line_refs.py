@@ -44,6 +44,18 @@ Four modes:
   flowing to `--link-symbols`. External, untagged URL -> `--repin` never touches
   it. The api/ tree is skipped like the other symbol modes.
 
+  --link-api-source[=TAG]  In the api/ reference tree, link every entry's heading
+  `## `funcname()`` to the GitHub source (pinned). The `(name)=` label above the
+  heading keeps the page anchor; the api/ entry is the source-of-record the prose
+  pages point at: prose -> doc entry -> source. A C+JS dual-defined name is
+  disambiguated by the page's own "Source code:" files.
+
+  --prefer-doc-links  Policy retarget for the prose pages: an existing source
+  link of a DOCUMENTED function (one with a `(name)=` doc entry) is rewritten
+  from raw GitHub source to its doc entry `#name`. Undocumented functions keep
+  their source link. Pairs with --link-api-source so a function is cited as
+  prose -> doc entry -> source, never prose -> source directly.
+
   --link-files[=TAG]  Make backticked bare file paths in narrative prose
   clickable. A span that is EXACTLY a source path (`kernel/.../c_yuno.c`,
   `glogger.c`) or a shell script (`yunetas-env.sh`) and resolves to a real file
@@ -482,8 +494,10 @@ def build_doc_labels():
     """Scan the docs for mystmd target labels. Returns:
       gclass_labels: set of 'gclass-...' labels that exist,
       tool_labels:   dict tool-name -> 'util-x'/'tool-x' label,
-      doc_own:       dict doc-path -> set(labels it defines) (for self-links)."""
-    gclass_labels, tool_labels, doc_own = set(), {}, {}
+      doc_own:       dict doc-path -> set(labels it defines) (for self-links),
+      func_labels:   set of bare-identifier labels (the api/ tree gives every
+                     documented function a `(funcname)=` target; label == name)."""
+    gclass_labels, tool_labels, doc_own, func_labels = set(), {}, {}, set()
     for doc in doc_files():
         labels = set(LABEL_DEF.findall(doc.read_text(errors="replace")))
         doc_own[doc] = labels
@@ -492,12 +506,16 @@ def build_doc_labels():
                 gclass_labels.add(lbl)
             elif lbl.startswith("util-") or lbl.startswith("tool-"):
                 tool_labels[lbl.split("-", 1)[1]] = lbl
-    return gclass_labels, tool_labels, doc_own
+            elif re.fullmatch(r"[a-z_][a-z0-9_]*", lbl):
+                func_labels.add(lbl)
+    return gclass_labels, tool_labels, doc_own, func_labels
 
 
-def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, tag):
+def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels,
+                     func_labels, tag):
     """Link the first occurrence per page of each resolvable symbol. Returns
-    (n_func, n_gclass, n_tool)."""
+    (n_func, n_gclass, n_tool). A function that has a doc entry (`(name)=` in the
+    api/ tree) links to that entry, not to raw source — prose -> doc -> source."""
     text = doc.read_text()
     # Seed with symbols that already have a linked occurrence anywhere on the
     # page -> they stay first-only and a re-run is a no-op (idempotent).
@@ -531,8 +549,15 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
                 seen.add(name)
                 nt += 1
                 return f"[`{inner}`](#{tool_labels[name]})"
-            # unique function definition -> GitHub source
             paths = func_index.get(name)
+            # A documented function -> its doc entry (not raw source). Gated on a
+            # real definition so a non-function bare-id label can't capture a
+            # same-named word. Self-links on the entry's own page are skipped.
+            if name in func_labels and paths and name not in own_labels.get(doc, ()):
+                seen.add(name)
+                nf += 1
+                return f"[`{inner}`](#{name})"
+            # otherwise an undocumented but unique function -> GitHub source
             if paths and len(paths) == 1:
                 path = next(iter(paths))
                 dl = def_line_of(name, path)
@@ -547,6 +572,99 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
     if nf or ng or nt:
         doc.write_text(new)
     return nf, ng, nt
+
+
+# A symbol already linked to GitHub source (any blob tag), e.g.
+# `[`set_expected_results()`](https://github.com/.../testing.c#L113)`.
+SYMBOL_SOURCE_LINK = re.compile(
+    r"\[`([a-z_][a-z0-9_]*)(\(\))?`\]\("
+    + re.escape(GH_BLOB)
+    + r"/[^)]*\)"
+)
+
+
+def prefer_doc_links_doc(doc, func_labels, own_labels):
+    """Retarget existing source links of DOCUMENTED functions to their doc entry:
+    `[`fn`](github .../fn.c#L..)` -> `[`fn`](#fn)`. Prose -> doc, not raw source.
+    Undocumented functions keep their source link. Returns count retargeted."""
+    text = doc.read_text()
+    own = own_labels.get(doc, ())
+    n = 0
+
+    def repl(m):
+        nonlocal n
+        name, paren = m.group(1), m.group(2) or ""
+        if name not in func_labels or name in own:
+            return m.group(0)
+        n += 1
+        return f"[`{name}{paren}`](#{name})"
+
+    new = SYMBOL_SOURCE_LINK.sub(repl, text)
+    if n:
+        doc.write_text(new)
+    return n
+
+
+# An api/ entry heading: `## `funcname()``.
+API_HEADING = re.compile(r"^#{2,4} `([a-z_][a-z0-9_]*)\(\)`")
+# The repo-relative source path inside a GitHub blob link (drop tag + #anchor).
+PAGE_SRC = re.compile(re.escape(GH_BLOB) + r"/[^/]+/([^)\s#]+)")
+
+
+def link_api_source_doc(doc, func_index, tag):
+    """In an api/ reference page, link every entry's heading `## `funcname()`` to
+    its GitHub source (pinned). The `(name)=` label above the heading keeps the
+    page anchor intact; the description sentence is left plain. The entry heading
+    is the source-of-record link the prose pages point at. Returns count linked.
+
+    A name with both a C and a JS definition is ambiguous globally; the page's
+    own "Source code:" files (the .c/.h it documents) disambiguate it."""
+    text = doc.read_text()
+    page_files = set(PAGE_SRC.findall(text))
+    out = []
+    n = 0
+
+    def resolve(name):
+        paths = func_index.get(name)
+        if not paths:
+            return None
+        cand = [p for p in paths if str(p.relative_to(REPO)) in page_files]
+        if len(cand) != 1:
+            cand = list(paths) if len(paths) == 1 else []
+        if len(cand) != 1:
+            return None
+        dl = def_line_of(name, cand[0])
+        return (cand[0], dl) if dl is not None else None
+
+    for line in text.splitlines(keepends=True):
+        hm = API_HEADING.match(line)
+        if hm and "](" not in line:  # not already linked
+            name = hm.group(1)
+            hit = resolve(name)
+            if hit is not None:
+                path, dl = hit
+                url = gh_url(path, dl, None, tag)
+                pat = re.compile(r"`(" + re.escape(name) + r"\(\))`")
+                new_line, cnt = pat.subn(
+                    lambda mm: f"[`{mm.group(1)}`]({url})", line, count=1
+                )
+                if cnt:
+                    n += 1
+                    out.append(new_line)
+                    continue
+        out.append(line)
+    new = "".join(out)
+    if n:
+        doc.write_text(new)
+    return n
+
+
+def api_docs():
+    """The generated/maintained api/ reference tree (the inverse of
+    narrative_docs)."""
+    for doc in doc_files():
+        if "api" in doc.relative_to(REPO).parts:
+            yield doc
 
 
 # ----------------------------------------------------------------------------
@@ -886,6 +1004,11 @@ def main():
     do_symbols = any(a == "--link-symbols" or a.startswith("--link-symbols=") for a in sys.argv)
     do_files = any(a == "--link-files" or a.startswith("--link-files=") for a in sys.argv)
     do_jansson = "--link-jansson" in sys.argv
+    do_prefer_doc = "--prefer-doc-links" in sys.argv
+    do_api_source = any(
+        a == "--link-api-source" or a.startswith("--link-api-source=")
+        for a in sys.argv
+    )
     repin_tag = None
     for a in sys.argv:
         if a.startswith("--repin="):
@@ -897,6 +1020,8 @@ def main():
         if a.startswith("--link-symbols="):
             tag = a.split("=", 1)[1]
         if a.startswith("--link-files="):
+            tag = a.split("=", 1)[1]
+        if a.startswith("--link-api-source="):
             tag = a.split("=", 1)[1]
     basename_index = build_basename_index()
 
@@ -931,18 +1056,42 @@ def main():
 
     if do_symbols:
         func_index = build_func_symbol_index()
-        gclass_labels, tool_labels, own_labels = build_doc_labels()
+        gclass_labels, tool_labels, own_labels, func_labels = build_doc_labels()
         tf = tg = tt = 0
         for doc in narrative_docs():
             a, b, c = link_symbols_doc(
-                doc, func_index, gclass_labels, tool_labels, own_labels, tag
+                doc, func_index, gclass_labels, tool_labels, own_labels,
+                func_labels, tag
             )
             tf += a
             tg += b
             tt += c
         print(
-            f"link-symbols (pinned to {tag}): linked {tf} functions to source, "
-            f"{tg} gclasses and {tt} CLI tools to their doc page."
+            f"link-symbols (pinned to {tag}): linked {tf} functions "
+            f"(doc entry where documented, else source), {tg} gclasses and "
+            f"{tt} CLI tools to their doc page."
+        )
+        return 0
+
+    if do_prefer_doc:
+        _, _, own_labels, func_labels = build_doc_labels()
+        total = 0
+        for doc in narrative_docs():
+            total += prefer_doc_links_doc(doc, func_labels, own_labels)
+        print(
+            f"prefer-doc-links: retargeted {total} documented-function source "
+            f"links to their doc entry."
+        )
+        return 0
+
+    if do_api_source:
+        func_index = build_func_symbol_index()
+        total = 0
+        for doc in api_docs():
+            total += link_api_source_doc(doc, func_index, tag)
+        print(
+            f"link-api-source (pinned to {tag}): linked {total} api entries to "
+            f"their GitHub source."
         )
         return 0
 

@@ -8,7 +8,7 @@ Source code:
 - [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (comm_prot_free)=
-## `comm_prot_free()`
+## [`comm_prot_free()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L5951)
 
 The `comm_prot_free` function releases all registered communication protocol mappings, freeing associated memory.
 
@@ -33,7 +33,7 @@ This function should be called to clean up the communication protocol registry b
 ---
 
 (comm_prot_get_gclass)=
-## `comm_prot_get_gclass()`
+## [`comm_prot_get_gclass()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L5924)
 
 Retrieves the gclass name associated with a given communication protocol schema.
 
@@ -60,7 +60,7 @@ This function searches the registered communication protocols and returns the co
 ---
 
 (comm_prot_register)=
-## `comm_prot_register()`
+## [`comm_prot_register()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L5895)
 
 Registers a `gclass` with a specified communication protocol schema, allowing it to be retrieved later by schema name.
 
@@ -89,7 +89,7 @@ The function initializes the internal communication protocol registry if it has 
 ---
 
 (get_peername)=
-## `get_peername()`
+## [`get_peername()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6882)
 
 Retrieves the remote socket address of a connected socket and formats it as a string.
 
@@ -116,7 +116,7 @@ Returns `0` on success, or `-1` on error.
 ---
 
 (get_sockname)=
-## `get_sockname()`
+## [`get_sockname()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6901)
 
 Retrieves the local socket address of a socket and formats it as a string.
 
@@ -143,7 +143,7 @@ Returns `0` on success, or `-1` on error.
 ---
 
 (is_tcp_socket)=
-## `is_tcp_socket()`
+## [`is_tcp_socket()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6810)
 
 Determines if the given file descriptor represents a TCP (stream) socket.
 
@@ -166,7 +166,7 @@ Returns `TRUE` if the file descriptor is a TCP socket, `FALSE` otherwise.
 ---
 
 (is_udp_socket)=
-## `is_udp_socket()`
+## [`is_udp_socket()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6827)
 
 Determines if the given file descriptor represents a UDP (datagram) socket.
 
@@ -189,7 +189,7 @@ Returns `TRUE` if the file descriptor is a UDP socket, `FALSE` otherwise.
 ---
 
 (print_socket_address)=
-## `print_socket_address()`
+## [`print_socket_address()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6844)
 
 Formats a socket address structure into a human-readable string.
 
@@ -220,7 +220,7 @@ Supports both IPv4 and IPv6 address families.
 ---
 
 (set_tcp_socket_options)=
-## `set_tcp_socket_options()`
+## [`set_tcp_socket_options()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L6781)
 
 Configures TCP socket options including `TCP_NODELAY`, `SO_KEEPALIVE`, and `SO_LINGER`.
 

@@ -126,7 +126,7 @@ The realm owns the middle segment. Each yuno gets its own
 
 **Important nuance**: `create-realm` does **not** create
 `/yuneta/realms/<owner>/<url>/`. It only writes the treedb record. The
-directory is materialised by [`mkrdir()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L334) inside
+directory is materialised by [`mkrdir()`](#mkrdir) inside
 `build_yuno_private_domain()` the first time a yuno of that realm is
 started. Empty realms therefore leave no on-disk trace.
 
@@ -140,7 +140,7 @@ is shared across all realms on the host.
 
 Registered in the agent's command table at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c). Same
 patterns as the other agent commands (`pm_<name>` permission schemas,
-[`gobj_create_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10064) / [`gobj_update_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10102) / [`gobj_delete_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10140) against the
+[`gobj_create_node`](#gobj_create_node) / [`gobj_update_node`](#gobj_update_node) / [`gobj_delete_node`](#gobj_delete_node) against the
 treedb).
 
 ### 5.1 `create-realm`

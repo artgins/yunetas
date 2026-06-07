@@ -59,13 +59,13 @@ Plain and TLS TCP through the full GObj protocol stack.
 ## TLS certificate hot-reload
 
 Protects the [cert-reload feature](guide/guide_cert_management.md) — validates
-that [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.c#L104) swaps certificates atomically without
+that [`ytls_reload_certificates()`](#ytls_reload_certificates) swaps certificates atomically without
 dropping live sessions and rolls back cleanly on invalid material.
 
 | Binary | Description |
 |--------|-------------|
 | **`test_cert_reload`** | Swap cert A → B and confirm `view-cert` reflects the new subject/not_after; feed an invalid cert and verify the previous context is kept intact (rollback). |
-| **`test_cert_info`** | [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.c#L119) edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
+| **`test_cert_info`** | [`ytls_get_cert_info()`](#ytls_get_cert_info) edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
 | **`test_cert_reload_mem`** | 1000 reloads without any live session and asserts `get_cur_system_memory() == 0` (leak gate, run under [valgrind](https://valgrind.org/) for exhaustive checking). |
 | **`test_yevent_reload_live`** | One reload while a TCP session is live; the session keeps working end-to-end. |
 | **`test_yevent_reload_stress`** | 50 reloads with a live session, one echo message per iteration. |
@@ -76,7 +76,7 @@ dropping live sessions and rolls back cleanly on invalid material.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_c_llhttp_parser`** | Sanity test for the vendored llhttp library and the `ghttp_parser` wrapper: request/response parse, keep-alive pipelining, `HPE_PAUSED_UPGRADE` tail bytes, EOF completion via [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ghttp_parser.c#L195). |
+| **`test_c_llhttp_parser`** | Sanity test for the vendored llhttp library and the `ghttp_parser` wrapper: request/response parse, keep-alive pipelining, `HPE_PAUSED_UPGRADE` tail bytes, EOF completion via [`ghttp_parser_finish()`](#ghttp_parser_finish). |
 
 **Source:** `tests/c/c_llhttp_parser/`
 

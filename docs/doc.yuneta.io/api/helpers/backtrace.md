@@ -8,7 +8,7 @@ Source code:
 - [`helpers.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c)
 
 (tdump)=
-## `tdump()`
+## [`tdump()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L4918)
 
 `tdump` prints a formatted hexadecimal and ASCII dump of a given byte array.
 
@@ -43,7 +43,7 @@ If `nivel` is 0, it defaults to 3. The function formats the output in a structur
 ---
 
 (tdump2json)=
-## `tdump2json()`
+## [`tdump2json()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L4987)
 
 `tdump2json` converts a binary buffer into a JSON object, representing the data in a structured hexadecimal and ASCII format.
 

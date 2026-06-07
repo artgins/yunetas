@@ -55,12 +55,12 @@ defined in [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/
 
 | Function                | Priority      | At                    |
 |-------------------------|---------------|-----------------------|
-| [`gobj_log_alert`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L499)        | `LOG_ALERT`   | [glogger.c:499](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L499)         |
-| [`gobj_log_critical`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L514)     | `LOG_CRIT`    | [glogger.c:514](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L514)         |
-| [`gobj_log_error`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L529)        | `LOG_ERR`     | [glogger.c:529](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L529)         |
-| [`gobj_log_warning`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L544)      | `LOG_WARNING` | [glogger.c:544](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L544)         |
-| [`gobj_log_info`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L559)         | `LOG_INFO`    | [glogger.c:559](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L559)         |
-| [`gobj_log_debug`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L574)        | `LOG_DEBUG`   | [glogger.c:574](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L574)         |
+| [`gobj_log_alert`](#gobj_log_alert)        | `LOG_ALERT`   | [glogger.c:499](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L499)         |
+| [`gobj_log_critical`](#gobj_log_critical)     | `LOG_CRIT`    | [glogger.c:514](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L514)         |
+| [`gobj_log_error`](#gobj_log_error)        | `LOG_ERR`     | [glogger.c:529](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L529)         |
+| [`gobj_log_warning`](#gobj_log_warning)      | `LOG_WARNING` | [glogger.c:544](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L544)         |
+| [`gobj_log_info`](#gobj_log_info)         | `LOG_INFO`    | [glogger.c:559](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L559)         |
+| [`gobj_log_debug`](#gobj_log_debug)        | `LOG_DEBUG`   | [glogger.c:574](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L574)         |
 
 Plus two parallel non-syslog channels declared in glogger.c:
 
@@ -141,15 +141,15 @@ Discover what a gclass actually offers with `get-gclass-trace gclass=<X>`
 
 Same as per-gclass but scoped to a single gobj instance. Useful when you have
 ten TCP connections and only want the trace for one. API:
-[`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11256) at [`kernel/c/gobj-c/src/gobj.c:11256`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11256).
+[`gobj_set_gobj_trace()`](#gobj_set_gobj_trace) at [`kernel/c/gobj-c/src/gobj.c:11256`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11256).
 
 ### 3.4 The `no_trace` parallel system
 
 For every "set trace" command there is a "set no-trace" counterpart. The
 no-trace mask is **subtracted** from the effective trace mask, so you can
 turn on a noisy level globally and silence it on specific gclasses / gobjs.
-Functions: [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11396) at [gobj.c:11396](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11396),
-[`gobj_set_gclass_no_trace()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11617) at [gobj.c:11617](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11617), [`gobj_set_gobj_no_trace()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11746) at [gobj.c:11746](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11746).
+Functions: [`gobj_set_global_no_trace()`](#gobj_set_global_no_trace) at [gobj.c:11396](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11396),
+[`gobj_set_gclass_no_trace()`](#gobj_set_gclass_no_trace) at [gobj.c:11617](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11617), [`gobj_set_gobj_no_trace()`](#gobj_set_gobj_no_trace) at [gobj.c:11746](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11746).
 
 ### 3.5 Deep trace mode
 
@@ -204,7 +204,7 @@ a restart and quietly fill your disk. Always pair on/off in the same session.
 
 ### 5.1 File paths
 
-Per-yuno log file, built by [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_environment.c#L141) at
+Per-yuno log file, built by [`yuneta_log_file()`](#yuneta_log_file) at
 [`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_environment.c):
 
 ```
@@ -518,7 +518,7 @@ In [`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logce
 
 - [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logcenter/src/c_logcenter.c#L1202) parses each packet.
 - Writes the JSON record to its own rotatory file `W.log` via
-  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L943).
+  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](#_log_bf).
   Default size cap **600 MB** (`max_rotatoryfile_size`, in megabytes).
 - Updates in-memory counters per severity / `msgset` / `msg`
   ([`do_log_stats()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logcenter/src/c_logcenter.c#L858), [c_logcenter.c:858](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/logcenter/src/c_logcenter.c#L858)).
@@ -627,7 +627,7 @@ narrowly.
 
 ### 10.8 Deep tracing has no `ycommand` switch
 
-[`gobj_set_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11338) is C-only (gobj.c). If you find a yuno
+[`gobj_set_deep_tracing()`](#gobj_set_deep_tracing) is C-only (gobj.c). If you find a yuno
 generating apparently-unconfigurable traces, look for a `gobj_set_deep_tracing`
 call in its `mt_create` that someone left in.
 
@@ -718,7 +718,7 @@ works on any host without enabling anything.
 | Trace emit API (`gobj_trace_msg/json/dump`)   | [`kernel/c/gobj-c/src/glogger.c:778`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/glogger.c#L778)                          |
 | Global trace level table                      | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)                                   |
 | Per-gclass trace declaration (example)        | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/c_tcp_s.c)                             |
-| Trace mask lookup                             | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c) ([`gobj_trace_level`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L11072))          |
+| Trace mask lookup                             | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c) ([`gobj_trace_level`](#gobj_trace_level))          |
 | Per-gobj trace API                            | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c) (`gobj_set_gobj_trace`)             |
 | `no_trace` API                                | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)                       |
 | Deep trace                                    | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c)                               |

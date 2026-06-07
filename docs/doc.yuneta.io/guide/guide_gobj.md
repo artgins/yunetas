@@ -26,7 +26,7 @@ The primary APIs for creating gobjs include:
 
 Entire hierarchies of gobjs can be created using structured configurations:
 - **[`gobj_create_tree0`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L1885)**: Creates a GObj tree based on a JSON structure (`jn_tree`).
-- **[`gobj_create_tree`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L2222)**: Parses a tree configuration and calls `gobj_create_tree0` to instantiate the hierarchy.
+- **[`gobj_create_tree`](#gobj_create_tree)**: Parses a tree configuration and calls `gobj_create_tree0` to instantiate the hierarchy.
 
 ---
 

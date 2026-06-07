@@ -159,7 +159,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | Same as install but **overwrites** the existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10274), so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then [`gobj_delete_node`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10140) + [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/helpers.c#L422). |
+| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -259,7 +259,7 @@ Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/y
 
 1. Select yunos: `disabled=false ∧ running=false`.
 2. Resolve the binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L7528):
-   prefer the active snapshot ([`gobj_list_snaps()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10645)), falling back to a direct
+   prefer the active snapshot ([`gobj_list_snaps()`](#gobj_list_snaps)), falling back to a direct
    `(role, role_version)` lookup.
 3. Materialise each `configurations.zcontent` blob to a JSON file under the
    yuno's `bin/` directory ([`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.5.2/yunos/c/yuno_agent/src/c_agent.c#L7923)).
@@ -382,7 +382,7 @@ treedb cascade.
 in-memory primary (historic behaviour). With `yuno_release=<rel>` it durably
 prunes that one instance — useful to drop a superseded or mistakenly-created
 **higher** release without a snap rollback. This rides the treedb per-instance
-delete ([`treedb_delete_instance`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/timeranger2/src/tr_treedb.c#L5452)), which tombstones **every** md2 row of the
+delete ([`treedb_delete_instance`](#treedb_delete_instance)), which tombstones **every** md2 row of the
 `(id, yuno_release)` — a treedb instance spans several rows (create + each
 link/save re-appends one), so a partial tombstone would let an earlier row
 resurrect the release on reload. The running-guard consults the primary (the
@@ -481,7 +481,7 @@ freshly-built binary from `$YUNETAS_YUNOS` = `outputs/yunos/<role>`, so a plain
 > **not** change what `list-binaries` shows until `deactivate-snap` promotes and
 > reloads it — which is correct: the new binary is not in use until then. To see
 > every installed `(role, version)` from the moment it lands, use
-> `list-binaries-instances` ([`gobj_list_instances`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gobj.c#L10351), the pkey2 iterator refreshed
+> `list-binaries-instances` ([`gobj_list_instances`](#gobj_list_instances), the pkey2 iterator refreshed
 > at runtime by dbf532ec9).
 
 ### 5.2 Stale `yuno_running=true` after a hard crash

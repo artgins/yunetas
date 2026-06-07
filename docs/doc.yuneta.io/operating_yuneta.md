@@ -7,7 +7,7 @@ full yuno lifecycle, and the runtime subsystems behind them.
 ## In this section
 
 - [Entry point (main + watcher)](../../yunos/c/yuno_agent/ENTRY_POINT.md) —
-  what `main()` does, [`yuneta_entry_point`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/entry_point.c#L286), and the `ydaemon` watcher.
+  what `main()` does, [`yuneta_entry_point`](#yuneta_entry_point), and the `ydaemon` watcher.
 - [Yuno lifecycle](../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) — how the agent
   creates, runs, kills, updates, and deletes yunos.
 - [Debugging a yuno](../../yunos/c/yuno_agent/DEBUGGING.md) — trace levels, the

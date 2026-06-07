@@ -24,7 +24,7 @@ Both backends can be enabled simultaneously. When both are present, OpenSSL is p
 - `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
 - `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
 
-At runtime, two matching **yuno global variables** are available — `root-linux`'s [`yunetas_register_c_core()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/yunetas_register.c#L49) publishes them into gobj's global-variable pool via [`gobj_add_global_variable()`](../api/gobj/info.md#gobj_add_global_variable), so `gobj-c` itself stays free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDTLS` checks:
+At runtime, two matching **yuno global variables** are available — `root-linux`'s [`yunetas_register_c_core()`](#yunetas_register_c_core) publishes them into gobj's global-variable pool via [`gobj_add_global_variable()`](../api/gobj/info.md#gobj_add_global_variable), so `gobj-c` itself stays free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDTLS` checks:
 
 - `__tls_library__` — preferred backend, used for `(^^__tls_library__^^)` substitution in kw configs.
 - `__tls_libraries__` — all enabled backends, useful for diagnostics and logging.
@@ -86,14 +86,14 @@ context**, so the swap only drops the handle's reference. This is the
 easiest thing to break when touching the reload path.
 
 - **OpenSSL backend.** `SSL_new(ctx)` bumps the `SSL_CTX` refcount,
-  `SSL_free(ssl)` decrements it. [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.c#L104) builds
+  `SSL_free(ssl)` decrements it. [`ytls_reload_certificates()`](#ytls_reload_certificates) builds
   `new_ctx`, swaps `ytls->ctx = new_ctx` and calls `SSL_CTX_free(old_ctx)`
   to release the handle's ref. In-flight `SSL *` objects keep `old_ctx`
   alive until the last session closes.
 - **mbed-TLS backend.** `ytls` maintains an explicit `mbedtls_state_t`
   bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` + `mbedtls_pk_context`)
   with a refcount. Each `hsskt` takes a ref on creation and releases it on
-  [`ytls_free_secure_filter()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/ytls/src/ytls.c#L180). The swap drops the handle's ref; live
+  [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops the handle's ref; live
   sessions keep the old bundle alive on their own.
 
 ### Callers
