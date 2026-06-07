@@ -255,6 +255,32 @@ PRIVATE mbedtls_state_t *build_state(
         return NULL;
     }
 
+    /*
+     *  Protocol floor. The mbedTLS default preset already floors at TLS1.2
+     *  (mbedTLS 4.x dropped SSLv3/TLS1.0/TLS1.1 entirely), so this backend is
+     *  secure-by-default and there is no permissive floor to warn about. The
+     *  optional "ssl_min_version" knob mirrors the OpenSSL backend so the same
+     *  config is portable; it can only RAISE the floor here. Accepts "TLS1.2"
+     *  or "TLS1.3". A lower value (legacy IoT) is impossible on mbedTLS — use
+     *  the OpenSSL backend for those gates.
+     */
+    const char *ssl_min_version = kw_get_str(gobj, jn_config, "ssl_min_version", "", 0);
+    if(!empty_string(ssl_min_version)) {
+        if(strcasecmp(ssl_min_version, "TLS1.2")==0) {
+            mbedtls_ssl_conf_min_tls_version(&s->conf, MBEDTLS_SSL_VERSION_TLS1_2);
+        } else if(strcasecmp(ssl_min_version, "TLS1.3")==0) {
+            mbedtls_ssl_conf_min_tls_version(&s->conf, MBEDTLS_SSL_VERSION_TLS1_3);
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "ssl_min_version unsupported on mbedTLS (TLS1.2+ only); keeping TLS1.2 floor. Use the OpenSSL backend for legacy TLS",
+                "ssl_min_version",  "%s", ssl_min_version,
+                NULL
+            );
+        }
+    }
+
     const char *ssl_certificate = kw_get_str(
         gobj, jn_config, "ssl_certificate", "", server ? KW_REQUIRED : 0
     );
@@ -953,6 +979,21 @@ PRIVATE int do_handshake(hsskt sskt_)
             char error_buf[256];
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
             gobj_log_set_last_message("MBEDTLS: %s", error_buf);
+            /*
+             *  Default-on trace of the rejected handshake (not just under
+             *  trace_tls). A peer offering a TLS version below the floor lands
+             *  here (mbedTLS floors at TLS1.2 and cannot go lower), so legacy
+             *  peers that must use the OpenSSL backend are identifiable. The
+             *  peer address is logged by the transport gobj on the drop.
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MBEDTLS,
+                "msg",          "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",
+                "error",        "%s", error_buf,
+                "userp",        "%p", sskt->user_data,
+                NULL
+            );
             dump_handshake_transcript_on_fail(sskt);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1; // Handshake failure (vtable contract: 1/0/-1)

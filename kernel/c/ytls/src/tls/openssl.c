@@ -367,12 +367,17 @@ PRIVATE SSL_CTX *build_ssl_ctx(
     SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_TLSv1);
 
     /*
-     *  Protocol floor. Default 0 keeps the historical SSLv3/TLS1.0 floor
-     *  (backward compatible). The optional "ssl_min_version" config knob lets
-     *  an embedder raise it without a code change (TLS1.2+ recommended).
+     *  Protocol floor. Secure-by-default: when "ssl_min_version" is unset the
+     *  floor is TLS1.2 (matches the mbedTLS backend, which cannot go lower).
+     *  The knob can RAISE it (TLS1.3) or, for legacy IoT gates that need it,
+     *  LOWER it to SSLv3 / TLS1.0 (alias TLS1) / TLS1.1 — paired with an
+     *  ssl_ciphers "@SECLEVEL=0" so OpenSSL actually negotiates the old suite.
+     *  A floor below TLS1.2 is an explicit, auditable downgrade and is logged
+     *  (yuneta "no silent permissive defaults"); and any peer rejected by the
+     *  floor leaves a trace in do_handshake() below.
      *  Accepts: SSLv3, TLS1.0 (alias TLS1), TLS1.1, TLS1.2, TLS1.3.
      */
-    int min_proto_version = 0;
+    int min_proto_version = TLS1_2_VERSION;
     const char *ssl_min_version = kw_get_str(gobj, jn_config, "ssl_min_version", "", 0);
     if(!empty_string(ssl_min_version)) {
         if(strcasecmp(ssl_min_version, "SSLv3")==0) {
@@ -390,11 +395,25 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", "Unknown ssl_min_version, keeping default floor",
+                "msg",          "%s", "Unknown ssl_min_version, keeping TLS1.2 floor",
                 "ssl_min_version", "%s", ssl_min_version,
                 NULL
             );
         }
+    }
+    if(min_proto_version != 0 && min_proto_version < TLS1_2_VERSION) {
+        /*
+         *  Explicit legacy downgrade. Make the gate enumerable in the logs so
+         *  the reduced-security surface is auditable (not silent).
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPENSSL,
+            "msg",          "%s", "TLS gate configured with a legacy floor below TLS1.2 (IoT-compat downgrade)",
+            "ssl_min_version", "%s", ssl_min_version,
+            "server",       "%d", server?1:0,
+            NULL
+        );
     }
     SSL_CTX_set_min_proto_version(ctx, min_proto_version);
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
@@ -984,6 +1003,24 @@ PRIVATE int do_handshake(hsskt sskt_)
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
             gobj_log_set_last_message("OPENSSL: %s", sskt->last_error);
+            /*
+             *  Leave a default-on trace of the rejected handshake (not just
+             *  under trace_tls). A peer offering a TLS version below the
+             *  configured floor lands here with reason "unsupported protocol"
+             *  / "wrong version number" / "tlsv1 alert protocol version" — so
+             *  the legacy IoT devices that need an explicit ssl_min_version
+             *  opt-down are identifiable. The peer address is logged by the
+             *  transport gobj on the matching connection drop.
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL,
+                "msg",          "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
+                "error",        "%s", sskt->last_error,
+                "tls_version",  "%s", SSL_get_version(sskt->ssl),
+                "userp",        "%p", sskt->user_data,
+                NULL
+            );
             dump_handshake_transcript_on_fail(sskt);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;

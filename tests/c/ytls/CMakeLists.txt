@@ -45,6 +45,7 @@ set(SRCS
     test_cert_reload_mem
     test_handshake_dump_openssl
     test_handshake_dump_mbedtls
+    test_tls_floor_openssl
 )
 
 ##############################################

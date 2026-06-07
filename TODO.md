@@ -190,10 +190,32 @@ behavior exactly).** Embedders can now harden via `jn_config` without a code
 change; the remaining decision is whether/when to flip the *defaults* (a
 deployment-policy call — validate on staging before prod):
 
-- **Protocol floor** (`src/tls/openssl.c`) — new `ssl_min_version` knob
-  (`SSLv3`/`TLS1.0`/`TLS1.1`/`TLS1.2`/`TLS1.3`). Default unset keeps the
-  historical SSLv3/TLS1.0 floor. TLS1.2+ recommended; weigh against legacy
-  clients. **Default still to decide.**
+- **Protocol floor** — `ssl_min_version` knob
+  (`SSLv3`/`TLS1.0`/`TLS1.1`/`TLS1.2`/`TLS1.3`).
+  **DONE — secure-by-default flip on branch `security/tls-floor-policy`**
+  (2026-06-07, pending review/merge). Both backends now floor at **TLS1.2 by
+  default** (mbedTLS 4.x can't go lower anyway; OpenSSL default flipped from the
+  historical SSLv3/TLS1.0 floor). The IoT escape hatch is preserved: an OpenSSL
+  gate can still LOWER the floor to `TLS1.0`/`TLS1.1` (paired with
+  `ssl_ciphers "@SECLEVEL=0"`); mbedTLS cannot — legacy peers must use the
+  OpenSSL backend. The flip is acceptable because neither the downgrade nor the
+  rejection is silent (yuneta norm):
+  - an explicit floor **below TLS1.2** logs a `gobj_log_warning` at ctx build
+    ("legacy floor below TLS1.2 / IoT-compat downgrade") → downgraded gates are
+    enumerable;
+  - a peer **rejected by the floor** logs a default-on warning in
+    `do_handshake()` ("TLS handshake rejected", with the OpenSSL/mbedTLS reason
+    + offered version) → the legacy IoT devices that need an opt-down are
+    identifiable from the logs. Peer address comes from the transport gobj's
+    drop log for the same connection.
+  - `ssl_min_version` knob also ADDED to the mbedTLS backend (was OpenSSL-only)
+    for config portability (accepts `TLS1.2`/`TLS1.3`; can only raise).
+  - Test: `tests/c/ytls/test_tls_floor_openssl.c` — (A) explicit downgrade is
+    logged; (B) a real TLS1.0 ClientHello is rejected by the default floor and
+    traced. Full suite green.
+  - Remaining deployment step (Rosa): roll out per-gate configs — raise
+    high-level gates explicitly where wanted, set the IoT-compat profile on the
+    legacy gates — validated on staging (e.com) before prod (h.es).
 - **mbedTLS verify mode** (`src/tls/mbedtls.c`) — new `ssl_verify_mode` knob
   (`required`/`optional`/`none`). Default unset keeps the computed behavior
   (no CA → `NONE`; server+CA → `OPTIONAL`; client+CA → `REQUIRED`). A client
