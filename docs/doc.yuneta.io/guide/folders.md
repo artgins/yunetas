@@ -7,7 +7,10 @@ The Yuneta SDK is structured into the following top folders:
 - [docs](#docs):         Documentation of Yuneta.
 - [kernel](#kernel):     Kernel in several languages.
 - [modules](#modules):   Modules in several languages.
+- [packages](#packages): Debian packaging for the Yuneta Agent.
 - [performance](#performance): Performance tests.
+- [scripts](#scripts):   Auxiliary scripts added to the shell `PATH`.
+- [stress](#stress):     Stress tests.
 - [tests](#tests):       Tests.
 - [tools](#tools):       Compilation or building tools.
 - [utils](#utils):       Utilities for Yuneta.
@@ -94,6 +97,20 @@ Contains additional protocol and functionality modules.
 
 ---
 
+(packages)=
+## `packages`
+
+Debian packaging for the Yuneta Agent. Builds `.deb` packages that install the
+complete runtime — agent binaries, CLI tools, web server, init scripts, kernel
+tuning, TLS certificate management and a dedicated `yuneta` system user — under
+the `/yuneta` hierarchy.
+
+- `make-yuneta-agent-deb.sh`: builds the `.deb`.
+- `AMD64.sh` / `ARM32.sh` / `ARMhf.sh` / `RISCV64.sh`: per-architecture build wrappers.
+- `templates`: agent configuration samples baked into the package.
+
+---
+
 (performance)=
 ## `performance`
 
@@ -108,6 +125,30 @@ Performance testing utilities for key Yuneta components.
       Performance test of the `yev_loop` library.
     - `perf_yev_ping_pong2`:
       Additional performance tests for the `yev_loop` library.
+
+---
+
+(scripts)=
+## `scripts`
+
+Auxiliary scripts shipped with the source tree. This directory is added to
+`PATH` by `yunetas-env.sh`, so they are runnable by name from any cwd inside a
+sourced yuneta shell.
+
+- `check_doc_line_refs.py`: audits and links the source references in the docs.
+- `verify_api_coverage.py`: checks that the `api/` reference covers the public API.
+- `migratev6tov7.py`: migrates data/config from Yuneta v6 to v7.
+
+---
+
+(stress)=
+## `stress`
+
+Stress-test programs that push Yuneta components under sustained load.
+
+- `C`:
+    - `auth_bff`: stress test of the authentication backend-for-frontend.
+    - `listen`: stress test of the listen/accept path.
 
 ---
 
