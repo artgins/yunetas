@@ -174,8 +174,36 @@ walk, `c_yuno.c:5305/5350`) would be denied.
 7. Regression-test internal command paths after.
 
 Found by a security review of gobj-c (finding f002, 2026-06-05; deepened
-2026-06-06). **Deferred to the framework owner** — the posture in step 1 is a
-deployment-policy decision, not a mechanical fix. No code changed yet.
+2026-06-06).
+
+### Status — IMPLEMENTED 2026-06-07 (gated opt-in, default off)
+
+Re-armed with the **gated opt-in** posture (step 1, recommended) so the default
+is non-breaking:
+
+- **Gate.** `command_parser.c` runs the `SDF_AUTHZ_X` check only when the yuno
+  attr **`enable_command_authz`** is TRUE. New `SDF_RD` boolean attr on `c_yuno`
+  (default `"0"`), read via `gobj_yuno()` + `gobj_has_attr` + `gobj_read_bool_attr`
+  (self-contained in gobj-c; absent attr → off). `SDF_RD`, not `SDF_WR`, so the
+  runtime `write-attr` command cannot disable authz; only config/code can set it.
+- **Self-bypass (step 2).** `src == gobj` skips the check — internal self-issued
+  commands (e.g. the `c_yuno` cert-reload walk `gobj_command(child,…,child)`)
+  carry no external principal and must never be denied.
+- **Leak (step 3).** Re-examined: `gobj_user_has_authz()` owns `kw` and the
+  global `authz_checker` `KW_DECREF`s it on every path, so the re-armed block
+  does not leak `kw_authz`. The deny path also frees `kw_cmd` + `kw`.
+- **Response.** Uses `build_command_response(gobj, -403, …)` (gobj-c), not the
+  root-linux `msg_iev_build_response` the old commented block referenced.
+- **Deny is logged** (`MSGSET_AUTH`), not silent.
+- Test `tests/c/command_authz/test_command_authz.c`: default-off runs; on+deny
+  blocked (-403); on+self-bypass runs; on+granted runs. Full suite green.
+
+Remaining (deployment, Rosa): set `enable_command_authz: true` on the yunos that
+run a `C_AUTHZ` role model and author the roles/permissions for the
+`SDF_AUTHZ_X` commands (step 4); confirm internal `__username__`-bearing callers
+are granted (step 5); validate on staging before production. The
+fail-open-without-C_AUTHZ and strict postures (step 1 alternatives) remain
+available if the gate proves too coarse.
 
 ## Security: ytls TLS posture (deployment decisions)
 

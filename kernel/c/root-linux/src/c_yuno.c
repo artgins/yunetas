@@ -479,6 +479,7 @@ SDATA (DTP_STRING,  "i18n_codeset",     SDF_RD,         "UTF-8",        "codeset
 SDATA (DTP_INTEGER, "watcher_pid",      SDF_RD,         "0",            "Watcher pid"),
 SDATA (DTP_JSON,    "allowed_ips",      SDF_PERSIST,    "{}",           "Allowed peer ip's if TRUE, FALSE not allowed"),
 SDATA (DTP_JSON,    "denied_ips",       SDF_PERSIST,    "{}",           "Denied peer ip's if TRUE, FALSE not denied"),
+SDATA (DTP_BOOLEAN, "enable_command_authz", SDF_RD,     "0",            "Enforce per-command SDF_AUTHZ_X authorization (needs a C_AUTHZ role model). Default off keeps historical behaviour."),
 
 
 SDATA (DTP_INTEGER, "trace_machine_format", SDF_WR|SDF_PERSIST,"0",     "trace machine format, 0 legacy default, 1 simpler"),

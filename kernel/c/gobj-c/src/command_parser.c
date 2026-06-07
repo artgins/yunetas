@@ -81,47 +81,65 @@ PUBLIC json_t *command_parser(
     }
 
     /*-----------------------------------------------*
-     *  Check AUTHZ
+     *  Check AUTHZ (per-command authorization)
+     *
+     *  Gated opt-in: the SDF_AUTHZ_X role check runs only when the yuno sets
+     *  `enable_command_authz` TRUE. Default (attr absent or FALSE) preserves
+     *  the historical behaviour, so yunos without a C_AUTHZ role model are not
+     *  broken — the global authz_checker is fail-closed when no C_AUTHZ service
+     *  is running, which most yunos lack.
+     *
+     *  Self-issued commands (src == gobj, e.g. the c_yuno cert-reload walk)
+     *  bypass the check: they carry no external principal and must never be
+     *  denied. External principals are authenticated upstream; this gate adds
+     *  *authorization* (permission) on top of that authentication.
      *-----------------------------------------------*/
-//     if(cnf_cmd->flag & SDF_AUTHZ_X) {
-//         /*
-//          *  AUTHZ Required
-//          */
-//         json_t *kw_authz = json_pack("{s:s}",
-//             "command", command
-//         );
-//         if(kw) {
-//             json_object_set(kw_authz, "kw", kw);
-//         } else {
-//             json_object_set_new(kw_authz, "kw", json_object());
-//         }
-//         if(!gobj_user_has_authz(
-//                 gobj,
-//                 "__execute_command__",
-//                 kw_authz,
-//                 src
-//           )) {
-//             log_error(0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_AUTH,
-//                 "msg",          "%s", "No permission to execute command",
-//                 //"user",         "%s", gobj_get_user(src),
-//                 "gclass",       "%s", gobj_gclass_name(gobj),
-//                 "command",      "%s", command?command:"",
-//                 NULL
-//             );
-//             return msg_iev_build_response(
-//                 gobj,
-//                 -403,
-//                 json_sprintf(
-//                     "No permission to execute command"
-//                 ),
-//                 0,
-//                 0,
-//                 kw
-//             );
-//         }
-//     }
+    if(cnf_cmd->flag & SDF_AUTHZ_X) {
+        hgobj yuno = gobj_yuno();
+        BOOL authz_enabled = yuno &&
+            gobj_has_attr(yuno, "enable_command_authz") &&
+            gobj_read_bool_attr(yuno, "enable_command_authz");
+
+        if(authz_enabled && src != gobj) {
+            json_t *kw_authz = json_pack("{s:s}",
+                "command", command
+            );
+            if(kw) {
+                json_object_set(kw_authz, "kw", kw);    // incref
+            } else {
+                json_object_set_new(kw_authz, "kw", json_object());
+            }
+            /*
+             *  gobj_user_has_authz() takes ownership of kw_authz (the checker
+             *  KW_DECREF's it on every path), so it is not freed here.
+             */
+            if(!gobj_user_has_authz(
+                    gobj,
+                    "__execute_command__",
+                    kw_authz,
+                    src
+              )) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "No permission to execute command",
+                    "gclass",       "%s", gobj_gclass_name(gobj),
+                    "command",      "%s", command?command:"",
+                    NULL
+                );
+                json_t *kw_response = build_command_response(
+                    gobj,
+                    -403,
+                    json_sprintf("No permission to execute command: '%s'", command?command:""),
+                    0,
+                    0
+                );
+                KW_DECREF(kw_cmd)
+                KW_DECREF(kw)
+                return kw_response;
+            }
+        }
+    }
 
     json_t *kw_response = 0;
     if(cnf_cmd->json_fn) {
