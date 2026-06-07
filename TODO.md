@@ -312,8 +312,12 @@ were deferred from the 7.5.2 batch for separate review.
   Zero-regression: the guard only fires when `gbuf == NULL`, which already
   crashed (`gbuffer_create` always allocs `data` for a valid gbuf, or returns
   NULL), so valid usage is unchanged; it just turns a SIGSEGV into a NULL
-  return that the common `json_string(...)` sinks absorb gracefully. Per-site
-  guards remain where explicit error logging is wanted. Unit test:
+  return that the common `json_string(...)` sinks absorb gracefully. The guard
+  is NOT silent — it emits `gobj_log_error(0, LOG_OPT_TRACE_STACK, ...)` (same
+  style as `gbuffer_incref`/`gbuffer_decref`), so a NULL gbuf still surfaces a
+  logged error + backtrace to chase the root cause instead of relying on the
+  former crash/"Daemon relaunched" signal. Per-site guards remain where
+  explicit error logging is wanted. Unit test:
   `tests/c/gbuffer/test_gbuffer_guards.c` (NULL paths + valid path + the
   json_string sink); full kernel suite green incl. the gbuffer-serialize
   heavy tests (tr_msg, msg_interchange).
