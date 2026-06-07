@@ -523,7 +523,7 @@ PUBLIC int rmrcontentdir(const char *root_dir)
         if (!strcmp(dname, ".") || !strcmp(dname, ".."))
             continue;
         char path[PATH_MAX];
-        build_path(path, sizeof(path), root_dir, dname);
+        build_path(path, sizeof(path), root_dir, dname, NULL);
 
         if(stat(path, &st) == -1) {
             closedir(dir);
@@ -609,8 +609,65 @@ PUBLIC char *delete_left_char(char *s, char x)
 }
 
 /***************************************************************************
+ *  Lexically resolve '.' and '..' in the mutable tail of an assembled
+ *  path, clamped so that '..' can never rise above `floor` (the end of
+ *  the first/root segment passed to build_path()). The first segment is
+ *  the trusted root; every subsequent (often caller/attacker-influenced)
+ *  segment is confined under it — a trailing "../../etc" can neutralise
+ *  components down to the root but never escape it. In-place; the result
+ *  is never longer than the input. Collapses duplicate separators too.
+ ***************************************************************************/
+PRIVATE void clamp_path_tail(char *bf_start, char *floor)
+{
+    char *rd = floor;
+    char *wr = floor;
+
+    while(*rd) {
+        if(*rd == '/') {                    // skip separators (incl. duplicates)
+            rd++;
+            continue;
+        }
+        char *comp = rd;
+        while(*rd && *rd != '/') {
+            rd++;
+        }
+        size_t len = (size_t)(rd - comp);
+
+        if(len == 1 && comp[0] == '.') {
+            continue;                       // drop "."
+        }
+        if(len == 2 && comp[0] == '.' && comp[1] == '.') {
+            if(wr > floor) {                // pop the previous tail component
+                char *p = wr;
+                while(p > floor && *(p - 1) != '/') {
+                    p--;
+                }
+                if(p > floor && *(p - 1) == '/') {
+                    p--;                    // also drop the separator before it
+                }
+                wr = p;
+            }
+            continue;                       // at the floor: clamp (drop "..")
+        }
+
+        // Normal component: ensure exactly one separator before it
+        if(wr > bf_start && *(wr - 1) != '/') {
+            *wr++ = '/';
+        }
+        if(wr != comp) {
+            memmove(wr, comp, len);
+        }
+        wr += len;
+    }
+    *wr = '\0';
+}
+
+/***************************************************************************
  *  Build a path/URL from variadic segments, ensuring exactly one '/'
  *  between each part. No heap allocations — uses pointer arithmetic only.
+ *  The first segment is treated as the trusted root: '.'/'..' in any
+ *  subsequent segment are resolved lexically and can never escape it
+ *  (see clamp_path_tail()), neutralising path-traversal via tail input.
  *  Returns the start of the buffer (bf_start).
  ***************************************************************************/
 PUBLIC char *build_path(char *bf, size_t bfsize, ...)
@@ -626,6 +683,7 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
     }
     *bf = '\0';
 
+    size_t root_len = 0;
     int i = 0;
     while((segment = va_arg(ap, const char *)) != NULL) {
         if(empty_string(segment)) {
@@ -672,9 +730,16 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
         *bf = '\0';
 
         i++;
+        if(i == 1) {
+            // End of the first segment: it is the trusted root, locked
+            // against '..' clamping of every later segment.
+            root_len = (size_t)(bf - bf_start);
+        }
     }
 
     va_end(ap);
+
+    clamp_path_tail(bf_start, bf_start + root_len);
 
     return bf_start;
 }

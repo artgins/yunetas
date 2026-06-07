@@ -283,3 +283,30 @@ modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs
 command-exec (prior fixes 8c03eb686/5dbede6a1 + authz gating — re-audit if the
 agent's `SDF_WR` command attrs become remote-writable). Findings detail in the
 security-review workspace (`modules/`, `yunos/`).
+
+## Security: cross-cutting path/buffer hardening
+
+Root causes behind the per-sink path-traversal fixes shipped in 7.5.2
+(`c_node` content64, `cmd_install_binary`, export-db, `C_RESOURCE2`,
+agent read-* confinement). These are hot shared helpers in `gobj-c`, so they
+were deferred from the 7.5.2 batch for separate review.
+
+- **`build_path()` (helpers.c) — DONE.** The first variadic segment is now
+  treated as a trusted, immutable root; `.`/`..` in every *subsequent* segment
+  are resolved lexically and clamped so they can never rise above it
+  (`clamp_path_tail()`). A `../../etc/passwd` tail is confined under the root
+  (`/yuneta/store/etc/passwd`), never escapes it. Defence-in-depth behind the
+  per-sink validators — no caller passes intentional `..` (all runtime segments
+  are filenames/ids), and no real `http://` URL flows through (the lone `url`
+  segment is a dotted identifier), so behaviour for legitimate callers is
+  unchanged. Also fixed a missing `NULL` sentinel at a `readdir` caller
+  (helpers.c) that walked `va_arg` past its args (UB). Unit test:
+  `tests/c/build_path/test_build_path.c` (19 cases incl. the
+  traversal-confinement set); full kernel suite (timeranger2/treedb/kw/…)
+  green against the reinstalled lib.
+
+- **`gbuffer_cur_rd_pointer()` (gbuffer.h) — still open.** Derefs without a
+  NULL guard; a central guard in gobj-c would harden the whole
+  content64/base64 NULL-deref family at once (per-site guards already shipped
+  for the reachable ones). Deemed not-low-risk as a tree-wide hot helper —
+  needs its own reviewed change + full test pass.
