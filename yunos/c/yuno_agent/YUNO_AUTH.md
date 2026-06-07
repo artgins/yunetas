@@ -128,7 +128,7 @@ them.
 
 ### 2.4 The cookies
 
-Built in `make_set_cookie()` at [`c_auth_bff.c:748`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L748):
+Built in [`make_set_cookie()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L748) at [`c_auth_bff.c:748`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L748):
 
 ```
 Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
@@ -281,7 +281,7 @@ as the default `authz` service in the `yuno_citizen` template, see
 | `roles`         | `id`        | `parent_role_id` (fkey for inheritance), `service`, `permission`, `permissions[]`, `deny`, `parameters`, `users{}` (dict hook back to users) |
 | `users_accesses`| `id`+`tm`   | login audit: `ev`, `ip`, `jwt_payload`                                |
 
-Roles can inherit from a parent (`parent_role_id`) — `get_user_roles()`
+Roles can inherit from a parent (`parent_role_id`) — [`get_user_roles()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c#L3367)
 at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_authz.c) walks the chain and accumulates effective
 authzs.
 
@@ -306,7 +306,7 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup; `yuneta` happens to typically
 own every role in production deployments.
 
-### 4.3 `gobj_user_has_authz`
+### 4.3 [`gobj_user_has_authz`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400)
 
 The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c):
 

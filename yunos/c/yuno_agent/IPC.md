@@ -144,7 +144,7 @@ Macros at [`kwid.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj
 
 Action functions always receive ownership; they either `KW_DECREF(kw)` at
 the end, or hand `kw` to another consuming API (e.g. `gobj_publish_event`,
-`gobj_send_event`, `msg_iev_build_response`). Failure to consume = leak.
+`gobj_send_event`, [`msg_iev_build_response`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L541)). Failure to consume = leak.
 Double consumption = use-after-free.
 
 The framework itself calls `KW_DECREF(kw)` at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c) when there's no
@@ -345,7 +345,7 @@ json_pack("{s:s, s:o}",
 ```
 
 Result is dumped with `JSON_COMPACT` and placed in a WS frame. The receiver
-does `gbuf2json` + `kw_deserialize` ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c)).
+does [`gbuf2json`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L1127) + [`kw_deserialize`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/kwid.c#L238) ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c)).
 
 Concretely, a command call on the wire looks roughly like:
 
@@ -381,7 +381,7 @@ __md_iev__
 
 Other top-level keys in `kw` outside `__md_iev__`:
 
-- `__md_yuno__` — set by the responder via `msg_iev_set_back_metadata()`
+- `__md_yuno__` — set by the responder via [`msg_iev_set_back_metadata()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L500)
   ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c)). Survives the round-trip.
 - `__temp__` — **stripped at the yuno boundary** ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c)).
   Use it freely for transport-local bookkeeping.
@@ -390,7 +390,7 @@ Other top-level keys in `kw` outside `__md_iev__`:
 The stack is pushed on outbound, popped+reversed on the response, so the
 client gets back the same structure it sent (with response data added).
 Push/pop helpers: `msg_iev_push_stack` ([`msg_ievent.c:327`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L327)),
-`msg_iev_get_stack`, `msg_iev_pop_stack` ([`msg_ievent.c:419`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L419)).
+`msg_iev_get_stack`, [`msg_iev_pop_stack`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L419) ([`msg_ievent.c:419`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L419)).
 
 `IEVENT_STACK_ID = "ievent_gate_stack"` constant at [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.h).
 
@@ -424,7 +424,7 @@ either way.
 
 `ac_on_message` in [`c_ievent_srv.c:933`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c#L933):
 
-1. `iev_create_from_gbuffer` ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
+1. [`iev_create_from_gbuffer`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L152) ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
    frame.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
    `dst_role`, `dst_service` ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_ievent_srv.c)).
@@ -620,7 +620,7 @@ gobj_write_bool_attr   (clisrv, "use_ssl", priv->use_ssl);
 ```
 
 In `C_TCP` itself, if `use_ssl=TRUE`, on `EV_CONNECTED` the gobj wraps the
-socket via `ytls_new_secure_filter()` ([`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_tcp.c)), and from then
+socket via [`ytls_new_secure_filter()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/ytls/src/ytls.c#L144) ([`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_tcp.c)), and from then
 on `EV_RX_DATA` carries decrypted plaintext while outbound bytes are
 encrypted before hitting the wire. The protocol gclass above is unaware
 TLS exists.

@@ -107,7 +107,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   Library for advanced JSON manipulation: path-based access, filtering, cloning, matching, and comparison of JSON structures. See [kwid guide](guide/guide_kwid.md) and [kwid API](api/helpers/kwid.md).
 
 **LMethod** (Local Method)
-:   A private method on a GClass, invoked explicitly via `gobj_local_method()` — not part of the FSM dispatch.
+:   A private method on a GClass, invoked explicitly via [`gobj_local_method()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L4263) — not part of the FSM dispatch.
 
 (node)=
 **Node**
@@ -144,7 +144,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (snapshot)=
 **Snapshot**
-:   A point-in-time capture of [TreeDB](#glossary-treedb) state for backup/restore. Managed via `treedb_shoot_snap()` / `treedb_activate_snap()`.
+:   A point-in-time capture of [TreeDB](#glossary-treedb) state for backup/restore. Managed via [`treedb_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L8844) / [`treedb_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L9055).
 
 (state)=
 **State**

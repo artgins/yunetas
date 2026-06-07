@@ -144,7 +144,7 @@ Two rowids per record, both maintained **only** by timeranger2:
 | `g_rowid`   | Global rowid for that key — cumulative across all files, never reset |
 | `i_rowid`   | Rowid within the current `.md2` file — `(offset / sizeof(md2_record_t)) + 1` |
 
-`tranger2_append_record` ([`timeranger2.c:2332`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2332)) computes both and
+[`tranger2_append_record`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2332) ([`timeranger2.c:2332`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2332)) computes both and
 returns them in `md_record_ex->rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)). **Callers
 never set them.** For topics with `sf_rowid_key`, timeranger2 also
 asserts `g_rowid == i_rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c)) — a mismatch is
@@ -233,16 +233,16 @@ json_t *tranger2_open_rt_mem (…);   // master-side realtime (writes pushed via
 json_t *tranger2_open_rt_disk(…);   // non-master realtime (watches hardlinks)
 ```
 
-`tranger2_open_rt_disk` is the workhorse for **cross-yuno** reads —
+[`tranger2_open_rt_disk`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3757) is the workhorse for **cross-yuno** reads —
 see §4.5.
 
 ### 2.7 Master / non-master
 
-`tranger2_startup` ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
+[`tranger2_startup`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L330) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
 lock** on `__timeranger2__.json`. Whoever gets it is the master:
 
 - The master can **read AND write**. Only the master may
-  `tranger2_append_record`, `tranger2_delete_topic`, etc.
+  `tranger2_append_record`, [`tranger2_delete_topic`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L1335), etc.
 - Non-masters can only read. They are expected to use
   `tranger2_open_rt_disk` so the master can push updates to them via
   hardlinks in the `disks/<rt_id>/` directory.
@@ -264,7 +264,7 @@ the directory was wired.
 Two granularities, both implemented in v7 as of 2026-05-26.
 
 - **Whole record** (= a primary key + every instance under it).
-  **`tranger2_delete_key()`** (renamed from `tranger2_delete_record`
+  **[`tranger2_delete_key()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2872)** (renamed from `tranger2_delete_record`
   on 2026-05-25; legacy alias kept as a `#define` in [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.h)).
   Removes `keys/<key>/` and drops the key from `topic_cache`.
   Irrecoverable. Used today by `treedb_delete_node`.
@@ -275,11 +275,11 @@ Two granularities, both implemented in v7 as of 2026-05-26.
   side of the mask so `rt_by_disk` followers see the tombstone).
   Optional `zero_payload` overwrites the matching `__size__` bytes in
   the data `.json` for sensitive-data wipes. Read paths
-  (`tranger2_open_iterator` history, `tranger2_iterator_get_page`,
-  `publish_new_rt_disk_records`) skip dead rows. Master-only,
+  ([`tranger2_open_iterator`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L5789) history, [`tranger2_iterator_get_page`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L6156),
+  [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L4887)) skip dead rows. Master-only,
   idempotent. Slot ids do NOT renumber — `iterator_size` /
   `total_rows` keep counting slots, not live rows.
-  **Treedb is NOT a consumer**: `treedb_delete_instance()` is
+  **Treedb is NOT a consumer**: [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L5452) is
   per-`pkey2`-index in-memory cleanup only.
 
 #### Propagation to subscribers (2026-05-26)
@@ -295,7 +295,7 @@ the deleted key. Two paths:
   [`rmrdir`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L422)s `topic/disks/<rt_id>/<key>/` BEFORE the live
   `keys/<key>/` so the follower's [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) watcher catches it as
   `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
-  `key_deleted_callback`. `fire_key_deleted_locally()` is split by
+  `key_deleted_callback`. [`fire_key_deleted_locally()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L2755) is split by
   transport (`fs_followers` flag): the master in-process call
   serves non-watcher subscribers, the inotify branch serves the
   fs-watcher followers — each subscriber fires exactly once. No new
@@ -310,7 +310,7 @@ Register with:
 tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
 ```
 
-…on any handle returned by `tranger2_open_rt_mem`,
+…on any handle returned by [`tranger2_open_rt_mem`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3525),
 `tranger2_open_rt_disk` or `tranger2_open_iterator`. Pre-2026-05-26
 followers that polled their cache on a timer can drop the timer.
 
@@ -377,10 +377,10 @@ Six things to notice:
    `topic_desc_t.pkey`.
 2. **`pkey2s`** — optional secondary key (composite). Allows multiple
    records per primary key (e.g. multiple versions of a binary).
-   Queried via `treedb_get_instance()` / `treedb_list_instances()` and the
+   Queried via [`treedb_get_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7413) / [`treedb_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7744) and the
    agent's `instances` command. **Invariant (since dbf532ec9):** the pkey2
    secondary index shares the SAME node object as the primary index;
-   `treedb_save_node()` re-points it on every runtime save. Before that fix
+   [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L4861) re-points it on every runtime save. Before that fix
    it held a separate object only filled at disk-load, so a runtime
    `update-node` was invisible through `list_instances` until the next
    reload — the bug behind `list-binaries` showing a stale binary right
@@ -401,7 +401,7 @@ ones: `string`, `integer`, `boolean`, `real`, `array`, `object`,
 `blob`, `enum`, `wild`. Plus semantic decorations: `email`, `url`,
 `password`, `time`.
 
-Flags (parsed by `kw_has_word` throughout [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)):
+Flags (parsed by [`kw_has_word`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/kwid.c#L3617) throughout [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c)):
 
 | Flag         | Effect                                                                  |
 |--------------|-------------------------------------------------------------------------|
@@ -456,7 +456,7 @@ Memory
 > `topic_cols.json` keeps masking the new schema; wipe `store/` when
 > reproducing.
 
-What happens: `treedb_open_db()` ([`tr_treedb.c:485`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L485)) reads the
+What happens: [`treedb_open_db()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L485) ([`tr_treedb.c:485`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L485)) reads the
 persisted `topic_cols.json` and compares its `topic_version` against
 the schema in code. If they match, the persisted file wins. If you
 edited the schema in code but forgot to bump `topic_version`, your
@@ -583,7 +583,7 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
 Snapshots are how the agent picks which binary version to run when
 multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
-(`gobj_list_snaps`, [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
+([`gobj_list_snaps`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10645), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
 direct `(role, role_version)` lookup.
 
 ---
@@ -625,7 +625,7 @@ two delete primitives operate on it:
 - `tranger2_delete_key()` removes a key's directory wholesale (every
   instance with it) and propagates the deletion to in-process and
   cross-process subscribers via inotify + callback fan-out.
-- `tranger2_delete_instance()` tombstones one row of the `.md2` index
+- [`tranger2_delete_instance()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/timeranger2.c#L3288) tombstones one row of the `.md2` index
   in place (bit `sf_deleted_instance = 0x0400`); readers skip it,
   rowids do not renumber. Opt-in `zero_payload` overwrites the
   matching bytes in the `.json` for [GDPR](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation)-style wipes.
@@ -673,7 +673,7 @@ CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through
 `gbmem_*`, so all `json_*` APIs are safe; never `free()` a `json_t`
 yourself.
 
-### 4.12 Don't cache `json_t *` returned by `treedb_get_node` past a
+### 4.12 Don't cache `json_t *` returned by [`treedb_get_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/timeranger2/src/tr_treedb.c#L7370) past a
 restart
 
 The pointer is valid for the lifetime of the loaded tranger. After a

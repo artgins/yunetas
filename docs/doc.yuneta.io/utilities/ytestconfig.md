@@ -1,7 +1,7 @@
 (util-ytestconfig)=
 # `ytestconfig`
 
-Validate a JSON configuration file by parsing it through Yuneta's `json_config`
+Validate a JSON configuration file by parsing it through Yuneta's [`json_config`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c#L333)
 and reporting any syntax/structural error. Exits non-zero on failure — handy in
 CI or pre-deploy checks.
 

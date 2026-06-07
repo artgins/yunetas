@@ -42,7 +42,7 @@ The `gbuffer_t` structure includes the following key fields:
 
 ### 1. **Reference Counting**
 - The buffer uses a reference counter (`refcount`) to manage memory safely.
-- Functions like `gbuffer_incref` and `gbuffer_decref` ensure that the buffer is only freed when no references remain.
+- Functions like [`gbuffer_incref`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L78) and [`gbuffer_decref`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L93) ensure that the buffer is only freed when no references remain.
 
 ### 2. **Dynamic Memory Management**
 - The buffer dynamically allocates and grows its memory up to `max_memory_size`.
@@ -65,19 +65,19 @@ The `gbuffer_t` structure includes the following key fields:
 ## Core Operations
 
 ### Reading
-- **Retrieve Data:** Access data from the current read pointer using functions like `gbuffer_get` and `gbuffer_getchar`.
-- **Reset Pointer:** Reset the read pointer to the start of the buffer with `gbuffer_reset_rd`.
+- **Retrieve Data:** Access data from the current read pointer using functions like `gbuffer_get` and [`gbuffer_getchar`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L152).
+- **Reset Pointer:** Reset the read pointer to the start of the buffer with [`gbuffer_reset_rd`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L127).
 
 ### Writing
-- **Append Data:** Add data to the buffer using `gbuffer_append` or `gbuffer_append_string`.
-- **Reset Pointer:** Clear written data by resetting the write pointer with `gbuffer_reset_wr`.
+- **Append Data:** Add data to the buffer using `gbuffer_append` or [`gbuffer_append_string`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L199).
+- **Reset Pointer:** Clear written data by resetting the write pointer with [`gbuffer_reset_wr`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L189).
 
 ### Utility
 - **Memory Info:** Retrieve statistics like free space ([`gbuffer_freebytes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L230)) or total bytes ([`gbuffer_totalbytes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L224)).
 - **Markers and Labels:** Set or get markers ([`gbuffer_setmark`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L244), [`gbuffer_getmark`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L250)) and labels ([`gbuffer_setlabel`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L516), [`gbuffer_getlabel`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L238)).
 
 ### Serialization and Encoding
-- **JSON Serialization:** Convert the buffer to and from JSON objects using `gbuffer_serialize` and `gbuffer_deserialize`.
+- **JSON Serialization:** Convert the buffer to and from JSON objects using [`gbuffer_serialize`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L594) and [`gbuffer_deserialize`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.c#L634).
 - **Base64 Encoding/Decoding:** Encode or decode data in Base64 format 
     with `gbuffer_string_to_base64`, `gbuffer_base64_to_string` and [`gbuffer_encode_base64`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbuffer.h#L301).
 

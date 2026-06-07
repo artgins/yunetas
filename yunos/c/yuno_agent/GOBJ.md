@@ -117,10 +117,10 @@ Most useful ones, in roughly the order you'll write them:
 | `mt_subscription_added` / `mt_subscription_deleted` | When someone subscribes to your events            | Send initial state, clean up per-subscriber resources   |
 | `mt_inject_event(gobj, ev, kw, src)` | When `gobj_send_event` finds no row in the state table     | The escape hatch — handle the event yourself, or fail   |
 | `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
-| `mt_authz_checker`           | Inside `gobj_user_has_authz` if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
+| `mt_authz_checker`           | Inside [`gobj_user_has_authz`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400) if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
-The full table (28+ slots — [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L206), `mt_save_resource`,
-`mt_create_node`, `mt_link_nodes`, etc.) is in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h). Most
+The full table (28+ slots — [`mt_create_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L206), [`mt_save_resource`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_resource2.c#L310),
+[`mt_create_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L733), [`mt_link_nodes`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_node.c#L1076), etc.) is in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.h). Most
 gclasses use < 10 slots.
 
 ---

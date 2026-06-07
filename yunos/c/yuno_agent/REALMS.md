@@ -105,7 +105,7 @@ and used as the realm's URL. Where you'll see it:
 - In ievent stack entries: `dst_yuno` carries the yuno name, but the realm
   is implied by which `yuno_agent` the request reached.
 
-Because the four parts (`name`, `role`, `env`, plus `owner`) are
+Because the four parts (`name`, [`role`](https://github.com/artgins/yunetas/blob/7.5.1/utils/c/yuno-skeleton/make_skeleton.c#L195), `env`, plus `owner`) are
 immutable and effectively make up the identity, **the only mutable field
 on a realm is `bind_ip`** (see §5).
 
@@ -113,7 +113,7 @@ on a realm is `bind_ip`** (see §5).
 
 ## 4. On-disk layout
 
-Built by `build_yuno_private_domain()` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c):
+Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c#L7388) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c):
 
 ```
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
@@ -140,7 +140,7 @@ is shared across all realms on the host.
 
 Registered in the agent's command table at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/c_agent.c). Same
 patterns as the other agent commands (`pm_<name>` permission schemas,
-`gobj_create_node` / `gobj_update_node` / `gobj_delete_node` against the
+[`gobj_create_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10064) / [`gobj_update_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10102) / [`gobj_delete_node`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gobj.c#L10140) against the
 treedb).
 
 ### 5.1 `create-realm`

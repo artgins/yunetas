@@ -1,4 +1,4 @@
-# Entry point: `yuneta_entry_point` + `ydaemon`
+# Entry point: [`yuneta_entry_point`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L286) + `ydaemon`
 
 > **Read this first.** Everything else under *Operating Yuneta* assumes you
 > already know what `main()` does, who is the parent of who, and why a yuno
@@ -15,7 +15,7 @@ lives in two files of `kernel/c/root-linux/src/`:
 | [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c)       | The supervision kernel under `--start`. Double fork, watcher process, auto-relaunch on abnormal exit. |
 
 Every standalone or citizen yuno's `main.c` boils down to one call to
-`yuneta_entry_point()` (optionally preceded by `yuneta_setup()` if it wants
+`yuneta_entry_point()` (optionally preceded by [`yuneta_setup()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L230) if it wants
 to override defaults). See [`yunos/c/yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/main.c) for the
 canonical example.
 
@@ -70,7 +70,7 @@ Call before `yuneta_entry_point()` if you want to override any of:
 | `MEM_MAX_SYSTEM_MEMORY`          | 64 MiB                                                 | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
 | `USE_OWN_SYSTEM_MEMORY`          | `FALSE` (use libc malloc under gbmem)                  | [`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c)              |
 
-The memory tunables are passed straight to `gbmem_setup()` later. Yunos
+The memory tunables are passed straight to [`gbmem_setup()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/gbmem.c#L80) later. Yunos
 that handle large messages (image proxies, mqtt brokers under load) bump
 `MEM_MAX_BLOCK` and `MEM_MAX_SYSTEM_MEMORY`. See [`yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.5.1/yunos/c/yuno_agent/src/main.c)
 for a representative call site.
@@ -107,7 +107,7 @@ for a representative call site.
 
 When `--start`, every fd in `[0, sysconf(_SC_OPEN_MAX))` is closed, then
 `/dev/null` is opened to grab fd 0 and `dup2`'d to fd 1 and fd 2. After
-this, no inherited fd survives. `check_open_fds()` warns if anything stays
+this, no inherited fd survives. [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/helpers.c#L6920) warns if anything stays
 open beyond 4.
 
 ### 3.4 Allocator switch — **this is load-bearing**
@@ -122,7 +122,7 @@ gbmem_setup(MEM_MAX_BLOCK, MEM_MAX_SYSTEM_MEMORY, USE_OWN_SYSTEM_MEMORY,
 After this line, every `json_*` allocation goes through `gbmem_*` and is
 tracked under `CONFIG_DEBUG_TRACK_MEMORY`.
 
-**Test-author trap:** any `json_pack()` / `set_expected_results()` called
+**Test-author trap:** any `json_pack()` / [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/testing.c#L113) called
 **before** `yuneta_entry_point` returns gets libc-tracked memory that
 `gbmem` later can't free → false leaks. Put that setup inside
 `register_yuno_and_more()` (which runs at §3.10 below), never in `main()`.
@@ -136,7 +136,7 @@ attached yet.
 
 ### 3.6 Merge the config
 
-`json_config()` merges, in order:
+[`json_config()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/json_config.c#L333) merges, in order:
 
 ```
 fixed_config (compiled into the yuno) +
@@ -152,8 +152,8 @@ the on-disk file. See memory `feedback_yuno_runtime_config`.
 ### 3.7 Environment registration
 
 Reads `environment.{work_dir, domain_dir, xpermission, rpermission}` from
-the merged config and calls `register_yuneta_environment()`. This is what
-later powers `yuneta_realm_file()`, `yuneta_log_file()` and the rest of
+the merged config and calls [`register_yuneta_environment()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L30). This is what
+later powers [`yuneta_realm_file()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L112), [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L141) and the rest of
 the path helpers.
 
 ### 3.8 `gobj_start_up()`
@@ -172,7 +172,7 @@ Reads `environment.{daemon|console}_log_handlers` depending on
 - `handler_type: file` → opens a rotatory at the path resolved by
   `yuneta_log_file()`, honouring `bf_size`, `max_megas_rotatoryfile_size`,
   `min_free_disk_percentage`.
-- `handler_type: udp` (or legacy typo `upd`) → `udpc_open()` to the
+- `handler_type: udp` (or legacy typo `upd`) → [`udpc_open()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/gobj-c/src/log_udp_handler.c#L154) to the
   configured `url`. This is the logcenter feed.
 
 ### 3.10 Register gclasses
@@ -202,7 +202,7 @@ if(__as_daemon__) {
 }
 ```
 
-The foreground path runs `process()` directly; the daemon path goes
+The foreground path runs [`process()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L115) directly; the daemon path goes
 through [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c). Both eventually reach the same `process()` function.
 
 ---
@@ -218,7 +218,7 @@ through [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/roo
 child becomes session leader via `setsid()` and records `watcher_pid =
 getpid()`. This is the **watcher** process.
 
-`relauncher()`: `fork()` again. The watcher's `waitpid()`s on
+[`relauncher()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/ydaemon.c#L111): `fork()` again. The watcher's `waitpid()`s on
 the grandchild; the grandchild is the **actual yuno**. The grandchild
 inherits umask 0, chdirs to `work_dir`, and calls `process()`.
 

@@ -417,6 +417,27 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 FUNC_INDEX_SKIP = SKIP_DIRS | {"test", "tests", "performance", "stress", "root-esp32"}
 
 
+def c_head_after(lines, i):
+    """First non-space char AFTER the balanced closing ')' of a C function head
+    that starts on line `lines[i]`, or '' if the head does not close cleanly in
+    a sane window. Balances parens so a function-pointer parameter (`(void)`)
+    mid-signature is not mistaken for the closing one — '{' marks a definition,
+    ';' a prototype. Multi-line signatures (the common kernel style) close fine.
+    """
+    depth, started = 0, False
+    joined = " ".join(lines[i:i + 60])
+    for k, ch in enumerate(joined):
+        if ch == "(":
+            depth += 1
+            started = True
+        elif ch == ")":
+            depth -= 1
+            if started and depth == 0:
+                rest = joined[k + 1:].lstrip()
+                return rest[:1]
+    return ""
+
+
 def build_func_symbol_index():
     """symbol -> set(paths) for C/JS function DEFINITIONS across the tree."""
     idx = {}
@@ -430,13 +451,18 @@ def build_func_symbol_index():
                 lines = p.read_text(errors="replace").splitlines()
             except OSError:
                 continue
-            for ln in lines:
+            for i, ln in enumerate(lines):
                 if f.endswith((".c", ".h")):
                     m = C_FUNC_DEF.match(ln)
-                    if m and ")" in ln:
-                        after = ln[ln.rfind(")") + 1:].lstrip()
-                        if after.startswith("{") or after == "":
-                            idx.setdefault(m.group(1), set()).add(p)
+                    if not m:
+                        continue
+                    # Balance parens to the signature's true close so multi-line
+                    # signatures are indexed and func-pointer params don't fool
+                    # us. A prototype ends ';' (skip); a definition opens '{'.
+                    after = c_head_after(lines, i)
+                    if after in ("", ";"):
+                        continue
+                    idx.setdefault(m.group(1), set()).add(p)
                 elif f.endswith(".js"):
                     m = JS_FUNC_DEF.match(ln)
                     if m:

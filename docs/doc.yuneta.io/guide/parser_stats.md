@@ -161,7 +161,7 @@ what the default parser would return.
 
 [`C_AUTH_BFF`](#gclass-c-auth-bff) is the per-channel BFF processor of the auth_bff yuno.
 Each browser request crosses several increment points ([`enqueue`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L1058),
-[`process_next`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L1792), `result_token_response`, `send_error_response`), and
+[`process_next`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L1792), `result_token_response`, [`send_error_response`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_auth_bff.c#L982)), and
 there are up to 25 instances per yuno, so the counters live as raw
 struct fields:
 

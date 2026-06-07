@@ -190,7 +190,7 @@ is in fact `command-yuno` to whatever yuno is registered as default.
 
 ### Persistence
 
-- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c) (`save_global_trace`)
+- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/c_yuno.c#L2059))
   writes them to the yuno's `trace_levels` attribute, and they are
   re-applied on the next start.
 - **Gclass and gobj traces** are **live-only**. They die with the process.
@@ -204,7 +204,7 @@ a restart and quietly fill your disk. Always pair on/off in the same session.
 
 ### 5.1 File paths
 
-Per-yuno log file, built by `yuneta_log_file()` at
+Per-yuno log file, built by [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c#L141) at
 [`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/yunetas_environment.c):
 
 ```
@@ -232,7 +232,7 @@ added automatically by [`discover()`](https://github.com/artgins/yunetas/blob/7.
 | `timestamp`       | `current_timestamp()`                                    |
 | `priority`        | `LOG_ERR` / `LOG_WARNING` / …                            |
 | `node_uuid`       | host node identity                                       |
-| `process`         | yuno binary name                                         |
+| [`process`](https://github.com/artgins/yunetas/blob/7.5.1/kernel/c/root-linux/src/entry_point.c#L115)         | yuno binary name                                         |
 | `hostname`        | from `gethostname`                                       |
 | `pid`             | process id                                               |
 | `gclass`          | the gclass that emitted the line                         |
