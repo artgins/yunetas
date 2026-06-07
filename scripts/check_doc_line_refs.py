@@ -36,6 +36,14 @@ Four modes:
   Events, states, types, kw keys and ambiguous names have no stable target and
   stay as code. Test helpers and the ESP32 port are excluded as link targets.
 
+  --link-jansson  Make backticked jansson symbols (`json_pack`, `json_t`,
+  `json_object_set_new`, …) clickable, first occurrence per page only, pointing
+  at the jansson API reference (`apiref.html#c.<name>`). The target set is the
+  authoritative list of `#c.json_*` / `#c.jansson_*` anchors jansson documents,
+  so yuneta's own `json_*` helpers (e.g. `json_config`) are NOT matched and keep
+  flowing to `--link-symbols`. External, untagged URL -> `--repin` never touches
+  it. The api/ tree is skipped like the other symbol modes.
+
   --link-files[=TAG]  Make backticked bare file paths in narrative prose
   clickable. A span that is EXACTLY a source path (`kernel/.../c_yuno.c`,
   `glogger.c`) or a shell script (`yunetas-env.sh`) and resolves to a real file
@@ -542,6 +550,92 @@ def link_symbols_doc(doc, func_index, gclass_labels, tool_labels, own_labels, ta
 
 
 # ----------------------------------------------------------------------------
+# jansson links — jansson's `json_*` API is load-bearing across yuneta yet its
+# symbols lead nowhere in the prose. Link them to jansson's own API reference
+# (Sphinx C-domain anchors `#c.<name>`). The set below is the authoritative list
+# of anchors jansson publishes; keeping it explicit means yuneta's own `json_*`
+# helpers (notably `json_config`) are NOT swept here and stay with --link-symbols.
+# The URL is external and untagged, so --repin leaves it alone.
+# ----------------------------------------------------------------------------
+JANSSON_APIREF = "https://jansson.readthedocs.io/en/latest/apiref.html"
+JANSSON_API = {
+    "jansson_version_cmp", "jansson_version_str", "json_array",
+    "json_array_append", "json_array_append_new", "json_array_clear",
+    "json_array_extend", "json_array_foreach", "json_array_get",
+    "json_array_insert", "json_array_insert_new", "json_array_remove",
+    "json_array_set", "json_array_set_new", "json_array_size", "json_boolean",
+    "json_boolean_value", "json_copy", "json_decref", "json_deep_copy",
+    "json_dump_callback", "json_dump_callback_t", "json_dump_file",
+    "json_dumpb", "json_dumpf", "json_dumpfd", "json_dumps", "json_equal",
+    "json_error_code", "json_error_t", "json_false", "json_free_t",
+    "json_get_alloc_funcs", "json_get_alloc_funcs2", "json_incref",
+    "json_int_t", "json_integer", "json_integer_set", "json_integer_value",
+    "json_is_array", "json_is_boolean", "json_is_false", "json_is_integer",
+    "json_is_null", "json_is_number", "json_is_object", "json_is_real",
+    "json_is_string", "json_is_true", "json_load_callback",
+    "json_load_callback_t", "json_load_file", "json_loadb", "json_loadf",
+    "json_loadfd", "json_loads", "json_malloc_t", "json_null",
+    "json_number_value", "json_object", "json_object_clear",
+    "json_object_del", "json_object_deln", "json_object_foreach",
+    "json_object_foreach_safe", "json_object_get", "json_object_getn",
+    "json_object_iter", "json_object_iter_at", "json_object_iter_key",
+    "json_object_iter_key_len", "json_object_iter_next",
+    "json_object_iter_set", "json_object_iter_set_new",
+    "json_object_iter_value", "json_object_key_to_iter",
+    "json_object_keylen_foreach", "json_object_keylen_foreach_safe",
+    "json_object_seed", "json_object_set", "json_object_set_new",
+    "json_object_set_new_nocheck", "json_object_set_nocheck",
+    "json_object_setn", "json_object_setn_new",
+    "json_object_setn_new_nocheck", "json_object_setn_nocheck",
+    "json_object_size", "json_object_update", "json_object_update_existing",
+    "json_object_update_existing_new", "json_object_update_missing",
+    "json_object_update_missing_new", "json_object_update_new",
+    "json_object_update_recursive", "json_pack", "json_pack_ex", "json_real",
+    "json_real_set", "json_real_value", "json_realloc_t",
+    "json_set_alloc_funcs", "json_set_alloc_funcs2", "json_sprintf",
+    "json_string", "json_string_length", "json_string_nocheck",
+    "json_string_set", "json_string_set_nocheck", "json_string_setn",
+    "json_string_setn_nocheck", "json_string_value", "json_stringn",
+    "json_stringn_nocheck", "json_t", "json_true", "json_type", "json_typeof",
+    "json_unpack", "json_unpack_ex", "json_vpack_ex", "json_vsprintf",
+    "json_vunpack_ex",
+}
+
+
+def link_jansson_doc(doc):
+    """Link the first occurrence per page of each jansson symbol to the jansson
+    API reference. Returns the count linked."""
+    text = doc.read_text()
+    seen = set(LINKED_SYMBOL.findall(text))
+    n = 0
+    out_lines, in_fence = [], False
+    for line in text.splitlines(keepends=True):
+        if FENCE.match(line):
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        if in_fence:
+            out_lines.append(line)
+            continue
+
+        def repl(m):
+            nonlocal n
+            inner = m.group(1)
+            name = inner[:-2] if inner.endswith("()") else inner
+            if name in seen or name not in JANSSON_API:
+                return m.group(0)
+            seen.add(name)
+            n += 1
+            return f"[`{inner}`]({JANSSON_APIREF}#c.{name})"
+
+        out_lines.append(SYMBOL_SPAN.sub(repl, line))
+    new = "".join(out_lines)
+    if n:
+        doc.write_text(new)
+    return n
+
+
+# ----------------------------------------------------------------------------
 # File links (problem 3) — a backticked bare file path in narrative prose
 # (`kernel/c/root-linux/src/c_yuno.c`, `glogger.c`) is rendered coloured by the
 # theme yet leads nowhere: `--linkify` only sees the colon-form `file:NNN` and
@@ -791,6 +885,7 @@ def main():
     do_strip = "--strip-prose" in sys.argv
     do_symbols = any(a == "--link-symbols" or a.startswith("--link-symbols=") for a in sys.argv)
     do_files = any(a == "--link-files" or a.startswith("--link-files=") for a in sys.argv)
+    do_jansson = "--link-jansson" in sys.argv
     repin_tag = None
     for a in sys.argv:
         if a.startswith("--repin="):
@@ -857,6 +952,13 @@ def main():
         for doc in narrative_docs():
             total += link_files_doc(doc, file_index, tag)
         print(f"link-files (pinned to {tag}): linked {total} bare file paths to GitHub source.")
+        return 0
+
+    if do_jansson:
+        total = 0
+        for doc in narrative_docs():
+            total += link_jansson_doc(doc)
+        print(f"link-jansson: linked {total} jansson symbols to the jansson API reference.")
         return 0
 
     if do_linkify:

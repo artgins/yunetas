@@ -109,7 +109,7 @@ outside `yev_loop` and relies on the
 ### 4. JSON is the *only* in-flight data format
 
 Every event payload, every persistent record, every log entry, every
-command, every stats response is a `json_t` from
+command, every stats response is a [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t) from
 [Jansson](https://github.com/akheron/jansson). There is no
 "struct for speed, JSON for the wire" split.
 

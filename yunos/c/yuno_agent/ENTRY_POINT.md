@@ -122,7 +122,7 @@ gbmem_setup(MEM_MAX_BLOCK, MEM_MAX_SYSTEM_MEMORY, USE_OWN_SYSTEM_MEMORY,
 After this line, every `json_*` allocation goes through `gbmem_*` and is
 tracked under `CONFIG_DEBUG_TRACK_MEMORY`.
 
-**Test-author trap:** any `json_pack()` / [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/testing.c#L113) called
+**Test-author trap:** any [`json_pack()`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_pack) / [`set_expected_results()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/testing.c#L113) called
 **before** `yuneta_entry_point` returns gets libc-tracked memory that
 `gbmem` later can't free → false leaks. Put that setup inside
 `register_yuno_and_more()` (which runs at §3.10 below), never in `main()`.
@@ -469,7 +469,7 @@ the core in `/var/crash/` is from the previous incarnation.
    crash-loops, only the last core survives. `cp /var/crash/core.<role>
    /var/crash/core.<role>.$(date +%s)` if you want history.
 7. **`gobj_end` belongs to `process()`**. A custom `cleaning_fn` runs
-   **after** `gobj_end`, after `rotatory_end`, after `json_decref` of the
+   **after** `gobj_end`, after `rotatory_end`, after [`json_decref`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_decref) of the
    config. By the time it's invoked, the gobj system is gone — it's for
    freeing things that don't depend on it.
 

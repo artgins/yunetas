@@ -667,7 +667,7 @@ purely in-memory pointers reconstructed by scanning children. This is
 why a corrupt fkey on a child makes its parent's hook look short;
 look at the child first.
 
-### 4.11 No raw `malloc` / `free` for treedb-allocated `json_t`
+### 4.11 No raw `malloc` / `free` for treedb-allocated [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t)
 
 CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through
 `gbmem_*`, so all `json_*` APIs are safe; never `free()` a `json_t`

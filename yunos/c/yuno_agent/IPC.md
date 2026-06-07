@@ -133,7 +133,7 @@ states_t states[] = {
 
 Every event-carrying API in Yuneta follows the same rule: **the callee
 consumes one reference to `kw`**. If the caller still needs `kw`, it must
-`json_incref()` first.
+[`json_incref()`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_incref) first.
 
 Macros at [`kwid.h`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/kwid.h):
 

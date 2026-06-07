@@ -39,7 +39,7 @@ to by default.
 
 - **What every yuno's `main()` actually does** → [`ENTRY_POINT.md`](ENTRY_POINT.md)
   is the "minute 0" read. It explains `yuneta_entry_point()` step by step
-  (argp, the [`gbmem_setup`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gbmem.c#L80) + `json_set_alloc_funcs` switch that load-bears
+  (argp, the [`gbmem_setup`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gobj-c/src/gbmem.c#L80) + [`json_set_alloc_funcs`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_set_alloc_funcs) switch that load-bears
   every test allocator rule, the `fixed + variable + --config-file +
   positional` config merge that `view-config` surfaces, the log handlers,
   the gclass-registration callback). Then [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/root-linux/src/ydaemon.c): the double-fork

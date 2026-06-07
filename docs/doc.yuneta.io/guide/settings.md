@@ -28,7 +28,7 @@ The [`json_config()`](https://github.com/artgins/yunetas/blob/7.5.2/kernel/c/gob
 
 The `json_config()` function merges multiple JSON configurations into a single final configuration string, following a specific order of precedence. It also includes features like comment handling, variable substitution, and range-based expansion for flexibility and advanced use cases.
 
-The return of `json_config()` is a `json_t *` object (owned by the caller, must be freed with `json_decref()`).
+The return of `json_config()` is a `json_t *` object (owned by the caller, must be freed with [`json_decref()`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_decref)).
 
 (global_settings)=
 

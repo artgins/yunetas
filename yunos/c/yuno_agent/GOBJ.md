@@ -224,7 +224,7 @@ Three things to know:
 | `DTP_*`         | Concrete C / JSON type                |
 |-----------------|---------------------------------------|
 | `DTP_STRING`    | `const char *`                        |
-| `DTP_INTEGER`   | `json_int_t` (64-bit)                 |
+| `DTP_INTEGER`   | [`json_int_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_int_t) (64-bit)                 |
 | `DTP_BOOLEAN`   | `BOOL` (`0` / `1`)                    |
 | `DTP_REAL`      | `double`                              |
 | `DTP_JSON`      | `json_t *` (any JSON value)           |
