@@ -173,7 +173,17 @@ int main(int argc, char *argv[])
 
     gobj_destroy(src);
 
-    printf("\n%s: %s\n", APP, global_result == 0 ? "PASS" : "FAIL");
+    /*
+     *  Leak gate: gobj_end() frees the startup baseline FIRST, then assert
+     *  zero residual. This is what guards the central claim of this test —
+     *  that the re-armed block leaks neither kw_authz nor kw on the deny path
+     *  (cases 2/4 exercise allow+deny, so a leak there would surface here).
+     */
     gobj_end();
+
+    size_t leaked = get_cur_system_memory();
+    check_int("no memory leak", (int)leaked, 0);
+
+    printf("\n%s: %s\n", APP, global_result == 0 ? "PASS" : "FAIL");
     return global_result;
 }

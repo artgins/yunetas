@@ -6586,6 +6586,12 @@ PRIVATE int handle__publish_s(
             );
         }
     }
+    /*
+     *  rc < 0 means the broker denied (ACL verdict). Once a broker was found,
+     *  a framework error from gobj_send_event (dst tearing down, event not in
+     *  state, …) also yields a negative rc and is treated the same — fail-closed
+     *  for a resolved broker, which is the safe direction for an authz gate.
+     */
     if(rc < 0) {
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,

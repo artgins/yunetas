@@ -55,8 +55,9 @@ GOBJ_DECLARE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DECLARE_EVENT(EV_MQTT_MESSAGE);
 
 /*
- *  Publish-side / subscribe-side ACL query. c_prot_mqtt2 publishes it to the
- *  broker (C_MQTT_BROKER); the broker's handler returns 0 = allowed, <0 = denied.
+ *  Publish-side / subscribe-side ACL query. c_prot_mqtt2 sends it directly
+ *  (gobj_send_event, NOT publish) to the broker (C_MQTT_BROKER); the broker's
+ *  handler returns 0 = allowed, <0 = denied.
  *  kw: {client_id, username, topic, access:"write"|"read"}.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_ACL_CHECK);

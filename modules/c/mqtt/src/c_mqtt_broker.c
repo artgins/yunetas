@@ -3583,6 +3583,19 @@ PRIVATE BOOL mqtt_acl_check(
             gobj
         );
         if(!group) {
+            /*
+             *  A client references a client_groups id that no longer exists:
+             *  a misconfiguration the operator should see (additive-allow model,
+             *  so it just drops this group's grants; surfaced, never silent).
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "ACL: client references unknown client_group",
+                "client_id",    "%s", client_id?client_id:"",
+                "group_id",     "%s", group_id,
+                NULL
+            );
             continue;
         }
         json_t *patterns = json_object_get(group, acl_col);     // array of topic filters
