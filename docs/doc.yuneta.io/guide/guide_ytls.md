@@ -179,7 +179,102 @@ deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
 Regression coverage:
 [`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.2/tests/c/ytls/test_tls_floor_openssl.c)
 asserts that an explicit sub-TLS1.2 floor is logged and that a real TLS1.0
-ClientHello is rejected by the default floor.
+ClientHello is rejected by the default floor;
+[`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.2/tests/c/ytls/test_tls_verify_openssl.c)
+drives a real client/server handshake and asserts that a trusted cert with a
+matching host connects, while a hostname mismatch or an unknown CA is rejected.
+
+### Deployment — gate profiles & rollout
+
+Secure-by-default means **the upgrade itself breaks nothing**: modern peers keep
+negotiating on the new TLS 1.2 floor, renegotiation-off is transparent, and peer
+verification stays off on any gate until you give it a CA. Hardening a gate is
+then just a few keys in its `crypto` config. Two profiles cover almost every
+gate.
+
+#### Profile A — high-security gate
+
+For SPA / BFF front ends, host-to-host links and the control plane — gates that
+talk to modern peers. Turn verification on; the floor, reneg-off and the
+computed `required`/`optional` mode are already the defaults, so the CA is the
+only thing you add.
+
+A **client** that dials out (validates the server it connects to):
+
+```json
+"crypto": {
+    "library": "openssl",
+    "ssl_trusted_certificate": "/yuneta/store/.../trusted_ca.pem",
+    "ssl_server_name": "api.example.com"
+}
+```
+
+- `ssl_server_name` is **mandatory** here: without it the chain is verified but
+  the hostname is not (the gate logs a warning). It doubles as the SNI sent in
+  the ClientHello.
+- For a public endpoint, drop `ssl_trusted_certificate` and set
+  `"ssl_use_system_ca": true` to trust the OS store instead.
+
+A **server** doing mutual-TLS (validates the client certificate):
+
+```json
+"crypto": {
+    "library": "openssl",
+    "ssl_certificate": "/path/server.pem",
+    "ssl_certificate_key": "/path/server.key",
+    "ssl_trusted_certificate": "/path/client_ca.pem",
+    "ssl_verify_mode": "required"
+}
+```
+
+A CA-configured server defaults to `optional` (request + verify the client cert
+if presented, tolerate absent); set `required` to reject clients without a valid
+certificate.
+
+#### Profile B — IoT / legacy-compat gate
+
+For old devices that cannot do TLS 1.2, or that use PSK / self-signed certs.
+Relax **explicitly** — each relaxation is logged and stays greppable.
+
+```json
+"crypto": {
+    "library": "openssl",
+    "ssl_min_version": "TLS1.0",
+    "ssl_ciphers": "HIGH:@SECLEVEL=0",
+    "ssl_verify_mode": "none"
+}
+```
+
+- Legacy floors are **OpenSSL only** — mbed-TLS cannot negotiate below TLS 1.2,
+  so legacy gates must use the OpenSSL backend.
+- `@SECLEVEL=0` is required for OpenSSL to actually offer the old cipher suites;
+  `ssl_min_version` alone is not enough.
+- Keep this profile on the narrowest possible set of gates; everything else
+  stays on Profile A / the defaults.
+
+#### Rollout procedure
+
+1. **Upgrade.** Nothing breaks; the reduced-security gates simply start
+   announcing themselves in the log.
+2. **Enumerate from the logs.** Every gap is designed to be greppable:
+
+   | Log message | Meaning | Action |
+   |---|---|---|
+   | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
+   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor) | if legitimate, move that gate to Profile B |
+   | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
+   | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |
+   | `peer certificate did NOT verify` | an `optional` gate accepted an invalid cert | fix the chain, or raise to `required` |
+
+3. **Harden the high-level gates** one at a time: apply Profile A, restart,
+   confirm the warning is gone and traffic still flows.
+4. **Pin the legacy gates** that showed `TLS handshake rejected` to Profile B.
+5. **Validate in staging, then production.** Roll the config to a staging
+   environment first and watch the same logs; only then promote to production.
+
+Goal state: no `WITHOUT server-certificate validation` lines outside known IoT
+gates, and every `legacy floor` / `renegotiation enabled` line traceable to a
+deliberate Profile-B gate.
 
 ## Philosophy of ytls
 The **ytls** module is built with the core philosophy of Yuneta in mind:
