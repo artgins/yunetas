@@ -389,10 +389,17 @@ The three pieces that make it safe:
   The check runs **only** when this is TRUE. `SDF_RD` (not `SDF_WR`) on purpose:
   the runtime `write-attr` command cannot turn authz *off* at runtime — only
   config or code can set it. Absent attr → off.
-- **The self-bypass — `src == gobj`.** A command a gobj issues to itself
-  (e.g. the `c_yuno` cert-reload walk `gobj_command(child, …, child)`) carries
-  no external principal and must never be denied. Only commands from an
-  *external* `src` are checked.
+- **External-only — the kw `__username__` marker.** The check fires **only for
+  external commands**: those whose kw carries `__username__`, the authenticated
+  principal that [`c_ievent_srv`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/root-linux/src/c_ievent_srv.c)
+  injects (`kw_set_dict_value`, overwrite — a wire client cannot spoof it) on
+  every dispatched wire command. **Internal `gobj_command()` calls carry no kw
+  `__username__` and are never gated** — otherwise a yuno would deny its own
+  startup commands (e.g. the agent's `open-treedb`) and exit. (Found by the
+  2026-06-08 pilot; see `TODO.md`.)
+- **The self-bypass — `src == gobj`.** Belt-and-suspenders: a command a gobj
+  issues to itself (e.g. the `c_yuno` cert-reload walk `gobj_command(child, …,
+  child)`) is bypassed too.
 - **Deny is logged, not silent** (`MSGSET_AUTH`), and returns `-403` via
   `build_command_response` (gobj-c), not the old root-linux
   `msg_iev_build_response` the commented block referenced.
@@ -409,11 +416,15 @@ in a yuno *without* a `C_AUTHZ` role model denies all ~133 `SDF_AUTHZ_X`
 commands. Enable it only where a role model exists, and validate on staging
 first (it is a breaking change for deployments that have not assigned roles).
 
-> Implemented 2026-06-07 (gated opt-in posture). The fail-open-without-`C_AUTHZ`
-> and strict-always-enforce postures were considered and remain available if the
-> gate proves too coarse — see `TODO.md` § *Security: re-enable per-command
-> authorization*. Regression test: [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.5.3/tests/c/command_authz/test_command_authz.c)
-> (default-off runs; on+deny → -403; on+self-bypass runs; on+granted runs).
+> Implemented 2026-06-07 (gated opt-in posture); **redesigned 2026-06-08** after
+> the agent pilot: the check is now external-only (kw `__username__` marker) and
+> a global authz resolves on any gobj (`authzs_list` global fallback), so the
+> gate no longer denies a yuno's own internal startup commands. The
+> fail-open-without-`C_AUTHZ` and strict-always-enforce postures remain available
+> — see `TODO.md` § *Security: re-enable per-command authorization*. Regression
+> test: [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.5.3/tests/c/command_authz/test_command_authz.c)
+> (gate-off runs; external+deny → -403; internal-command bypass; self-bypass;
+> external+granted runs; global authz resolves).
 
 ### 4.6 `EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`
 

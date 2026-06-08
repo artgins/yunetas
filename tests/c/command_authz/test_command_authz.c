@@ -143,33 +143,54 @@ int main(int argc, char *argv[])
 
     json_t *r;
 
-    /* Case 1: attr OFF (default) -> command runs even with g_allow=FALSE */
+    /*
+     *  External commands carry __username__ in the kw (injected by c_ievent_srv
+     *  for wire commands); internal gobj_command() calls do not. The gate fires
+     *  only for the external ones.
+     */
+    #define EXT_KW() json_pack("{s:s}", "__username__", "alice")
+
+    /* Case 1: gate OFF (default) -> runs even for an external/deny case */
     g_allow = FALSE; g_executed = 0;
-    r = gobj_command(yuno, "secret", json_object(), src);
+    r = gobj_command(yuno, "secret", EXT_KW(), src);
     check_int("default-off runs", g_executed, 1);
     JSON_DECREF(r)
 
     /* Turn the gate ON */
     gobj_write_bool_attr(yuno, "enable_command_authz", TRUE);
 
-    /* Case 2: ON + no permission + external src -> denied */
+    /* Case 2: ON + external (kw __username__) + no permission -> denied */
     g_allow = FALSE; g_executed = 0;
-    r = gobj_command(yuno, "secret", json_object(), src);
-    check_int("deny not executed", g_executed, 0);
-    check_int("deny result -403", (int)kw_get_int(0, r, "result", 0, 0), -403);
+    r = gobj_command(yuno, "secret", EXT_KW(), src);
+    check_int("ext deny not executed", g_executed, 0);
+    check_int("ext deny result -403", (int)kw_get_int(0, r, "result", 0, 0), -403);
     JSON_DECREF(r)
 
-    /* Case 3: ON + no permission + self src (src==gobj) -> bypass */
+    /* Case 3: ON + INTERNAL command (no kw __username__) -> bypass, runs even on deny */
     g_allow = FALSE; g_executed = 0;
-    r = gobj_command(yuno, "secret", json_object(), yuno);
+    r = gobj_command(yuno, "secret", json_object(), src);
+    check_int("internal bypass runs", g_executed, 1);
+    JSON_DECREF(r)
+
+    /* Case 4: ON + self src (src==gobj) -> bypass */
+    g_allow = FALSE; g_executed = 0;
+    r = gobj_command(yuno, "secret", EXT_KW(), yuno);
     check_int("self-bypass runs", g_executed, 1);
     JSON_DECREF(r)
 
-    /* Case 4: ON + permission granted -> runs */
+    /* Case 5: ON + external + permission granted -> runs */
     g_allow = TRUE; g_executed = 0;
-    r = gobj_command(yuno, "secret", json_object(), src);
-    check_int("allow runs", g_executed, 1);
+    r = gobj_command(yuno, "secret", EXT_KW(), src);
+    check_int("ext allow runs", g_executed, 1);
     JSON_DECREF(r)
+
+    /*
+     *  Fix A: a GLOBAL authz (__execute_command__) must resolve on a concrete
+     *  gobj whose gclass has no authz_table (was "authz not found" -> deny-all).
+     */
+    json_t *jn_ax = gobj_authz(yuno, "__execute_command__");
+    check_int("global authz resolves on gobj", jn_ax != NULL, 1);
+    JSON_DECREF(jn_ax)
 
     gobj_destroy(src);
 

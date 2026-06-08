@@ -9331,9 +9331,13 @@ PUBLIC json_t *authzs_list(
         jn_list = sdataauth2json(gobj_get_global_authz_table());
     } else {
         if(!gclass_authz_desc(gobj_gclass(gobj))) {
-            return 0;
+            if(empty_string(authz)) {
+                return 0;   // listing of a gclass with no authz table (historical)
+            }
+            jn_list = json_array();   // specific lookup: may still resolve via the global table below
+        } else {
+            jn_list = sdataauth2json(gclass_authz_desc(gobj_gclass(gobj)));
         }
-        jn_list = sdataauth2json(gclass_authz_desc(gobj_gclass(gobj)));
     }
 
     if(empty_string(authz)) {
@@ -9349,6 +9353,29 @@ PUBLIC json_t *authzs_list(
             return jn_authz;
         }
     }
+    json_decref(jn_list);
+
+    /*
+     *  Specific-authz fallback to the GLOBAL authz table.
+     *  Global authzs (e.g. __execute_command__, __subscribe_event__,
+     *  __inject_event__) apply to every gobj but are NOT in the per-gclass
+     *  authz_table, so a lookup on a concrete gobj must also check the globals
+     *  (otherwise __execute_command__ never resolves and the command authz
+     *  gate denies every command). Only for a specific authz; a plain listing
+     *  stays per-gclass.
+     */
+    if(gobj) {
+        json_t *jn_global = sdataauth2json(gobj_get_global_authz_table());
+        json_array_foreach(jn_global, idx, jn_authz) {
+            const char *id = kw_get_str(gobj, jn_authz, "id", "", KW_REQUIRED);
+            if(strcmp(authz, id)==0) {
+                json_incref(jn_authz);
+                json_decref(jn_global);
+                return jn_authz;
+            }
+        }
+        json_decref(jn_global);
+    }
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -9358,7 +9385,6 @@ PUBLIC json_t *authzs_list(
         NULL
     );
 
-    json_decref(jn_list);
     return 0;
 }
 

@@ -89,10 +89,15 @@ PUBLIC json_t *command_parser(
      *  broken — the global authz_checker is fail-closed when no C_AUTHZ service
      *  is running, which most yunos lack.
      *
-     *  Self-issued commands (src == gobj, e.g. the c_yuno cert-reload walk)
-     *  bypass the check: they carry no external principal and must never be
-     *  denied. External principals are authenticated upstream; this gate adds
-     *  *authorization* (permission) on top of that authentication.
+     *  ONLY EXTERNAL commands are gated. The external entry layer (c_ievent_srv)
+     *  injects the authenticated `__username__` into the command kw
+     *  (kw_set_dict_value, overwrite — a wire client cannot spoof it). Internal
+     *  framework calls — gobj_command() in C, e.g. the agent's mt_play
+     *  `open-treedb`, the c_yuno cert-reload walk — carry NO `__username__` in
+     *  kw, so they are never gated (otherwise a yuno would deny its own startup
+     *  commands and exit). Self-issued commands (src == gobj) are likewise
+     *  bypassed. This gate adds *authorization* (permission) on top of the
+     *  authentication already enforced upstream.
      *-----------------------------------------------*/
     if(cnf_cmd->flag & SDF_AUTHZ_X) {
         hgobj yuno = gobj_yuno();
@@ -100,9 +105,13 @@ PUBLIC json_t *command_parser(
             gobj_has_attr(yuno, "enable_command_authz") &&
             gobj_read_bool_attr(yuno, "enable_command_authz");
 
-        if(authz_enabled && src != gobj) {
-            json_t *kw_authz = json_pack("{s:s}",
-                "command", command
+        const char *cmd_username = kw_get_str(gobj, kw, "__username__", NULL, 0);
+        BOOL external = !empty_string(cmd_username);
+
+        if(authz_enabled && external && src != gobj) {
+            json_t *kw_authz = json_pack("{s:s, s:s}",
+                "command", command,
+                "__username__", cmd_username     // authoritative external principal
             );
             if(kw) {
                 json_object_set(kw_authz, "kw", kw);    // incref

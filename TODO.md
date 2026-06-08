@@ -224,7 +224,7 @@ extend. Validate on staging before production. The fail-open-without-C_AUTHZ and
 strict postures (step 1 alternatives) remain available if the gate proves too
 coarse.
 
-### ⛔ Pilot result (2026-06-08) — the gate is NOT deployable as-is
+### Pilot result (2026-06-08) — gate redesigned, was NOT deployable
 
 The agent pilot (local node: deploy 7.5.3 agent, then `enable_command_authz:
 true` in its config `yuno` section, relaunch) **failed at startup and the agent
@@ -252,20 +252,30 @@ The pilot caught this before production; the node was rolled back (config
 restored, agent relaunched, `ycommand` + 16 yunos OK; agent22 covered the gap).
 The local agent now runs **7.5.3 with the gate OFF** (released behaviour).
 
-**Design fix required before the gate can ship enabled** (framework-owner call):
-the gate must apply only to **external** commands (those arriving from a remote
-principal via the ievent/transport boundary), not to internal `gobj_command`
-calls between gobjs of the same yuno. Options:
-- bypass when `src` belongs to the same yuno tree (internal call), not only when
-  `src==gobj`; or
-- bypass when there is **no external principal** (no `__username__` anywhere in
-  the chain) — a framework-issued call; or
-- move the check to the external entry point (`C_IEVENT_SRV`) instead of the
-  generic `command_parser`, so only wire commands are gated.
-Also register `__execute_command__` so `gobj_authz()` resolves it on every
-gclass (the "authz not found" deny is a second, independent bug).
-Until then, **keep `enable_command_authz` off everywhere** (the seeds + the
-default-off posture remain correct and harmless).
+**Redesign — DONE 2026-06-08** (both bugs fixed in gobj-c):
+
+- **Fix A — global authz resolves on a concrete gobj** (`gobj.c` `authzs_list`).
+  A *specific* authz lookup on a non-NULL gobj now falls back to the global
+  authz table when it is not in the gclass `authz_table`, so the global authzs
+  (`__execute_command__`, `__subscribe_event__`, `__inject_event__`) resolve on
+  any gobj. Fixes the "authz not found" deny-all (root included). Listing
+  (`authz==""`) is unchanged (still per-gclass).
+- **Fix B — gate only EXTERNAL commands** (`command_parser.c`). The check fires
+  only when the command kw carries `__username__`, the authoritative marker
+  `c_ievent_srv` injects (`kw_set_dict_value`, overwrite — unspoofable) for wire
+  commands. Internal `gobj_command()` calls carry no kw `__username__` and are
+  never gated (so a yuno no longer denies its own `open-treedb`/startup
+  commands). `src==gobj` self-bypass kept. The authoritative username is passed
+  to the checker.
+- Test `tests/c/command_authz/test_command_authz.c` extended: gate-off runs;
+  external+deny → -403; **internal (no kw `__username__`) bypasses** even with
+  the gate on; self-bypass; external+granted runs; and Fix A (`gobj_authz` of a
+  global authz on a gclass with no authz_table resolves).
+
+`enable_command_authz` remains **default-off everywhere**. The gate is now
+correct to enable; the agent pilot should be re-attempted (deploy 7.5.3 with the
+fix, set the flag, confirm `ycommand` works AND a low-privilege external user is
+denied) on staging before production.
 
 ## Security: ytls TLS posture (deployment decisions)
 
