@@ -10404,6 +10404,28 @@ PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         );
     }
     char *s = gbuffer_cur_rd_pointer(gbuf_sh);
+    if(!s) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "running script is empty",
+            NULL
+        );
+        gbuffer_decref(gbuf_sh);
+        JSON_DECREF(iter)
+        return gobj_send_event(
+            src,
+            EV_READ_FILE,
+            msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("running script is empty"),
+                0,
+                0,
+                kw  // owned
+            ),
+            gobj
+        );
+    }
 
     char temp[4*1024];
     snprintf(temp, sizeof(temp), "--config-file=\"%s\"", s);
