@@ -131,8 +131,14 @@ mqtt_broker.md. Open decisions (Rosa):
 
 ## emu_device: replay path — minor follow-up
 
-Shipped in 7.5.3 (frame-emission fix + move to `utils/c/`). Open (LOW): in
-standalone CLI mode `finish_replay()` calls `exit(0)` right after the last send,
-which can truncate the final TCP flush (harmless in agent-managed mode — the
-branch is skipped when `agent_client` exists). Defer the exit one event-loop
-tick or wait for tx-drain.
+Shipped in 7.5.3 (frame-emission fix + move to `utils/c/`). The standalone-CLI
+final-flush truncation was **FIXED 2026-06-08**: `finish_replay()` no longer
+exits synchronously after the last send. In standalone mode it now arms
+`draining` and waits for the C_TCP `EV_TX_READY` (published only once the tx
+queue is empty AND the in-flight write completed — `cur_tx_queue` alone misses
+the in-flight write), exiting from `ac_tx_ready`. Empty replays (`txMsgs==0`)
+still exit immediately. Verified end-to-end: a 3-frame replay against a TCP sink
+delivered all 31 bytes including the final frame, clean exit (no hang). Residual
+(cosmetic, not truncation): `exit(0)` still closes abruptly so the peer sees a
+RST after the data — the bytes are already in the kernel buffer so nothing is
+lost; a graceful shutdown is out of scope for this fix.

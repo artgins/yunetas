@@ -138,6 +138,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t rxMsgs;
     hgobj gobj_output_side;
     hgobj gobj_output_tcp;  /* the C_TCP bottom; manual_start, so started explicitly */
+    BOOL draining;          /* standalone replay done: awaiting EV_TX_READY before exit(0) */
 
     json_t *tranger;
     json_t *jn_list;        /* tranger2_open_list handle */
@@ -746,7 +747,16 @@ PRIVATE BOOL frames_exhausted(hgobj gobj)
 
 /***************************************************************************
  *  All frames replayed: stop the periodic emission. In standalone (CLI)
- *  mode the process has nothing left to do, so it exits.
+ *  mode the process has nothing left to do, so it exits — but only after
+ *  the C_TCP tx queue has drained, otherwise exit(0) closes the fd before
+ *  io_uring completes the final write and the last frame is truncated.
+ *
+ *  The drain signal is C_TCP's EV_TX_READY (published once the tx queue is
+ *  empty AND the in-flight write has completed — `cur_tx_queue` alone does
+ *  not cover the in-flight write). finish_replay always runs synchronously
+ *  right after send_window, so EV_TX_READY for the final window cannot have
+ *  fired yet: arming `draining` here is never missed. If nothing was ever
+ *  sent there is nothing to drain, so exit immediately.
  ***************************************************************************/
 PRIVATE int finish_replay(hgobj gobj)
 {
@@ -758,9 +768,25 @@ PRIVATE int finish_replay(hgobj gobj)
         gobj_trace_msg(gobj, "emu_device finished, sent %"PRIu64" frames", priv->txMsgs);
     }
 
-    if(!gobj_find_service("agent_client", FALSE)) {
+    if(gobj_find_service("agent_client", FALSE)) {
+        /*
+         *  Agent-managed mode: the process keeps running, nothing to do.
+         */
+        return 0;
+    }
+
+    if(priv->txMsgs == 0 || !priv->gobj_output_tcp) {
+        /*
+         *  Nothing was sent (empty replay): no tx to drain.
+         */
         exit(0);
     }
+
+    /*
+     *  Wait for the tx queue to drain before exiting (ac_tx_ready).
+     */
+    priv->draining = TRUE;
+    gobj_subscribe_event(priv->gobj_output_tcp, EV_TX_READY, NULL, gobj);
 
     return 0;
 }
@@ -851,6 +877,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Tx queue drained. Only meaningful once finish_replay armed `draining`
+ *  in standalone mode: the final write has completed, so the last frame is
+ *  in the kernel send buffer and exit(0) will flush it on fd close.
+ ***************************************************************************/
+PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->draining) {
+        exit(0);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  Child stopped
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -904,6 +947,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         ac_on_message,  0},
         {EV_ON_OPEN,            ac_on_open,     0},
         {EV_ON_CLOSE,           ac_on_close,    0},
+        {EV_TX_READY,           ac_tx_ready,    0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout,     0},
         {EV_STOPPED,            ac_stopped,     0},
         {0,0,0}
@@ -921,6 +965,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         0},
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
+        {EV_TX_READY,           0},
         {EV_TIMEOUT_PERIODIC,   0},
         {EV_STOPPED,            0},
         {NULL, 0}

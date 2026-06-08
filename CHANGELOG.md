@@ -1,6 +1,14 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(emu_device): don't truncate the final frame on standalone exit.**
+      `finish_replay()` called `exit(0)` right after queueing the last frames,
+      before io_uring completed the write — the final frame could be lost. In
+      standalone CLI mode it now waits for the C_TCP `EV_TX_READY` drain signal
+      (tx queue empty + in-flight write completed) and exits from `ac_tx_ready`;
+      empty replays still exit immediately. Verified end-to-end: a 3-frame replay
+      delivered all bytes including the last frame, clean exit. Agent-managed
+      mode is unchanged (it never exited).
     - **chore(auth_bff): remove the deprecated `idp_url` + `realm` pair.** The
       legacy Keycloak path-scheme fallback (build
       `<idp_url>/realms/<realm>/protocol/openid-connect/{token,logout}`) was
