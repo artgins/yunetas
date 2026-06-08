@@ -1,57 +1,34 @@
 # TODO
 
-Tracks API renames/removals/additions between versions and the still-open
-follow-ups of the 2026-06 security-hardening work.
-
-Everything already shipped is in [`CHANGELOG.md`](CHANGELOG.md) (the release
-notes); the design/rationale for shipped features lives in the docs
-(`yunos/c/yuno_agent/YUNO_AUTH.md`, `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
-`docs/doc.yuneta.io/guide/guide_tls.md`) and the full narrative in git history.
-
-> The 2026-06 security batch shipped across **7.5.2 → 7.5.4**: memory-safety +
-> injection hardening (gobj-c / root-linux / ytls / yev_loop / timeranger2 /
-> libjwt / modbus / dba_postgres / emailsender / mqtt); the per-command authz
-> gate (`enable_command_authz`, default off); the MQTT publish + subscribe ACL
-> (model A, default off); secure-by-default TLS; and the `emu_device` fix + move
-> to `utils/c/`. Only the open follow-ups remain below.
+Only **open** work lives here. Anything shipped is deleted from this file the
+moment it ships — its record is [`CHANGELOG.md`](CHANGELOG.md) (release notes),
+the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
+`docs/doc.yuneta.io/yunos/mqtt_broker.md`,
+`docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
 ## Auth: OIDC migration follow-ups
 
-- **Smoke tests against real IdPs.** Mocked tests cover the wire format only.
-  - **Keycloak — VALIDATED 2026-06-08.** Discovery smoke test (curl
-    `<issuer>/.well-known/openid-configuration`, assert `token_endpoint` +
-    `end_session_endpoint`, both required by `save_oidc_discovery`): PASS for
-    the `artgins` realm (wattyzer + estadodelaire + auth_bff prod) and the
-    `hidrauliaconnect` realm (client-prod). End-to-end login + refresh +
-    authenticated WS via the wattyzer Playwright QA driver against
-    `app.wattyzer.com` (BFF → artgins realm): PASS, `errors=0`,
-    `/auth/refresh → 200`, `c_authz` accepted the `iss`. Logout-click not
-    exercised (driver injects cookies). The dev config
-    `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json` previously pointed
-    at the non-existent realm `yunetas.com` (404) — **fixed 2026-06-08**, now on
-    `artgins` (discovery 200). Its `client_id` (`treedb.yunetas.com`) must exist
-    as an OAuth2 client in the `artgins` realm for a full local login.
-  - **Auth0 / Cognito / Authentik — not live-tested (no tenants).** Code
-    finding from the discovery contract: `save_oidc_discovery` hard-requires
-    `end_session_endpoint` and aborts (`STOP_TASK`) if absent. **Auth0 does NOT
-    publish `end_session_endpoint`** (proprietary `/v2/logout`); some Cognito
-    setups omit it too → discovery would fail. Workaround exists (set explicit
-    `token_endpoint` + `end_session_endpoint`, skips discovery). Decide whether
-    to relax the requirement (degrade to local logout when absent) vs document
-    the explicit-endpoints requirement for those IdPs. Authentik exposes it.
-- **ROPC in `c_task_authenticate` — DEFERRED BY DESIGN (decided 2026-06-08).**
-  `action_get_token` uses `grant_type=password` (username + password + client_id,
-  single round-trip). This **works today** because every deployed IdP is Keycloak
-  (auth.artgins.com, auth.hidrauliaconnect.es), which permits ROPC. The migration
-  only becomes necessary when a non-Keycloak IdP that disables ROPC by default
-  (Auth0 / Cognito / Azure AD / Authentik) is adopted — at which point ROPC is not
-  a drop-in swap to PKCE, because the analysis below holds:
+- **Real-IdP smoke tests beyond Keycloak.** Auth0 / Cognito / Authentik are not
+  live-tested (no tenants). Code finding from the discovery contract:
+  `save_oidc_discovery` hard-requires `end_session_endpoint` and aborts
+  (`STOP_TASK`) if absent. **Auth0 does NOT publish `end_session_endpoint`**
+  (proprietary `/v2/logout`); some Cognito setups omit it too → discovery would
+  fail. Workaround exists (set explicit `token_endpoint` +
+  `end_session_endpoint`, skips discovery). **Decision needed:** relax the
+  requirement (degrade to local logout when absent) vs document the
+  explicit-endpoints requirement for those IdPs. Authentik exposes it.
+- **ROPC → device/client-credentials migration — deferred until a non-Keycloak
+  IdP is adopted.** `action_get_token` in `c_task_authenticate` uses
+  `grant_type=password` (username + password + client_id, single round-trip).
+  Works today because every deployed IdP is Keycloak (permits ROPC). Becomes
+  necessary when an IdP that disables ROPC by default (Auth0 / Cognito / Azure
+  AD / Authentik) is adopted. Not a drop-in swap to PKCE:
   - All 6 callers (`ycli`, `ycommand`, `ystats`, `ytests`, `ybatch`, `mqtt_tui`)
     are CLI/server tools with **no browser and no local HTTP listener**; the tree
     has no device-flow, loopback-redirect, or browser-open primitive. Classic
     PKCE (authorization code + loopback) does **not** fit — these run headless over
     SSH. (`c_auth_bff`'s PKCE is server-side for the web SPA, a different context.)
-  - The correct replacements split by use:
+  - Correct replacements split by use:
     - **Interactive** (`ycli`; the others when a human runs them) → **Device
       Authorization Grant** (RFC 8628): print URL + user code, poll the token
       endpoint with `urn:ietf:params:oauth:grant-type:device_code` (handle
@@ -66,9 +43,8 @@ notes); the design/rationale for shipped features lives in the docs
 
 ## Security: per-command authz gate — production enablement
 
-The gate (`enable_command_authz`) shipped and was redesigned + validated in
-7.5.4 (external-only check + global-authz resolution; design in YUNO_AUTH.md
-§4.5). It is **default-off**. To enable in production, per node:
+The gate (`enable_command_authz`) is **default-off** (design in YUNO_AUTH.md
+§4.5). To enable in production, per node:
 
 - provision **every principal that sends commands TO each C_AUTHZ yuno** with
   `__execute_command__`/root — not only `yuneta`/admins but the **controlcenter**
@@ -88,10 +64,7 @@ Event-level authz (`EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`) is still
 
 ## Security: ytls TLS posture — per-gate rollout
 
-The secure-by-default flips (TLS1.2 floor, renegotiation disabled,
-OpenSSL/mbedTLS peer verification with computed defaults) shipped — see
-guide_tls.md. Each downgrade/rejection is logged so reduced-security gates are
-enumerable. Remaining is **per-gate deployment config** (validate on staging):
+Remaining is **per-gate deployment config** (validate on staging):
 
 - raise high-level gates explicitly where wanted; set the IoT-compat profile
   (`ssl_min_version` + `ssl_ciphers "@SECLEVEL=0"`, OpenSSL backend) on legacy
@@ -103,9 +76,9 @@ enumerable. Remaining is **per-gate deployment config** (validate on staging):
 
 ## Security: MQTT broker ACL — model + default-deny decision
 
-The publish + subscribe ACL (model A: per-group `publish_acl`/`subscribe_acl`
-in the broker treedb, `enable_acl` default off) shipped in 7.5.3 / 7.5.4 — see
-mqtt_broker.md. Open decisions (Rosa):
+The publish + subscribe ACL (model A: per-group `publish_acl`/`subscribe_acl`,
+`enable_acl` default off) is in the broker treedb — see mqtt_broker.md. Open
+decisions (Rosa):
 
 - the **A/B/C model choice** — A = treedb group ACL (shipped); B = reuse the
   framework `C_AUTHZ` via `gobj_user_has_authz` (one authz system, but its
@@ -128,17 +101,3 @@ mqtt_broker.md. Open decisions (Rosa):
   always valid); the regression test documents and skips it.
 - **Periodic re-vendor from upstream** — procedure in
   `kernel/c/libjwt/README.md` (§ Re-vendor procedure).
-
-## emu_device: replay path — minor follow-up
-
-Shipped in 7.5.3 (frame-emission fix + move to `utils/c/`). The standalone-CLI
-final-flush truncation was **FIXED 2026-06-08**: `finish_replay()` no longer
-exits synchronously after the last send. In standalone mode it now arms
-`draining` and waits for the C_TCP `EV_TX_READY` (published only once the tx
-queue is empty AND the in-flight write completed — `cur_tx_queue` alone misses
-the in-flight write), exiting from `ac_tx_ready`. Empty replays (`txMsgs==0`)
-still exit immediately. Verified end-to-end: a 3-frame replay against a TCP sink
-delivered all 31 bytes including the final frame, clean exit (no hang). Residual
-(cosmetic, not truncation): `exit(0)` still closes abruptly so the peer sees a
-RST after the data — the bytes are already in the kernel buffer so nothing is
-lost; a graceful shutdown is out of scope for this fix.
