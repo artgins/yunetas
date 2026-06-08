@@ -37,6 +37,8 @@ yunetas.egg-info/
 
 x*.sh
 xx*.sh
+# but keep the RPM x86_64 arch wrapper (matches `uname -m`, not a scratch script)
+!packages/rpm/x86_64.sh
 
 dist/
 docs/build

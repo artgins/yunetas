@@ -8,7 +8,7 @@ if ! command -v ldconfig >/dev/null 2>&1; then
 fi
 
 if ! command -v ninja >/dev/null 2>&1; then
-    echo "ninja is not available in PATH. Exiting. Run 'sudo apt install ninja-build'"
+    echo "ninja is not available in PATH. Exiting. Install it: 'sudo apt install ninja-build' (Debian/Ubuntu) or 'sudo dnf install ninja-build' (RHEL/Rocky)"
     exit 1
 fi
 

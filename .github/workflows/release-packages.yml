@@ -1,7 +1,11 @@
-name: Release runtime .deb
+name: Release runtime packages (.deb + .rpm)
 
-# Builds the AMD64 .deb when a GitHub Release is published, and uploads
-# it as a release asset. Other architectures (armhf, arm32, riscv64)
+# Builds the AMD64 .deb and the x86_64 .rpm when a GitHub Release is
+# published, and uploads both as release assets. The framework is fully
+# static by default (CONFIG_FULLY_STATIC=y via alldefconfig), so the
+# binaries built on this Ubuntu runner also run on RHEL/Rocky — which is
+# why the .rpm can be produced here with rpmbuild instead of a separate
+# EL9 container. Other architectures (armhf, arm32, riscv64, aarch64)
 # can be added once cross-compile or matching runners are wired up.
 
 on:
@@ -10,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Existing release tag to attach the .deb to (e.g. 7.3.1)"
+        description: "Existing release tag to attach the packages to (e.g. 7.3.1)"
         required: true
         type: string
 
@@ -19,7 +23,7 @@ permissions:
 
 jobs:
   amd64:
-    name: AMD64 .deb
+    name: AMD64 .deb + x86_64 .rpm
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -50,7 +54,11 @@ jobs:
             libpq-dev \
             kconfig-frontends telnet pipx \
             patch gettext fail2ban rsync \
-            build-essential pkg-config ca-certificates linux-libc-dev
+            build-essential pkg-config ca-certificates linux-libc-dev \
+            rpm
+          # 'rpm' provides rpmbuild, used below to build the .rpm. It runs
+          # fine on Ubuntu; the spec sets AutoReqProv:no and disables the
+          # brp/debuginfo post-processing, so no redhat-rpm-config is needed.
 
       - name: Install Python tooling (kconfiglib + yunetas CLI)
         run: |
@@ -96,6 +104,14 @@ jobs:
           ./AMD64.sh
           ls -la dist/
 
+      - name: Build x86_64 .rpm
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          cd packages/rpm
+          ./x86_64.sh
+          ls -la dist/
+
       - name: Resolve release tag
         id: tag
         run: |
@@ -105,9 +121,11 @@ jobs:
             echo "tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload .deb to GitHub Release
+      - name: Upload .deb + .rpm to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          files: packages/dist/yuneta-agent-*-amd64.deb
+          files: |
+            packages/dist/yuneta-agent-*-amd64.deb
+            packages/rpm/dist/yuneta-agent-*.x86_64.rpm
           fail_on_unmatched_files: true

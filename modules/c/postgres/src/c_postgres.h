@@ -8,11 +8,13 @@ Support of Postgres for Yuneta
 install
 -------
 
-sudo apt-get install postgresql-server-dev-all libpq-dev
+Debian/Ubuntu:  sudo apt-get install postgresql-server-dev-all libpq-dev
+RHEL/Rocky:     sudo dnf install libpq-devel
 
-To fix this error in ubuntu 20.04 "fatal error: postgresql/libpq-fe.h: No such file or directory" ::
-
-    sudo apt-get install --reinstall libpq-dev
+The source includes <libpq-fe.h> (not <postgresql/libpq-fe.h>): the libpq
+header lives in /usr/include/postgresql on Debian but in /usr/include on
+RHEL. CMakeLists.txt adds the right dir from `pg_config --includedir`, so
+the same include works on both distros.
 
 
 Utils

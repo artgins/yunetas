@@ -142,33 +142,68 @@ PRIVATE int generate_self_signed(const char *cert_path, const char *key_path,
 /***************************************************************************
  *  Build an already-expired self-signed cert.
  *
- *  Trick: `openssl x509 -req -days -1` makes notAfter = notBefore - 1 day,
- *  so the cert is expired the moment it is issued. Accepted by OpenSSL's
- *  cert loader — we want ytls_init() to still load it and ytls_get_cert_info()
- *  to report a past not_after so the monitor can flag it.
+ *  We want ytls_init() to still load it and ytls_get_cert_info() to report
+ *  a past not_after so the monitor can flag it.
+ *
+ *  Two signing strategies, tried in order, to stay portable across OpenSSL
+ *  versions:
+ *    1. `-days -1`  -> notAfter = notBefore - 1 day, so the cert is expired
+ *       the moment it is issued. Works up to OpenSSL 3.4; OpenSSL >= 3.5
+ *       rejects a negative span with "end date before start date".
+ *    2. `-not_before/-not_after` with fixed past dates (2020). Added in
+ *       OpenSSL 3.2, so it covers exactly the 3.5+ range where strategy 1
+ *       fails. Older OpenSSL (< 3.2, e.g. Debian 12's 3.0.x) takes
+ *       strategy 1.
  ***************************************************************************/
 PRIVATE int generate_expired(const char *cert_path, const char *key_path, const char *cn)
 {
     char csr_path[512];
     snprintf(csr_path, sizeof(csr_path), "%s.csr", cert_path);
 
+    /* Key + CSR (shared by both signing strategies below). */
     char cmd[2048];
     snprintf(cmd, sizeof(cmd),
         "openssl genrsa -out '%s' 2048 >/dev/null 2>&1 && "
-        "openssl req -new -key '%s' -subj '/CN=%s' -out '%s' >/dev/null 2>&1 && "
-        "openssl x509 -req -in '%s' -signkey '%s' -days -1 -out '%s' >/dev/null 2>&1",
+        "openssl req -new -key '%s' -subj '/CN=%s' -out '%s' >/dev/null 2>&1",
         key_path,
-        key_path, cn, csr_path,
-        csr_path, key_path, cert_path
+        key_path, cn, csr_path
     );
-    int rc = system(cmd);
-    unlink(csr_path);
-    if(rc != 0) {
+    if(system(cmd) != 0) {
+        unlink(csr_path);
         return -1;
     }
+
     struct stat st;
-    if(stat(cert_path, &st) != 0 || st.st_size == 0) return -1;
-    if(stat(key_path,  &st) != 0 || st.st_size == 0) return -1;
+
+    /* Strategy 1: negative validity span (OpenSSL < 3.5). */
+    snprintf(cmd, sizeof(cmd),
+        "openssl x509 -req -in '%s' -signkey '%s' -days -1 -out '%s' >/dev/null 2>&1",
+        csr_path, key_path, cert_path
+    );
+    int signed_ok = (system(cmd) == 0);
+
+    /* Strategy 2: explicit past validity window (OpenSSL >= 3.2). */
+    if(!signed_ok || stat(cert_path, &st) != 0 || st.st_size == 0) {
+        snprintf(cmd, sizeof(cmd),
+            "openssl x509 -req -in '%s' -signkey '%s' "
+            "-not_before 20200101000000Z -not_after 20200102000000Z "
+            "-out '%s' >/dev/null 2>&1",
+            csr_path, key_path, cert_path
+        );
+        signed_ok = (system(cmd) == 0);
+    }
+
+    unlink(csr_path);
+
+    if(!signed_ok) {
+        return -1;
+    }
+    if(stat(cert_path, &st) != 0 || st.st_size == 0) {
+        return -1;
+    }
+    if(stat(key_path, &st) != 0 || st.st_size == 0) {
+        return -1;
+    }
     return 0;
 }
 

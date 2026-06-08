@@ -1,6 +1,46 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(build): RHEL/Rocky/Alma build support (was Debian-only).**
+      Yuneta now builds and runs on the RHEL family; verified end-to-end on
+      Rocky Linux 9.7 (full static build + 110/110 ctest). New
+      `install-dependencies.sh` auto-detects the distro from `/etc/os-release`
+      and installs the right packages with `apt` (Debian) or `dnf` (RHEL,
+      enabling EPEL + CRB). RHEL-specific build fixes that ride along:
+      `configure-libs.sh` v1.15 forces `-DCMAKE_INSTALL_LIBDIR=lib` on the
+      CMake libs (mbedtls/pcre2/jansson/argp), which on RHEL default to
+      `lib64` and so were missed by the kernel's `outputs_ext/lib` link path
+      (no-op on Debian); `set_compiler.sh` gained a `dnf reinstall` branch;
+      and the postgres module includes `<libpq-fe.h>` (not
+      `<postgresql/libpq-fe.h>`) with the dir resolved via `pg_config` in
+      CMake, since the libpq header sits in `/usr/include` on RHEL vs
+      `/usr/include/postgresql` on Debian. RHEL also needs `glibc-static`/
+      `libstdc++-static`/`libxcrypt-static` (CRB) for the default static link.
+    - **feat(runtime): document the io_uring requirement on RHEL.** Yuneta's
+      `yev_loop` is io_uring-based, and RHEL 9 / Rocky 9 / Alma 9 ship
+      `kernel.io_uring_disabled=2` (fully disabled), so every yuno aborts at
+      startup until it is re-enabled (`kernel.io_uring_disabled=0`). Called
+      out in `installation.md`; `install-dependencies.sh` warns when it
+      detects the disabled state. No code change — a deployment prerequisite.
+    - **feat(packaging): RPM packaging for the Yuneta Agent (`packages/rpm/`).**
+      Counterpart of the Debian `packages/`: stages the same `/yuneta` payload
+      and builds an `.rpm` with `rpmbuild` (`make-yuneta-agent-rpm.sh` +
+      `x86_64`/`aarch64`/`riscv64` wrappers). RHEL-specific envelope: `.spec`
+      instead of `control`, `%post`/`%preun`/`%postun` instead of
+      maintainer scripts, `useradd`/`wheel`/`chkconfig`/langpacks/EPEL-certbot,
+      and the shipped `kernel.io_uring_disabled=0`. Built + inspected on Rocky
+      9.7 (`rpm -qlp`/`--scripts`/`rpmlint`); not installed.
+    - **ci(release): `release-deb.yml` -> `release-packages.yml`, now also
+      publishes the x86_64 `.rpm`.** The release job builds the `.rpm` next to
+      the AMD64 `.deb` and uploads both as release assets. It runs on the same
+      Ubuntu runner: the default build is fully static, so the binaries also
+      run on RHEL/Rocky — no EL9 container needed.
+    - **fix(tests): make `ytls/test_cert_info` portable to OpenSSL >= 3.5.**
+      The expired-cert helper used `openssl x509 -req -days -1`, which
+      OpenSSL >= 3.5 rejects ("end date before start date"). It now falls back
+      to `-not_before/-not_after` with fixed past dates (OpenSSL >= 3.2) when
+      the negative-span form fails, keeping older OpenSSL (e.g. Debian 12's
+      3.0.x) working. Not RHEL-specific — any host with a modern OpenSSL.
     - **fix(emu_device): don't truncate the final frame on standalone exit.**
       `finish_replay()` called `exit(0)` right after queueing the last frames,
       before io_uring completed the write — the final frame could be lost. In

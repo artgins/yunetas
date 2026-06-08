@@ -12,11 +12,31 @@ else
 fi
 
 #----------------------------------------#
-#       Select compiler
+#       Reset compiler alternatives
 #----------------------------------------#
-sudo update-alternatives --remove-all gcc
-sudo update-alternatives --remove-all cc
-sudo apt reinstall gcc clang
+#   Detect the distro family so the reset uses the right package manager.
+#   On Debian the gcc/cc alternatives are wiped and the packages
+#   reinstalled to restore the stock links; on RHEL gcc/cc are plain
+#   files (not managed by alternatives), so only the reinstall applies.
+DISTRO_FAMILY="unknown"
+if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    case " ${ID:-} ${ID_LIKE:-} " in
+        *" debian "*|*" ubuntu "*) DISTRO_FAMILY="debian" ;;
+        *" rhel "*|*" fedora "*|*" centos "*) DISTRO_FAMILY="rhel" ;;
+    esac
+fi
+
+if [[ "$DISTRO_FAMILY" == "debian" ]]; then
+    sudo update-alternatives --remove-all gcc 2>/dev/null || true
+    sudo update-alternatives --remove-all cc 2>/dev/null || true
+    sudo apt reinstall -y gcc clang
+elif [[ "$DISTRO_FAMILY" == "rhel" ]]; then
+    sudo dnf -y reinstall gcc clang || true
+else
+    echo "⚠️  Unknown distro family; skipping compiler-package reset." >&2
+fi
 
 #----------------------------------------#
 #       Select compiler

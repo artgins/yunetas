@@ -55,6 +55,29 @@ if(CONFIG_MODULE_POSTGRES)
 ##############################################
 add_library(${PROJECT_NAME} ${SRCS} ${HDRS})
 
+#
+#   libpq header location is distro-dependent:
+#     - Debian/Ubuntu: /usr/include/postgresql  (pg_config --includedir)
+#     - RHEL/Rocky/Alma/Fedora: /usr/include
+#   The source includes <libpq-fe.h>, so add the dir pg_config reports.
+#
+find_program(PG_CONFIG_EXECUTABLE NAMES pg_config)
+if(PG_CONFIG_EXECUTABLE)
+    execute_process(
+        COMMAND ${PG_CONFIG_EXECUTABLE} --includedir
+        OUTPUT_VARIABLE LIBPQ_INCLUDEDIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(LIBPQ_INCLUDEDIR)
+        target_include_directories(${PROJECT_NAME} PRIVATE ${LIBPQ_INCLUDEDIR})
+        message(STATUS "libpq include dir: ${LIBPQ_INCLUDEDIR}")
+    endif()
+else()
+    message(WARNING
+        "pg_config not found; relying on the default include path for "
+        "<libpq-fe.h>. Install libpq-dev (Debian) or libpq-devel (RHEL).")
+endif()
+
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
 ##############################################

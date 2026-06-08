@@ -26,6 +26,21 @@ There are two ways to install Yunetas, depending on what you want to do:
 (quick-install)=
 ## Quick install
 
+> ⚠️ **The `curl | sh` one-liner is Debian/Ubuntu only** — it uses
+> `dpkg`/`apt-get`. On RHEL/Rocky/Alma a `.rpm` is published as a release
+> asset alongside the `.deb`; download it from the
+> [Releases page](https://github.com/artgins/yunetas/releases) and install
+> it directly:
+>
+> ```bash
+> sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
+> ```
+>
+> Prefer to build the `.rpm` yourself (other arch, custom options)?
+> [Build from source](#build-from-source) (fully supported on RHEL/Rocky,
+> see step 2), then run `packages/rpm/x86_64.sh` — see
+> [`packages/rpm/README.md`](https://github.com/artgins/yunetas/tree/main/packages/rpm).
+
 One-liner:
 
 ```bash
@@ -110,6 +125,21 @@ Log out and log back in as `yuneta` for the rest of the steps.
 
 ### 2. Install OS packages
 
+The repo ships a distro-aware helper that installs everything below and
+the `kconfiglib` `menuconfig` backend. It auto-detects Debian/Ubuntu vs
+RHEL/Rocky/Alma/Fedora from `/etc/os-release`:
+
+```bash
+cd ~/yunetaprojects/yunetas
+./install-dependencies.sh
+```
+
+Prefer to run the package manager yourself? Pick your distro below.
+
+::::{tab-set}
+
+:::{tab-item} Debian / Ubuntu
+
 ```bash
 sudo apt -y install --no-install-recommends \
   git mercurial make cmake ninja-build \
@@ -118,7 +148,7 @@ sudo apt -y install --no-install-recommends \
   python3-tk python3-wheel python3-venv \
   libjansson-dev libpcre2-dev liburing-dev \
   libpcre3-dev zlib1g-dev libssl-dev \
-  perl dos2unix tree curl \
+  perl dos2unix tree curl wget \
   postgresql-server-dev-all libpq-dev \
   kconfig-frontends telnet pipx \
   patch gettext fail2ban rsync \
@@ -127,13 +157,105 @@ sudo apt -y install --no-install-recommends \
 pipx install kconfiglib
 ```
 
+:::
+
+:::{tab-item} RHEL / Rocky / Alma / Fedora
+
+Several packages live in **EPEL** (mercurial, ninja-build, telnet,
+pipx, fail2ban, python3-wheel) and **CRB / CodeReady Builder**
+(liburing-devel). Enable both first (skip on Fedora — it has neither):
+
+```bash
+sudo dnf -y install epel-release
+sudo crb enable        # or: sudo dnf config-manager --set-enabled crb
+```
+
+Then install the packages (RHEL names mapped from the Debian list):
+
+```bash
+sudo dnf -y install \
+  git mercurial make cmake ninja-build \
+  gcc clang gcc-c++ \
+  python3-devel python3-pip python3-setuptools \
+  python3-tkinter python3-wheel \
+  jansson-devel pcre2-devel liburing-devel \
+  pcre-devel zlib-devel openssl-devel \
+  perl dos2unix tree wget \
+  libpq-devel \
+  telnet pipx \
+  patch gettext fail2ban rsync \
+  pkgconf-pkg-config ca-certificates glibc-devel kernel-headers \
+  glibc-static libstdc++-static libxcrypt-static
+
+pipx install kconfiglib
+```
+
+> ⚠️ **RHEL/Rocky disable io_uring — Yuneta will not run until you
+> re-enable it.** Yuneta's event loop (`yev_loop`) is built entirely on
+> Linux **io_uring**. RHEL 9 / Rocky 9 / Alma 9 ship
+> `kernel.io_uring_disabled=2` (io_uring fully disabled, a hardening
+> default), so every yuno aborts at startup and the whole test suite
+> fails with *"Subprocess aborted"*. Enable it:
+>
+> ```bash
+> # Persist across reboots (production):
+> echo 'kernel.io_uring_disabled = 0' | sudo tee /etc/sysctl.d/99-yuneta-iouring.conf
+> sudo sysctl --system
+>
+> # Or just for the current boot:
+> sudo sysctl -w kernel.io_uring_disabled=0
+> ```
+>
+> Values: `0` = enabled for all · `1` = only `CAP_SYS_ADMIN` or members
+> of the `io_uring` group · `2` = fully disabled (the RHEL/Rocky default).
+> Debian/Ubuntu ship `0`, so this step is RHEL-family only. Confirm with
+> `sysctl kernel.io_uring_disabled`.
+
+> ℹ️ **Static build needs static archives.** The default config is
+> `CONFIG_FULLY_STATIC=y`, so the link needs `libc.a` / `libstdc++.a` /
+> `libcrypt.a` — provided on RHEL by `glibc-static`, `libstdc++-static`
+> and `libxcrypt-static` (all in CRB). On Debian these ship inside
+> `libc6-dev` / `build-essential`, so they are not listed separately
+> there.
+
+```{dropdown} Debian → RHEL package name mapping
+| Debian / Ubuntu                  | RHEL / Rocky / Alma / Fedora            |
+|----------------------------------|-----------------------------------------|
+| `g++`                            | `gcc-c++`                               |
+| `python3-dev`                    | `python3-devel`                         |
+| `python3-tk`                     | `python3-tkinter`                       |
+| `python3-venv`                   | *(ships with `python3`, no package)*    |
+| `libjansson-dev`                 | `jansson-devel`                         |
+| `libpcre2-dev`                   | `pcre2-devel`                           |
+| `liburing-dev`                   | `liburing-devel` *(CRB)*                |
+| `libpcre3-dev`                   | `pcre-devel`                            |
+| `zlib1g-dev`                     | `zlib-devel`                            |
+| `libssl-dev`                     | `openssl-devel`                         |
+| `postgresql-server-dev-all` / `libpq-dev` | `libpq-devel`                  |
+| `kconfig-frontends`              | *(none; use `pipx install kconfiglib`)* |
+| `build-essential`                | `gcc gcc-c++ make` *(or "Development Tools" group)* |
+| `pkg-config`                     | `pkgconf-pkg-config`                    |
+| `linux-libc-dev`                 | `glibc-devel kernel-headers`            |
+| *(static archives in `libc6-dev`)* | `glibc-static libstdc++-static libxcrypt-static` *(CRB)* |
+| `curl`                           | *(already present as `curl-minimal`)*   |
+
+`jansson-devel`, `liburing-devel`, `pcre2-devel` and `openssl-devel` are
+dev headers only; Yunetas builds its own static copies under
+`kernel/c/linux-ext-libs` (step 7), so on RHEL they are needed only for
+the dynamically-linked nginx/openresty and as convenience.
+```
+
+:::
+
+::::
+
 ```{dropdown} What each non-obvious package is for
-- `libjansson-dev`          — required for libjwt
-- `libpcre2-dev`            — required by openresty
-- `perl dos2unix mercurial` — required by openresty
-- `pipx kconfiglib`         — yunetas configuration tool
-- `kconfig-frontends`       — alternative configuration tool
-- `telnet`                  — required by tests
+- `libjansson-dev` / `jansson-devel` — required for libjwt
+- `libpcre2-dev` / `pcre2-devel`      — required by openresty
+- `perl dos2unix mercurial wget`      — required by openresty (wget fetches its tarballs)
+- `pipx kconfiglib`                   — yunetas configuration tool
+- `kconfig-frontends`                 — alternative configuration tool (Debian only)
+- `telnet`                            — required by tests
 ```
 
 ````{dropdown} Optional: lib-yui end-to-end tests (Playwright)

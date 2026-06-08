@@ -197,7 +197,8 @@ cd kernel/js/lib-yui && npm install && npm test
 
 Run this matrix locally when touching `kernel/js/lib-yui/**` or
 `kernel/js/gobj-js/**`. There is no GitHub Actions workflow for it — by design,
-the only workflow in `.github/` is `release-deb.yml`.
+the only workflow in `.github/` is `release-packages.yml` (builds the AMD64
+`.deb` and the x86_64 `.rpm` on a published release).
 
 ### When to re-run `yunetas init`
 

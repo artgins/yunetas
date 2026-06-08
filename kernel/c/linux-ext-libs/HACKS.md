@@ -23,6 +23,23 @@ to produce a clean `libcrypto.a` for fully static GCC/Clang binaries.
   otherwise-static binary.
 
 
+## CMake install layout — force `lib`, never `lib64` (cross-distro)
+
+The CMake-based libs (jansson, mbedtls, pcre2, argp-standalone) are built
+in `configure-libs.sh` with `-DCMAKE_INSTALL_LIBDIR=lib`.
+
+CMake's `GNUInstallDirs` derives `CMAKE_INSTALL_LIBDIR` from the host: it
+is `lib` on Debian/Ubuntu but **`lib64`** on RHEL/Rocky/Alma. The Yuneta
+kernel links its static deps from a single hard-coded path —
+`link_directories("${YUNETAS_BASE}/outputs_ext/lib")` in
+`tools/cmake/project.cmake` — so on RHEL `libmbedtls.a` / `libpcre2-8.a`
+would land in `outputs_ext/lib64/` and the link would fail
+(`cannot find -lpcre2-8`). Forcing `lib` keeps one `outputs_ext/lib` on
+every distro. It is a no-op on Debian (already `lib`). OpenSSL already
+uses `--libdir=lib`; liburing / ncurses / libbacktrace are autotools and
+default to `lib`.
+
+
 ## glibc NSS bypass for CONFIG_FULLY_STATIC
 
 Fully static glibc binaries cannot use glibc's Name Service Switch (NSS)

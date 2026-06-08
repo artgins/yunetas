@@ -111,7 +111,19 @@
 #        v1.13 patched the standalone nginx binary, v1.14 patches the
 #        openresty binary that actually runs in front of yuneta SPAs.)
 
-VERSION="1.14"
+#   version 1.15
+#       cross-distro install layout: force -DCMAKE_INSTALL_LIBDIR=lib on the
+#       CMake-based libs (jansson, mbedtls, pcre2, argp-standalone). On RHEL
+#       /Rocky/Alma, CMake's GNUInstallDirs defaults CMAKE_INSTALL_LIBDIR to
+#       lib64, so mbedtls + pcre2 landed in outputs_ext/lib64/ while the
+#       yuneta build only link_directories() outputs_ext/lib (see
+#       tools/cmake/project.cmake) — link failures for libpcre2-8.a /
+#       libmbedtls.a. Forcing lib keeps a single outputs_ext/lib on every
+#       distro. No-op on Debian (already lib). openssl already uses
+#       --libdir=lib; liburing / ncurses / libbacktrace are autotools and
+#       default to lib.
+
+VERSION="1.15"
 
 
 source ./repos2clone.sh
@@ -183,6 +195,7 @@ mkdir -p build
 cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -237,6 +250,7 @@ mkdir -p build
 cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DUSE_SHARED_MBEDTLS_LIBRARY=Off \
@@ -286,6 +300,7 @@ git submodule update --init
 mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_STATIC_LIBS=ON \
     -DBUILD_SHARED_LIBS=OFF \
@@ -327,6 +342,7 @@ mkdir -p build
 cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \

@@ -52,7 +52,7 @@ object ...  =>  text
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
-#include <postgresql/libpq-fe.h>
+#include <libpq-fe.h>
 #include "c_postgres.h"
 
 /***************************************************************************

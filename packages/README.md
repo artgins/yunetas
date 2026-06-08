@@ -2,6 +2,12 @@
 
 Debian packaging for the Yuneta Agent. Builds `.deb` packages that install the complete Yuneta runtime — agent binaries, CLI tools, web server, init scripts, kernel tuning, TLS certificate management, and a dedicated `yuneta` system user — under the `/yuneta` hierarchy.
 
+> 📦 **RHEL/Rocky/Alma?** The RPM counterpart lives in [`rpm/`](rpm/README.md):
+> it stages the same `/yuneta` payload and builds an `.rpm` with `rpmbuild`.
+> See [`rpm/README.md`](rpm/README.md) for the RHEL-specific differences
+> (SysV via `chkconfig`, `wheel` group, langpacks, EPEL certbot, and the
+> shipped `kernel.io_uring_disabled=0`).
+
 ## Quick Start
 
 ```bash
