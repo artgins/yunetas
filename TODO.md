@@ -224,6 +224,49 @@ extend. Validate on staging before production. The fail-open-without-C_AUTHZ and
 strict postures (step 1 alternatives) remain available if the gate proves too
 coarse.
 
+### ⛔ Pilot result (2026-06-08) — the gate is NOT deployable as-is
+
+The agent pilot (local node: deploy 7.5.3 agent, then `enable_command_authz:
+true` in its config `yuno` section, relaunch) **failed at startup and the agent
+exited**, before any external client. Root cause from the agent log:
+
+```
+C_TREEDB^treedbs  authzs_list   "authz not found" authz=__execute_command__
+C_TREEDB^treedbs  command_parser "No permission to execute command" command=open-treedb
+C_AGENT^agent     mt_play        "No permission to execute command: 'open-treedb'" -> exit
+```
+
+The agent's `mt_play` issues an **internal** `gobj_command(treedbs, "open-treedb",
+…)`. With the gate on it is denied because:
+
+1. **The `src==gobj` self-bypass does not cover cross-gobj internal calls.** This
+   is C_AGENT→C_TREEDB (different gobjs), so the bypass is skipped and the gate
+   runs the authz check.
+2. **Internal framework calls carry no `__username__`**, and on top of that
+   `gobj_authz(C_TREEDB, "__execute_command__")` returns *"authz not found"* →
+   fail-closed deny.
+
+So enabling the gate makes the yuno **deny its own startup commands and exit** —
+it is unsafe on any yuno that issues internal `gobj_command`s (i.e. all of them).
+The pilot caught this before production; the node was rolled back (config
+restored, agent relaunched, `ycommand` + 16 yunos OK; agent22 covered the gap).
+The local agent now runs **7.5.3 with the gate OFF** (released behaviour).
+
+**Design fix required before the gate can ship enabled** (framework-owner call):
+the gate must apply only to **external** commands (those arriving from a remote
+principal via the ievent/transport boundary), not to internal `gobj_command`
+calls between gobjs of the same yuno. Options:
+- bypass when `src` belongs to the same yuno tree (internal call), not only when
+  `src==gobj`; or
+- bypass when there is **no external principal** (no `__username__` anywhere in
+  the chain) — a framework-issued call; or
+- move the check to the external entry point (`C_IEVENT_SRV`) instead of the
+  generic `command_parser`, so only wire commands are gated.
+Also register `__execute_command__` so `gobj_authz()` resolves it on every
+gclass (the "authz not found" deny is a second, independent bug).
+Until then, **keep `enable_command_authz` off everywhere** (the seeds + the
+default-off posture remain correct and harmless).
+
 ## Security: ytls TLS posture (deployment decisions)
 
 From a security review of `kernel/c/ytls` (2026-06-05). These are
