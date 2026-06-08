@@ -123,6 +123,27 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
+        'Authz.initial_load': {                                     \n\
+            'roles': [                                              \n\
+                {                                                   \n\
+                    'id': 'root',                                   \n\
+                    'disabled': false,                              \n\
+                    'description': 'Super-Owner of system',         \n\
+                    'realm_id': '*',                                \n\
+                    'parent_role_id': '',                           \n\
+                    'service': '*',                                 \n\
+                    'permission': '*'                               \n\
+                }                                                   \n\
+            ],                                                      \n\
+            'users': [                                              \n\
+                {                                                   \n\
+                    'id': 'yuneta',                                 \n\
+                    'roles': [                                      \n\
+                        'roles^root^users'                          \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\

@@ -184,12 +184,45 @@ is non-breaking:
 - Test `tests/c/command_authz/test_command_authz.c`: default-off runs; on+deny
   blocked (-403); on+self-bypass runs; on+granted runs. Full suite green.
 
-Remaining (deployment, Rosa): set `enable_command_authz: true` on the yunos that
-run a `C_AUTHZ` role model and author the roles/permissions for the
-`SDF_AUTHZ_X` commands (step 4); confirm internal `__username__`-bearing callers
-are granted (step 5); validate on staging before production. The
-fail-open-without-C_AUTHZ and strict postures (step 1 alternatives) remain
-available if the gate proves too coarse.
+### Role-model audit (2026-06-08) — prerequisite for enabling
+
+A node-wide audit before flipping `enable_command_authz` found which of the
+C_AUTHZ-bearing yunos actually carry a role model that grants `__execute_command__`
+(the global authz the gate checks). `authz_checker` is **purely data-driven** —
+there is **no `yuneta`/root hardcoded bypass** (the `yuneta` special-case is
+authentication-only); a user passes only if their roles resolve to `*` or the
+specific authz. So an **empty authz store denies every `SDF_AUTHZ_X` command**.
+
+| Yuno (instantiates C_AUTHZ) | authz store | role model | ready |
+|---|---|---|---|
+| `yuno_agent` | master `agent` | `Authz.initial_load`: role `root`(\*/\*/\*) + user `yuneta` | yes |
+| `yuno_agent22` | shares `agent` (`authz_service:'agent'`, `master:false`) | inherits | yes |
+| `controlcenter` | own | **was empty** → seeded 2026-06-08 | after deploy |
+| `mqtt_broker` | own | **was empty** → seeded 2026-06-08 | after deploy |
+| `emailsender` | own | **was empty** → seeded 2026-06-08 | after deploy |
+
+`Authz.initial_load` is applied by `c_authz` **only when the store is empty**
+(`roles==0 && users==0`), so the seed lands on the next start of an
+empty/fresh store — no wipe needed for the currently-empty ones.
+
+**Authorized 2026-06-08:** added `Authz.initial_load` (role `root` + user
+`yuneta`, identical to the agent's seed) to `controlcenter`, `mqtt_broker`,
+`emailsender` `main.c`. The other operative users (`yuneta_admin@…`,
+`yunetas_admin@…`) are added operationally per node, as on the agent.
+
+Internal callers: self-issued commands use the `src==gobj` bypass; the agent
+forwards `command-yuno` with the requester's `__username__` (a human, `yuneta`
+→ root); the agent's own `__username__` defaults to `yuneta` (root). So internal
+flows are covered once the per-yuno root model is seeded.
+
+Remaining (deployment, Rosa): deploy 7.5.3 so the gate code + the seeds are
+live; confirm each of the 5 stores actually holds the `root`/`yuneta` model at
+runtime (re-seed via `update-node` if a store was non-empty and missed the
+initial_load); then set `enable_command_authz: true` per yuno — pilot on the
+agent first (already has the model), validate `ycommand` still works, then
+extend. Validate on staging before production. The fail-open-without-C_AUTHZ and
+strict postures (step 1 alternatives) remain available if the gate proves too
+coarse.
 
 ## Security: ytls TLS posture (deployment decisions)
 
