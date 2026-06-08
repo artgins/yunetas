@@ -9,7 +9,7 @@ Tracks API renames, removals and additions between versions.
 > **7.5.3** shipped the per-command authorization gate (`enable_command_authz`),
 > the MQTT publish-side ACL (model A, default off), and the `emu_device`
 > frame-emission fix + its move to `utils/c/`. Only the still-open follow-ups
-> (deployment steps, subscribe-side ACL wiring, ROPC) remain below.
+> (deployment steps, ROPC) remain below.
 
 ## Auth: OIDC migration follow-ups
 
@@ -401,10 +401,14 @@ the publisher gobj isn't freed synchronously inside `gobj_publish_event`). Open:
     loop is correct. Verified the test catches it: reverting the one-line fix
     flips the deny cases to allow and the test fails (6 enforcement assertions),
     re-applying it → green.
-  - **Still open:** subscribe-side wiring in `c_prot_mqtt2.c` (the helper already
-    supports `access:"read"` and the test covers it; the SUBSCRIBE gate just
-    needs to call it, symmetry). The A/B/C model choice + the default-deny flip
-    remain Rosa's call.
+  - **Subscribe-side — DONE.** Wired in the broker's `ac_mqtt_subscribe`
+    (NOT `c_prot_mqtt2`: the per-topic SUBACK reason is built in the broker, so
+    that is where the check belongs — symmetric *by responsibility* with the
+    publish gate, which lives in `c_prot_mqtt2` because the protocol decides the
+    publish outcome). Each requested filter calls `mqtt_acl_check(…, "read")`;
+    a denied filter is not added and gets a `MQTT_RC_NOT_AUTHORIZED` (v5) /
+    `0x80` (v3.x) SUBACK reason + a logged warning. The A/B/C model choice +
+    the default-deny flip remain Rosa's call.
 
 Not reviewed for memory-safety (delegated to libpq / lower priority):
 modules/postgres (libpq wrapper), the yuno_agent control plane and watchfs

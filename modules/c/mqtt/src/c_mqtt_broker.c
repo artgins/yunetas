@@ -4304,7 +4304,32 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             } else if(protocol_version == mosq_p_mqtt311) {
                 reason = 0x80;
             }
-        } else {
+        }
+
+        /*
+         *  Per-group subscribe ACL (model A) — symmetric with the publish gate
+         *  in c_prot_mqtt2, but enforced here because the per-topic SUBACK reason
+         *  is built in this handler. mqtt_acl_check() returns TRUE when enable_acl
+         *  is off or the client's groups grant the topic, so the default posture
+         *  is unchanged. A denied subscribe gets a NOT_AUTHORIZED (v5) / 0x80
+         *  (v3.x) SUBACK reason and is logged (never silently dropped).
+         */
+        if(allowed && !mqtt_acl_check(gobj, client_id, sub, "read")) {
+            allowed = FALSE;
+            reason = (protocol_version == mosq_p_mqtt5)
+                ? MQTT_RC_NOT_AUTHORIZED
+                : 0x80;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt: Denied SUBSCRIBE (ACL)",
+                "client_id",    "%s", client_id,
+                "topic",        "%s", sub,
+                NULL
+            );
+        }
+
+        if(allowed) {
             int rc = sub__add( // WARNING return 1 if subs already exists
                 gobj,
                 sub,
