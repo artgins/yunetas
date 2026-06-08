@@ -11,7 +11,7 @@ Yuneta, so this is a maintained fork tailored to Yuneta's needs.
 ## Core
 
 (jwt_get_alg)=
-### [`jwt_get_alg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt.c#L121)
+### [`jwt_get_alg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt.c#L121)
 
 ```C
 jwt_alg_t jwt_get_alg(const jwt_t *jwt);
@@ -20,7 +20,7 @@ jwt_alg_t jwt_get_alg(const jwt_t *jwt);
 ---
 
 (jwt_alg_str)=
-### [`jwt_alg_str()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt.c#L25)
+### [`jwt_alg_str()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt.c#L25)
 
 ```C
 const char *jwt_alg_str(jwt_alg_t alg);
@@ -29,7 +29,7 @@ const char *jwt_alg_str(jwt_alg_t alg);
 ---
 
 (jwt_str_alg)=
-### [`jwt_str_alg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt.c#L63)
+### [`jwt_str_alg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt.c#L63)
 
 ```C
 jwt_alg_t jwt_str_alg(const char *alg);
@@ -38,7 +38,7 @@ jwt_alg_t jwt_str_alg(const char *alg);
 ---
 
 (jwt_set_alloc)=
-### [`jwt_set_alloc()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-memory.c#L28)
+### [`jwt_set_alloc()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-memory.c#L28)
 
 ```C
 int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree);
@@ -47,7 +47,7 @@ int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree);
 ---
 
 (jwt_get_alloc)=
-### [`jwt_get_alloc()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-memory.c#L40)
+### [`jwt_get_alloc()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-memory.c#L40)
 
 ```C
 void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree);
@@ -56,7 +56,7 @@ void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree);
 ---
 
 (jwt_get_crypto_ops)=
-### [`jwt_get_crypto_ops()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L49)
+### [`jwt_get_crypto_ops()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L49)
 
 ```C
 const char *jwt_get_crypto_ops(void);
@@ -65,7 +65,7 @@ const char *jwt_get_crypto_ops(void);
 ---
 
 (jwt_get_crypto_ops_t)=
-### [`jwt_get_crypto_ops_t()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L57)
+### [`jwt_get_crypto_ops_t()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L57)
 
 ```C
 jwt_crypto_provider_t jwt_get_crypto_ops_t(void);
@@ -74,7 +74,7 @@ jwt_crypto_provider_t jwt_get_crypto_ops_t(void);
 ---
 
 (jwt_set_crypto_ops)=
-### [`jwt_set_crypto_ops()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L81)
+### [`jwt_set_crypto_ops()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L81)
 
 ```C
 int jwt_set_crypto_ops(const char *opname);
@@ -83,7 +83,7 @@ int jwt_set_crypto_ops(const char *opname);
 ---
 
 (jwt_set_crypto_ops_t)=
-### [`jwt_set_crypto_ops_t()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L65)
+### [`jwt_set_crypto_ops_t()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L65)
 
 ```C
 int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname);
@@ -92,7 +92,7 @@ int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname);
 ---
 
 (jwt_crypto_ops_supports_jwk)=
-### [`jwt_crypto_ops_supports_jwk()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L97)
+### [`jwt_crypto_ops_supports_jwk()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L97)
 
 ```C
 int jwt_crypto_ops_supports_jwk(void);
@@ -101,7 +101,7 @@ int jwt_crypto_ops_supports_jwk(void);
 ---
 
 (jwt_init)=
-### [`jwt_init()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-crypto-ops.c#L103)
+### [`jwt_init()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-crypto-ops.c#L103)
 
 ```C
 void jwt_init(void);
@@ -112,7 +112,7 @@ void jwt_init(void);
 ## Builder
 
 (jwt_builder_new)=
-### [`jwt_builder_new()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L29)
+### [`jwt_builder_new()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L29)
 
 ```C
 jwt_builder_t *jwt_builder_new(void);
@@ -121,7 +121,7 @@ jwt_builder_t *jwt_builder_new(void);
 ---
 
 (jwt_builder_free)=
-### [`jwt_builder_free()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L16)
+### [`jwt_builder_free()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L16)
 
 ```C
 void jwt_builder_free(jwt_builder_t *builder);
@@ -130,7 +130,7 @@ void jwt_builder_free(jwt_builder_t *builder);
 ---
 
 (jwt_builder_error)=
-### [`jwt_builder_error()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L113)
+### [`jwt_builder_error()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L113)
 
 ```C
 int jwt_builder_error(const jwt_builder_t *builder);
@@ -139,7 +139,7 @@ int jwt_builder_error(const jwt_builder_t *builder);
 ---
 
 (jwt_builder_error_msg)=
-### [`jwt_builder_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L121)
+### [`jwt_builder_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L121)
 
 ```C
 const char *jwt_builder_error_msg(const jwt_builder_t *builder);
@@ -148,7 +148,7 @@ const char *jwt_builder_error_msg(const jwt_builder_t *builder);
 ---
 
 (jwt_builder_error_clear)=
-### [`jwt_builder_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L129)
+### [`jwt_builder_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L129)
 
 ```C
 void jwt_builder_error_clear(jwt_builder_t *builder);
@@ -157,7 +157,7 @@ void jwt_builder_error_clear(jwt_builder_t *builder);
 ---
 
 (jwt_builder_setkey)=
-### [`jwt_builder_setkey()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L101)
+### [`jwt_builder_setkey()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L101)
 
 ```C
 int jwt_builder_setkey(jwt_builder_t *builder, const jwt_alg_t alg, const jwk_item_t *key);
@@ -166,7 +166,7 @@ int jwt_builder_setkey(jwt_builder_t *builder, const jwt_alg_t alg, const jwk_it
 ---
 
 (jwt_builder_enable_iat)=
-### [`jwt_builder_enable_iat()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L139)
+### [`jwt_builder_enable_iat()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L139)
 
 ```C
 int jwt_builder_enable_iat(jwt_builder_t *builder, int enable);
@@ -175,7 +175,7 @@ int jwt_builder_enable_iat(jwt_builder_t *builder, int enable);
 ---
 
 (jwt_builder_setcb)=
-### [`jwt_builder_setcb()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L157)
+### [`jwt_builder_setcb()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L157)
 
 ```C
 int jwt_builder_setcb(jwt_builder_t *builder, jwt_callback_t cb, void *ctx);
@@ -184,7 +184,7 @@ int jwt_builder_setcb(jwt_builder_t *builder, jwt_callback_t cb, void *ctx);
 ---
 
 (jwt_builder_getctx)=
-### [`jwt_builder_getctx()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L179)
+### [`jwt_builder_getctx()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L179)
 
 ```C
 void *jwt_builder_getctx(jwt_builder_t *builder);
@@ -193,7 +193,7 @@ void *jwt_builder_getctx(jwt_builder_t *builder);
 ---
 
 (jwt_builder_generate)=
-### [`jwt_builder_generate()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L288)
+### [`jwt_builder_generate()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L288)
 
 ```C
 char *jwt_builder_generate(jwt_builder_t *builder);
@@ -202,7 +202,7 @@ char *jwt_builder_generate(jwt_builder_t *builder);
 ---
 
 (jwt_builder_header_set)=
-### [`jwt_builder_header_set()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L246)
+### [`jwt_builder_header_set()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L246)
 
 ```C
 jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *value);
@@ -211,7 +211,7 @@ jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *va
 ---
 
 (jwt_builder_header_get)=
-### [`jwt_builder_header_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L241)
+### [`jwt_builder_header_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L241)
 
 ```C
 jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *value);
@@ -220,7 +220,7 @@ jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *va
 ---
 
 (jwt_builder_header_del)=
-### [`jwt_builder_header_del()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L251)
+### [`jwt_builder_header_del()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L251)
 
 ```C
 jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *header);
@@ -229,7 +229,7 @@ jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *hea
 ---
 
 (jwt_builder_claim_set)=
-### [`jwt_builder_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L228)
+### [`jwt_builder_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L228)
 
 ```C
 jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *value);
@@ -238,7 +238,7 @@ jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *val
 ---
 
 (jwt_builder_claim_get)=
-### [`jwt_builder_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L223)
+### [`jwt_builder_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L223)
 
 ```C
 jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *value);
@@ -247,7 +247,7 @@ jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *val
 ---
 
 (jwt_builder_claim_del)=
-### [`jwt_builder_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L233)
+### [`jwt_builder_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L233)
 
 ```C
 jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *claim);
@@ -256,7 +256,7 @@ jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *clai
 ---
 
 (jwt_builder_time_offset)=
-### [`jwt_builder_time_offset()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-builder.c#L258)
+### [`jwt_builder_time_offset()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-builder.c#L258)
 
 ```C
 int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t secs);
@@ -267,7 +267,7 @@ int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t s
 ## Checker
 
 (jwt_checker_new)=
-### [`jwt_checker_new()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L29)
+### [`jwt_checker_new()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L29)
 
 ```C
 jwt_checker_t *jwt_checker_new(void);
@@ -276,7 +276,7 @@ jwt_checker_t *jwt_checker_new(void);
 ---
 
 (jwt_checker_free)=
-### [`jwt_checker_free()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L16)
+### [`jwt_checker_free()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L16)
 
 ```C
 void jwt_checker_free(jwt_checker_t *checker);
@@ -285,7 +285,7 @@ void jwt_checker_free(jwt_checker_t *checker);
 ---
 
 (jwt_checker_error)=
-### [`jwt_checker_error()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L105)
+### [`jwt_checker_error()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L105)
 
 ```C
 int jwt_checker_error(const jwt_checker_t *checker);
@@ -294,7 +294,7 @@ int jwt_checker_error(const jwt_checker_t *checker);
 ---
 
 (jwt_checker_error_msg)=
-### [`jwt_checker_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L113)
+### [`jwt_checker_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L113)
 
 ```C
 const char *jwt_checker_error_msg(const jwt_checker_t *checker);
@@ -303,7 +303,7 @@ const char *jwt_checker_error_msg(const jwt_checker_t *checker);
 ---
 
 (jwt_checker_error_clear)=
-### [`jwt_checker_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L121)
+### [`jwt_checker_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L121)
 
 ```C
 void jwt_checker_error_clear(jwt_checker_t *checker);
@@ -312,7 +312,7 @@ void jwt_checker_error_clear(jwt_checker_t *checker);
 ---
 
 (jwt_checker_setkey)=
-### [`jwt_checker_setkey()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L93)
+### [`jwt_checker_setkey()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L93)
 
 ```C
 int jwt_checker_setkey(jwt_checker_t *checker, const jwt_alg_t alg, const jwk_item_t *key);
@@ -321,7 +321,7 @@ int jwt_checker_setkey(jwt_checker_t *checker, const jwt_alg_t alg, const jwk_it
 ---
 
 (jwt_checker_setcb)=
-### [`jwt_checker_setcb()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L130)
+### [`jwt_checker_setcb()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L130)
 
 ```C
 int jwt_checker_setcb(jwt_checker_t *checker, jwt_callback_t cb, void *ctx);
@@ -330,7 +330,7 @@ int jwt_checker_setcb(jwt_checker_t *checker, jwt_callback_t cb, void *ctx);
 ---
 
 (jwt_checker_getctx)=
-### [`jwt_checker_getctx()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L152)
+### [`jwt_checker_getctx()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L152)
 
 ```C
 void *jwt_checker_getctx(jwt_checker_t *checker);
@@ -339,7 +339,7 @@ void *jwt_checker_getctx(jwt_checker_t *checker);
 ---
 
 (jwt_checker_verify)=
-### [`jwt_checker_verify()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L281)
+### [`jwt_checker_verify()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L281)
 
 ```C
 int jwt_checker_verify(jwt_checker_t *checker, const char *token);
@@ -348,7 +348,7 @@ int jwt_checker_verify(jwt_checker_t *checker, const char *token);
 ---
 
 (jwt_checker_claim_get)=
-### [`jwt_checker_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L196)
+### [`jwt_checker_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L196)
 
 ```C
 const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type);
@@ -357,7 +357,7 @@ const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type);
 ---
 
 (jwt_checker_claim_set)=
-### [`jwt_checker_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L215)
+### [`jwt_checker_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L215)
 
 ```C
 int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char *value);
@@ -366,7 +366,7 @@ int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char 
 ---
 
 (jwt_checker_claim_del)=
-### [`jwt_checker_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L235)
+### [`jwt_checker_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L235)
 
 ```C
 int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type);
@@ -375,7 +375,7 @@ int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type);
 ---
 
 (jwt_checker_time_leeway)=
-### [`jwt_checker_time_leeway()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-checker.c#L254)
+### [`jwt_checker_time_leeway()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-checker.c#L254)
 
 ```C
 int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t secs);
@@ -386,7 +386,7 @@ int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t s
 ## JWT Header & Claims (legacy)
 
 (jwt_header_set)=
-### [`jwt_header_set()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L294)
+### [`jwt_header_set()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L294)
 
 ```C
 jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value);
@@ -395,7 +395,7 @@ jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value);
 ---
 
 (jwt_header_get)=
-### [`jwt_header_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L289)
+### [`jwt_header_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L289)
 
 ```C
 jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value);
@@ -404,7 +404,7 @@ jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value);
 ---
 
 (jwt_header_del)=
-### [`jwt_header_del()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L299)
+### [`jwt_header_del()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L299)
 
 ```C
 jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header);
@@ -413,7 +413,7 @@ jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header);
 ---
 
 (jwt_claim_set)=
-### [`jwt_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L312)
+### [`jwt_claim_set()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L312)
 
 ```C
 jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value);
@@ -422,7 +422,7 @@ jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value);
 ---
 
 (jwt_claim_get)=
-### [`jwt_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L307)
+### [`jwt_claim_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L307)
 
 ```C
 jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value);
@@ -431,7 +431,7 @@ jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value);
 ---
 
 (jwt_claim_del)=
-### [`jwt_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwt-setget.c#L317)
+### [`jwt_claim_del()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwt-setget.c#L317)
 
 ```C
 jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim);
@@ -442,7 +442,7 @@ jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim);
 ## JWK / JWKS
 
 (jwks_load)=
-### [`jwks_load()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L499)
+### [`jwks_load()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L499)
 
 ```C
 jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str);
@@ -451,7 +451,7 @@ jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str);
 ---
 
 (jwks_load_strn)=
-### [`jwks_load_strn()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L493)
+### [`jwks_load_strn()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L493)
 
 ```C
 jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const size_t len);
@@ -460,7 +460,7 @@ jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const si
 ---
 
 (jwks_load_fromfile)=
-### [`jwks_load_fromfile()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L511)
+### [`jwks_load_fromfile()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L511)
 
 ```C
 jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name);
@@ -469,7 +469,7 @@ jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name);
 ---
 
 (jwks_load_fromfp)=
-### [`jwks_load_fromfp()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L530)
+### [`jwks_load_fromfp()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L530)
 
 ```C
 jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input);
@@ -478,7 +478,7 @@ jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input);
 ---
 
 (jwks_load_fromurl)=
-### [`jwks_load_fromurl()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks-curl.c#L100)
+### [`jwks_load_fromurl()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks-curl.c#L100)
 
 ```C
 jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify);
@@ -487,7 +487,7 @@ jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify);
 ---
 
 (jwks_create)=
-### [`jwks_create()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L549)
+### [`jwks_create()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L549)
 
 ```C
 jwk_set_t *jwks_create(const char *jwk_json_str);
@@ -496,7 +496,7 @@ jwk_set_t *jwks_create(const char *jwk_json_str);
 ---
 
 (jwks_create_strn)=
-### [`jwks_create_strn()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L559)
+### [`jwks_create_strn()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L559)
 
 ```C
 jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len);
@@ -505,7 +505,7 @@ jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len);
 ---
 
 (jwks_create_fromfile)=
-### [`jwks_create_fromfile()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L564)
+### [`jwks_create_fromfile()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L564)
 
 ```C
 jwk_set_t *jwks_create_fromfile(const char *file_name);
@@ -514,7 +514,7 @@ jwk_set_t *jwks_create_fromfile(const char *file_name);
 ---
 
 (jwks_create_fromfp)=
-### [`jwks_create_fromfp()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L569)
+### [`jwks_create_fromfp()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L569)
 
 ```C
 jwk_set_t *jwks_create_fromfp(FILE *input);
@@ -523,7 +523,7 @@ jwk_set_t *jwks_create_fromfp(FILE *input);
 ---
 
 (jwks_create_fromurl)=
-### [`jwks_create_fromurl()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks-curl.c#L134)
+### [`jwks_create_fromurl()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks-curl.c#L134)
 
 ```C
 jwk_set_t *jwks_create_fromurl(const char *url, int verify);
@@ -532,7 +532,7 @@ jwk_set_t *jwks_create_fromurl(const char *url, int verify);
 ---
 
 (jwks_error)=
-### [`jwks_error()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L290)
+### [`jwks_error()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L290)
 
 ```C
 int jwks_error(const jwk_set_t *jwk_set);
@@ -541,7 +541,7 @@ int jwks_error(const jwk_set_t *jwk_set);
 ---
 
 (jwks_error_any)=
-### [`jwks_error_any()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L210)
+### [`jwks_error_any()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L210)
 
 ```C
 int jwks_error_any(const jwk_set_t *jwk_set);
@@ -550,7 +550,7 @@ int jwks_error_any(const jwk_set_t *jwk_set);
 ---
 
 (jwks_error_msg)=
-### [`jwks_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L295)
+### [`jwks_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L295)
 
 ```C
 const char *jwks_error_msg(const jwk_set_t *jwk_set);
@@ -559,7 +559,7 @@ const char *jwks_error_msg(const jwk_set_t *jwk_set);
 ---
 
 (jwks_error_clear)=
-### [`jwks_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L300)
+### [`jwks_error_clear()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L300)
 
 ```C
 void jwks_error_clear(jwk_set_t *jwk_set);
@@ -568,7 +568,7 @@ void jwks_error_clear(jwk_set_t *jwk_set);
 ---
 
 (jwks_free)=
-### [`jwks_free()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L417)
+### [`jwks_free()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L417)
 
 ```C
 void jwks_free(jwk_set_t *jwk_set);
@@ -577,7 +577,7 @@ void jwks_free(jwk_set_t *jwk_set);
 ---
 
 (jwks_item_get)=
-### [`jwks_item_get()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L196)
+### [`jwks_item_get()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L196)
 
 ```C
 const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index);
@@ -586,7 +586,7 @@ const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index);
 ---
 
 (jwks_find_bykid)=
-### [`jwks_find_bykid()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L313)
+### [`jwks_find_bykid()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L313)
 
 ```C
 jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid);
@@ -595,7 +595,7 @@ jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid);
 ---
 
 (jwks_item_is_private)=
-### [`jwks_item_is_private()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L223)
+### [`jwks_item_is_private()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L223)
 
 ```C
 int jwks_item_is_private(const jwk_item_t *item);
@@ -604,7 +604,7 @@ int jwks_item_is_private(const jwk_item_t *item);
 ---
 
 (jwks_item_error)=
-### [`jwks_item_error()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L228)
+### [`jwks_item_error()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L228)
 
 ```C
 int jwks_item_error(const jwk_item_t *item);
@@ -613,7 +613,7 @@ int jwks_item_error(const jwk_item_t *item);
 ---
 
 (jwks_item_error_msg)=
-### [`jwks_item_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L233)
+### [`jwks_item_error_msg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L233)
 
 ```C
 const char *jwks_item_error_msg(const jwk_item_t *item);
@@ -622,7 +622,7 @@ const char *jwks_item_error_msg(const jwk_item_t *item);
 ---
 
 (jwks_item_curve)=
-### [`jwks_item_curve()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L238)
+### [`jwks_item_curve()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L238)
 
 ```C
 const char *jwks_item_curve(const jwk_item_t *item);
@@ -631,7 +631,7 @@ const char *jwks_item_curve(const jwk_item_t *item);
 ---
 
 (jwks_item_kid)=
-### [`jwks_item_kid()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L243)
+### [`jwks_item_kid()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L243)
 
 ```C
 const char *jwks_item_kid(const jwk_item_t *item);
@@ -640,7 +640,7 @@ const char *jwks_item_kid(const jwk_item_t *item);
 ---
 
 (jwks_item_alg)=
-### [`jwks_item_alg()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L248)
+### [`jwks_item_alg()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L248)
 
 ```C
 jwt_alg_t jwks_item_alg(const jwk_item_t *item);
@@ -649,7 +649,7 @@ jwt_alg_t jwks_item_alg(const jwk_item_t *item);
 ---
 
 (jwks_item_kty)=
-### [`jwks_item_kty()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L253)
+### [`jwks_item_kty()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L253)
 
 ```C
 jwk_key_type_t jwks_item_kty(const jwk_item_t *item);
@@ -658,7 +658,7 @@ jwk_key_type_t jwks_item_kty(const jwk_item_t *item);
 ---
 
 (jwks_item_use)=
-### [`jwks_item_use()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L258)
+### [`jwks_item_use()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L258)
 
 ```C
 jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item);
@@ -667,7 +667,7 @@ jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item);
 ---
 
 (jwks_item_key_ops)=
-### [`jwks_item_key_ops()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L263)
+### [`jwks_item_key_ops()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L263)
 
 ```C
 jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item);
@@ -676,7 +676,7 @@ jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item);
 ---
 
 (jwks_item_pem)=
-### [`jwks_item_pem()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L268)
+### [`jwks_item_pem()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L268)
 
 ```C
 const char *jwks_item_pem(const jwk_item_t *item);
@@ -685,7 +685,7 @@ const char *jwks_item_pem(const jwk_item_t *item);
 ---
 
 (jwks_item_key_oct)=
-### [`jwks_item_key_oct()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L278)
+### [`jwks_item_key_oct()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L278)
 
 ```C
 int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t *len);
@@ -694,7 +694,7 @@ int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t 
 ---
 
 (jwks_item_key_bits)=
-### [`jwks_item_key_bits()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L273)
+### [`jwks_item_key_bits()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L273)
 
 ```C
 int jwks_item_key_bits(const jwk_item_t *item);
@@ -703,7 +703,7 @@ int jwks_item_key_bits(const jwk_item_t *item);
 ---
 
 (jwks_item_free)=
-### [`jwks_item_free()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L354)
+### [`jwks_item_free()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L354)
 
 ```C
 int jwks_item_free(jwk_set_t *jwk_set, size_t index);
@@ -712,7 +712,7 @@ int jwks_item_free(jwk_set_t *jwk_set, size_t index);
 ---
 
 (jwks_item_free_all)=
-### [`jwks_item_free_all()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L404)
+### [`jwks_item_free_all()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L404)
 
 ```C
 int jwks_item_free_all(jwk_set_t *jwk_set);
@@ -721,7 +721,7 @@ int jwks_item_free_all(jwk_set_t *jwk_set);
 ---
 
 (jwks_item_free_bad)=
-### [`jwks_item_free_bad()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L389)
+### [`jwks_item_free_bad()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L389)
 
 ```C
 int jwks_item_free_bad(jwk_set_t *jwk_set);
@@ -730,7 +730,7 @@ int jwks_item_free_bad(jwk_set_t *jwk_set);
 ---
 
 (jwks_item_count)=
-### [`jwks_item_count()`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/libjwt/src/jwks.c#L378)
+### [`jwks_item_count()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/libjwt/src/jwks.c#L378)
 
 ```C
 size_t jwks_item_count(const jwk_set_t *jwk_set);

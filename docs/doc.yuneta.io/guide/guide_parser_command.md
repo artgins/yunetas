@@ -9,8 +9,8 @@ Commands are executed using the API  [`gobj_command`](<#gobj_command>):
 
 Source code in:
 
-- [command_parser.c](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/gobj-c/src/command_parser.c)
-- [command_parser.h](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/gobj-c/src/command_parser.h)
+- [command_parser.c](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/command_parser.c)
+- [command_parser.h](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/command_parser.h)
 
 ---
 

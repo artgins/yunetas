@@ -12,14 +12,14 @@ The **ytls.h** header file defines the interface for the [TLS](https://en.wikipe
 
 ## **Architecture**
 
-The ytls module uses a **backend-agnostic** design. The public API ([`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/ytls.c)) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
+The ytls module uses a **backend-agnostic** design. The public API ([`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/ytls.c)) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
 
 - **OpenSSL** (`CONFIG_HAVE_OPENSSL`) — default, full-featured TLS backend.
 - **mbed-TLS** (`CONFIG_HAVE_MBEDTLS`) — lightweight alternative that produces ~3x smaller static binaries.
 
 Both backends can be enabled simultaneously. When both are present, OpenSSL is preferred as the default.
 
-[`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/ytls.h) is the **single source of truth** for the backend names:
+[`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/ytls.h) is the **single source of truth** for the backend names:
 
 - `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
 - `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
@@ -33,9 +33,9 @@ At runtime, two matching **yuno global variables** are available — `root-linux
 
 | File | Purpose |
 |------|---------|
-| [`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/ytls.c) | Public API and dispatch table |
-| [`tls/openssl.c`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/tls/openssl.c) / [`openssl.h`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/tls/openssl.h) | OpenSSL backend implementation |
-| [`tls/mbedtls.c`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/tls/mbedtls.c) / [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/ytls/src/tls/mbedtls.h) | mbed-TLS backend implementation |
+| [`ytls.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/ytls.c) | Public API and dispatch table |
+| [`tls/openssl.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/tls/openssl.c) / [`openssl.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/tls/openssl.h) | OpenSSL backend implementation |
+| [`tls/mbedtls.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/tls/mbedtls.c) / [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/ytls/src/tls/mbedtls.h) | mbed-TLS backend implementation |
 
 ### Backend implementations
 
@@ -177,10 +177,10 @@ deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
 | `ssl_ciphers` | backend default | cipher list (`@SECLEVEL=0` to reach legacy suites) |
 
 Regression coverage:
-[`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.3/tests/c/ytls/test_tls_floor_openssl.c)
+[`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.4/tests/c/ytls/test_tls_floor_openssl.c)
 asserts that an explicit sub-TLS1.2 floor is logged and that a real TLS1.0
 ClientHello is rejected by the default floor;
-[`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.3/tests/c/ytls/test_tls_verify_openssl.c)
+[`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.5.4/tests/c/ytls/test_tls_verify_openssl.c)
 drives a real client/server handshake and asserts that a trusted cert with a
 matching host connects, while a hostname mismatch or an unknown CA is rejected.
 

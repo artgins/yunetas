@@ -3,8 +3,8 @@
 # **Authz**
 
 Source code in:
-- [gobj.c](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/gobj-c/src/gobj.c)
-- [gobj.h](https://github.com/artgins/yunetas/blob/7.5.3/kernel/c/gobj-c/src/gobj.h)
+- [gobj.c](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/gobj.c)
+- [gobj.h](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/gobj.h)
 
 ## Authentication and Authorization in Yuneta
 

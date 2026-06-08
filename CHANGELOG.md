@@ -1,5 +1,31 @@
 # **Changelog**
 
+## v7.5.4 -- 08/Jun/2026
+    - **feat(mqtt/security): subscribe-side ACL enforcement.** Completes the
+      publish/subscribe ACL started in 7.5.3. The per-topic SUBACK reason is
+      built in the broker's `ac_mqtt_subscribe`, so the check lives there
+      (alongside the existing `deny_subscribes` gate), calling
+      `mqtt_acl_check(…, "read")` per requested filter — a denied filter is not
+      added and gets a `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x) SUBACK
+      reason, logged. Unchanged when `enable_acl` is off or a group has no
+      `subscribe_acl` patterns.
+    - **fix(security/authz): per-command authz gate redesign.** A local agent
+      pilot showed the 7.5.3 gate (`enable_command_authz`) was undeployable — it
+      denied a yuno's own internal startup commands (e.g. `open-treedb`) and the
+      yuno exited. Two bugs fixed in gobj-c: (A) a specific-authz lookup on a
+      concrete gobj now falls back to the **global** authz table
+      (`authzs_list`), so `__execute_command__` resolves on any gobj (was
+      "authz not found" → deny-all, root included); (B) the gate fires **only
+      for external commands** (those whose kw carries the authenticated
+      `__username__` injected by `c_ievent_srv`), so internal `gobj_command()`
+      calls are never gated (`command_parser`). Re-piloted: the agent now boots
+      clean with the gate on and `ycommand` (root) works. `enable_command_authz`
+      remains **default-off**.
+    - **feat(security/authz): seed root role model** in the C_AUTHZ yunos that
+      lacked one (`controlcenter`, `mqtt_broker`, `emailsender`) via
+      `Authz.initial_load` (role `root` + user `yuneta`, mirroring the agent),
+      a prerequisite for enabling the command-authz gate there.
+
 ## v7.5.3 -- 08/Jun/2026
     - **feat(security): per-command authorization re-armed (gated opt-in).** The
       `SDF_AUTHZ_X` check at the command-dispatch boundary in `command_parser.c`
