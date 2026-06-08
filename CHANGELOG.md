@@ -9,7 +9,8 @@
       `c_auth_bff` `mt_create` are gone; configure `issuer` (discovery) or the
       explicit `token_endpoint` + `end_session_endpoint` instead. No yunetas or
       private deployment still set the legacy pair (all on `issuer`). Docs
-      updated (`YUNO_AUTH.md` §2.5, `guide_oauth2_pkce_bff.md`).
+      updated (`YUNO_AUTH.md` §2.5, `guide_oauth2_pkce_bff.md`). The now-subjectless
+      `tests/c/c_auth_bff/test17_legacy_idp_url` is removed; the suite is 18/18.
 
 ## v7.5.4 -- 08/Jun/2026
     - **feat(mqtt/security): subscribe-side ACL enforcement.** Completes the

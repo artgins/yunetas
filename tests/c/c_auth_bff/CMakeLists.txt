@@ -73,7 +73,6 @@ SET(TESTS
     test14_method_not_allowed
     test15_missing_body
     test16_unknown_endpoint
-    test17_legacy_idp_url
     test18_discovery_failure
     test19_logout_no_cookie
 )
