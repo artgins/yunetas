@@ -357,15 +357,19 @@ AGENT1_CFG="${YUNETA_DIR}/agent/yuneta_agent.json"
 AGENT2_BIN="${YUNETA_DIR}/agent/yuneta_agent22"
 AGENT2_CFG="${YUNETA_DIR}/agent/yuneta_agent22.json"
 
+# We only use log_daemon_msg / log_end_msg, and define them ourselves.
+# Do NOT source /etc/init.d/functions: on RHEL it references unset vars
+# (e.g. SYSTEMCTL_SKIP_REDIRECT) and, under this script's `set -u`, sourcing
+# it aborts the whole init script with "unbound variable" BEFORE the agent
+# is ever launched — which is exactly why the service "failed" while the
+# binary itself was fine. Debian's /lib/lsb/init-functions is set -u-clean,
+# so use it when present (guarded just in case it pulls in functions).
+log_daemon_msg() { echo "$@"; }
+log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
 if [ -r /lib/lsb/init-functions ]; then
+    set +u
     . /lib/lsb/init-functions
-elif [ -r /etc/init.d/functions ]; then
-    . /etc/init.d/functions
-    log_daemon_msg() { echo "$@"; }
-    log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
-else
-    log_daemon_msg() { echo "$@"; }
-    log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
+    set -u
 fi
 
 _set_limits() {
@@ -1152,11 +1156,31 @@ if command -v chkconfig >/dev/null 2>&1 && [ -e /etc/init.d/yuneta_agent ]; then
     chkconfig yuneta_agent on    >/dev/null 2>&1 || true
 fi
 
-# Start the service (install and upgrade)
-if command -v service >/dev/null 2>&1; then
-    service yuneta_agent start || true
+# Start the service (install and upgrade) — HONESTLY.
+#
+#   RPM treats a %post failure as non-fatal: the files are installed, so the
+#   transaction is reported "Complete" no matter what happens here. A bare
+#   `service start || true` therefore hid a failed agent behind a green
+#   install. Instead: only start when io_uring is actually usable, capture the
+#   real result, and tell the operator plainly when the agent is NOT running.
+YUNETA_STARTED=0
+YUNETA_START_MSG=""
+
+# Re-read the EFFECTIVE io_uring state after the sysctl --system above.
+# yev_loop is io_uring-based; if the kernel keeps it disabled the agent will
+# abort, so do not even try (and do not pretend it started).
+IOURING_NOW="$(sysctl -n kernel.io_uring_disabled 2>/dev/null || echo 0)"
+if [ "$IOURING_NOW" != "0" ]; then
+    YUNETA_START_MSG="io_uring is disabled (kernel.io_uring_disabled=$IOURING_NOW); agent NOT started. Enable it (sudo sysctl -w kernel.io_uring_disabled=0, or reboot) then: sudo service yuneta_agent start"
 else
-    [ -x /etc/init.d/yuneta_agent ] && /etc/init.d/yuneta_agent start || true
+    if command -v service >/dev/null 2>&1; then
+        service yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
+    elif [ -x /etc/init.d/yuneta_agent ]; then
+        /etc/init.d/yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
+    fi
+    if [ "$YUNETA_STARTED" != "1" ]; then
+        YUNETA_START_MSG="yuneta_agent FAILED to start. Diagnose: systemctl status yuneta_agent.service ; journalctl -xeu yuneta_agent.service ; getenforce (SELinux can deny io_uring to confined services)"
+    fi
 fi
 
 # pam_limits.so is enabled by default in RHEL's system-auth; only append if
@@ -1168,6 +1192,17 @@ for pam_file in /etc/pam.d/system-auth /etc/pam.d/password-auth; do
         fi
     fi
 done
+
+# --- Honest final status (the package files are always installed; this says
+#     whether the AGENT is actually running) ---
+if [ "$YUNETA_STARTED" = "1" ]; then
+    info "yuneta_agent is running."
+else
+    warn "================================================================"
+    warn "Yuneta files installed, but the AGENT IS NOT RUNNING:"
+    warn "  ${YUNETA_START_MSG}"
+    warn "================================================================"
+fi
 
 printf "\n[Yuneta] To install developer dependencies, run:\n" >&2
 printf "    sudo /yuneta/bin/install-yuneta-dev-deps.sh\n" >&2
