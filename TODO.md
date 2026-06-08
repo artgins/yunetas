@@ -277,6 +277,30 @@ correct to enable; the agent pilot should be re-attempted (deploy 7.5.3 with the
 fix, set the flag, confirm `ycommand` works AND a low-privilege external user is
 denied) on staging before production.
 
+### Re-pilot (2026-06-08) — fix validated on the local agent
+
+Re-ran the agent pilot with the fix. Two notes:
+
+- **Static-lib relink trap first.** `yunetas build` rebuilt gobj-c `.a` but did
+  NOT relink `/yuneta/agent/yuneta_agent` (cmake `install` re-copied the stale
+  binary, so a fresh mtime was misleading) — the first re-pilot still denied
+  `open-treedb`. Forced the relink (`rm yuneta_agent && make install` in the
+  agent build dir; binary size changed → fix linked in). See
+  `feedback_cmake_static_lib_relink`.
+- **With the relinked binary + gate ON: agent boots clean** — no
+  `open-treedb` self-deny, stays up — and `ycommand` (yuneta→root) works, 16
+  yunos managed. The contrast (unfixed binary denied / fixed binary boots,
+  same gate-on config) proves the gate is active, internal commands bypass
+  (Fix B), and external root commands resolve `__execute_command__` (Fix A).
+- Left the local agent on the **fixed binary, gate OFF** (released posture). A
+  full production enablement still needs, per node: provision **every** principal
+  that sends commands TO the agent with `__execute_command__`/root — not just
+  `yuneta`/admins but the **controlcenter** user(s) the agent's 1993 port
+  receives commands from (the agent store currently has `yuneta` +
+  `yuneta_admin@…` + `yunetas_admin@…`, NOT `yuneta_agent@…`); and a real
+  low-privilege deny test (needs a non-root external principal, infeasible on
+  the yuneta-only local plano — do it on staging).
+
 ## Security: ytls TLS posture (deployment decisions)
 
 From a security review of `kernel/c/ytls` (2026-06-05). These are
