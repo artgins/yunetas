@@ -62,9 +62,9 @@ migration, configure the IdP via `issuer` (or explicit endpoints):
 "allowed_redirect_uri": "https://<host>/auth/callback"
 ```
 
-The pair `idp_url` + `realm` is `SDF_DEPRECATED` and only kept as a
-legacy fallback (`c_auth_bff.c:181-192, 358`). New deployments must
-not use it.
+The legacy `idp_url` + `realm` pair was `SDF_DEPRECATED` and has been
+**removed**. Configure `issuer` (discovery) or the explicit
+`token_endpoint` + `end_session_endpoint` only.
 
 ## Deployment
 
