@@ -248,6 +248,18 @@ attribute, not on the literal `azp` name.
 Other validated claims: `iss` (must match `issuer`), `exp` (expiry),
 `nbf` if present.
 
+**CLI grant type — ROPC, Keycloak-only (PKCE deferred by design).** The CLI
+tools authenticate via `c_task_authenticate`, which POSTs
+`grant_type=password` (ROPC: username + password + `client_id`). This works
+against Keycloak (every deployed IdP) but Auth0 / Cognito / Azure AD /
+Authentik disable ROPC by default. Replacing it is **not** a drop-in to PKCE:
+all six callers (`ycli`, `ycommand`, `ystats`, `ytests`, `ybatch`, `mqtt_tui`)
+are headless or TTY with no browser, so the interactive authorization-code +
+loopback flow does not apply. The real path — **device-flow** (RFC 8628) for
+interactive use plus **client-credentials** for headless CI — is deferred until
+a non-Keycloak IdP is actually adopted. Until then, do not point a CLI at a
+ROPC-disabled IdP. Full analysis in `TODO.md`.
+
 ### 3.5 The `__username__` attribute
 
 After successful authn, [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/c_authz.c) writes the resolved

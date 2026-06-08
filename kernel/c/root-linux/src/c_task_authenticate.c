@@ -15,6 +15,15 @@
  *       task chain prepends a discovery GET of
  *       <issuer>/.well-known/openid-configuration; resolved endpoints
  *       are cached in priv before action_get_token runs.
+ *
+ *  Grant type: Resource Owner Password Credentials (ROPC) — action_get_token
+ *  POSTs grant_type=password (username + password + client_id). This is
+ *  intentional and Keycloak-only by constraint: every CLI caller (ycli,
+ *  ycommand, ystats, ytests, ybatch, mqtt_tui) is headless or TTY with no
+ *  browser, so the interactive PKCE/loopback flow does not fit. Do NOT point
+ *  these tools at an IdP that disables ROPC (Auth0/Cognito/Azure AD/Authentik)
+ *  without first adding device-flow (interactive) + client-credentials (CI).
+ *  Deferred by design — see TODO.md "ROPC in c_task_authenticate".
 
 Example of id_token
 -------------------

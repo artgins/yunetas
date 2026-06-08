@@ -11,6 +11,12 @@
       private deployment still set the legacy pair (all on `issuer`). Docs
       updated (`YUNO_AUTH.md` §2.5, `guide_oauth2_pkce_bff.md`). The now-subjectless
       `tests/c/c_auth_bff/test17_legacy_idp_url` is removed; the suite is 18/18.
+    - **docs(auth): ROPC in `c_task_authenticate` deferred by design.** The CLI
+      grant stays `grant_type=password` (works on Keycloak, the only deployed
+      IdP). Documented the constraint and the real migration path (device-flow
+      for interactive + client-credentials for headless CI, not loopback PKCE —
+      the six CLI callers have no browser) in the `c_task_authenticate.c` header,
+      `YUNO_AUTH.md` §3.4, and `TODO.md`. No behavior change.
 
 ## v7.5.4 -- 08/Jun/2026
     - **feat(mqtt/security): subscribe-side ACL enforcement.** Completes the

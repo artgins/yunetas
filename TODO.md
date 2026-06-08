@@ -39,10 +39,30 @@ notes); the design/rationale for shipped features lives in the docs
     `token_endpoint` + `end_session_endpoint`, skips discovery). Decide whether
     to relax the requirement (degrade to local logout when absent) vs document
     the explicit-endpoints requirement for those IdPs. Authentik exposes it.
-- **Replace ROPC in `c_task_authenticate`** with PKCE (authorization code +
-  code_verifier). Auth0 / Cognito / Azure AD / Authentik disable ROPC by
-  default, so `grant_type=password` fails there. Viable for `ycli` / `ycommand`
-  (they prompt); needs another path for headless `ybatch` / `ystats` / `ytests`.
+- **ROPC in `c_task_authenticate` — DEFERRED BY DESIGN (decided 2026-06-08).**
+  `action_get_token` uses `grant_type=password` (username + password + client_id,
+  single round-trip). This **works today** because every deployed IdP is Keycloak
+  (auth.artgins.com, auth.hidrauliaconnect.es), which permits ROPC. The migration
+  only becomes necessary when a non-Keycloak IdP that disables ROPC by default
+  (Auth0 / Cognito / Azure AD / Authentik) is adopted — at which point ROPC is not
+  a drop-in swap to PKCE, because the analysis below holds:
+  - All 6 callers (`ycli`, `ycommand`, `ystats`, `ytests`, `ybatch`, `mqtt_tui`)
+    are CLI/server tools with **no browser and no local HTTP listener**; the tree
+    has no device-flow, loopback-redirect, or browser-open primitive. Classic
+    PKCE (authorization code + loopback) does **not** fit — these run headless over
+    SSH. (`c_auth_bff`'s PKCE is server-side for the web SPA, a different context.)
+  - The correct replacements split by use:
+    - **Interactive** (`ycli`; the others when a human runs them) → **Device
+      Authorization Grant** (RFC 8628): print URL + user code, poll the token
+      endpoint with `urn:ietf:params:oauth:grant-type:device_code` (handle
+      `authorization_pending` / `slow_down`). Discover `device_authorization_endpoint`.
+      No password in the tool; works on every IdP.
+    - **Headless CI** (`ybatch`, `ytests` — no human at all) → device flow can't
+      work either; use **Client Credentials** (a service-account client + secret),
+      machine-to-machine. The token subject is the service account, not a user.
+  - Scope when undeferred: `c_task_authenticate` (new FSMs + discovery fields +
+    config attrs) + all 6 callers + tests + docs. Keep ROPC as a fallback for
+    Keycloak. **Do not point any CLI at a ROPC-disabled IdP before this lands.**
 
 ## Security: per-command authz gate — production enablement
 
