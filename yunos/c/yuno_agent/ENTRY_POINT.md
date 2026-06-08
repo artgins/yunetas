@@ -489,5 +489,5 @@ the core in `/var/crash/` is from the previous incarnation.
   run.
 - [`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/entry_point.c) — 934 lines, the source.
 - [`kernel/c/root-linux/src/ydaemon.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/ydaemon.c) — 480 lines, the supervisor.
-- `packages/make-yuneta-agent-deb.sh:324-358` — the sysctl + limits
+- `packages/deb/make-yuneta-agent-deb.sh:324-358` — the sysctl + limits
   block that enables core dumps.

@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           source yunetas-env.sh
-          cd packages
+          cd packages/deb
           ./AMD64.sh
           ls -la dist/
 
@@ -126,6 +126,6 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
-            packages/dist/yuneta-agent-*-amd64.deb
+            packages/deb/dist/yuneta-agent-*-amd64.deb
             packages/rpm/dist/yuneta-agent-*.x86_64.rpm
           fail_on_unmatched_files: true

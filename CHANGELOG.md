@@ -1,6 +1,17 @@
 # **Changelog**
 
-## Unreleased
+## 7.5.5
+    - **refactor(packaging): split Debian packaging into `packages/deb/`.**
+      With the new `packages/rpm/`, the Debian scripts moved from the root of
+      `packages/` into a sibling `packages/deb/` (`AMD64`/`ARM32`/`ARMhf`/
+      `RISCV64` wrappers + `make-yuneta-agent-deb.sh` + its `README.md`), so the
+      two packagers are now symmetric: `packages/deb/` and `packages/rpm/`. The
+      shared agent config samples stay at `packages/templates/` (referenced by
+      both via an absolute `$YUNETAS_BASE/packages/templates/` path);
+      `packages/README.md` is now a short index. The deb arch wrappers read
+      `../../YUNETA_VERSION` + `../../RELEASE` (one level deeper); the release CI
+      and the `.gitignore` `authorized_keys`/`webserver` rules follow the move.
+      No change to the produced `.deb` or its contents.
     - **feat(build): RHEL/Rocky/Alma build support (was Debian-only).**
       Yuneta now builds and runs on the RHEL family; verified end-to-end on
       Rocky Linux 9.7 (full static build + 110/110 ctest). New

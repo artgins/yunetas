@@ -60,9 +60,9 @@ debug/
 a.out
 *.kdev4
 core.*
-packages/authorized_keys/*
-!packages/authorized_keys/.gitkeep
-packages/webserver/*
+packages/deb/authorized_keys/*
+!packages/deb/authorized_keys/.gitkeep
+packages/deb/webserver/*
 !packages/webserver/.gitkeep
 
 .hgignore

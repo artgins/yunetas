@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the ARMhf .deb using VERSION from ../YUNETA_VERSION and RELEASE from ../RELEASE.
+# Build the AMD64 .deb using VERSION from ../../YUNETA_VERSION and RELEASE from ../../RELEASE.
 # HACK: Must be executed from this script's directory.
 set -eu
 
@@ -12,9 +12,9 @@ if [ "$CWD" != "$SCRIPT_DIR" ]; then
 fi
 
 PROJECT="yuneta-agent"
-ARCHITECTURE="armhf"
+ARCHITECTURE="amd64"
 
-VER_FILE="../YUNETA_VERSION"
+VER_FILE="../../YUNETA_VERSION"
 if [ ! -r "$VER_FILE" ]; then
     echo "ERROR: Version file not found: $VER_FILE" >&2
     exit 1
@@ -33,7 +33,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-REL_FILE="../RELEASE"
+REL_FILE="../../RELEASE"
 if [ ! -r "$REL_FILE" ]; then
     echo "ERROR: Release file not found: $REL_FILE" >&2
     exit 1
