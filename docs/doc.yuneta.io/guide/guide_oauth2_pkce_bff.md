@@ -6,7 +6,7 @@ Yunetas implements the **OAuth2 Authorization Code + PKCE** flow with a **Backen
 
 The system is **identity-provider agnostic**. The reference deployment uses
 **Keycloak** as the Authorization Server (OpenID Connect provider), but the
-BFF code names everything as *IdP* (`idp_url`, `idp_calls`, `idp_timeouts`,
+BFF code names everything as *IdP* (`idp_calls`, `idp_timeouts`,
 `idp_timeout_ms`). Any OIDC-compliant provider works.
 
 ---
@@ -293,8 +293,7 @@ The `Domain` attribute is critical: it allows the cookie set by the BFF on port 
 
 ```json
 {
-  "idp_url":              "https://auth.artgins.com/",
-  "realm":                "estadodelaire.com",
+  "issuer":               "https://auth.artgins.com/realms/estadodelaire.com/",
   "client_id":            "gui_treedb",
   "client_secret":        "",
   "cookie_domain":        "yunetas.com",
@@ -308,8 +307,7 @@ The `Domain` attribute is critical: it allows the cookie set by the BFF on port 
 
 | Attr | Default | Purpose |
 |------|---------|---------|
-| `idp_url` | — (required) | Base URL of the Authorization Server. |
-| `realm` | — (required) | IdP realm / tenant. |
+| `issuer` | — (required) | OIDC issuer URL (e.g. `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for public PKCE clients). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Cross-checked against the request `Host` header — never trust a mismatched `Host`. |
 | `allowed_origin`, `allowed_redirect_uri` | `""` | CORS origin and the prefix a callback's `redirect_uri` must start with. |

@@ -26,8 +26,6 @@ notes); the design/rationale for shipped features lives in the docs
   code_verifier). Auth0 / Cognito / Azure AD / Authentik disable ROPC by
   default, so `grant_type=password` fails there. Viable for `ycli` / `ycommand`
   (they prompt); needs another path for headless `ybatch` / `ystats` / `ytests`.
-- **Remove the deprecated `idp_url` + `realm` pair** from `c_auth_bff` (flagged
-  `SDF_DEPRECATED` since 7.5.x) now that a release has shipped with the warning.
 
 ## Security: per-command authz gate — production enablement
 

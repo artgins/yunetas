@@ -151,7 +151,7 @@ Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
 
 Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/c_auth_bff.c)).
 
-### 2.5 The OIDC config: `issuer` vs deprecated `idp_url` + `realm`
+### 2.5 The OIDC config: `issuer` + (optional) explicit endpoints
 
 `attrs_table` at [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/c_auth_bff.c):
 
@@ -160,21 +160,16 @@ Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins
 | `issuer`               | preferred           | OIDC issuer URL, e.g. `https://auth.example.com/realms/foo/`. Triggers discovery via `/.well-known/openid-configuration`. |
 | `token_endpoint`       | explicit override   | Bypass discovery; force the token URL.               |
 | `end_session_endpoint` | explicit override   | Same, for logout.                                    |
-| `idp_url`              | **`SDF_DEPRECATED`** | Legacy Keycloak base URL.                            |
-| `realm`                | **`SDF_DEPRECATED`** | Legacy Keycloak realm name.                          |
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
 | `redirect_uri`         | per-request         | From the callback request body.                      |
 | `allowed_redirect_uri` | required            | Allow-list prefix for `/auth/callback` redirect_uri. |
 | `cookie_domain`        | required            | Domain attribute for cookies (no port).              |
 
-Legacy fallback: if `idp_url` + `realm` are present and `issuer` is not,
-the code constructs the legacy URL as
-`<idp_url>/realms/<realm>/protocol/openid-connect` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/root-linux/src/c_auth_bff.c))
-and emits a deprecation warning.
-
 The 2026-04-30 migration unified everything under `issuer` + (optional)
-explicit endpoints. New deployments should not set `idp_url` / `realm`.
+explicit endpoints. The legacy Keycloak `idp_url` + `realm` pair was
+deprecated then and **removed** after 7.5.4 — configure `issuer` (or the
+explicit `token_endpoint` + `end_session_endpoint`) only.
 
 ### 2.6 Per-host runtime configuration
 

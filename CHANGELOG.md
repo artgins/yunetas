@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+    - **chore(auth_bff): remove the deprecated `idp_url` + `realm` pair.** The
+      legacy Keycloak path-scheme fallback (build
+      `<idp_url>/realms/<realm>/protocol/openid-connect/{token,logout}`) was
+      `SDF_DEPRECATED` since the 2026-04-30 OIDC migration and a release has
+      shipped with the warning. Both `SDATA` attrs and the resolution branch in
+      `c_auth_bff` `mt_create` are gone; configure `issuer` (discovery) or the
+      explicit `token_endpoint` + `end_session_endpoint` instead. No yunetas or
+      private deployment still set the legacy pair (all on `issuer`). Docs
+      updated (`YUNO_AUTH.md` §2.5, `guide_oauth2_pkce_bff.md`).
+
 ## v7.5.4 -- 08/Jun/2026
     - **feat(mqtt/security): subscribe-side ACL enforcement.** Completes the
       publish/subscribe ACL started in 7.5.3. The per-topic SUBACK reason is

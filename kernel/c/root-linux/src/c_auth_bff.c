@@ -183,8 +183,6 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
-SDATA (DTP_STRING,      "idp_url",              SDF_RD|SDF_DEPRECATED, "", "DEPRECATED: use 'issuer' or explicit endpoints. IdP base URL (Keycloak path scheme)"),
-SDATA (DTP_STRING,      "realm",                SDF_RD|SDF_DEPRECATED, "", "DEPRECATED: use 'issuer' or explicit endpoints. IdP realm (Keycloak-only)"),
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
@@ -255,7 +253,6 @@ typedef struct _PRIVATE_DATA {
      *  OIDC endpoints (full URLs).  Resolved in mt_create from one of:
      *    1. Explicit token_endpoint + end_session_endpoint attrs
      *    2. OIDC discovery (<issuer>/.well-known/openid-configuration)
-     *    3. Legacy idp_url + realm (Keycloak path scheme — deprecated)
      *  process_next gates on discovery_done so requests queue while
      *  discovery is in flight.
      */
@@ -329,8 +326,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  OIDC endpoint resolution priority:
      *    1. Explicit token_endpoint + end_session_endpoint    -> use directly
      *    2. issuer                                            -> discover at startup
-     *    3. Legacy idp_url + realm (Keycloak path scheme)     -> deprecated, warn
-     *    4. None                                              -> error, BFF unusable
+     *    3. None                                              -> error, BFF unusable
      *
      *  http_url is the URL passed to C_PROT_HTTP_CL/C_TCP for the
      *  outbound connection (only host/port matter; the path of each
@@ -339,8 +335,6 @@ PRIVATE void mt_create(hgobj gobj)
     const char *token_endpoint       = gobj_read_str_attr(gobj, "token_endpoint");
     const char *end_session_endpoint = gobj_read_str_attr(gobj, "end_session_endpoint");
     const char *issuer               = gobj_read_str_attr(gobj, "issuer");
-    const char *idp_base_url         = gobj_read_str_attr(gobj, "idp_url");
-    const char *realm                = gobj_read_str_attr(gobj, "realm");
 
     const char *http_url = NULL;
 
@@ -355,22 +349,6 @@ PRIVATE void mt_create(hgobj gobj)
         snprintf(priv->issuer, sizeof(priv->issuer), "%s", issuer);
         priv->discovery_done = FALSE;
         http_url = issuer;
-    } else if(!empty_string(idp_base_url) && !empty_string(realm)) {
-        /*
-         *  Legacy Keycloak path scheme.  The deprecation warning for
-         *  the idp_url / realm attrs is emitted by the framework
-         *  (gobj.c json2sdata, SDF_DEPRECATED flag) at gobj_create
-         *  time; no extra gclass-level warning needed here.
-         */
-        char legacy_base[1024];
-        build_path(legacy_base, sizeof(legacy_base),
-            idp_base_url, "realms", realm, "protocol", "openid-connect", NULL);
-        snprintf(priv->token_url, sizeof(priv->token_url),
-            "%s/token", legacy_base);
-        snprintf(priv->end_session_url, sizeof(priv->end_session_url),
-            "%s/logout", legacy_base);
-        priv->discovery_done = TRUE;
-        http_url = idp_base_url;
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
