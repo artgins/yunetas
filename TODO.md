@@ -18,10 +18,26 @@ notes); the design/rationale for shipped features lives in the docs
 ## Auth: OIDC migration follow-ups
 
 - **Smoke tests against real IdPs.** Mocked tests cover the wire format only.
-  Keycloak: redeploy `auth_bff.1801.json` (migrated to `issuer`) and verify
-  login / refresh / logout end-to-end. Auth0 / Cognito / Authentik: discovery
-  layouts differ (`/oauth/token`, `/oauth2/token`, `/application/o/token/`) —
-  confirm discovery parses and the token call succeeds against each.
+  - **Keycloak — VALIDATED 2026-06-08.** Discovery smoke test (curl
+    `<issuer>/.well-known/openid-configuration`, assert `token_endpoint` +
+    `end_session_endpoint`, both required by `save_oidc_discovery`): PASS for
+    the `artgins` realm (wattyzer + estadodelaire + auth_bff prod) and the
+    `hidrauliaconnect` realm (client-prod). End-to-end login + refresh +
+    authenticated WS via the wattyzer Playwright QA driver against
+    `app.wattyzer.com` (BFF → artgins realm): PASS, `errors=0`,
+    `/auth/refresh → 200`, `c_authz` accepted the `iss`. Logout-click not
+    exercised (driver injects cookies). **Open:** the dev config
+    `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json` points at realm
+    `yunetas.com` which returns **404** — fix the placeholder or point it at a
+    real realm.
+  - **Auth0 / Cognito / Authentik — not live-tested (no tenants).** Code
+    finding from the discovery contract: `save_oidc_discovery` hard-requires
+    `end_session_endpoint` and aborts (`STOP_TASK`) if absent. **Auth0 does NOT
+    publish `end_session_endpoint`** (proprietary `/v2/logout`); some Cognito
+    setups omit it too → discovery would fail. Workaround exists (set explicit
+    `token_endpoint` + `end_session_endpoint`, skips discovery). Decide whether
+    to relax the requirement (degrade to local logout when absent) vs document
+    the explicit-endpoints requirement for those IdPs. Authentik exposes it.
 - **Replace ROPC in `c_task_authenticate`** with PKCE (authorization code +
   code_verifier). Auth0 / Cognito / Azure AD / Authentik disable ROPC by
   default, so `grant_type=password` fails there. Viable for `ycli` / `ycommand`
