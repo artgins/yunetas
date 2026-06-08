@@ -1,7 +1,7 @@
 (tool-sync_binaries)=
-# [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.4/tools/agent/sync_binaries.py)
+# [`sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.5/tools/agent/sync_binaries.py)
 
-Operator utility ([`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.4/tools/agent/sync_binaries.py)) that reconciles the freshly
+Operator utility ([`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.5.5/tools/agent/sync_binaries.py)) that reconciles the freshly
 built yuno binaries with what the local `yuneta_agent` already has installed,
 and — after confirmation — pushes the differences via `install-binary` /
 `update-binary`.
@@ -90,4 +90,4 @@ tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build d
 ## See also
 
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.5.4/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.5.5/tools/README.md).

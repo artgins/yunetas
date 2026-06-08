@@ -4,11 +4,11 @@ Lightweight intrusive doubly-linked list (`dl_list_t`) used by many internal sub
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/gobj.c)
 
 (dl_add)=
-## [`dl_add()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L101)
+## [`dl_add()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L101)
 
 Adds an item to the end of a doubly linked list `dl`.
 
@@ -34,7 +34,7 @@ The function checks if the item already has links before adding it to the list.
 ---
 
 (dl_delete)=
-## [`dl_delete()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L167)
+## [`dl_delete()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L167)
 
 Removes a specified item from a doubly linked list and optionally frees its memory.
 
@@ -65,7 +65,7 @@ The function ensures that the list remains consistent after deletion. If `fnfree
 ---
 
 (dl_find)=
-## [`dl_find()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L127)
+## [`dl_find()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L127)
 
 `dl_find()` searches for an item in a doubly linked list and returns a pointer to the item if found.
 
@@ -94,7 +94,7 @@ This function performs a linear search through the list and returns the first ma
 ---
 
 (dl_flush)=
-## [`dl_flush()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L274)
+## [`dl_flush()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L274)
 
 Removes all items from the given double-linked list and optionally frees them using the provided function.
 
@@ -123,7 +123,7 @@ Ensures that the list is completely emptied. If `fnfree` is provided, it is call
 ---
 
 (dl_init)=
-## [`dl_init()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L17)
+## [`dl_init()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L17)
 
 Initializes a double-linked list structure by setting its head, tail, and item count to zero.
 
@@ -152,7 +152,7 @@ This function ensures that the list is empty before initialization. If the list 
 ---
 
 (dl_insert)=
-## [`dl_insert()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L74)
+## [`dl_insert()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L74)
 
 Inserts an item at the head of a doubly linked list `dl`.
 
@@ -181,7 +181,7 @@ The function checks if the item already has links before inserting it. If the li
 ---
 
 (dl_delete_item)=
-## [`dl_delete_item()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L257)
+## [`dl_delete_item()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L257)
 
 Removes an item from its doubly linked list and optionally frees it. Unlike [`dl_delete()`](#dl_delete), this function does not require passing the list pointer -- it uses the item's internal back-reference to its owning list.
 
@@ -210,7 +210,7 @@ The function delegates to [`dl_delete()`](#dl_delete) using the item's internall
 ---
 
 (dl_nfind)=
-## [`dl_nfind()`](https://github.com/artgins/yunetas/blob/7.5.4/kernel/c/gobj-c/src/dl_list.c#L144)
+## [`dl_nfind()`](https://github.com/artgins/yunetas/blob/7.5.5/kernel/c/gobj-c/src/dl_list.c#L144)
 
 Finds and returns the Nth item in a doubly linked list, using 1-based indexing.
 

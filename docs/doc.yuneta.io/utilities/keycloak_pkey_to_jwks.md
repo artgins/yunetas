@@ -20,4 +20,4 @@ keycloak_pkey_to_jwks --key <base64-der> --issuer <issuer> > jwks.json
 
 - [Auth, permissions, TLS](../../../yunos/c/yuno_agent/YUNO_AUTH.md) — how Yuneta
   uses JWKS for JWT verification.
-- [`utils/c/pkey_to_jwks/README.md`](https://github.com/artgins/yunetas/blob/7.5.4/utils/c/pkey_to_jwks/README.md).
+- [`utils/c/pkey_to_jwks/README.md`](https://github.com/artgins/yunetas/blob/7.5.5/utils/c/pkey_to_jwks/README.md).
