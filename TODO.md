@@ -26,10 +26,11 @@ notes); the design/rationale for shipped features lives in the docs
     authenticated WS via the wattyzer Playwright QA driver against
     `app.wattyzer.com` (BFF → artgins realm): PASS, `errors=0`,
     `/auth/refresh → 200`, `c_authz` accepted the `iss`. Logout-click not
-    exercised (driver injects cookies). **Open:** the dev config
-    `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json` points at realm
-    `yunetas.com` which returns **404** — fix the placeholder or point it at a
-    real realm.
+    exercised (driver injects cookies). The dev config
+    `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json` previously pointed
+    at the non-existent realm `yunetas.com` (404) — **fixed 2026-06-08**, now on
+    `artgins` (discovery 200). Its `client_id` (`treedb.yunetas.com`) must exist
+    as an OAuth2 client in the `artgins` realm for a full local login.
   - **Auth0 / Cognito / Authentik — not live-tested (no tenants).** Code
     finding from the discovery contract: `save_oidc_discovery` hard-requires
     `end_session_endpoint` and aborts (`STOP_TASK`) if absent. **Auth0 does NOT

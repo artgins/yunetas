@@ -52,7 +52,7 @@
                             "name": "bff-(^^__range__^^)",
                             "gclass": "C_AUTH_BFF",
                             "kw": {
-                                "issuer": "https://auth.artgins.com/realms/yunetas.com/",
+                                "issuer": "https://auth.artgins.com/realms/artgins/",
                                 "client_id": "treedb.yunetas.com",
                                 "client_secret": "",
                                 "cookie_domain": "",
