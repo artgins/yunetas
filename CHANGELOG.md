@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(install): `install.sh` is now a single cross-distro installer that
+      sets up everything in one run.** It detects the distro (`apt` vs `dnf`),
+      and on RHEL/Rocky/Alma enables **EPEL + CRB** first; pulls the matching
+      package (`.deb` / `.rpm`) from the latest Release and installs it; then
+      installs the **full developer toolchain** (git, mercurial, clang, gcc,
+      cmake, ninja, wget, pipx, …) by delegating to the bundled, resilient
+      `/yuneta/bin/install-yuneta-dev-deps.sh` — so a fresh box is build-ready
+      from one command, with no second script to remember. Asks first when a
+      terminal is attached (reads `/dev/tty`, so it works under `curl | sh`);
+      installs by default when non-interactive. `--runtime-only` skips the
+      toolchain for pure deployment boxes. Served from `main`, so it reaches
+      users on push (it installs the latest published Release packages). Was
+      Debian-only and runtime-only before.
+
 ## 7.5.7
     - **fix(rpm): dev-deps helper no longer installs nothing when one package is
       unavailable.** `install-yuneta-dev-deps.sh` ran `dnf -y install "${PKGS[@]}"`

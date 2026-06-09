@@ -5,12 +5,13 @@
 
 There are two ways to install Yunetas, depending on what you want to do:
 
-- **[Quick install](#quick-install)** — pre-built `.deb`. Installs the
-  runtime (agent, CLI tools, bundled web server) **and** the Yuneta
-  libraries, headers and CMake toolchain under `/yuneta/development/`,
-  so you can both *run* yunos and *compile your own projects* against
-  the published runtime. What it does **not** include is Yuneta's own
-  source tree.
+- **[Quick install](#quick-install)** — pre-built package (`.deb` on
+  Debian/Ubuntu, `.rpm` on RHEL/Rocky/Alma), via a single cross-distro
+  installer. Installs the runtime (agent, CLI tools, bundled web server)
+  **and** the Yuneta libraries, headers and CMake toolchain under
+  `/yuneta/development/`, plus (by default) the developer toolchain — so you
+  can both *run* yunos and *compile your own projects* against the published
+  runtime. What it does **not** include is Yuneta's own source tree.
 - **[Build from source](#build-from-source)** — the full source tree.
   Use this to develop the framework itself, or to produce a customised
   runtime with different build options (TLS backend, modules,
@@ -26,53 +27,65 @@ There are two ways to install Yunetas, depending on what you want to do:
 (quick-install)=
 ## Quick install
 
-> ⚠️ **The `curl | sh` one-liner is Debian/Ubuntu only** — it uses
-> `dpkg`/`apt-get`. On RHEL/Rocky/Alma a `.rpm` is published as a release
-> asset alongside the `.deb`; download it from the
-> [Releases page](https://github.com/artgins/yunetas/releases) and install
-> it directly:
->
-> ```bash
-> sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
-> ```
->
-> **RHEL/Rocky/Alma need io_uring enabled.** The `.rpm` ships
+One command, both distro families — Debian/Ubuntu **and** RHEL/Rocky/Alma:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
+```
+
+The script does everything in one run, no second step to remember:
+
+- detects the distro (`apt` vs `dnf`) and architecture;
+- **on RHEL/Rocky/Alma**, enables **EPEL + CRB** first (mercurial, ninja-build,
+  pipx and the `-devel`/`-static` packages live there, and `dnf` cannot pull
+  from a repo it enables in the same transaction);
+- pulls the matching package (`.deb` / `.rpm`) from the latest
+  [GitHub Release](https://github.com/artgins/yunetas/releases) and installs it
+  so dependencies resolve cleanly;
+- then installs the **full developer toolchain** (git, mercurial, clang, gcc,
+  cmake, ninja, wget, pipx, …) so the box can build yunos right away. It asks
+  first if a terminal is attached; under `curl | sh` (no prompt) it installs it
+  by default.
+
+Pure deployment box (runtime only, skip the toolchain):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- --runtime-only
+```
+
+Pin a version (must exist as a published Release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.5.7
+```
+
+> ⚠️ **RHEL/Rocky/Alma need io_uring enabled.** The `.rpm` ships
 > `kernel.io_uring_disabled=0` and applies it in `%post`, but if SELinux
 > (`Enforcing`) or a host policy keeps io_uring disabled the agent will not
 > start — see the [io_uring requirement](#io_uring-required) below. The
 > `%post` is honest about it: if the agent is not running after install it
 > prints a warning naming the cause (io_uring or SELinux) with the
 > `systemctl status` / `journalctl` commands to diagnose it.
->
-> Prefer to build the `.rpm` yourself (other arch, custom options)?
-> [Build from source](#build-from-source) (fully supported on RHEL/Rocky,
-> see step 2), then run `packages/rpm/x86_64.sh` — see
-> [`packages/rpm/README.md`](https://github.com/artgins/yunetas/tree/main/packages/rpm).
 
-One-liner:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
-```
-
-The script:
-
-- detects the host architecture (`amd64`, `armhf`, `riscv64`);
-- pulls the matching `.deb` from the latest [GitHub Release](https://github.com/artgins/yunetas/releases);
-- installs it via `apt`/`dpkg` so dependencies resolve cleanly.
-
-Pin a version (must exist as a published Release):
+Or download the package manually from the
+[Releases page](https://github.com/artgins/yunetas/releases) and install it
+(this installs only the runtime + its declared deps — for the developer
+toolchain, run `sudo /yuneta/bin/install-yuneta-dev-deps.sh` afterwards, or use
+the one-liner above):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.5.1
-```
-
-Or download the `.deb` manually from the
-[Releases page](https://github.com/artgins/yunetas/releases) and run:
-
-```bash
+# Debian / Ubuntu
 sudo apt install ./yuneta-agent-<version>-<release>-<arch>.deb
+
+# RHEL / Rocky / Alma  (enable EPEL + CRB first so the deps resolve)
+sudo dnf -y install epel-release && sudo crb enable
+sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
 ```
+
+Prefer to build the package yourself (other arch, custom options)?
+[Build from source](#build-from-source), then run `packages/deb/<ARCH>.sh` or
+`packages/rpm/<arch>.sh` — see
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/main/packages).
 
 The package installs the agent + CLI tools + bundled openresty under
 `/yuneta/`, creates the `yuneta` system user, applies kernel tuning
