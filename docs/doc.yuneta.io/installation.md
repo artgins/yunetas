@@ -36,6 +36,14 @@ There are two ways to install Yunetas, depending on what you want to do:
 > sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
 > ```
 >
+> **RHEL/Rocky/Alma need io_uring enabled.** The `.rpm` ships
+> `kernel.io_uring_disabled=0` and applies it in `%post`, but if SELinux
+> (`Enforcing`) or a host policy keeps io_uring disabled the agent will not
+> start — see the [io_uring requirement](#io_uring-required) below. The
+> `%post` is honest about it: if the agent is not running after install it
+> prints a warning naming the cause (io_uring or SELinux) with the
+> `systemctl status` / `journalctl` commands to diagnose it.
+>
 > Prefer to build the `.rpm` yourself (other arch, custom options)?
 > [Build from source](#build-from-source) (fully supported on RHEL/Rocky,
 > see step 2), then run `packages/rpm/x86_64.sh` — see
@@ -190,6 +198,8 @@ sudo dnf -y install \
 pipx install kconfiglib
 ```
 
+(io_uring-required)=
+
 > ⚠️ **RHEL/Rocky disable io_uring — Yuneta will not run until you
 > re-enable it.** Yuneta's event loop (`yev_loop`) is built entirely on
 > Linux **io_uring**. RHEL 9 / Rocky 9 / Alma 9 ship
@@ -210,6 +220,11 @@ pipx install kconfiglib
 > of the `io_uring` group · `2` = fully disabled (the RHEL/Rocky default).
 > Debian/Ubuntu ship `0`, so this step is RHEL-family only. Confirm with
 > `sysctl kernel.io_uring_disabled`.
+>
+> **SELinux is a second, independent gate.** Even with the sysctl at `0`, an
+> `Enforcing` policy can deny `io_uring_setup(2)` to a confined service, so the
+> agent still aborts. If it will not start while io_uring is enabled, check
+> `getenforce` and the audit log (`ausearch -m AVC -ts recent`).
 
 > ℹ️ **Static build needs static archives.** The default config is
 > `CONFIG_FULLY_STATIC=y`, so the link needs `libc.a` / `libstdc++.a` /

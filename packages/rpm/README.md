@@ -21,7 +21,7 @@ cd packages/rpm/
 ./riscv64.sh        # RISC-V 64-bit
 
 # 4. Install the resulting .rpm
-sudo dnf -y install ./dist/yuneta-agent-7.5.4-1.el9.x86_64.rpm
+sudo dnf -y install ./dist/yuneta-agent-7.5.6-1.el9.x86_64.rpm
 ```
 
 > ℹ️ **Published automatically on release.** The
@@ -101,6 +101,13 @@ default), so every yuno aborts at startup. The `.rpm` therefore ships
 applies it via `sysctl --system` in `%post`. If your security policy forbids
 re-enabling io_uring, remove that line before building and Yuneta will not run.
 
+**SELinux is a second, independent gate.** Even with
+`kernel.io_uring_disabled=0`, an `Enforcing` policy can deny `io_uring_setup(2)`
+to a confined service, so the agent still aborts. If the agent will not start
+while io_uring is enabled, check `getenforce` and the audit log
+(`ausearch -m AVC -ts recent`); a permissive domain or an explicit policy
+allowance may be required.
+
 ### No automatic reboot
 
 The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs
@@ -123,9 +130,23 @@ surprising and un-idiomatic. The kernel tuning is applied live with
 6. `sysctl --system` (applies the tuning **including io_uring**).
 7. Installs bundled `authorized_keys` for `yuneta` (if present).
 8. Enables `rsyslog`.
-9. Installs + enables the SysV service via `chkconfig`, then starts it.
+9. Installs + enables the SysV service via `chkconfig`. It then starts the
+   agent **only when io_uring is actually enabled** (re-checked after the
+   `sysctl --system` of step 6) and captures the real result — a disabled
+   io_uring, or any other start failure, is reported, **not** hidden behind
+   RPM's always-"Complete" transaction.
 10. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
     on RHEL; only appended if genuinely missing and not authselect-managed).
+
+> ℹ️ **If the agent is not running after install**, `%post` ends with a
+> `Yuneta files installed, but the AGENT IS NOT RUNNING` warning that names the
+> cause. The usual ones on RHEL: io_uring still disabled
+> (`kernel.io_uring_disabled` ≠ 0 — enable it, then
+> `sudo service yuneta_agent start`), or **SELinux** denying io_uring to the
+> confined service (`getenforce`). Diagnose with
+> `systemctl status yuneta_agent.service` and
+> `journalctl -xeu yuneta_agent.service`. The package files are installed
+> regardless — only the agent start is gated.
 
 ## Inspecting the package (without installing)
 
@@ -145,7 +166,7 @@ The final name follows:
 
 ```
 yuneta-agent-<version>-<release>.<dist>.<arch>.rpm
-# e.g. yuneta-agent-7.5.4-1.el9.x86_64.rpm
+# e.g. yuneta-agent-7.5.6-1.el9.x86_64.rpm
 ```
 
 ## Optional build-time configuration
