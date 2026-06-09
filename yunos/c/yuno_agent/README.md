@@ -25,6 +25,7 @@ to by default.
 | [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, the `issuer` config), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas — the per-command authz gate is **re-armed but gated off by default** (`enable_command_authz`; see §4.5), cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
 | [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`/`mt_start`/`mt_stop`/`mt_destroy`/`mt_writing`/`mt_reading`/etc.), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
 | [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
+| [`NODE_SEALING.md`](NODE_SEALING.md)                | **DESIGN (not yet implemented).** The black-box node: closing inbound SSH and reaching the host only inward-out via the controlcenter PTY. The OS-enforced seal, the self-proving + self-validating `seal-node` gate, the agent22↔agent heartbeat, the provider-console break-glass. Marked design until each piece lands. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
@@ -107,6 +108,16 @@ to by default.
   metadata block, node CRUD), the **link-saves-the-child-only** invariant,
   the **`topic_version` schema-versioning trap**, snapshots, and the
   cross-yuno `rt_by_disk` pattern.
+- **Sealing a node into a black box (DESIGN)** → [`NODE_SEALING.md`](NODE_SEALING.md)
+  is the validated mental model — **not yet implemented** — for closing inbound
+  SSH and reaching the host only inward-out through the controlcenter PTY. It
+  covers the governing property (the seal is enforced by the OS, so it holds
+  even if the agent is dead), the self-proving + self-validating `seal-node`
+  gate, the one piece of new plumbing it needs (the agent22↔agent
+  CC-connection heartbeat, plus Hardening #0: agent22 must never `exit(0)` on an
+  empty `node_owner`), the long-lived-credentials rule (a sealed box with a
+  short JWT/cert is a guaranteed brick), and the provider-console break-glass
+  contract (OVH rescue mode — deliberately no auto-unseal).
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
   primary lifecycle manager; enable only on hosts that should be reachable
