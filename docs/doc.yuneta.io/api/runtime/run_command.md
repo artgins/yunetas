@@ -7,7 +7,7 @@ Functions for running external processes synchronously.
 ---
 
 (run_command)=
-## [`run_command()`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/run_command.c#L28)
+## [`run_command()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/run_command.c#L28)
 
 Runs a shell command synchronously via `popen()` and captures its
 combined stdout/stderr output.
@@ -33,7 +33,7 @@ gbuffer_t *run_command(const char *command);
 ---
 
 (run_process2)=
-## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/run_command.c#L81)
+## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/run_command.c#L81)
 
 Runs a process synchronously using `fork()` with robust signal handling.
 
@@ -58,7 +58,7 @@ Process exit status, or `127` if `exec` failed.
 ---
 
 (pty_sync_spawn)=
-## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/run_command.c#L163)
+## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/run_command.c#L163)
 
 Spawns a command synchronously in a pseudo-terminal (via `forkpty()`),
 providing interactive terminal I/O between parent and child.

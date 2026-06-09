@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.5.7
     - **fix(rpm): dev-deps helper no longer installs nothing when one package is
       unavailable.** `install-yuneta-dev-deps.sh` ran `dnf -y install "${PKGS[@]}"`
       as a single atomic transaction, so one unfindable package (typically a

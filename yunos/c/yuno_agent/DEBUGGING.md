@@ -51,16 +51,16 @@ Same log line can fan out to all four destinations at once. None of them is
 
 These are the calls every gclass uses to record events. They are **not**
 traces — they fire regardless of trace settings. The six public ones are
-defined in [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c):
+defined in [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c):
 
 | Function                | Priority      | At                    |
 |-------------------------|---------------|-----------------------|
-| [`gobj_log_alert`](#gobj_log_alert)        | `LOG_ALERT`   | [glogger.c:499](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L499)         |
-| [`gobj_log_critical`](#gobj_log_critical)     | `LOG_CRIT`    | [glogger.c:514](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L514)         |
-| [`gobj_log_error`](#gobj_log_error)        | `LOG_ERR`     | [glogger.c:529](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L529)         |
-| [`gobj_log_warning`](#gobj_log_warning)      | `LOG_WARNING` | [glogger.c:544](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L544)         |
-| [`gobj_log_info`](#gobj_log_info)         | `LOG_INFO`    | [glogger.c:559](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L559)         |
-| [`gobj_log_debug`](#gobj_log_debug)        | `LOG_DEBUG`   | [glogger.c:574](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L574)         |
+| [`gobj_log_alert`](#gobj_log_alert)        | `LOG_ALERT`   | [glogger.c:499](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L499)         |
+| [`gobj_log_critical`](#gobj_log_critical)     | `LOG_CRIT`    | [glogger.c:514](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L514)         |
+| [`gobj_log_error`](#gobj_log_error)        | `LOG_ERR`     | [glogger.c:529](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L529)         |
+| [`gobj_log_warning`](#gobj_log_warning)      | `LOG_WARNING` | [glogger.c:544](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L544)         |
+| [`gobj_log_info`](#gobj_log_info)         | `LOG_INFO`    | [glogger.c:559](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L559)         |
+| [`gobj_log_debug`](#gobj_log_debug)        | `LOG_DEBUG`   | [glogger.c:574](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L574)         |
 
 Plus two parallel non-syslog channels declared in glogger.c:
 
@@ -83,7 +83,7 @@ is **noisy** — only turn it on when needed, and turn it off when done.
 
 ### 3.1 Global trace levels
 
-Defined in `s_global_trace_level[16]` at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c):
+Defined in `s_global_trace_level[16]` at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c):
 
 | Bit | Name              | Emits when                                                          |
 |-----|-------------------|---------------------------------------------------------------------|
@@ -108,7 +108,7 @@ These are global bits — when on, **every** gobj in the yuno is affected.
 ### 3.2 Per-gclass trace levels
 
 Each gclass declares its own up-to-16 levels in `s_user_trace_level[16]`.
-Example: [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_tcp_s.c)
+Example: [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_tcp_s.c)
 
 ```c
 enum {
@@ -141,19 +141,19 @@ Discover what a gclass actually offers with `get-gclass-trace gclass=<X>`
 
 Same as per-gclass but scoped to a single gobj instance. Useful when you have
 ten TCP connections and only want the trace for one. API:
-[`gobj_set_gobj_trace()`](#gobj_set_gobj_trace) at [`kernel/c/gobj-c/src/gobj.c:11256`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L11256).
+[`gobj_set_gobj_trace()`](#gobj_set_gobj_trace) at [`kernel/c/gobj-c/src/gobj.c:11256`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L11256).
 
 ### 3.4 The `no_trace` parallel system
 
 For every "set trace" command there is a "set no-trace" counterpart. The
 no-trace mask is **subtracted** from the effective trace mask, so you can
 turn on a noisy level globally and silence it on specific gclasses / gobjs.
-Functions: [`gobj_set_global_no_trace()`](#gobj_set_global_no_trace) at [gobj.c:11396](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L11396),
-[`gobj_set_gclass_no_trace()`](#gobj_set_gclass_no_trace) at [gobj.c:11617](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L11617), [`gobj_set_gobj_no_trace()`](#gobj_set_gobj_no_trace) at [gobj.c:11746](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L11746).
+Functions: [`gobj_set_global_no_trace()`](#gobj_set_global_no_trace) at [gobj.c:11396](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L11396),
+[`gobj_set_gclass_no_trace()`](#gobj_set_gclass_no_trace) at [gobj.c:11617](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L11617), [`gobj_set_gobj_no_trace()`](#gobj_set_gobj_no_trace) at [gobj.c:11746](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L11746).
 
 ### 3.5 Deep trace mode
 
-[`gobj_set_deep_tracing(level)`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L11338)
+[`gobj_set_deep_tracing(level)`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L11338)
 forces all traces on regardless of masks. **Not exposed as a [`ycommand`](#util-ycommand)** — only via the C API,
 mostly used internally for emergency dumps. Avoid unless you are willing to
 deal with the volume.
@@ -163,7 +163,7 @@ deal with the volume.
 ## 4. Turning traces on and off
 
 All commands go to the yuno itself, addressed to its `__yuno__` service.
-Handlers in [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c):
+Handlers in [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c):
 
 ```bash
 # discover what a gclass offers
@@ -190,7 +190,7 @@ is in fact `command-yuno` to whatever yuno is registered as default.
 
 ### Persistence
 
-- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c#L2060))
+- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c#L2060))
   writes them to the yuno's `trace_levels` attribute, and they are
   re-applied on the next start.
 - **Gclass and gobj traces** are **live-only**. They die with the process.
@@ -205,7 +205,7 @@ a restart and quietly fill your disk. Always pair on/off in the same session.
 ### 5.1 File paths
 
 Per-yuno log file, built by [`yuneta_log_file()`](#yuneta_log_file) at
-[`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/yunetas_environment.c):
+[`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/yunetas_environment.c):
 
 ```
 /yuneta/logs/<yuno_role_plus_name>/<filename_mask>
@@ -224,15 +224,15 @@ tail -f /yuneta/logs/<yuno>/<latest>.log | grep -a "keyword"
 
 ### 5.2 Log line format
 
-Every log record is a **JSON object** built in [`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c). Fields
-added automatically by [`discover()`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L1234) at [glogger.c:1234](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L1234):
+Every log record is a **JSON object** built in [`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c). Fields
+added automatically by [`discover()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L1234) at [glogger.c:1234](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L1234):
 
 | Field             | Source                                                   |
 |-------------------|----------------------------------------------------------|
 | `timestamp`       | `current_timestamp()`                                    |
 | `priority`        | `LOG_ERR` / `LOG_WARNING` / …                            |
 | `node_uuid`       | host node identity                                       |
-| [`process`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/entry_point.c#L115)         | yuno binary name                                         |
+| [`process`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/entry_point.c#L115)         | yuno binary name                                         |
 | `hostname`        | from `gethostname`                                       |
 | `pid`             | process id                                               |
 | `gclass`          | the gclass that emitted the line                         |
@@ -255,7 +255,7 @@ grep -a '"msg":"Event NOT DEFINED in state"' …               # the canonical F
 
 The `rotatory` library rotates the file when it crosses a size threshold
 (default 8 MB, configurable via `max_megas_rotatoryfile_size`,
-[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/entry_point.c)). Old files are renamed; the active filename never moves.
+[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/entry_point.c)). Old files are renamed; the active filename never moves.
 There is no time-based rotation. There is no cron — rotation happens on the
 next write that would cross the threshold.
 
@@ -263,7 +263,7 @@ next write that would cross the threshold.
 
 In the yuno's config JSON, under `environment.daemon_log_handlers` (or
 `console_log_handlers` in non-daemon mode), parsed at
-[`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/entry_point.c):
+[`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/entry_point.c):
 
 ```json
 "environment": {
@@ -286,7 +286,7 @@ In the yuno's config JSON, under `environment.daemon_log_handlers` (or
 which severities the handler accepts. `255` = all of them; clearing bits drops
 DEBUG / INFO / AUDIT / etc.
 
-Add or remove handlers at runtime via [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c)
+Add or remove handlers at runtime via [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c)
 (`add-log-handler` / `del-log-handler` commands).
 
 ---
@@ -294,8 +294,8 @@ Add or remove handlers at runtime via [`c_yuno.c`](https://github.com/artgins/yu
 ## 6. The FSM trace (`machine`)
 
 Single most useful trace when debugging gobj behaviour. Defined in
-[`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c) (`trace_machine`). Called from the event dispatcher in
-[`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c#L7507):
+[`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c) (`trace_machine`). Called from the event dispatcher in
+[`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L7507):
 
 - Before dispatch: a `🔜` line per event entry.
 - "Event NOT DEFINED" error: a `📛` line — this is the canonical "parent FSM
@@ -396,9 +396,9 @@ inside the `kw`. Inside it is the **`ievent_gate_stack`** — a LIFO of
 hops, each entry: `{src_yuno, src_service, dst_yuno, dst_service, user, host, …}`.
 
 - Constant `IEVENT_STACK_ID = "ievent_gate_stack"` at
-  [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/msg_ievent.h).
+  [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/msg_ievent.h).
 - Pushed on outgoing request, popped + reversed on incoming response, at
-  [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/msg_ievent.c).
+  [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/msg_ievent.c).
 
 To grep the same transaction across multiple yunos' logs:
 
@@ -455,16 +455,16 @@ the local log file, plus the ievent message bodies.
 
 - C side: nothing special — inter-events flow as usual through `C_IEVENT_SRV`
   → `C_WEBSOCKET`.
-- JS side: `C_IEVENT_CLI` ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js)) parses
-  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js#L1092) and, if
+- JS side: `C_IEVENT_CLI` ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js)) parses
+  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js#L1092) and, if
   configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`.
 - The SPA installs that callback by writing the attribute:
   `gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic)`
-  ([`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/lib-yui/src/yui_dev.js)).
-- The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/lib-yui/src/yui_dev.js#L29)) appends the message into the
+  ([`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/lib-yui/src/yui_dev.js)).
+- The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/lib-yui/src/yui_dev.js#L29)) appends the message into the
   DOM container `#developer-traffic-logger`, which lives inside either:
   - the **legacy** `C_YUI_WINDOW` modal, or
-  - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/lib-yui/src/yui_dev.js#L452)).
+  - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/lib-yui/src/yui_dev.js#L452)).
 
 Both still ship — apps pick one based on the shell version.
 
@@ -486,15 +486,15 @@ using the `ycommand` knobs from §4.
 
 ### Teardown order — the recursion gotcha
 
-When the websocket closes, `ac_on_close` ([`c_ievent_cli.js:897`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js#L897)) fires
+When the websocket closes, `ac_on_close` ([`c_ievent_cli.js:897`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js#L897)) fires
 `EV_ON_CLOSE`. If `set_remote_log_functions` is still installed (it
 hijacks JS `log_error`/`log_warning` to the DOM callback), the warning
 emitted **inside** the teardown path is captured, mutates the DOM, which
 can fire more events, which log again — infinite recursion.
 
-The fix at [`c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js) is to call
+The fix at [`c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js) is to call
 `set_remote_log_functions(null)` (clears the hooks, resets to console —
-see [`helpers.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/helpers.js)) **before** anything publishes `EV_ON_CLOSE`. See
+see [`helpers.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/helpers.js)) **before** anything publishes `EV_ON_CLOSE`. See
 memory note "Remote-log unwire order" for the historical incident.
 
 ---
@@ -508,24 +508,24 @@ UDP if its config lists a `udp` handler.
 ### How it listens
 
 - UDP server (`c_gss_udp_s`) on `udp://127.0.0.1:1992` by default
-  ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c)).
+  ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c)).
 - Wire format: `<priority-digit><8hex-seq><json-payload><8hex-crc>`,
-  fragmented per `udp_frame_size` (default 1500, [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/log_udp_handler.c)).
+  fragmented per `udp_frame_size` (default 1500, [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/log_udp_handler.c)).
 
 ### What it does on receipt
 
-In [`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c):
+In [`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c):
 
-- [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c#L1202) parses each packet.
+- [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c#L1202) parses each packet.
 - Writes the JSON record to its own rotatory file `W.log` via
-  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](#_log_bf).
+  [`write2logs()`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c#L848) / [`_log_bf()`](#_log_bf).
   Default size cap **600 MB** (`max_rotatoryfile_size`, in megabytes).
 - Updates in-memory counters per severity / `msgset` / `msg`
-  ([`do_log_stats()`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c#L858), [c_logcenter.c:858](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c#L858)).
+  ([`do_log_stats()`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c#L858), [c_logcenter.c:858](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c#L858)).
 
 ### What it exposes
 
-Commands ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c)):
+Commands ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c)):
 
 | Command           | Effect                                                                  |
 |-------------------|-------------------------------------------------------------------------|
@@ -554,7 +554,7 @@ ycommand -c 'command-yuno yuno_role=logcenter command=search text="EV_ON_CLOSE" 
 ycommand -c 'command-yuno yuno_role=logcenter command=reset-counters'
 ```
 
-Other commands worth knowing about ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c)):
+Other commands worth knowing about ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c)):
 `send-summary` / `enable-send-summary` / `disable-send-summary` (email
 rollup), `restart-yuneta-on-queue-alarm` (auto-recovery hook when the
 UDP queue floods).
@@ -602,7 +602,7 @@ across yuno boundaries. Plan your traces accordingly.
 
 ### 10.4 `LOG_AUDIT` lines have no standard header
 
-[`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c) — audit lines are written raw. Any line-filter that expects
+[`glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c) — audit lines are written raw. Any line-filter that expects
 the timestamp prefix will miss them. Read the audit file directly when
 chasing operator actions.
 
@@ -622,7 +622,7 @@ narrowly.
 ### 10.7 SPA dev-panel teardown order
 
 `set_remote_log_functions(null)` MUST come before
-[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.5.6/modules/c/mqtt/src/c_prot_mqtt.c#L1578) / `destroy_shell`. See §8 and memory
+[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.5.7/modules/c/mqtt/src/c_prot_mqtt.c#L1578) / `destroy_shell`. See §8 and memory
 `feedback_remote_log_unwire_order`.
 
 ### 10.8 Deep tracing has no `ycommand` switch
@@ -713,27 +713,27 @@ works on any host without enabling anything.
 
 | What                                          | Where                                                                  |
 |-----------------------------------------------|------------------------------------------------------------------------|
-| Severity log API                              | [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c)                                |
-| `LOG_AUDIT` / `LOG_MONITOR`                   | [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c)                                  |
-| Trace emit API (`gobj_trace_msg/json/dump`)   | [`kernel/c/gobj-c/src/glogger.c:778`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L778)                          |
-| Global trace level table                      | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c)                                   |
-| Per-gclass trace declaration (example)        | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_tcp_s.c)                             |
-| Trace mask lookup                             | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c) ([`gobj_trace_level`](#gobj_trace_level))          |
-| Per-gobj trace API                            | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c) (`gobj_set_gobj_trace`)             |
-| `no_trace` API                                | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c)                       |
-| Deep trace                                    | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c)                               |
-| `trace_machine` print                         | [`kernel/c/gobj-c/src/glogger.c:1161`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L1161)                                   |
-| FSM dispatch trace sites                      | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/gobj.c)                           |
-| Trace persistence (`trace_levels` attr)       | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c)                           |
-| Trace commands exposed by every yuno          | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/c_yuno.c)                             |
-| `daemon_log_handlers` parser                  | [`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/entry_point.c)                        |
-| Log file path builder                         | [`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/yunetas_environment.c)                    |
-| Log line `discover()` (metadata fields)       | [`kernel/c/gobj-c/src/glogger.c:1234`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/glogger.c#L1234)                              |
-| UDP wire format                               | [`kernel/c/gobj-c/src/log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/gobj-c/src/log_udp_handler.c)                        |
-| `ievent_gate_stack` constant                  | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/msg_ievent.h)                                  |
-| `ievent_gate_stack` push/pop                  | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/c/root-linux/src/msg_ievent.c)                             |
-| logcenter listener                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c)                     |
-| logcenter commands                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.6/yunos/c/logcenter/src/c_logcenter.c)                           |
-| SPA dev-panel renderer                        | [`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/lib-yui/src/yui_dev.js)                         |
-| SPA inter-event callback hook                 | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js)                     |
-| SPA teardown order                            | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.6/kernel/js/gobj-js/src/c_ievent_cli.js)                       |
+| Severity log API                              | [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c)                                |
+| `LOG_AUDIT` / `LOG_MONITOR`                   | [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c)                                  |
+| Trace emit API (`gobj_trace_msg/json/dump`)   | [`kernel/c/gobj-c/src/glogger.c:778`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L778)                          |
+| Global trace level table                      | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c)                                   |
+| Per-gclass trace declaration (example)        | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_tcp_s.c)                             |
+| Trace mask lookup                             | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c) ([`gobj_trace_level`](#gobj_trace_level))          |
+| Per-gobj trace API                            | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c) (`gobj_set_gobj_trace`)             |
+| `no_trace` API                                | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c)                       |
+| Deep trace                                    | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c)                               |
+| `trace_machine` print                         | [`kernel/c/gobj-c/src/glogger.c:1161`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L1161)                                   |
+| FSM dispatch trace sites                      | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c)                           |
+| Trace persistence (`trace_levels` attr)       | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c)                           |
+| Trace commands exposed by every yuno          | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_yuno.c)                             |
+| `daemon_log_handlers` parser                  | [`kernel/c/root-linux/src/entry_point.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/entry_point.c)                        |
+| Log file path builder                         | [`kernel/c/root-linux/src/yunetas_environment.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/yunetas_environment.c)                    |
+| Log line `discover()` (metadata fields)       | [`kernel/c/gobj-c/src/glogger.c:1234`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/glogger.c#L1234)                              |
+| UDP wire format                               | [`kernel/c/gobj-c/src/log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/log_udp_handler.c)                        |
+| `ievent_gate_stack` constant                  | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/msg_ievent.h)                                  |
+| `ievent_gate_stack` push/pop                  | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/msg_ievent.c)                             |
+| logcenter listener                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c)                     |
+| logcenter commands                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.5.7/yunos/c/logcenter/src/c_logcenter.c)                           |
+| SPA dev-panel renderer                        | [`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/lib-yui/src/yui_dev.js)                         |
+| SPA inter-event callback hook                 | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js)                     |
+| SPA teardown order                            | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/js/gobj-js/src/c_ievent_cli.js)                       |
