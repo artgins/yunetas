@@ -872,7 +872,22 @@ PKGS=(
 )
 
 echo "[i] Installing dev packages…"
-dnf -y install "${PKGS[@]}" || echo "[!] some packages failed (continuing)"
+# Resilient: --skip-unavailable installs every package that exists in the
+# enabled repos and skips only the unfindable ones. dnf's DEFAULT is an
+# all-or-nothing transaction: one missing package (e.g. a CRB-only -devel
+# when CRB never enabled) aborted the WHOLE set, leaving nothing installed —
+# and the old `|| echo continuing` hid it behind a green "[✓] complete".
+dnf -y install --skip-unavailable "${PKGS[@]}" \
+    || echo "[!] dnf returned an error; see the per-package report below"
+
+# Honest report: re-check each requested package so a silently-skipped one is
+# visible instead of masked.
+MISSING=()
+for pkg in "${PKGS[@]}"; do
+    if ! rpm -q "$pkg" >/dev/null 2>&1; then
+        MISSING+=("$pkg")
+    fi
+done
 
 if command -v update-ca-trust >/dev/null 2>&1; then
     update-ca-trust || true
@@ -887,7 +902,16 @@ else
     echo "[!] pipx not installed; kconfiglib and yunetas not installed." >&2
 fi
 
-echo "[✓] Dev environment setup attempt complete."
+if [ "${#MISSING[@]}" -eq 0 ]; then
+    echo "[✓] Dev environment ready — all ${#PKGS[@]} packages installed."
+else
+    echo "[!] ${#MISSING[@]} package(s) NOT installed: ${MISSING[*]}" >&2
+    echo "[!] A missing -devel/-static usually means EPEL or CRB is not" >&2
+    echo "[!] enabled. Enable them and re-run this script:" >&2
+    echo "[!]     sudo dnf install -y epel-release" >&2
+    echo "[!]     sudo crb enable   # or: sudo dnf config-manager --set-enabled crb" >&2
+    echo "[!] Then: sudo $0" >&2
+fi
 EOF
 chmod 0755 "${STAGE}/yuneta/bin/install-yuneta-dev-deps.sh"
 

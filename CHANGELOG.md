@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(rpm): dev-deps helper no longer installs nothing when one package is
+      unavailable.** `install-yuneta-dev-deps.sh` ran `dnf -y install "${PKGS[@]}"`
+      as a single atomic transaction, so one unfindable package (typically a
+      CRB-only `-devel`/`-static` when CRB was never enabled) aborted the WHOLE
+      set — leaving `clang`, `wget`, `gcc`, `cmake` … none installed — and the
+      `|| echo continuing` + final `[✓] complete` hid it. It now uses
+      `dnf --skip-unavailable` (installs every available package, skips only the
+      missing) and reports per-package with `rpm -q` which ones did NOT install,
+      pointing at EPEL/CRB when a `-devel`/`-static` is absent, instead of a
+      green lie. Matches the `.deb` helper's per-package resilience. (`wget` and
+      `clang` are dev-deps installed by this helper, not by the base `.rpm`.)
+
 ## 7.5.6
     - **fix(rpm): honest agent start in `%post`; don't source the `set -u`-unsafe
       RHEL init functions.** Two RHEL-only packaging bugs in the 7.5.5 `.rpm`
