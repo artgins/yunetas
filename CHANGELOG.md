@@ -1,5 +1,19 @@
 # **Changelog**
 
+## 7.5.10
+    - **fix(deb): drop obsolete `libpcre3-dev` from the dev-deps helper.** PCRE1
+      (`libpcre3-dev`) was removed from current Ubuntu (26.04) — it is "referred
+      to but has no installation candidate", so the helper printed
+      `[!] Failed: libpcre3-dev`. Yuneta does not need it (it builds its own
+      static PCRE2, and the bundled nginx is static), so it is removed;
+      `libpcre2-dev` stays. The `apt-cache show` guard didn't catch it (the
+      transitional record still resolves), so the helper now just installs and
+      reports the real failures.
+    - **fix(deb): honest dev-deps end summary.** The Debian helper ended with a
+      vague `Dev environment setup attempt complete` and only printed failures
+      inline; it now collects them and reports `all N packages installed` or the
+      exact list that did NOT install, matching the `.rpm` helper.
+
 ## 7.5.9
     - **fix(deb): never auto-reboot in `postinst`.** The Debian `postinst` forced
       a reboot at the end of install (auto-yes when non-interactive), which under

@@ -22,4 +22,4 @@ Both positionals **and** both keyword options are mandatory.
 ## See also
 
 - [`yclone-gclass`](yclone-gclass.md) — clone a single GClass.
-- [`utils/c/yclone-project/README.md`](https://github.com/artgins/yunetas/blob/7.5.9/utils/c/yclone-project/README.md).
+- [`utils/c/yclone-project/README.md`](https://github.com/artgins/yunetas/blob/7.5.10/utils/c/yclone-project/README.md).

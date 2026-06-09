@@ -597,7 +597,7 @@ Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers
 Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate
-Suggests: git, mercurial, make, cmake, ninja-build, gcc, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
+Suggests: git, mercurial, make, cmake, ninja-build, gcc, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, SysV service, certbot hooks and helpers.
 EOF
@@ -973,7 +973,7 @@ PKGS=(
     python3-dev python3-pip python3-setuptools
     python3-tk python3-wheel python3-venv
     libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev
-    libpcre3-dev zlib1g-dev libssl-dev
+    zlib1g-dev libssl-dev
     perl dos2unix tree curl
     postgresql-server-dev-all libpq-dev
     kconfig-frontends telnet pipx
@@ -984,12 +984,12 @@ PKGS=(
 PKGS+=(build-essential pkg-config ca-certificates linux-libc-dev)
 
 echo "[i] Installing dev packages (no recommends)…"
+FAILED=()
 for p in "${PKGS[@]}"; do
-    if apt-cache show "$p" >/dev/null 2>&1; then
-        echo " -> $p"
-        apt-get install -y --no-install-recommends "$p" || echo "[!] Failed: $p (continuing)"
-    else
-        echo "[!] Skipping not-found package: $p"
+    echo " -> $p"
+    if ! apt-get install -y --no-install-recommends "$p"; then
+        echo "[!] failed: $p (continuing)"
+        FAILED+=("$p")
     fi
 done
 
@@ -1008,7 +1008,11 @@ else
     echo "[!] pipx not installed; kconfiglib and yunetas not installed." >&2
 fi
 
-echo "[✓] Dev environment setup attempt complete."
+if [ "${#FAILED[@]}" -eq 0 ]; then
+    echo "[✓] Dev environment ready — all ${#PKGS[@]} packages installed."
+else
+    echo "[!] ${#FAILED[@]} package(s) NOT installed: ${FAILED[*]}" >&2
+fi
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/install-yuneta-dev-deps.sh"
 
