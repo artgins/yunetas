@@ -13,7 +13,7 @@
     },
 
     "environment": {
-        "node_owner": "owner"
+        "node_owner": "none"
     },
 
     "__json_config_variables__": {

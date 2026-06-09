@@ -1,5 +1,21 @@
 # **Changelog**
 
+## 7.5.12
+    - **fix(packages): default agent `node_owner` to `"none"` — no controlcenter
+      on a fresh node.** The bundled `yuneta_agent.json.sample` /
+      `yuneta_agent22.json.sample` shipped `"node_owner": "owner"`, a placeholder.
+      The agent starts the controlcenter client whenever `node_owner != "none"`
+      (`c_agent.c` `mt_start`), so a freshly installed standalone node kept
+      dialing `tcps://<arch>.owner.yunetacontrol.com:1994` and logging
+      `getaddrinfo() FAILED` every ~17 s. The default is now `"none"`, the
+      design's built-in off-switch, so a fresh box is quiet. Operators **with** a
+      controlcenter still opt in with `YUNETA_OWNER=mycompany` at install time
+      (the postinst sed now swaps `"none"` → their owner). Note: blanking the
+      config to `{}` does **not** silence it — the framework default for
+      `node_owner` is `""`, which is also `!= "none"`; `"none"` must be explicit.
+      Affects fresh installs only (the `.json` files are conffiles, never
+      overwritten on upgrade).
+
 ## 7.5.11
     - **security(ext-libs): bump vendored OpenSSL 3.6.2 → 3.6.3.** Security patch
       release (`configure-libs.sh` v1.16, `TAG_OPENSSL=openssl-3.6.3`). Fixes one

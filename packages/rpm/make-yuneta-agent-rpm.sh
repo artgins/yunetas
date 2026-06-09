@@ -1105,6 +1105,10 @@ done
 set +f; IFS="$OLDIFS"
 
 # Ensure agent configs exist without overwriting existing ones.
+# Default node_owner is "none" (standalone node, no controlcenter); the
+# agent only dials the controlcenter when node_owner != "none", so a fresh
+# box stays quiet instead of looping on getaddrinfo() for an unresolvable
+# URL. Operators WITH a controlcenter set YUNETA_OWNER=mycompany to swap it.
 if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
     if [ -e /yuneta/agent/yuneta_agent.json.sample ]; then
         install -o yuneta -g yuneta -m 0644 -T \
@@ -1115,7 +1119,7 @@ if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
         chmod 0644 /yuneta/agent/yuneta_agent.json
     fi
     if [ -n "${YUNETA_OWNER:-}" ]; then
-        sed -i "s|\"node_owner\": \"owner\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
+        sed -i "s|\"node_owner\": \"none\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
             /yuneta/agent/yuneta_agent.json
         info "node_owner set to '${YUNETA_OWNER}' in yuneta_agent.json"
     fi
@@ -1130,7 +1134,7 @@ if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
         chmod 0644 /yuneta/agent/yuneta_agent22.json
     fi
     if [ -n "${YUNETA_OWNER:-}" ]; then
-        sed -i "s|\"node_owner\": \"owner\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
+        sed -i "s|\"node_owner\": \"none\"|\"node_owner\": \"${YUNETA_OWNER}\"|" \
             /yuneta/agent/yuneta_agent22.json
     fi
 fi
