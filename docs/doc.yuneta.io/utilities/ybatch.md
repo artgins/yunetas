@@ -83,4 +83,4 @@ Authentication uses the same OAuth2 / OIDC flags as `ycommand`
 - [`ycommand`](ycommand.md) — interactive / single-command control plane; it can
   also run inline batches with `;` chaining, `!source`, or stdin piping.
 - Repository README (for code navigators):
-  [`utils/c/ybatch/README.md`](https://github.com/artgins/yunetas/blob/7.5.8/utils/c/ybatch/README.md).
+  [`utils/c/ybatch/README.md`](https://github.com/artgins/yunetas/blob/7.5.9/utils/c/ybatch/README.md).

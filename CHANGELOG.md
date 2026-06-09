@@ -1,5 +1,18 @@
 # **Changelog**
 
+## 7.5.9
+    - **fix(deb): never auto-reboot in `postinst`.** The Debian `postinst` forced
+      a reboot at the end of install (auto-yes when non-interactive), which under
+      `curl | sh` rebooted the box mid-flight — killing the SSH session before
+      `install.sh` could install the developer toolchain. The kernel tuning is
+      already applied live (`sysctl --system`), so a reboot is not required: it
+      now only leaves the `reboot-required` hint and recommends a reboot, never
+      forcing one. Matches the `.rpm` `%post` policy.
+    - **feat(install): `install.sh` installs certbot on both distros.** After the
+      package, the installer now runs the bundled certbot helper (snap on Debian,
+      EPEL `dnf` on RHEL) so TLS for the bundled web server is set up in the same
+      run, regardless of `--runtime-only` (it is a runtime/ops tool).
+
 ## 7.5.8
     - **fix(rpm): dev-deps helper used a dnf5-only flag that RHEL 9 rejects.**
       The 7.5.7 helper ran `dnf install --skip-unavailable`, but

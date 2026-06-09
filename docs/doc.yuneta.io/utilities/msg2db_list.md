@@ -24,4 +24,4 @@ All inputs are flags — `msg2db_list` takes **no positional arguments**.
 ## See also
 
 - [`list_queue_msgs2`](list_queue_msgs2.md) — msg2db **queue** listing.
-- [`utils/c/msg2db_list/README.md`](https://github.com/artgins/yunetas/blob/7.5.8/utils/c/msg2db_list/README.md).
+- [`utils/c/msg2db_list/README.md`](https://github.com/artgins/yunetas/blob/7.5.9/utils/c/msg2db_list/README.md).

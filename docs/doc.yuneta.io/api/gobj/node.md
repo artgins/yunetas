@@ -4,11 +4,11 @@ TreeDB node helpers accessible directly from a gobj — create, read, update, de
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_activate_snap)=
-## [`gobj_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10636)
+## [`gobj_activate_snap()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10636)
 
 Activates a previously saved snapshot identified by `tag` in the given `hgobj` instance. This operation typically involves stopping and restarting the associated `hgobj` to restore the saved state.
 
@@ -41,7 +41,7 @@ Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is NULL, destroy
 ---
 
 (gobj_create_node)=
-## [`gobj_create_node()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10090)
+## [`gobj_create_node()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10090)
 
 Creates a new node in the specified topic. The function [`gobj_create_node()`](#gobj_create_node) allows inserting a new record into a hierarchical data structure managed by the gobj system.
 
@@ -76,7 +76,7 @@ The function [`gobj_create_node()`](#gobj_create_node) requires that the gobj in
 ---
 
 (gobj_delete_node)=
-## [`gobj_delete_node()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10166)
+## [`gobj_delete_node()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10166)
 
 Deletes a node from a tree database in the given `hgobj` instance. The node is identified by its topic name and key attributes.
 
@@ -111,7 +111,7 @@ Returns 0 on success, or -1 if an error occurs (e.g., if the `hgobj` is NULL, de
 ---
 
 (gobj_get_node)=
-## [`gobj_get_node()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10300)
+## [`gobj_get_node()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10300)
 
 Retrieves a node from a tree database in the given `hgobj` instance. The node is identified by its topic name and a set of key-value filters.
 
@@ -146,7 +146,7 @@ This function requires the `mt_get_node` method to be implemented in the `hgobj`
 ---
 
 (gobj_link_nodes)=
-## [`gobj_link_nodes()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10204)
+## [`gobj_link_nodes()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10204)
 
 The `gobj_link_nodes()` function establishes a relationship between two nodes in a hierarchical data structure by linking a child node to a parent node using a specified hook.
 
@@ -185,7 +185,7 @@ This function relies on the `mt_link_nodes` method of the GObj's class to perfor
 ---
 
 (gobj_list_instances)=
-## [`gobj_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10377)
+## [`gobj_list_instances()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10377)
 
 Retrieves a list of instances for a given topic in a tree database. The function allows filtering and additional options to refine the query.
 
@@ -222,7 +222,7 @@ If the GObj is destroyed or the method is not implemented, the function logs an 
 ---
 
 (gobj_list_nodes)=
-## [`gobj_list_nodes()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10338)
+## [`gobj_list_nodes()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10338)
 
 Retrieves a list of nodes from a specified topic in the given `hgobj`. The function allows filtering and additional options to refine the query.
 
@@ -257,7 +257,7 @@ If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If 
 ---
 
 (gobj_list_snaps)=
-## [`gobj_list_snaps()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10671)
+## [`gobj_list_snaps()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10671)
 
 Retrieves a list of snapshots associated with the given `hgobj`.
 
@@ -288,7 +288,7 @@ If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned.
 ---
 
 (gobj_node_children)=
-## [`gobj_node_children()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10461)
+## [`gobj_node_children()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10461)
 
 Returns a list of child nodes for a given topic in a hierarchical tree structure. The function retrieves child nodes based on the specified hook and applies optional filters and options.
 
@@ -327,7 +327,7 @@ If `gobj_` is NULL or destroyed, an error is logged, and NULL is returned. If th
 ---
 
 (gobj_node_parents)=
-## [`gobj_node_parents()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10421)
+## [`gobj_node_parents()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10421)
 
 `gobj_node_parents()` returns a list of parent references for a given node in a tree database, optionally filtered by a specific link.
 
@@ -364,7 +364,7 @@ A JSON array containing the parent references. The caller must decrement the ref
 ---
 
 (gobj_node_tree)=
-## [`gobj_node_tree()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10557)
+## [`gobj_node_tree()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10557)
 
 Returns the full hierarchical tree of a node in a given topic. The tree is duplicated and can include metadata if specified in `jn_options`.
 
@@ -399,7 +399,7 @@ A JSON object representing the full hierarchical tree of the specified node. The
 ---
 
 (gobj_shoot_snap)=
-## [`gobj_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10601)
+## [`gobj_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10601)
 
 The `gobj_shoot_snap()` function creates a snapshot of the current state of a GObj, identified by a given tag.
 
@@ -432,7 +432,7 @@ If the GObj does not support snapshots, an error is logged and the function retu
 ---
 
 (gobj_topic_desc)=
-## [`gobj_topic_desc()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9955)
+## [`gobj_topic_desc()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L9955)
 
 Retrieves the description of a topic in the given `hgobj`. The function returns a JSON object containing metadata about the specified topic.
 
@@ -461,7 +461,7 @@ This function checks if the `hgobj` is valid before proceeding. If the method `m
 ---
 
 (gobj_topic_hooks)=
-## [`gobj_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10022)
+## [`gobj_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10022)
 
 Retrieves the hooks of a topic in a TreeDB. The function `gobj_topic_hooks()` queries the specified topic within a TreeDB and returns its associated hooks.
 
@@ -496,7 +496,7 @@ Returns a JSON object containing the hooks of the specified topic. If the functi
 ---
 
 (gobj_topic_jtree)=
-## [`gobj_topic_jtree()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10505)
+## [`gobj_topic_jtree()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10505)
 
 `gobj_topic_jtree()` returns a hierarchical tree representation of a topic's self-linked structure, optionally filtering and renaming hooks.
 
@@ -537,7 +537,7 @@ Returns a JSON object representing the hierarchical tree of the specified topic.
 ---
 
 (gobj_topic_links)=
-## [`gobj_topic_links()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9986)
+## [`gobj_topic_links()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L9986)
 
 `gobj_topic_links()` retrieves the links of a specified topic within a TreeDB instance.
 
@@ -572,7 +572,7 @@ A JSON object containing the topic links, or `NULL` if an error occurs.
 ---
 
 (gobj_topic_size)=
-## [`gobj_topic_size()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10058)
+## [`gobj_topic_size()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10058)
 
 `gobj_topic_size()` returns the size of a specified topic in a GObj.
 
@@ -603,7 +603,7 @@ Returns the size of the specified topic.
 ---
 
 (gobj_treedb_topics)=
-## [`gobj_treedb_topics()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9920)
+## [`gobj_treedb_topics()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L9920)
 
 `gobj_treedb_topics()` retrieves a list of topics from a TreeDB instance, returning either a list of topic names or a list of topic descriptions based on the provided options.
 
@@ -636,7 +636,7 @@ A JSON array containing the list of topics. If `options` specifies 'dict', the a
 ---
 
 (gobj_treedbs)=
-## [`gobj_treedbs()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9886)
+## [`gobj_treedbs()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L9886)
 
 Retrieves a list of TreeDB names available in the given `hgobj`.
 
@@ -667,7 +667,7 @@ If the `gobj` does not implement `mt_treedbs`, an error is logged and `NULL` is 
 ---
 
 (gobj_unlink_nodes)=
-## [`gobj_unlink_nodes()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10252)
+## [`gobj_unlink_nodes()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10252)
 
 The `gobj_unlink_nodes()` function removes the relationship between a parent and child node in a hierarchical data structure managed by a `hgobj`.
 
@@ -706,7 +706,7 @@ Returns `0` on success, or `-1` if an error occurs (e.g., if `gobj` is `NULL` or
 ---
 
 (gobj_update_node)=
-## [`gobj_update_node()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L10128)
+## [`gobj_update_node()`](https://github.com/artgins/yunetas/blob/7.5.9/kernel/c/gobj-c/src/gobj.c#L10128)
 
 Updates an existing node in the specified topic. If the node does not exist, it can be created based on the provided options. The function allows for automatic linking and volatile node creation.
 

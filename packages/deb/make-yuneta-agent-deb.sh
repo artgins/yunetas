@@ -1321,47 +1321,20 @@ printf "    sudo /yuneta/bin/install-certbot-snap.sh\n\n" >&2
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh"
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 
-# --- OPT-IN-REBOOT: inserted by build script ---
-# Offer to reboot after installation. Default: YES (safer non-blocking schedule).
-DO_REBOOT=1
-
-# Interactive prompt only if on a TTY and not noninteractive
-if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
-    echo
-    echo "Yuneta Agent installed."
-    printf "Reboot now to finalize installation? [Y/n]: "
-    read -r ans || ans="y"
-    case "$ans" in
-        [Nn]*) DO_REBOOT=0 ;;
-        *)      DO_REBOOT=1 ;;
-    esac
-else
-    if [ "$DO_REBOOT" -eq 1 ]; then
-        echo "Auto-reboot is enabled by default."
-    else
-        echo "Reboot disabled by environment override."
-    fi
-fi
-
-# Create reboot-required flag (tmpfs; disappears after reboot).
+# --- Kernel tuning applied live; reboot recommended, NEVER forced ---
+# The sysctl settings (core dumps, fd limits) were already applied above with
+# `sysctl --system`, so a reboot is NOT required to run. Forcing one here would
+# kill an unattended `curl | sh` run mid-flight — exactly what happened when the
+# auto-reboot fired before the developer toolchain could install. So we only
+# leave the standard reboot-required hint and recommend it; we never reboot.
+# (The .rpm %post follows the same no-auto-reboot policy.)
 mkdir -p /run || true
-printf "reboot requested by yuneta-agent installer\n" >/run/reboot-required || true
-
-if [ "$DO_REBOOT" -eq 1 ]; then
-    if command -v shutdown >/dev/null 2>&1; then
-        echo "Rebooting now..."
-        shutdown -r now
-    elif command -v systemctl >/dev/null 2>&1; then
-        echo "Requesting non-blocking reboot..."
-        systemctl --no-block reboot
-    else
-        echo "Reboot requested; falling back to background reboot after 5s."
-        (sleep 5; /sbin/reboot || /sbin/shutdown -r now) &
-    fi
-else
-    echo "No reboot performed."
-fi
-# --- /OPT-IN-REBOOT ---
+printf "reboot recommended by yuneta-agent installer (verify boot-time startup)\n" \
+    >/run/reboot-required 2>/dev/null || true
+echo "Yuneta Agent installed. Kernel tuning applied live (no reboot needed)."
+echo "A reboot is recommended (not required) to verify the agent starts at boot:"
+echo "    sudo reboot"
+# --- /no forced reboot ---
 
 exit 0
 

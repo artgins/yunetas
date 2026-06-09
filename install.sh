@@ -4,9 +4,10 @@
 #
 # Detects the distro (Debian/Ubuntu -> apt, RHEL/Rocky/Alma/Fedora -> dnf),
 # pulls the matching package (.deb / .rpm) from a GitHub Release, installs it,
-# and then installs the full developer toolchain (git, mercurial, clang, gcc,
-# cmake, ninja, wget, pipx, ...) so the box can build yunos right away. No
-# second script for the user to remember — it all happens in this one run.
+# installs certbot (TLS for the bundled web server), and then installs the full
+# developer toolchain (git, mercurial, clang, gcc, cmake, ninja, wget, pipx, ...)
+# so the box can build yunos right away. No second script for the user to
+# remember — it all happens in this one run.
 #
 # On RHEL it first enables EPEL + CRB, because mercurial / ninja-build / pipx
 # and the -devel/-static packages live there, and dnf cannot pull a package
@@ -198,6 +199,25 @@ else
     dnf -y install "$PKG"
 fi
 echo "[✓] Yuneta runtime installed."
+
+# ----- Certbot (TLS for the bundled web server) -----------------------------
+# Runtime/ops tool — installed on BOTH distros, regardless of --runtime-only,
+# via the bundled distro-correct helper (snap on Debian, EPEL dnf on RHEL).
+if [ "$FAMILY" = "debian" ]; then
+    CERTBOT_HELPER="/yuneta/bin/install-certbot-snap.sh"
+else
+    CERTBOT_HELPER="/yuneta/bin/install-certbot.sh"
+fi
+echo "[i] Installing certbot..."
+if [ -x "$CERTBOT_HELPER" ]; then
+    if "$CERTBOT_HELPER"; then
+        echo "[✓] certbot installed."
+    else
+        echo "[!] certbot install reported issues (see above)." >&2
+    fi
+else
+    echo "[!] $CERTBOT_HELPER not found; skipping certbot." >&2
+fi
 
 # ----- Developer toolchain (default on; --runtime-only to skip) -------------
 # Delegates to the bundled, distro-correct, resilient dev-deps helper so the
