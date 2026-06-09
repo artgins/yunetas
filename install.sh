@@ -223,25 +223,10 @@ fi
 # Delegates to the bundled, distro-correct, resilient dev-deps helper so the
 # package list has a single source of truth. This keeps everything in one run.
 want_dev() {
+    # No prompts, no stops: install the toolchain unless --runtime-only.
     if [ "$RUNTIME_ONLY" = "1" ]; then
         return 1
     fi
-    # Prompt only when a real terminal is reachable (works under curl|sh too,
-    # where stdin is the pipe but /dev/tty is the controlling terminal).
-    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
-        printf "Install the developer toolchain (git, mercurial, clang, gcc, cmake, ...)? [Y/n] " > /dev/tty
-        ans=""
-        read ans < /dev/tty || ans=""
-        case "$ans" in
-            [nN]*)
-                return 1
-                ;;
-            *)
-                return 0
-                ;;
-        esac
-    fi
-    # No TTY (piped/CI): default to installing everything.
     return 0
 }
 

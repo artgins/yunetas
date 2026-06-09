@@ -1,5 +1,12 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(install): no prompt — `install.sh` runs straight through.** The
+      installer no longer asks `Install the developer toolchain? [Y/n]` mid-run;
+      it installs everything in one pass without stops. Use `--runtime-only` to
+      skip the toolchain on a pure deployment box. (Served from `main`, so it
+      ships on push.)
+
 ## 7.5.10
     - **fix(deb): drop obsolete `libpcre3-dev` from the dev-deps helper.** PCRE1
       (`libpcre3-dev`) was removed from current Ubuntu (26.04) — it is "referred

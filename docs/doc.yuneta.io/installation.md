@@ -43,9 +43,9 @@ The script does everything in one run, no second step to remember:
   [GitHub Release](https://github.com/artgins/yunetas/releases) and installs it
   so dependencies resolve cleanly;
 - then installs the **full developer toolchain** (git, mercurial, clang, gcc,
-  cmake, ninja, wget, pipx, …) so the box can build yunos right away. It asks
-  first if a terminal is attached; under `curl | sh` (no prompt) it installs it
-  by default.
+  cmake, ninja, wget, pipx, …) so the box can build yunos right away. No
+  prompts, no stops — it runs straight through; use `--runtime-only` to skip the
+  toolchain.
 
 Pure deployment box (runtime only, skip the toolchain):
 
