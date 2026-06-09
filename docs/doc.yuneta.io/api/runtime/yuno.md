@@ -30,7 +30,7 @@ int register_c_yuno(void);
 ---
 
 (yuno_event_loop)=
-## [`yuno_event_loop()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5605)
+## [`yuno_event_loop()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5605)
 
 Returns the yuno's event loop handle. The return type is `void *` to
 avoid exposing the `yev_loop.h` header to callers.
@@ -52,7 +52,7 @@ Pointer to the `yev_loop` instance (cast to `void *`).
 ---
 
 (yuno_event_detroy)=
-## [`yuno_event_detroy()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5613)
+## [`yuno_event_detroy()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5613)
 
 Destroys and frees the yuno event loop.
 
@@ -73,7 +73,7 @@ This function does not return a value.
 ---
 
 (set_yuno_must_die)=
-## [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5624)
+## [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5624)
 
 Orders the yuno to exit gracefully. Logs an exit message, sets the exit
 code to `0`, flushes logs, and calls
@@ -96,7 +96,7 @@ This function does not return a value.
 ---
 
 (is_ip_allowed)=
-## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5643)
+## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5643)
 
 Checks whether an IP address is in the allowed-IPs list.
 If the string contains a port (e.g. `"192.168.1.1:8080"`), the port part
@@ -119,7 +119,7 @@ BOOL is_ip_allowed(const char *peername);
 ---
 
 (add_allowed_ip)=
-## [`add_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5658)
+## [`add_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5658)
 
 Adds or updates an IP address in the allowed-IPs list and persists
 the change.
@@ -142,7 +142,7 @@ int add_allowed_ip(const char *ip, BOOL allowed);
 ---
 
 (remove_allowed_ip)=
-## [`remove_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5674)
+## [`remove_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5674)
 
 Removes an IP address from the allowed-IPs list and persists the change.
 
@@ -163,7 +163,7 @@ int remove_allowed_ip(const char *ip);
 ---
 
 (is_ip_denied)=
-## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5686)
+## [`is_ip_denied()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5686)
 
 Checks whether an IP address is in the denied-IPs list.
 Denied IPs take precedence over allowed IPs.
@@ -185,7 +185,7 @@ BOOL is_ip_denied(const char *peername);
 ---
 
 (add_denied_ip)=
-## [`add_denied_ip()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5701)
+## [`add_denied_ip()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5701)
 
 Adds or updates an IP address in the denied-IPs list and persists
 the change.
@@ -208,7 +208,7 @@ int add_denied_ip(const char *ip, BOOL denied);
 ---
 
 (remove_denied_ip)=
-## [`remove_denied_ip()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/root-linux/src/c_yuno.c#L5717)
+## [`remove_denied_ip()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/root-linux/src/c_yuno.c#L5717)
 
 Removes an IP address from the denied-IPs list and persists the change.
 

@@ -20,4 +20,4 @@ Tabs become 4 spaces and control characters become `\ooo` octal escapes.
 
 ## See also
 
-- [`utils/c/yscapec/README.md`](https://github.com/artgins/yunetas/blob/7.5.10/utils/c/yscapec/README.md).
+- [`utils/c/yscapec/README.md`](https://github.com/artgins/yunetas/blob/7.5.11/utils/c/yscapec/README.md).

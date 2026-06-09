@@ -4,11 +4,11 @@ Reference-counted, append-optimised byte buffer used as the standard payload for
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c)
 
 (gbuf2json)=
-## [`gbuf2json()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L1127)
+## [`gbuf2json()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L1127)
 
 Converts a [`gbuffer_t *`](#gbuffer_t) containing JSON data into a `json_t *` object. The function consumes the input buffer and returns a parsed JSON object.
 
@@ -37,7 +37,7 @@ The function uses `json_load_callback()` to parse the JSON data from the buffer.
 ---
 
 (gbuffer_append)=
-## [`gbuffer_append()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L292)
+## [`gbuffer_append()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L292)
 
 Appends a specified number of bytes from a given buffer to the [`gbuffer_t`](#gbuffer_t) structure, expanding its capacity if necessary.
 
@@ -68,7 +68,7 @@ If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to 
 ---
 
 (gbuffer_append_gbuf)=
-## [`gbuffer_append_gbuf()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L355)
+## [`gbuffer_append_gbuf()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L355)
 
 Appends the contents of one `gbuffer_t` to another. The data from `src` is copied into `dst`, preserving the read position of `src`.
 
@@ -97,7 +97,7 @@ The function iterates over `src` in chunks, copying data into `dst`. Ensure that
 ---
 
 (gbuffer_create)=
-## [`gbuffer_create()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L28)
+## [`gbuffer_create()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L28)
 
 `gbuffer_create()` allocates and initializes a new `gbuffer_t` structure with a specified data size and maximum memory size.
 
@@ -126,7 +126,7 @@ If memory allocation for the buffer fails, an error is logged, and `NULL` is ret
 ---
 
 (gbuffer_deserialize)=
-## [`gbuffer_deserialize()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L634)
+## [`gbuffer_deserialize()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L634)
 
 `gbuffer_deserialize()` reconstructs a `gbuffer_t` object from a JSON representation, decoding its base64-encoded data.
 
@@ -155,7 +155,7 @@ The function decodes the base64-encoded data from the JSON object and reconstruc
 ---
 
 (gbuffer_encode_base64)=
-## [`gbuffer_encode_base64()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L1057)
+## [`gbuffer_encode_base64()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L1057)
 
 Encodes the content of the given [`gbuffer_t *`](#gbuffer_t) into a Base64-encoded [`gbuffer_t *`](#gbuffer_t). The input buffer is decremented in reference count after encoding.
 
@@ -182,7 +182,7 @@ The caller is responsible for managing the reference count of the returned [`gbu
 ---
 
 (gbuffer_get)=
-## [`gbuffer_get()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L212)
+## [`gbuffer_get()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L212)
 
 `gbuffer_get()` extracts a specified number of bytes from the given `gbuffer_t` and returns a pointer to the extracted data.
 
@@ -211,7 +211,7 @@ Ensure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t
 ---
 
 (gbuffer_getline)=
-## [`gbuffer_getline()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L231)
+## [`gbuffer_getline()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L231)
 
 `gbuffer_getline()` retrieves a line from the given `gbuffer_t` up to the specified separator character, replacing it with a null terminator.
 
@@ -271,7 +271,7 @@ If the buffer does not have enough space, it attempts to reallocate memory. If r
 ---
 
 (gbuffer_remove)=
-## [`gbuffer_remove()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L139)
+## [`gbuffer_remove()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L139)
 
 The function `gbuffer_remove()` deallocates memory associated with a [`gbuffer_t *`](#gbuffer_t) instance, including its internal data buffer and label, ensuring proper cleanup.
 
@@ -296,7 +296,7 @@ This function should not be called directly. Instead, use `gbuffer_decref()` to 
 ---
 
 (gbuffer_serialize)=
-## [`gbuffer_serialize()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L594)
+## [`gbuffer_serialize()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L594)
 
 `gbuffer_serialize()` converts a [`gbuffer_t *`](#gbuffer_t) into a JSON object, encoding its data in Base64 format.
 
@@ -325,7 +325,7 @@ The function encodes the buffer's data in Base64 format to ensure safe storage a
 ---
 
 (gbuffer_set_rd_offset)=
-## [`gbuffer_set_rd_offset()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L180)
+## [`gbuffer_set_rd_offset()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L180)
 
 Sets the read offset of the given `gbuffer_t` instance to the specified position, ensuring it does not exceed the allocated data size or the current write position.
 
@@ -354,7 +354,7 @@ If `position` is greater than the allocated data size or the current write posit
 ---
 
 (gbuffer_set_wr)=
-## [`gbuffer_set_wr()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L263)
+## [`gbuffer_set_wr()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L263)
 
 Sets the write offset of the `gbuffer_t` structure, adjusting the position where new data will be written.
 
@@ -383,7 +383,7 @@ This function is useful when using [`gbuffer_t`](#gbuffer_t) as a write buffer, 
 ---
 
 (gbuffer_setlabel)=
-## [`gbuffer_setlabel()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L516)
+## [`gbuffer_setlabel()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L516)
 
 Sets the label of the given [`gbuffer_t *`](#gbuffer_t). If a label already exists, it is freed before assigning the new one.
 
@@ -509,7 +509,7 @@ Only a chunk of the [`gbuffer_t *`](#gbuffer_t) data is printed. Use [`gobj_trac
 ---
 
 (json2gbuf)=
-## [`json2gbuf()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L1109)
+## [`json2gbuf()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L1109)
 
 The function `json2gbuf()` serializes a JSON object into a `gbuffer_t` structure, appending the JSON data to the buffer.
 
@@ -540,7 +540,7 @@ The function uses `json_dump_callback()` to serialize the JSON object into the b
 ---
 
 (config_gbuffer2json)=
-## [`config_gbuffer2json()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L1166)
+## [`config_gbuffer2json()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L1166)
 
 Parses the contents of a `gbuffer_t` as a configuration string and returns the resulting JSON object. The buffer is consumed (decremented) by this function.
 
@@ -569,7 +569,7 @@ The function reads from the current read position of the buffer, passes the data
 ---
 
 (gbuf2file)=
-## [`gbuf2file()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L541)
+## [`gbuf2file()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L541)
 
 Writes the entire contents of a `gbuffer_t` to a file on disk. The buffer is consumed (decremented) after the operation, regardless of success or failure.
 
@@ -604,7 +604,7 @@ The function writes all available chunks from the buffer sequentially. The buffe
 ---
 
 (gbuffer_append_json)=
-## [`gbuffer_append_json()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L392)
+## [`gbuffer_append_json()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L392)
 
 Serializes a JSON object to a string and appends it to a `gbuffer_t`, followed by a newline character.
 
@@ -633,7 +633,7 @@ The JSON object is converted to a compact string using `json2str()`, appended to
 ---
 
 (gbuffer_base64_to_binary)=
-## [`gbuffer_base64_to_binary()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L1011)
+## [`gbuffer_base64_to_binary()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L1011)
 
 Decodes a Base64-encoded string into a new `gbuffer_t` containing the raw binary data.
 
@@ -662,7 +662,7 @@ The output buffer is sized based on the expected decoded length. The caller is r
 ---
 
 (gbuffer_binary_to_base64)=
-## [`gbuffer_binary_to_base64()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L934)
+## [`gbuffer_binary_to_base64()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L934)
 
 Encodes raw binary data into a new `gbuffer_t` containing the Base64-encoded string.
 
@@ -691,7 +691,7 @@ The output buffer is sized to hold the full Base64-encoded output. The caller is
 ---
 
 (gbuffer_file2base64)=
-## [`gbuffer_file2base64()`](https://github.com/artgins/yunetas/blob/7.5.10/kernel/c/gobj-c/src/gbuffer.c#L970)
+## [`gbuffer_file2base64()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gbuffer.c#L970)
 
 Reads a file from disk and returns its contents as a Base64-encoded string in a new `gbuffer_t`.
 

@@ -39,5 +39,5 @@ public links.
 
 ## Variant
 
-The same sources also build **`yuneta_agent44`** ([`main44.c`](https://github.com/artgins/yunetas/blob/7.5.10/yunos/c/yuno_agent22/src/main44.c)), a second flavour
+The same sources also build **`yuneta_agent44`** ([`main44.c`](https://github.com/artgins/yunetas/blob/7.5.11/yunos/c/yuno_agent22/src/main44.c)), a second flavour
 of the minimal agent.

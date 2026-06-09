@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.5.11
     - **security(ext-libs): bump vendored OpenSSL 3.6.2 → 3.6.3.** Security patch
       release (`configure-libs.sh` v1.16, `TAG_OPENSSL=openssl-3.6.3`). Fixes one
       **High** CVE — CVE-2026-45447, heap use-after-free in `PKCS7_verify()` —
