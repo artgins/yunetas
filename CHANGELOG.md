@@ -1,5 +1,23 @@
 # **Changelog**
 
+## 7.5.6
+    - **fix(rpm): honest agent start in `%post`; don't source the `set -u`-unsafe
+      RHEL init functions.** Two RHEL-only packaging bugs in the 7.5.5 `.rpm`
+      (the `.deb` was never affected). (1) The generated `/etc/init.d/yuneta_agent`
+      runs under `set -u`; on RHEL `/lib/lsb/init-functions` is absent so it fell
+      to sourcing `/etc/init.d/functions`, which references unset vars
+      (`SYSTEMCTL_SKIP_REDIRECT`…) and aborted the whole init script with
+      "unbound variable" **before the agent was ever launched** — the binary was
+      fine, the service "failed". It now defines the only two functions it uses
+      (`log_daemon_msg`/`log_end_msg`) itself and only sources Debian's
+      `set -u`-clean LSB file when present. (2) `%post` started the agent with
+      `service start || true`, hiding a failed start behind RPM's always-"Complete"
+      transaction. It now re-reads the effective `kernel.io_uring_disabled` after
+      `sysctl --system`, only starts when io_uring is usable, captures the real
+      result, and prints a loud "AGENT IS NOT RUNNING" warning with diagnosis
+      hints (`systemctl status` / `journalctl` / `getenforce` for SELinux) instead
+      of a green install over a dead agent.
+
 ## 7.5.5
     - **refactor(packaging): split Debian packaging into `packages/deb/`.**
       With the new `packages/rpm/`, the Debian scripts moved from the root of

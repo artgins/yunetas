@@ -102,7 +102,7 @@ source tree. Full inventory in
 
 > ℹ️ **Build the `.deb` yourself** instead of using the published asset:
 > see `packages/README.md` for the four arch wrapper scripts
-> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.5.5/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.5.5/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.5.5/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.5.5/packages/deb/RISCV64.sh)). Requires the
+> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.5.6/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.5.6/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.5.6/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.5.6/packages/deb/RISCV64.sh)). Requires the
 > SDK already built (next section).
 
 ---
@@ -348,7 +348,7 @@ cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
-[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.5.5/yunetas-env.sh) exports three variables and prepends `/yuneta/bin`
+[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.5.6/yunetas-env.sh) exports three variables and prepends `/yuneta/bin`
 plus `$YUNETAS_BASE/scripts` to `PATH`:
 
 | Variable          | Value                                       |
@@ -362,7 +362,7 @@ plus `$YUNETAS_BASE/scripts` to `PATH`:
 > Pick the parent dir freely; keep the sibling relationship.
 
 > ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
-> to source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.5.5/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
+> to source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.5.6/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
 > [`yshutdown`](#util-yshutdown) are not on `PATH` and deploy scripts fail with
 > "command not found".
 
@@ -422,7 +422,7 @@ this writes `.config`, which the build needs.
 ~~~~
 
 > ⚠️ **Save `.config` or the build fails.** If you switch compiler,
-> re-run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.5.5/set_compiler.sh) so the external libs are rebuilt with
+> re-run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.5.6/set_compiler.sh) so the external libs are rebuilt with
 > the matching toolchain.
 
 ### 7. Build and test

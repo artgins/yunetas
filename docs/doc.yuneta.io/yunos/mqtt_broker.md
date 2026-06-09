@@ -39,7 +39,7 @@ will/keepalive).
 ## Persistence
 
 When `mqtt_persistent_db` is true (default), the broker keeps state in a TreeDB
-(`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.5/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
+(`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.6/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
 queues:
 
 - **clients / sessions / subscriptions** — TreeDB nodes.
@@ -91,7 +91,7 @@ see [Authentication, authorisation, and TLS](../../../yunos/c/yuno_agent/YUNO_AU
 The model (model A — group-based ACL in the treedb):
 
 - The `client_groups` topic
-  ([`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.5/modules/c/mqtt/src/treedb_schema_mqtt_broker.c))
+  ([`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.5.6/modules/c/mqtt/src/treedb_schema_mqtt_broker.c))
   carries two array columns: **`publish_acl`** and **`subscribe_acl`**, each a
   list of MQTT topic-filter patterns (`+` / `#` wildcards).
 - A `clients` row fkeys to one or more `client_groups`. A client is allowed an
@@ -156,7 +156,7 @@ ycommand -c 'command-yuno id=<yuno> service=<mqtt_service> command=link-nodes \
 A group with empty `publish_acl`/`subscribe_acl` keeps allow-all for that access
 (useful for an unrestricted `g_open` group while others are constrained).
 
-Regression test: [`tests/c/c_mqtt/acl`](https://github.com/artgins/yunetas/blob/7.5.5/tests/c/c_mqtt/acl)
+Regression test: [`tests/c/c_mqtt/acl`](https://github.com/artgins/yunetas/blob/7.5.6/tests/c/c_mqtt/acl)
 (`main_acl.c` + `c_acl.c`) drives `EV_MQTT_ACL_CHECK` at an embedded broker —
 the exact path the protocol gate uses — across matching/non-matching publish and
 subscribe, `#` wildcard (incl. the parent level), the two allow-all fallbacks,
