@@ -1,6 +1,22 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(rpm): dev-deps helper used a dnf5-only flag that RHEL 9 rejects.**
+      The 7.5.7 helper ran `dnf install --skip-unavailable`, but
+      `--skip-unavailable` only exists in dnf5 (Fedora); RHEL 9 / Rocky 9 ship
+      dnf4, which errors `unrecognized arguments: --skip-unavailable` and aborts
+      the whole transaction — so the toolchain (git, clang, gcc, wget, …)
+      installed nothing again. Now uses `--setopt=strict=0`, the dnf4-native way
+      to skip unavailable packages (and valid on dnf5 too).
+    - **fix(rpm): create the `nogroup` group so the bundled nginx starts.** nginx
+      falls back to its compiled-default group `nogroup`, which exists on Debian
+      but not on RHEL; without it nginx aborted at startup
+      (`getgrnam("nogroup") failed`). `%post` now creates it (RHEL-only, before
+      the service starts).
+    - **fix(rpm): honest web-server start in the init script.** `start_web()` ran
+      `nginx || true; log_end_msg 0`, printing `OK` even when nginx failed to
+      start. It now captures the real exit code and reports it, like the agent
+      start. (Matches the no-silent-failure rule.)
     - **feat(install): `install.sh` is now a single cross-distro installer that
       sets up everything in one run.** It detects the distro (`apt` vs `dnf`),
       and on RHEL/Rocky/Alma enables **EPEL + CRB** first; pulls the matching

@@ -433,8 +433,8 @@ start_web() {
         openresty)
             if [ -x "$OPENRESTY_BIN" ]; then
                 log_daemon_msg "Starting OpenResty"
-                "$OPENRESTY_BIN" || true
-                log_end_msg 0
+                "$OPENRESTY_BIN" && rc=0 || rc=$?
+                log_end_msg "$rc"
             else
                 echo "WARN: OpenResty binary not found: $OPENRESTY_BIN" >&2
             fi
@@ -442,8 +442,8 @@ start_web() {
         nginx|*)
             if [ -x "$NGINX_BIN" ]; then
                 log_daemon_msg "Starting Nginx"
-                "$NGINX_BIN" || true
-                log_end_msg 0
+                "$NGINX_BIN" && rc=0 || rc=$?
+                log_end_msg "$rc"
             else
                 echo "WARN: Nginx binary not found: $NGINX_BIN" >&2
             fi
@@ -872,12 +872,15 @@ PKGS=(
 )
 
 echo "[i] Installing dev packages…"
-# Resilient: --skip-unavailable installs every package that exists in the
+# Resilient: --setopt=strict=0 installs every package that exists in the
 # enabled repos and skips only the unfindable ones. dnf's DEFAULT is an
 # all-or-nothing transaction: one missing package (e.g. a CRB-only -devel
-# when CRB never enabled) aborted the WHOLE set, leaving nothing installed —
+# when CRB never enabled) aborts the WHOLE set, leaving nothing installed —
 # and the old `|| echo continuing` hid it behind a green "[✓] complete".
-dnf -y install --skip-unavailable "${PKGS[@]}" \
+# NOTE: use --setopt=strict=0, NOT --skip-unavailable: the latter is dnf5
+# (Fedora) only and RHEL 9's dnf4 rejects it ("unrecognized arguments"),
+# which would itself abort the whole install.
+dnf -y --setopt=strict=0 install "${PKGS[@]}" \
     || echo "[!] dnf returned an error; see the per-package report below"
 
 # Honest report: re-check each requested package so a silently-skipped one is
@@ -1169,6 +1172,14 @@ fi
 # Ensure rsyslog (classic /var/log/messages)
 if command -v systemctl >/dev/null 2>&1; then
     systemctl enable --now rsyslog >/dev/null 2>&1 || true
+fi
+
+# The bundled nginx falls back to its compiled-default group 'nogroup', which
+# exists on Debian but NOT on RHEL — without it nginx aborts at startup with
+# `getgrnam("nogroup") failed`. Create it before the service starts (RHEL-only;
+# harmless if it already exists).
+if ! getent group nogroup >/dev/null 2>&1; then
+    groupadd nogroup >/dev/null 2>&1 || true
 fi
 
 # Install + enable the SysV service
