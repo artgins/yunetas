@@ -9,7 +9,7 @@
         },
         "controlcenter.jwt": "",
         "authz.master": true,
-        "authz.authz_yuno_role": "agent"
+        "authz.authz_service": "agent"
     },
 
     "environment": {
@@ -17,7 +17,6 @@
     },
 
     "__json_config_variables__": {
-        "__realm_id__":         "/yuneta_agent.trdb",
         "__input_url__":        "ws://127.0.0.1:1991",
         "__input_secure_url__": "wss://0.0.0.0:1993",
         "__output_url__":       "yunetacontrol.com:1994"

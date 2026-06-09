@@ -15,6 +15,17 @@
       `node_owner` is `""`, which is also `!= "none"`; `"none"` must be explicit.
       Affects fresh installs only (the `.json` files are conffiles, never
       overwritten on upgrade).
+    - **refactor(packages): minimal, sanitized agent config templates.** The two
+      `*.json.sample` templates are trimmed to the smallest valid standalone
+      baseline (the operator parameterizes per project afterwards): replaced the
+      deprecated `authz.authz_yuno_role` key with `authz.authz_service` (the
+      former is `SDF_DEPRECATED` in `c_authz.c`), and dropped the confusing
+      `__realm_id__` override (`"/yuneta_agent.trdb"`) — the agent's treedb store
+      dir is now inherited from the compiled-in `main.c` default
+      (`/yuneta/store/agent/yuneta_agent.trdb`), exactly as a real parameterized
+      node does. No `authz.jwks` / `authz.initial_load` in the template: the
+      `root` role + `yuneta` user come from `main.c` via the config merge, so a
+      fresh agent still bootstraps local `ycommand` on port 1991.
 
 ## 7.5.11
     - **security(ext-libs): bump vendored OpenSSL 3.6.2 → 3.6.3.** Security patch

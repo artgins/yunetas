@@ -9,7 +9,7 @@
         },
         "controlcenter.jwt": "",
         "authz.master": false,
-        "authz.authz_yuno_role": "agent"
+        "authz.authz_service": "agent"
     },
 
     "environment": {
@@ -17,7 +17,6 @@
     },
 
     "__json_config_variables__": {
-        "__realm_id__":   "/yuneta_agent.trdb",
         "__output_url__": "yunetacontrol.ovh:1995"
     }
 }
