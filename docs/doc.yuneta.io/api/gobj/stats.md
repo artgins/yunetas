@@ -14,11 +14,11 @@ Pick one store per metric and stick with it: mixing them in the same gobj makes 
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_stats)=
-## [`gobj_stats()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L4912)
+## [`gobj_stats()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L4912)
 
 Public entry point for collecting the runtime statistics of a gobj. Builds a webix-style JSON envelope (`{result, comment, schema, data}`) where `data` contains every metric the gobj exposes.
 
@@ -56,7 +56,7 @@ See the [Statistics Parser guide](../../guide/guide_parser_stats.md) for the ful
 ---
 
 (gobj_decr_stat)=
-## [`gobj_decr_stat()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L9623)
+## [`gobj_decr_stat()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L9623)
 
 Decrements the named entry in the gobj's free-form `jn_stats` dict by a given value and returns the new value. **Operates on `jn_stats`, not on `SDF_*STATS` attributes** — see the note at the top of this page.
 
@@ -87,7 +87,7 @@ If the key does not exist, it is initialized to zero before decrementing.
 ---
 
 (gobj_get_stat)=
-## [`gobj_get_stat()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L9639)
+## [`gobj_get_stat()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L9639)
 
 Reads the named entry from the gobj's free-form `jn_stats` dict. **Operates on `jn_stats`, not on `SDF_*STATS` attributes** — see the note at the top of this page.
 
@@ -112,7 +112,7 @@ Returns the integer value stored under `path`. If the key does not exist, return
 ---
 
 (gobj_incr_stat)=
-## [`gobj_incr_stat()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L9606)
+## [`gobj_incr_stat()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L9606)
 
 Increments the named entry in the gobj's free-form `jn_stats` dict by a given value and returns the new value. **Operates on `jn_stats`, not on `SDF_*STATS` attributes** — see the note at the top of this page.
 
@@ -143,7 +143,7 @@ If the key does not exist, it is initialized to zero before incrementing.
 ---
 
 (gobj_jn_stats)=
-## [`gobj_jn_stats()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L9650)
+## [`gobj_jn_stats()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L9650)
 
 Returns the gobj's free-form `jn_stats` dict (the same dict the helpers on this page read and write). **Does not include `SDF_*STATS` attributes** — for the full snapshot used by the agent, call [`gobj_stats()`](#gobj_stats) instead.
 
@@ -170,7 +170,7 @@ The returned JSON object is the live internal `jn_stats`. Modifying it directly 
 ---
 
 (gobj_set_stat)=
-## [`gobj_set_stat()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L9591)
+## [`gobj_set_stat()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L9591)
 
 Sets the named entry in the gobj's free-form `jn_stats` dict and returns the previous value. **Operates on `jn_stats`, not on `SDF_*STATS` attributes** — see the note at the top of this page.
 

@@ -20,7 +20,7 @@ kernel and whatever libraries those cells import.
 
 ## API coverage verifier
 
-[`scripts/verify_api_coverage.py`](https://github.com/artgins/yunetas/blob/7.5.11/scripts/verify_api_coverage.py) compares every `PUBLIC`
+[`scripts/verify_api_coverage.py`](https://github.com/artgins/yunetas/blob/7.5.12/scripts/verify_api_coverage.py) compares every `PUBLIC`
 function declared in the kernel C headers against the `(funcname)=`
 anchors present in the documentation landing pages. It reports
 per-header MISSING (exported but not documented) and EXTRA (documented

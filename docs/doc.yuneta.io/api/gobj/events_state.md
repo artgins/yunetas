@@ -4,11 +4,11 @@ Send events to a gobj, change and inspect its FSM state, and query the event typ
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_change_state)=
-## [`gobj_change_state()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7725)
+## [`gobj_change_state()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7725)
 
 Changes the current state of the given `hgobj` to the specified `state_name`. If the new state is different from the current state, it updates the state and publishes the [`EV_STATE_CHANGED`](#EV_STATE_CHANGED) event.
 
@@ -37,7 +37,7 @@ If the new state is the same as the current state, no change occurs. If the `hgo
 ---
 
 (gobj_current_state)=
-## [`gobj_current_state()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7812)
+## [`gobj_current_state()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7812)
 
 Retrieves the current state of the given `hgobj`.
 
@@ -64,7 +64,7 @@ If `hgobj` is `NULL`, an error is logged, and an empty string is returned.
 ---
 
 (gobj_event_type)=
-## [`gobj_event_type()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7894)
+## [`gobj_event_type()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7894)
 
 Retrieves the event type information for a given event in the specified gobj. If the event is not found in the gobj's event list, it checks the global event list if `include_system_events` is set to true.
 
@@ -95,7 +95,7 @@ If `include_system_events` is set to true, the function will also check the glob
 ---
 
 (gobj_event_type_by_name)=
-## [`gobj_event_type_by_name()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7946)
+## [`gobj_event_type_by_name()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7946)
 
 Retrieves the event type information for a given event name in the specified gobj.
 
@@ -124,7 +124,7 @@ This function searches for the event in the gobj's event list and the global eve
 ---
 
 (gobj_has_event)=
-## [`gobj_has_event()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7857)
+## [`gobj_has_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7857)
 
 Checks if the given `gobj` supports the specified event, optionally filtering by event flags.
 
@@ -155,7 +155,7 @@ This function does not differentiate between input and output events. Use [`gobj
 ---
 
 (gobj_has_output_event)=
-## [`gobj_has_output_event()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7873)
+## [`gobj_has_output_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7873)
 
 Checks if the given `gobj` has the specified `event` in its output event list, optionally filtered by `event_flag`.
 
@@ -186,7 +186,7 @@ This function is useful for verifying if a GObj can publish a specific event bef
 ---
 
 (gobj_has_state)=
-## [`gobj_has_state()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7843)
+## [`gobj_has_state()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7843)
 
 Checks if the given `gobj` has the specified state in its state machine.
 
@@ -215,7 +215,7 @@ This function verifies if the given state exists in the state machine of the `go
 ---
 
 (gobj_in_this_state)=
-## [`gobj_in_this_state()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7831)
+## [`gobj_in_this_state()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7831)
 
 Checks if the given `hgobj` is currently in the specified state.
 
@@ -244,7 +244,7 @@ This function is useful for verifying the current state of a `hgobj` before perf
 ---
 
 (gobj_send_event)=
-## [`gobj_send_event()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7441)
+## [`gobj_send_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7441)
 
 The `gobj_send_event` function processes an event in the given destination gobj, executing the corresponding action in its current state.
 
@@ -277,7 +277,7 @@ If the event is not found in the current state of `dst`, the function checks if 
 ---
 
 (gobj_find_event_type)=
-## [`gobj_find_event_type()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L993)
+## [`gobj_find_event_type()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L993)
 
 Searches all registered GClasses for an event type matching the given string name. This performs a global, case-insensitive lookup across every GClass's event list. Optionally filters by event flags (e.g., `EVF_PUBLIC_EVENT`).
 
@@ -308,7 +308,7 @@ This is a global search across all GClasses, not scoped to a single gobj. It is 
 ---
 
 (gobj_send_event_to_children)=
-## [`gobj_send_event_to_children()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7673)
+## [`gobj_send_event_to_children()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7673)
 
 Sends an event to all direct (first-level) children of the given gobj that support the event in their current state. Children that do not have the event defined in their FSM are silently skipped.
 
@@ -341,7 +341,7 @@ Only first-level children are visited (not recursive). The `kw` is shared among 
 ---
 
 (gobj_send_event_to_children_tree)=
-## [`gobj_send_event_to_children_tree()`](https://github.com/artgins/yunetas/blob/7.5.11/kernel/c/gobj-c/src/gobj.c#L7699)
+## [`gobj_send_event_to_children_tree()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L7699)
 
 Sends an event to all children in the entire subtree of the given gobj that support the event in their current state. This is the recursive version of `gobj_send_event_to_children()` -- it walks the full gobj tree depth-first, delivering the event to every descendant that has it defined in its FSM.
 

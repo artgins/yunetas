@@ -179,4 +179,4 @@ each line may itself contain `;`-chained commands.
 - [`ybatch`](ybatch.md), [`ystats`](ystats.md), [`ycli`](ycli.md) — the rest of
   the control-plane family.
 - Repository README (for code navigators):
-  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.5.11/utils/c/ycommand/README.md).
+  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.5.12/utils/c/ycommand/README.md).
