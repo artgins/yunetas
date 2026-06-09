@@ -513,6 +513,13 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*-------------------------------*
      *      cqe ready
      *-------------------------------*/
+    /*
+     *  Mark the event "in dispatch" so a callback that calls yev_destroy_event()
+     *  on its own event defers the free (sets destroy_requested) instead of
+     *  freeing synchronously. Otherwise the post-callback re-arm below would
+     *  dereference freed memory (use-after-free) when this was the last in-flight CQE.
+     */
+    yev_event->in_dispatch = TRUE;
     int ret = 0;
     switch((yev_type_t)yev_event->type) {
         case YEV_CONNECT_TYPE: // cqe ready
@@ -572,7 +579,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         yev_event
                     );
                 }
-                if(ret == 0 && yev_loop->running &&
+                if(ret == 0 && !yev_event->destroy_requested && yev_loop->running &&
                         yev_event->state == YEV_ST_IDLE &&
                         !(yev_event->flag & YEV_FLAG_ACCEPT_DUP2)) {
                     if(!gobj || (gobj && gobj_is_running(gobj))) {
@@ -679,7 +686,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE &&
+                if(ret == 0 && !yev_event->destroy_requested && yev_loop->running &&
+                        yev_event->state == YEV_ST_IDLE &&
                         (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
                     if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
@@ -718,6 +726,19 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
             }
             break;
+    }
+
+    /*
+     *  Dispatch (callback + re-arm) finished: it is now safe to touch / free
+     *  the event. If the callback requested destruction while in dispatch,
+     *  yev_destroy_event deferred the free to here. If no op was re-armed
+     *  (in_flight drained to 0) free now; otherwise the deferred free happens
+     *  when the last outstanding CQE drains (see top of callback_cqe).
+     */
+    yev_event->in_dispatch = FALSE;
+    if(yev_event->destroy_requested && yev_event->in_flight <= 0) {
+        really_free_yev_event(yev_event);
+        return ret;
     }
 
     return ret;
@@ -2031,6 +2052,18 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
      *  UAF — and deferring then would leak the event (nothing left to drain
      *  it). Free synchronously in that case.
      *-----------------------------------------------------------------*/
+    /*
+     *  If we are inside callback_cqe's dispatch of this very event (a callback
+     *  destroying its own event), never free synchronously: the caller is
+     *  callback_cqe and it will still dereference the event in the re-arm block
+     *  and the dispatch tail. Defer; callback_cqe frees it once dispatch ends
+     *  and any re-armed op has drained.
+     */
+    if(yev_event->in_dispatch) {
+        yev_event->destroy_requested = TRUE;
+        return;
+    }
+
     if(yev_event->in_flight > 0 && yev_loop->running) {
         yev_event->destroy_requested = TRUE;
         return;

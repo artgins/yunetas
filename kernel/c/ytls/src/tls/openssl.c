@@ -1492,7 +1492,11 @@ PRIVATE const char *last_error(hsskt sskt_)
 PRIVATE int flush(hsskt sskt)
 {
     flush_encrypted_data(sskt);
-    flush_clear_data(sskt);
+    int ret = flush_clear_data(sskt);
+    if(ret < 0) {
+        // Error already logged in flush_clear_data (incl. -2222 re-entrant-free sentinel)
+        return ret;
+    }
     return 0;
 }
 

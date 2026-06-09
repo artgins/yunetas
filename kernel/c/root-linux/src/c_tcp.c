@@ -676,7 +676,17 @@ PRIVATE void set_secure_connected(hgobj gobj)
 
     gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 
-    ytls_flush(priv->ytls, priv->sskt);
+    int ret = ytls_flush(priv->ytls, priv->sskt);
+    if(ret < -1000) {
+        /*
+         *  A subscriber of EV_RX_DATA (published from flush_clear_data's
+         *  on_clear_data_cb) destroyed this connection re-entrantly: gobj/priv
+         *  are already freed. Mirror the decrypt-path discipline at the
+         *  ytls_decrypt_data callers (ret < -1000) and bail before touching
+         *  gobj/priv. Do NOT call try_to_stop_yevents() here: the gobj is gone.
+         */
+        return;
+    }
 
     /*
      *  Inactivity model: flush data queued while disconnected and arm the

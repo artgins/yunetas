@@ -973,14 +973,31 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     const char *reply_to = kw_get_str(gobj, msg, "reply_to", "", 0);
     const char *subject = kw_get_str(gobj, msg, "subject", "", 0);
 
+    const char *attachment = kw_get_str(gobj, msg, "attachment", "", 0);
+    if(empty_string(attachment)) {
+        /* Legacy alias from c_curl era. */
+        attachment = kw_get_str(gobj, msg, "attachments", "", 0);
+    }
+    const char *inline_file_id = kw_get_str(gobj, msg, "inline_file_id", 0, 0);
+
     /*
      *  Reject CR/LF/control chars in any single-line header / envelope field
      *  before they reach an SMTP command line (MAIL FROM/RCPT TO) or a MIME
      *  header. Without this a newline injects extra SMTP commands (RCPT, DATA
      *  smuggling) or extra MIME headers/body — SMTP command / email header
      *  injection. Treated as a permanent send failure.
+     *
+     *  attachment (its basename feeds Content-Type name="%s" /
+     *  Content-Disposition filename="%s") and inline_file_id (feeds
+     *  Content-ID: <%s>) are interpolated raw into MIME headers by
+     *  append_attachment_part() in mime_encoder.c, so they must be checked
+     *  here too — they are not display fields but reach the same header
+     *  stream. EV_SEND_EMAIL is a public event, so these are attacker-reachable.
      */
-    const char *single_line_fields[] = {from, from_beautiful, to, cc, bcc, reply_to, subject};
+    const char *single_line_fields[] = {
+        from, from_beautiful, to, cc, bcc, reply_to, subject,
+        attachment, inline_file_id
+    };
     for(unsigned f = 0; f < sizeof(single_line_fields)/sizeof(single_line_fields[0]); f++) {
         if(email_field_has_ctrl(single_line_fields[f])) {
             gobj_log_error(gobj, 0,
@@ -996,12 +1013,6 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         }
     }
 
-    const char *attachment = kw_get_str(gobj, msg, "attachment", "", 0);
-    if(empty_string(attachment)) {
-        /* Legacy alias from c_curl era. */
-        attachment = kw_get_str(gobj, msg, "attachments", "", 0);
-    }
-    const char *inline_file_id = kw_get_str(gobj, msg, "inline_file_id", 0, 0);
     BOOL is_html = kw_get_bool(gobj, msg, "is_html", 0, 0);
 
     /*--------------------------------*
