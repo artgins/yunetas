@@ -4,12 +4,12 @@ Authorization checks and helpers used by the control plane. A gobj declares an `
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c)
-- [`c_authz.h`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_authz.h)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c)
+- [`c_authz.h`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/root-linux/src/c_authz.h)
 
 (gobj_authenticate)=
-## [`gobj_authenticate()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9270)
+## [`gobj_authenticate()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9270)
 
 The `gobj_authenticate()` function authenticates a user based on the provided JSON parameters. If no authentication parser is set, it defaults to the system user.
 
@@ -40,7 +40,7 @@ If a local authentication method (`mt_authenticate`) is defined, it takes preced
 ---
 
 (gobj_authz)=
-## [`gobj_authz()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9404)
+## [`gobj_authz()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9404)
 
 Retrieves the authorization details for a given `hgobj`. If `authz` is specified, it returns the details of that specific authorization; otherwise, it returns all authorizations available for the object.
 
@@ -69,7 +69,7 @@ This function internally calls `authzs_list()` to fetch the authorization detail
 ---
 
 (gobj_authzs)=
-## [`gobj_authzs()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9394)
+## [`gobj_authzs()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9394)
 
 Returns a list of authorization levels available for the given `hgobj`. If `gobj` is `NULL`, it returns the global authorization levels.
 
@@ -96,7 +96,7 @@ This function is useful for inspecting the authorization levels assigned to a sp
 ---
 
 (gobj_get_global_authz_table)=
-## [`gobj_get_global_authz_table()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9483)
+## [`gobj_get_global_authz_table()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9483)
 
 Retrieves the global authorization table, which defines the available authorization levels and their corresponding permissions.
 
@@ -121,7 +121,7 @@ The returned table contains predefined authorization levels such as `__read_attr
 ---
 
 (gobj_user_has_authz)=
-## [`gobj_user_has_authz()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9426)
+## [`gobj_user_has_authz()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9426)
 
 Checks if a user has the specified authorization level in the context of the given `hgobj`. If no authorization checker is defined, the function defaults to granting authorization.
 
@@ -154,7 +154,7 @@ If the `hgobj` has a local authorization checker (`mt_authz_checker`), it is use
 ---
 
 (authz_get_level_desc)=
-## [`authz_get_level_desc()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9491)
+## [`authz_get_level_desc()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9491)
 
 Looks up an authorization level descriptor by name within an authorization table. The search matches against both the `name` field and any `alias` entries in each descriptor. When a descriptor has no `json_fn` callback, aliases take precedence over the name match.
 
@@ -183,7 +183,7 @@ Aliases allow a single authorization level to be referenced by multiple names. W
 ---
 
 (gobj_build_authzs_doc)=
-## [`gobj_build_authzs_doc()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9534)
+## [`gobj_build_authzs_doc()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9534)
 
 Builds a JSON document describing available authorizations. If a `service` is specified in `kw`, returns the authorization list for that service only. Otherwise, returns a comprehensive document containing the global authorization table plus the authorization tables of all registered services that define one.
 
@@ -214,7 +214,7 @@ This function is typically invoked as part of a command handler to provide intro
 ---
 
 (authzs_list)=
-## [`authzs_list()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/gobj-c/src/gobj.c#L9324)
+## [`authzs_list()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/gobj-c/src/gobj.c#L9324)
 
 Returns the authorization descriptors for a gobj's GClass. If `authz` is empty, returns the full list of all authorization entries as a JSON array. If `authz` is a specific name, returns only the matching authorization entry as a JSON object. When `gobj` is `NULL`, the global authorization table is used instead.
 
@@ -244,7 +244,7 @@ The authorization descriptors are converted from the `sdata_desc_t` format to JS
 
 
 (authz_checker)=
-## [`authz_checker()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_authz.c#L4725)
+## [`authz_checker()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/root-linux/src/c_authz.c#L4725)
 
 Default authorization checker. Used when no custom `authz_checker` is
 provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).
@@ -274,7 +274,7 @@ BOOL authz_checker(
 ---
 
 (authentication_parser)=
-## [`authentication_parser()`](https://github.com/artgins/yunetas/blob/7.5.7/kernel/c/root-linux/src/c_authz.c#L4813)
+## [`authentication_parser()`](https://github.com/artgins/yunetas/blob/7.5.8/kernel/c/root-linux/src/c_authz.c#L4813)
 
 Default authentication parser. Used when no custom `authentication_parser`
 is provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).

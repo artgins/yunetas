@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.5.8
     - **fix(rpm): dev-deps helper used a dnf5-only flag that RHEL 9 rejects.**
       The 7.5.7 helper ran `dnf install --skip-unavailable`, but
       `--skip-unavailable` only exists in dnf5 (Fedora); RHEL 9 / Rocky 9 ship
