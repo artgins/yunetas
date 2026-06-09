@@ -1,6 +1,15 @@
 # **Changelog**
 
 ## Unreleased
+    - **security(ext-libs): bump vendored OpenSSL 3.6.2 → 3.6.3.** Security patch
+      release (`configure-libs.sh` v1.16, `TAG_OPENSSL=openssl-3.6.3`). Fixes one
+      **High** CVE — CVE-2026-45447, heap use-after-free in `PKCS7_verify()` —
+      plus a batch of CMS / QUIC / ASN.1 / AES CVEs (CVE-2026-34180..34183,
+      35188, 42764..42770, 45445/45446, 7383, 9076). No API change (3.6 series).
+      OpenSSL is linked **statically into every yuno**, so every yuno must be
+      rebuilt + relinked to pick it up; the release CI builds ext-libs fresh, so
+      the published `.deb`/`.rpm` get it automatically. Stayed on 3.6 (not 4.0),
+      same LTS rationale as before.
     - **feat(install): no prompt — `install.sh` runs straight through.** The
       installer no longer asks `Install the developer toolchain? [Y/n]` mid-run;
       it installs everything in one pass without stops. Use `--runtime-only` to

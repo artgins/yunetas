@@ -122,8 +122,15 @@
 #       distro. No-op on Debian (already lib). openssl already uses
 #       --libdir=lib; liburing / ncurses / libbacktrace are autotools and
 #       default to lib.
+#   version 1.16
+#       upgrade to openssl 3.6.3 (was 3.6.2): security patch release within
+#       the 3.6 series, no API change. Fixes one High CVE (CVE-2026-45447,
+#       heap use-after-free in PKCS7_verify) plus a batch of CMS / QUIC /
+#       ASN.1 / AES CVEs. openssl is linked statically into every yuno, so
+#       every yuno must be rebuilt + relinked to pick it up. Stayed on 3.6
+#       (not 4.0) — same LTS rationale as 1.12.
 
-VERSION="1.15"
+VERSION="1.16"
 
 
 source ./repos2clone.sh
