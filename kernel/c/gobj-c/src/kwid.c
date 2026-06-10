@@ -160,9 +160,9 @@ PUBLIC json_t *kw_serialize(
 }
 
 /***************************************************************************
- *  Serialize fields to string, return must be free with jsonp_free()
+ *  Serialize fields to string, return must be freed with jsonp_free()
  ***************************************************************************/
-PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
+PUBLIC char *kw_serialize_to_string( // return must be freed with jsonp_free()
     hgobj gobj,
     json_t *kw
 )
