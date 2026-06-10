@@ -75,6 +75,12 @@ static struct addrinfo *make_addrinfo_node(
 #define YUNETA_MAX_NS      3
 #define YUNETA_NS_ADDRLEN  46   /* INET6_ADDRSTRLEN */
 
+/* DNS server port. Overridable at compile time so tests can drive dns_query()
+ * against an unprivileged localhost nameserver; production is always 53. */
+#ifndef YUNETA_DNS_PORT
+#define YUNETA_DNS_PORT    53
+#endif
+
 static void parse_resolv_conf(
     char nameservers[][YUNETA_NS_ADDRLEN], int *count, int maxns)
 {
@@ -203,14 +209,19 @@ static int dns_query(
     /* Try IPv4 nameserver */
     struct sockaddr_in srv4 = {0};
     srv4.sin_family = AF_INET;
-    srv4.sin_port   = htons(53);
+    srv4.sin_port   = htons(YUNETA_DNS_PORT);
 
     if(inet_pton(AF_INET, nameserver_ip, &srv4.sin_addr) == 1) {
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
         if(sock < 0) return -1;
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        if(sendto(sock, query, qlen, 0,
-                  (struct sockaddr *)&srv4, sizeof(srv4)) < 0) {
+        /* connect() the UDP socket so the kernel drops datagrams from any
+         * source other than the chosen nameserver — closes the "any source"
+         * delivery used for off-path DNS response forgery. (F-001 spoofing) */
+        if(connect(sock, (struct sockaddr *)&srv4, sizeof(srv4)) < 0) {
+            close(sock); return -1;
+        }
+        if(send(sock, query, qlen, 0) < 0) {
             close(sock); return -1;
         }
         int n;
@@ -224,14 +235,19 @@ static int dns_query(
     /* Try IPv6 nameserver */
     struct sockaddr_in6 srv6 = {0};
     srv6.sin6_family = AF_INET6;
-    srv6.sin6_port   = htons(53);
+    srv6.sin6_port   = htons(YUNETA_DNS_PORT);
 
     if(inet_pton(AF_INET6, nameserver_ip, &srv6.sin6_addr) == 1) {
         int sock = socket(AF_INET6, SOCK_DGRAM, 0);
         if(sock < 0) return -1;
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        if(sendto(sock, query, qlen, 0,
-                  (struct sockaddr *)&srv6, sizeof(srv6)) < 0) {
+        /* connect() the UDP socket so the kernel drops datagrams from any
+         * source other than the chosen nameserver — closes the "any source"
+         * delivery used for off-path DNS response forgery. (F-001 spoofing) */
+        if(connect(sock, (struct sockaddr *)&srv6, sizeof(srv6)) < 0) {
+            close(sock); return -1;
+        }
+        if(send(sock, query, qlen, 0) < 0) {
             close(sock); return -1;
         }
         int n;
