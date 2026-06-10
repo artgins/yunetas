@@ -156,7 +156,7 @@ jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk)
 	item->json = json_deep_copy(jwk);
 	if (item->json == NULL) {
 		// LCOV_EXCL_START
-		jwt_freemem(jwk);
+		jwt_freemem(item);
 		jwt_write_error(jwk_set,
 			"Error allocating memory for jwk_item_t");
 		return NULL;
