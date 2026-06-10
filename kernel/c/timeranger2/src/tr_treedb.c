@@ -177,6 +177,26 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
 }
 
 /***************************************************************************
+ *  Reject pkey/node ids that could escape the keys/<id>/ path sink.
+ *  The id is forwarded verbatim to tranger2_append_record/tranger2_delete_key
+ *  as the record pkey (mkrdir/newfile/rmrdir of keys/<id>/), so it must not
+ *  contain a path separator nor be a relative path component.
+ ***************************************************************************/
+PRIVATE BOOL is_valid_key_name(const char *id)
+{
+    if(empty_string(id)) {
+        return FALSE;
+    }
+    if(strchr(id, '/') != NULL) {
+        return FALSE;          // no path separator
+    }
+    if(id[0] == '.') {
+        return FALSE;          // no '.', '..', or dot-leading (hidden/relative)
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE char *build_id_index_path(
@@ -4553,6 +4573,25 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             JSON_DECREF(kw)
             return 0;
         }
+    }
+
+    /*-----------------------------------------------*
+     *  The id becomes the record pkey -> keys/<id>/
+     *  Reject path metacharacters at this trust
+     *  boundary so a caller-supplied id cannot
+     *  traverse out of the topic's keys/ directory.
+     *-----------------------------------------------*/
+    if(!is_valid_key_name(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Invalid 'id': contains path metacharacters",
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
     }
 
     /*-------------------------------*

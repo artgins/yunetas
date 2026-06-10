@@ -2444,6 +2444,26 @@ PUBLIC int tranger2_append_record(
                     JSON_DECREF(record)
                     return -1;
                 }
+                /*
+                 *  The key becomes a single directory component under
+                 *  <topic_dir>/keys/. It must not contain a path separator
+                 *  nor be a relative-path element ('.' or '..'), otherwise it
+                 *  escapes the keys/ directory (path traversal). Reject any
+                 *  value containing '/' or beginning with '.'.
+                 */
+                if(strchr(key_value, '/') != NULL || key_value[0] == '.') {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "Cannot append record, invalid pkey (path traversal)",
+                        "topic",        "%s", topic_name,
+                        "key_value",    "%s", key_value,
+                        NULL
+                    );
+                    gobj_trace_json(gobj, record, "Cannot append record, invalid pkey (path traversal)");
+                    JSON_DECREF(record)
+                    return -1;
+                }
             }
             break;
 
@@ -2886,6 +2906,31 @@ PUBLIC int tranger2_delete_key(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only master can delete",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *  Validate key BEFORE it reaches any
+     *  filesystem path: a legitimate key is a
+     *  single directory component. Reject any
+     *  embedded '/' (path traversal / absolute
+     *  path), "." / ".." and any leading '.'
+     *  (dot-relative or hidden component) so a
+     *  caller-supplied id cannot escape the
+     *  topic's keys/ dir and drive rmrdir()
+     *  against an out-of-tree directory.
+     *----------------------------------------*/
+    if(empty_string(key) ||
+       strchr(key, '/') != NULL ||
+       key[0] == '.') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid key (path metacharacters not allowed)",
             "topic_name",   "%s", topic_name,
             "key",          "%s", key,
             NULL
@@ -4386,6 +4431,27 @@ PRIVATE int master_to_update_client_load_record_callback(
 
     json_t *rt = list;
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
+
+    /*
+     *  Defense-in-depth (behind the append-boundary key validation):
+     *  `key` is the record pkey and is used unsanitized to build the
+     *  /disks/<rt_id>/<key> mkdir target and the link() destination below.
+     *  A traversing key ('/', '..', or a leading '.') would let mkdir create
+     *  a directory and link create a hard link outside disks/<rt_id>/.
+     *  Skip (and log) such a key so neither sink below ever runs for it.
+     */
+    if(empty_string(key) || strchr(key, '/') || key[0] == '.' || strstr(key, "..")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "rt mem callback: invalid key, possible path traversal",
+            "key",          "%s", key?key:"",
+            "disk_path",    "%s", disk_path?disk_path:"",
+            NULL
+        );
+        JSON_DECREF(record)
+        return 0;
+    }
 
     /*
      *  Create the directory for the key

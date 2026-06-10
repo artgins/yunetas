@@ -1053,6 +1053,26 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
         }
     }
 
+    /*-----------------------------------------------*
+     *  The id becomes the record pkey -> keys/<id>/
+     *  Reject path metacharacters at this trust
+     *  boundary so a caller-supplied id cannot
+     *  traverse out of the topic's keys/ directory.
+     *-----------------------------------------------*/
+    if(empty_string(id) || strchr(id, '/') != NULL || id[0] == '.') {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MSG2DB,
+            "msg",          "%s", "Invalid 'id': contains path metacharacters",
+            "path",         "%s", path,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
+    }
+
     /*-----------------------------------*
      *  Get the pkey2, it's mandatory
      *-----------------------------------*/
