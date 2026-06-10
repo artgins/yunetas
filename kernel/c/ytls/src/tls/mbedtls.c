@@ -332,6 +332,7 @@ PRIVATE mbedtls_state_t *build_state(
         s->has_own_cert = TRUE;
     }
 
+    int authmode;
     const char *ssl_trusted_certificate = kw_get_str(
         gobj, jn_config, "ssl_trusted_certificate", "", 0
     );
@@ -349,13 +350,15 @@ PRIVATE mbedtls_state_t *build_state(
         }
         mbedtls_ssl_conf_ca_chain(&s->conf, &s->ca_cert, NULL);
         if(server) {
-            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+            authmode = MBEDTLS_SSL_VERIFY_OPTIONAL;
         } else {
-            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+            authmode = MBEDTLS_SSL_VERIFY_REQUIRED;
         }
+        mbedtls_ssl_conf_authmode(&s->conf, authmode);
         s->has_ca_cert = TRUE;
     } else {
-        mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_NONE);
+        authmode = MBEDTLS_SSL_VERIFY_NONE;
+        mbedtls_ssl_conf_authmode(&s->conf, authmode);
     }
 
     /*
@@ -368,11 +371,14 @@ PRIVATE mbedtls_state_t *build_state(
     const char *ssl_verify_mode = kw_get_str(gobj, jn_config, "ssl_verify_mode", "", 0);
     if(!empty_string(ssl_verify_mode)) {
         if(strcasecmp(ssl_verify_mode, "required")==0) {
-            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+            authmode = MBEDTLS_SSL_VERIFY_REQUIRED;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
         } else if(strcasecmp(ssl_verify_mode, "optional")==0) {
-            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+            authmode = MBEDTLS_SSL_VERIFY_OPTIONAL;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
         } else if(strcasecmp(ssl_verify_mode, "none")==0) {
-            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_NONE);
+            authmode = MBEDTLS_SSL_VERIFY_NONE;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
         } else {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
@@ -386,14 +392,17 @@ PRIVATE mbedtls_state_t *build_state(
 
     /*
      *  Fail-closed for an unverified CLIENT (mirrors the openssl backend).
-     *  A client with no trusted CA cannot validate the server certificate
-     *  (authmode NONE) = a standing MITM hole. Require an explicit
+     *  A client whose EFFECTIVE authmode is NONE cannot validate the server
+     *  certificate = a standing MITM hole. Gate on the effective authmode, not
+     *  just on a missing CA, so an explicit ssl_verify_mode="none" on a client
+     *  (even with a CA configured) is refused too — parity with the openssl
+     *  backend, where vmode==0 takes the same path. Require an explicit
      *  ssl_allow_insecure_client=true opt-out for self-signed / PSK / IoT
      *  gates. Servers with no CA legitimately accept anonymous clients.
      *  (mbedTLS build_state has no `fatal` flag; the NULL return makes
      *  ytls_init fail so the connection is refused, the yuno stays up.)
      */
-    if(!server && empty_string(ssl_trusted_certificate) &&
+    if(!server && authmode == MBEDTLS_SSL_VERIFY_NONE &&
             !kw_get_bool(gobj, jn_config, "ssl_allow_insecure_client", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
