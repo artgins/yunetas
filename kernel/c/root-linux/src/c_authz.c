@@ -391,7 +391,7 @@ SDATA (DTP_STRING,  "kc_admin_client_id",    SDF_PERSIST, "",   "Confidential ad
 SDATA (DTP_STRING,  "kc_admin_client_secret",SDF_PERSIST, "",   "Admin client secret (persisted; never in code or committed config)"),
 SDATA (DTP_STRING,  "kc_redirect_uri",       SDF_PERSIST, "",   "redirect_uri for the set-password invite email"),
 SDATA (DTP_STRING,  "kc_email_client_id",    SDF_PERSIST, "",   "client_id the invite email links to (the SPA client)"),
-SDATA (DTP_JSON,    "kc_crypto",             SDF_RD,      "{}", "TLS crypto for KC outbound calls (empty = node's compiled TLS library)"),
+SDATA (DTP_JSON,    "kc_crypto",             SDF_RD,      "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto for KC outbound calls. Verifying-by-default against the system CA (public KC). For a private/self-signed KC CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER, "kc_timeout_ms",         SDF_RD,      "30000","KC outbound round-trip watchdog (ms)"),
 
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),

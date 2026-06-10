@@ -188,7 +188,7 @@ SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
-SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for IdP outbound calls"),
+SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
