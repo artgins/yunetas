@@ -157,6 +157,7 @@ PRIVATE char variable_config[]= "\
                                         'url':'tcps://127.0.0.1:7778', \n\
                                         'crypto': {                 \n\
                                             'library': '" TLS_LIBRARY_NAME "',   \n\
+                                            'ssl_allow_insecure_client': true,   \n\
                                             'trace': false          \n\
                                         }                           \n\
                                     }                               \n\

@@ -110,13 +110,14 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  The client under test: a pure secure C_TCP with the inactivity timeout.
      */
-    json_t *kw_cli = json_pack("{s:s, s:I, s:b, s:{s:s, s:b}}",
+    json_t *kw_cli = json_pack("{s:s, s:I, s:b, s:{s:s, s:b, s:b}}",
         "url", CLIENT_URL,
         "timeout_inactivity", (json_int_t)TIMEOUT_INACTIVITY,
         "no_tx_ready_event", 1,
         "crypto",
             "library", TLS_LIBRARY_NAME,
-            "trace", 0
+            "trace", 0,
+            "ssl_allow_insecure_client", 1   // test client trusts the self-signed test server
     );
     priv->gobj_clitcp = gobj_create_pure_child("clitcp", C_TCP, kw_cli, gobj);
 
