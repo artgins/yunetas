@@ -372,6 +372,13 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
     // In __cmd->error is the error; 0 -> ok
     jwt_copy_error(__cmd, jwt);
 
-    json_t *payload = json_incref(jwt->claims);
-    return payload;
+    /* Fail closed: a non-NULL return MUST mean the token fully verified.
+     * Never hand back claims for a token that failed any check — the verdict
+     * has to live in the return value, not only in __cmd->error, which a
+     * caller may forget to inspect. On error return NULL; the jwt_auto_t
+     * cleanup releases jwt and its claims. */
+    if(__cmd->error)
+        return NULL;
+
+    return json_incref(jwt->claims);
 }

@@ -63,6 +63,16 @@ static const char *LEGIT_HS256 =
     "eyJzdWIiOiAibGVnaXQtdXNlciJ9."
     "OCrX7FnQNBRKxGw-s8WYrBGtqjSXKHi6l5ESlRbXTtQ";
 
+/* Same OCT key + a token whose signature is VALID but whose exp is in the
+ * past (1000000000 = 2001-09-09). The default checker (jwt_checker_new enables
+ * JWT_CLAIM_EXP) must reject it on the claims check independent of the good
+ * signature, isolating the expiry path. Minted with the OCT_JWK key, same
+ * HMAC-SHA256 method as LEGIT_HS256 (see README.md). */
+static const char *EXPIRED_HS256 =
+    "eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9."
+    "eyJzdWIiOiAibGVnaXQtdXNlciIsICJleHAiOiAxMDAwMDAwMDAwfQ."
+    "HzI28qR3dmwN86I8_U_nYr31dPISjsv1Dq6o-xY0XRI";
+
 /* EC P-256 and Ed25519 (OKP) PUBLIC keys — the asymmetric-confusion siblings
  * of the RSA case: presenting the same HS256 token against either must be
  * rejected by the kty<->alg guard. */
@@ -122,10 +132,11 @@ static jwk_item_t *load_jwk(jwk_set_t *keyring, const char *jwk_json)
  *  against an asymmetric key, and that key must not be settable as an HMAC
  *  key. Parameterized over the three asymmetric key types.
  *
- *  NOTE the verify2 contract: it ALWAYS returns the parsed claims (incref'd) —
- *  success/failure is signalled only by jwt_checker_error(), exactly the flag
- *  c_authz keys "validated" off (c_authz.c: `if(!jwt_checker->error) validated
- *  = TRUE;`). Checking the return pointer alone would accept the forgery.
+ *  NOTE the verify2 contract (post-hardening): it returns the parsed claims
+ *  ONLY when jwt_checker_error()==0, and NULL on any failure — so the return
+ *  value itself carries the verdict and a caller keying off the pointer is
+ *  safe. These forgery checks assert via jwt_checker_error(); the dedicated
+ *  test_verify2_fail_closed() below pins the non-NULL-iff-verified contract.
  ***************************************************************************/
 static void test_asym_forgery(const char *label, const char *jwk_json,
     jwt_alg_t native_alg, const char *native_alg_name)
@@ -223,6 +234,80 @@ static void test_oct_key(void)
     }
     json_decref(payload);
     jwt_checker_free(checker);
+
+    jwks_free(keyring);
+}
+
+/***************************************************************************
+ *  verify2 fail-closed contract (the hardening). A non-NULL return MUST mean
+ *  the token fully verified; every failure path must return NULL with the
+ *  claims withheld. The negative assertions below FAIL against the
+ *  pre-hardening library (which returned claims regardless) and PASS after —
+ *  pinning the contract shut so a caller keying off the return pointer alone
+ *  is safe. (json_decref(NULL) is a no-op, so the decref calls are safe on
+ *  the NULL-return paths.)
+ ***************************************************************************/
+static void test_verify2_fail_closed(void)
+{
+    printf("verify2 fail-closed contract (return value carries the verdict):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *oct = load_jwk(keyring, OCT_JWK);
+    jwk_item_t *rsa = load_jwk(keyring, RSA_JWK);
+    if(oct == NULL || rsa == NULL) {
+        check(0, "OCT+RSA JWKs parse for verify2 contract test");
+        jwks_free(keyring);
+        return;
+    }
+
+    /* Positive: a fully-valid token returns non-NULL claims with no error. */
+    jwt_checker_t *ok = jwt_checker_new();
+    jwt_checker_setkey(ok, JWT_ALG_HS256, oct);
+    json_t *p_ok = jwt_checker_verify2(ok, LEGIT_HS256);
+    check(jwt_checker_error(ok) == 0 && p_ok != NULL,
+        "verify2(valid token) returns non-NULL claims (error==0)");
+    json_decref(p_ok);
+    jwt_checker_free(ok);
+
+    /* Negative (claims/exp): a token with a VALID signature but exp in the
+     * past must fail the default EXP check and yield NULL — proves claims are
+     * withheld even when the crypto itself is good. */
+    jwt_checker_t *expd = jwt_checker_new();
+    jwt_checker_setkey(expd, JWT_ALG_HS256, oct);
+    json_t *p_exp = jwt_checker_verify2(expd, EXPIRED_HS256);
+    check(jwt_checker_error(expd) != 0 && p_exp == NULL,
+        "verify2(valid sig, expired exp) returns NULL (claims withheld)");
+    json_decref(p_exp);  /* NULL-safe */
+    jwt_checker_free(expd);
+
+    /* Negative (claims/iss): a required 'iss' the token lacks must fail and
+     * yield NULL, not the parsed claims. */
+    jwt_checker_t *iss = jwt_checker_new();
+    jwt_checker_setkey(iss, JWT_ALG_HS256, oct);
+    jwt_checker_claim_set(iss, JWT_CLAIM_ISS, "https://issuer.example/");
+    json_t *p_iss = jwt_checker_verify2(iss, LEGIT_HS256);
+    check(jwt_checker_error(iss) != 0 && p_iss == NULL,
+        "verify2(valid sig, missing required iss) returns NULL (claims withheld)");
+    json_decref(p_iss);  /* NULL-safe */
+    jwt_checker_free(iss);
+
+    /* Negative (alg confusion): HS256 forgery vs an RSA key must yield NULL. */
+    jwt_checker_t *conf = jwt_checker_new();
+    jwt_checker_setkey(conf, JWT_ALG_RS256, rsa);
+    json_t *p_conf = jwt_checker_verify2(conf, FORGED_HS256);
+    check(jwt_checker_error(conf) != 0 && p_conf == NULL,
+        "verify2(alg-confusion forgery) returns NULL (claims withheld)");
+    json_decref(p_conf);  /* NULL-safe */
+    jwt_checker_free(conf);
+
+    /* Negative (alg:none stripping): must yield NULL against a real-key checker. */
+    jwt_checker_t *none = jwt_checker_new();
+    jwt_checker_setkey(none, JWT_ALG_RS256, rsa);
+    json_t *p_none = jwt_checker_verify2(none, NONE_TOKEN);
+    check(jwt_checker_error(none) != 0 && p_none == NULL,
+        "verify2(alg:none token) returns NULL (claims withheld)");
+    json_decref(p_none);  /* NULL-safe */
+    jwt_checker_free(none);
 
     jwks_free(keyring);
 }
@@ -409,6 +494,7 @@ int main(int argc, char *argv[])
     test_asym_forgery("OKP/EdDSA", OKP_JWK, JWT_ALG_EDDSA, "EdDSA");
     test_alg_none();
     test_oct_key();
+    test_verify2_fail_closed();
     test_malformed_jwks();
     test_malformed_tokens();
     test_null_safety();

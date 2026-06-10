@@ -2707,6 +2707,14 @@ PRIVATE BOOL verify_token(
 
         json_t *payload = jwt_checker_verify2(jwt_checker, token);
         if(!payload) {
+            /* jwt_checker_verify2 now fails closed: a NULL return means this
+             * checker rejected the token (the verdict moved into the return
+             * value). Surface this checker's reason so the caller gets a
+             * specific error instead of the generic default, then keep trying
+             * any other configured issuers. */
+            if(jwt_checker->error) {
+                *status = jwt_checker_error_msg(jwt_checker);
+            }
             continue;
         }
 

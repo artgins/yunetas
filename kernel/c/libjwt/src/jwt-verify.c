@@ -329,11 +329,13 @@ jwt_t *jwt_verify_complete(jwt_t *jwt, const jwt_config_t *config,
 	sig = token + (payload_len + 1);
 	sig_len = strlen(sig);
 
-	/* Check for conflicts in user request and JWT */
-	if (__verify_config_post(jwt, config, sig_len)) {
-		// Let the payload be loaded; // ArtGins
-		// return jwt;
-	}
+	/* Check for conflicts in user request and JWT. On failure jwt->error is
+	 * already set by __verify_config_post; stop here without verifying the
+	 * signature. The payload stays loaded in jwt->claims (jwt_parse ran
+	 * before this) for diagnostics, but the public entry points fail closed
+	 * on jwt->error, so an invalid token's claims are never returned. */
+	if (__verify_config_post(jwt, config, sig_len))
+		return jwt;
 
 	/* After all the checks, if we don't have a sig, we can move on. */
 	if (!sig_len)
