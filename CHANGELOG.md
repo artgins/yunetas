@@ -49,6 +49,53 @@
       `EV_SEND_EMAIL` is public — so they were an SMTP/MIME header-injection vector.
       Added to the single-line control-char rejection set alongside the envelope
       and display fields.
+    - **security(gobj-c): pre-auth NULL deref in `gbuffer_deserialize()`.** A
+      malformed base64 `data` field makes `gbuffer_base64_to_binary()` return
+      NULL, fed straight into the unguarded `gbuffer_setmark()` inline — a daemon
+      crash reachable pre-auth via the ievent server (`ac_on_message` →
+      `kw_deserialize`). Added the NULL check after decode plus a central guard
+      on the `gbuffer_setmark`/`getmark` inlines. Same change: `kwid_find_record_in_list()`
+      returned `0` (a valid index) on not-found instead of `-1` (silent
+      wrong-record match in the list comparator), and the flatten/unflatten
+      helpers in `kwid.c` moved off raw libc `malloc`/`strdup`/`free` onto the
+      mandated `gbmem_*`. Regression tests in `test_kw1.c`.
+    - **security(libjwt): make the JWT verify contract fail closed.**
+      `jwt_checker_verify2()` handed back the parsed claims regardless of outcome
+      — the verdict lived only in `jwt_checker_error()`, so a caller trusting the
+      non-NULL return would accept a forged / expired / alg-confused / unsigned
+      token. It now returns NULL on any verification failure (the return value
+      carries the verdict) and `jwt_verify_complete()` aborts early on
+      `__verify_config_post` failure. Also fixed a wrong-free on the
+      `jwk_process_one()` OOM path (freed the borrowed `jwk`, not the owned
+      `item`). Regression: `test_jwt_alg_confusion.c::test_verify2_fail_closed`.
+    - **security(timeranger2): validate pkey/id against path traversal.** A
+      string primary key or treedb/msg2db node id becomes a `keys/<key>/`
+      directory component, so an attacker-influenced value containing `/` or
+      beginning with `.` could escape the topic's `keys/` dir on append
+      (mkrdir/newfile), `tranger2_delete_key` (rmrdir), the disk mirror, and
+      `tranger2_delete_instance`. Rejected at every sink in `tranger2_append_record`
+      / `tranger2_delete_key` / `tranger2_delete_instance` / `treedb_create_node`
+      / `msg2db_append_message`. Regression:
+      `tests/c/timeranger2/test_pkey_path_traversal.c`.
+    - **security(yev_loop): connect() the static DNS resolver socket.** The
+      `CONFIG_FULLY_STATIC` resolver read UDP replies from any source, so
+      authenticity rested only on the 16-bit transaction id — an off-path
+      attacker could forge an A/AAAA answer and redirect a yuno's outbound
+      connection. `dns_query()` now `connect()`s the UDP socket to the chosen
+      nameserver (both IPv4/IPv6 branches) so the kernel drops datagrams from any
+      other source. Regression:
+      `tests/c/yev_loop/static_resolv/test_static_resolv_spoof.c`.
+    - **security(ytls): verify-by-default for TLS clients (BREAKING).** A TLS
+      *client* that would run `VERIFY_NONE` (no CA / effective authmode NONE) is
+      now refused at ctx/state build time in both backends instead of merely
+      logging a warning — closing a live MITM hole (the auth_bff → Keycloak
+      outbound client ran unverified). Opt back in per gate with the new
+      `ssl_allow_insecure_client=true` (default false) for self-signed / PSK /
+      IoT bring-up. The mbedTLS gate keys off the effective authmode for openssl
+      parity. The `C_AUTH_BFF` `crypto` and `c_authz` `kc_crypto` defaults
+      flipped to a verifying posture (`ssl_use_system_ca` + `ssl_verify_mode=required`).
+      **Rollout:** any TLS-client deployment relying on silent `VERIFY_NONE` must
+      add a CA (or `ssl_allow_insecure_client=true`) before it will connect.
 
 ## 7.5.12
     - **fix(packages): default agent `node_owner` to `"none"` — no controlcenter

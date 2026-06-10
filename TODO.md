@@ -70,9 +70,13 @@ Remaining is **per-gate deployment config** (validate on staging):
   (`ssl_min_version` + `ssl_ciphers "@SECLEVEL=0"`, OpenSSL backend) on legacy
   gates;
 - turn on peer verification per high-level gate (`ssl_trusted_certificate` or
-  `ssl_use_system_ca`); IoT gates stay `none`/`optional`. The no-CA→`NONE`
-  client default is logged ("TLS client WITHOUT server-certificate validation")
-  — close those gaps per gate.
+  `ssl_use_system_ca`); IoT gates opt out with `ssl_allow_insecure_client=true`.
+  **Done in 7.5.13:** TLS *clients* now fail closed — a no-CA client is
+  *refused* at ctx/state build time (not just logged), and the `C_AUTH_BFF`
+  `crypto` / `c_authz` `kc_crypto` IdP clients default to a verifying posture.
+  Remaining is the per-gate **deployment** config: set the CA (or the explicit
+  `ssl_allow_insecure_client` opt-out) on each client crypto block in the realm
+  config, and raise the server-side gates.
 
 ## Security: MQTT broker ACL — model + default-deny decision
 

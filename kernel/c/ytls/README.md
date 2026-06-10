@@ -37,6 +37,36 @@ This is what keeps gobj-c free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDT
 - Use `mbedtls_ssl_is_handshake_over(&ssl)` to check handshake state instead of inspecting the return value of `mbedtls_ssl_handshake`.
 - `set_trace()` implementations must be **silent** — they must never emit `gobj_log_info` calls. Tests capture INFO-level logs and any extra message breaks the expected-results comparison.
 
+## TLS client verification (verify-by-default)
+
+Since 7.5.13, a TLS **client** that would run with no server-certificate
+validation (`VERIFY_NONE` — no CA configured / effective authmode `NONE`) is
+**refused at ctx/state build time** in both backends: `build_ssl_ctx()` /
+`build_state()` return `NULL`, so `ytls_init()` fails and the connection is
+refused (fail-soft — the yuno stays up). This closes the silent MITM hole where
+an unverified client trusts whatever certificate the peer presents.
+
+Config keys in the `crypto` block (read by `ytls_init`):
+
+| key | effect |
+|-----|--------|
+| `ssl_trusted_certificate` | path to a CA bundle (PEM) used to verify the peer |
+| `ssl_use_system_ca` | `true` → also trust the OS store (**OpenSSL only**; mbedTLS has no system store) |
+| `ssl_verify_mode` | `"none"` / `"optional"` / `"required"` — overrides the computed default |
+| `ssl_allow_insecure_client` | `true` → explicitly accept an unverified **client** (self-signed / PSK / IoT bring-up). Default `false` |
+
+Notes:
+
+- **Servers** with no CA legitimately accept anonymous clients and are
+  unaffected by this policy.
+- A client with a CA but `ssl_verify_mode="none"` is **also** refused (both
+  backends — the mbedTLS gate keys off the effective authmode for parity). To
+  run such a client you must set `ssl_allow_insecure_client=true`.
+- The `C_AUTH_BFF` `crypto` and `c_authz` `kc_crypto` IdP-client attributes
+  default to `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — a
+  public IdP/Keycloak is verified against the system store out of the box; for a
+  private/self-signed IdP CA, override with `ssl_trusted_certificate`.
+
 ## Password hashing — cross-backend compatibility
 
 `hash_password()` in `c_authz.c` uses **PBKDF2-HMAC** (RFC 2898 / PKCS#5). Both backends implement the identical standard:
