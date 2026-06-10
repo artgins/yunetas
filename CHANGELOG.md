@@ -1,5 +1,55 @@
 # **Changelog**
 
+## 7.5.13
+    - **security(gobj-c): reject `gbuffer_create()` `data_size == SIZE_MAX`.**
+      `GBMEM_MALLOC(data_size+1)` wrapped to `malloc(0)` — a non-NULL ~0-byte
+      buffer that slips past the `__max_block__` guard while `gbuf->data_size`
+      stays `SIZE_MAX`, defeating every later bounds check (`gbuffer_freebytes`
+      / append `memmove`). Now rejected at creation. Regression test
+      `test_gbuffer_guards.c::test_wrap_guard`.
+    - **security(gobj-c): fix OOB heap over-read in `kwid.c` `collapse()`.** The
+      in-tree `gbmem_strndup(str, size)` is a raw `memmove(s, str, size)` (not a
+      real `strndup`), so building the path with
+      `gbmem_strndup(path, strlen(path)+strlen(key)+2)` read past `path` by
+      `strlen(key)+1` bytes and left the buffer unterminated before the
+      `strcat`s. Replaced with `GBMEM_MALLOC` + `strcpy` at the exact size.
+    - **security(libjwt): pin the exact JWT algorithm, not just the key family.**
+      On the common pinned path (`config->alg == config->key->alg`, both set) the
+      alg-vs-alg chain in `__verify_config_post` never compared the token alg, and
+      the `kty` backstop is only family-granular (`jwt_alg_required_kty` maps every
+      RS/PS alg to RSA) — so e.g. an **RS512 token verified against an RS256-pinned
+      key**. Added an exact-alg check against whichever alg is pinned. Purely
+      additive: no legitimate token is newly rejected. Complements the
+      GHSA-q843-6q5f-w55g cross-family fix already in 7.x.
+    - **security(yev_loop): fix use-after-free when a callback destroys its own
+      event.** A callback calling `yev_destroy_event()` on its own event freed it
+      synchronously, then `callback_cqe`'s re-arm block and dispatch tail
+      dereferenced freed memory (last in-flight CQE). New `in_dispatch` flag
+      defers the free to the dispatch tail; the re-arm blocks now also test
+      `!destroy_requested` so a dying event is never re-armed.
+    - **security(root-linux): guard NULL header value in `ghttp_parser.c`
+      `on_header_value()`.** A previous chunk's `json_string()` failing on invalid
+      UTF-8 leaves no value under `cur_key`; the next continuation chunk then hit
+      `strlen(NULL)` (attacker bytes + TCP segmentation). Guarded before `strlen`,
+      restart the accumulator from the current chunk, and log the store failure
+      instead of silently truncating.
+    - **security(root-linux): fix re-entrant-free UAF and TLS-error teardown in
+      `c_tcp.c` `set_secure_connected()`.** The post-handshake `ytls_flush()` can
+      re-enter and destroy the connection (an `EV_RX_DATA` subscriber) or report a
+      TLS error. The return was ignored, so `start_pending_writes()` then ran on a
+      freed gobj. Now: `-2222` (re-entrant free) bails without touching gobj/priv;
+      `-1111` (TLS error, gobj alive) calls `try_to_stop_yevents()` and returns —
+      matching the decrypt-path discipline. Requires the ytls change below.
+    - **security(ytls): propagate `flush_clear_data()` errors out of openssl
+      `flush()`.** It swallowed the negative return (including the `-2222`
+      re-entrant-free sentinel); now returns it so `c_tcp` can act on it.
+    - **security(emailsender): reject CR/LF/control chars in `attachment` and
+      `inline_file_id`.** Both reach MIME headers raw via `append_attachment_part()`
+      (`Content-Type name=` / `Content-Disposition filename=` / `Content-ID`), and
+      `EV_SEND_EMAIL` is public — so they were an SMTP/MIME header-injection vector.
+      Added to the single-line control-char rejection set alongside the envelope
+      and display fields.
+
 ## 7.5.12
     - **fix(packages): default agent `node_owner` to `"none"` — no controlcenter
       on a fresh node.** The bundled `yuneta_agent.json.sample` /

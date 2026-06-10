@@ -63,10 +63,20 @@ A security review of this vendored copy against upstream was done on
   `secure_getenv` for crypto-provider selection (`jwt-crypto-ops.c`),
   builder/checker OOM-path JSON leak (`jwt-builder.c`/`jwt-checker.c`), and the
   missing-alg-header error message (`jwt-verify.c`).
+- **Exact-alg pin (same-family downgrade), local addition in
+  `__verify_config_post` (`jwt-verify.c`).** GHSA-q843 blocks *cross-family*
+  confusion (HMAC vs RSA/EC) via the `kty` backstop, but that backstop is only
+  family-granular (`jwt_alg_required_kty` maps every RS/PS alg to RSA), and on
+  the common pinned path (`config->alg == config->key->alg`, both set) the
+  alg-vs-alg chain never compares the token alg. So an **RS512 token verified
+  against an RS256-pinned key** still slipped through. The added check requires
+  `jwt->alg` to equal whichever alg is pinned (`config->alg` / `config->key->alg`).
+  Purely additive — no legitimate token is newly rejected.
 - **Forgery regression test:** [`tests/c/libjwt/test_jwt_alg_confusion.c`](../../../tests/c/libjwt/test_jwt_alg_confusion.c)
   pins the GHSA-q843 fix shut (RSA/EC/OKP confusion + `alg:none` + positive
   controls), wired into ctest. A focused equivalent of upstream's
-  `jwt_security.c`, not a verbatim port.
+  `jwt_security.c`, not a verbatim port. (Same-family downgrade — the exact-alg
+  pin above — is not yet covered here; see the "Broaden the forgery test" TODO.)
 
 ### Still to do — see the repo [`TODO.md`](../../../TODO.md)
 
