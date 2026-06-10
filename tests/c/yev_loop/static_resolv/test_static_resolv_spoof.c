@@ -25,7 +25,7 @@
  *  nameserver binds an unprivileged port supplied via -DYUNETA_DNS_PORT, which
  *  the same macro routes dns_query() to.
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
