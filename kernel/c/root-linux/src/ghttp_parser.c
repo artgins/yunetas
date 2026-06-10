@@ -520,9 +520,14 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
             parser->cur_key
         );
         const char *partial_value = json_string_value(jn_partial_value);
-        pos = strlen(partial_value);
+        // The previous chunk's json_string() store can fail (e.g. invalid
+        // UTF-8), leaving no string under cur_key; then json_object_get returns
+        // NULL and json_string_value(NULL) returns NULL. Guard before strlen()
+        // so a continuation chunk can't deref NULL (attacker-controlled bytes +
+        // TCP segmentation). Restart the accumulator from this chunk instead.
+        pos = partial_value? strlen(partial_value) : 0;
         value = gbmem_malloc(pos + length + 1);
-        if(value) {
+        if(value && pos) {
             memcpy(value, partial_value, pos);
         }
     } else {
@@ -540,7 +545,19 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
     }
     memcpy(value+pos, at, length);
     value[pos + length] = 0;    // NUL-terminate before json_string() strlen's it (matches on_url/on_header_field)
-    json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value));
+    // json_string() returns NULL on invalid UTF-8; json_object_set_new then
+    // stores nothing. Don't ignore that: log it so the accumulator desync
+    // (next continuation chunk re-reads a missing value) is visible rather
+    // than silently truncating the header.
+    if(json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "cannot store header value (invalid utf-8?)",
+            "key",          "%s", parser->cur_key,
+            NULL
+        );
+    }
     GBMEM_FREE(value);
 
     if(parser->last_key) {

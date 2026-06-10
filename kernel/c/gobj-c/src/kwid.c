@@ -2872,7 +2872,8 @@ PRIVATE json_t *collapse(
     json_t *new_kw = json_object();
     const char *key; json_t *jn_value;
     json_object_foreach(kw, key, jn_value) {
-        char *new_path = gbmem_strndup(path, strlen(path)+strlen(key)+2);
+        char *new_path = GBMEM_MALLOC(strlen(path)+strlen(key)+2);
+        strcpy(new_path, path);
         if(strlen(new_path)>0) {
             strcat(new_path, delimiter);
         }
@@ -2915,7 +2916,8 @@ PRIVATE json_t *collapse(
                 json_array_foreach(jn_value, idx, v) {
                     char s_idx[40];
                     snprintf(s_idx, sizeof(s_idx), "%d", idx);
-                    char *new_path2 = gbmem_strndup(new_path, strlen(new_path)+strlen(s_idx)+2);
+                    char *new_path2 = GBMEM_MALLOC(strlen(new_path)+strlen(s_idx)+2);
+                    strcpy(new_path2, new_path);
                     if(strlen(new_path2)>0) {
                         strcat(new_path2, delimiter);
                     }

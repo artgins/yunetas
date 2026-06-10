@@ -290,6 +290,22 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 		// LCOV_EXCL_STOP
 	}
 
+	/* Pin to the exact algorithm, not just the key family. The alg-vs-alg
+	 * checks above never compare the token alg (jwt->alg) on the common
+	 * pinned path where config->alg and config->key->alg are both set and
+	 * equal, and the kty backstop below is only family-granular
+	 * (jwt_alg_required_kty maps every RS / PS alg to JWK_KEY_TYPE_RSA).
+	 * Without this, e.g. an RS512 token verifies against an RS256-pinned
+	 * key. Require exact agreement with whichever alg is pinned. */
+	if (config->alg != JWT_ALG_NONE && jwt->alg != config->alg) {
+		jwt_write_error(jwt, "JWT alg does not match pinned config alg");
+		return JWT_CLAIM_JWT;
+	} else if (config->key->alg != JWT_ALG_NONE &&
+		   jwt->alg != config->key->alg) {
+		jwt_write_error(jwt, "JWT alg does not match pinned key alg");
+		return JWT_CLAIM_JWT;
+	}
+
 	/* Algorithm is now bound from the token (jwt->alg). Defensively confirm
 	 * the JWK's actual key type can carry it. This blocks algorithm
 	 * confusion (GHSA-q843-6q5f-w55g): the alg-vs-alg checks above never

@@ -50,6 +50,20 @@ PRIVATE void test_sink_graceful(void)
 }
 
 /***************************************************************************
+ *  Wrap guard: a data_size whose +1 sentinel allocation overflows
+ *  (SIZE_MAX) must be rejected at creation, not turned into a
+ *  non-NULL ~0-byte buffer with data_size==SIZE_MAX. This is the
+ *  integer-overflow boundary the __max_block__ guard alone misses
+ *  (it catches every merely-large value but not the exact wrap).
+ ***************************************************************************/
+PRIVATE void test_wrap_guard(void)
+{
+    gbuffer_t *gbuf = gbuffer_create((size_t)-1, (size_t)-1);
+    ok_or_fail(gbuf == NULL, "gbuffer_create(SIZE_MAX,...) == NULL");
+    GBUFFER_DECREF(gbuf);
+}
+
+/***************************************************************************
  *  Valid gbuffer: accessors still return real, usable data.
  ***************************************************************************/
 PRIVATE void test_valid_path(void)
@@ -111,6 +125,7 @@ int main(int argc, char *argv[])
      *----------------------------------*/
     test_null_guards();
     test_sink_graceful();
+    test_wrap_guard();
     test_valid_path();
 
     gobj_end();

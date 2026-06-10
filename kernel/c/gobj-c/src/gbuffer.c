@@ -30,6 +30,29 @@ PUBLIC gbuffer_t *gbuffer_create(
     size_t max_memory_size)
 {
     /*---------------------------------*
+     *   Reject a data_size whose +1
+     *   sentinel-byte allocation wraps
+     *   (data_size+1 == 0, i.e. SIZE_MAX).
+     *   Otherwise GBMEM_MALLOC(data_size+1)
+     *   becomes calloc(1,0): a non-NULL
+     *   ~0-byte buffer slips past the
+     *   __max_block__ guard while
+     *   gbuf->data_size stays at SIZE_MAX,
+     *   defeating every later bounds check
+     *   (gbuffer_freebytes / append memmove).
+     *---------------------------------*/
+    if(data_size + 1 == 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "data_size overflow (data_size+1 wraps)",
+            "data_size",    "%lu", (unsigned long)data_size,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*---------------------------------*
      *   Alloc memory
      *---------------------------------*/
     gbuffer_t *gbuf = GBMEM_MALLOC(sizeof(*gbuf));
