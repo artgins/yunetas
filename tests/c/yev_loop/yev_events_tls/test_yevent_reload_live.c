@@ -410,9 +410,10 @@ PRIVATE int do_test(void)
     /*--------------------------------*
      *  ssl CLIENT (no verification)
      *--------------------------------*/
-    json_t *jn_crypto_c = json_pack("{s:s, s:b}",
+    json_t *jn_crypto_c = json_pack("{s:s, s:b, s:b}",
         "library", TLS_LIBRARY_NAME,
-        "trace_tls", 0
+        "trace_tls", 0,
+        "ssl_allow_insecure_client", 1   // test client trusts the self-signed test server
     );
     ytls_client = ytls_init(0, jn_crypto_c, FALSE);
     JSON_DECREF(jn_crypto_c)

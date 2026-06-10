@@ -384,6 +384,27 @@ PRIVATE mbedtls_state_t *build_state(
         }
     }
 
+    /*
+     *  Fail-closed for an unverified CLIENT (mirrors the openssl backend).
+     *  A client with no trusted CA cannot validate the server certificate
+     *  (authmode NONE) = a standing MITM hole. Require an explicit
+     *  ssl_allow_insecure_client=true opt-out for self-signed / PSK / IoT
+     *  gates. Servers with no CA legitimately accept anonymous clients.
+     *  (mbedTLS build_state has no `fatal` flag; the NULL return makes
+     *  ytls_init fail so the connection is refused, the yuno stays up.)
+     */
+    if(!server && empty_string(ssl_trusted_certificate) &&
+            !kw_get_bool(gobj, jn_config, "ssl_allow_insecure_client", 0, 0)) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS,
+            "msg",              "%s", "TLS client refused: no server-certificate validation. Set ssl_trusted_certificate (recommended), or ssl_allow_insecure_client=true to accept the MITM risk",
+            NULL
+        );
+        state_decref(s);
+        return NULL;
+    }
+
     if(trace_tls && trace_arg) {
         mbedtls_debug_set_threshold(1);
         mbedtls_ssl_conf_dbg(&s->conf, mbedtls_debug_callback, trace_arg);

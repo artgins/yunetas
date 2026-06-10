@@ -193,20 +193,36 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* Test 4: client with no CA -> NONE -> "no validation" warning */
+    /* Test 4: client with no CA is REFUSED by default (verify-by-default) */
     capture_reset();
     {
         json_t *cfg = json_pack("{s:s}", "library", "openssl");
         hytls c = ytls_init(0, cfg, FALSE);
         JSON_DECREF(cfg);
+        if(c) {
+            fprintf(stderr, "%s[4]: expected no-CA client to be REFUSED, got a handle\n", APP);
+            result++;
+            ytls_cleanup(c);
+        } else {
+            printf("%s[4]: ok - no-CA client refused (verify-by-default)\n", APP);
+        }
+    }
+
+    /* Test 4b: explicit ssl_allow_insecure_client=true allows the unverified
+       client and still logs the no-validation warning. */
+    capture_reset();
+    {
+        json_t *cfg = json_pack("{s:s, s:b}", "library", "openssl", "ssl_allow_insecure_client", 1);
+        hytls c = ytls_init(0, cfg, FALSE);
+        JSON_DECREF(cfg);
         if(!c) {
-            fprintf(stderr, "%s[4]: ytls_init FAILED\n", APP);
+            fprintf(stderr, "%s[4b]: expected opt-in unverified client to init\n", APP);
             result++;
         } else {
             if(strstr(capture_buf, "WITHOUT server-certificate validation")) {
-                printf("%s[4]: ok - unverified client logged\n", APP);
+                printf("%s[4b]: ok - opt-in unverified client logged\n", APP);
             } else {
-                fprintf(stderr, "%s[4]: missing no-validation warning\n", APP);
+                fprintf(stderr, "%s[4b]: missing no-validation warning\n", APP);
                 result++;
             }
             ytls_cleanup(c);

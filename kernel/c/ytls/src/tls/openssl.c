@@ -646,6 +646,26 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             }
             SSL_CTX_set_verify(ctx, vflags, (vmode==1) ? verify_cb_tolerant : verify_cb_strict);
         } else {
+            /*
+             *  vmode==0 -> SSL_VERIFY_NONE. For a CLIENT this means the server
+             *  certificate is never validated = a standing MITM hole. Fail
+             *  closed by default (soft failure: return NULL so the connection
+             *  is refused but the yuno stays up); an embedder that genuinely
+             *  needs an unverified client (self-signed / PSK / IoT bring-up)
+             *  must opt in explicitly with ssl_allow_insecure_client=true.
+             *  Servers with no CA legitimately accept anonymous clients and
+             *  are unaffected.
+             */
+            if(!server && !kw_get_bool(gobj, jn_config, "ssl_allow_insecure_client", 0, 0)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL,
+                    "msg",          "%s", "TLS client refused: no server-certificate validation. Set ssl_trusted_certificate / ssl_use_system_ca (recommended), or ssl_allow_insecure_client=true to accept the MITM risk",
+                    NULL
+                );
+                SSL_CTX_free(ctx);
+                return NULL;
+            }
             SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
             if(!server) {
                 gobj_log_warning(gobj, 0,

@@ -361,7 +361,9 @@ done:
  ***************************************************************************/
 PRIVATE int test_client_no_cert(void)
 {
-    json_t *cfg = json_object();  /* empty config: no cert */
+    /* no cert; opt in to an unverified client so ytls_init succeeds (this test
+       exercises get_cert_info on a client, not the verify-by-default policy). */
+    json_t *cfg = json_pack("{s:b}", "ssl_allow_insecure_client", 1);
     hytls ytls = ytls_init(0, cfg, FALSE /* server=FALSE */);
     JSON_DECREF(cfg);
     if(!ytls) {
