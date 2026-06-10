@@ -4436,11 +4436,14 @@ PRIVATE int master_to_update_client_load_record_callback(
      *  Defense-in-depth (behind the append-boundary key validation):
      *  `key` is the record pkey and is used unsanitized to build the
      *  /disks/<rt_id>/<key> mkdir target and the link() destination below.
-     *  A traversing key ('/', '..', or a leading '.') would let mkdir create
-     *  a directory and link create a hard link outside disks/<rt_id>/.
-     *  Skip (and log) such a key so neither sink below ever runs for it.
+     *  A traversing key would let mkdir create a directory and link create a
+     *  hard link outside disks/<rt_id>/. Use the SAME predicate as the append
+     *  boundary ('/' or a leading '.'): a single path component without '/'
+     *  that does not start with '.' (so neither '.' nor '..') cannot escape.
+     *  Matching the append rule keeps this mirror from silently skipping a key
+     *  the master legitimately accepted (e.g. an embedded ".." like "a..b").
      */
-    if(empty_string(key) || strchr(key, '/') || key[0] == '.' || strstr(key, "..")) {
+    if(empty_string(key) || strchr(key, '/') || key[0] == '.') {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
