@@ -3374,6 +3374,31 @@ PUBLIC int tranger2_delete_instance(
     }
 
     /*----------------------------------------*
+     *  Defense-in-depth: `key` is forwarded as
+     *  a single keys/<key>/ path component to
+     *  get_md_record_for_wr / get_topic_wr_fd
+     *  (which mkrdir on master). Reject path
+     *  metacharacters here too, with the SAME
+     *  predicate as the append/delete boundary,
+     *  so a future direct caller passing an
+     *  unvalidated key cannot escape keys/. The
+     *  sf_rowid_key value ("__rowid__") passes.
+     *----------------------------------------*/
+    if(empty_string(key) ||
+       strchr(key, '/') != NULL ||
+       key[0] == '.') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid key (path metacharacters not allowed)",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
      *  Load the md row, OR the tombstone bit
      *----------------------------------------*/
     off_t offset;
@@ -4436,11 +4461,14 @@ PRIVATE int master_to_update_client_load_record_callback(
      *  Defense-in-depth (behind the append-boundary key validation):
      *  `key` is the record pkey and is used unsanitized to build the
      *  /disks/<rt_id>/<key> mkdir target and the link() destination below.
-     *  A traversing key ('/', '..', or a leading '.') would let mkdir create
-     *  a directory and link create a hard link outside disks/<rt_id>/.
-     *  Skip (and log) such a key so neither sink below ever runs for it.
+     *  A traversing key would let mkdir create a directory and link create a
+     *  hard link outside disks/<rt_id>/. Use the SAME predicate as the append
+     *  boundary ('/' or a leading '.'): a single path component without '/'
+     *  that does not start with '.' (so neither '.' nor '..') cannot escape.
+     *  Matching the append rule keeps this mirror from silently skipping a key
+     *  the master legitimately accepted (e.g. an embedded ".." like "a..b").
      */
-    if(empty_string(key) || strchr(key, '/') || key[0] == '.' || strstr(key, "..")) {
+    if(empty_string(key) || strchr(key, '/') || key[0] == '.') {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
