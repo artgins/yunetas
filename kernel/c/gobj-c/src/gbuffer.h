@@ -270,12 +270,30 @@ static inline char *gbuffer_getlabel(gbuffer_t *gbuf)
 
 static inline void gbuffer_setmark(gbuffer_t *gbuf, size_t mark)
 {
+    if(!gbuf) {     /* central NULL guard (symmetry with gbuffer_setlabel) */
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_setmark() with NULL gbuf",
+            NULL
+        );
+        return;
+    }
     /* Set mark */
     gbuf->mark = mark;
 }
 
 static inline size_t gbuffer_getmark(gbuffer_t *gbuf)
 {
+    if(!gbuf) {     /* central NULL guard (symmetry with gbuffer_setmark) */
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_getmark() with NULL gbuf",
+            NULL
+        );
+        return 0;
+    }
     /* Get mark */
     return gbuf->mark;
 }

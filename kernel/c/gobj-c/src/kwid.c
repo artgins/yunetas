@@ -979,7 +979,7 @@ int kwid_find_record_in_list(
             NULL
         );
     }
-    return 0;
+    return -1;
 }
 
 /***************************************************************************
@@ -3817,17 +3817,17 @@ PRIVATE void flatten_recursive(
             char *new_path;
             if(current_path && current_path[0]) {
                 size_t len = strlen(current_path) + 1 + strlen(key) + 1;
-                new_path = malloc(len);
+                new_path = gbmem_malloc(len);
                 if(new_path) {
                     snprintf(new_path, len, "%s`%s", current_path, key);
                 }
             } else {
-                new_path = strdup(key);
+                new_path = gbmem_strdup(key);
             }
 
             if(new_path) {
                 flatten_recursive(result, child, new_path);
-                free(new_path);
+                gbmem_free(new_path);
             }
         }
     } else if(json_is_array(jn_value)) {
@@ -3840,17 +3840,17 @@ PRIVATE void flatten_recursive(
             char *new_path;
             if(current_path && current_path[0]) {
                 size_t len = strlen(current_path) + 1 + strlen(idx_str) + 1;
-                new_path = malloc(len);
+                new_path = gbmem_malloc(len);
                 if(new_path) {
                     snprintf(new_path, len, "%s`%s", current_path, idx_str);
                 }
             } else {
-                new_path = strdup(idx_str);
+                new_path = gbmem_strdup(idx_str);
             }
 
             if(new_path) {
                 flatten_recursive(result, child, new_path);
-                free(new_path);
+                gbmem_free(new_path);
             }
         }
     } else {
@@ -3923,7 +3923,7 @@ PRIVATE int set_path_value(
     json_t *jn_value
 )
 {
-    char *path_copy = strdup(path);
+    char *path_copy = gbmem_strdup(path);
     if(!path_copy) {
         return -1;
     }
@@ -3940,7 +3940,7 @@ PRIVATE int set_path_value(
     }
 
     if(token_count == 0) {
-        free(path_copy);
+        gbmem_free(path_copy);
         return -1;
     }
 
@@ -3971,7 +3971,7 @@ PRIVATE int set_path_value(
             }
             current = child;
         } else {
-            free(path_copy);
+            gbmem_free(path_copy);
             return -1;
         }
     }
@@ -3986,11 +3986,11 @@ PRIVATE int set_path_value(
         ensure_array_size(current, index);
         json_array_set(current, index, jn_value);
     } else {
-        free(path_copy);
+        gbmem_free(path_copy);
         return -1;
     }
 
-    free(path_copy);
+    gbmem_free(path_copy);
     return 0;
 }
 
@@ -4015,10 +4015,10 @@ PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
     const char *first_key = json_object_iter_key(json_object_iter(jn_flat));
 
     if(first_key) {
-        char *copy = strdup(first_key);
+        char *copy = gbmem_strdup(first_key);
         char *first_token = strtok(copy, "`");
         BOOL root_is_array = first_token && is_array_index(first_token);
-        free(copy);
+        gbmem_free(copy);
         result = root_is_array ? json_array() : json_object();
     } else {
         result = json_object();

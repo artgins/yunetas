@@ -394,6 +394,44 @@ static int test_reg_f001_gbuffer_deserialize_null_data(void)
 }
 
 /***************************************************************************
+ *  Regression f001 (variant): gbuffer_deserialize() must also reject a
+ *  serialized blob whose "data" field is PRESENT but is not valid base64.
+ *  gbuffer_base64_to_binary() returns NULL on a decode failure; the old code
+ *  fed that NULL straight into gbuffer_setmark() (gbuf->mark = mark), a NULL
+ *  deref reachable pre-auth via ac_on_message -> kw_deserialize.
+ ***************************************************************************/
+static int test_reg_f001_gbuffer_deserialize_bad_base64(void)
+{
+    int result = 0;
+    set_expected_results(
+        "reg_f001_gbuffer_deserialize_bad_base64",
+        json_pack("[{s:s},{s:s}]",  // b64_decode fails, then deserialize rejects
+            "msg", "b64_decode() FAILED",
+            "msg", "gbuffer_deserialize: base64 decode of 'data' field FAILED"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    /* "!!!!" is the right length to attempt a decode but is not valid base64 */
+    json_t *jn = json_pack("{s:s, s:i, s:s}",
+        "label", "x",
+        "mark", 0,
+        "data", "!!!!"
+    );
+    gbuffer_t *gbuf = gbuffer_deserialize(0, jn);
+    if(gbuf != NULL) {
+        result += -1;   // must reject, not return a buffer (and must not crash)
+        gbuffer_decref(gbuf);
+    }
+    json_decref(jn);
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    return result;
+}
+
+/***************************************************************************
  *  Regression f003: kw_find_path() must bound recursion depth so a deeply
  *  nested kw plus a long backtick-delimited path cannot exhaust the stack.
  ***************************************************************************/
@@ -483,6 +521,52 @@ static int test_reg_f004_kwid_compare_records_depth(void)
 }
 
 /***************************************************************************
+ *  Regression f002: kwid_find_record_in_list must return -1 (not 0) when an
+ *  id is genuinely absent. The match-by-id branch of the list comparator
+ *  tests `idx2 < 0`; a bogus 0 made it compare/remove the WRONG record
+ *  (expected[0]) and report a false match.
+ ***************************************************************************/
+static int test_reg_f002_find_record_not_found(void)
+{
+    int result = 0;
+
+    /*
+     *  list has a record whose id ("X") is NOT present in expected.
+     *  expected[0] has a different id ("A") but the same payload.
+     *  Ignoring "id", a buggy not-found return of 0 makes the comparator
+     *  match list[0] against the wrong expected[0] and report equal (TRUE).
+     *  With the -1 fix the absent id is detected and the lists differ (FALSE).
+     */
+    json_t *list = json_pack("[{s:s, s:i}]",
+        "id", "X",
+        "v", 1
+    );
+    json_t *expected = json_pack("[{s:s, s:i}]",
+        "id", "A",
+        "v", 1
+    );
+    const char *ignore_keys[] = {"id", NULL};
+
+    set_expected_results(
+        "reg_f002_find_record_not_found",
+        NULL,   // error's list: no error log expected on this path
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        0       // verbose off: assert on the BOOL, not on trace logs
+    );
+
+    BOOL eq = kwid_compare_lists(0, list, expected, ignore_keys, FALSE, FALSE, FALSE);
+    if(eq != FALSE) {
+        result += -1;   // absent id must surface as a mismatch, not a wrong-record match
+    }
+    JSON_DECREF(list);
+    JSON_DECREF(expected);
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
@@ -497,6 +581,8 @@ PRIVATE int do_test(void)
     result += test2_false();
 
     result += test_reg_f001_gbuffer_deserialize_null_data();
+    result += test_reg_f001_gbuffer_deserialize_bad_base64();
+    result += test_reg_f002_find_record_not_found();
     result += test_reg_f003_kw_find_path_depth();
     result += test_reg_f004_kwid_compare_records_depth();
 

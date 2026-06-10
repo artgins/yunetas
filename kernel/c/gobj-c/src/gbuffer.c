@@ -678,6 +678,15 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
     }
 
     gbuffer_t *gbuf = gbuffer_base64_to_binary(base64, strlen(base64));
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gbuffer_deserialize: base64 decode of 'data' field FAILED",
+            NULL
+        );
+        return NULL;
+    }
     gbuffer_setlabel(gbuf, label);
     gbuffer_setmark(gbuf, mark);
     return gbuf;
