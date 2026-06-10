@@ -3374,6 +3374,31 @@ PUBLIC int tranger2_delete_instance(
     }
 
     /*----------------------------------------*
+     *  Defense-in-depth: `key` is forwarded as
+     *  a single keys/<key>/ path component to
+     *  get_md_record_for_wr / get_topic_wr_fd
+     *  (which mkrdir on master). Reject path
+     *  metacharacters here too, with the SAME
+     *  predicate as the append/delete boundary,
+     *  so a future direct caller passing an
+     *  unvalidated key cannot escape keys/. The
+     *  sf_rowid_key value ("__rowid__") passes.
+     *----------------------------------------*/
+    if(empty_string(key) ||
+       strchr(key, '/') != NULL ||
+       key[0] == '.') {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Invalid key (path metacharacters not allowed)",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
      *  Load the md row, OR the tombstone bit
      *----------------------------------------*/
     off_t offset;

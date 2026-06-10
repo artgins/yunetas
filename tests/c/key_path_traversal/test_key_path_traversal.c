@@ -9,6 +9,8 @@
  *        returning -1 and creating NO directory outside keys/.
  *      - tranger2_delete_key (delete sink) must REJECT the same metacharacter
  *        keys before any rmrdir.
+ *      - tranger2_delete_instance (per-row delete sink) must REJECT them too
+ *        before any keys/<key>/ mkrdir (defense-in-depth for direct callers).
  *      - Positive controls: a normal key and a single-component key with an
  *        embedded ".." (e.g. "a..b", which cannot escape) are ACCEPTED — the
  *        guard must not over-reject what the append boundary legitimately
@@ -231,6 +233,33 @@ PRIVATE int do_test(void)
     for(int i = 0; bad_delete[i]; i++) {
         if(tranger2_delete_key(tranger, TOPIC_NAME, bad_delete[i]) >= 0) {
             printf("%sERROR%s --> delete_key accepted traversal key '%s'\n",
+                On_Red BWhite, Color_Off, bad_delete[i]);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  Negative: delete_instance (per-row
+     *  delete sink) rejects the same keys
+     *  before any keys/<key>/ mkrdir.
+     *-------------------------------------*/
+    set_expected_results(
+        "negative: delete_instance rejects path-traversal keys",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "Invalid key (path metacharacters not allowed)",
+            "msg", "Invalid key (path metacharacters not allowed)",
+            "msg", "Invalid key (path metacharacters not allowed)",
+            "msg", "Invalid key (path metacharacters not allowed)",
+            "msg", "Invalid key (path metacharacters not allowed)",
+            "msg", "Invalid key (path metacharacters not allowed)"
+        ),
+        NULL, NULL, 0
+    );
+    for(int i = 0; bad_delete[i]; i++) {
+        if(tranger2_delete_instance(
+                tranger, TOPIC_NAME, bad_delete[i], BASE_T, 0, FALSE) >= 0) {
+            printf("%sERROR%s --> delete_instance accepted traversal key '%s'\n",
                 On_Red BWhite, Color_Off, bad_delete[i]);
             result += -1;
         }
