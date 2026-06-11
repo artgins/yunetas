@@ -79,7 +79,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
-        'Cli.shortkeys': {                                                      \n\
+        'ycli.shortkeys': {                                                     \n\
             's': 'stats-yuno yuno_role=logcenter',                              \n\
             'ss': 'command-yuno yuno_role=logcenter command=display-summary',   \n\
             'r': 'command-yuno yuno_role=logcenter command=reset-counters',     \n\
