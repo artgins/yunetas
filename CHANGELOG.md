@@ -1,5 +1,52 @@
 # **Changelog**
 
+## 7.6.1
+    - **fix(authz,root-linux): a root superuser reaches any service of the
+      node.** The 7.6.0 per-message `dst_service` gate (`is_service_authorized`
+      in `c_ievent_srv.c`) authorized only the channel's `authorized_services`
+      — the *keys* of `services_roles`. But the local trusted `yuneta` user
+      authenticated through the `yuneta_by_local_ip` shortcut in `c_authz.c`,
+      which hardcoded an EMPTY role set (`{"agent":[]}`, the old
+      `// TODO not need role?`), so its real `root` role (`service="*"`,
+      `realm_id="*"`) never reached the channel. Result: the local control
+      plane (`ycli` warming its command cache with `list-gobj-commands` to
+      `dst_service="__yuno__"`, `ycommand`, …) was REJECTED at `__yuno__` and
+      any sibling service — root could not reach the yuno root. Now the local
+      `yuneta` goes through the SAME `get_user_roles()` filter as any user (no
+      hardcode); `get_user_roles()` flags the channel `superuser` when the user
+      holds an effective `service="*"` role (computed from the wildcard, not the
+      literal role name), propagated in the authenticate response and stored as
+      the `is_superuser` channel attr. `is_service_authorized()` returns TRUE for
+      a superuser: any realm/service/permission by definition, so it is not a
+      cross-service escalation. Scoped roles (`developer`, `sysop`, …) stay
+      limited to their granted services — the 7.6.0 cross-service protection is
+      intact for them. What a command may DO is still governed by the
+      default-off per-command authz, orthogonal to this routing gate.
+    - **fix(root-linux): the ievent server never leaves a channel zombie when it
+      refuses a message.** `ac_on_message` rejected an unrouted `dst_service`
+      (unauthorized or not found) with a bare `return -1`, which both skipped
+      any answer AND left the socket read un-rearmed (`c_tcp` only re-arms on a
+      `0` return from the `EV_RX_DATA` publish chain): the channel stayed
+      connected but deaf and the peer waited forever. New `reject_unrouted_iev()`
+      never returns `-1` silently: `command` / `stats` (which have a natural
+      answer channel) get a negative `EV_MT_*_ANSWER` with the reason and the
+      read re-arms (`return 0`); `subscribe` / `unsubscribe` / `inject` (no
+      answer) `drop()` the channel for a clean disconnect. Applied to both the
+      unauthorized-service and the service-not-found paths.
+    - **build(cmake): link the kernel and external static libraries by full
+      path so consumers auto-relink.** `tools/cmake/project.cmake` listed the
+      `.a` files as bare names resolved via `link_directories()` `-L`, which
+      CMake treats as plain `-l` flags with NO file dependency: after editing a
+      kernel source and rebuilding its `.a`, dependent yunos were NOT relinked
+      (`make` reported `Built target` with the stale binary; the workaround was
+      to delete the binary first). Each archive is now given by full path
+      (`${LIB_DEST_DIR}/...` for yuneta's own, `${EXT_LIB_DIR}/...` for
+      `outputs_ext/lib` third-party), so CMake tracks it as a link dependency
+      and `make` / `yunetas build` relinks automatically when a lib changes.
+      System libs (`pthread`, `dl`) stay bare. Verified: a full clean rebuild is
+      green and touching `libyunetas-core-linux.a` relinks the agent with a
+      plain `make`.
+
 ## 7.6.0
     - **security(root-linux): authorize per-message dst_service against the
       authenticated service set on the ievent server.** `ac_on_message`
