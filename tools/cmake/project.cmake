@@ -141,36 +141,45 @@ endif()
 
 #----------------------------------------#
 #   Libraries
+#
+#   Each .a is given by FULL PATH (not a bare -l name resolved via
+#   link_directories) so CMake tracks it as a link dependency of every
+#   consuming target: editing a kernel/module source rebuilds its .a and the
+#   yuno relinks automatically on the next build (no `clean` needed). Yuneta's
+#   own archives live in LIB_DEST_DIR; third-party archives in EXT_LIB_DIR.
+#   System libs (pthread, dl) stay bare names -- they are -l flags, not files.
 #----------------------------------------#
+set(EXT_LIB_DIR ${YUNETAS_BASE}/outputs_ext/lib)
+
 set(YUNETAS_KERNEL_LIBS
-    libyunetas-core-linux.a
-    libargp-standalone.a
-    libtimeranger2.a
-    libyev_loop.a
-    libytls.a
-    libyunetas-gobj.a
+    ${LIB_DEST_DIR}/libyunetas-core-linux.a
+    ${EXT_LIB_DIR}/libargp-standalone.a
+    ${LIB_DEST_DIR}/libtimeranger2.a
+    ${LIB_DEST_DIR}/libyev_loop.a
+    ${LIB_DEST_DIR}/libytls.a
+    ${LIB_DEST_DIR}/libyunetas-gobj.a
 )
 
 set(YUNETAS_EXTERNAL_LIBS
-    libjansson.a
-    liburing.a
+    ${EXT_LIB_DIR}/libjansson.a
+    ${EXT_LIB_DIR}/liburing.a
 )
 
 set(YUNETAS_PCRE_LIBS
-    libpcre2-8.a
+    ${EXT_LIB_DIR}/libpcre2-8.a
 )
 
 # libjwt-y.a is listed separately to avoid duplication when both TLS backends are enabled
 if (CONFIG_HAVE_OPENSSL OR CONFIG_HAVE_MBEDTLS)
-    set(JWT_LIBS libjwt-y.a)
+    set(JWT_LIBS ${LIB_DEST_DIR}/libjwt-y.a)
 else()
     set(JWT_LIBS "")
 endif()
 
 if (CONFIG_HAVE_OPENSSL)
     set(OPENSSL_LIBS
-        libssl.a
-        libcrypto.a
+        ${EXT_LIB_DIR}/libssl.a
+        ${EXT_LIB_DIR}/libcrypto.a
         pthread
         dl
     )
@@ -180,9 +189,9 @@ endif()
 
 if (CONFIG_HAVE_MBEDTLS)
     set(MBEDTLS_LIBS
-        libmbedtls.a
-        libmbedx509.a
-        libmbedcrypto.a
+        ${EXT_LIB_DIR}/libmbedtls.a
+        ${EXT_LIB_DIR}/libmbedx509.a
+        ${EXT_LIB_DIR}/libmbedcrypto.a
     )
 else()
     set(MBEDTLS_LIBS "")
@@ -190,7 +199,7 @@ endif()
 
 if (CONFIG_DEBUG_WITH_BACKTRACE)
     set(DEBUG_LIBS
-        libbacktrace.a
+        ${EXT_LIB_DIR}/libbacktrace.a
     )
 else()
     set(DEBUG_LIBS "")
@@ -198,7 +207,7 @@ endif()
 
 if (CONFIG_MODULE_CONSOLE)
     set(MODULE_CONSOLE
-        libyunetas-module-console.a
+        ${LIB_DEST_DIR}/libyunetas-module-console.a
     )
 else()
     set(MODULE_CONSOLE "")
@@ -206,7 +215,7 @@ endif()
 
 if (CONFIG_MODULE_MQTT)
     set(MODULE_MQTT
-        libyunetas-module-mqtt.a
+        ${LIB_DEST_DIR}/libyunetas-module-mqtt.a
     )
 else()
     set(MODULE_MQTT "")
@@ -214,7 +223,7 @@ endif()
 
 if (CONFIG_MODULE_MODBUS)
     set(MODULE_MODBUS
-        libyunetas-module-modbus.a
+        ${LIB_DEST_DIR}/libyunetas-module-modbus.a
     )
 else()
     set(MODULE_MODBUS "")
@@ -222,7 +231,7 @@ endif()
 
 if (CONFIG_MODULE_POSTGRES)
     set(MODULE_POSTGRES
-        libyunetas-module-postgres.a
+        ${LIB_DEST_DIR}/libyunetas-module-postgres.a
     )
 else()
     set(MODULE_POSTGRES "")
@@ -230,7 +239,7 @@ endif()
 
 if (CONFIG_MODULE_TEST)
     set(MODULE_TEST
-        libyunetas-module-test.a
+        ${LIB_DEST_DIR}/libyunetas-module-test.a
     )
 else()
     set(MODULE_TEST "")
