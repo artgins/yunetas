@@ -1,6 +1,36 @@
 # **Changelog**
 
 ## 7.5.13
+    - **security(root-linux): enforce per-channel service binding on the ievent
+      server.** Authentication in `C_IEVENT_SRV` is per-service (the channel is
+      bound to `priv->gobj_service` at identity-card time), but `ac_on_message`
+      (subscribe / unsubscribe / inject) and `ac_mt_stats` resolved the
+      `dst_service` / `service` from the attacker-controlled routing stack and
+      dispatched against any registered service. A peer authenticated for
+      service A could subscribe to events of, inject into, or read/reset the
+      stats of another service B by naming it. Both paths now require the
+      resolved gobj to equal the channel's authenticated `gobj_service`; the
+      empty-service fallback already points there, so legitimate callers are
+      unaffected. (`ac_mt_command` cross-service reach stays gated by the
+      default-off per-command authz — threat-model T7, an accepted posture.)
+    - **security(root-linux): resolve the `C_PTY` `process` attr against a
+      trusted-dir allowlist, never `$PATH`.** The remote-settable `process`
+      value (set by the authz-gated `open-console` command) reached `execvp()`,
+      which consults the inherited `$PATH` — a planted PATH entry could hijack a
+      bare name. New `resolve_process_path()` accepts an absolute path only if
+      executable, resolves a bare name against a fixed list of system dirs
+      (`/bin`, `/usr/bin`, `/sbin`, `/usr/sbin`, `/usr/local/bin`), rejects
+      relative-with-slash, and fails closed (empty argv[0] → no exec).
+      `execvp` → `execv`.
+    - **security(ycommand/ycli): sanitize peer-supplied config record names
+      before they become local filenames.** A malicious peer's command-answer
+      record `name`/`id` (`view-config` / `read-json` / `read-file` /
+      `edit-config`) flowed unsanitized into the `"<editor> <path>"` string that
+      `pty_sync_spawn()` hands to `/bin/sh -c` — RCE on the operator host (e.g.
+      `"x; rm -rf ~ #"`). New `sanitize_config_name()` folds everything outside
+      `[A-Za-z0-9._-]` to `_`, forbids a leading dot, and collapses path
+      separators to a single inert basename, applied in all `save_local_*`
+      builders of both tools.
     - **harden(ytls/mbedtls): opted-in insecure client is never silent —
       observability parity with openssl.** An accepted
       `ssl_allow_insecure_client=true` client now logs the same *"TLS client
