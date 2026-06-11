@@ -96,6 +96,14 @@
       flipped to a verifying posture (`ssl_use_system_ca` + `ssl_verify_mode=required`).
       **Rollout:** any TLS-client deployment relying on silent `VERIFY_NONE` must
       add a CA (or `ssl_allow_insecure_client=true`) before it will connect.
+    - **fix(root-linux): check `ytls_init()` NULL in `c_tcp.c` connect path.**
+      Follow-up to verify-by-default: the refusal is a soft failure (`ytls_init`
+      returns NULL, yuno stays up), but `ac_connect` never checked it and the
+      established connection then called `ytls_new_secure_filter(NULL, ...)` —
+      SEGFAULT (caught by `perf_c_tcps` test4/test5). Now the connect aborts
+      cleanly via `try_to_stop_yevents()`. Also added the missed
+      `ssl_allow_insecure_client=true` to the `perf_c_tcps` test4/test5 client
+      crypto blocks (the `tests/c/c_tcps*` sweep skipped `performance/`).
 
 ## 7.5.12
     - **fix(packages): default agent `node_owner` to `"none"` — no controlcenter

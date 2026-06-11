@@ -1619,6 +1619,11 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 json_object_set_new(jn_crypto, "ssl_server_name", json_string(_host));
             }
             priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
+            if(!priv->ytls) {
+                // Error already logged (ytls refuses insecure clients by default)
+                try_to_stop_yevents(gobj);
+                return -1;
+            }
 
             // TODO connection with certificate, review
             //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
