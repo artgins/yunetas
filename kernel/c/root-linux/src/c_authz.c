@@ -116,7 +116,8 @@ PRIVATE json_t *get_user_roles(
     const char *dst_realm_id,
     const char *dst_service,
     const char *username,
-    json_t *kw  // not owned
+    json_t *kw,         // not owned
+    BOOL *superuser     // out, optional: set TRUE if user holds a service="*" role
 );
 
 PRIVATE int create_validation_key(
@@ -1099,14 +1100,35 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_write_str_attr(src, "__username__", username);
         gobj_write_str_attr(src, "__session_id__", "");
 
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:{s:[]}}",
+        /*
+         *  Local trusted yuneta: resolve its REAL roles from treedb (the same
+         *  role filter as any user), not a hardcoded empty set. The seed yuneta
+         *  user holds the root role (service="*"), so it becomes a superuser and
+         *  the ievent gate lets it reach any service (e.g. __yuno__). Guarantee
+         *  at least its own dst_service so the local escape hatch survives even
+         *  if the user record carries no explicit role for it.
+         */
+        BOOL superuser = FALSE;
+        json_t *services_roles = get_user_roles(
+            gobj,
+            gobj_yuno_realm_id(),
+            dst_service,
+            username,
+            kw,
+            &superuser
+        );
+        kw_get_list(gobj, services_roles, dst_service, json_array(), KW_CREATE);
+
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O, s:b}",
             "result", 0,
             "comment", comment,
             "username", username,
             "session_id", "",
             "dst_service", dst_service,
-            "services_roles", dst_service // TODO not need role?
+            "services_roles", services_roles,
+            "superuser", superuser
         );
+        JSON_DECREF(services_roles);
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
         return jn_resp;
@@ -1161,12 +1183,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*------------------------------*
      *      Get user roles
      *------------------------------*/
+    BOOL superuser = FALSE;
     json_t *services_roles = get_user_roles(
         gobj,
         gobj_yuno_realm_id(),
         dst_service,
         username,
-        kw
+        kw,
+        &superuser
     );
 
     if(!kw_has_key(services_roles, dst_service)) {
@@ -1352,13 +1376,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         NULL
     );
 
-    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O}",
+    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O, s:b}",
         "result", 0,
         "comment", "User authenticated",
         "username", username,
         "session_id", session_id,
         "dst_service", dst_service,
-        "services_roles", services_roles
+        "services_roles", services_roles,
+        "superuser", superuser
     );
     if(jwt_payload) {
         json_object_set(jn_resp, "jwt_payload", jwt_payload);
@@ -3372,12 +3397,31 @@ PRIVATE json_t *append_role(
     }
 
  ***************************************************************************/
+/***************************************************************************
+ *  TRUE if the role is a wildcard-service (root) role effective in this realm:
+ *  service="*" (reaches any service) and realm "*" or the current realm. This
+ *  is what makes a channel a superuser for the per-service routing gate.
+ ***************************************************************************/
+PRIVATE BOOL role_is_wildcard_service(hgobj gobj, json_t *role, const char *dst_realm_id)
+{
+    const char *r_service = kw_get_str(gobj, role, "service", "", 0);
+    if(strcmp(r_service, "*")!=0) {
+        return FALSE;
+    }
+    const char *r_realm = kw_get_str(gobj, role, "realm_id", "", 0);
+    if(strcmp(r_realm, "*")==0 || strcmp(r_realm, dst_realm_id)==0) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
 PRIVATE json_t *get_user_roles(
     hgobj gobj,
     const char *dst_realm_id,
     const char *dst_service,
     const char *username,
-    json_t *kw // not owned
+    json_t *kw,         // not owned
+    BOOL *superuser     // out, optional: set TRUE if user holds a service="*" role
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3418,6 +3462,10 @@ PRIVATE json_t *get_user_roles(
         if(kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER)) {
             json_decref(role);
             continue;
+        }
+
+        if(superuser && !*superuser && role_is_wildcard_service(gobj, role, dst_realm_id)) {
+            *superuser = TRUE;
         }
 
         append_role(
@@ -3462,6 +3510,9 @@ PRIVATE json_t *get_user_roles(
         json_t *child;
         int idx3;
         json_array_foreach(tree_roles, idx3, child) {
+            if(superuser && !*superuser && role_is_wildcard_service(gobj, child, dst_realm_id)) {
+                *superuser = TRUE;
+            }
             append_role(
                 gobj,
                 services_roles,

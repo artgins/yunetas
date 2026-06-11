@@ -42,6 +42,14 @@ PRIVATE json_t *build_srv_ievent_request(
     const char *dst_service
 );
 PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service);
+PRIVATE int reject_unrouted_iev(
+    hgobj gobj,
+    gobj_event_t iev_event,
+    json_t *iev_kw,     // owned
+    json_t *kw,         // owned
+    const char *comment,
+    hgobj src
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -77,6 +85,13 @@ SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card 
 // spoofed. A single authentication against the primary dst_service can grant
 // several services (required_services) — see the multi-service GUI frontends.
 SDATA (DTP_JSON,        "authorized_services",  SDF_VOLATIL, "[]", "Service names this channel may reach (keys of services_roles)"),
+
+// Superuser channel: the authenticated user holds a role with service="*"
+// (root). Set by c_authz at identity_card time (the "superuser" field of the
+// authenticate response, computed from real treedb roles, not client-supplied).
+// A superuser bypasses the per-service routing gate (is_service_authorized):
+// any realm/service/permission, so it reaches __yuno__ and any sibling service.
+SDATA (DTP_BOOLEAN,     "is_superuser",         SDF_VOLATIL, 0, "Channel user holds a wildcard (root) role; bypasses the service gate"),
 
 SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting Identity Card"),
 
@@ -891,6 +906,15 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     }
     gobj_write_new_json_attr(gobj, "authorized_services", jn_authorized); // owned
 
+    /*
+     *  Superuser (root) bypasses the per-service gate. Computed by c_authz from
+     *  the user's real treedb roles (a role with service="*"), never from the
+     *  client-supplied routing stack.
+     */
+    gobj_write_bool_attr(gobj, "is_superuser",
+        kw_get_bool(gobj, jn_resp, "superuser", 0, 0)
+    );
+
     // HACK comment next sentence, already set by gobj_authenticate(), 24-Oct-2023
     // gobj_write_str_attr(gobj, "__username__", kw_get_str(jn_resp, "username", "", KW_REQUIRED));
 
@@ -962,6 +986,18 @@ PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  A superuser (root: a role with service="*") reaches any service of the
+     *  node, including __yuno__ and sibling services. This is not a cross-service
+     *  escalation: root means any realm/service/permission by definition. The
+     *  flag is set by c_authz from the user's real treedb roles, so it cannot be
+     *  spoofed by the client's routing stack. What a command may actually DO is
+     *  still governed by the per-command authz layer (c_authz), not this gate.
+     */
+    if(gobj_read_bool_attr(gobj, "is_superuser")) {
+        return TRUE;
+    }
+
     if(!priv->gobj_service || gobj_service == priv->gobj_service) {
         return TRUE;
     }
@@ -975,6 +1011,67 @@ PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
         }
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  Reject a per-message ievent that cannot be routed (unauthorized service,
+ *  or service not found) WITHOUT leaving the channel in a zombie state.
+ *
+ *  The socket read is only re-armed by c_tcp when the EV_RX_DATA publish
+ *  chain returns 0 (see c_tcp.c: "If it's in idle then re-arm", gated on
+ *  ret==0). A bare `return -1` here both skips the answer AND leaves the read
+ *  un-rearmed: the channel stays connected but deaf, and the peer waits
+ *  forever. So we never return -1 silently:
+ *    - command / stats have a natural answer channel: reply with a negative
+ *      EV_MT_*_ANSWER and return 0 (channel stays alive, read re-arms).
+ *    - subscribe / unsubscribe / inject have no answer: drop() the channel so
+ *      the peer sees a clean disconnect (the read is intentionally not
+ *      re-armed because drop() is closing it).
+ *  Consumes iev_kw and kw.
+ ***************************************************************************/
+PRIVATE int reject_unrouted_iev(
+    hgobj gobj,
+    gobj_event_t iev_event,
+    json_t *iev_kw,     // owned
+    json_t *kw,         // owned
+    const char *comment,
+    hgobj src
+)
+{
+    gobj_event_t answer_event = 0;
+    if(iev_event == EV_MT_COMMAND) {
+        answer_event = EV_MT_COMMAND_ANSWER;
+    } else if(iev_event == EV_MT_STATS) {
+        answer_event = EV_MT_STATS_ANSWER;
+    }
+
+    if(answer_event) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,                             // result
+            json_sprintf("%s", comment),    // jn_comment
+            0,                              // jn_schema
+            0                               // jn_data
+        );
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            iev_kw,         // owned, consumed (only __md_iev__ is used)
+            kw_response,    // like owned, is returned
+            TRUE            // reverse_dst
+        );
+        send_static_iev(gobj, answer_event, kw_response, src);
+        KW_DECREF(kw)
+        return 0;   // channel stays alive: c_tcp re-arms the read only on ret==0
+    }
+
+    /*
+     *  No natural answer channel (subscribe/unsubscribe/inject): close the
+     *  channel so the peer sees a clean disconnect instead of a silent stall.
+     */
+    drop(gobj);
+    KW_DECREF(iev_kw)
+    KW_DECREF(kw)
+    return -1;
 }
 
 /***************************************************************************
@@ -1166,10 +1263,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "event",        "%s", iev_event,
             NULL
         );
+        gobj_trace_json(gobj, iev_kw, "event ignored, dst_service not authorized for this channel");
+        json_t *jn_authorized = gobj_read_json_attr(gobj, "authorized_services"); // not mine
+        gobj_trace_json(gobj, jn_authorized, "authorized_services");
         trace_inter_event(gobj, prefix, iev_event, iev_kw);
-        KW_DECREF(iev_kw)
-        KW_DECREF(kw)
-        return -1;
+        char comment[120];
+        snprintf(comment, sizeof(comment),
+            "Service not authorized for this channel: '%s'", iev_dst_service);
+        return reject_unrouted_iev(gobj, iev_event, iev_kw, kw, comment, src);
     }
     if(!gobj_service) {
         gobj_log_error(gobj, 0,
@@ -1181,9 +1282,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         trace_inter_event(gobj, prefix, iev_event, iev_kw);
-        KW_DECREF(iev_kw)
-        KW_DECREF(kw)
-        return -1;
+        char comment[120];
+        snprintf(comment, sizeof(comment), "Service not found: '%s'", iev_dst_service);
+        return reject_unrouted_iev(gobj, iev_event, iev_kw, kw, comment, src);
     }
 
     /*------------------------------------*

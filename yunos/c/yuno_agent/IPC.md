@@ -428,6 +428,14 @@ design — one authentication can legitimately grant several services (the GUI
 frontends authenticate against `db_history_wz` and reach `treedb_wattyzer`,
 `treedb_authzs`, … over the same channel).
 
+Since 7.6.1 the authenticate response also carries a `superuser` flag, captured
+into the channel's `is_superuser` attr. It is TRUE when the user holds an
+effective wildcard role (`service="*"`, i.e. `root`), computed from the wildcard
+itself, not from a literal role name. The local trusted `yuneta` user (admitted
+only over localhost) now goes through the **same** `get_user_roles()` filter as
+any user instead of a hardcoded empty role set, so it picks up its real `root`
+role and becomes a superuser.
+
 After the handshake the channel is fully bidirectional — events flow
 either way.
 
@@ -445,23 +453,33 @@ either way.
    - `__default_service__` → the yuno's `gobj_default_service()`.
    - `__yuno__` and `__root__` → both resolve to the top-level yuno gobj
      (treated as aliases by `gobj_find_service`).
-5. **Authorize the per-message service** (since 7.6.0). `ac_on_message`
-   (subscribe / unsubscribe / inject) and `ac_mt_stats` check the resolved
-   service against the channel's `authorized_services` set (captured at
-   identity-card time, §4.4). A peer authenticated for service A cannot
-   subscribe to, inject into, or read the stats of a service B it holds no role
-   in, even by naming B in its own routing stack. (`__command__` is **not**
-   gated here — cross-service command reach is governed by the default-off
-   per-command authz gate, see [`YUNO_AUTH.md`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/YUNO_AUTH.md) §4.5.)
-6. Dispatch by `__msg_type__`:
+5. **Authorize the per-message service** (since 7.6.0). The
+   `is_service_authorized()` check runs in the common path of `ac_on_message`
+   (so it covers `command` / `stats` / `subscribe` / `unsubscribe` / `inject`)
+   and `ac_mt_stats`, comparing the resolved service against the channel's
+   `authorized_services` set (captured at identity-card time, §4.4). A peer
+   authenticated for service A cannot reach a service B it holds no role in, even
+   by naming B in its own routing stack. **Since 7.6.1 a superuser channel
+   (`is_superuser`, §4.4) bypasses this gate** — `root` means any
+   realm/service/permission, so it reaches `__yuno__` and any sibling service;
+   that is not a cross-service escalation. What a command may actually DO is
+   still governed by the additional default-off per-command authz gate, see
+   [`YUNO_AUTH.md`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/YUNO_AUTH.md) §4.5.
+
+   A refused message never strands the channel: `reject_unrouted_iev()` answers
+   `command` / `stats` with a negative `EV_MT_*_ANSWER` (re-arming the read) and
+   `drop()`s the channel for the no-answer types — never a silent `return -1`
+   that would leave the socket connected but deaf (a zombie).
+6. Dispatch by `__msg_type__` (all gated by `authorized_services`, superuser
+   bypassing as in step 5):
 
 | `__msg_type__`        | Action on the receiver                                       |
 |-----------------------|--------------------------------------------------------------|
 | `__command__`         | `gobj_command(service, cmd, kw, src)`  |
-| `__stats__`           | `gobj_stats(service, stats, kw, src)` — gated by `authorized_services` |
-| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)` — gated by `authorized_services` |
-| `__unsubscribing__`   | symmetric — gated by `authorized_services` |
-| `__message__`         | `gobj_send_event(service, event, kw, src)` raw event delivery — gated by `authorized_services` |
+| `__stats__`           | `gobj_stats(service, stats, kw, src)`  |
+| `__subscribing__`     | `gobj_subscribe_event(service, event, kw, remote_proxy)`  |
+| `__unsubscribing__`   | symmetric  |
+| `__message__`         | `gobj_send_event(service, event, kw, src)` raw event delivery  |
 
 ### 4.6 Subscribing across yunos
 
