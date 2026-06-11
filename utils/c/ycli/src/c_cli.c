@@ -2963,6 +2963,47 @@ PRIVATE void new_line(hgobj gobj, hgobj wn_display)
 }
 
 /***************************************************************************
+ *  Sanitize a peer-supplied record name/id before it becomes a local
+ *  config filename.  The name/id arrives in the kw of an inbound command
+ *  answer from the remote peer (EV_VIEW_CONFIG/EV_READ_JSON/EV_READ_FILE/
+ *  EV_EDIT_CONFIG) and is otherwise untrusted: a value like
+ *  "x; rm -rf ~ #" would survive into the "%s %s" edit command and be
+ *  parsed by /bin/sh -c (see pty_sync_spawn).  Fold everything outside a
+ *  safe filename whitelist ([A-Za-z0-9._-]) to '_', strip leading dots and
+ *  path separators, and collapse ".." so the result is a single, inert
+ *  basename.  Returns 'dst'.
+ ***************************************************************************/
+PRIVATE char *sanitize_config_name(char *dst, int dstsize, const char *name)
+{
+    int j = 0;
+    if(!name || !*name) {
+        name = "__temporal__";
+    }
+    for(int i = 0; name[i] != 0 && j < dstsize - 1; i++) {
+        unsigned char c = (unsigned char)name[i];
+        if(isalnum(c) || c == '.' || c == '_' || c == '-') {
+            dst[j++] = (char)c;
+        } else {
+            dst[j++] = '_';
+        }
+    }
+    dst[j] = 0;
+    /* No leading dot (hidden file / "." / "..") and never empty.
+     * Shift right by one and prepend '_', clamping the copy length so the
+     * result is always NUL-terminated within dst[dstsize]. */
+    if(dst[0] == 0 || dst[0] == '.') {
+        size_t len = strlen(dst);
+        if((int)len > dstsize - 2) {
+            len = (size_t)(dstsize - 2);
+        }
+        memmove(dst + 1, dst, len);
+        dst[0] = '_';
+        dst[len + 1] = 0;
+    }
+    return dst;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
@@ -2973,14 +3014,16 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
         struct passwd *_pw = yuneta_getpwuid(getuid());
         homedir = _pw ? _pw->pw_dir : "/root";
     }
+    char safe[NAME_MAX];
+    sanitize_config_name(safe, sizeof(safe), name);
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    if(strlen(name) > 5 && strstr(name + strlen(name) - strlen(".json"), ".json")) {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
+    if(strlen(safe) > 5 && strstr(safe + strlen(safe) - strlen(".json"), ".json")) {
+        snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
     } else {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s.json", homedir, name);
+        snprintf(path, pathsize, "%s/.yuneta/configs/%s.json", homedir, safe);
     }
     json_dump_file(jn_content, path, JSON_ENCODE_ANY | JSON_INDENT(4));
     JSON_DECREF(jn_content);
@@ -2999,11 +3042,13 @@ PRIVATE int save_local_string(
         struct passwd *_pw = yuneta_getpwuid(getuid());
         homedir = _pw ? _pw->pw_dir : "/root";
     }
+    char safe[NAME_MAX];
+    sanitize_config_name(safe, sizeof(safe), name);
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
+    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
     const char *s = json_string_value(jn_content);
     if(s) {
         FILE *file = fopen(path, "w");
@@ -3032,11 +3077,13 @@ PRIVATE int save_local_base64(
         struct passwd *_pw = yuneta_getpwuid(getuid());
         homedir = _pw ? _pw->pw_dir : "/root";
     }
+    char safe[NAME_MAX];
+    sanitize_config_name(safe, sizeof(safe), name);
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
+    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
 
     const char *s = json_string_value(jn_content);
     if(s) {

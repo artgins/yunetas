@@ -43,6 +43,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE void try_more_writes(hgobj gobj);
+PRIVATE char *resolve_process_path(hgobj gobj, const char *process);
 
 
 /***************************************************************************
@@ -117,6 +118,76 @@ typedef struct _PRIVATE_DATA {
 
 
 /***************************************************************************
+ *  Resolve the 'process' attribute to a trusted absolute path before exec.
+ *
+ *  The 'process' value is remote-controlled (set by the authz-gated
+ *  'open-console' command in the embedder). To stop a planted $PATH entry
+ *  from hijacking a benign name and to forbid arbitrary PATH-relative
+ *  binaries, we never let exec consult the inherited $PATH:
+ *    - an absolute path is accepted only if it is executable,
+ *    - a relative name is resolved against a fixed list of trusted system
+ *      directories (not getenv("PATH")),
+ *    - anything else fails closed (returns empty argv[0] -> tty_empty, no exec).
+ ***************************************************************************/
+PRIVATE char *resolve_process_path(hgobj gobj, const char *process)
+{
+    static const char *trusted_dirs[] = {
+        "/bin", "/usr/bin", "/sbin", "/usr/sbin", "/usr/local/bin", 0
+    };
+
+    if(empty_string(process)) {
+        return (char *)gbmem_strdup("");
+    }
+
+    if(process[0] == '/') {
+        if(access(process, X_OK) == 0) {
+            return (char *)gbmem_strdup(process);
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "process not executable, refusing to exec",
+            "process",      "%s", process,
+            NULL
+        );
+        return (char *)gbmem_strdup("");
+    }
+
+    if(strchr(process, '/') != NULL) {
+        // PATH-relative-with-slash (e.g. "./x", "sub/x"): reject, fail closed.
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "process must be absolute or a bare name, refusing to exec",
+            "process",      "%s", process,
+            NULL
+        );
+        return (char *)gbmem_strdup("");
+    }
+
+    for(int i = 0; trusted_dirs[i] != 0; i++) {
+        char candidate[PATH_MAX];
+        int n = snprintf(candidate, sizeof(candidate), "%s/%s", trusted_dirs[i], process);
+        if(n <= 0 || n >= (int)sizeof(candidate)) {
+            continue;
+        }
+        if(access(candidate, X_OK) == 0) {
+            return (char *)gbmem_strdup(candidate);
+        }
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "process not found in trusted dirs, refusing to exec",
+        "process",      "%s", process,
+        NULL
+    );
+    return (char *)gbmem_strdup("");
+}
+
+
+/***************************************************************************
  *      Framework Method create
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
@@ -124,7 +195,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *process = gobj_read_str_attr(gobj, "process");
-    priv->argv[0] = (char *)gbmem_strdup(process);
+    priv->argv[0] = resolve_process_path(gobj, process);
     priv->argv[1] = 0;
 
     dl_init(&priv->dl_tx, gobj);
@@ -228,7 +299,7 @@ PRIVATE int mt_start(hgobj gobj)
         }
 
         if(!tty_empty) {
-            int ret = execvp(priv->argv[0], priv->argv);
+            int ret = execv(priv->argv[0], priv->argv);
             if(ret < 0) {
                 print_error(0, "forkpty() FAILED: %s", strerror(errno));
             }

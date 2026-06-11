@@ -1090,10 +1090,32 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Check dst service
      *----------------------------------------*/
     const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-    // TODO check if it's a required service authorized
     hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
     if(!gobj_service) {
         gobj_service = priv->gobj_service;
+    }
+    /*
+     *  AUTHZ: the per-message dst_service must match the service this channel
+     *  authenticated against (bound in priv->gobj_service at identity_card time).
+     *  Authentication is per-service (see c_authz.c mt_authenticate), so a peer
+     *  authenticated for service A must not be allowed to route subscribe /
+     *  unsubscribe / inject at another registered service B by naming it in the
+     *  attacker-controlled routing stack.
+     */
+    if(priv->gobj_service && gobj_service != priv->gobj_service) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "event ignored, dst_service not authorized for this channel",
+            "service",      "%s", iev_dst_service,
+            "this_service", "%s", priv->this_service?priv->this_service:"",
+            "event",        "%s", iev_event,
+            NULL
+        );
+        trace_inter_event(gobj, prefix, iev_event, iev_kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
+        return -1;
     }
     if(!gobj_service) {
         gobj_log_error(gobj, 0,
@@ -1428,6 +1450,43 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 src
             );
         }
+    }
+
+    /*----------------------------------------*
+     *  Check AUTHZ: cross-service
+     *  The channel may only read/reset stats of the service it
+     *  authenticated against (priv->gobj_service). A named "service"
+     *  that resolves to a different gobj is denied. The empty-service
+     *  fallback above already points at priv->gobj_service, so it passes.
+     *----------------------------------------*/
+    if(gobj_service != priv->gobj_service) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Not authorized to request stats of a different service",
+            "service",      "%s", service,
+            "event",        "%s", event,
+            NULL
+        );
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Not authorized to request stats of service: '%s'", service),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            kw,             // owned, kw request, used to extract ONLY __md_iev__
+            kw_response,    // like owned, is returned!, created if null, the body of answer message
+            TRUE            // reverse_dst
+        );
+
+        return send_static_iev(gobj,
+            EV_MT_STATS_ANSWER,
+            kw_response,
+            src
+        );
     }
 
     /*------------------------------------*
