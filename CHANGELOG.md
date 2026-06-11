@@ -1,6 +1,6 @@
 # **Changelog**
 
-## 7.5.13
+## 7.6.0
     - **security(root-linux): authorize per-message dst_service against the
       authenticated service set on the ievent server.** `ac_on_message`
       (subscribe / unsubscribe / inject) and `ac_mt_stats` resolved the
@@ -55,7 +55,7 @@
       the effective authmode instead of `has_ca_cert` (under `NONE`,
       `verify_result` holds `BADCERT_SKIP_VERIFY` and must not false-fire).
       Fixes the 11 TLS ctest failures under an mbedTLS-only `.config` — the
-      7.5.13 test expectations encoded openssl-only emissions. Verified 112/112
+      test expectations had encoded openssl-only emissions. Verified 112/112
       with each backend.
     - **security(gobj-c): reject `gbuffer_create()` `data_size == SIZE_MAX`.**
       `GBMEM_MALLOC(data_size+1)` wrapped to `malloc(0)` — a non-NULL ~0-byte

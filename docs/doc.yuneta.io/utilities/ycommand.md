@@ -173,10 +173,17 @@ each line may itself contain `;`-chained commands.
   `*cmd` prefix to force raw-JSON (form) mode instead.
 - **History dedup** — consecutive and prior occurrences of the same command are
   removed from history (bash `HISTCONTROL=erasedups` style).
+- **Safe local config filenames (since 7.6.0)** — when a `view-config` /
+  `read-json` / `read-file` / `edit-config` answer is saved under
+  `~/.yuneta/configs/`, the peer-supplied record name/id is sanitized first:
+  characters outside `[A-Za-z0-9._-]` fold to `_`, a leading dot is forbidden,
+  and path separators collapse to a single inert basename. This closes an RCE
+  where a hostile name flowed into the `"<editor> <path>"` string handed to
+  `/bin/sh -c`. (Same fix in `ycli`.)
 
 ## See also
 
 - [`ybatch`](ybatch.md), [`ystats`](ystats.md), [`ycli`](ycli.md) — the rest of
   the control-plane family.
 - Repository README (for code navigators):
-  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.5.12/utils/c/ycommand/README.md).
+  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.6.0/utils/c/ycommand/README.md).

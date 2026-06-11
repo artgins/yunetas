@@ -86,6 +86,14 @@ bidirectional I/O.
 | `cwd` | `string` | Working directory. |
 | `max_tx_queue` | `integer` | Maximum transmit queue size. |
 
+`process` is remote-settable (the agent's authz-gated `open-console` command),
+so since 7.6.0 it is resolved against a **fixed trusted-dir allowlist**, never
+the inherited `$PATH`: an absolute path is accepted only if executable, a bare
+name is resolved against `/bin`, `/usr/bin`, `/sbin`, `/usr/sbin`,
+`/usr/local/bin` (in order), a relative-with-slash name is rejected, and
+anything else fails closed (no exec). The spawn uses `execv`, not `execvp`, so a
+planted `$PATH` entry cannot hijack a bare process name.
+
 ---
 
 (gclass-c-ota)=

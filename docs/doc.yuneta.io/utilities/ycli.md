@@ -36,6 +36,11 @@ and authentication options match [`ycommand`](ycommand.md) (default
   via `list-gobj-commands`, so completions follow whichever window has focus.
 - **Local vs remote routing** — commands prefixed with `!` run locally (in
   `ycli` itself); everything else goes to the focused remote yuno.
+- **Safe local config filenames (since 7.6.0)** — like `ycommand`, a config
+  answer (`view-config` / `read-json` / `read-file` / `edit-config`) saved under
+  `~/.yuneta/configs/` has its peer-supplied record name sanitized to a single
+  inert basename (`[A-Za-z0-9._-]`, no leading dot, separators folded) before it
+  reaches the editor command — closing an RCE via `/bin/sh -c`.
 
 ## Key bindings
 
@@ -71,4 +76,4 @@ gclasses driven by `C_CLI`:
 - [`ycommand`](ycommand.md) — the line-oriented control plane (single command,
   interactive shell, or stdin pipe).
 - Repository README (for code navigators):
-  [`utils/c/ycli/README.md`](https://github.com/artgins/yunetas/blob/7.5.12/utils/c/ycli/README.md).
+  [`utils/c/ycli/README.md`](https://github.com/artgins/yunetas/blob/7.6.0/utils/c/ycli/README.md).

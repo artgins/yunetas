@@ -39,7 +39,7 @@ This is what keeps gobj-c free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDT
 
 ## TLS client verification (verify-by-default)
 
-Since 7.5.13, a TLS **client** that would run with no server-certificate
+Since 7.6.0, a TLS **client** that would run with no server-certificate
 validation (`VERIFY_NONE` — no CA configured / effective authmode `NONE`) is
 **refused at ctx/state build time** in both backends: `build_ssl_ctx()` /
 `build_state()` return `NULL`, so `ytls_init()` fails and the connection is

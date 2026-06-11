@@ -43,6 +43,16 @@ instances.
 | Whole record (key + all instances) | **`tranger2_delete_key`** (was `tranger2_delete_record` before 2026-05-25; legacy alias kept in `timeranger2.h`) | `rmrdir` of `keys/<key>/` + drop from `topic_cache` + propagate to in-process subscribers + mirror to `disks/<rt_id>/<key>/` for `rt_by_disk` followers. Irrecoverable. |
 | One instance | **`tranger2_delete_instance`** (2026-05-26) | Mutates the `.md2` row in place with `sf_deleted_instance = 0x0400` (inherited side, followers see the same tombstone). Optional `zero_payload` overwrites the matching bytes in the data `.json` for sensitive-data wipes. Read paths skip dead rows; rowids do NOT renumber. Master-only, idempotent. |
 
+### Path-traversal hardening (since 7.6.0)
+
+A string primary key or treedb node `id` becomes a filesystem path component
+(`keys/<key>/…`). Since 7.6.0 the key/id is validated before any filesystem use
+— a value containing `/` or beginning with `.` (so `..`, absolute paths, and
+hidden traversal can't escape the topic directory) is rejected, on the create,
+lookup, **and** `tranger2_delete_instance` paths, with the mirror predicate
+aligned so followers reject the same inputs. Regression coverage in
+`tests/c/timeranger2/test_pkey_path_traversal.c`.
+
 ### Subscriber propagation on `tranger2_delete_key`
 
 In-process subscribers (rt_mem, rt_disk in the same yuno, open_iterator)

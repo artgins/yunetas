@@ -16,4 +16,4 @@ No options — a single directory argument. Press Ctrl-C to exit.
 ## See also
 
 - [`fs_watcher`](fs_watcher.md) — the higher-level library harness.
-- [`utils/c/inotify/README.md`](https://github.com/artgins/yunetas/blob/7.5.12/utils/c/inotify/README.md).
+- [`utils/c/inotify/README.md`](https://github.com/artgins/yunetas/blob/7.6.0/utils/c/inotify/README.md).

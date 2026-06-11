@@ -4,11 +4,11 @@ Publish events from a gobj and subscribe other gobjs to them. Subscriptions are 
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_find_subscribings)=
-## [`gobj_find_subscribings()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8766)
+## [`gobj_find_subscribings()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8766)
 
 Returns a list of subscriptions where the given `subscriber` is subscribed to events from various publishers.
 
@@ -41,7 +41,7 @@ This function searches for subscriptions where `subscriber` is subscribed to eve
 ---
 
 (gobj_find_subscriptions)=
-## [`gobj_find_subscriptions()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8740)
+## [`gobj_find_subscriptions()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8740)
 
 Retrieves a list of event subscriptions for a given publisher, filtering by event, keyword parameters, and subscriber.
 
@@ -74,7 +74,7 @@ This function is useful for inspecting active subscriptions and can be used in c
 ---
 
 (gobj_list_subscriptions)=
-## [`gobj_list_subscriptions()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8823)
+## [`gobj_list_subscriptions()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8823)
 
 Retrieves a list of event subscriptions for a given `hgobj`. The function returns details about events the object is subscribed to and the objects that have subscribed to its events.
 
@@ -104,7 +104,7 @@ The returned JSON object must be managed by the caller. The function internally 
 ---
 
 (gobj_publish_event)=
-## [`gobj_publish_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8877)
+## [`gobj_publish_event()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8877)
 
 The `gobj_publish_event` function publishes an event from a given publisher to all its subscribers, applying optional filters and transformations before dispatching the event.
 
@@ -139,7 +139,7 @@ If the event is a system event, it is only sent to subscribers that support syst
 ---
 
 (gobj_subscribe_event)=
-## [`gobj_subscribe_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8391)
+## [`gobj_subscribe_event()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8391)
 
 The `gobj_subscribe_event` function subscribes a `subscriber` GObj to an `event` emitted by a `publisher` GObj, with optional configuration parameters.
 
@@ -175,7 +175,7 @@ The function calls [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event) to remo
 ---
 
 (gobj_unsubscribe_event)=
-## [`gobj_unsubscribe_event()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8596)
+## [`gobj_unsubscribe_event()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8596)
 
 Removes a subscription from a publisher to a subscriber for a specific event in the GObj system.
 
@@ -211,7 +211,7 @@ The function decrements the reference count of `kw` before returning.
 ---
 
 (gobj_unsubscribe_list)=
-## [`gobj_unsubscribe_list()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8716)
+## [`gobj_unsubscribe_list()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8716)
 
 Removes a list of event subscriptions from their respective publishers, optionally forcing the removal of hard subscriptions.
 
@@ -241,7 +241,7 @@ Each subscription in `dl_subs` is checked and removed from both the publisher's 
 ---
 
 (gobj_list_subscribings)=
-## [`gobj_list_subscribings()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8850)
+## [`gobj_list_subscribings()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8850)
 
 Returns a JSON array describing the subscriptions where the given gobj is acting as a subscriber. Each element in the returned array contains human-readable information about a matching subscription (publisher name, event, subscriber name, flags, etc.). The results can be filtered by event, kw sub-dictionaries, and subscriber.
 
@@ -274,7 +274,7 @@ Internally calls `gobj_find_subscribings()` to locate matching subscriptions and
 ---
 
 (gobj_subs_desc)=
-## [`gobj_subs_desc()`](https://github.com/artgins/yunetas/blob/7.5.12/kernel/c/gobj-c/src/gobj.c#L8018)
+## [`gobj_subs_desc()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L8018)
 
 Returns a pointer to the internal subscription schema descriptor (`sdata_desc_t` array). This schema defines the structure of a subscription record, including fields such as `publisher`, `subscriber`, `event`, `renamed_event`, `subs_flag`, `__config__`, `__global__`, `__local__`, `__filter__`, and `__service__`.
 

@@ -71,7 +71,7 @@ Remaining is **per-gate deployment config** (validate on staging):
   gates;
 - turn on peer verification per high-level gate (`ssl_trusted_certificate` or
   `ssl_use_system_ca`); IoT gates opt out with `ssl_allow_insecure_client=true`.
-  **Done in 7.5.13:** TLS *clients* now fail closed — a no-CA client is
+  **Done in 7.6.0:** TLS *clients* now fail closed — a no-CA client is
   *refused* at ctx/state build time (not just logged), and the `C_AUTH_BFF`
   `crypto` / `c_authz` `kc_crypto` IdP clients default to a verifying posture.
   Remaining is the per-gate **deployment** config: set the CA (or the explicit
