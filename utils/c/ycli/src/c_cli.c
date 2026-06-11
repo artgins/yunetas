@@ -133,12 +133,12 @@ typedef struct keytable_s {
 } keytable_t;
 
 keytable_t keytable1[] = {
-{"cli",             "EV_PREVIOUS_WINDOW",           MKEY_ALT_LEFT},
-{"cli",             "EV_PREVIOUS_WINDOW",           MKEY_CTRL_LEFT},
-{"cli",             "EV_PREVIOUS_WINDOW",           CTRL_P},
-{"cli",             "EV_NEXT_WINDOW",               MKEY_ALT_RIGHT},
-{"cli",             "EV_NEXT_WINDOW",               MKEY_CTRL_RIGHT},
-{"cli",             "EV_NEXT_WINDOW",               CTRL_N},
+{"ycli",            "EV_PREVIOUS_WINDOW",           MKEY_ALT_LEFT},
+{"ycli",            "EV_PREVIOUS_WINDOW",           MKEY_CTRL_LEFT},
+{"ycli",            "EV_PREVIOUS_WINDOW",           CTRL_P},
+{"ycli",            "EV_NEXT_WINDOW",               MKEY_ALT_RIGHT},
+{"ycli",            "EV_NEXT_WINDOW",               MKEY_CTRL_RIGHT},
+{"ycli",            "EV_NEXT_WINDOW",               CTRL_N},
 {0}
 };
 
@@ -2365,7 +2365,7 @@ PRIVATE int create_display_framework(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gwin_stdscr = gobj_create("cli", C_WN_STDSCR, 0, gobj);
+    priv->gwin_stdscr = gobj_create("ycli", C_WN_STDSCR, 0, gobj);
     if(!priv->gwin_stdscr) {
         return -1;
     }

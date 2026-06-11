@@ -2217,7 +2217,7 @@ PUBLIC hgobj gobj_service_factory(
 /***************************************************************************
  *  Create gobj tree
  *  Parse tree_config and call gobj_create_tree0()
- *  Used by ycommand,ybatch,ystats,ytests,cli,...
+ *  Used by ycommand,ybatch,ystats,ytests,ycli,...
  ***************************************************************************/
 PUBLIC hgobj gobj_create_tree(
     hgobj parent_,

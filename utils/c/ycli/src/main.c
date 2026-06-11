@@ -41,7 +41,7 @@ PRIVATE char fixed_config[]= "\
     'environment': {                                                \n\
         'realm_owner': 'agent',                                     \n\
         'work_dir': '/yuneta',                                      \n\
-        'domain_dir': 'realms/agent/cli'                            \n\
+        'domain_dir': 'realms/agent/ycli'                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
         'yuno_role': '"APP_NAME"',                                  \n\
@@ -89,7 +89,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'cli',                                          \n\
+            'name': 'ycli',                                         \n\
             'gclass': 'C_CLI',                                      \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\

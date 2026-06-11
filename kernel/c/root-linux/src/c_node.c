@@ -2985,7 +2985,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_object_set_new(kw, "id", json_string(id)); // HACK remove 'id' field of cli
+    json_object_set_new(kw, "id", json_string(id)); // HACK remove 'id' field of ycli/ycommand
 
     json_t *node = gobj_get_node(
         gobj,
