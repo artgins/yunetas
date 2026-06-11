@@ -1,17 +1,27 @@
 # **Changelog**
 
 ## 7.5.13
-    - **security(root-linux): enforce per-channel service binding on the ievent
-      server.** Authentication in `C_IEVENT_SRV` is per-service (the channel is
-      bound to `priv->gobj_service` at identity-card time), but `ac_on_message`
+    - **security(root-linux): authorize per-message dst_service against the
+      authenticated service set on the ievent server.** `ac_on_message`
       (subscribe / unsubscribe / inject) and `ac_mt_stats` resolved the
       `dst_service` / `service` from the attacker-controlled routing stack and
       dispatched against any registered service. A peer authenticated for
       service A could subscribe to events of, inject into, or read/reset the
-      stats of another service B by naming it. Both paths now require the
-      resolved gobj to equal the channel's authenticated `gobj_service`; the
-      empty-service fallback already points there, so legitimate callers are
-      unaffected. (`ac_mt_command` cross-service reach stays gated by the
+      stats of another service B by naming it. Both paths now check the resolved
+      service against the set this channel is authorized to reach, captured at
+      identity-card time from the `services_roles` returned by
+      `gobj_authenticate()` (the keys: the primary `dst_service` plus any
+      `required_services` the user holds real treedb roles in — see `append_role`
+      in `c_authz.c`; the no-treedb path yields just the primary service). This
+      implements the long-standing `available_services` TODO: a single
+      authentication legitimately grants several services (the multi-service GUI
+      frontends authenticate against `db_history_wz` and reach
+      `treedb_wattyzer` / `treedb_authzs` / …), while a service outside the
+      granted set is refused. The authorized set derives from real roles, not
+      the client-supplied `required_services`, so it cannot be spoofed.
+      Validated end-to-end: the wattyzer SPA against a patched `db_history_wz`
+      logs in, opens its ievent channel, and loads multi-service data with zero
+      gate denials. (`ac_mt_command` cross-service reach stays gated by the
       default-off per-command authz — threat-model T7, an accepted posture.)
     - **security(root-linux): resolve the `C_PTY` `process` attr against a
       trusted-dir allowlist, never `$PATH`.** The remote-settable `process`

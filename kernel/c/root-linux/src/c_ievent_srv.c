@@ -41,6 +41,7 @@ PRIVATE json_t *build_srv_ievent_request(
     const char *src_service,
     const char *dst_service
 );
+PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -69,9 +70,13 @@ SDATA (DTP_POINTER,     "gobj_service",         SDF_VOLATIL, 0, "gobj of identit
 SDATA (DTP_BOOLEAN,     "authenticated",        SDF_VOLATIL, 0, "True if entry was authenticated"),
 SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card of clisrv"),
 
-// TODO available_services for this gate
-// TODO available_services in this gate
-// For now, only one service is available, the selected in identity_card exchange.
+// Services this channel is authorized to reach: the keys of the
+// services_roles dict returned by gobj_authenticate() at identity_card time.
+// That set is derived from the user's real roles in treedb (append_role in
+// c_authz.c), NOT from the client-supplied required_services, so it cannot be
+// spoofed. A single authentication against the primary dst_service can grant
+// several services (required_services) — see the multi-service GUI frontends.
+SDATA (DTP_JSON,        "authorized_services",  SDF_VOLATIL, "[]", "Service names this channel may reach (keys of services_roles)"),
 
 SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting Identity Card"),
 
@@ -866,6 +871,26 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     gobj_write_str_attr(gobj, "this_service", iev_dst_service);
     gobj_write_pointer_attr(gobj, "gobj_service", gobj_service);
 
+    /*----------------------------------------------------------*
+     *  Record the services this channel is authorized to reach.
+     *  gobj_authenticate() returns services_roles: a dict keyed by every
+     *  service the user holds a role in (the primary dst_service plus any
+     *  required_services granted by real treedb roles — see append_role in
+     *  c_authz.c). Storing the key set lets ac_on_message / ac_mt_stats
+     *  authorize a per-message dst_service without trusting the client's
+     *  routing stack. The no-treedb path returns {dst_service:[]}, so the
+     *  set degrades to the single primary service (unchanged behavior).
+     *----------------------------------------------------------*/
+    json_t *jn_authorized = json_array();
+    json_t *services_roles = kw_get_dict(gobj, jn_resp, "services_roles", NULL, 0);
+    if(services_roles) {
+        const char *svc_name; json_t *jn_roles;
+        json_object_foreach(services_roles, svc_name, jn_roles) {
+            json_array_append_new(jn_authorized, json_string(svc_name));
+        }
+    }
+    gobj_write_new_json_attr(gobj, "authorized_services", jn_authorized); // owned
+
     // HACK comment next sentence, already set by gobj_authenticate(), 24-Oct-2023
     // gobj_write_str_attr(gobj, "__username__", kw_get_str(jn_resp, "username", "", KW_REQUIRED));
 
@@ -921,6 +946,35 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  Is this channel authorized to reach gobj_service?
+ *
+ *  Authentication is per-service, but a single identity_card can grant
+ *  several services (the primary dst_service plus required_services the user
+ *  has roles in). The authorized set was captured from services_roles at
+ *  identity_card time (see ac_identity_card). The primary gobj_service is
+ *  always allowed; before the identity_card it is NULL, in which case the
+ *  caller (a pre-session message) is not subject to this gate.
+ ***************************************************************************/
+PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_service || gobj_service == priv->gobj_service) {
+        return TRUE;
+    }
+
+    const char *service_name = gobj_name(gobj_service);
+    json_t *jn_authorized = gobj_read_json_attr(gobj, "authorized_services"); // not mine
+    size_t idx; json_t *jn_svc;
+    json_array_foreach(jn_authorized, idx, jn_svc) {
+        if(strcmp(json_string_value(jn_svc), service_name)==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -1095,14 +1149,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_service = priv->gobj_service;
     }
     /*
-     *  AUTHZ: the per-message dst_service must match the service this channel
-     *  authenticated against (bound in priv->gobj_service at identity_card time).
-     *  Authentication is per-service (see c_authz.c mt_authenticate), so a peer
-     *  authenticated for service A must not be allowed to route subscribe /
-     *  unsubscribe / inject at another registered service B by naming it in the
-     *  attacker-controlled routing stack.
+     *  AUTHZ: the per-message dst_service must be one this channel is
+     *  authorized to reach (the primary authenticated service, or one granted
+     *  via services_roles at identity_card time). Authentication is per-service
+     *  (see c_authz.c mt_authenticate), so a peer must not be able to route
+     *  subscribe / unsubscribe / inject at an unauthorized service B by naming
+     *  it in the attacker-controlled routing stack.
      */
-    if(priv->gobj_service && gobj_service != priv->gobj_service) {
+    if(!is_service_authorized(gobj, gobj_service)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
@@ -1454,12 +1508,13 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*----------------------------------------*
      *  Check AUTHZ: cross-service
-     *  The channel may only read/reset stats of the service it
-     *  authenticated against (priv->gobj_service). A named "service"
-     *  that resolves to a different gobj is denied. The empty-service
-     *  fallback above already points at priv->gobj_service, so it passes.
+     *  The channel may only read/reset stats of a service it is authorized to
+     *  reach (the primary authenticated service, or one granted via
+     *  services_roles at identity_card time). A named "service" outside that
+     *  set is denied. The empty-service fallback above already points at
+     *  priv->gobj_service, so it passes.
      *----------------------------------------*/
-    if(gobj_service != priv->gobj_service) {
+    if(!is_service_authorized(gobj, gobj_service)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
