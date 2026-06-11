@@ -104,6 +104,23 @@
       cleanly via `try_to_stop_yevents()`. Also added the missed
       `ssl_allow_insecure_client=true` to the `perf_c_tcps` test4/test5 client
       crypto blocks (the `tests/c/c_tcps*` sweep skipped `performance/`).
+    - **harden(yuno_agent/yuno_agent22): pin the controlcenter client to the
+      canonical agent certificate.** The outbound controlcenter client
+      (`tcps://<arch>.<owner>.<output_url>`, active when `node_owner != "none"`)
+      ran with no CA and would be refused under verify-by-default. It now pins
+      `/yuneta/agent/certs/yuneta_agent.crt` — the self-signed canonical cert
+      the controlcenter actually serves (fingerprint-verified), already present
+      on every node (the agent's own wss server uses the same file) — with
+      `ssl_server_name=yuneta_agent.yuneta.io` (the cert has no SAN, hostname
+      check falls back to CN). Supporting change in `c_tcp.c`: a config-supplied
+      `ssl_server_name` now wins over the url-derived host, enabling pinning
+      where the pinned cert's name differs from the dialed host. **Caveats:**
+      the pin authenticates "a yuneta install" (the key ships on every node),
+      not the controlcenter specifically — still a real upgrade over
+      no-verification; and on a node missing the cert file the first
+      controlcenter dial exits the agent (`ssl_trusted_certificate` load is
+      fatal on first init) — verify the file exists before deploying with a
+      non-none owner.
 
 ## 7.5.12
     - **fix(packages): default agent `node_owner` to `"none"` — no controlcenter

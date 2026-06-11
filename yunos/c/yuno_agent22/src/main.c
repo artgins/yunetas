@@ -160,6 +160,8 @@ PRIVATE char variable_config[]= "\
                                                 'timeout_between_connections': 10000, \n\
                                                 'crypto': {                     \n\
                                                 'library': '" TLS_LIBRARY_NAME "',   \n\
+'ssl_trusted_certificate': '/yuneta/agent/certs/yuneta_agent.crt',              \n\
+                                                    'ssl_server_name': 'yuneta_agent.yuneta.io', \n\
                                                     'trace': false              \n\
                                                 },                              \n\
 'url': 'tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)' \n\
