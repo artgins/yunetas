@@ -62,6 +62,13 @@ Notes:
 - A client with a CA but `ssl_verify_mode="none"` is **also** refused (both
   backends — the mbedTLS gate keys off the effective authmode for parity). To
   run such a client you must set `ssl_allow_insecure_client=true`.
+- An **opted-in insecure client** (`ssl_allow_insecure_client=true`) is never
+  silent, in either backend: a warning (*"TLS client WITHOUT server-certificate
+  validation (MITM surface)"*) is logged at build time, and the verify result is
+  still computed and surfaced at handshake end (*"TLS peer certificate did NOT
+  verify"*). OpenSSL records it natively even under `VERIFY_NONE`; the mbedTLS
+  backend achieves the same by running the opted-in client under
+  `VERIFY_OPTIONAL` (verify-and-tolerate — the accept decision is unchanged).
 - The `C_AUTH_BFF` `crypto` and `c_authz` `kc_crypto` IdP-client attributes
   default to `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — a
   public IdP/Keycloak is verified against the system store out of the box; for a

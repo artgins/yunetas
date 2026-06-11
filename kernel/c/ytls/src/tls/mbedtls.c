@@ -82,6 +82,7 @@ typedef struct mbedtls_state_s {
     mbedtls_x509_crt ca_cert;
     BOOL has_own_cert;
     BOOL has_ca_cert;
+    int authmode;       // effective MBEDTLS_SSL_VERIFY_* applied to conf
 } mbedtls_state_t;
 
 typedef struct ytls_s {
@@ -413,6 +414,29 @@ PRIVATE mbedtls_state_t *build_state(
         state_decref(s);
         return NULL;
     }
+
+    /*
+     *  Insecure client accepted by explicit opt-out: never silent (parity with
+     *  the openssl backend, which warns here too). Run the handshake under
+     *  VERIFY_OPTIONAL instead of NONE so mbedTLS still computes the verify
+     *  result and do_handshake() can log the tolerated failure — openssl
+     *  records it even under VERIFY_NONE, mbedTLS skips verification entirely.
+     *  The accept decision is unchanged: under OPTIONAL a failed verification
+     *  (including no CA chain -> NOT_TRUSTED) is tolerated; CA_CHAIN_REQUIRED
+     *  fires only under REQUIRED.
+     */
+    if(!server && authmode == MBEDTLS_SSL_VERIFY_NONE) {
+        authmode = MBEDTLS_SSL_VERIFY_OPTIONAL;
+        mbedtls_ssl_conf_authmode(&s->conf, authmode);
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS,
+            "msg",              "%s", "TLS client WITHOUT server-certificate validation (MITM surface): set ssl_trusted_certificate or ssl_use_system_ca",
+            NULL
+        );
+    }
+
+    s->authmode = authmode;
 
     if(trace_tls && trace_arg) {
         mbedtls_debug_set_threshold(1);
@@ -1036,16 +1060,18 @@ PRIVATE int do_handshake(hsskt sskt_)
         sskt->handshake_informed = TRUE;
         /*
          *  No silent verification failures. Under VERIFY_OPTIONAL (the
-         *  computed default for a server WITH a CA) the handshake completes
+         *  computed default for a server WITH a CA, and for an insecure client
+         *  accepted via ssl_allow_insecure_client) the handshake completes
          *  even if the peer certificate did not verify; mbedtls_ssl_get_verify_result()
          *  is the only way to learn that. Surface it as a warning so a
-         *  tolerated-but-invalid peer cert is not swallowed. Guarded by
-         *  has_ca_cert: when no CA is configured (IoT PSK/self-signed, authmode
-         *  NONE) verification was never meant to run, so there is nothing to
-         *  report. The accept/reject decision itself is unchanged (that is the
-         *  configured ssl_verify_mode's job).
+         *  tolerated-but-invalid peer cert is not swallowed. Guarded by the
+         *  effective authmode: under NONE (server with no CA accepting
+         *  anonymous clients) verification was never meant to run, so there is
+         *  nothing to report (and verify_result holds BADCERT_SKIP_VERIFY,
+         *  which must not false-fire). The accept/reject decision itself is
+         *  unchanged (that is the configured ssl_verify_mode's job).
          */
-        if(sskt->state_ref && sskt->state_ref->has_ca_cert) {
+        if(sskt->state_ref && sskt->state_ref->authmode != MBEDTLS_SSL_VERIFY_NONE) {
             uint32_t vrfy = mbedtls_ssl_get_verify_result(&sskt->ssl);
             if(vrfy != 0 && vrfy != 0xFFFFFFFFu) {
                 char vrfy_buf[512];

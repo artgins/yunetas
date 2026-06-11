@@ -1,6 +1,22 @@
 # **Changelog**
 
 ## 7.5.13
+    - **harden(ytls/mbedtls): opted-in insecure client is never silent —
+      observability parity with openssl.** An accepted
+      `ssl_allow_insecure_client=true` client now logs the same *"TLS client
+      WITHOUT server-certificate validation (MITM surface)"* warning as the
+      openssl backend, and runs the handshake under `VERIFY_OPTIONAL` instead of
+      `NONE` so mbedTLS still computes the verify result and the tolerated
+      failure is surfaced at handshake end (openssl records it natively even
+      under `VERIFY_NONE`; mbedTLS skips verification entirely under `NONE`).
+      The accept decision is unchanged (`OPTIONAL` never aborts; `CA_CHAIN_REQUIRED`
+      fires only under `REQUIRED`, and the missing-hostname hard error is
+      `REQUIRED`-only too). The *"did NOT verify"* warning guard now keys off
+      the effective authmode instead of `has_ca_cert` (under `NONE`,
+      `verify_result` holds `BADCERT_SKIP_VERIFY` and must not false-fire).
+      Fixes the 11 TLS ctest failures under an mbedTLS-only `.config` — the
+      7.5.13 test expectations encoded openssl-only emissions. Verified 112/112
+      with each backend.
     - **security(gobj-c): reject `gbuffer_create()` `data_size == SIZE_MAX`.**
       `GBMEM_MALLOC(data_size+1)` wrapped to `malloc(0)` — a non-NULL ~0-byte
       buffer that slips past the `__max_block__` guard while `gbuf->data_size`
