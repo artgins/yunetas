@@ -44,14 +44,9 @@ The script does everything in one run, no second step to remember:
   so dependencies resolve cleanly;
 - then installs the **full developer toolchain** (git, mercurial, clang, gcc,
   cmake, ninja, wget, pipx, …) so the box can build yunos right away. No
-  prompts, no stops — it runs straight through; use `--runtime-only` to skip the
-  toolchain.
-
-Pure deployment box (runtime only, skip the toolchain):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- --runtime-only
-```
+  prompts, no stops — it runs straight through; pass `--runtime-only`
+  (`… | sudo sh -s -- --runtime-only`) to skip the toolchain on a pure
+  deployment box.
 
 Pin a version (must exist as a published Release):
 
