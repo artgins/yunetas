@@ -51,6 +51,7 @@ venv
 
 .config
 .config.old
+.projects.json
 
 .vscode/
 release/

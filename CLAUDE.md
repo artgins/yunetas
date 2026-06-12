@@ -179,6 +179,22 @@ ctest -R test_c_timer --output-on-failure --test-dir build   # run a single test
 ./ctest-loop.sh                                              # run ctest in a loop until first failure
 ```
 
+### External projects (registered in the CLI)
+
+Projects (wattyzer, estadodelaire, …) can be registered so the `yunetas`
+CLI builds them right after the SDK. Registry: `$YUNETAS_BASE/.projects.json`
+(machine-local, gitignored).
+
+```bash
+yunetas register-project /yuneta/development/projects/wattyzer
+yunetas list-projects / unregister-project <name>
+yunetas init|build|clean                  # SDK + every registered project
+yunetas init|build|clean <name>...        # only those projects (SDK skipped)
+yunetas init|build|clean --sdk-only       # only the SDK
+yunetas sync-binaries [args]              # wrapper over tools/agent/sync_binaries.py
+yunetas sync-configs --host <h> [args]    # per-project yunos/batches/<host>/, wrapper over sync_configs.py
+```
+
 ### Building a single module
 
 ```bash
@@ -616,8 +632,9 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | Variable | Purpose |
 |----------|---------|
-| `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`) |
-| `YUNETAS_OUTPUTS` | `$(dirname $YUNETAS_BASE)/outputs` — artefacts in **parent** dir of repo |
+| `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`); on `.deb`/`.rpm` runtime-only nodes it is `/yuneta/development` |
+| `YUNETAS_OUTPUTS` | `$YUNETAS_BASE/outputs` — build artefacts (include/lib/bin/yunos) |
+| `YUNETAS_OUTPUTS_EXT` | `$YUNETAS_BASE/outputs_ext` — built external libraries |
 | `YUNETAS_YUNOS` | `$YUNETAS_OUTPUTS/yunos/` — deployed yuno binaries |
 
 ## Useful Files

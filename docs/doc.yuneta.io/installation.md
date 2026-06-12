@@ -376,18 +376,22 @@ cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
-[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.6.0/yunetas-env.sh) exports three variables and prepends `/yuneta/bin`
+[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.6.0/yunetas-env.sh) exports four variables and prepends `/yuneta/bin`
 plus `$YUNETAS_BASE/scripts` to `PATH`:
 
-| Variable          | Value                                       |
-|-------------------|---------------------------------------------|
-| `YUNETAS_BASE`    | The yunetas repo root (the dir you sourced from). |
-| `YUNETAS_OUTPUTS` | `$(dirname $YUNETAS_BASE)/outputs`          |
-| `YUNETAS_YUNOS`   | `$YUNETAS_OUTPUTS/yunos`                    |
+| Variable              | Value                                       |
+|-----------------------|---------------------------------------------|
+| `YUNETAS_BASE`        | The yunetas repo root (the dir you sourced from). |
+| `YUNETAS_OUTPUTS`     | `$YUNETAS_BASE/outputs`                     |
+| `YUNETAS_OUTPUTS_EXT` | `$YUNETAS_BASE/outputs_ext`                 |
+| `YUNETAS_YUNOS`       | `$YUNETAS_OUTPUTS/yunos`                    |
 
-> ℹ️ **Layout contract.** `outputs/` and your own project repos sit as
-> siblings of the `yunetas` repo (e.g. `~/yunetaprojects/myproject/`).
-> Pick the parent dir freely; keep the sibling relationship.
+> ℹ️ **Layout contract.** Build artefacts (`outputs/`, `outputs_ext/`)
+> live INSIDE `$YUNETAS_BASE` — both dirs are gitignored. The same rule
+> holds on a runtime-only node installed from `.deb`/`.rpm`, where the
+> package stages the SDK under `/yuneta/development/` and therefore
+> `YUNETAS_BASE=/yuneta/development`. Your own project repos can live
+> anywhere; register them with `yunetas register-project` (below).
 
 > ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
 > to source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.6.0/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
@@ -476,8 +480,36 @@ yunetas test     # ctest
 # yunetas clean  # wipe the build dirs
 ```
 
-Artefacts land in `$YUNETAS_OUTPUTS/` (= `/yuneta/development/outputs/`
-by default): `include/`, `lib/`, `bin/`, `yunos/`.
+Artefacts land in `$YUNETAS_OUTPUTS/` (= `$YUNETAS_BASE/outputs/`):
+`include/`, `lib/`, `bin/`, `yunos/`.
+
+#### External projects
+
+The `yunetas` CLI can also drive your own projects (any repo whose
+`yunos/CMakeLists.txt` includes `tools/cmake/project.cmake`). Register
+them once and `init` / `build` / `clean` process them right after the SDK:
+
+```bash
+yunetas register-project /yuneta/development/projects/myproject
+yunetas list-projects
+yunetas build                 # SDK + every registered project
+yunetas build myproject       # only that project (SDK skipped)
+yunetas build --sdk-only      # only the SDK
+yunetas unregister-project myproject
+```
+
+The registry is machine-local (`$YUNETAS_BASE/.projects.json`, gitignored).
+
+Two deploy helpers from `tools/agent/` are exposed as subcommands —
+arguments are forwarded verbatim (`-n` dry-run, `-a` all, OAuth2 options…):
+
+```bash
+yunetas sync-binaries -n      # outputs/yunos vs the local agent
+yunetas sync-configs -n --host my.host.com   # each project's yunos/batches/<host>/
+```
+
+`sync-configs` walks the registered projects; without `--host` it only
+proceeds when a `batches/` subdirectory matches this machine's hostname.
 
 > ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) reuse the same
 > `configure-libs.sh` with GCC or Clang — no separate toolchain.

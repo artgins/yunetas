@@ -36,15 +36,15 @@ YUNETAS_BASE=$(pwd ${pwd_opt})
 export YUNETAS_BASE
 unset pwd_opt
 
-# Calculate parent directory of YUNETAS_BASE (local variable)
-PARENT_YUNETAS_BASE=$(dirname "${YUNETAS_BASE}")
-
-# Set YUNETAS_OUTPUTS variable
-YUNETAS_OUTPUTS="${PARENT_YUNETAS_BASE}/outputs"
+# Build artefacts live INSIDE YUNETAS_BASE (same rule on source trees and
+# on .deb/.rpm nodes, where YUNETAS_BASE=/yuneta/development)
+YUNETAS_OUTPUTS="${YUNETAS_BASE}/outputs"
 export YUNETAS_OUTPUTS
 
-# Set YUNETAS_YUNOS variable
-YUNETAS_YUNOS="${PARENT_YUNETAS_BASE}/outputs/yunos"
+YUNETAS_OUTPUTS_EXT="${YUNETAS_BASE}/outputs_ext"
+export YUNETAS_OUTPUTS_EXT
+
+YUNETAS_YUNOS="${YUNETAS_OUTPUTS}/yunos"
 export YUNETAS_YUNOS
 
 # Add /yuneta/bin to PATH with top priority
@@ -80,6 +80,7 @@ fi
 echo "Yunetas environment activated."
 echo "YUNETAS_BASE: ${YUNETAS_BASE}"
 echo "YUNETAS_OUTPUTS: ${YUNETAS_OUTPUTS}"
+echo "YUNETAS_OUTPUTS_EXT: ${YUNETAS_OUTPUTS_EXT}"
 echo "YUNETAS_YUNOS: ${YUNETAS_YUNOS}"
 echo "To deactivate, run: deactivate_yunetas"
 
@@ -102,6 +103,8 @@ deactivate_yunetas() {
 
     # Unset Yunetas-specific environment variables
     unset YUNETAS_BASE
+    unset YUNETAS_OUTPUTS
+    unset YUNETAS_OUTPUTS_EXT
     unset YUNETAS_YUNOS
     echo "Yunetas environment deactivated."
 }

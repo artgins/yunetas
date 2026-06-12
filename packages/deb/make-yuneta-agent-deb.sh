@@ -306,11 +306,6 @@ if [ -d /yuneta/development/yunetas ]; then
     alias salidas='cd /yuneta/development/yunetas/outputs'
     alias outputs='cd /yuneta/development/yunetas/outputs'
     export PATH="/yuneta/development/yunetas/outputs/yunos:/yuneta/development/yunetas/tools/agent:$PATH"
-elif [ -d "$HOME/yunetaprojects/yunetas" ]; then
-    alias y='cd "$HOME/yunetaprojects/yunetas"'
-    alias salidas='cd "$HOME/yunetaprojects/outputs"'
-    alias outputs='cd "$HOME/yunetaprojects/outputs"'
-    export PATH="$HOME/yunetaprojects/outputs/yunos:$HOME/yunetaprojects/yunetas/tools/agent:$PATH"
 elif [ -d "/yuneta/development/outputs" ]; then
     alias y='cd /yuneta/development'
     alias salidas='cd /yuneta/development/outputs'

@@ -1,5 +1,27 @@
 # **Changelog**
 
+## Unreleased
+    - **feat(tui_yunetas 0.9.0): external projects integrated into the
+      `yunetas` CLI.** New `register-project` / `unregister-project` /
+      `list-projects` commands keep a machine-local registry in
+      `$YUNETAS_BASE/.projects.json` (gitignored); `init` / `build` / `clean`
+      now also process each registered project's `yunos/` after the SDK
+      (select with positional project names, or `--sdk-only` to skip them).
+      New `sync-binaries` / `sync-configs` subcommands wrap
+      `tools/agent/sync_*.py`, forwarding arguments; `sync-configs` walks the
+      registered projects' `yunos/batches/<host>/` directories (`--host`
+      selector with hostname auto-match), closing the discovery gap that
+      forced a manual `cd` into each batches dir.
+    - **fix(env): `yunetas-env.sh` exported a stale artefacts layout.**
+      `YUNETAS_OUTPUTS` / `YUNETAS_YUNOS` pointed at the PARENT directory of
+      the repo (`$(dirname $YUNETAS_BASE)/outputs`), a layout nothing else
+      uses: `project.cmake`, the CLI and the `.deb`/`.rpm` payload all agree
+      on `$YUNETAS_BASE/outputs[_ext]`. Both variables now follow that rule,
+      a new `YUNETAS_OUTPUTS_EXT` is exported, and `deactivate_yunetas`
+      unsets all of them. The legacy `$HOME/yunetaprojects` branch was
+      dropped from the profile script staged by the `.deb`/`.rpm` packagers,
+      and the docs (`CLAUDE.md`, `installation.md`) were aligned.
+
 ## 7.6.1
     - **fix(authz,root-linux): a root superuser reaches any service of the
       node.** The 7.6.0 per-message `dst_service` gate (`is_service_authorized`
