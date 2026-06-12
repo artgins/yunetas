@@ -162,6 +162,12 @@ copy_tree "${YUNETAS_BASE}/outputs"             "${STAGE}/yuneta/development/yun
 copy_tree "${YUNETAS_BASE}/tools"               "${STAGE}/yuneta/development/yunetas"
 install -D -m 0644 "${YUNETAS_BASE}/.config"    "${STAGE}/yuneta/development/yunetas/.config"
 
+# Strip lab load-generators from the payload: stress_* have no place on a
+# production node. perf_* stay on purpose — fully static benchmarks, handy
+# to measure the target machine.
+rm -f "${STAGE}"/yuneta/development/yunetas/outputs/yunos/stress_* \
+      "${STAGE}"/yuneta/development/yunetas/outputs/bin/stress_*
+
 rm -f "${STAGE}"/yuneta/bin/nginx/logs/* 2>/dev/null || true
 rm -f "${STAGE}"/yuneta/bin/openresty/nginx/logs/* 2>/dev/null || true
 

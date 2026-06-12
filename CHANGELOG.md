@@ -1,6 +1,13 @@
 # **Changelog**
 
 ## Unreleased
+    - **chore(packages): drop `stress_*` lab binaries from the .deb/.rpm
+      payload.** The CI builds the whole tree and the packagers copied
+      `outputs/` wholesale, so the stress load-generators (`stress_auth_bff`,
+      `stress_listen`, …) shipped on every production node. They are now
+      stripped at staging time. `perf_*` benchmarks stay on purpose: fully
+      static, they are handy to measure a target machine right after install
+      (validated on the 7.6.2 Ubuntu VM).
     - **fix(packages): pipx CLIs install for the operator, not for root.**
       `install-yuneta-dev-deps.sh` (deb/rpm) runs as root, so `pipx install
       kconfiglib yunetas` landed in `/root/.local/bin` — invisible to the
