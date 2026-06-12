@@ -3016,14 +3016,16 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
     }
     char safe[NAME_MAX];
     sanitize_config_name(safe, sizeof(safe), name);
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
+    build_path(path, pathsize, homedir, ".yuneta", "configs", NULL);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
     if(strlen(safe) > 5 && strstr(safe + strlen(safe) - strlen(".json"), ".json")) {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
+        build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
     } else {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s.json", homedir, safe);
+        char fname[NAME_MAX + 8];
+        snprintf(fname, sizeof(fname), "%s.json", safe);
+        build_path(path, pathsize, homedir, ".yuneta", "configs", fname, NULL);
     }
     json_dump_file(jn_content, path, JSON_ENCODE_ANY | JSON_INDENT(4));
     JSON_DECREF(jn_content);
@@ -3044,11 +3046,11 @@ PRIVATE int save_local_string(
     }
     char safe[NAME_MAX];
     sanitize_config_name(safe, sizeof(safe), name);
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
+    build_path(path, pathsize, homedir, ".yuneta", "configs", NULL);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
+    build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
     const char *s = json_string_value(jn_content);
     if(s) {
         FILE *file = fopen(path, "w");
@@ -3079,11 +3081,11 @@ PRIVATE int save_local_base64(
     }
     char safe[NAME_MAX];
     sanitize_config_name(safe, sizeof(safe), name);
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
+    build_path(path, pathsize, homedir, ".yuneta", "configs", NULL);
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, safe);
+    build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
 
     const char *s = json_string_value(jn_content);
     if(s) {
