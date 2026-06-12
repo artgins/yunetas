@@ -200,6 +200,7 @@ PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *jn_cols, // owned
     uint32_t snap_tag,
+    BOOL system_topic,  // TRUE: topic cannot be deleted (only full store wipe)
     BOOL create_schema
 );
 
@@ -367,7 +368,7 @@ PUBLIC int treedb_delete_node(
 **rst**/
 PUBLIC int treedb_delete_instance(
     json_t *tranger,
-    json_t *node,           // owned, pure node
+    json_t *node,           // pure node borrowed from the index; consumed only on success
     const char *pkey2_name,
     json_t *jn_options      // bool "force": skip the snapshot-tag guard
 );

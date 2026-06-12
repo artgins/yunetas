@@ -785,6 +785,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_incref(pkey2s_), // owned, string or dict of string | [strings]
         json_incref(cols_), // owned
         0,          // snap_tag
+        FALSE,      // system_topic: clients cannot create system topics
         FALSE       // create_schema
     );
 
