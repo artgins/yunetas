@@ -35,6 +35,12 @@ external JSON; inspect it at runtime with
 | `from` | *(required)* | Default envelope/From address |
 | `from_beautiful` | `""` | Optional display name for the From header |
 | `username` / `password` | `""` | AUTH PLAIN credentials (empty → skip AUTH) |
+
+`url`, `from`, `username` and `password` are persistent attributes: set them at
+runtime with the `set-email-user` / `set-url-from` commands (below) and they are
+saved to the yuno's persistent-attrs store and reloaded on restart. This is the
+canonical way to provision the SMTP credentials — they never have to appear in
+any committed config or batch file.
 | `timeout_dequeue` | `10` | ms between queue polls |
 | `max_retries` | `4` | Max total send attempts before dead-lettering |
 | `disable_alarm_emails` | `false` | Drop "ALERT Queuing" alarm emails |
@@ -56,9 +62,16 @@ to any logic in the current code; setting them has no effect.
 | Command | Parameters | Description |
 |---------|------------|-------------|
 | `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists; recipients are deduplicated. |
+| `list-queues` | — | Dump the messages in `emails_queue` and `emails_failed` with totals. Works while paused (queues are opened temporarily). |
+| `remove-emails-failed` | — | Purge the `emails_failed` dead-letter queue. Works while paused. |
+| `set-email-user` | `username`, `password` | Set the AUTH PLAIN credentials and save them as persistent attrs (both required). |
+| `set-url-from` | `url`, `from` | Set the SMTP url and/or the default From and save them as persistent attrs (at least one required). |
 | `enable-alarm-emails` | — | Re-enable alarm emails |
 | `disable-alarm-emails` | — | Suppress "ALERT Queuing" alarm emails |
 | `help` | `cmd`, `level` | Command help |
+
+`set-email-user` and `set-url-from` are tagged `SDF_AUTHZ_X` — they require the
+`__execute_command__` permission when the per-command authz gate is enabled.
 
 Other yunos send mail by publishing `EV_SEND_EMAIL` to the `emailsender`
 service (e.g. `logcenter`'s summary report).
