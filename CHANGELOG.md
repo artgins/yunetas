@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.6.2
     - **feat(tui_yunetas 0.9.0): external projects integrated into the
       `yunetas` CLI.** New `register-project` / `unregister-project` /
       `list-projects` commands keep a machine-local registry in
@@ -37,6 +37,16 @@
       packages; on upgrade dpkg/rpm relocate the payload automatically, but
       already-configured project `build/` dirs cache the old paths — re-run
       `cmake` (or `yunetas init <project>`) after upgrading.
+    - **fix(ycli,ycommand): assemble local-config paths via `build_path`.**
+      The `save_local_json/string/base64` helpers built
+      `$HOME/.yuneta/configs/<name>` with `snprintf` into a NAME_MAX buffer
+      while the sanitized name was also NAME_MAX, so GCC emitted
+      `-Wformat-truncation`. `build_path()` (the hard-rule path helper) does
+      the assembly and logs LOG_CRIT on real overflow instead of silently
+      truncating.
+    - Note: the 7.6.1 tag already shipped two undocumented renames — the
+      legacy `cli` gobj/service is now `ycli`, and its global config key
+      `Cli.shortkeys` is now `ycli.shortkeys`.
 
 ## 7.6.1
     - **fix(authz,root-linux): a root superuser reaches any service of the
