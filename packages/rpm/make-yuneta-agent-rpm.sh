@@ -889,11 +889,28 @@ if command -v update-ca-trust >/dev/null 2>&1; then
     update-ca-trust || true
 fi
 
+# pipx CLIs (kconfiglib for menuconfig, yunetas build CLI). This script runs
+# as root, but the CLIs must land in the OPERATOR's ~/.local/bin — the staged
+# profile.d/yuneta.sh already puts /home/yuneta/.local/bin on PATH. Install
+# for 'yuneta' when it exists, else for the sudo caller, else for root.
 if command -v pipx >/dev/null 2>&1; then
-    echo "[i] Installing kconfiglib via pipx…"
-    pipx install --include-deps kconfiglib || echo "[!] pipx install kconfiglib failed (continuing)"
-    echo "[i] Installing yunetas via pipx…"
-    pipx install --include-deps yunetas || echo "[!] pipx install yunetas failed (continuing)"
+    pipx_user="root"
+    if id yuneta >/dev/null 2>&1; then
+        pipx_user="yuneta"
+    elif [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+        pipx_user="${SUDO_USER}"
+    fi
+    run_pipx() {
+        if [ "${pipx_user}" = "root" ]; then
+            pipx "$@"
+        else
+            runuser -l "${pipx_user}" -c "pipx $*"
+        fi
+    }
+    echo "[i] Installing kconfiglib via pipx (user: ${pipx_user})…"
+    run_pipx install --include-deps kconfiglib || echo "[!] pipx install kconfiglib failed (continuing)"
+    echo "[i] Installing yunetas via pipx (user: ${pipx_user})…"
+    run_pipx install --include-deps yunetas || echo "[!] pipx install yunetas failed (continuing)"
 else
     echo "[!] pipx not installed; kconfiglib and yunetas not installed." >&2
 fi

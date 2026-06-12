@@ -1,5 +1,17 @@
 # **Changelog**
 
+## Unreleased
+    - **fix(packages): pipx CLIs install for the operator, not for root.**
+      `install-yuneta-dev-deps.sh` (deb/rpm) runs as root, so `pipx install
+      kconfiglib yunetas` landed in `/root/.local/bin` — invisible to the
+      `yuneta` operator account (verified on a clean Ubuntu VM: `yunetas:
+      command not found` after a full install). The script now installs the
+      pipx apps for the `yuneta` user when it exists (falling back to
+      `$SUDO_USER`, then root), via `runuser -l` so pipx resolves the right
+      `$HOME`. The staged `profile.d/yuneta.sh` already has
+      `/home/yuneta/.local/bin` on PATH, so the CLIs work on next login with
+      no `pipx ensurepath` step.
+
 ## 7.6.2
     - **feat(tui_yunetas 0.9.0): external projects integrated into the
       `yunetas` CLI.** New `register-project` / `unregister-project` /
