@@ -21,6 +21,22 @@
       unsets all of them. The legacy `$HOME/yunetaprojects` branch was
       dropped from the profile script staged by the `.deb`/`.rpm` packagers,
       and the docs (`CLAUDE.md`, `installation.md`) were aligned.
+    - **feat(packages): one outputs/ path on every node.** The `.deb`/`.rpm`
+      used to stage the SDK payload directly under `/yuneta/development/`
+      (`outputs/`, `outputs_ext/`, `tools/`, `.config`), so runtime-only nodes
+      had a different `YUNETAS_BASE` (and outputs path) than source checkouts.
+      Both packagers now stage the same payload as a sparse SDK under
+      `/yuneta/development/yunetas/` — the SAME base path as a full source
+      tree — so `outputs/` is `/yuneta/development/yunetas/outputs` everywhere
+      and the two-branch layout conditional in the staged `profile.d/yuneta.sh`
+      collapses to a single unconditional block. The `yunetas` CLI handles
+      these runtime-only trees (no `YUNETA_VERSION`): `init <project>` /
+      `build <project>` work against the shipped headers, and a plain `init`
+      refuses to wipe the shipped `outputs/`. Legacy `/yuneta/development`
+      fallbacks remain in the resolution chains for nodes installed with older
+      packages; on upgrade dpkg/rpm relocate the payload automatically, but
+      already-configured project `build/` dirs cache the old paths — re-run
+      `cmake` (or `yunetas init <project>`) after upgrading.
 
 ## 7.6.1
     - **fix(authz,root-linux): a root superuser reaches any service of the

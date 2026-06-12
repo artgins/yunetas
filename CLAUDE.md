@@ -632,7 +632,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | Variable | Purpose |
 |----------|---------|
-| `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`); on `.deb`/`.rpm` runtime-only nodes it is `/yuneta/development` |
+| `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`). `/yuneta/development/yunetas` is the same base on every node: `.deb`/`.rpm` runtime-only nodes get a sparse SDK there (`outputs/`, `outputs_ext/`, `tools/`, `.config` — no sources) |
 | `YUNETAS_OUTPUTS` | `$YUNETAS_BASE/outputs` — build artefacts (include/lib/bin/yunos) |
 | `YUNETAS_OUTPUTS_EXT` | `$YUNETAS_BASE/outputs_ext` — built external libraries |
 | `YUNETAS_YUNOS` | `$YUNETAS_OUTPUTS/yunos/` — deployed yuno binaries |

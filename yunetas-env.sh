@@ -36,8 +36,9 @@ YUNETAS_BASE=$(pwd ${pwd_opt})
 export YUNETAS_BASE
 unset pwd_opt
 
-# Build artefacts live INSIDE YUNETAS_BASE (same rule on source trees and
-# on .deb/.rpm nodes, where YUNETAS_BASE=/yuneta/development)
+# Build artefacts live INSIDE YUNETAS_BASE. /yuneta/development/yunetas is
+# the same base on every node: full source checkout on dev nodes, sparse SDK
+# (outputs/, outputs_ext/, tools/, .config) staged by the .deb/.rpm packages
 YUNETAS_OUTPUTS="${YUNETAS_BASE}/outputs"
 export YUNETAS_OUTPUTS
 

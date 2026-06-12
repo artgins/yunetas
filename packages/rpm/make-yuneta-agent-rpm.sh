@@ -97,9 +97,9 @@ mkdir -p "${STAGE}/yuneta/repos"
 mkdir -p "${STAGE}/yuneta/store/certs/private"
 mkdir -p "${STAGE}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${STAGE}/yuneta/share"
-mkdir -p "${STAGE}/yuneta/development/outputs"
-mkdir -p "${STAGE}/yuneta/development/outputs_ext"
-mkdir -p "${STAGE}/yuneta/development/tools/cmake"
+mkdir -p "${STAGE}/yuneta/development/yunetas/outputs"
+mkdir -p "${STAGE}/yuneta/development/yunetas/outputs_ext"
+mkdir -p "${STAGE}/yuneta/development/yunetas/tools/cmake"
 mkdir -p "${STAGE}/yuneta/development/projects"
 mkdir -p "${STAGE}/etc/yuneta"
 mkdir -p "${STAGE}/var/crash"
@@ -155,10 +155,12 @@ copy_tree "/yuneta/bin/ncurses"                 "${STAGE}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${STAGE}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${STAGE}/yuneta/bin"
 copy_tree "/yuneta/bin/skeletons"               "${STAGE}/yuneta/bin"
-copy_tree "${YUNETAS_BASE}/outputs_ext"         "${STAGE}/yuneta/development"
-copy_tree "${YUNETAS_BASE}/outputs"             "${STAGE}/yuneta/development"
-copy_tree "${YUNETAS_BASE}/tools"               "${STAGE}/yuneta/development"
-install -D -m 0644 "${YUNETAS_BASE}/.config"    "${STAGE}/yuneta/development/.config"
+# Sparse SDK tree: same YUNETAS_BASE path as a full source checkout, so
+# outputs/ lives at /yuneta/development/yunetas/outputs on EVERY node.
+copy_tree "${YUNETAS_BASE}/outputs_ext"         "${STAGE}/yuneta/development/yunetas"
+copy_tree "${YUNETAS_BASE}/outputs"             "${STAGE}/yuneta/development/yunetas"
+copy_tree "${YUNETAS_BASE}/tools"               "${STAGE}/yuneta/development/yunetas"
+install -D -m 0644 "${YUNETAS_BASE}/.config"    "${STAGE}/yuneta/development/yunetas/.config"
 
 rm -f "${STAGE}"/yuneta/bin/nginx/logs/* 2>/dev/null || true
 rm -f "${STAGE}"/yuneta/bin/openresty/nginx/logs/* 2>/dev/null || true
@@ -271,17 +273,13 @@ ulimit -c unlimited 2>/dev/null || true
 ulimit -n unlimited 2>/dev/null || true
 ulimit -Hn unlimited 2>/dev/null || true
 
-if [ -d /yuneta/development/yunetas ]; then
-    alias y='cd /yuneta/development/yunetas'
-    alias salidas='cd /yuneta/development/yunetas/outputs'
-    alias outputs='cd /yuneta/development/yunetas/outputs'
-    export PATH="/yuneta/development/yunetas/outputs/yunos:/yuneta/development/yunetas/tools/agent:$PATH"
-elif [ -d "/yuneta/development/outputs" ]; then
-    alias y='cd /yuneta/development'
-    alias salidas='cd /yuneta/development/outputs'
-    alias outputs='cd /yuneta/development/outputs'
-    export PATH="/yuneta/development/outputs/yunos:/yuneta/development/tools/agent:$PATH"
-fi
+# /yuneta/development/yunetas is the single SDK base on every node: full
+# source checkout on dev nodes, sparse SDK (outputs/, outputs_ext/, tools/,
+# .config — no sources) staged by this package on runtime nodes.
+alias y='cd /yuneta/development/yunetas'
+alias salidas='cd /yuneta/development/yunetas/outputs'
+alias outputs='cd /yuneta/development/yunetas/outputs'
+export PATH="/yuneta/development/yunetas/outputs/yunos:/yuneta/development/yunetas/tools/agent:$PATH"
 
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
 alias ll='ls -la'

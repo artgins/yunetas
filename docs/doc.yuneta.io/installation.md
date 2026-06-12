@@ -9,7 +9,7 @@ There are two ways to install Yunetas, depending on what you want to do:
   Debian/Ubuntu, `.rpm` on RHEL/Rocky/Alma), via a single cross-distro
   installer. Installs the runtime (agent, CLI tools, bundled web server)
   **and** the Yuneta libraries, headers and CMake toolchain under
-  `/yuneta/development/`, plus (by default) the developer toolchain — so you
+  `/yuneta/development/yunetas/`, plus (by default) the developer toolchain — so you
   can both *run* yunos and *compile your own projects* against the published
   runtime. What it does **not** include is Yuneta's own source tree.
 - **[Build from source](#build-from-source)** — the full source tree.
@@ -91,9 +91,11 @@ The package installs the agent + CLI tools + bundled openresty under
 `/yuneta/`, creates the `yuneta` system user, applies kernel tuning
 and PAM limits, and starts the SysV service. It also lays down the
 Yuneta libraries, headers, CMake toolchain and the build `.config`
-under `/yuneta/development/` (`outputs/`, `outputs_ext/`, `tools/`),
-so projects can compile against the published runtime without the
-source tree. Full inventory in
+as a sparse SDK under `/yuneta/development/yunetas/` (`outputs/`,
+`outputs_ext/`, `tools/`, `.config` — no sources): the SAME base path
+as a full source checkout, so projects compile against the published
+runtime without the source tree and without layout differences.
+Full inventory in
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/main/packages).
 
 > ℹ️ **Build options of the published `.deb`.** The release asset is
@@ -101,7 +103,7 @@ source tree. Full inventory in
 > **RelWithDebInfo**, **fully static** binaries, **OpenSSL** TLS
 > backend (mbedTLS off), and every module enabled (console, mqtt,
 > postgres, test, modbus). The exact configuration is installed at
-> `/yuneta/development/.config` — inspect it to confirm what a given
+> `/yuneta/development/yunetas/.config` — inspect it to confirm what a given
 > package was built with. Need a different combination (e.g. mbedTLS
 > for smaller binaries, or a leaner module set)? Build from source and
 > pick your options with [`menuconfig`](#configure-menuconfig).
@@ -387,10 +389,11 @@ plus `$YUNETAS_BASE/scripts` to `PATH`:
 | `YUNETAS_YUNOS`       | `$YUNETAS_OUTPUTS/yunos`                    |
 
 > ℹ️ **Layout contract.** Build artefacts (`outputs/`, `outputs_ext/`)
-> live INSIDE `$YUNETAS_BASE` — both dirs are gitignored. The same rule
-> holds on a runtime-only node installed from `.deb`/`.rpm`, where the
-> package stages the SDK under `/yuneta/development/` and therefore
-> `YUNETAS_BASE=/yuneta/development`. Your own project repos can live
+> live INSIDE `$YUNETAS_BASE` — both dirs are gitignored. The base is the
+> SAME path on every node: `/yuneta/development/yunetas/`, as a full
+> source checkout on dev nodes or as the sparse SDK (`outputs/`,
+> `outputs_ext/`, `tools/`, `.config` — no sources) staged by the
+> `.deb`/`.rpm` on runtime-only nodes. Your own project repos can live
 > anywhere; register them with `yunetas register-project` (below).
 
 > ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need

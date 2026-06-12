@@ -191,11 +191,13 @@ The `.deb` installs the following tree:
 │   │   └── private/                     <- private keys (mode 0700)
 │   └── queues/gate_msgs2/              <- message queue persistence
 ├── share/                               <- shared resources
-└── development/                         <- build outputs for development
-    ├── outputs/                          <- compiled libraries/headers/bins
-    ├── outputs_ext/                      <- external dependencies
-    ├── tools/cmake/                      <- CMake toolchain files
-    └── .config                           <- build configuration
+└── development/
+    ├── projects/                        <- home for user project repos
+    └── yunetas/                         <- sparse SDK (same YUNETAS_BASE path as a source checkout)
+        ├── outputs/                     <- compiled libraries/headers/bins
+        ├── outputs_ext/                 <- external dependencies
+        ├── tools/cmake/                 <- CMake toolchain files
+        └── .config                      <- build configuration
 
 /etc/
 ├── profile.d/yuneta.sh                  <- PATH, ulimits, shell aliases
