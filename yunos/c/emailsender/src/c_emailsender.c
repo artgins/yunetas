@@ -424,6 +424,20 @@ PRIVATE json_t *cmd_set_email_user(hgobj gobj, const char *cmd, json_t *kw, hgob
     gobj_write_str_attr(gobj, "password", password);
     gobj_save_persistent_attrs(gobj, json_pack("[s,s]", "username", "password"));
 
+    /*-----------------------------*
+     *      Optional url/from
+     *-----------------------------*/
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    if(!empty_string(url)) {
+        gobj_write_str_attr(gobj, "url", url);
+        gobj_save_persistent_attrs(gobj, json_string("url"));
+    }
+    const char *from = kw_get_str(gobj, kw, "from", "", 0);
+    if(!empty_string(from)) {
+        gobj_write_str_attr(gobj, "from", from);
+        gobj_save_persistent_attrs(gobj, json_string("from"));
+    }
+
     return msg_iev_build_response(
         gobj,
         0,

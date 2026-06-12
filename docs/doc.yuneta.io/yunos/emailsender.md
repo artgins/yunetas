@@ -64,7 +64,7 @@ to any logic in the current code; setting them has no effect.
 | `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists; recipients are deduplicated. |
 | `list-queues` | — | Dump the messages in `emails_queue` and `emails_failed` with totals. Works while paused (queues are opened temporarily). |
 | `remove-emails-failed` | — | Purge the `emails_failed` dead-letter queue. Works while paused. |
-| `set-email-user` | `username`, `password` | Set the AUTH PLAIN credentials and save them as persistent attrs (both required). |
+| `set-email-user` | `username`, `password`, `url`, `from` | Set the AUTH PLAIN credentials (required) and optionally the SMTP url / default From; all saved as persistent attrs. |
 | `set-url-from` | `url`, `from` | Set the SMTP url and/or the default From and save them as persistent attrs (at least one required). |
 | `enable-alarm-emails` | — | Re-enable alarm emails |
 | `disable-alarm-emails` | — | Suppress "ALERT Queuing" alarm emails |
