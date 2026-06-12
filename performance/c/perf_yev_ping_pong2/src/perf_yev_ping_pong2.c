@@ -473,15 +473,26 @@ PRIVATE json_t *open_tranger(void)
     char path_topic[PATH_MAX];
 
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*
+     *  Wipe the database so tranger2_startup always re-creates it:
+     *  the "Creating __timeranger2__.json" INFO below is deterministic,
+     *  whether or not a previous test/run left the database behind.
+     */
+    rmrdir(path_database);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    set_expected_results( // Check that no logs happen
+    set_expected_results(
         "tranger2_startup", // test name
-        NULL,   // error's list, It must not be any log error
+        json_pack("[{s:s}]", // error's list
+            "msg", "Creating __timeranger2__.json"
+        ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose

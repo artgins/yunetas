@@ -1,6 +1,17 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(performance): `perf_yev_ping_pong2` no longer reports a first-run
+      `tranger2_startup` error.** The startup phase expected NO logs, but on a
+      node where `~/tests_yuneta/` had never been created (e.g. a fresh VM)
+      `tranger2_startup` emits the one-time INFO "Creating
+      `__timeranger2__.json`" — flagged as unexpected by the strict
+      expected-results FIFO. Simply adding the log to the expected list would
+      break the opposite case (database already created by a previous test or
+      run). Fix follows the established pattern
+      (`test_tr_treedb_update_instance.c`): wipe the database with `rmrdir`
+      before `tranger2_startup` so the creation INFO is always emitted, and
+      expect it. Verified with back-to-back runs (fresh and leftover store).
     - **chore(packages): drop `stress_*` lab binaries from the .deb/.rpm
       payload.** The CI builds the whole tree and the packagers copied
       `outputs/` wholesale, so the stress load-generators (`stress_auth_bff`,
