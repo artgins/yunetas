@@ -4,6 +4,7 @@ syntax:regexp
 chatgpt/
 .claude/
 Testing/
+\.projects\.json
 
 x.txt
 docs/doc.yuneta.io-quarto/.gitignore
