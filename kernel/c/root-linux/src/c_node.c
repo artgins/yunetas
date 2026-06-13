@@ -94,7 +94,6 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
-PRIVATE void strip_system_mark(hgobj gobj, json_t *record, const char *topic_name);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -1953,28 +1952,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-/***************************************************************************
- *  The __system__ record mark protects a record against deletion and can
- *  only be stamped by an internal seed loader (e.g. C_AUTHZ initial_load,
- *  a direct mt call). Strip it from any client-reachable input.
- ***************************************************************************/
-PRIVATE void strip_system_mark(hgobj gobj, json_t *record, const char *topic_name)
-{
-    if(record && json_object_get(record, "__system__")) {
-        json_object_del(record, "__system__");
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "__system__ mark stripped: only the init seed loader can set it",
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -2061,8 +2038,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
-
-    strip_system_mark(gobj, jn_content, topic_name);
 
     json_t *node = gobj_create_node(
         gobj,
@@ -2168,8 +2143,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
-
-    strip_system_mark(gobj, jn_content, topic_name);
 
     json_t *node = gobj_update_node(
         gobj,
@@ -4021,12 +3994,6 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hg
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, kw, "⏩ treedb_update_node topic %s", topic_name);
     }
-
-    /*
-     *  EV_TREEDB_UPDATE_NODE is a public event: same trust boundary
-     *  as the commands. Internal seed loaders use the direct mt call.
-     */
-    strip_system_mark(gobj, record, topic_name);
 
     json_t *node = gobj_update_node( // Return is YOURS
         gobj,

@@ -690,17 +690,13 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->gobj_treedb);
     }
 
-    if(priv->gobj_treedb && gobj_read_bool_attr(gobj, "master")) {
-        /*--------------------------------------------------------*
-         *  Ensure the seed records exist and carry the
-         *  __system__ mark (protected against deletion).
-         *  Idempotent on every start: re-creates a missing seed,
-         *  stamps an unmarked pre-existing one, otherwise no-op.
-         *  Only the master writes (agent22 shares the agent's
-         *  store as non-master).
-         *  HACK direct mt calls, NOT EV_TREEDB_UPDATE_NODE:
-         *  the event path is public and strips __system__.
-         *--------------------------------------------------------*/
+    if(priv->gobj_treedb &&
+        gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
+        gobj_topic_size(priv->gobj_treedb, "users", "")==0
+    ) {
+        /*------------------------------------*
+         *  Empty treedb? initialize treedb
+         *-----------------------------------*/
         json_t *initial_load = gobj_read_json_attr(gobj, "initial_load");
         time_t t;
         time(&t);
@@ -709,77 +705,21 @@ PRIVATE int mt_start(hgobj gobj)
         json_object_foreach(initial_load, topic_name, topic_records) {
             int idx; json_t *record;
             json_array_foreach(topic_records, idx, record) {
-                const char *id = kw_get_str(gobj, record, "id", "", 0);
-                if(empty_string(id)) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_TREEDB,
-                        "msg",          "%s", "initial_load record without id, ignored",
-                        "topic_name",   "%s", topic_name,
-                        NULL
-                    );
-                    continue;
-                }
-                if(!json_object_get(record, "__system__")) {
-                    json_object_set_new(record, "__system__", json_true());
-                }
+                json_object_set_new(record, "time", json_integer((json_int_t)t));
 
-                json_t *node = gobj_get_node( // Return is YOURS
+                json_t *kw_update_node = json_pack("{s:s, s:O, s:{s:b, s:b}}",
+                    "topic_name", topic_name,
+                    "record", record,
+                    "options",
+                        "create", 1,
+                        "autolink", 1
+                );
+                gobj_send_event(
                     priv->gobj_treedb,
-                    topic_name,
-                    json_pack("{s:s}", "id", id),
-                    0,
+                    EV_TREEDB_UPDATE_NODE,
+                    kw_update_node,
                     gobj
                 );
-                if(!node) {
-                    json_object_set_new(record, "time", json_integer((json_int_t)t));
-                    json_t *created = gobj_update_node( // Return is YOURS
-                        priv->gobj_treedb,
-                        topic_name,
-                        json_incref(record),
-                        json_pack("{s:b, s:b}",
-                            "create", 1,
-                            "autolink", 1
-                        ),
-                        gobj
-                    );
-                    if(!created) {
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_TREEDB,
-                            "msg",          "%s", "Cannot create initial_load seed record",
-                            "topic_name",   "%s", topic_name,
-                            "id",           "%s", id,
-                            NULL
-                        );
-                    }
-                    JSON_DECREF(created)
-                } else {
-                    if(!kw_get_bool(gobj, node, "__system__", 0, 0)) {
-                        json_t *stamped = gobj_update_node( // Return is YOURS
-                            priv->gobj_treedb,
-                            topic_name,
-                            json_pack("{s:s, s:b}",
-                                "id", id,
-                                "__system__", 1
-                            ),
-                            0,
-                            gobj
-                        );
-                        if(!stamped) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_TREEDB,
-                                "msg",          "%s", "Cannot stamp __system__ on seed record",
-                                "topic_name",   "%s", topic_name,
-                                "id",           "%s", id,
-                                NULL
-                            );
-                        }
-                        JSON_DECREF(stamped)
-                    }
-                    JSON_DECREF(node)
-                }
             }
         }
     }

@@ -1,39 +1,14 @@
 # **Changelog**
 
 ## Unreleased
-    - **feat(treedb): system-protected records and topics.** Two new
-      protection marks, removable only by a full store wipe:
-      - Record-level `__system__` (a regular persistent boolean col):
-        `treedb_delete_node()` / `treedb_delete_instance()` refuse the
-        delete and — unlike the snapshot-tag guard — `force` does NOT
-        override; `treedb_update_node()` treats the mark as immutable once
-        TRUE (warning logged, change ignored). Every client-reachable
-        `C_NODE` input (`create-node` / `update-node` commands and the
-        public `EV_TREEDB_UPDATE_NODE` event) strips `__system__` from the
-        record, so only internal seed loaders (direct mt calls) can stamp it.
-      - Topic-level `system_topic` (schema topic key, persisted in
-        `topic_var.json`): `treedb_delete_topic()` refuses. New parameter in
-        `treedb_create_topic()` (API change; runtime `create-topic` clients
-        always pass FALSE).
-      `C_AUTHZ` now seeds through an idempotent ensure-loop on every start
-      (direct mt calls instead of `EV_TREEDB_UPDATE_NODE`): it re-creates a
-      missing seed record, stamps `__system__` on unmarked pre-existing ones
-      (existing stores get protected on the next restart, no wipe needed),
-      and no-ops otherwise. The `treedb_authzs` schema marks `roles`/`users`
-      as system topics and adds the `__system__` col (schema 20, roles
-      topic_version 9, users 13). This closes Part B of the local-superuser
-      hardening: the seed `root` role / `yuneta` user can no longer be
-      deleted by CRUD, so the local trusted user cannot silently lose its
-      powers (Part A shipped in 7.6.1).
-      Regression test: `tests/c/tr_treedb_system_records` (guards, force,
-      immutability, persistence across reopen, control cases).
     - **fix(treedb): refused `treedb_delete_instance()` no longer drops a
-      borrowed node ref.** The tag-guard refusal path decref'd the node even
-      though callers (`mt_delete_node`, tests) pass the index's borrowed
-      pointer — a refused per-instance delete of a snap-tagged node left the
-      index slot one ref short (latent double-free). Refusal paths now leave
-      the node untouched; the ref is consumed only on success, same
-      convention as `treedb_delete_node()`.
+      borrowed node ref.** The snapshot-tag guard's refusal path decref'd the
+      node even though callers (`mt_delete_node`, tests) pass the index's
+      borrowed pointer — a refused per-instance delete of a snap-tagged node
+      left the index slot one ref short (latent use-after-free / double-free).
+      The refusal path now leaves the node untouched; the ref is consumed only
+      on success, where `delete_secondary_node()` extracts it from the index,
+      same convention as `treedb_delete_node()`.
     - **fix(performance): `perf_yev_ping_pong2` no longer reports a first-run
       `tranger2_startup` error.** The startup phase expected NO logs, but on a
       node where `~/tests_yuneta/` had never been created (e.g. a fresh VM)

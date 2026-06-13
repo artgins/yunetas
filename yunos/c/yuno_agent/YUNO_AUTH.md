@@ -318,17 +318,6 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup; `yuneta` happens to typically
 own every role in production deployments.
 
-**Seed protection (`__system__`).** Since `yuneta`'s powers come from its
-real treedb records (the seed `root` role + `yuneta` user, no hardcode since
-7.6.1), deleting those records would silently strand the local superuser.
-They are therefore **system-protected**: `C_AUTHZ`'s `mt_start` runs an
-idempotent ensure-loop over `initial_load` on every start — re-creating a
-missing seed and stamping the `__system__` mark on unmarked pre-existing
-ones — and the treedb refuses to delete a `__system__` record (`force`
-included) or the `roles`/`users` system topics. Only a full store wipe
-removes them (after which the next start re-seeds). Mechanics in
-[`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10.
-
 ### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 
 The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c):

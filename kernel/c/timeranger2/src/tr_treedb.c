@@ -1020,7 +1020,6 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         int topic_version = (int)kw_get_int(gobj, schema_topic, "topic_version", 0, KW_WILD_NUMBER);
         const char *topic_tkey = kw_get_str(gobj, schema_topic, "tkey", "", 0);
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
-        BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, KW_WILD_NUMBER);
 
         treedb_create_topic(
             tranger,
@@ -1031,7 +1030,6 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             json_incref(pkey2s),
             kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols"), // owned
             snap_tag,
-            system_topic,
             FALSE // create_schema
         );
     }
@@ -1148,7 +1146,6 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *cols, // owned
     uint32_t snap_tag,
-    BOOL system_topic,  // TRUE: topic cannot be deleted (only full store wipe)
     BOOL create_schema
 )
 {
@@ -1213,11 +1210,6 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     // Topic version
     json_t *jn_topic_var = json_object();
     json_object_set_new(jn_topic_var, "topic_version", json_integer(topic_version));
-
-    // System topic: persisted in topic_var.json, immutable after creation
-    if(system_topic) {
-        json_object_set_new(jn_topic_var, "system_topic", json_true());
-    }
 
     // Topic pkey2s
     if(pkey2s) {
@@ -1503,23 +1495,6 @@ PUBLIC int treedb_delete_topic(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        return -1;
-    }
-
-    /*-----------------------------------------------*
-     *  System topics are not deletable: only a
-     *  full store wipe removes them.
-     *-----------------------------------------------*/
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    if(kw_get_bool(gobj, topic, "system_topic", 0, 0)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot delete topic: system topic",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             NULL
@@ -5126,25 +5101,6 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        /*
-         *  __system__ is immutable once TRUE: it can only be cleared
-         *  by a full store wipe, never by an update.
-         */
-        if(strcmp(col_name, "__system__")==0 &&
-                json_is_true(json_object_get(node, "__system__"))) {
-            json_t *new_value = json_object_get(kw, col_name);
-            if(new_value && !json_is_true(new_value)) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "__system__ is immutable once set, change ignored",
-                    "topic_name",   "%s", topic_name,
-                    "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
-                    NULL
-                );
-            }
-            continue;
-        }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
         BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
@@ -5223,25 +5179,6 @@ PUBLIC int treedb_delete_node(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "cannot delete node, it has a tag",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            "id",           "%s", id,
-            NULL
-        );
-        JSON_DECREF(jn_options)
-        return -1;
-    }
-
-    /*-----------------------------------------------*
-     *  System records are not deletable, and
-     *  unlike the snap tag, "force" does NOT
-     *  override: only a full store wipe removes them.
-     *-----------------------------------------------*/
-    if(kw_get_bool(gobj, node, "__system__", 0, 0)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot delete node: system record",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,
@@ -5602,26 +5539,6 @@ PUBLIC int treedb_delete_instance(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Cannot delete instance, node has a tag",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            "id",           "%s", id,
-            "pkey2_name",   "%s", pkey2_name,
-            NULL
-        );
-        JSON_DECREF(jn_options)
-        return -1;
-    }
-
-    /*-----------------------------------------------*
-     *  System records are not deletable, and
-     *  unlike the snap tag, "force" does NOT
-     *  override: only a full store wipe removes them.
-     *-----------------------------------------------*/
-    if(kw_get_bool(gobj, node, "__system__", 0, 0)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB,
-            "msg",          "%s", "Cannot delete instance: system record",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id,

@@ -586,44 +586,6 @@ binary resolver tries the active snapshot first
 ([`gobj_list_snaps`](#gobj_list_snaps), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
 direct `(role, role_version)` lookup.
 
-### 3.10 System-protected records and topics
-
-Two protection marks make seed data **undeletable by CRUD**; only a full
-store wipe (removing the `store/{database}/` tree) clears them:
-
-- **Record-level `__system__`** — a regular persistent boolean col declared
-  in the topic schema. When TRUE on a node:
-  - `treedb_delete_node()` and `treedb_delete_instance()` refuse the delete,
-    and — unlike the snapshot-tag guard — **`force` does NOT override**;
-  - `treedb_update_node()` treats the mark as immutable: an attempt to clear
-    it logs a warning and is ignored (other fields update normally).
-
-  It is a real record field (not `__md_treedb__.tag`/`user_flag`), so it is
-  persisted with the record and **survives snapshot activation** (the snap
-  load path overwrites `user_flag` wholesale, which is why the metadata tag
-  was not used).
-
-- **Topic-level `system_topic`** — a schema topic key, persisted in
-  `topic_var.json` at topic creation (immutable afterwards).
-  `treedb_delete_topic()` refuses to delete a system topic.
-
-**Who can stamp `__system__`:** only internal seed loaders, via direct mt
-calls (`gobj_update_node()` on the `C_NODE` gobj). Every client-reachable
-input of `C_NODE` — the `create-node` / `update-node` commands and the public
-`EV_TREEDB_UPDATE_NODE` event — strips `__system__` from the record and logs
-a warning.
-
-The canonical user is `C_AUTHZ`: its `treedb_authzs` schema marks
-`roles`/`users` as system topics, and `mt_start` runs an idempotent
-ensure-loop over `initial_load` on **every** start — it re-creates a missing
-seed record, stamps `__system__` on an unmarked pre-existing one (stores
-created before this feature get protected on the next restart, no wipe
-needed), and no-ops otherwise. This guarantees the seed `root` role and
-`yuneta` user can never be CRUD-deleted, so the local trusted superuser
-cannot silently lose its powers — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.2.
-
-Regression test: `tests/c/tr_treedb_system_records`.
-
 ---
 
 ## 4. Sharp edges
