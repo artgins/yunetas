@@ -1,6 +1,53 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(treedb): immutable (non-deletable) topics and records.** A record
+      can be marked immutable (md2 system_flag bit `sf_immutable_record`,
+      surfaced as `__md_treedb__`immutable`) and a topic non-deletable
+      (`system_topic` in `topic_var.json`) — the protection is METADATA, not a
+      data column, so it needs no user-schema change and no `topic_version`
+      bump. `treedb_delete_node` / `treedb_delete_instance` /
+      `treedb_delete_topic` refuse it and `force` does NOT override; the record
+      bit is inherited across updates and survives reload. New
+      `treedb_set_node_immutable()` and a `system_topic` param on
+      `treedb_create_topic`; the `__system__` treedb structural topics and per-
+      treedb `__snaps__`/`__graphs__` are marked system. `c_authz` `mt_start`
+      runs a master-only idempotent ensure-loop that stamps the Authz seed
+      (`root` role / `yuneta` user) immutable on every start — deployed stores
+      protected on next restart, no schema change, no wipe. Out of scope on
+      purpose: `delete-treedb` / whole-store wipe. Test
+      `tests/c/tr_treedb_immutable`; design in
+      `kernel/c/timeranger2/DESIGN-immutable-topics-records.md`; docs in
+      `YUNO_TREEDB.md` §3.10 + `YUNO_AUTH.md` §4.2.
+    - **fix(ytls): portable system-CA trust (`ssl_use_system_ca`) for static
+      binaries, both backends.** A fully-static binary doesn't inherit the host
+      OPENSSLDIR / `SSL_CERT_FILE`, so OpenSSL's `set_default_verify_paths()`
+      loaded an EMPTY store and a valid public cert failed to verify. New
+      `ytls_get_system_ca_bundle()` probes the well-known CA bundle FILES across
+      distros (Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Alpine — the
+      hashed-dir CApath is not portable); OpenSSL loads it via
+      `load_verify_locations`, and mbedTLS (no system store of its own) now
+      parses it too instead of refusing the client. `C_PROT_HTTP_CL` gains a
+      `crypto` attr (default verify-by-default) forwarded to its bottom C_TCP,
+      and emailsender's `c_smtp_session` the same — so HTTPS polls (e.g. ESIOS)
+      and SMTPS verify out of the box. This unbroke auth_bff's IdP TLS and
+      stopped a ~1.2 MB/s "TLS handshake FAILS" log flood (-> ~0.6 KB/s).
+    - **feat(c_tcp): opt-in exponential reconnect backoff.** New
+      `timeout_between_connections_max`: when > `timeout_between_connections`,
+      the reconnect delay backs off from base up to the cap, resetting to base
+      once a connection is established (for a TLS client, only on a successful
+      handshake). A peer that keeps failing — e.g. an IdP whose cert won't
+      verify — no longer hammers at the base cadence. `auth_bff` uses it (100 ms
+      first retry, 30 s cap).
+    - **fix(logcenter): `search` / `tail` no longer crash on a truncated log,
+      and read fast.** `extrae_json` brace-counting `abort()`ed the whole daemon
+      when a truncated UDP log entry left a `{` with no `}` (it grew past the
+      max block) — taking logcenter down on a read-only command. Records are now
+      split on the `<PRIORITY>: ` line prefix `rotatory_write()` already writes
+      (robust to truncation and multi-line JSON; a `\0` on-disk terminator was
+      rejected as it would make the log binary for grep/less/vim). Reads use
+      64KB blocks + `memchr` instead of `fgetc()` per byte, and `tail` seeks to
+      the last window: on a 518MB log, tail 72s -> 2s, search 70s+/crash -> 2-7s.
     - **refactor(tui_yunetas 0.9.1): project registry moved to
       `~/.yuneta/projects.json`.** The external-project registry was written
       inside the source tree (`$YUNETAS_BASE/.projects.json`, gitignored). But

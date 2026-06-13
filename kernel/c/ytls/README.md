@@ -51,7 +51,7 @@ Config keys in the `crypto` block (read by `ytls_init`):
 | key | effect |
 |-----|--------|
 | `ssl_trusted_certificate` | path to a CA bundle (PEM) used to verify the peer |
-| `ssl_use_system_ca` | `true` → also trust the OS store (**OpenSSL only**; mbedTLS has no system store) |
+| `ssl_use_system_ca` | `true` → also trust the OS system CA store. Both backends. The bundle is located by a portable cross-distro probe (Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Alpine), so it works even in fully-static binaries that don't inherit the host OPENSSLDIR / `SSL_CERT_FILE` (where OpenSSL's `set_default_verify_paths()` alone loads an empty store); mbedTLS, which has no system store of its own, parses the probed bundle. |
 | `ssl_verify_mode` | `"none"` / `"optional"` / `"required"` — overrides the computed default |
 | `ssl_allow_insecure_client` | `true` → explicitly accept an unverified **client** (self-signed / PSK / IoT bring-up). Default `false` |
 
@@ -69,10 +69,12 @@ Notes:
   verify"*). OpenSSL records it natively even under `VERIFY_NONE`; the mbedTLS
   backend achieves the same by running the opted-in client under
   `VERIFY_OPTIONAL` (verify-and-tolerate — the accept decision is unchanged).
-- The `C_AUTH_BFF` `crypto` and `c_authz` `kc_crypto` IdP-client attributes
-  default to `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — a
-  public IdP/Keycloak is verified against the system store out of the box; for a
-  private/self-signed IdP CA, override with `ssl_trusted_certificate`.
+- The `C_AUTH_BFF` `crypto`, `c_authz` `kc_crypto`, `C_PROT_HTTP_CL` `crypto`
+  and emailsender `c_smtp_session` `crypto` attributes default to
+  `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — a public
+  IdP/Keycloak, HTTPS API or SMTPS server is verified against the system store
+  out of the box (the probe finds the trust store even in fully-static builds);
+  for a private/self-signed CA, override with `ssl_trusted_certificate`.
 
 ## Password hashing — cross-backend compatibility
 
