@@ -1,6 +1,8 @@
 # **Changelog**
 
 ## Unreleased
+
+## 7.6.3
     - **feat(treedb): immutable (non-deletable) topics and records.** A record
       can be marked immutable (md2 system_flag bit `sf_immutable_record`,
       surfaced as `__md_treedb__`immutable`) and a topic non-deletable
