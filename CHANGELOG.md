@@ -1,6 +1,19 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(tui_yunetas 0.10.0): agent-aware deploy.** `sync-configs` without
+      `--host` now matches each registered project's `yunos/batches/<host>/`
+      directories against the realm_ids the local agent manages
+      (`*list-realms`) and syncs every match — a node running several realms
+      deploys all the relevant ones in one pass, since a batches dir is named
+      after its realm_id (the deploy FQDN). `--host` still targets one dir; an
+      unreachable agent falls back to the legacy single-hostname guess; new
+      `--url`/`-u`. New `upgrade-yunos` command bundles the version-bump
+      promotion flow: optional rollback snapshot (idempotent by name,
+      `pre-upgrade-<YYYYMMDD>`, `--no-snap`) -> `find-new-yunos` preview +
+      confirm (`--yes`) -> `find-new-yunos create=1` -> `deactivate-snap`
+      (restart_nodes: SIGKILL + treedb reload, newest release wins).
+      `--dry-run` prints the agent commands without running them.
 
 ## 7.6.3
     - **feat(treedb): immutable (non-deletable) topics and records.** A record

@@ -192,7 +192,9 @@ yunetas init|build|clean                  # SDK + every registered project
 yunetas init|build|clean <name>...        # only those projects (SDK skipped)
 yunetas init|build|clean --sdk-only       # only the SDK
 yunetas sync-binaries [args]              # wrapper over tools/agent/sync_binaries.py
-yunetas sync-configs --host <h> [args]    # per-project yunos/batches/<host>/, wrapper over sync_configs.py
+yunetas sync-configs [args]               # auto-match batches/<host>/ to the agent's realm_ids (*list-realms)
+yunetas sync-configs --host <h> [args]    # or target one batches dir explicitly
+yunetas upgrade-yunos [--no-snap|--snap-name N|-y|-n]  # shoot-snap -> find-new-yunos -> deactivate-snap
 ```
 
 ### Building a single module
