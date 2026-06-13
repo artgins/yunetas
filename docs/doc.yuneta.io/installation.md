@@ -504,11 +504,31 @@ arguments are forwarded verbatim (`-n` dry-run, `-a` all, OAuth2 options…):
 
 ```bash
 yunetas sync-binaries -n      # outputs/yunos vs the local agent
-yunetas sync-configs -n --host my.host.com   # each project's yunos/batches/<host>/
+yunetas sync-configs -n       # each project's yunos/batches/<host>/, auto-matched to local realms
+yunetas sync-configs -n --host my.host.com   # or target one batches dir explicitly
 ```
 
-`sync-configs` walks the registered projects; without `--host` it only
-proceeds when a `batches/` subdirectory matches this machine's hostname.
+`sync-configs` walks the registered projects. Without `--host` it queries the
+local agent (`*list-realms`) and syncs every `batches/<host>/` whose name is a
+realm_id the agent manages — a node running several realms deploys all the
+relevant ones in one pass (a batches dir is named after its realm_id, the
+deploy FQDN). If the agent can't be reached it falls back to a single
+hostname match.
+
+A third subcommand promotes the freshly pushed artifacts to primary on the
+local agent:
+
+```bash
+yunetas upgrade-yunos -n      # preview the agent commands without running them
+yunetas upgrade-yunos         # snapshot -> find-new-yunos -> deactivate-snap
+```
+
+`upgrade-yunos` takes an optional rollback snapshot (idempotent by name,
+default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip), lists the new
+yuno rows `find-new-yunos` would create and asks for confirmation (`--yes`
+to skip), registers them (`find-new-yunos create=1`), then runs
+`deactivate-snap` — which triggers the agent's `restart_nodes()` (SIGKILL +
+treedb reload), promoting the newest release of every yuno.
 
 > ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) reuse the same
 > `configure-libs.sh` with GCC or Clang — no separate toolchain.
