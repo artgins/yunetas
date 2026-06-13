@@ -127,7 +127,7 @@ extern "C"{
  *              Structures  timeranger2
  ***************************************************************/
 #define KEY_TYPE_MASK2        0x000F
-#define NOT_INHERITED_MASK    0xF000 /* Remains will set to all records of topic */
+#define NOT_INHERITED_MASK    0xF000 /* HACK Remains 0x0FFF will be inherited by all records of topic */
 
 typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names */
     sf_string_key           = 0x0001,
@@ -138,6 +138,7 @@ typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names *
     sf_t_ms                 = 0x0100,   /* record time in milliseconds */
     sf_tm_ms                = 0x0200,   /* message time in milliseconds */
     sf_deleted_instance     = 0x0400,   /* per-instance tombstone, inherited by rt_by_disk followers */
+    sf_immutable_record     = 0x0800,   /* record cannot be deleted; inherited band, set per-record */
     sf_loading_from_disk    = 0x1000,
 } system_flag2_t;
 
@@ -149,7 +150,7 @@ typedef struct {
     uint64_t __size__;      // size of the record
 
     uint16_t system_flag;   // system flags managed internally by timeranger
-    uint16_t user_flag;     // user flags managed by the user
+    uint16_t user_flag;     // user flags managed by the user. Examples: tag in treedb, msg pending in queues
     uint64_t rowid;         // row id of the record in the flat file
 } md2_record_ex_t;
 
@@ -505,6 +506,22 @@ PUBLIC int tranger2_write_user_flag(
     This function works directly in disk, segments in memory not used or updated
 */
 PUBLIC int tranger2_set_user_flag(
+    json_t *tranger,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid,         // Must be real rowid in the file, not in topic global
+    uint16_t mask,
+    BOOL set
+);
+
+/*
+    Set/reset writable system-flag bits using a mask.
+    Only sf_immutable_record may be written; any other bit is refused so a
+    caller cannot flip key-type / ms / tombstone / loading bits.
+    This function works directly in disk, segments in memory not used or updated
+*/
+PUBLIC int tranger2_set_system_flag(
     json_t *tranger,
     const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required

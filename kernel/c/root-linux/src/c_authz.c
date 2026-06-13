@@ -690,13 +690,22 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->gobj_treedb);
     }
 
-    if(priv->gobj_treedb &&
-        gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
-        gobj_topic_size(priv->gobj_treedb, "users", "")==0
-    ) {
-        /*------------------------------------*
-         *  Empty treedb? initialize treedb
-         *-----------------------------------*/
+    /*--------------------------------------------------------------*
+     *  Seed + protect the Authz roots (master only, idempotent).
+     *
+     *  On every start: create any missing initial_load record, then
+     *  stamp it immutable (sf_immutable_record, metadata — NOT a data
+     *  column) so the seed root role / yuneta user cannot be deleted
+     *  via CRUD and the local trusted user cannot silently lose its
+     *  powers. Already-deployed stores get protected on their next
+     *  restart, no wipe. agent22 shares this store as non-master and
+     *  must not write, so this is gated on the tranger master flag.
+     *--------------------------------------------------------------*/
+    BOOL master = priv->tranger?
+        kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED) : FALSE;
+
+    if(priv->gobj_treedb && master) {
+        const char *treedb_name = "treedb_authzs"; // HACK same hardcode as mt_create
         json_t *initial_load = gobj_read_json_attr(gobj, "initial_load");
         time_t t;
         time(&t);
@@ -705,21 +714,48 @@ PRIVATE int mt_start(hgobj gobj)
         json_object_foreach(initial_load, topic_name, topic_records) {
             int idx; json_t *record;
             json_array_foreach(topic_records, idx, record) {
-                json_object_set_new(record, "time", json_integer((json_int_t)t));
+                const char *id = kw_get_str(gobj, record, "id", "", 0);
+                if(empty_string(id)) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "initial_load record without id",
+                        "topic_name",   "%s", topic_name,
+                        NULL
+                    );
+                    continue;
+                }
 
-                json_t *kw_update_node = json_pack("{s:s, s:O, s:{s:b, s:b}}",
-                    "topic_name", topic_name,
-                    "record", record,
-                    "options",
-                        "create", 1,
-                        "autolink", 1
-                );
-                gobj_send_event(
-                    priv->gobj_treedb,
-                    EV_TREEDB_UPDATE_NODE,
-                    kw_update_node,
-                    gobj
-                );
+                /*
+                 *  Create if missing (the create path stays event-based)
+                 */
+                json_t *node = treedb_get_node(priv->tranger, treedb_name, topic_name, id);
+                if(!node) {
+                    json_object_set_new(record, "time", json_integer((json_int_t)t));
+                    json_t *kw_update_node = json_pack("{s:s, s:O, s:{s:b, s:b}}",
+                        "topic_name", topic_name,
+                        "record", record,
+                        "options",
+                            "create", 1,
+                            "autolink", 1
+                    );
+                    gobj_send_event(
+                        priv->gobj_treedb,
+                        EV_TREEDB_UPDATE_NODE,
+                        kw_update_node,
+                        gobj
+                    );
+                    node = treedb_get_node(priv->tranger, treedb_name, topic_name, id);
+                }
+
+                /*
+                 *  Stamp immutable (idempotent: no-op once marked)
+                 */
+                if(node && !kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+                    if(treedb_set_node_immutable(priv->tranger, node, TRUE)<0) {
+                        // Error already logged
+                    }
+                }
             }
         }
     }

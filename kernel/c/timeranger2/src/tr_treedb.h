@@ -200,6 +200,7 @@ PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *jn_cols, // owned
     uint32_t snap_tag,
+    BOOL system_topic, // TRUE: topic cannot be deleted (persisted in topic_var)
     BOOL create_schema
 );
 
@@ -321,6 +322,19 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 PUBLIC int treedb_save_node(
     json_t *tranger,
     json_t *node    // NOT owned, pure node.
+);
+
+/**rst**
+    Mark/unmark a node as immutable (cannot be deleted).
+    The mark rides the md2 system_flag (sf_immutable_record), NOT a data
+    column: it persists across reload and is surfaced in __md_treedb__`immutable.
+    Rewrites the node's current primary record in place (no new record appended);
+    treedb_save_node() re-applies it on every later update, like the snap tag.
+**rst**/
+PUBLIC int treedb_set_node_immutable(
+    json_t *tranger,
+    json_t *node,   // NOT owned, pure node.
+    BOOL set
 );
 
 /**rst**

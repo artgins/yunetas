@@ -679,6 +679,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     int snaps_topic_version = 3;
     json_t *jn_snaps_topic_var = json_object();
     json_object_set_new(jn_snaps_topic_var, "topic_version", json_integer(snaps_topic_version));
+    json_object_set_new(jn_snaps_topic_var, "system_topic", json_true()); // cannot be deleted
 
     json_t *tag_snaps_schema = json_pack(
         "{s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"       /* id */
@@ -742,6 +743,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         tag_snaps_schema,
         jn_snaps_topic_var
     );
+    if(snaps_topic) {
+        json_object_set_new(snaps_topic, "system_topic", json_true());
+    }
 
     if(parse_schema_cols(
         topic_cols_desc,
@@ -764,6 +768,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     int graphs_topic_version = 12;
     json_t *jn_graphs_topic_var = json_object();
     json_object_set_new(jn_graphs_topic_var, "topic_version", json_integer(graphs_topic_version));
+    json_object_set_new(jn_graphs_topic_var, "system_topic", json_true()); // cannot be deleted
 
     json_t *tag_graphs_schema = json_pack(
         "{s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"           /* id */
@@ -827,6 +832,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         tag_graphs_schema,
         jn_graphs_topic_var
     );
+    if(graphs_topic) {
+        json_object_set_new(graphs_topic, "system_topic", json_true());
+    }
 
     if(parse_schema_cols(
         topic_cols_desc,
@@ -1020,6 +1028,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         int topic_version = (int)kw_get_int(gobj, schema_topic, "topic_version", 0, KW_WILD_NUMBER);
         const char *topic_tkey = kw_get_str(gobj, schema_topic, "tkey", "", 0);
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
+        BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, 0);
 
         treedb_create_topic(
             tranger,
@@ -1030,6 +1039,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             json_incref(pkey2s),
             kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols"), // owned
             snap_tag,
+            system_topic,
             FALSE // create_schema
         );
     }
@@ -1146,6 +1156,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     json_t *pkey2s, // owned, string or dict of string | [strings]
     json_t *cols, // owned
     uint32_t snap_tag,
+    BOOL system_topic, // TRUE: topic cannot be deleted (persisted in topic_var)
     BOOL create_schema
 )
 {
@@ -1211,6 +1222,11 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     json_t *jn_topic_var = json_object();
     json_object_set_new(jn_topic_var, "topic_version", json_integer(topic_version));
 
+    // Non-deletable topic (metadata, persisted additively in topic_var.json)
+    if(system_topic) {
+        json_object_set_new(jn_topic_var, "system_topic", json_true());
+    }
+
     // Topic pkey2s
     if(pkey2s) {
         /*--------------------------------*
@@ -1237,6 +1253,14 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         cols,           // owned below
         jn_topic_var    // owned below
     );
+
+    /*
+     *  Ensure the in-memory topic carries the flag even when the on-disk
+     *  topic_var predates it (deployed stores): re-stamped on every open.
+     */
+    if(system_topic && topic) {
+        json_object_set_new(topic, "system_topic", json_true());
+    }
 
     if(parse_schema_cols(
         topic_cols_desc,
@@ -1495,6 +1519,22 @@ PUBLIC int treedb_delete_topic(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  System topics cannot be deleted
+     *-----------------------------------*/
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(topic && json_boolean_value(json_object_get(topic, "system_topic"))) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot delete topic: system topic",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             NULL
@@ -3207,6 +3247,10 @@ PRIVATE json_t *md2json(
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "tag", json_integer((json_int_t)md_record->user_flag));
+    if(md_record->system_flag & sf_immutable_record) {
+        /*  Emitted only when set, so normal nodes keep their exact md shape  */
+        json_object_set_new(jn_md, "immutable", json_true());
+    }
     json_object_set_new(jn_md, "pure_node", json_true());
 
     return jn_md;
@@ -4970,6 +5014,27 @@ PUBLIC int treedb_save_node(
     json_object_set_new(__md_treedb__, "tm", json_integer((json_int_t)md_record.__tm__));
 
     /*------------------------------------------------------------------*
+     *  Immutability is inherited across updates: the new record was
+     *  appended with the topic-default system_flag (no immutable bit),
+     *  so re-stamp it in place when the node is marked immutable. Mirrors
+     *  the snap-tag inheritance (user_flag passed to the append above).
+     *------------------------------------------------------------------*/
+    if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+        const char *imm_id = kw_get_str(gobj, node, "id", "", 0);
+        if(tranger2_set_system_flag(
+            tranger,
+            topic_name,
+            imm_id,
+            (uint64_t)md_record.__t__,
+            (uint64_t)md_record.rowid,
+            sf_immutable_record,
+            TRUE
+        )<0) {
+            // Error already logged; record is saved but left unprotected.
+        }
+    }
+
+    /*------------------------------------------------------------------*
      *  Keep the pkey2 secondary indexes in sync with this node.
      *
      *  The load callbacks (load_pkey2_callback) only populate the secondary
@@ -5046,6 +5111,58 @@ PUBLIC int treedb_save_node(
     }
 
     JSON_DECREF(record)
+
+    return 0;
+}
+
+/***************************************************************************
+    Mark/unmark a node as immutable (cannot be deleted).
+    Rides the md2 system_flag (sf_immutable_record), not a data column;
+    rewrites the node's current primary record in place (no new record).
+    Master-only path (tranger2_set_system_flag refuses on a non-master).
+ ***************************************************************************/
+PUBLIC int treedb_set_node_immutable(
+    json_t *tranger,
+    json_t *node,   // NOT owned, pure node
+    BOOL set
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Not a pure node",
+            NULL
+        );
+        gobj_trace_json(gobj, node, "Not a pure node");
+        return -1;
+    }
+
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
+    const char *id = kw_get_str(gobj, node, "id", "", 0);
+    json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
+    uint64_t __t__ = (uint64_t)kw_get_int(gobj, __md_treedb__, "t", 0, 0);
+    uint64_t i_rowid = (uint64_t)kw_get_int(gobj, __md_treedb__, "i_rowid", 0, 0);
+
+    if(tranger2_set_system_flag(
+        tranger,
+        topic_name,
+        id,
+        __t__,
+        i_rowid,
+        sf_immutable_record,
+        set
+    )<0) {
+        // Error already logged
+        return -1;
+    }
+
+    /*
+     *  Keep the in-memory metadata coherent with the disk
+     */
+    json_object_set_new(__md_treedb__, "immutable", set? json_true(): json_false());
 
     return 0;
 }
@@ -5168,6 +5285,26 @@ PUBLIC int treedb_delete_node(
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
     const char *id = kw_get_str(gobj, node, "id", "", 0);
     BOOL force = kw_get_bool(gobj, jn_options, "force", 0, KW_WILD_NUMBER);
+
+    /*-------------------------------*
+     *  Immutable guard (force does NOT override).
+     *  On a guard refusal the node is left untouched (still indexed):
+     *  the ref is consumed only on success. Same convention as the
+     *  snapshot-tag guard below.
+     *-------------------------------*/
+    if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot delete node: immutable record",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
 
     /*-------------------------------*
      *      Get record info
@@ -5523,6 +5660,26 @@ PUBLIC int treedb_delete_instance(
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
     const char *id = kw_get_str(gobj, node, "id", "", 0);
     BOOL force = kw_get_bool(gobj, jn_options, "force", 0, KW_WILD_NUMBER);
+
+    /*-------------------------------*
+     *  Immutable guard (force does NOT override). Same borrowed-ref
+     *  convention as the snapshot-tag guard below: on refusal the node
+     *  is left untouched, the ref is consumed only on success.
+     *-------------------------------*/
+    if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot delete instance: immutable record",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id,
+            "pkey2_name",   "%s", pkey2_name,
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
 
     /*-------------------------------*
      *  Snapshot-tag guard

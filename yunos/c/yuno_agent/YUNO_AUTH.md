@@ -318,6 +318,19 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup; `yuneta` happens to typically
 own every role in production deployments.
 
+**The seed cannot be deleted.** On every master start, `C_AUTHZ` `mt_start`
+runs an idempotent ensure-loop over `Authz.initial_load` (the seed `root`
+role + `yuneta` user, [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/src/c_agent.c) `main.c`): it creates any missing
+seed record and stamps it **immutable** via `treedb_set_node_immutable()`,
+so the local trusted user can never silently lose its powers through CRUD.
+`delete-node` refuses an immutable record and **`force` does not override**;
+deployed stores get protected on their next restart with no schema change
+and no wipe (the mark is md2 metadata, not a column — see
+[`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10). Only the two seed **records** are
+frozen; the `roles` / `users` **topics** stay ordinary (editable, and other
+roles/users delete normally). agent22 shares the store as non-master and
+does not run the loop.
+
 ### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 
 The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c):

@@ -59,7 +59,7 @@ PRIVATE const char *sf_names[16+1] = {
     "sf_t_ms",                  // 0x0100
     "sf_tm_ms",                 // 0x0200
     "sf_deleted_instance",      // 0x0400
-    "",                         // 0x0800
+    "sf_immutable_record",      // 0x0800
 
     // Non-inherited
     "sf_loading_from_disk",     // 0x1000
@@ -75,8 +75,8 @@ PRIVATE const char *sf_names[16+1] = {
 #pragma pack(1)
 
 typedef struct { // Size: 32 bytes — fields are big-endian on disk
-    uint64_t __t__;
-    uint64_t __tm__;
+    uint64_t __t__;     // HACK: 16 high bits for user_flag, remain for time
+    uint64_t __tm__;    // HACK: 16 high bits for system_flag, remain for time
 
     uint64_t __offset__;
     uint64_t __size__;
@@ -1364,6 +1364,17 @@ PUBLIC int tranger2_delete_topic(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Topic not found",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    if(json_boolean_value(json_object_get(topic, "system_topic"))) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete topic: system topic",
             "topic",        "%s", topic_name,
             NULL
         );
@@ -3317,6 +3328,100 @@ PUBLIC int tranger2_set_user_flag(
 }
 
 /***************************************************************************
+    Set/reset writable system flag bits using a mask.
+    Only sf_immutable_record is writable through this API; any other bit
+    is refused so a caller cannot flip key-type / ms / tombstone / loading
+    bits. This function works directly in disk, segments in memory not used
+    or updated.
+ ***************************************************************************/
+PUBLIC int tranger2_set_system_flag(
+    json_t *tranger,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t i_rowid,       // Must be real rowid in the file, not in topic global rowid
+    uint16_t mask,
+    BOOL set
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  Gate: only the immutable-record bit may be written through this API.
+     */
+    if(mask & ~(uint16_t)sf_immutable_record) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot set system_flag: bit not writable",
+            "topic_name",   "%s", topic_name,
+            "mask",         "%d", (int)mask,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot open topic",
+            "topic",        "%s", topic_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    system_flag2_t topic_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(topic_flag & sf_rowid_key) {
+        key = "__rowid__";
+    }
+
+    off_t offset;
+    md2_record_t md_record;
+    int md_fd = get_md_record_for_wr(
+        gobj,
+        tranger,
+        topic,
+        key,
+        __t__,
+        i_rowid,
+        &md_record,
+        &offset
+    );
+    if(md_fd < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    uint16_t system_flag = get_system_flag(&md_record);
+    if(set) {
+        system_flag |= mask;
+    } else {
+        system_flag &= ~mask;
+    }
+    set_system_flag(&md_record, system_flag);
+
+    if(rewrite_md_to_file(
+        gobj,
+        tranger,
+        topic,
+        key,
+        md_fd,
+        offset,
+        &md_record
+    )<0) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
     Delete a single instance (one row of the per-key .md2 index).
     Mutates the .md2 row in place: OR `sf_deleted_instance` into
     the system_flag bits. Read paths (iterator history, iterator
@@ -3426,6 +3531,17 @@ PUBLIC int tranger2_delete_instance(
     uint64_t payload_size   = md_record.__size__;
 
     uint16_t system_flag = get_system_flag(&md_record);
+    if(system_flag & sf_immutable_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot delete instance: immutable record",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
     if(system_flag & sf_deleted_instance) {
         // Already dead. Nothing to do, but not an error.
         return 0;

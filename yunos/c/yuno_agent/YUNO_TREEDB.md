@@ -441,6 +441,9 @@ attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel
 - `g_rowid`, `i_rowid` — see §2.3. Never set them yourself.
 - `t`, `tm` — the timeranger2 timestamps, surfaced to the node level.
 - `tag` — user_flag from md2, used for snapshots (§3.7).
+- `immutable` — present **only when set** (omitted on ordinary nodes).
+  `true` means the record carries the `sf_immutable_record` md2 bit and
+  cannot be deleted; see §3.10.
 - `pure_node` — true for ordinary nodes; the metadata you look at.
 
 A node that appears in multiple places in a JSON dump (once under the
@@ -585,6 +588,46 @@ multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
 ([`gobj_list_snaps`](#gobj_list_snaps), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
 direct `(role, role_version)` lookup.
+
+### 3.10 Immutable nodes and non-deletable topics
+
+Some records must never be deleted by CRUD (the seed `root` role and
+`yuneta` user — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.2), and some topics
+must never be dropped (the `__system__` treedb's structural topics, and
+every treedb's `__snaps__` / `__graphs__`). The protection is **metadata,
+never a data column** — it does not touch the user schema and never bumps
+`topic_version`. Design write-up:
+[`DESIGN-immutable-topics-records.md`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/DESIGN-immutable-topics-records.md).
+
+**Record level** rides a free md2 `system_flag` bit, `sf_immutable_record`
+(`0x0800`, inherited band) — the same metadata channel as the snapshot
+`tag`, persisted on disk and decoded on every load:
+
+- Set it with `treedb_set_node_immutable(tranger, node, set)`, which
+  rewrites the node's current primary record **in place** (no new record)
+  via the gated `tranger2_set_system_flag()`, and flips
+  `__md_treedb__`immutable` in memory.
+- `treedb_save_node()` re-stamps the bit after every update (the re-append
+  inherits only the topic-default `system_flag`, so the bit is re-applied
+  exactly like `tag`).
+- `treedb_delete_node()` and `treedb_delete_instance()` refuse an immutable
+  record, and **`force` does NOT override** (stronger than the snapshot-tag
+  guard). `tranger2_delete_instance()` carries the same refusal as a
+  backstop.
+- Because the mark is not a JSON field, a client **cannot inject it** via
+  `create-node` / `update-node` — only an in-process `mt`-level caller can
+  set it. No strip boundary needed.
+
+**Topic level** rides `system_topic: true` in the topic's `topic_var.json`
+(additive, no `topic_version` bump). Declare it in the schema next to
+`topic_version`, or pass `system_topic=TRUE` to `treedb_create_topic()`.
+`treedb_delete_topic()` (and `tranger2_delete_topic()` as a backstop) refuse
+it. A system topic's **records stay deletable** — only the topic is frozen.
+
+**Out of scope on purpose:** `delete-treedb` / a whole-store `rm -rf`. This
+protects against CRUD/control-plane deletion, not against an operator wiping
+the realm — "only a full store wipe removes them". Regression coverage:
+[`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/blob/main/tests/c/tr_treedb_immutable).
 
 ---
 
