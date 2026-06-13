@@ -620,6 +620,14 @@ flow incl. rollback in
 [`yunos/c/yuno_agent/YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)
 §6.5 / §6.6.
 
+**CLI shortcut.** Steps 3–4 (plus the optional rollback snapshot) are
+bundled by `yunetas upgrade-yunos`: it shoots a rollback snap (idempotent by
+name, `--no-snap` to skip), previews `find-new-yunos` and asks before
+`create=1`, then runs `deactivate-snap`. Steps 1–2 (build + `install-binary`,
+or a `yunetas sync-binaries` push) still come first. Use it after the new
+binaries are installed; the raw `ycommand` sequence above is the manual
+equivalent.
+
 ### 4. Deactivate traces when done
 
 Same commands with `set=0`. Response should be `[]` or only the permanently

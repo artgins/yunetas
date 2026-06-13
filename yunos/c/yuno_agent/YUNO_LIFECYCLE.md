@@ -698,6 +698,15 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
 # stays in treedb for rollback (see §6.6 below).
 ```
 
+> **CLI shortcut.** Steps 3–4 (plus an optional rollback snapshot before them)
+> are bundled by `yunetas upgrade-yunos` (`tui_yunetas` ≥ 0.10.0): it shoots a
+> rollback snap (idempotent by name, default `pre-upgrade-<YYYYMMDD>`,
+> `--no-snap` to skip), runs `find-new-yunos` as a preview and asks before
+> `create=1`, then `deactivate-snap`. Steps 1–2 (build + `install-binary`, or a
+> `yunetas sync-binaries` push) still run first; `--dry-run` prints the agent
+> commands without executing them. The raw `ycommand` sequence above remains the
+> manual equivalent.
+
 #### Caveats
 
 - **Node-wide bounce.** `restart_nodes()` SIGKILLs every running
