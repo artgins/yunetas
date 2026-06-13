@@ -500,6 +500,52 @@ subscriber's point of view, remote events look just like local ones.
 
 Higher-level API on top of the event machinery.
 
+### 5.0 Addressing a command: every command goes to a *service*
+
+A yuno is a **hierarchical tree of gobjs**; some of them are **services**
+(named, externally addressable — registered via `gobj_create_service` /
+`gobj_create_default_service`). **Every command is directed to a service.**
+If you don't name one, it goes to the default. This is the single rule that
+trips up newcomers, so state it explicitly:
+
+[`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/gobj.c#L5076)
+resolves the destination service name (case-insensitive). Two names are
+special:
+
+- **`__default_service__`** — the application's own default service (the one
+  created with `gobj_create_default_service`). **This is the target when no
+  service is specified.**
+- **`__yuno__`** (alias **`__root__`**) — the top-level `C_YUNO` root gobj,
+  common to every yuno. Use it to reach the yuno itself (e.g. `services`,
+  `view-config`, trace commands).
+- any other string → looked up among the yuno's registered services.
+
+**From `ycommand`** (the destination service is a connection key, not a
+command argument — a frequent mistake is writing `service=` inside `-c`):
+
+```bash
+ycommand -c 'roles'                 # → __default_service__ (here C_AGENT) → "command not available"
+ycommand -S authz -c 'roles'        # → the `authz` service  (-S/--yuno_service)
+```
+
+**Through the agent** — two C_AGENT dispatch commands
+([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/yuno_agent/src/c_agent.c)
+`command-agent` / `command-yuno`):
+
+```bash
+# a service of the AGENT itself:
+ycommand -c 'command-agent service=authz command=roles'
+ycommand -c 'command-agent service=__yuno__ command=services'   # list the agent's services
+
+# a service of a MANAGED yuno (no id= ⇒ fan-out to ALL managed yunos):
+ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=services'
+ycommand -c 'command-yuno id=<yuno> service=<service> command=<cmd> kw="{...}"'
+```
+
+So: pick the service first (`services` lists them, with their gclass), then
+`command-agent` for the agent, `command-yuno` for a managed yuno, plain `-S`
+for a direct connection. Default everywhere is `__default_service__`.
+
 ### 5.1 The command table (`SDATACM`)
 
 A gclass exposes commands by declaring them in a `command_table` of
