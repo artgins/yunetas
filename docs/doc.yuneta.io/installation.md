@@ -496,7 +496,8 @@ yunetas build --sdk-only      # only the SDK
 yunetas unregister-project myproject
 ```
 
-The registry is machine-local (`$YUNETAS_BASE/.projects.json`, gitignored).
+The registry is machine-local user state (`~/.yuneta/projects.json`), kept
+outside the source tree.
 
 Two deploy helpers from `tools/agent/` are exposed as subcommands —
 arguments are forwarded verbatim (`-n` dry-run, `-a` all, OAuth2 options…):

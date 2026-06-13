@@ -182,8 +182,8 @@ ctest -R test_c_timer --output-on-failure --test-dir build   # run a single test
 ### External projects (registered in the CLI)
 
 Projects (wattyzer, estadodelaire, …) can be registered so the `yunetas`
-CLI builds them right after the SDK. Registry: `$YUNETAS_BASE/.projects.json`
-(machine-local, gitignored).
+CLI builds them right after the SDK. Registry: `~/.yuneta/projects.json`
+(machine-local user state, outside the source tree).
 
 ```bash
 yunetas register-project /yuneta/development/projects/wattyzer

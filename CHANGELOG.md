@@ -1,6 +1,16 @@
 # **Changelog**
 
 ## Unreleased
+    - **refactor(tui_yunetas 0.9.1): project registry moved to
+      `~/.yuneta/projects.json`.** The external-project registry was written
+      inside the source tree (`$YUNETAS_BASE/.projects.json`, gitignored). But
+      which projects to build alongside the SDK is runtime/usage state, not a
+      property of any checkout — it does not belong in the tree at all. It now
+      lives in the user's home (`~/.yuneta/projects.json`), independent of
+      `YUNETAS_BASE`. A one-time soft migration moves an existing legacy file
+      on the next CLI run; no manual step. The `.gitignore` / `.hgignore`
+      entries for the old path are kept as a safety net while pipx CLIs on
+      other nodes still write the legacy location.
     - **fix(treedb): refused `treedb_delete_instance()` no longer drops a
       borrowed node ref.** The snapshot-tag guard's refusal path decref'd the
       node even though callers (`mt_delete_node`, tests) pass the index's
