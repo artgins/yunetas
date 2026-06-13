@@ -29,6 +29,8 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `crypto` | `json` | TLS configuration (certificates, keys). |
 | `rx_buffer_size` | `integer` | Receive buffer size in bytes. |
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds (`-1` = no timeout). |
+| `timeout_between_connections` | `integer` | Idle delay between reconnection attempts, in milliseconds (default `2000`). |
+| `timeout_between_connections_max` | `integer` | If `> timeout_between_connections`, the reconnect delay backs off exponentially from the base up to this cap (ms), resetting to base once a connection is established (for a TLS client, only on a successful handshake). `0` (default) = disabled, legacy fixed interval. A peer that keeps failing no longer hammers at the base cadence. |
 | `txBytes` | `integer` | Total bytes transmitted (stat). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
 | `peername` | `string` | Remote peer address (read-only). |

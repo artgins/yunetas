@@ -552,6 +552,7 @@ json_t *treedb_create_topic(
     json_t       *pkey2s,      // owned, string or dict of string | [strings]
     json_t       *jn_cols,     // owned
     uint32_t     snap_tag,
+    BOOL         system_topic, // TRUE: topic cannot be deleted (persisted in topic_var)
     BOOL         create_schema
 );
 ```
@@ -568,6 +569,7 @@ json_t *treedb_create_topic(
 | `pkey2s` | `json_t *` | Primary key(s) for the topic, either a string or a dictionary of strings. |
 | `jn_cols` | `json_t *` | JSON object defining the schema of the topic, including field types and attributes. |
 | `snap_tag` | `uint32_t` | Snapshot tag associated with the topic creation. |
+| `system_topic` | `BOOL` | If `TRUE`, the topic is marked non-deletable: [`treedb_delete_topic()`](<#treedb_delete_topic>) refuses it and `force` does NOT override. The flag is persisted in `topic_var.json` (metadata, not a data column), so it survives reload and needs no `topic_version` bump. |
 | `create_schema` | `BOOL` | Flag indicating whether to create the schema if it does not exist. |
 
 **Returns**
@@ -579,6 +581,11 @@ Returns a JSON object representing the created topic. WARNING: The returned obje
 The primary key (`pkey`) of all topics must be `id`.
 This function does not load hook links.
 The returned JSON object should not be modified or freed by the caller.
+
+The `__system__` structural topics and the per-treedb `__snaps__` / `__graphs__`
+topics are created with `system_topic = TRUE`. See
+[`treedb_set_node_immutable()`](<#treedb_set_node_immutable>) for marking
+individual records (rather than whole topics) non-deletable.
 
 ---
 
@@ -613,6 +620,10 @@ Returns `0` on success, or a negative error code if the deletion fails.
 
 If links exist and `force` is not set in `jn_options`, [`treedb_delete_instance()`](<#treedb_delete_instance>) will fail.
 
+A record marked immutable (`__md_treedb__`immutable`, see
+[`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
+`force` does NOT override it.
+
 ---
 
 (treedb_delete_node)=
@@ -644,6 +655,10 @@ Returns 0 on success, or a negative error code if the deletion fails.
 
 If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
 
+A record marked immutable (`__md_treedb__`immutable`, see
+[`treedb_set_node_immutable()`](<#treedb_set_node_immutable>)) is refused and
+`force` does NOT override it.
+
 ---
 
 (treedb_delete_topic)=
@@ -674,6 +689,9 @@ Returns `0` on success, or a negative error code if the operation fails.
 **Notes**
 
 Ensure that the topic does not contain critical data before calling [`treedb_delete_topic()`](<#treedb_delete_topic>).
+
+A topic created with `system_topic = TRUE` (see [`treedb_create_topic()`](<#treedb_create_topic>))
+is refused; there is no `force` override.
 
 ---
 
@@ -1278,6 +1296,49 @@ Returns `0` on success, or a negative error code on failure.
 **Notes**
 
 The callback function must follow the `treedb_callback_t` signature and will receive parameters such as `tranger`, `treedb_name`, `topic_name`, `operation`, and `node`. The callback is triggered on events like `EV_TREEDB_NODE_CREATED`, `EV_TREEDB_NODE_UPDATED`, and `EV_TREEDB_NODE_DELETED`.
+
+---
+
+(treedb_set_node_immutable)=
+## [`treedb_set_node_immutable()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/timeranger2/src/tr_treedb.c#L5124)
+
+`treedb_set_node_immutable()` marks (or unmarks) a single node as immutable —
+once set, the record cannot be deleted by [`treedb_delete_node()`](<#treedb_delete_node>)
+or [`treedb_delete_instance()`](<#treedb_delete_instance>), and `force` does NOT
+override it.
+
+```C
+int treedb_set_node_immutable(
+    json_t *tranger,
+    json_t *node,   // NOT owned, pure node.
+    BOOL   set
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the `tranger` database instance. |
+| `node` | `json_t *` | The node to mark/unmark. NOT owned, must be a pure node. |
+| `set` | `BOOL` | `TRUE` to mark the node immutable, `FALSE` to clear the mark. |
+
+**Returns**
+
+Returns `0` on success, or a negative error code on failure.
+
+**Notes**
+
+The mark rides the md2 `system_flag` bit (`sf_immutable_record`), NOT a data
+column: it persists across reload and is surfaced as `__md_treedb__`immutable`.
+No user-schema change and no `topic_version` bump are required.
+
+The current primary record is rewritten in place (no new record is appended).
+[`treedb_save_node()`](<#treedb_save_node>) re-applies the bit on every later
+update, like the snap tag — so the mark is inherited across updates.
+
+To protect a whole topic from deletion (rather than individual records), pass
+`system_topic = TRUE` to [`treedb_create_topic()`](<#treedb_create_topic>).
 
 ---
 
