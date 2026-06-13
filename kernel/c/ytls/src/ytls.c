@@ -8,6 +8,7 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+#include <unistd.h>
 
 #include <kwid.h>
 #include "ytls.h"
@@ -29,6 +30,37 @@
 /***************************************************************
  *              Data
  ***************************************************************/
+
+/***************************************************************************
+    Locate a readable system CA bundle FILE, portable across Linux distros.
+
+    The hashed-dir (OpenSSL CApath) layout is NOT portable: RHEL/Rocky ship
+    only bundle files under /etc/pki/tls/certs with no <hash>.0 links, so a
+    directory load finds nothing there. We probe well-known bundle files (the
+    same list Go's crypto/x509 and curl use) and return the first readable one.
+
+    Needed because a fully-static binary does not inherit the host's OPENSSLDIR
+    or SSL_CERT_FILE, so OpenSSL's SSL_CTX_set_default_verify_paths() loads an
+    empty store and verification fails on a perfectly valid public cert; and
+    mbedTLS has no system trust store at all.
+ ***************************************************************************/
+PUBLIC const char *ytls_get_system_ca_bundle(void)
+{
+    static const char *candidates[] = {
+        "/etc/ssl/certs/ca-certificates.crt",                  // Debian, Ubuntu, Alpine
+        "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",   // RHEL7+/Rocky/Alma/Fedora
+        "/etc/ssl/cert.pem",                                   // Rocky (symlink), Alpine, BSD
+        "/etc/pki/tls/certs/ca-bundle.crt",                    // RHEL/Rocky/Fedora
+        "/etc/ssl/ca-bundle.pem",                              // SUSE/SLES
+        0
+    };
+    for(int i=0; candidates[i]; i++) {
+        if(access(candidates[i], R_OK)==0) {
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
 
 /***************************************************************************
     Startup tls

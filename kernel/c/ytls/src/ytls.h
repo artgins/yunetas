@@ -260,6 +260,15 @@ PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set);
 **rst**/
 PUBLIC int ytls_flush(hytls ytls, hsskt sskt);
 
+/**rst**
+    Locate a readable system CA bundle file, portable across Linux distros
+    (Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Alpine). Returns a static
+    string or NULL. Used by both TLS backends for "ssl_use_system_ca": a
+    fully-static binary does not get the host OPENSSLDIR / SSL_CERT_FILE, and
+    mbedTLS has no system trust store.
+**rst**/
+PUBLIC const char *ytls_get_system_ca_bundle(void);
+
 
 #ifdef __cplusplus
 }

@@ -358,8 +358,32 @@ PRIVATE mbedtls_state_t *build_state(
         mbedtls_ssl_conf_authmode(&s->conf, authmode);
         s->has_ca_cert = TRUE;
     } else {
-        authmode = MBEDTLS_SSL_VERIFY_NONE;
-        mbedtls_ssl_conf_authmode(&s->conf, authmode);
+        /*
+         *  No explicit trusted cert: honour "ssl_use_system_ca" by probing the
+         *  portable system CA bundle (mbedTLS has no system trust store of its
+         *  own, so without this it would fall to VERIFY_NONE and a client would
+         *  be refused below).
+         */
+        const char *ca_bundle = kw_get_bool(gobj, jn_config, "ssl_use_system_ca", 0, 0)?
+            ytls_get_system_ca_bundle() : NULL;
+        if(ca_bundle && mbedtls_x509_crt_parse_file(&s->ca_cert, ca_bundle) == 0) {
+            mbedtls_ssl_conf_ca_chain(&s->conf, &s->ca_cert, NULL);
+            authmode = server? MBEDTLS_SSL_VERIFY_OPTIONAL : MBEDTLS_SSL_VERIFY_REQUIRED;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
+            s->has_ca_cert = TRUE;
+        } else {
+            if(ca_bundle) {
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MBEDTLS,
+                    "msg",              "%s", "ssl_use_system_ca: parse of the system CA bundle FAILED",
+                    "ca_bundle",        "%s", ca_bundle,
+                    NULL
+                );
+            }
+            authmode = MBEDTLS_SSL_VERIFY_NONE;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
+        }
     }
 
     /*

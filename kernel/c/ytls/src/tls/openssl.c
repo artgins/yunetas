@@ -630,13 +630,29 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                     }
                 }
             }
-            if(use_system_ca && SSL_CTX_set_default_verify_paths(ctx)!=1) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL,
-                    "msg",          "%s", "SSL_CTX_set_default_verify_paths() FAILED",
-                    NULL
-                );
+            if(use_system_ca) {
+                /*
+                 *  Portable system trust: probe the well-known CA bundle files
+                 *  across distros and load the first one found. A fully-static
+                 *  binary does NOT inherit the host OPENSSLDIR / SSL_CERT_FILE,
+                 *  so SSL_CTX_set_default_verify_paths() loads an empty store
+                 *  and a perfectly valid public cert fails to verify. Fall back
+                 *  to the default paths for dynamic builds / hosts where they
+                 *  are correct.
+                 */
+                const char *ca_bundle = ytls_get_system_ca_bundle();
+                int loaded = ca_bundle &&
+                    SSL_CTX_load_verify_locations(ctx, ca_bundle, NULL)==1;
+                if(!loaded) {
+                    SSL_CTX_set_default_verify_paths(ctx);
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_OPENSSL,
+                        "msg",          "%s", "ssl_use_system_ca: no portable CA bundle loaded, using default verify paths",
+                        "probed",       "%s", ca_bundle?ca_bundle:"(none found)",
+                        NULL
+                    );
+                }
             }
             ERR_clear_error();
 

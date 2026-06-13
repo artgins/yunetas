@@ -380,13 +380,17 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_create_pure_child(
                 priv->idp_name,
                 C_TCP,
-                json_pack("{s:s, s:O, s:i}",
+                json_pack("{s:s, s:O, s:i, s:i}",
                     "url", http_url,
                     "crypto", jn_crypto,
                     /*
-                     *  Aggressive reconnect cadence (100 ms vs the 2 s default).
+                     *  Fast first retry (100 ms) for a transient IdP blip, but
+                     *  back off exponentially up to 30 s so a persistent failure
+                     *  (e.g. an IdP cert that won't verify) does not flood the
+                     *  log at the base cadence.
                      */
-                    "timeout_between_connections", 100
+                    "timeout_between_connections", 100,
+                    "timeout_between_connections_max", 30000
                 ),
                 priv->gobj_idprovider
             )

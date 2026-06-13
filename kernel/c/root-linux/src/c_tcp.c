@@ -110,6 +110,7 @@ SDATA (DTP_INTEGER, "cur_tx_queue",     SDF_RD,         0,          "Current mes
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
+SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeout_between_connections, reconnect uses exponential backoff from the base up to this cap (ms), resetting to base once a connection is established. 0 = disabled (legacy fixed interval)."),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
@@ -154,6 +155,7 @@ typedef struct _PRIVATE_DATA {
     int fd_clisrv;
     int fd_listen;
     json_int_t timeout_inactivity;
+    json_int_t reconnect_backoff;   // current exponential-backoff delay (ms); 0 = reset to base on next use
     BOOL inform_disconnection;
     BOOL idle_closed;           // TRUE when the disconnect is an inactivity idle-close (don't auto-reconnect)
 
@@ -631,6 +633,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_CONNECTED);
 
+        priv->reconnect_backoff = 0;    // established → reset reconnect backoff
         priv->inform_disconnection = TRUE;
 
         /*
@@ -662,6 +665,7 @@ PRIVATE void set_secure_connected(hgobj gobj)
 
     gobj_write_bool_attr(gobj, "secure_connected", TRUE);
     priv->inform_disconnection = TRUE;
+    priv->reconnect_backoff = 0;    // TLS established → reset reconnect backoff
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -879,10 +883,25 @@ PRIVATE void set_disconnected(hgobj gobj)
                  *  on-demand reconnect in the inactivity model — without it the
                  *  inactivity client would stall after a single failed connect.
                  */
-                set_timeout(
-                    priv->gobj_timer,
-                    gobj_read_integer_attr(gobj, "timeout_between_connections")
-                );
+                json_int_t base = gobj_read_integer_attr(gobj, "timeout_between_connections");
+                json_int_t maxbo = gobj_read_integer_attr(gobj, "timeout_between_connections_max");
+                json_int_t delay = base;
+                if(maxbo > base) {
+                    /*
+                     *  Exponential backoff: a peer that keeps failing (e.g. an
+                     *  IdP whose cert won't verify) must not hammer at the base
+                     *  cadence. reconnect_backoff was reset to 0 on the last
+                     *  established connection (see the ST_CONNECTED paths), so a
+                     *  real reconnect starts again from base.
+                     */
+                    if(priv->reconnect_backoff < base) {
+                        priv->reconnect_backoff = base;
+                    }
+                    delay = priv->reconnect_backoff;
+                    json_int_t next = priv->reconnect_backoff * 2;
+                    priv->reconnect_backoff = (next >= maxbo) ? maxbo : next;
+                }
+                set_timeout(priv->gobj_timer, delay);
             }
         } else {
             /*
