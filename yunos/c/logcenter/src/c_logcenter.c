@@ -1004,72 +1004,194 @@ PRIVATE BOOL text_in_dict(json_t *jn_dict, const char *text)
 }
 
 /***************************************************************************
+ *  Record framing on disk: rotatory_write() (rotatory.c) writes every log
+ *  record as "<PRIORITY>: <payload>\n", where <PRIORITY> is one of the
+ *  priority_names. That prefix at column 0 is the ONLY record delimiter that
+ *  survives on disk — the UDP wire '\0' terminator is dropped at write time,
+ *  JSON payloads may be pretty-printed across several physical lines, and
+ *  braces / newlines occur INSIDE the JSON. So a record starts at a line that
+ *  begins with a known priority prefix.
+ ***************************************************************************/
+PRIVATE const char *log_priority_prefixes[] = {
+    // Keep in sync with priority_names[] in kernel/c/gobj-c/src/rotatory.c
+    "EMERG: ", "ALERT: ", "CRITICAL: ", "ERROR: ", "WARNING: ",
+    "NOTICE: ", "INFO: ", "DEBUG: ", "STATS: ", "MONITOR: ", "AUDIT: ",
+    0
+};
+
+PRIVATE BOOL is_record_start(const char *line)
+{
+    for(int i=0; log_priority_prefixes[i]; i++) {
+        const char *pfx = log_priority_prefixes[i];
+        if(strncmp(line, pfx, strlen(pfx))==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Collect one accumulated record block. The JSON payload starts at the first
+ *  '{' (the "<PRIORITY>: " prefix and any plain-text record without a '{' —
+ *  e.g. a stack-trace line — are skipped, as the old splitter did).
+ *      text == NULL : tail mode, keep only the last `maxcount` records.
+ *      text != NULL : search mode, collect records whose any string value
+ *                     contains `text`; stop at `maxcount` (sets *fin).
+ *  A truncated/corrupt block fails legalstring2json and is silently skipped —
+ *  it NEVER aborts.
+ ***************************************************************************/
+PRIVATE void collect_record(
+    hgobj gobj,
+    const char *block,
+    json_t *jn_list,
+    uint32_t maxcount,
+    const char *text,
+    int *currcount,
+    BOOL *fin
+)
+{
+    const char *start = block? strchr(block, '{') : 0;
+    if(!start) {
+        return;
+    }
+    json_t *jn_dict = legalstring2json(start, FALSE);
+    if(!jn_dict) {
+        // Truncated or corrupt record: skip it, never abort.
+        return;
+    }
+    if(!text) {
+        if(json_array_size(jn_list) >= maxcount) {
+            json_array_remove(jn_list, 0);
+        }
+        json_array_append_new(jn_list, jn_dict);
+    } else if(text_in_dict(jn_dict, text)) {
+        json_array_append_new(jn_list, jn_dict);
+        (*currcount)++;
+        if((uint32_t)(*currcount) >= maxcount) {
+            *fin = TRUE;
+        }
+    } else {
+        json_decref(jn_dict);
+    }
+}
+
+/***************************************************************************
  *  Extrae el json del fichero, fill a list of dicts.
+ *
+ *  Records are split on the "<PRIORITY>: " line prefix (see is_record_start),
+ *  NOT by brace-counting: a truncated UDP datagram leaves a '{' with no
+ *  matching '}', and the old brace-counting splitter then grew its buffer
+ *  until it overflowed the maximum block and abort()ed — taking the whole
+ *  daemon down on a read-only search. Now a corrupt/truncated record just
+ *  fails to parse and is skipped, bounded by the next record's prefix.
  ***************************************************************************/
 PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *jn_list, const char *text)
 {
     int currcount = 0;
-    /*
-     *  Load commands
-     */
-    #define WAIT_BEGIN_DICT 0
-    #define WAIT_END_DICT   1
-    int c;
-    int st = WAIT_BEGIN_DICT;
-    int brace_indent = 0;
-    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     BOOL fin = FALSE;
-    while(!fin && (c=fgetc(file))!=EOF) {
-        switch(st) {
-        case WAIT_BEGIN_DICT:
-            if(c != '{') {
-                continue;
-            }
-            gbuffer_clear(gbuf);
-            if(gbuffer_append(gbuf, &c, 1)<=0) {
-                abort();
-            }
-            brace_indent = 1;
-            st = WAIT_END_DICT;
-            break;
-        case WAIT_END_DICT:
-            if(c == '{') {
-                brace_indent++;
-            } else if(c == '}') {
-                brace_indent--;
-            }
-            if(gbuffer_append(gbuf, &c, 1)<=0) {
-                abort();
-            }
-            if(brace_indent == 0) {
-                json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), FALSE);
-                if(jn_dict) {
-                    if(!text) {
-                        // Tail
-                        if(json_array_size(jn_list) >= maxcount) {
-                            json_array_remove(jn_list, 0);
-                        }
-                        json_array_append_new(jn_list, jn_dict);
-                    } else if(text_in_dict(jn_dict, text)) {
-                        // Search
-                        json_array_append_new(jn_list, jn_dict);
-                        currcount++;
-                        if(currcount >= maxcount) {
-                            fin = TRUE;
-                            break;
-                        }
-                    } else {
-                        json_decref(jn_dict);
-                    }
-                } else {
-                    //log_debug_gbuf("FAILED", gbuf);
+    gbuffer_t *line = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    gbuffer_t *record = gbuffer_create(4*1024, gbmem_get_maximum_block());
+
+    #define READ_BLOCK_SIZE     (64*1024)
+    #define TAIL_WINDOW_SIZE    (16*1024*1024)   // tail reads only the last window
+    char *readbuf = gbmem_malloc(READ_BLOCK_SIZE);
+
+    /*
+     *  Tail (text==NULL) only needs the last records: seek to the last window
+     *  instead of scanning a possibly huge (hundreds of MB) log, then drop the
+     *  leading partial line so we start on a record boundary. Search
+     *  (text!=NULL) must scan the whole file from the start.
+     */
+    if(!text) {
+        if(fseek(file, 0, SEEK_END)==0) {
+            long filesize = ftell(file);
+            if(filesize > TAIL_WINDOW_SIZE) {
+                fseek(file, filesize - TAIL_WINDOW_SIZE, SEEK_SET);
+                int c;
+                while((c=fgetc(file))!=EOF && c!='\n') {
+                    ; // drop the partial first line
                 }
-                st = WAIT_BEGIN_DICT;
+            } else {
+                fseek(file, 0, SEEK_SET);
             }
-            break;
         }
     }
-    gbuffer_decref(gbuf);
+
+    /*
+     *  Read in blocks and split lines with memchr — far faster than fgetc()
+     *  per byte on a multi-hundred-MB log. `line` accumulates one physical line
+     *  (it may span block boundaries); `record` accumulates a full record
+     *  (possibly multi-line) until the next "<PRIORITY>: " prefix.
+     */
+    size_t n;
+    while(!fin && readbuf && (n=fread(readbuf, 1, READ_BLOCK_SIZE, file))>0) {
+        size_t i = 0;
+        while(i < n && !fin) {
+            char *base = readbuf + i;
+            char *nl = memchr(base, '\n', n - i);
+            size_t seglen = nl? (size_t)(nl - base) : (n - i);
+            if(seglen > 0 && gbuffer_append(line, base, (int)seglen)<=0) {
+                // Single line bigger than the max block: drop it, keep scanning.
+                gbuffer_clear(line);
+            }
+            if(!nl) {
+                break;   // line continues in the next block
+            }
+
+            /*
+             *  Complete physical line in `line` (newline stripped).
+             */
+            char *line_str = gbuffer_cur_rd_pointer(line);
+            int linelen = (int)gbuffer_leftbytes(line);
+            if(is_record_start(line_str)) {
+                // A new record begins: flush the one accumulated so far.
+                collect_record(gobj, gbuffer_cur_rd_pointer(record), jn_list,
+                    maxcount, text, &currcount, &fin);
+                gbuffer_clear(record);
+            }
+            /*
+             *  Append this line (with its newline) to the current record. On
+             *  overflow — a runaway region with no recognizable next prefix —
+             *  drop the record and resync instead of aborting.
+             */
+            if((linelen > 0 && gbuffer_append(record, line_str, linelen)<=0) ||
+                    gbuffer_append(record, "\n", 1)<=0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "log record too big, skipping",
+                    NULL
+                );
+                gbuffer_clear(record);
+            }
+            gbuffer_clear(line);
+            i += seglen + 1;   // past the '\n'
+        }
+    }
+
+    /*
+     *  Last record. A trailing partial line (file not ending in '\n') is left
+     *  in `line`; fold it into `record` before the final flush.
+     */
+    if(!fin) {
+        if(gbuffer_leftbytes(line) > 0) {
+            char *line_str = gbuffer_cur_rd_pointer(line);
+            if(is_record_start(line_str)) {
+                collect_record(gobj, gbuffer_cur_rd_pointer(record), jn_list,
+                    maxcount, text, &currcount, &fin);
+                gbuffer_clear(record);
+            }
+            gbuffer_append(record, line_str, (int)gbuffer_leftbytes(line));
+        }
+        collect_record(gobj, gbuffer_cur_rd_pointer(record), jn_list,
+            maxcount, text, &currcount, &fin);
+    }
+
+    if(readbuf) {
+        gbmem_free(readbuf);
+    }
+    gbuffer_decref(line);
+    gbuffer_decref(record);
 
     return jn_list;
 }
