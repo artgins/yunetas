@@ -1279,6 +1279,49 @@ Higher trace levels typically enable more detailed logging, which can be useful 
 
 ---
 
+(tranger2_set_system_flag)=
+## [`tranger2_set_system_flag()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/timeranger2/src/timeranger2.c#L3337)
+
+Sets or clears specific bits in the **system** flag of a record — the metadata
+band reserved for the framework (e.g. the immutable-record bit), distinct from
+the user flag set by [`tranger2_set_user_flag()`](<#tranger2_set_user_flag>).
+
+```C
+int tranger2_set_system_flag(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t __t__,
+    uint64_t rowid,
+    uint16_t mask,
+    BOOL set
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | Name of the topic containing the record. |
+| `key` | `const char *` | Record key — with `__t__` and `rowid` it identifies the record metadata. |
+| `__t__` | `uint64_t` | Record time. |
+| `rowid` | `uint64_t` | Real rowid in the file (not the topic-global rowid). |
+| `mask` | `uint16_t` | Bitmask specifying which bits in the system flag to modify. |
+| `set` | `BOOL` | If `TRUE`, the bits in `mask` are set; if `FALSE`, they are cleared. |
+
+**Returns**
+
+Returns `0` on success, or a negative error code on failure.
+
+**Notes**
+
+Only the bits in `mask` are touched. The system flag is framework-owned; user
+code normally goes through higher-level treedb helpers rather than setting system
+bits directly.
+
+---
+
 (tranger2_set_user_flag)=
 ## [`tranger2_set_user_flag()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/timeranger2/src/timeranger2.c#L3196)
 

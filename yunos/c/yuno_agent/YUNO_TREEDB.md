@@ -597,7 +597,7 @@ must never be dropped (the `__system__` treedb's structural topics, and
 every treedb's `__snaps__` / `__graphs__`). The protection is **metadata,
 never a data column** — it does not touch the user schema and never bumps
 `topic_version`. Design write-up:
-[`DESIGN-immutable-topics-records.md`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/DESIGN-immutable-topics-records.md).
+[`DESIGN-immutable-topics-records.md`](https://github.com/artgins/yunetas/blob/7.6.3/kernel/c/timeranger2/DESIGN-immutable-topics-records.md).
 
 **Record level** rides a free md2 `system_flag` bit, `sf_immutable_record`
 (`0x0800`, inherited band) — the same metadata channel as the snapshot
@@ -627,7 +627,7 @@ it. A system topic's **records stay deletable** — only the topic is frozen.
 **Out of scope on purpose:** `delete-treedb` / a whole-store `rm -rf`. This
 protects against CRUD/control-plane deletion, not against an operator wiping
 the realm — "only a full store wipe removes them". Regression coverage:
-[`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/blob/main/tests/c/tr_treedb_immutable).
+[`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/tree/7.6.3/tests/c/tr_treedb_immutable).
 
 ---
 

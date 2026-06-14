@@ -398,6 +398,35 @@ The returned error message is managed internally and should not be freed by the 
 
 ---
 
+(ytls_get_system_ca_bundle)=
+## [`ytls_get_system_ca_bundle()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/ytls/src/ytls.c#L47)
+
+Returns the path of the first OS CA-certificate bundle found on the host, probing
+the well-known locations across distros (Debian/Ubuntu/Alpine, RHEL/Rocky/Alma/
+Fedora, SUSE, BSD). This is what `ssl_use_system_ca` relies on; it works in fully
+static binaries, where OpenSSL's compile-time `OPENSSLDIR` is not present.
+
+```C
+const char *ytls_get_system_ca_bundle(void);
+```
+
+**Parameters**
+
+This function takes no parameters.
+
+**Returns**
+
+A pointer to a static string with the bundle path, or `NULL` if no known bundle
+exists on the host. The returned string is managed internally and must not be freed.
+
+**Notes**
+
+Both backends use it: OpenSSL loads the bundle as verify locations, and mbed-TLS
+(which has no system trust store) parses it instead of falling back to no
+verification.
+
+---
+
 (ytls_init)=
 ## [`ytls_init()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/ytls/src/ytls.c#L36)
 
