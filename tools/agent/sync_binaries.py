@@ -51,7 +51,9 @@ instead of in alphabetical order.
 
 It still does NOT automate the version-bump path (find-new-yunos +
 deactivate-snap after an install-binary) — that is a node-wide bounce with
-broader side effects. It prints the reminder instead.
+broader side effects. It prints the reminder instead, pointing at
+``yunetas upgrade-yunos`` (the wrapper that bundles those steps with a
+rollback snap).
 See yunos/c/yuno_agent/YUNO_LIFECYCLE.md §6.5/§6.6.
 """
 
@@ -700,6 +702,8 @@ def main():
         print(dim("prior run/play state, scoped by yuno_role."))
     if did_install:
         print(dim("\nNote: install-binary created NEW slot(s). To make them primary run:"))
+        print(dim("   yunetas upgrade-yunos              (shoot-snap -> find-new-yunos -> deactivate-snap)"))
+        print(dim("or the raw equivalent:"))
         print(dim("   ycommand -c 'find-new-yunos create=1'"))
         print(dim("   ycommand -c 'deactivate-snap'      (node-wide bounce; shoot-snap first to keep a rollback)"))
 
