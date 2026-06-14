@@ -72,9 +72,15 @@ foreach(test ${SRCS})
     # framework pulled in), so nothing forces libjansson's json_dumps to link
     # early. libjwt references it, so libjwt must precede libjansson in the
     # static link order.
+    # libyunetas-gobj.a is repeated AFTER JWT_LIBS: jwt-verify.c now back-
+    # references gobj_trace_json (failed-claims diagnostic). In a real yuno the
+    # framework already pulls glogger.o, but this minimal test pulls nothing
+    # from it, so the earlier gobj archive is exhausted before libjwt's
+    # reference is seen — re-listing it resolves the back-reference.
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}
         ${JWT_LIBS}
+        ${LIB_DEST_DIR}/libyunetas-gobj.a
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}
         ${OPENSSL_LIBS}

@@ -1,6 +1,14 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(libjwt): trace the claims JSON on a failed-claims verification.**
+      `__verify_config_post` now calls `gobj_trace_json` with `jwt->claims` when
+      `__verify_claims` reports one or more failed claims, so the offending
+      token's `iss`/`aud`/`exp`/`nbf`/… values are visible at the point of
+      rejection. Emits unconditionally on the failure path (LOG_DEBUG). libjwt
+      now back-references `gobj_trace_json`: real yunos already pull `glogger.o`,
+      but the standalone libjwt unit test pulls nothing from it, so its link line
+      repeats `libyunetas-gobj.a` after `JWT_LIBS` to resolve the reference.
     - **fix(utils): TLS client utilities could not connect over `wss://` /
       `https://`.** The verify-by-default change made `build_ssl_ctx` refuse any
       TLS client whose `crypto` config lacks server-certificate validation, but
