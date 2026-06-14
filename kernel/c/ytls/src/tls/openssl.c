@@ -1082,13 +1082,16 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     sskt_t *sskt = sskt_;
     sskt->ytls->trace_tls = set?TRUE:FALSE;
 
-    gobj_log_debug(sskt->ytls->gobj, 0,
-        "function",         "%s", __FUNCTION__,
-        "msgset",           "%s", MSGSET_INFO,
-        "msg",              "%s", "OPENSSL: set trace",
-        "trace",            "%d", set,
-        NULL
-    );
+    if(set) {
+        // Only trace when ENABLING; the disable runs on every connection and is noise.
+        gobj_log_debug(sskt->ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "OPENSSL: set trace",
+            "trace",            "%d", set,
+            NULL
+        );
+    }
 
     if(sskt->ytls->trace_tls) {
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
@@ -1195,14 +1198,18 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  opt-down are identifiable. The peer address is logged by the
              *  transport gobj on the matching connection drop.
              */
+            // user_data is the transport gobj (see ytls_new_secure_filter caller):
+            // it carries peername/sockname, so this default-on line is self-contained.
+            hgobj conn = (hgobj)sskt->user_data;
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPENSSL,
                 "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
                 "error",            "%s", sskt->last_error,
+                "peername",         "%s", gobj_read_str_attr(conn, "peername"),
+                "sockname",         "%s", gobj_read_str_attr(conn, "sockname"),
                 "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 "tls_version",      "%s", SSL_get_version(sskt->ssl),
-                "userp",            "%p", sskt->user_data,
                 NULL
             );
             dump_handshake_transcript_on_fail(sskt);

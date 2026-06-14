@@ -1195,12 +1195,13 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 {
     uint32_t trace_level = gobj_trace_level(gobj);
-    if(trace_level & TRACE_CONNECT_DISCONNECT) {
+    if((trace_level & TRACE_CONNECT_DISCONNECT) && error >= 0) {
+        // The FAILS case is reported default-on (self-contained, with peername)
+        // by the ytls backend's do_handshake; don't duplicate it here.
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
+            "msg",          "%s", "TLS Handshake OK",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "cause",        "%s", error<0?gobj_log_last_message():"",
             "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
             "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
             NULL

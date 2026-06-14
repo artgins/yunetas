@@ -1,12 +1,21 @@
 # **Changelog**
 
 ## Unreleased
-    - **chore(ytls): "TLS handshake rejected" is now INFO, not WARNING.** A peer
-      offering a sub-floor TLS version (or a non-TLS/HTTP client hitting the TLS
-      port) is routine and not actionable, so it was inflating "Global Warnings".
-      Downgraded `gobj_log_warning` → `gobj_log_info` in both backends'
-      handshake-rejected path (`openssl.c`, `mbedtls.c`); still default-on (not
-      gated by `trace_tls`), just under the Info bucket now.
+    - **chore(ytls): de-duplicate and de-noise the rejected-handshake logs.** A
+      single rejected connection (e.g. a non-TLS/HTTP client hitting the TLS
+      port) emitted overlapping lines across the ytls and transport layers.
+      Now:
+        - "TLS handshake rejected" is INFO (was WARNING) in both backends — a
+          sub-floor/legacy/non-TLS peer is routine, not actionable; it was
+          inflating "Global Warnings".
+        - that default-on line is self-contained: it now carries
+          `peername`/`sockname` (read from the transport gobj passed as
+          `user_data`), so the offending peer is identifiable even with
+          `connections` trace off.
+        - the transport's `ytls_on_handshake_done_callback` no longer logs the
+          FAILS case (it duplicated the ytls line); it keeps "TLS Handshake OK".
+        - `set_trace` no longer logs the per-connection `trace:0` disable (pure
+          noise on every accept); it logs only when enabling. Both backends.
     - **feat(libjwt): trace the claims JSON on a failed-claims verification.**
       `__verify_config_post` now calls `gobj_trace_json` with `jwt->claims` when
       `__verify_claims` reports one or more failed claims, so the offending

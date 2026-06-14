@@ -983,14 +983,17 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     ytls_t *ytls = sskt->ytls;
     ytls->trace_tls = set ? TRUE : FALSE;
 
-    gobj_log_debug(ytls->gobj, 0,
-        "function",         "%s", __FUNCTION__,
-        "msgset",           "%s", MSGSET_INFO,
-        "msg",              "%s", "MBEDTLS: set trace",
-        "trace",            "%d", set,
-        "ssl_server_name",  "%s", ytls->ssl_server_name,
-        NULL
-    );
+    if(set) {
+        // Only trace when ENABLING; the disable runs on every connection and is noise.
+        gobj_log_debug(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "MBEDTLS: set trace",
+            "trace",            "%d", set,
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
+            NULL
+        );
+    }
 
     // Apply the trace setting to this session's pinned state config.
     if(sskt->state_ref) {
@@ -1074,13 +1077,17 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  peers that must use the OpenSSL backend are identifiable. The
              *  peer address is logged by the transport gobj on the drop.
              */
+            // user_data is the transport gobj (see ytls_new_secure_filter caller):
+            // it carries peername/sockname, so this default-on line is self-contained.
+            hgobj conn = (hgobj)sskt->user_data;
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MBEDTLS,
                 "msg",              "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",
                 "error",            "%s", error_buf,
+                "peername",         "%s", gobj_read_str_attr(conn, "peername"),
+                "sockname",         "%s", gobj_read_str_attr(conn, "sockname"),
                 "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
-                "userp",            "%p", sskt->user_data,
                 NULL
             );
             dump_handshake_transcript_on_fail(sskt);
