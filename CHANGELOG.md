@@ -1,6 +1,18 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(ytls): log `ssl_server_name` in TLS diagnostics; drop dead
+      fields.** Every post-init `gobj_log_*` in the OpenSSL and mbedTLS backends
+      now carries `ssl_server_name`, so handshake/verify/read/write errors show
+      which SNI/server name the context was for. Also removed the never-used
+      `rx_bf[16*1024]` field from `sskt_t` in both backends (~16 KB per live TLS
+      connection) and the unused `error` field from the mbedTLS `sskt_t`.
+    - **fix(tui_yunetas 0.10.1): quieter `upgrade-yunos` output.** The two
+      `find-new-yunos` steps no longer dump ycommand's raw stdout — the preview
+      prints once (formatted) and `create=1` shows a one-line `Created N new
+      yuno row(s).` summary. The post-`sync-binaries` install-binary reminder
+      now leads with `yunetas upgrade-yunos` (raw ycommand sequence kept as the
+      manual equivalent).
     - **feat(tui_yunetas 0.10.0): agent-aware deploy.** `sync-configs` without
       `--host` now matches each registered project's `yunos/batches/<host>/`
       directories against the realm_ids the local agent manages
