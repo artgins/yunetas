@@ -9,9 +9,11 @@
           sub-floor/legacy/non-TLS peer is routine, not actionable; it was
           inflating "Global Warnings".
         - that default-on line is self-contained: it now carries
-          `peername`/`sockname` (read from the transport gobj passed as
-          `user_data`), so the offending peer is identifiable even with
-          `connections` trace off.
+          `peername`/`sockname`, handed to ytls by the transport through a new
+          optional `ytls_set_peer_name()` (per-`sskt`, both backends), so the
+          offending peer is identifiable even with `connections` trace off.
+          (ytls does NOT reinterpret `user_data` as a gobj — unit tests pass a
+          non-gobj `user_data`; callers that skip the setter just log `""`.)
         - the transport's `ytls_on_handshake_done_callback` no longer logs the
           FAILS case (it duplicated the ytls line); it keeps "TLS Handshake OK".
         - `set_trace` no longer logs the per-connection `trace:0` disable (pure

@@ -61,6 +61,15 @@ serves every piped command.
 | `--user_id=<user>`              | `-x`  | Username for the token grant                                                     |
 | `--user_passw=<passw>`          | `-X`  | Password for the token grant                                                     |
 | `--jwt=<token>`                 | `-j`  | Use a previously obtained JWT; skips the token-fetch task                        |
+| `--ssl-use-system-ca[=0\|1]`    |       | Validate the server cert against the OS CA store. **Default: on.** Pass `=0` to disable |
+| `--ssl-trusted-certificate=<f>` |       | PEM file/dir of trusted CA(s) for a private-CA endpoint                          |
+| `--ssl-allow-insecure-client`   |       | Connect WITHOUT validating the server cert (MITM risk; off by default)           |
+
+The `--ssl-*` flags apply to both TLS legs of a remote session — the OIDC
+`task-authenticate` to the issuer and the `wss://` agent connection. They are
+ignored for plain `ws://`. With verify-by-default on, a public-CA endpoint
+(e.g. Let's Encrypt) works out of the box; use `--ssl-trusted-certificate` for a
+private CA, or `--ssl-allow-insecure-client` to bypass.
 
 ```bash
 # Fetch a JWT via discovery, then connect to a remote agent
