@@ -18,7 +18,7 @@ There are two ways to install Yunetas, depending on what you want to do:
   static/dynamic, build type — see [`menuconfig`](#configure-menuconfig)).
 
 > ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
-> management/build CLI (currently 0.10.0), **not** the C framework runtime
+> management/build CLI (currently 0.10.1), **not** the C framework runtime
 > (currently 7.x). The `.deb` bundles both; building from source uses
 > the CLI to drive the build.
 
