@@ -232,6 +232,16 @@ A **client** that dials out (validates the server it connects to):
 - For a public endpoint, drop `ssl_trusted_certificate` and set
   `"ssl_use_system_ca": true` to trust the OS store instead.
 
+The bundled CLI tools (`ycommand`, `ystats`, `ybatch`, `ytests`, `ycli`,
+`mqtt_tui`, `emu_device`) already pass `"ssl_use_system_ca": true` on their
+outbound TLS, so a `wss://` / `https://` endpoint with a public CA (e.g. Let's
+Encrypt) works out of the box — including `ycommand`'s OIDC `task-authenticate`
+to the issuer. `ycommand` exposes `--ssl-use-system-ca` (default on),
+`--ssl-trusted-certificate` (private CA) and `--ssl-allow-insecure-client`
+(bypass) to override per call. Note that verification checks the **hostname**:
+dial the name the server's certificate is issued for, not just any DNS alias
+that resolves to the same host.
+
 A **server** doing mutual-TLS (validates the client certificate):
 
 ```json

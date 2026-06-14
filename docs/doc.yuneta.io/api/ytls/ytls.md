@@ -472,6 +472,44 @@ The filter is returned "cold": no handshake is started automatically. Call [`ytl
 
 ---
 
+(ytls_set_peer_name)=
+## [`ytls_set_peer_name()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/ytls/src/ytls.c#L276)
+
+Records the connection's peer and local socket names on the secure socket `sskt`
+so the backend's default-on TLS diagnostics (e.g. a rejected handshake) are
+self-contained — the offending peer is identifiable even with the transport's
+`connections` trace disabled.
+
+```C
+void ytls_set_peer_name(
+    hytls        ytls,
+    hsskt        sskt,
+    const char  *peername,
+    const char  *sockname
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ytls` | `hytls` | The TLS context. |
+| `sskt` | `hsskt` | The secure socket to annotate. |
+| `peername` | `const char *` | Remote address (`ip:port`); `NULL` is treated as empty. |
+| `sockname` | `const char *` | Local address (`ip:port`); `NULL` is treated as empty. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+Optional. ytls never reinterprets the secure filter's `user_data` as a gobj, so a
+caller that does not set the names simply logs them as empty strings. The
+transport (`c_tcp`) calls it right after creating the secure filter.
+
+---
+
 (ytls_set_trace)=
 ## [`ytls_set_trace()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/ytls/src/ytls.c#L235)
 
