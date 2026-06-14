@@ -221,13 +221,14 @@ PRIVATE int do_authenticate_task(hgobj gobj)
     /*-----------------------------*
      *      Create the task
      *-----------------------------*/
-    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:o}",
         "issuer", gobj_read_str_attr(gobj, "issuer"),
         "token_endpoint", gobj_read_str_attr(gobj, "token_endpoint"),
         "end_session_endpoint", gobj_read_str_attr(gobj, "end_session_endpoint"),
         "user_id", gobj_read_str_attr(gobj, "user_id"),
         "user_passw", gobj_read_str_attr(gobj, "user_passw"),
-        "client_id", gobj_read_str_attr(gobj, "client_id")
+        "client_id", gobj_read_str_attr(gobj, "client_id"),
+        "crypto", json_pack("{s:b}", "ssl_use_system_ca", 1)
     );
 
     hgobj gobj_task = gobj_create_service(
@@ -363,7 +364,8 @@ PRIVATE char agent_config[]= "\
                                     'name': 'agent_client',         \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'(^^__url__^^)'       \n\
+                                        'url':'(^^__url__^^)',      \n\
+                                        'crypto': {'ssl_use_system_ca': true} \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\

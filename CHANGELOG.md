@@ -1,6 +1,19 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(utils): TLS client utilities could not connect over `wss://` /
+      `https://`.** The verify-by-default change made `build_ssl_ctx` refuse any
+      TLS client whose `crypto` config lacks server-certificate validation, but
+      the CLI utilities were never ported: they passed an empty `crypto` to
+      their sockets, so every remote TLS connection (e.g. `ycommand` against the
+      controlcenter, including its OIDC `task-authenticate` to the issuer) failed
+      with *"TLS client refused: no server-certificate validation"*. All
+      utilities now pass `crypto: {ssl_use_system_ca: true}` to their C_TCP (and
+      to `C_TASK_AUTHENTICATE` where present): `ycommand`, `ystats`, `ybatch`,
+      `ytests`, `ycli`, `mqtt_tui`, `emu_device`. `ycommand` additionally gains
+      `--ssl-use-system-ca` (default on), `--ssl-trusted-certificate` (private
+      CA) and `--ssl-allow-insecure-client` (MITM bypass) for non-public-CA
+      endpoints. Plain `ws://` is unaffected (C_TCP ignores `crypto` without TLS).
     - **feat(ytls): log `ssl_server_name` in TLS diagnostics; drop dead
       fields.** Every post-init `gobj_log_*` in the OpenSSL and mbedTLS backends
       now carries `ssl_server_name`, so handshake/verify/read/write errors show

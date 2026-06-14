@@ -980,7 +980,8 @@ PRIVATE char mqtt_connector_config[]= "\
                             'gclass': 'C_TCP',                          \n\
                             'kw': {                                     \n\
                                 'url': '(^^__url__^^)',                 \n\
-                                'cert_pem': '(^^__cert_pem__^^)'        \n\
+                                'cert_pem': '(^^__cert_pem__^^)',       \n\
+                                'crypto': {'ssl_use_system_ca': true}   \n\
                             }                                           \n\
                         }                                               \n\
                     ]                                                   \n\

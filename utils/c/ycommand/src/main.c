@@ -45,6 +45,10 @@ struct arguments
     char *jwt;
     char *editor;
 
+    int ssl_use_system_ca;
+    char *ssl_trusted_certificate;
+    int ssl_allow_insecure_client;
+
     int verbose;                /* verbose */
     int print;
     int print_version;
@@ -171,6 +175,11 @@ static struct argp_option options[] = {
 {"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
 {"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30}, // TODO chequea todos, estaba solo como 'service'
 
+{0,                 0,      0,          0,      "TLS / crypto keys (used only for wss:// / https:// connections)", 40},
+{"ssl-use-system-ca",       0x801, "BOOL", OPTION_ARG_OPTIONAL, "Validate the server certificate against the OS CA store. Default: 1 (enabled). Pass --ssl-use-system-ca=0 to disable.", 40},
+{"ssl-trusted-certificate", 0x802, "FILE", 0, "PEM file (or dir) of trusted CA(s) to validate the server certificate (private CA).", 40},
+{"ssl-allow-insecure-client", 0x803, 0,    0, "Connect WITHOUT validating the server certificate (MITM risk). Off by default.", 40},
+
 {0,                 0,      0,          0,      "Local keys.", 50},
 {"print",           'p',    0,          0,      "Print configuration.", 50},
 {"print-role",      'r',    0,          0,      "print the basic yuno's information", 0},
@@ -254,6 +263,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'S':
         arguments->yuno_service = arg;
+        break;
+
+    case 0x801:
+        arguments->ssl_use_system_ca = arg? atoi(arg) : 1;
+        break;
+    case 0x802:
+        arguments->ssl_trusted_certificate = arg;
+        break;
+    case 0x803:
+        arguments->ssl_allow_insecure_client = 1;
         break;
 
     case 'v':
@@ -362,6 +381,9 @@ int main(int argc, char *argv[])
     arguments.user_passw = "";
     arguments.jwt = "";
     arguments.editor = "vim";
+    arguments.ssl_use_system_ca = 1;
+    arguments.ssl_trusted_certificate = "";
+    arguments.ssl_allow_insecure_client = 0;
     arguments.wait = 1;
 
     /*
@@ -422,7 +444,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:s, s:b}}",
             "global",
             "C_YCOMMAND.verbose", arguments.verbose,
             "C_YCOMMAND.command", arguments.command,
@@ -440,7 +462,10 @@ int main(int argc, char *argv[])
             "C_YCOMMAND.yuno_role", arguments.yuno_role,
             "C_YCOMMAND.yuno_name", arguments.yuno_name,
             "C_YCOMMAND.yuno_service", arguments.yuno_service,
-            "C_YCOMMAND.print_with_metadata", arguments.print_with_metadata
+            "C_YCOMMAND.print_with_metadata", arguments.print_with_metadata,
+            "C_YCOMMAND.ssl_use_system_ca", arguments.ssl_use_system_ca,
+            "C_YCOMMAND.ssl_trusted_certificate", arguments.ssl_trusted_certificate,
+            "C_YCOMMAND.ssl_allow_insecure_client", arguments.ssl_allow_insecure_client
         );
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);

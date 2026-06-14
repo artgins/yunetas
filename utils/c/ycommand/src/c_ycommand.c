@@ -220,6 +220,9 @@ SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
 SDATA (DTP_POINTER,     "gobj_connector",   0,          0,              "connection gobj"),
 SDATA (DTP_STRING,      "display_mode",     0,          "table",        "Display mode: table or form"),
 SDATA (DTP_STRING,      "editor",           0,          "vim",          "Editor"),
+SDATA (DTP_BOOLEAN,     "ssl_use_system_ca",0,          "1",            "Validate server cert against the OS CA store (default on)"),
+SDATA (DTP_STRING,      "ssl_trusted_certificate",0,    "",             "PEM file/dir of trusted CA(s) for server-cert validation"),
+SDATA (DTP_BOOLEAN,     "ssl_allow_insecure_client",0,  "0",            "Connect WITHOUT validating the server cert (MITM risk)"),
 SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
 SDATA_END()
@@ -929,6 +932,28 @@ PRIVATE int yev_stdin_callback(yev_event_h yev_event)
 }
 
 /***************************************************************************
+ *  Build the TLS client crypto config from the ssl_* attrs.
+ *  Returns a new json object (owned by caller); empty {} when nothing set
+ *  (which is correct for plain ws:// — C_TCP ignores crypto without TLS).
+ ***************************************************************************/
+PRIVATE json_t *build_client_crypto(hgobj gobj)
+{
+    json_t *jn_crypto = json_object();
+    if(gobj_read_bool_attr(gobj, "ssl_allow_insecure_client")) {
+        json_object_set_new(jn_crypto, "ssl_allow_insecure_client", json_true());
+        return jn_crypto;
+    }
+    const char *trusted = gobj_read_str_attr(gobj, "ssl_trusted_certificate");
+    if(!empty_string(trusted)) {
+        json_object_set_new(jn_crypto, "ssl_trusted_certificate", json_string(trusted));
+    }
+    if(gobj_read_bool_attr(gobj, "ssl_use_system_ca")) {
+        json_object_set_new(jn_crypto, "ssl_use_system_ca", json_true());
+    }
+    return jn_crypto;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_authenticate_task(hgobj gobj)
@@ -936,13 +961,14 @@ PRIVATE int do_authenticate_task(hgobj gobj)
     /*-----------------------------*
      *      Create the task
      *-----------------------------*/
-    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:o}",
         "issuer", gobj_read_str_attr(gobj, "issuer"),
         "token_endpoint", gobj_read_str_attr(gobj, "token_endpoint"),
         "end_session_endpoint", gobj_read_str_attr(gobj, "end_session_endpoint"),
         "user_id", gobj_read_str_attr(gobj, "user_id"),
         "user_passw", gobj_read_str_attr(gobj, "user_passw"),
-        "client_id", gobj_read_str_attr(gobj, "client_id")
+        "client_id", gobj_read_str_attr(gobj, "client_id"),
+        "crypto", build_client_crypto(gobj)
     );
 
     hgobj gobj_task = gobj_create_service(
@@ -996,7 +1022,8 @@ PRIVATE char agent_config[]= "\
                                     'name': 'agent_client',         \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'(^^__url__^^)'       \n\
+                                        'url':'(^^__url__^^)',      \n\
+                                        'crypto': %s                \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -1055,9 +1082,23 @@ PRIVATE int cmd_connect(hgobj gobj)
         );
     }
 
+    /*
+     *  The crypto config is a JSON object: it cannot travel through the
+     *  (^^var^^) substitution (string-only), so embed it as JSON text.
+     */
+    json_t *jn_crypto = build_client_crypto(gobj);
+    char *crypto_str = json_dumps(jn_crypto, JSON_COMPACT|JSON_ENCODE_ANY);
+    JSON_DECREF(jn_crypto)
+
+    char agent_config_built[4*1024];
+    snprintf(agent_config_built, sizeof(agent_config_built),
+        agent_config, crypto_str? crypto_str : "{}"
+    );
+    GBMEM_FREE(crypto_str)
+
     priv->gobj_remote_agent = gobj_create_tree(
         gobj,
-        agent_config,
+        agent_config_built,
         jn_config_variables
     );
 

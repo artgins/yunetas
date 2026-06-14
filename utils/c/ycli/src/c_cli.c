@@ -1157,7 +1157,8 @@ PRIVATE char agent_config[]= "\
                                     'name': 'agent_client',         \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'(^^__url__^^)'       \n\
+                                        'url':'(^^__url__^^)',      \n\
+                                        'crypto': {'ssl_use_system_ca': true} \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -1774,13 +1775,14 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
      *-----------------------------*/
     hgobj gobj_task = gobj_find_service("task-authenticate", FALSE);
     if(!gobj_task) {
-        json_t *kw_task = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+        json_t *kw_task = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:o}",
             "issuer", issuer,
             "token_endpoint", token_endpoint,
             "end_session_endpoint", end_session_endpoint,
             "user_id", user_id,
             "user_passw", user_passw,
-            "client_id", client_id
+            "client_id", client_id,
+            "crypto", json_pack("{s:b}", "ssl_use_system_ca", 1)
         );
         gobj_task = gobj_create_service("task-authenticate", C_TASK_AUTHENTICATE, kw_task, gobj);
     } else {

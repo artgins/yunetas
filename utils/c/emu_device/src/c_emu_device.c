@@ -634,9 +634,10 @@ PRIVATE int create_output_side(hgobj gobj)
     hgobj gobj_prot_raw = gobj_create("output", C_PROT_RAW, 0, gobj_channel);
     gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
 
-    json_t *kw_connex = json_pack("{s:i, s:s}",
+    json_t *kw_connex = json_pack("{s:i, s:s, s:o}",
         "timeout_between_connections", 2000,
-        "url", gobj_read_str_attr(gobj, "url")    // C_TCP client attr is "url" (singular)
+        "url", gobj_read_str_attr(gobj, "url"),    // C_TCP client attr is "url" (singular)
+        "crypto", json_pack("{s:b}", "ssl_use_system_ca", 1)
     );
     hgobj gobj_connex = gobj_create_pure_child("output", C_TCP, kw_connex, gobj_prot_raw);
     gobj_set_bottom_gobj(gobj_prot_raw, gobj_connex);
