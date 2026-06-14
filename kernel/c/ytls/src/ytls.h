@@ -112,6 +112,7 @@ typedef struct api_tls_s {
     void (*set_trace)(hsskt sskt, BOOL set);
     int (*flush)(hsskt sskt); // flush clear and encrypted data
     void (*shutdown)(hsskt sskt);
+    void (*set_peer_name)(hsskt sskt, const char *peername, const char *sockname);
 } api_tls_t;
 
 typedef struct { // Common to all ytls_t types
@@ -254,6 +255,13 @@ PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt);
     Set trace
 **rst**/
 PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set);
+
+/**rst**
+    Set the connection's peer/sock names so the backend's default-on TLS
+    logs (e.g. a rejected handshake) are self-contained. Optional: callers
+    that don't set them get empty names in those logs.
+**rst**/
+PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, const char *sockname);
 
 /**rst**
     Flush data

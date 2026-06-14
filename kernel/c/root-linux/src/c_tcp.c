@@ -608,6 +608,13 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
         ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS)?TRUE:FALSE);
 
+        // Hand the peer/sock names to ytls so its default-on TLS logs are
+        // self-contained (peername/sockname are already set at accept/connect).
+        ytls_set_peer_name(priv->ytls, priv->sskt,
+            gobj_read_str_attr(gobj, "peername"),
+            gobj_read_str_attr(gobj, "sockname")
+        );
+
         /*
          *  Kick off the handshake explicitly. On the client side this emits
          *  the ClientHello via on_encrypted_data_cb (which is wired to

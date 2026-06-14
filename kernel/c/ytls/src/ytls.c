@@ -271,6 +271,15 @@ PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)
 }
 
 /***************************************************************************
+    Set peer/sock names (for self-contained TLS logging)
+ ***************************************************************************/
+PUBLIC void ytls_set_peer_name(hytls ytls, hsskt sskt, const char *peername, const char *sockname)
+{
+    api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
+    api_tls->set_peer_name(sskt, peername, sockname);
+}
+
+/***************************************************************************
     Flush data
  ***************************************************************************/
 PUBLIC int ytls_flush(hytls ytls, hsskt sskt)

@@ -117,6 +117,8 @@ typedef struct sskt_s {
     unsigned long error; // holds ERR_get_error() (unsigned long per OpenSSL API)
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
     gbuffer_t *handshake_transcript; // Raw peer bytes captured during handshake; dumped on failure, released on success
+    char peername[64]; // Set by the transport via set_peer_name(), for self-contained logs ("" if unset)
+    char sockname[64];
 } sskt_t;
 
 /***************************************************************
@@ -154,6 +156,7 @@ PRIVATE int decrypt_data(hsskt sskt, gbuffer_t *gbuf);
 PRIVATE const char *last_error(hsskt sskt);
 PRIVATE void set_trace(hsskt sskt, BOOL set);
 PRIVATE int flush(hsskt sskt);
+PRIVATE void set_peer_name(hsskt sskt, const char *peername, const char *sockname);
 
 PRIVATE api_tls_t api_tls = {
     "OPENSSL",
@@ -170,7 +173,8 @@ PRIVATE api_tls_t api_tls = {
     last_error,
     set_trace,
     flush,
-    shutdown_sskt
+    shutdown_sskt,
+    set_peer_name
 };
 
 /***************************************************************************
@@ -1108,6 +1112,16 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 }
 
 /***************************************************************************
+ *  Set the connection's peer/sock names for self-contained logging.
+ ***************************************************************************/
+PRIVATE void set_peer_name(hsskt sskt_, const char *peername, const char *sockname)
+{
+    sskt_t *sskt = sskt_;
+    snprintf(sskt->peername, sizeof(sskt->peername), "%s", peername?peername:"");
+    snprintf(sskt->sockname, sizeof(sskt->sockname), "%s", sockname?sockname:"");
+}
+
+/***************************************************************************
     Append peer bytes to the forensic transcript (bounded, never grows).
  ***************************************************************************/
 PRIVATE void capture_handshake_bytes(sskt_t *sskt, const void *bytes, size_t len)
@@ -1198,16 +1212,16 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  opt-down are identifiable. The peer address is logged by the
              *  transport gobj on the matching connection drop.
              */
-            // user_data is the transport gobj (see ytls_new_secure_filter caller):
-            // it carries peername/sockname, so this default-on line is self-contained.
-            hgobj conn = (hgobj)sskt->user_data;
+            // peername/sockname come from the transport via set_peer_name()
+            // (empty if unset, e.g. in unit tests) -> this default-on line is
+            // self-contained without ytls reaching into user_data.
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPENSSL,
                 "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
                 "error",            "%s", sskt->last_error,
-                "peername",         "%s", gobj_read_str_attr(conn, "peername"),
-                "sockname",         "%s", gobj_read_str_attr(conn, "sockname"),
+                "peername",         "%s", sskt->peername,
+                "sockname",         "%s", sskt->sockname,
                 "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 "tls_version",      "%s", SSL_get_version(sskt->ssl),
                 NULL
