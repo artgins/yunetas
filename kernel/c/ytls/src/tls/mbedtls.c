@@ -109,7 +109,6 @@ typedef struct sskt_s {
     int (*on_encrypted_data_cb)(void *user_data, gbuffer_t *gbuf);
     void *user_data;
     char last_error[256];
-    int error;
     gbuffer_t *encrypted_buffer; // Receives encrypted bytes from the network (recv path)
     gbuffer_t *output_buffer;    // Accumulates encrypted bytes from send_callback (send path)
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
