@@ -1195,7 +1195,7 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  opt-down are identifiable. The peer address is logged by the
              *  transport gobj on the matching connection drop.
              */
-            gobj_log_warning(gobj, 0,
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPENSSL,
                 "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",

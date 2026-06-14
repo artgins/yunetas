@@ -1,6 +1,12 @@
 # **Changelog**
 
 ## Unreleased
+    - **chore(ytls): "TLS handshake rejected" is now INFO, not WARNING.** A peer
+      offering a sub-floor TLS version (or a non-TLS/HTTP client hitting the TLS
+      port) is routine and not actionable, so it was inflating "Global Warnings".
+      Downgraded `gobj_log_warning` → `gobj_log_info` in both backends'
+      handshake-rejected path (`openssl.c`, `mbedtls.c`); still default-on (not
+      gated by `trace_tls`), just under the Info bucket now.
     - **feat(libjwt): trace the claims JSON on a failed-claims verification.**
       `__verify_config_post` now calls `gobj_trace_json` with `jwt->claims` when
       `__verify_claims` reports one or more failed claims, so the offending

@@ -1074,7 +1074,7 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  peers that must use the OpenSSL backend are identifiable. The
              *  peer address is logged by the transport gobj on the drop.
              */
-            gobj_log_warning(gobj, 0,
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MBEDTLS,
                 "msg",              "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",
