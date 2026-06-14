@@ -110,7 +110,6 @@ typedef struct sskt_s {
     void *user_data;
     char last_error[256];
     int error;
-    char rx_bf[16*1024];
     gbuffer_t *encrypted_buffer; // Receives encrypted bytes from the network (recv path)
     gbuffer_t *output_buffer;    // Accumulates encrypted bytes from send_callback (send path)
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
@@ -518,6 +517,7 @@ PRIVATE hytls init(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "MBEDTLS: set trace TRUE",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
     }
@@ -551,9 +551,10 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
     mbedtls_state_t *new_state = build_state(gobj, jn_config, ytls->server, trace_tls, ytls);
     if(!new_state) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MBEDTLS,
-            "msg",          "%s", "reload_certificates FAILED: keeping previous state",
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS,
+            "msg",              "%s", "reload_certificates FAILED: keeping previous state",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         return -1;
@@ -566,9 +567,10 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
     state_decref(old_state);  // live sskts keep their own ref
 
     gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "TLS certificates reloaded",
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "TLS certificates reloaded",
+        "ssl_server_name",  "%s", ytls->ssl_server_name,
         NULL
     );
     return 0;
@@ -704,6 +706,7 @@ PRIVATE int mbedtls_ssl_send_callback(
             "msg",              "%s", "output_buffer append failed",
             "requested",        "%d", (int)len,
             "appended",         "%d", (int)appended,
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
         return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
@@ -755,6 +758,7 @@ PRIVATE hsskt new_secure_filter(
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for sizeof(sskt_t)",
             "sizeof(sskt_t)",   "%d", sizeof(sskt_t),
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         return NULL;
@@ -769,6 +773,7 @@ PRIVATE hsskt new_secure_filter(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
             "msg",              "%s", "no TLS state (ytls not initialised?)",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         GBMEM_FREE(sskt);
@@ -783,6 +788,7 @@ PRIVATE hsskt new_secure_filter(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
             "msg",              "%s", "mbedtls_ssl_setup() FAILED",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         state_decref(sskt->state_ref);
@@ -806,6 +812,7 @@ PRIVATE hsskt new_secure_filter(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for encrypted_buffer",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         free_secure_filter(sskt);
@@ -819,6 +826,7 @@ PRIVATE hsskt new_secure_filter(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for output_buffer",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         free_secure_filter(sskt);
@@ -836,6 +844,7 @@ PRIVATE hsskt new_secure_filter(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for handshake_transcript",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
     }
@@ -897,6 +906,7 @@ PRIVATE void shutdown_sskt(hsskt sskt_)
             "msg",              "%s", "mbedtls_ssl_close_notify() FAILED",
             "error_code",       "%d", ret,
             "error_message",    "%s", error_buf,
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
     }
@@ -979,6 +989,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
         "msgset",           "%s", MSGSET_INFO,
         "msg",              "%s", "MBEDTLS: set trace",
         "trace",            "%d", set,
+        "ssl_server_name",  "%s", ytls->ssl_server_name,
         NULL
     );
 
@@ -1065,11 +1076,12 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  peer address is logged by the transport gobj on the drop.
              */
             gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MBEDTLS,
-                "msg",          "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",
-                "error",        "%s", error_buf,
-                "userp",        "%p", sskt->user_data,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",
+                "error",            "%s", error_buf,
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                "userp",            "%p", sskt->user_data,
                 NULL
             );
             dump_handshake_transcript_on_fail(sskt);
@@ -1101,11 +1113,12 @@ PRIVATE int do_handshake(hsskt sskt_)
                 char vrfy_buf[512];
                 mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ", vrfy);
                 gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MBEDTLS,
-                    "msg",          "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
-                    "verify_flags", "%s", vrfy_buf,
-                    "userp",        "%p", sskt->user_data,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MBEDTLS,
+                    "msg",              "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
+                    "verify_flags",     "%s", vrfy_buf,
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    "userp",            "%p", sskt->user_data,
                     NULL
                 );
             }
@@ -1152,6 +1165,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "Cannot allocate new output_buffer",
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
         sskt->output_buffer = to_send; // Restore — don't lose data
@@ -1163,6 +1177,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
             "msg",              "%s", "on_encrypted_data_cb() FAILED",
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
         gbuffer_decref(to_send);
@@ -1187,6 +1202,7 @@ PRIVATE int encrypt_data(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS,
             "msg",              "%s", "TLS handshake PENDING",
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
         GBUFFER_DECREF(gbuf);
@@ -1208,9 +1224,10 @@ PRIVATE int encrypt_data(
                     // Network stalled: no progress after repeated flush attempts.
                     // Caller will retry when new data arrives via the event loop.
                     gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MBEDTLS,
-                        "msg",          "%s", "mbedtls_ssl_write() WANT stall, aborting",
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_MBEDTLS,
+                        "msg",              "%s", "mbedtls_ssl_write() WANT stall, aborting",
+                        "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                         NULL
                     );
                     flush_encrypted_data(sskt); // Send what we have so far
@@ -1234,6 +1251,7 @@ PRIVATE int encrypt_data(
                     "msg",              "%s", "mbedtls_ssl_write() FAILED",
                     "error_code",       "%d", written,
                     "error_message",    "%s", error_buf,
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                     NULL
                 );
                 flush_encrypted_data(sskt); // Send what we have so far
@@ -1297,6 +1315,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MEMORY,
                 "msg",              "%s", "Failed to create gbuffer",
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 NULL
             );
             sskt->alive = NULL;
@@ -1367,6 +1386,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                         "msg",              "%s", "mbedtls_ssl_read() FAILED",
                         "error_code",       "%d", nread,
                         "error_message",    "%s", error_buf,
+                        "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                         NULL
                     );
                 }
@@ -1422,6 +1442,7 @@ PRIVATE int decrypt_data(
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MBEDTLS,
                 "msg",              "%s", "encrypted_buffer full, dropping data",
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 NULL
             );
             break;

@@ -115,7 +115,6 @@ typedef struct sskt_s {
     void *user_data;
     char last_error[256];
     unsigned long error; // holds ERR_get_error() (unsigned long per OpenSSL API)
-    char rx_bf[16*1024];
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
     gbuffer_t *handshake_transcript; // Raw peer bytes captured during handshake; dumped on failure, released on success
 } sskt_t;
@@ -735,6 +734,7 @@ PRIVATE hytls init(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "OPENSSL: set trace TRUE",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
     }
@@ -772,9 +772,10 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
     SSL_CTX *new_ctx = build_ssl_ctx(gobj, jn_config, ytls->server, FALSE, trace_tls, ytls);
     if(!new_ctx) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL,
-            "msg",          "%s", "reload_certificates FAILED: keeping previous SSL_CTX",
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_OPENSSL,
+            "msg",              "%s", "reload_certificates FAILED: keeping previous SSL_CTX",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         return -1;
@@ -789,9 +790,10 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
     }
 
     gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "TLS certificates reloaded",
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "TLS certificates reloaded",
+        "ssl_server_name",  "%s", ytls->ssl_server_name,
         NULL
     );
     return 0;
@@ -917,6 +919,7 @@ PRIVATE hsskt new_secure_filter(
             "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for sizeof(sskt_t)",
             "sizeof(sskt_t)",   "%d", sizeof(sskt_t),
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         return 0;
@@ -937,9 +940,10 @@ PRIVATE hsskt new_secure_filter(
     sskt->handshake_transcript = gbuffer_create(HANDSHAKE_TRANSCRIPT_MAX, HANDSHAKE_TRANSCRIPT_MAX);
     if(!sskt->handshake_transcript) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "no memory for handshake_transcript",
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY,
+            "msg",              "%s", "no memory for handshake_transcript",
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
     }
@@ -949,11 +953,12 @@ PRIVATE hsskt new_secure_filter(
         sskt->error = ERR_get_error();
         ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL,
-            "msg",          "%s", "SSL_new() FAILED",
-            "error",        "%lu", (unsigned long)sskt->error,
-            "serror",       "%s", sskt->last_error,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_OPENSSL,
+            "msg",              "%s", "SSL_new() FAILED",
+            "error",            "%lu", (unsigned long)sskt->error,
+            "serror",           "%s", sskt->last_error,
+            "ssl_server_name",  "%s", ytls->ssl_server_name,
             NULL
         );
         GBUFFER_DECREF(sskt->handshake_transcript)
@@ -1014,6 +1019,7 @@ PRIVATE hsskt new_secure_filter(
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_OPENSSL,
                     "msg",              "%s", "TLS client verify ON but no ssl_server_name: hostname NOT checked",
+                    "ssl_server_name",  "%s", ytls->ssl_server_name,
                     NULL
                 );
             }
@@ -1190,12 +1196,13 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  transport gobj on the matching connection drop.
              */
             gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
-                "error",        "%s", sskt->last_error,
-                "tls_version",  "%s", SSL_get_version(sskt->ssl),
-                "userp",        "%p", sskt->user_data,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_OPENSSL,
+                "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
+                "error",            "%s", sskt->last_error,
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                "tls_version",      "%s", SSL_get_version(sskt->ssl),
+                "userp",            "%p", sskt->user_data,
                 NULL
             );
             dump_handshake_transcript_on_fail(sskt);
@@ -1224,11 +1231,12 @@ PRIVATE int do_handshake(hsskt sskt_)
             long vr = SSL_get_verify_result(sskt->ssl);
             if(vr != X509_V_OK) {
                 gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL,
-                    "msg",          "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
-                    "error",        "%s", X509_verify_cert_error_string(vr),
-                    "userp",        "%p", sskt->user_data,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "TLS peer certificate did NOT verify (accepted under VERIFY_OPTIONAL; set ssl_verify_mode=required to reject)",
+                    "error",            "%s", X509_verify_cert_error_string(vr),
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    "userp",            "%p", sskt->user_data,
                     NULL
                 );
             }
@@ -1269,9 +1277,10 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         gbuffer_t *gbuf = gbuffer_create(pending, pending);
         if(!gbuf) {
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY,
-                "msg",          "%s", "No memory for BIO_pending",
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MEMORY,
+                "msg",              "%s", "No memory for BIO_pending",
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 NULL
             );
             return -1;
@@ -1306,9 +1315,10 @@ PRIVATE int encrypt_data(
 
     if(!SSL_is_init_finished(sskt->ssl)) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL,
-            "msg",          "%s", "TLS handshake PENDING",
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_OPENSSL,
+            "msg",              "%s", "TLS handshake PENDING",
+            "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
             NULL
         );
         GBUFFER_DECREF(gbuf)
@@ -1344,12 +1354,13 @@ PRIVATE int encrypt_data(
                 sskt->error = ERR_get_error();
                 ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
                 gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL,
-                    "msg",          "%s", "SSL_write() FAILED",
-                    "ret",          "%d", (int)ret,
-                    "error",        "%lu", (unsigned long)sskt->error,
-                    "serror",       "%s", sskt->last_error,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "SSL_write() FAILED",
+                    "ret",              "%d", (int)ret,
+                    "error",            "%lu", (unsigned long)sskt->error,
+                    "serror",           "%s", sskt->last_error,
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                     NULL
                 );
                 GBUFFER_DECREF(gbuf)
@@ -1415,13 +1426,14 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", "SSL_read() FAILED",
-                "ret",          "%d", (int)nread,
-                "ssl_err",      "%d", ssl_err,
-                "error",        "%lu", (unsigned long)sskt->error,
-                "serror",       "%s", sskt->last_error,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_OPENSSL,
+                "msg",              "%s", "SSL_read() FAILED",
+                "ret",              "%d", (int)nread,
+                "ssl_err",          "%d", ssl_err,
+                "error",            "%lu", (unsigned long)sskt->error,
+                "serror",           "%s", sskt->last_error,
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 NULL
             );
             GBUFFER_DECREF(gbuf)
@@ -1474,12 +1486,13 @@ PRIVATE int decrypt_data(
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", "BIO_write() FAILED",
-                "ret",          "%d", (int)written,
-                "error",        "%lu", (unsigned long)sskt->error,
-                "serror",       "%s", sskt->last_error,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_OPENSSL,
+                "msg",              "%s", "BIO_write() FAILED",
+                "ret",              "%d", (int)written,
+                "error",            "%lu", (unsigned long)sskt->error,
+                "serror",           "%s", sskt->last_error,
+                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                 NULL
             );
             GBUFFER_DECREF(gbuf)
