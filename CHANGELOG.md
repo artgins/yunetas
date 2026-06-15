@@ -1,5 +1,32 @@
 # **Changelog**
 
+## 7.6.5
+    - **security(libjwt): re-review against upstream v3.4.0 and backport the
+      reachable hardenings.** v3.4.0 is a large feature release (full JWE, the
+      `crit` header, `jti` callbacks, PEM→JWK public API), almost none of which
+      touches Yuneta's compiled subset. After filtering to the JWS verify/parse
+      path, three items were backported into the vendored tree:
+        - **`18133e4` (L17): reject duplicate JSON members on the token parse**
+          (`jwt-verify.c`). The inbound header/payload is now parsed with
+          `JSON_REJECT_DUPLICATES` (RFC 8725 §2.4), so a peer that selects a
+          different occurrence of a duplicated claim/header cannot be made to
+          disagree with us.
+        - **`d180cc7`: enforce strict base64url on decode** (`jwt.c`). The
+          decoder accepted the standard-base64 `+`/`/` and silently truncated
+          on an embedded `=`; it now rejects anything outside `[A-Za-z0-9_-]`.
+          Reachable on every token segment and JWK member decode.
+        - **`fe8840a`: enforce the RFC 7515 §4.1.11 `crit` (Critical) header**
+          (`jwt-verify.c` + both checker entry points). The parser previously
+          ignored `crit`; since this copy understands no extension headers, any
+          token carrying a well-formed `crit` is now rejected (checker side
+          only — the builder side is not ported, C_AUTHZ does not sign).
+      The batch's only CVE-class bug (`5fada81`, mbedTLS RSA short-signature
+      OOB read) is not present here: the vendored mbedTLS backend is a v4.0/PSA
+      rewrite using the length-aware `mbedtls_pk_verify_ext`, immune by
+      construction. Regression coverage added to `test_jwt_alg_confusion`
+      (`crit` rejection on both entry points; positive controls still verify).
+      Full classification in `kernel/c/libjwt/README.md`.
+
 ## 7.6.4
     - **fix(tr_msg2db): stop `msg2db_open_db` logging spurious schema errors
       when reopening with `jn_schema=NULL`.** The persistent reopen path (no
