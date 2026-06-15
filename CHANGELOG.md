@@ -64,6 +64,16 @@
       confirm (`--yes`) -> `find-new-yunos create=1` -> `deactivate-snap`
       (restart_nodes: SIGKILL + treedb reload, newest release wins).
       `--dry-run` prints the agent commands without running them.
+    - **fix(tools): a resumed deploy is now idempotent instead of failing.**
+      When a prior run installed the binaries / configs and registered the new
+      yuno rows but never promoted them (`deactivate-snap` not reached),
+      re-running the deploy hit the agent's "... already exists" answers.
+      `sync_binaries.py` / `sync_configs.py` now report such an
+      `install-binary` / `create-config` as `ALREADY PRESENT` (idempotent) and
+      count it as ok, not a red `FAILED`. The matching `upgrade-yunos`
+      fall-through (don't abort when `find-new-yunos create=1` only hits
+      already-existing rows) ships in the tui_yunetas CLI 0.11.1. A genuine
+      (non-idempotent) error still fails closed.
 
 ## 7.6.3
     - **feat(treedb): immutable (non-deletable) topics and records.** A record
