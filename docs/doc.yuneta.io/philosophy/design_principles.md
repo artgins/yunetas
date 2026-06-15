@@ -45,8 +45,7 @@ inside IoT gateways — and that need to:
 
 Most frameworks optimise for one of those axes. Yuneta is the result
 of doing all of them, with the same conceptual core (GClass, gobj,
-events, FSM, tree-of-objects, append-only persistence), iterated in
-production since the early 2000s.
+events, FSM, tree-of-objects, append-only persistence).
 
 ## The decisions that define Yuneta
 
