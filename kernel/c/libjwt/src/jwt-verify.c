@@ -29,7 +29,11 @@ static json_t *jwt_base64uri_decode_to_json(char *src)
 
 	buf[len] = '\0';
 
-	js = json_loads(buf, 0, NULL);
+	/* 18133e4 (L17): reject duplicate members in the token header/payload
+	 * (RFC 8725 2.4) so a peer that selects a different occurrence of a
+	 * duplicated member cannot be made to disagree with us about a
+	 * claim/header. Jansson keeps the last occurrence by default. */
+	js = json_loads(buf, JSON_REJECT_DUPLICATES, NULL);
 
 	jwt_freemem(buf);
 

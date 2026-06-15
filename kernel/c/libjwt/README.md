@@ -36,12 +36,17 @@ on a per-commit basis when they're worth the integration cost.
 > 3.x branch, not 1.x.
 
 A security review of this vendored copy against upstream was done on
-**2026-06-05**.
+**2026-06-05** and re-run against **v3.4.0** on **2026-06-15**.
 
 - **Vendored base:** upstream commit `375e539`
   (`v3.2.1`+2, 2025-06-04 — "jwt: Use long long for json integers").
-- **Analyzed up to:** upstream commit `602118d` (**v3.3.3**, 2026-05-04).
-- **Gap:** 26 commits behind, including two security commits.
+- **Analyzed up to:** upstream commit `6ea3b6b` (**v3.4.0**, 2026-06-15).
+- **Gap:** v3.4.0 is a large feature release (full JWE, `crit` header, `jti`
+  callbacks, PEM→JWK public API). Almost none of it touches Yuneta's compiled
+  subset: JWE, `jwks-curl.c`, the `gnutls`/`json-c` backends are all excluded
+  here. After filtering, only the **#281–#285 hardening batch** plus two
+  conformance features (`crit`, `jti`) land on files we build; of those, two
+  reachable hardenings were backported (below) and the rest are N/A.
 
 ### Done (backported to this tree)
 
@@ -77,6 +82,62 @@ A security review of this vendored copy against upstream was done on
   controls), wired into ctest. A focused equivalent of upstream's
   `jwt_security.c`, not a verbatim port. (Same-family downgrade — the exact-alg
   pin above — is not yet covered here; see the "Broaden the forgery test" TODO.)
+
+#### v3.4.0 re-review (2026-06-15)
+
+- **`18133e4` (L17) — reject duplicate JSON members on the token parse
+  (`jwt-verify.c`).** RFC 8725 §2.4: the inbound header/payload is now parsed
+  with `JSON_REJECT_DUPLICATES` (Jansson otherwise keeps the last occurrence),
+  so a peer that selects a different occurrence of a duplicated claim/header
+  cannot be made to disagree with us. Reachable on every `jwt_parse`.
+- **`d180cc7` — strict base64url on decode (`jwt.c`, `jwt_base64uri_decode`).**
+  The decoder accepted the standard-base64 `+`/`/` and silently *truncated* on
+  an embedded `=`; both let a segment be re-spelled (or cut short) yet decode to
+  the same/truncated bytes. Now rejects anything outside `[A-Za-z0-9_-]`.
+  Reachable on every token segment and JWK member decode. Additive — the
+  positive controls in `test_jwt_alg_confusion` still pass.
+
+### N/A in this tree (v3.4.0 batch, after reachability analysis)
+
+- **`5fada81` — mbedTLS RSA short-signature OOB heap read (the batch's only
+  CVE-class bug).** *Not present here.* The vendored mbedTLS backend is a full
+  **v4.0/PSA rewrite** that verifies via the length-aware high-level
+  `mbedtls_pk_verify_ext(…, sig, sig_len)`; upstream's bug is in the low-level
+  `mbedtls_rsa_*_verify` path this copy never calls. Immune by construction.
+- **`2ef9500` (L4) mbedTLS ECDSA exact-size** — same reason (PK API is
+  length-checked).
+- **`60902e1` — jwks clone-OOM free** — already correct here (`jwks.c` frees the
+  owned `item`, not the borrowed `jwk`).
+- **`18133e4` L6 (aud-as-array) / L7 (jti-after-signature)** — `C_AUTHZ` enables
+  only `JWT_CLAIM_ISS` (validates `iss` in C) and registers no `jti` callback.
+- **`18133e4` L8/L9, all `jwe:` commits** — JWE is not compiled.
+- **`927e8d4` length-math hardening** — the `kid` `strcpy`→`memcpy` is cosmetic
+  (config-sourced JWKS); the `INT_MAX` encode guards are producer-side and
+  `C_AUTHZ` only verifies.
+- **`fe8840a` `crit` header (RFC 7515 §4.1.11)** — genuine conformance gap (the
+  parser silently ignores `crit` instead of rejecting unknown critical params),
+  but not exploitable: an attacker adding `crit` only triggers stricter
+  rejection, and IdP access tokens don't carry it. Deferred (see TODO).
+
+### Could we link upstream directly instead of vendoring? — No
+
+v3.4.0's new public API (`jwks_create_fromkey`, PEM→JWK, JWE) does not close the
+structural divergence: the `gbmem` allocator wiring (`jwt-memory.c`), the
+`#include <gobj.h>` + `gobj_trace_json` coupling (`jwt-verify.c`), the mbedTLS
+v4.0/PSA backend rewrite, the `jwt-common.c`→`jwt-builder.c`/`jwt-checker.c`
+split, and the ArtGins-only exports (`jwt_checker_verify2` returning the payload
+as `json_t *` — the basis of `verify_token()` — plus `jwk_process_one` /
+`jwks_item_add` / `jwks_item_free2`, none public upstream). Re-vendor remains the
+model.
+
+### Worth contributing upstream
+
+- **Exact-alg pin (same-family downgrade).** Upstream v3.4.0 *still* lacks it:
+  `__verify_config_post` only checks config↔key consistency on the both-set path
+  and relies on the family-granular `kty` backstop, so an RS512 token still
+  verifies against an RS256-pinned key. Our local pin (above) fixes it.
+- **mbedTLS v4.0/PSA backend** — forward-compatible and immune-by-construction to
+  `5fada81`; offerable as portability (divergent design, not a clean patch).
 
 ### Still to do — see the repo [`TODO.md`](../../../TODO.md)
 
