@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.6.4
     - **fix(tr_msg2db): stop `msg2db_open_db` logging spurious schema errors
       when reopening with `jn_schema=NULL`.** The persistent reopen path (no
       schema dict passed — the schema is loaded from
