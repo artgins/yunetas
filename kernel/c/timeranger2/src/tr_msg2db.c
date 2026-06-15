@@ -101,7 +101,9 @@ PUBLIC json_t *msg2db_open_db(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     char msg2db_name[NAME_MAX];
-    snprintf(msg2db_name, sizeof(msg2db_name), "%s", kw_get_str(gobj, jn_schema, "id", msg2db_name_, KW_REQUIRED));
+    snprintf(msg2db_name, sizeof(msg2db_name), "%s",
+        jn_schema? kw_get_str(gobj, jn_schema, "id", msg2db_name_, 0) : msg2db_name_
+    );
 
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
@@ -133,7 +135,9 @@ PUBLIC json_t *msg2db_open_db(
         schema_filename
     );
 
-    json_int_t schema_new_version = kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t schema_new_version = jn_schema?
+        kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
+        0;
     json_int_t schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {

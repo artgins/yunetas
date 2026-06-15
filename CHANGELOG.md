@@ -1,6 +1,20 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(tr_msg2db): stop `msg2db_open_db` logging spurious schema errors
+      when reopening with `jn_schema=NULL`.** The persistent reopen path (no
+      schema dict passed — the schema is loaded from
+      `<db>.msg2db_schema.json`) read the name and `schema_version` straight off
+      the NULL `jn_schema`, so every open via `msg2db_list` (and any non-master
+      reopen) emitted three red errors — `kw must be list or dict` /
+      `path NOT FOUND` for `id`, and the same for `schema_version` — before the
+      function then correctly loaded the schema from file. Now mirrors
+      `treedb_open_db`: the name comes from the passed `msg2db_name_` when
+      `jn_schema` is NULL (and is read with a non-`KW_REQUIRED` flag otherwise),
+      and `schema_version` is guarded with `jn_schema? kw_get_int(...) : 0`. The
+      resolved name and version are unchanged for the one non-NULL-schema caller
+      (`c_mqtt_broker`, whose passed name already equals `jn_schema["id"]`);
+      only the noise is gone.
     - **refactor(msg2db_list): modernize the CLI to the `treedb_list` style.**
       The tool still carried its V6-era flags — most visibly `--path` / `-a`
       as the only way to point it at a store. It now takes the store as a
