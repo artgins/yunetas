@@ -105,3 +105,20 @@ decisions (Rosa):
   always valid); the regression test documents and skips it.
 - **Periodic re-vendor from upstream** — procedure in
   `kernel/c/libjwt/README.md` (§ Re-vendor procedure).
+
+## Agent: deploy UX — find-new-yunos preview
+
+- **`find-new-yunos` preview lists rows that are already registered.**
+  `cmd_find_new_yunos` (`yunos/c/yuno_agent/src/c_agent.c`) iterates **every**
+  yuno row and emits a `create-yuno …` line whenever a newer binary/config
+  version exists for that role. On a **resumed upgrade** (a prior run already
+  ran `find-new-yunos create=1`, so the new-version rows exist, but never
+  promoted them) the OLD primary rows survive and still match, so the preview
+  re-lists all of them as "would be created". `create=1` then fails per row with
+  "Yuno already exists". Harmless now — the CLI 0.11.1 fall-through treats that
+  as idempotent and proceeds to `deactivate-snap` — but the preview is
+  misleading. **Fix:** skip a row in the preview when a yuno instance at the
+  target (`yuno_role`, `yuno_name`, new `role_version`/`name_version`) already
+  exists (the same `gobj_list_nodes` check `create-yuno` does at its
+  "already exists" guard). Consolidated project — read in depth, preserve the
+  `create=1` semantics, before touching.
