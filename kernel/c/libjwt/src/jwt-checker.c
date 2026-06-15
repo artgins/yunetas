@@ -304,6 +304,14 @@ int jwt_checker_verify(jwt_checker_t *__cmd, const char *token)
         return 1;
     };
 
+    /* @rfc{7515,4.1.11} Reject any token carrying a "crit" header (we
+     * understand no extension headers). Done after parse, before key or
+     * signature work. Backport of upstream fe8840a. */
+    if(jwt_check_crit(jwt)) {
+        jwt_copy_error(__cmd, jwt);
+        return 1;
+    }
+
     config.key = __cmd->c.key;
     config.alg = __cmd->c.alg;
     config.ctx = __cmd->c.cb_ctx;
@@ -354,6 +362,14 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
         jwt_copy_error(__cmd, jwt);
         return NULL;
     };
+
+    /* @rfc{7515,4.1.11} Reject any token carrying a "crit" header (we
+     * understand no extension headers). Done after parse, before key or
+     * signature work. Backport of upstream fe8840a. */
+    if(jwt_check_crit(jwt)) {
+        jwt_copy_error(__cmd, jwt);
+        return NULL;
+    }
 
     config.key = __cmd->c.key;
     config.alg = __cmd->c.alg;

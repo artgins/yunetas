@@ -88,6 +88,51 @@ static int jwt_parse_head(jwt_t *jwt, char *head)
 	return 1;
 }
 
+/* @rfc{7515,4.1.11} Enforce the "crit" (Critical) header parameter.
+ *
+ * If present, "crit" must be a non-empty array of strings, each naming a
+ * header parameter present in the header AND understood by the recipient;
+ * otherwise the JWS MUST be rejected. This vendored copy understands no
+ * extension headers and ports no jwt_checker_understands() (C_AUTHZ needs
+ * none), so any well-formed "crit" names something unsupported and the token
+ * is rejected. Backport of upstream fe8840a, checker side only. */
+int jwt_check_crit(jwt_t *jwt)
+{
+	json_t *crit, *ent;
+	size_t i;
+
+	crit = json_object_get(jwt->headers, "crit");
+	if (crit == NULL) {
+		return 0;
+	}
+
+	if (!json_is_array(crit)) {
+		jwt_write_error(jwt, "\"crit\" header must be an array");
+		return 1;
+	}
+
+	if (json_array_size(crit) == 0) {
+		jwt_write_error(jwt, "\"crit\" header must not be empty");
+		return 1;
+	}
+
+	json_array_foreach(crit, i, ent) {
+		if (!json_is_string(ent)) {
+			jwt_write_error(jwt,
+				"\"crit\" header entries must be strings");
+			return 1;
+		}
+
+		/* This copy understands no extension headers, so any listed
+		 * parameter is unsupported and the token MUST be rejected. */
+		jwt_write_error(jwt, "Unsupported critical header: \"%s\"",
+			json_string_value(ent));
+		return 1;
+	}
+
+	return 0;
+}
+
 int jwt_parse(jwt_t *jwt, const char *token, unsigned int *len)
 {
 	char_auto *head = NULL;

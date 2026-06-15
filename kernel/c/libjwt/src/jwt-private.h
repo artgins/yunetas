@@ -252,6 +252,8 @@ jwt_value_error_t __getter(json_t *which, jwt_value_t *value);
 JWT_NO_EXPORT
 int jwt_parse(jwt_t *jwt, const char *token, unsigned int *len);
 JWT_NO_EXPORT
+int jwt_check_crit(jwt_t *jwt);
+JWT_NO_EXPORT
 jwt_t *jwt_verify_complete(jwt_t *jwt, const jwt_config_t *config,
 			   const char *token, unsigned int payload_len);
 

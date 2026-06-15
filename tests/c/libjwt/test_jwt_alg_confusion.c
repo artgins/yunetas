@@ -90,6 +90,21 @@ static const char *NONE_TOKEN =
     "eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0."
     "eyJzdWIiOiAiYXR0YWNrZXIiLCAiYWRtaW4iOiB0cnVlfQ.";
 
+/* @rfc{7515,4.1.11} "crit" (Critical) header. The vendored copy understands no
+ * extension headers, so any token carrying a well-formed "crit" array MUST be
+ * rejected (jwt_check_crit, backport of upstream fe8840a). crit is enforced
+ * right after parse, before key/signature work, so the signature segment is
+ * irrelevant here. CRIT_TOKEN header: {"alg":"HS256","crit":["foo"],"foo":"bar"};
+ * CRIT_NOT_ARRAY header: {"alg":"HS256","crit":"foo"} (malformed crit). */
+static const char *CRIT_TOKEN =
+    "eyJhbGciOiJIUzI1NiIsImNyaXQiOlsiZm9vIl0sImZvbyI6ImJhciJ9."
+    "eyJzdWIiOiJsZWdpdC11c2VyIn0."
+    "OCrX7FnQNBRKxGw-s8WYrBGtqjSXKHi6l5ESlRbXTtQ";
+static const char *CRIT_NOT_ARRAY =
+    "eyJhbGciOiJIUzI1NiIsImNyaXQiOiJmb28ifQ."
+    "eyJzdWIiOiJsZWdpdC11c2VyIn0."
+    "OCrX7FnQNBRKxGw-s8WYrBGtqjSXKHi6l5ESlRbXTtQ";
+
 /***************************************************************************
  *  Tiny assert harness
  ***************************************************************************/
@@ -458,6 +473,44 @@ static void test_malformed_tokens(void)
 }
 
 /***************************************************************************
+ *  "crit" header rejection (RFC 7515 4.1.11; backport of upstream fe8840a).
+ *  We understand no extension headers, so any token carrying "crit" must be
+ *  rejected on BOTH verify entry points, and verify2 must withhold the claims
+ *  (return NULL). A token WITHOUT crit (LEGIT_HS256) still verifies — covered
+ *  by test_oct_key() as the positive control, so the guard is not over-broad.
+ ***************************************************************************/
+static void test_crit_header(void)
+{
+    printf("crit header rejection (RFC 7515 4.1.11):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *oct = load_jwk(keyring, OCT_JWK);
+    if(oct == NULL) {
+        check(0, "OCT JWK parses for crit test");
+        jwks_free(keyring);
+        return;
+    }
+    jwt_checker_t *checker = jwt_checker_new();
+    jwt_checker_setkey(checker, JWT_ALG_HS256, oct);
+
+    expect_token_rejected(checker, CRIT_TOKEN,
+        "token with well-formed crit rejected (unsupported critical header)");
+    expect_token_rejected(checker, CRIT_NOT_ARRAY,
+        "token with non-array crit rejected");
+
+    /* verify2 (the path c_authz drives) must withhold the claims. */
+    jwt_checker_error_clear(checker);
+    json_t *payload = jwt_checker_verify2(checker, CRIT_TOKEN);
+    check(payload == NULL, "verify2(crit token) returns NULL (claims withheld)");
+    if(payload) {
+        json_decref(payload);
+    }
+
+    jwt_checker_free(checker);
+    jwks_free(keyring);
+}
+
+/***************************************************************************
  *  NULL-safety of the jwt_checker_* entry points (ported from upstream
  *  tests/jwt_security.c). These are the verify-path API c_authz drives; they
  *  must not crash and must report failure on a NULL checker.
@@ -497,6 +550,7 @@ int main(int argc, char *argv[])
     test_verify2_fail_closed();
     test_malformed_jwks();
     test_malformed_tokens();
+    test_crit_header();
     test_null_safety();
 
     if(failed) {

@@ -45,8 +45,8 @@ A security review of this vendored copy against upstream was done on
   callbacks, PEM→JWK public API). Almost none of it touches Yuneta's compiled
   subset: JWE, `jwks-curl.c`, the `gnutls`/`json-c` backends are all excluded
   here. After filtering, only the **#281–#285 hardening batch** plus two
-  conformance features (`crit`, `jti`) land on files we build; of those, two
-  reachable hardenings were backported (below) and the rest are N/A.
+  conformance features (`crit`, `jti`) land on files we build; of those, three
+  items were backported (below, incl. `crit` rejection) and the rest are N/A.
 
 ### Done (backported to this tree)
 
@@ -96,6 +96,20 @@ A security review of this vendored copy against upstream was done on
   the same/truncated bytes. Now rejects anything outside `[A-Za-z0-9_-]`.
   Reachable on every token segment and JWK member decode. Additive — the
   positive controls in `test_jwt_alg_confusion` still pass.
+- **`fe8840a` — `crit` (Critical) header rejection (RFC 7515 §4.1.11), checker
+  side only (`jwt-verify.c` `jwt_check_crit` + both `jwt_checker_verify` /
+  `jwt_checker_verify2` call sites).** The parser previously ignored `crit`;
+  per spec a recipient that understands none of the listed critical parameters
+  MUST reject the JWS. This copy understands no extension headers and ports no
+  `jwt_checker_understands()` (C_AUTHZ needs none), so any well-formed `crit`
+  is rejected. Checked right after parse, before key/signature work. Not
+  exploitable (`crit` is in the signed header, so an attacker cannot inject it;
+  only a trusted IdP could emit one — mainstream access tokens don't), but it
+  closes the conformance gap and matches the fail-closed posture. The builder
+  side (`jwt_builder_setcrit`/`jwt_write_crit`) and the `understood`-list
+  machinery were intentionally NOT ported (C_AUTHZ does not sign). Covered by
+  `test_crit_header` (well-formed + malformed `crit` rejected on both entry
+  points; the no-`crit` positive control in `test_oct_key` still verifies).
 
 ### N/A in this tree (v3.4.0 batch, after reachability analysis)
 
@@ -114,10 +128,6 @@ A security review of this vendored copy against upstream was done on
 - **`927e8d4` length-math hardening** — the `kid` `strcpy`→`memcpy` is cosmetic
   (config-sourced JWKS); the `INT_MAX` encode guards are producer-side and
   `C_AUTHZ` only verifies.
-- **`fe8840a` `crit` header (RFC 7515 §4.1.11)** — genuine conformance gap (the
-  parser silently ignores `crit` instead of rejecting unknown critical params),
-  but not exploitable: an attacker adding `crit` only triggers stricter
-  rejection, and IdP access tokens don't carry it. Deferred (see TODO).
 
 ### Could we link upstream directly instead of vendoring? — No
 
