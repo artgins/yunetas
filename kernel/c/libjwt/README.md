@@ -222,5 +222,20 @@ Built as part of the standard `yunetas build` flow. Produces
 
 ## License
 
-LGPL-2.1+ from upstream libjwt, plus the Yuneta-specific
-modifications. See the source headers for per-file attribution.
+**MPL-2.0** (Mozilla Public License 2.0), inherited from upstream libjwt —
+every file here carries the `SPDX-License-Identifier: MPL-2.0` header and the
+upstream maClara, LLC copyright. The Yuneta-specific modifications to these
+files (the alg-confusion guards, `jwt_checker_verify2`, the mbedTLS v4.0/PSA
+backend, the v3.4.0 backports, …) are likewise MPL-2.0 and source-available
+in this public repo. See the per-file source headers for attribution.
+
+> **Note:** libjwt 1.x was LGPL-2.1; the project relicensed to MPL-2.0 on the
+> 2.x/3.x branch this copy derives from. Earlier revisions of this README said
+> "LGPL-2.1+" — that was stale and, being copyleft-on-linking, also overstated
+> the obligations. MPL-2.0 is *file-level* weak copyleft: it imposes no
+> relicensing on the surrounding code and no LGPL-style relinking requirement
+> for static builds — only that these files stay MPL-2.0 and their source
+> remains available.
+
+The rest of Yuneta is MIT; the repo's top-level `LICENSE.txt` records the
+`kernel/c/libjwt/*` MPL-2.0 carve-out.
