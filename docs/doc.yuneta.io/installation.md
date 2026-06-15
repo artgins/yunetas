@@ -499,8 +499,25 @@ yunetas unregister-project myproject
 The registry is machine-local user state (`~/.yuneta/projects.json`), kept
 outside the source tree.
 
-Two deploy helpers from `tools/agent/` are exposed as subcommands —
-arguments are forwarded verbatim (`-n` dry-run, `-a` all, OAuth2 options…):
+Deploy is **two steps: push the artifacts, then promote them.** The helpers
+below wrap `tools/agent/`; shared arguments are forwarded verbatim (`-n`
+dry-run, `-a` all, OAuth2 options…):
+
+```bash
+# 1. Push binaries AND configs together (recommended)
+yunetas sync -n               # = sync-binaries + sync-configs, dry-run
+
+# 2. Promote the freshly pushed releases to primary and restart
+yunetas upgrade-yunos -n      # preview the agent commands without running them
+yunetas upgrade-yunos         # snapshot -> find-new-yunos -> deactivate-snap
+```
+
+Push the two artifact kinds with **`sync`**, not one at a time: a binary bump
+must never ship without its matching config bump. A new fail-closed runtime
+(TLS verify-by-default) against a stale no-CA config is exactly what breaks
+OIDC login — `sync` couples the steps so neither is forgotten, and aborts
+before configs if the binaries push fails (no half-deploy). The individual
+helpers remain for when you need only one or a tool-specific flag:
 
 ```bash
 yunetas sync-binaries -n      # outputs/yunos vs the local agent
@@ -508,27 +525,22 @@ yunetas sync-configs -n       # each project's yunos/batches/<host>/, auto-match
 yunetas sync-configs -n --host my.host.com   # or target one batches dir explicitly
 ```
 
-`sync-configs` walks the registered projects. Without `--host` it queries the
-local agent (`*list-realms`) and syncs every `batches/<host>/` whose name is a
-realm_id the agent manages — a node running several realms deploys all the
-relevant ones in one pass (a batches dir is named after its realm_id, the
-deploy FQDN). If the agent can't be reached it falls back to a single
-hostname match.
-
-A third subcommand promotes the freshly pushed artifacts to primary on the
-local agent:
-
-```bash
-yunetas upgrade-yunos -n      # preview the agent commands without running them
-yunetas upgrade-yunos         # snapshot -> find-new-yunos -> deactivate-snap
-```
+`sync-configs` (and the configs pass of `sync`) walks the registered projects.
+Without `--host` it queries the local agent (`*list-realms`) and syncs every
+`batches/<host>/` whose name is a realm_id the agent manages — a node running
+several realms deploys all the relevant ones in one pass (a batches dir is
+named after its realm_id, the deploy FQDN). If the agent can't be reached it
+falls back to a single hostname match.
 
 `upgrade-yunos` takes an optional rollback snapshot (idempotent by name,
-default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip), lists the new
-yuno rows `find-new-yunos` would create and asks for confirmation (`--yes`
-to skip), registers them (`find-new-yunos create=1`), then runs
-`deactivate-snap` — which triggers the agent's `restart_nodes()` (SIGKILL +
-treedb reload), promoting the newest release of every yuno.
+default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip; if a snap is already
+active it reuses that one instead of shooting another), lists the new yuno
+rows `find-new-yunos` would create and asks for confirmation (`--yes` to
+skip), registers them (`find-new-yunos create=1`), then runs `deactivate-snap`
+— which triggers the agent's `restart_nodes()` (SIGKILL + treedb reload),
+promoting the newest release of every yuno. For a same-version hot-patch (no
+`APP_VERSION` bump) you can skip `upgrade-yunos`: `sync`, then bounce the
+affected yunos (`kill-yuno` + `run-yuno` / `play-yuno`).
 
 > ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) reuse the same
 > `configure-libs.sh` with GCC or Clang — no separate toolchain.
