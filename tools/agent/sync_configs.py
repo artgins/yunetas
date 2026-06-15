@@ -503,8 +503,15 @@ def run_one(ycommand, url, jwt, action, cid, path, dry_run):
         print(out)
     if err:
         print(dim(err))
-    ok = res.returncode == 0 and "ERROR" not in out
-    print(green("   OK") if ok else red("   FAILED"))
+    # A resumed sync re-runs create-config for a (id, version) the prior run
+    # already stored; the agent answers "... already exists". That is idempotent,
+    # not a failure: the config row is already there. Treat it as ok.
+    already = "already exists" in out
+    ok = res.returncode == 0 and ("ERROR" not in out or already)
+    if already:
+        print(yellow("   ALREADY PRESENT (idempotent)"))
+    else:
+        print(green("   OK") if ok else red("   FAILED"))
     return ok
 
 
@@ -526,8 +533,13 @@ def run_ycmd(ycommand, url, jwt, cmd_str, dry_run, timeout=120):
         print(out)
     if err:
         print(dim(err))
-    ok = res.returncode == 0 and "ERROR" not in out
-    print(green("   OK") if ok else red("   FAILED"))
+    # Idempotent "... already exists" (resumed sync) is not a failure.
+    already = "already exists" in out
+    ok = res.returncode == 0 and ("ERROR" not in out or already)
+    if already:
+        print(yellow("   ALREADY PRESENT (idempotent)"))
+    else:
+        print(green("   OK") if ok else red("   FAILED"))
     return ok, out
 
 

@@ -431,8 +431,17 @@ def run_ycmd(ycommand, url, jwt, cmd_str, dry_run, timeout=120):
         print(out)
     if err:
         print(dim(err))
-    ok = res.returncode == 0 and "ERROR" not in out
-    print(green("   OK") if ok else red("   FAILED"))
+    # A resumed upgrade re-runs install-binary against a slot that a prior run
+    # already created; the agent answers "... already exists" (treedb create_node
+    # / "Binary already exists"). That is idempotent, not a failure: the new slot
+    # is already there, pending promotion via upgrade-yunos. Treat it as ok so the
+    # tally and exit code stay clean and the operator isn't scared by a red FAILED.
+    already = "already exists" in out
+    ok = res.returncode == 0 and ("ERROR" not in out or already)
+    if already:
+        print(yellow("   ALREADY PRESENT (idempotent, pending promote)"))
+    else:
+        print(green("   OK") if ok else red("   FAILED"))
     return ok, out
 
 
