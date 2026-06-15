@@ -501,7 +501,8 @@ outside the source tree.
 
 Deploy is **two steps: push the artifacts, then promote them.** The helpers
 below wrap `tools/agent/`; shared arguments are forwarded verbatim (`-n`
-dry-run, `-a` all, OAuth2 options…):
+dry-run, `-a` all, OAuth2 options…). The full CLI reference, including the
+build and project-management commands, is on [The `yunetas` CLI](yunetas-cli.md):
 
 ```bash
 # 1. Push binaries AND configs together (recommended)

@@ -30,6 +30,9 @@ project:
         - file: activating.md
         - file: CHANGELOG.md
 
+    - title: The `yunetas` CLI
+      file: yunetas-cli.md
+
     - title: Philosophy
       file: philosophy/index.md
       children:

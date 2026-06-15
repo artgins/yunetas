@@ -11,3 +11,6 @@ Start here if this is your first contact with the framework.
 - [Activating](activating.md) — initialise, build, and run the agent, then
   launch your first yuno.
 - [Changelog](CHANGELOG.md) — release history.
+
+The build and deploy steps below are driven by the
+[`yunetas` CLI](yunetas-cli.md) — its own page is the full command reference.
