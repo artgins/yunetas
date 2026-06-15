@@ -1,18 +1,19 @@
 /****************************************************************************
  *          MSG2DB_LIST.C
  *
- *  List Messages (ordered by pkey,pkey2: active and their instances) with TimeRanger2
+ *  List Messages (ordered by pkey,pkey2: active and their instances)
+ *  of a msg2db database over TimeRanger2.
  *
  *  Double dict of messages (message: active and instances)
  *
  *          Copyright (c) 2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
 #include <time.h>
-#include <signal.h>
 #include <errno.h>
+#include <signal.h>
 #include <regex.h>
 #include <locale.h>
 #include <stdint.h>
@@ -22,13 +23,19 @@
 #include <time.h>
 #include <sys/resource.h>
 
-#include <yunetas.h>
+#include <argp-standalone.h>
+#include <gobj.h>
+#include <testing.h>
+#include <helpers.h>
+#include <kwid.h>
+#include <tr_msg2db.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define APP_NAME    "msg2db_list"
-#define DOC         "List messages of Dict/dict database."
+#define APP         "msg2db_list"
+#define DOC         "List messages of a msg2db database."
 
 #define VERSION     YUNETA_VERSION
 #define SUPPORT     "<support at artgins.com>"
@@ -37,21 +44,15 @@
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-typedef struct {
-    char path[256];
-    char database[256];
-    char topic[256];
-    json_t *jn_ids;
-    json_t *jn_filter;
-    int verbose;
-} list_params_t;
 
-
+/***************************************************************************
+ *              Arguments
+ ***************************************************************************/
 /*
  *  Used by main to communicate with parse_opt.
  */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
+#define MIN_ARGS 1
+#define MAX_ARGS 1
 struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
@@ -67,31 +68,18 @@ struct arguments
 
     int print_tranger;
     int print_msg2db;
-    int expand_nodes;
+
+    int dry_run;
 };
 
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
-PRIVATE void yuno_catch_signals(void);
-
-/***************************************************************************
- *      Data
- ***************************************************************************/
-struct arguments arguments;
-int total_counter = 0;
-int partial_counter = 0;
-const char *argp_program_version = APP_NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
-yev_loop_h yev_loop;
-int time2exit = 10;
 
 /* Program documentation. */
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "";
+static char args_doc[] = "PATH";
 
 /*
  *  The options we understand.
@@ -100,34 +88,25 @@ static char args_doc[] = "";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
-{"path",                'a',    "PATH",             0,      "Path.",            2},
 {"database",            'b',    "DATABASE",         0,      "Database.",        2},
 {"topic",               'c',    "TOPIC",            0,      "Topic.",           2},
 {"ids",                 'i',    "ID",               0,      "Id or list of id's.",2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
-{0,                     0,      0,                  0,      "Print",            3},
-{"print-tranger",       5,      0,                  0,      "Print tranger json", 3},
-{"print-msg2db",        6,      0,                  0,      "Print msg2db json", 3},
+{0,                     0,      0,                  0,      "Presentation",     3},
+{"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
+{"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
+
+{0,                     0,      0,                  0,      "Print",            4},
+{"print-tranger",       5,      0,                  0,      "Print tranger json", 4},
+{"print-msg2db",        6,      0,                  0,      "Print msg2db json", 4},
+
+{0,                     0,      0,                  0,      "Modes",            5},
+{"dry-run",             'n',    0,                  0,      "Show resolved path/database/topic and filters, then exit (no listing).", 5},
 
 {0}
 };
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc,
-    0,
-    0,
-    0
-
-};
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
 {
     /*
@@ -137,9 +116,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'a':
-        arguments->path= arg;
-        break;
     case 'b':
         arguments->database= arg;
         break;
@@ -151,6 +127,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'r':
         arguments->recursive = 1;
+        break;
+    case 'm':
+        arguments->mode = arg;
+        break;
+    case 'f':
+        arguments->fields = arg;
         break;
     case 'l':
         if(arg) {
@@ -166,8 +148,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->print_msg2db = 1;
         break;
 
-    case 30:
-        arguments->expand_nodes = 1;
+    case 'n':
+        arguments->dry_run = 1;
         break;
 
     case ARGP_KEY_ARG:
@@ -191,6 +173,35 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     return 0;
 }
 
+/* Our argp parser. */
+static struct argp argp = {
+    options,
+    parse_opt,
+    args_doc,
+    doc,
+    0,
+    0,
+    0
+};
+struct arguments arguments;
+
+/***************************************************************************
+ *              Prototypes
+ ***************************************************************************/
+PRIVATE void yuno_catch_signals(void);
+
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+yev_loop_h yev_loop;
+int time2exit = 10;
+int total_counter = 0;
+int partial_counter = 0;
+json_t *jn_ids = 0;
+json_t *jn_filter = 0;
+const char **list_fields = 0;
+BOOL table_mode = FALSE;
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -200,13 +211,19 @@ PRIVATE BOOL list_db_cb(
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
-    char *name,             // dname[256]  filename
-    int level,              // level of tree where the file is found
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
     wd_option opt           // option parameter
 )
 {
+    char msg2db_name[NAME_MAX];
+    snprintf(msg2db_name, sizeof(msg2db_name), "%s", name);
+    char *p = strstr(msg2db_name, ".msg2db_schema.json");
+    if(p) {
+        *p = 0;
+    }
     printf("  directory: %s\n", directory);
-    printf("  msg2db   : %s\n", name);
+    printf("  msg2db   : %s\n", msg2db_name);
     return TRUE; // to continue
 }
 
@@ -226,16 +243,173 @@ PRIVATE int list_databases(const char *path)
 }
 
 /***************************************************************************
+ *  Helper: callback for auto-discovering the msg2db schema file
+ ***************************************************************************/
+typedef struct {
+    char msg2db_name[NAME_MAX];
+    int count;
+} find_schema_t;
+
+PRIVATE BOOL find_schema_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+)
+{
+    find_schema_t *fs = (find_schema_t *)user_data;
+    fs->count++;
+    if(fs->count == 1) {
+        snprintf(fs->msg2db_name, sizeof(fs->msg2db_name), "%s", name);
+        char *p = strstr(fs->msg2db_name, ".msg2db_schema.json");
+        if(p) {
+            *p = 0;
+        }
+    }
+    return TRUE; // continue to count all
+}
+
+/***************************************************************************
+ *  Resolve the tranger path, msg2db database name, and topic
+ *  from the user-supplied program parameters.
  *
+ *  path:     always filled (positional argument from user)
+ *  database: can be empty (-b option)
+ *  topic:    can be empty (-c option)
+ *
+ *  If database or topic is empty, deduce from path knowing that:
+ *    - A topic directory contains topic_desc.json
+ *    - A msg2db root contains __timeranger2__.json
+ *      and {msg2db_name}.msg2db_schema.json
+ *
+ *  On success (return 0):
+ *    resolved_path     = tranger root directory
+ *    resolved_database = msg2db name without suffix
+ *    resolved_topic    = topic name (may be empty)
+ *
+ *  Returns -1 on failure (with error printed to stderr).
+ ***************************************************************************/
+PRIVATE int resolve_msg2db_path(
+    const char *path,
+    const char *database,
+    const char *topic,
+    char *resolved_path,        size_t resolved_path_size,
+    char *resolved_database,    size_t resolved_database_size,
+    char *resolved_topic,       size_t resolved_topic_size
+)
+{
+    snprintf(resolved_path, resolved_path_size, "%s", path);
+    resolved_database[0] = '\0';
+    resolved_topic[0] = '\0';
+
+    /*
+     *  Copy provided values, normalizing database name
+     */
+    if(!empty_string(topic)) {
+        snprintf(resolved_topic, resolved_topic_size, "%s", topic);
+    }
+    if(!empty_string(database)) {
+        snprintf(resolved_database, resolved_database_size, "%s", database);
+        char *p = strstr(resolved_database, ".msg2db_schema.json");
+        if(p) {
+            *p = 0;
+        }
+    }
+
+    /*
+     *  Step 1: If topic is empty, check if path ends at a topic directory
+     */
+    if(empty_string(resolved_topic) && file_exists(resolved_path, "topic_desc.json")) {
+        const char *segment = pop_last_segment(resolved_path);
+        snprintf(resolved_topic, resolved_topic_size, "%s", segment);
+    }
+
+    /*
+     *  Step 2: Find the tranger root (directory with __timeranger2__.json)
+     */
+    if(!file_exists(resolved_path, "__timeranger2__.json")) {
+        /*
+         *  Not at tranger root — try popping one segment
+         *  (could be a database or schema name embedded in the path)
+         */
+        if(empty_string(resolved_database)) {
+            const char *segment = pop_last_segment(resolved_path);
+            if(!empty_string(segment)) {
+                snprintf(resolved_database, resolved_database_size, "%s", segment);
+                char *p = strstr(resolved_database, ".msg2db_schema.json");
+                if(p) {
+                    *p = 0;
+                }
+            }
+        }
+        if(!file_exists(resolved_path, "__timeranger2__.json")) {
+            fprintf(stderr, "Cannot find timeranger2 database in '%s'\n\n", path);
+            list_databases(resolved_path);
+            return -1;
+        }
+    }
+
+    if(!is_directory(resolved_path)) {
+        fprintf(stderr, "Directory '%s' not found\n\n", resolved_path);
+        return -1;
+    }
+
+    /*
+     *  Step 3: If database still empty, auto-discover from schema files
+     */
+    if(empty_string(resolved_database)) {
+        find_schema_t fs;
+        memset(&fs, 0, sizeof(fs));
+        walk_dir_tree(
+            0,
+            resolved_path,
+            ".*\\.msg2db_schema\\.json",
+            WD_MATCH_REGULAR_FILE,
+            find_schema_cb,
+            &fs
+        );
+        if(fs.count == 0) {
+            fprintf(stderr, "No msg2db database found in '%s'\n\n", resolved_path);
+            return -1;
+        }
+        if(fs.count > 1) {
+            fprintf(stderr, "Multiple msg2db databases found, specify --database\n\n");
+            list_databases(resolved_path);
+            return -1;
+        }
+        snprintf(resolved_database, resolved_database_size, "%s", fs.msg2db_name);
+    } else {
+        /*
+         *  Validate that the database schema file exists
+         */
+        char schema_file[NAME_MAX + 50];
+        snprintf(schema_file, sizeof(schema_file), "%s.msg2db_schema.json", resolved_database);
+        if(!file_exists(resolved_path, schema_file)) {
+            fprintf(stderr, "Database '%s' not found in '%s'\n\n",
+                resolved_database, resolved_path);
+            list_databases(resolved_path);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Open a tranger database at path, open the named msg2db,
+ *  and list its messages.
  ***************************************************************************/
 PRIVATE int _list_messages(
-    char *path, // must contains the full path of tranger database
-    char *msg2db_name, // must contains the msg2db name
-    char *topic,
-    json_t *jn_ids,
-    json_t *jn_filter,
-    int verbose)
+    const char *path,
+    const char *msg2db_name,
+    const char *topic_name)
 {
+    hgobj gobj = 0;
+
     /*-------------------------------*
      *  Startup TimeRanger
      *-------------------------------*/
@@ -263,33 +437,118 @@ PRIVATE int _list_messages(
     if(arguments.print_tranger) {
         print_json("tranger", tranger);
     } else if(arguments.print_msg2db) {
-        print_json("msg2dbs", kw_get_dict(0, tranger, "msg2dbs", 0, KW_REQUIRED));
+        print_json("msg2dbs", kw_get_dict(gobj, tranger, "msg2dbs", 0, KW_REQUIRED));
     } else {
-        const char *topic_name; json_t *topic_data;
-        json_object_foreach(msg2db, topic_name, topic_data) {
-            if(!empty_string(topic)) {
-                if(strcmp(topic, topic_name)!=0) {
+        const char *topic_name_; json_t *topic_data;
+        json_object_foreach(msg2db, topic_name_, topic_data) {
+            if(!json_is_object(topic_data)) {
+                // Can be __schema_version__ or other attribute
+                continue;
+            }
+            if(!empty_string(topic_name)) {
+                if(strcmp(topic_name, topic_name_)!=0) {
                     continue;
                 }
             }
-            JSON_INCREF(jn_ids);
-            JSON_INCREF(jn_filter);
 
-            json_t *node_list = msg2db_list_messages( // Return MUST be decref
+            printf("%s%s%s\n", On_Yellow BIWhite, topic_name_, Color_Off);
+
+            json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name_);
+
+            BOOL first_time = TRUE;
+            json_t *iter = msg2db_list_messages( // Return MUST be decref
                 tranger,
                 msg2db_name,
-                topic_name,
-                jn_ids,
-                jn_filter,
+                topic_name_,
+                json_incref(jn_ids),
+                json_incref(jn_filter),
                 0  // match_fn
             );
 
-            print_json(topic_name, node_list);
+            int idx; json_t *node;
+            json_array_foreach(iter, idx, node) {
+                if(table_mode) {
+                    const char *key;
+                    json_t *desc;
+                    int len;
+                    int col;
+                    if(first_time) {
+                        first_time = FALSE;
+                        col = 0;
+                        json_object_foreach(cols, key, desc) {
+                            if(*key == '_') {
+                                continue;
+                            }
+                            if(list_fields) {
+                                if(!str_in_list(list_fields, key, FALSE)) {
+                                    continue;
+                                }
+                            }
 
-            total_counter += json_array_size(node_list);
-            partial_counter += json_array_size(node_list);
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            if(col == 0) {
+                                printf("%-*.*s", len, len, key);
+                            } else {
+                                printf(" %-*.*s", len, len, key);
+                            }
+                            col++;
+                        }
+                        printf("\n");
+                        col = 0;
+                        json_object_foreach(cols, key, desc) {
+                            if(*key == '_') {
+                                continue;
+                            }
+                            if(list_fields) {
+                                if(!str_in_list(list_fields, key, FALSE)) {
+                                    continue;
+                                }
+                            }
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            if(col == 0) {
+                                printf("%*.*s", len, len, "=======================================");
+                            } else {
+                                printf(" %*.*s", len, len, "=======================================");
+                            }
+                            col++;
+                        }
+                        printf("\n");
+                    }
+                    col = 0;
 
-            json_decref(node_list);
+                    json_object_foreach(cols, key, desc) {
+                        if(*key == '_') {
+                            continue;
+                        }
+                        if(list_fields) {
+                            if(!str_in_list(list_fields, key, FALSE)) {
+                                continue;
+                            }
+                        }
+                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                        json_t *jn_value = kw_get_dict_value(gobj, node, key, 0, 0);
+                        char *s = json2uglystr(jn_value);
+                        if(col == 0) {
+                            printf("%-*.*s", len, len, s);
+                        } else {
+                            printf(" %-*.*s", len, len, s);
+                        }
+                        GBMEM_FREE(s);
+                        col++;
+                    }
+                    printf("\n");
+
+                } else {
+                    print_json(topic_name_, node);
+                }
+
+                total_counter++;
+                partial_counter++;
+                printf("\n");
+            }
+
+            json_decref(cols);
+            json_decref(iter);
         }
     }
 
@@ -303,71 +562,33 @@ PRIVATE int _list_messages(
 }
 
 /***************************************************************************
- *
+ *  Resolve path/database/topic and list msg2db messages.
  ***************************************************************************/
 PRIVATE int list_messages(
-    char *path,
-    char *database,
-    char *topic,
-    json_t *jn_ids,
-    json_t *jn_filter,
-    int verbose)
+    const char *path,
+    const char *database,
+    const char *topic)
 {
-    /*
-     *  Check if path is a tranger directory
-     */
-    char path_tranger[PATH_MAX];
-    snprintf(path_tranger, sizeof(path_tranger), "%s", path);
-    if(!file_exists(path_tranger, "__timeranger2__.json")) {
-        database = pop_last_segment(path_tranger);
-        if(!file_exists(path_tranger, "__timeranger2__.json")) {
-            fprintf(stderr, "What Database?\n\n");
-            list_databases(path_tranger);
-            exit(-1);
-        }
-    }
+    char resolved_path[PATH_MAX];
+    char resolved_database[NAME_MAX];
+    char resolved_topic[NAME_MAX];
 
-    if(!is_directory(path_tranger)) {
-        fprintf(stderr, "Directory '%s' not found\n\n", path_tranger);
-        exit(-1);
-    }
-    if(empty_string(database)) {
-        fprintf(stderr, "What Database?\n\n");
-        list_databases(path_tranger);
+    if(resolve_msg2db_path(
+        path, database, topic,
+        resolved_path, sizeof(resolved_path),
+        resolved_database, sizeof(resolved_database),
+        resolved_topic, sizeof(resolved_topic)
+    ) != 0) {
         exit(-1);
     }
 
-    if(file_exists(path_tranger, database)) {
-        return _list_messages(
-            path_tranger,
-            database,
-            topic,
-            jn_ids,
-            jn_filter,
-            verbose
-        );
-    }
-
-    char database_name[NAME_MAX];
-    snprintf(database_name, sizeof(database_name), "%s.msg2db_schema.json", database);
-    if(file_exists(path_tranger, database_name)) {
-        return _list_messages(
-            path_tranger,
-            database_name,
-            topic,
-            jn_ids,
-            jn_filter,
-            verbose
-        );
-    }
-
-    fprintf(stderr, "What Database?\n\n");
-    list_databases(path_tranger);
-    exit(-1);
+    return _list_messages(resolved_path, resolved_database, resolved_topic);
 }
 
 /***************************************************************************
- *
+ *  Callback for walk_dir_tree: called for each msg2db schema found.
+ *  Extracts msg2db name from filename and lists its messages.
+ *  user_data carries the topic filter string.
  ***************************************************************************/
 PRIVATE BOOL list_recursive_db_cb(
     hgobj gobj,
@@ -380,41 +601,37 @@ PRIVATE BOOL list_recursive_db_cb(
     wd_option opt           // option parameter
 )
 {
-    list_params_t *list_params = user_data;
-    list_params_t list_params2 = *list_params;
+    const char *topic = (const char *)user_data;
 
-    char *p = strstr(name, ".msg2db_schema.json");
+    // name is e.g. "mydb.msg2db_schema.json" — extract msg2db name
+    char msg2db_name[NAME_MAX];
+    snprintf(msg2db_name, sizeof(msg2db_name), "%s", name);
+    char *p = strstr(msg2db_name, ".msg2db_schema.json");
     if(p) {
         *p = 0;
     }
 
-    snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
-    snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
-
     partial_counter = 0;
     _list_messages(
-        list_params2.path,
-        list_params2.database,
-        list_params2.topic,
-        list_params2.jn_ids,
-        list_params2.jn_filter,
-        list_params2.verbose
+        directory,
+        msg2db_name,
+        topic
     );
 
-    printf("====> %s: %d records\n\n", name, partial_counter);
+    printf("====> %s: %d records\n\n", msg2db_name, partial_counter);
 
     return TRUE; // to continue
 }
 
-PRIVATE int list_recursive_databases(list_params_t *list_params)
+PRIVATE int list_recursive_databases(const char *path, const char *topic)
 {
     walk_dir_tree(
         0,
-        list_params->path,
+        path,
         ".*\\.msg2db_schema\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_recursive_db_cb,
-        list_params
+        (void *)topic
     );
 
     return 0;
@@ -423,30 +640,26 @@ PRIVATE int list_recursive_databases(list_params_t *list_params)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int list_recursive_msg(
-    char *path,
-    char *database,
-    char *topic,
-    json_t *jn_ids,
-    json_t *jn_filter,
-    int verbose)
+PRIVATE void delete_right_slash(char *s)
 {
-    list_params_t list_params;
-    memset(&list_params, 0, sizeof(list_params));
+    int l;
+    char c;
 
-    snprintf(list_params.path, sizeof(list_params.path), "%s", path);
-    if(!empty_string(database)) {
-        snprintf(list_params.database, sizeof(list_params.database), "%s", database);
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0) {
+        return;
     }
-    if(!empty_string(topic)) {
-        snprintf(list_params.topic, sizeof(list_params.topic), "%s", topic);
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/') {
+            *(s+l)='\0';
+        } else {
+            break;
+        }
     }
-    list_params.jn_ids = jn_ids;
-    list_params.jn_filter = jn_filter;
-
-    list_params.verbose = verbose;
-
-    return list_recursive_databases(&list_params);
 }
 
 /***************************************************************************
@@ -454,15 +667,20 @@ PRIVATE int list_recursive_msg(
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*---------------------------------*
+     *      Arguments
+     *---------------------------------*/
+    memset(&arguments, 0, sizeof(arguments));
     /*
      *  Default values
      */
-    memset(&arguments, 0, sizeof(arguments));
+    arguments.verbose = -1;
 
     /*
      *  Parse arguments
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    arguments.path = arguments.args[0];
 
     /*----------------------------------*
      *      Startup gobj system
@@ -522,9 +740,24 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*----------------------------------*
+     *  Match conditions from Arguments
+     *----------------------------------*/
+    if(arguments.mode) {
+        if(strcasecmp(arguments.mode, "form")==0) {
+            table_mode = FALSE;
+        } else if(strcasecmp(arguments.mode, "table")==0) {
+            table_mode = TRUE;
+        }
+    }
+    if(!empty_string(arguments.fields)) {
+        list_fields = split2(arguments.fields, ", ", 0);
+        table_mode = TRUE;
+    }
+
+    /*----------------------------------*
      *  Ids
      *----------------------------------*/
-    json_t *jn_ids = json_array();
+    jn_ids = json_array();
     if(arguments.id) {
         int list_size;
         const char **ss = split2(arguments.id, ", ", &list_size);
@@ -537,7 +770,62 @@ int main(int argc, char *argv[])
     /*----------------------------------*
      *  Filter
      *----------------------------------*/
-    json_t *jn_filter = json_object();
+    jn_filter = json_object();
+
+    /*----------------------------------*
+     *          Get path
+     *----------------------------------*/
+    char path[PATH_MAX];
+    delete_right_slash(arguments.path);
+    if(arguments.path[0] != '/' && arguments.path[0] != '.') {
+        snprintf(path, sizeof(path), "./%s", arguments.path);
+    } else {
+        snprintf(path, sizeof(path), "%s", arguments.path);
+    }
+    arguments.path = path;
+
+    /*----------------------------------*
+     *  --dry-run: show what would be searched and exit
+     *----------------------------------*/
+    if(arguments.dry_run) {
+        /*
+         *  Try to resolve path/database/topic just like a real run would,
+         *  so the user sees what we auto-deduced from the path.
+         */
+        char resolved_path[PATH_MAX];
+        char resolved_database[NAME_MAX];
+        char resolved_topic[NAME_MAX];
+        int resolved_ok = (resolve_msg2db_path(
+            arguments.path, arguments.database, arguments.topic,
+            resolved_path, sizeof(resolved_path),
+            resolved_database, sizeof(resolved_database),
+            resolved_topic, sizeof(resolved_topic)
+        ) == 0);
+
+        json_t *summary = json_pack(
+            "{s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:s, s:s, s:b, s:O, s:O}",
+            "path",             resolved_ok ? resolved_path : arguments.path,
+            "database",         resolved_ok ? resolved_database : (arguments.database ? arguments.database : ""),
+            "topic",            resolved_ok ? resolved_topic    : (arguments.topic    ? arguments.topic    : ""),
+            "resolution",       resolved_ok ? "ok" : "failed (showing raw user input)",
+            "recursive",        arguments.recursive ? 1 : 0,
+            "print_tranger",    arguments.print_tranger ? 1 : 0,
+            "print_msg2db",     arguments.print_msg2db ? 1 : 0,
+            "mode",             arguments.mode ? arguments.mode : "",
+            "fields",           arguments.fields ? arguments.fields : "",
+            "table_mode",       table_mode ? 1 : 0,
+            "ids",              jn_ids,
+            "filter",           jn_filter
+        );
+        print_json("msg2db_list --dry-run", summary);
+        json_decref(summary);
+
+        JSON_DECREF(jn_ids);
+        JSON_DECREF(jn_filter);
+        split_free2(list_fields);
+        gobj_end();
+        return 0;
+    }
 
     /*------------------------*
      *      Do your work
@@ -547,15 +835,17 @@ int main(int argc, char *argv[])
 
     if(empty_string(arguments.path)) {
         fprintf(stderr, "What TimeRanger path?\n");
-        fprintf(stderr, "You must supply --path (-a) option\n\n");
+        fprintf(stderr, "You must supply the PATH argument\n\n");
         exit(-1);
     }
 
     struct rlimit rl;
+    // Get current limit
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
         if(rl.rlim_cur < 200000) {
-            rl.rlim_cur = 200000;
-            rl.rlim_max = 200000;
+            // Set new limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
             setrlimit(RLIMIT_NOFILE, &rl);
         }
     }
@@ -572,26 +862,20 @@ int main(int argc, char *argv[])
     );
 
     if(arguments.recursive) {
-        list_recursive_msg(
+        list_recursive_databases(
             arguments.path,
-            arguments.database,
-            arguments.topic,
-            jn_ids,
-            jn_filter,
-            arguments.verbose
+            arguments.topic
         );
     } else {
         list_messages(
             arguments.path,
             arguments.database,
-            arguments.topic,
-            jn_ids,
-            jn_filter,
-            arguments.verbose
+            arguments.topic
         );
     }
     JSON_DECREF(jn_ids);
     JSON_DECREF(jn_filter);
+    split_free2(list_fields);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

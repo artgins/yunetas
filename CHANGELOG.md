@@ -1,6 +1,27 @@
 # **Changelog**
 
 ## Unreleased
+    - **refactor(msg2db_list): modernize the CLI to the `treedb_list` style.**
+      The tool still carried its V6-era flags — most visibly `--path` / `-a`
+      as the only way to point it at a store. It now takes the store as a
+      **positional `PATH` argument** (the `-a` flag is gone) and shares the
+      `treedb_list` ergonomics:
+        - `resolve_msg2db_path()` deduces the tranger root, `--database` and
+          `--topic` from `PATH` (a tranger root, a `<db>.msg2db_schema.json`,
+          or a topic directory), auto-discovering the single schema when
+          `--database` is omitted and listing the candidates when it is
+          ambiguous or missing.
+        - new presentation flags `--mode form|table` / `-m` and
+          `--fields` / `-f` (field selection implies table mode), rendering
+          columns from the topic's `cols` `fillspace` just like `treedb_list`.
+        - new `--dry-run` / `-n` prints the resolved path / database / topic
+          plus the ids and filter JSON, then exits without listing.
+        - `PATH` is normalized (trailing slashes stripped, `./` prefixed for
+          bare relative names); the per-topic header is highlighted and the
+          recursive walk keeps its per-database record count.
+      `--follow` is intentionally NOT ported: `tr_msg2db` exposes no
+      change-callback equivalent to `treedb_set_callback`. The mega-header
+      `<yunetas.h>` include was replaced by the specific kernel headers.
     - **chore(ytls): de-duplicate and de-noise the rejected-handshake logs.** A
       single rejected connection (e.g. a non-TLS/HTTP client hitting the TLS
       port) emitted overlapping lines across the ytls and transport layers.
