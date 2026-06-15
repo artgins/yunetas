@@ -129,6 +129,26 @@ registers them (`find-new-yunos create=1`), then runs `deactivate-snap` — whic
 triggers the agent's `restart_nodes()` (SIGKILL + treedb reload), promoting the
 newest release of every yuno.
 
+### Resuming a half-applied upgrade
+
+The deploy is **idempotent**: re-running `sync` then `upgrade-yunos` after a run
+that pushed the artifacts but never promoted them (e.g. `deactivate-snap` was
+not reached) finishes the job instead of failing. When the binaries, configs and
+yuno rows from the prior run are already on the agent, its create commands answer
+`... already exists` — and that is treated as a benign already-present state, not
+an error (since CLI 0.11.1):
+
+- `sync-binaries` / `sync-configs` report such a row as `ALREADY PRESENT`
+  (yellow) and count it as ok, not a red `FAILED`.
+- `upgrade-yunos` does **not** abort when `find-new-yunos create=1` comes back
+  "already exists" — it falls through to `deactivate-snap`, the step that
+  actually promotes the new releases. (Before 0.11.1 it aborted *before* the
+  restart, and the operator had to run `deactivate-snap` by hand.)
+
+A genuine (non-idempotent) error still fails closed, and the agent's comments are
+printed so a mixed result stays visible. So the safe recovery from any
+interrupted upgrade is simply to re-run `yunetas sync && yunetas upgrade-yunos`.
+
 For a same-version **hot-patch** (no `APP_VERSION` bump) you can skip
 `upgrade-yunos`: `sync`, then bounce the affected yunos with
 [`ycommand`](utilities/ycommand.md) (`kill-yuno` + `run-yuno` / `play-yuno`).
