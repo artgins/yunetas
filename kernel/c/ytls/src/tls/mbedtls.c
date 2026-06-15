@@ -43,6 +43,8 @@ Here's how the schema translates to mbedTLS:
 ***********************************************************************/
 #include <yuneta_config.h>
 
+#include "../../../gobj-c/src/glogger.h"
+
 #ifdef CONFIG_HAVE_MBEDTLS
 
 #include <time.h>
@@ -1094,7 +1096,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            gobj_log_info(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MBEDTLS,
                 "msg",              "%s", "TLS handshake rejected (mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)",

@@ -1215,7 +1215,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            gobj_log_info(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPENSSL,
                 "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
