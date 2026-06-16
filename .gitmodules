@@ -1,3 +1,7 @@
 [submodule "utils/python/tui_yunetas"]
 	path = utils/python/tui_yunetas
 	url = https://github.com/artgins/tui_yunetas.py.git
+[submodule "kernel/js/lib-yui"]
+	path = kernel/js/lib-yui
+	url = git@github.com:artgins/lib-yui.js.git
+	branch = v1

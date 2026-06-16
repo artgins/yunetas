@@ -13,28 +13,43 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
-### Exception: `kernel/js/lib-yui/` is frozen — develop in wattyzer
+### `kernel/js/lib-yui/` is a git submodule of the standalone lib-yui repo
 
 The C kernel, `kernel/js/gobj-js/` and the runtime gclasses are consolidated:
 treat them as described above.
 
-`kernel/js/lib-yui/` is different, but **not** because it is open for edits here.
-It is **frozen**: do NOT edit `kernel/js/lib-yui/**` in this repo. All lib-yui
-work happens in `wattyzer/gui/src/lib-yui/` — an owned, flat vendored copy that
-wattyzer (and estadodelaire) develop against. The declarative shell, nav, window
-and form contracts moved out in 7.4.x: the old `SHELL.md` + shell stack and the
-JS GUI scaffold now live under `wattyzer/templates/js_gui/` (see the JS GUI
-scaffold note below).
+`kernel/js/lib-yui/` is different: lib-yui now lives in its **own repository**
+`github.com/artgins/lib-yui.js` and is embedded here as a **git submodule** (the
+same model as `utils/python/tui_yunetas`). Clone yunetas with
+`--recurse-submodules` (or run `git submodule update --init`).
 
-Fold-back of the matured lib-yui from wattyzer into yunetas is deferred until the
-user declares wattyzer done. Until then:
-- never modify `kernel/js/lib-yui/**` here — land every lib-yui change in
-  `wattyzer/gui/src/lib-yui/` instead;
-- when fold-back finally happens, the consolidated rules at the top of this file
-  apply in full: read in depth, preserve backwards compatibility for existing
-  consumers (wattyzer + estadodelaire), run the test matrix locally
-  (`cd kernel/js/lib-yui && npm test`), and update `kernel/js/lib-yui/README.md`
-  when the contract changes.
+The standalone repo carries **two maintained lines**:
+
+- **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
+  (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). **This
+  submodule tracks `v1`.** estadodelaire and hidraulia consume it through their
+  `@yuneta/lib-yui` `file:` dependency, which resolves to this path. `v1` is
+  **maintenance-only** — do not land feature work here.
+- **`main` branch** (tag `2.0.0`, the v2 line) — **active development**: the
+  declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack.
+  It is embedded as a submodule in **wattyzer** at `gui/src/lib-yui` (tracking
+  `main`). **All new lib-yui work lands on `main`/v2 in the standalone repo** (do
+  it from the wattyzer checkout, then bump wattyzer's submodule pointer).
+
+The JS GUI scaffold (declarative-shell yuno template) lives under
+`wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).
+
+Operational notes:
+- After updating the `v1` submodule, **rebuild `dist/`**:
+  `cd kernel/js/lib-yui && npm install && npm run build`. `dist/` is gitignored
+  but estadodelaire/hidraulia import the package root (`@yuneta/lib-yui`), which
+  the exports map resolves to `dist/lib-yui.es.js` — a stale/absent `dist/`
+  breaks their build.
+- The vitest suite lives on the **v2/`main`** line (`npm test` there); the `v1`
+  submodule has only the build target.
+- Preserve backwards compatibility for existing consumers (estadodelaire +
+  hidraulia on v1, wattyzer on v2) and update the repo's `README.md` when the
+  contract changes.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
 
@@ -208,13 +223,15 @@ cd tests/c/c_timer/build && make && ctest --output-on-failure
 
 ```bash
 cd kernel/js/gobj-js && npm install && npm run build && npm test
-cd kernel/js/lib-yui && npm install && npm test
-# lib-yui e2e (Playwright, optional):
-./install-e2e-deps.sh && npm run test:e2e
+# lib-yui is a submodule (v1 line): build only, no test target on v1
+cd kernel/js/lib-yui && npm install && npm run build
+# the vitest suite lives on the v2/main line (in wattyzer's submodule checkout):
+cd /yuneta/development/projects/wattyzer/gui/src/lib-yui && npm install && npm test
 ```
 
-Run this matrix locally when touching `kernel/js/lib-yui/**` or
-`kernel/js/gobj-js/**`. There is no GitHub Actions workflow for it — by design,
+Run this matrix locally when touching `kernel/js/gobj-js/**` (lib-yui changes
+land on the v2/main line — see the submodule note above). There is no GitHub
+Actions workflow for it — by design,
 the only workflow in `.github/` is `release-packages.yml` (builds the AMD64
 `.deb` and the x86_64 `.rpm` on a published release).
 
