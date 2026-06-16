@@ -2203,10 +2203,20 @@ PRIVATE int framehead_consume(
         }
         if(!priv->in_session) {
             if(frame->command != CMD_CONNECT) {
+                const char *peername = "";
+                const char *sockname = "";
+                if(gobj_has_bottom_attr(gobj, "peername")) {
+                    peername = gobj_read_str_attr(gobj, "peername");
+                }
+                if(gobj_has_bottom_attr(gobj, "sockname")) {
+                    sockname = gobj_read_str_attr(gobj, "sockname");
+                }
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "First mqtt command must be CONNECT",
+                    "peername",     "%s", SAFE_PRINT(peername),
+                    "sockname",     "%s", SAFE_PRINT(sockname),
                     NULL
                 );
                 gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");

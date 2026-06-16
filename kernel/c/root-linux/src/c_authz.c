@@ -58,7 +58,6 @@
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
-#include "../../libjwt/src/jwt-private.h"
 
 /***************************************************************************
  *              Constants
@@ -845,6 +844,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     } else {
         peername = kw_get_str(gobj, kw, "peername", "", 0);
     }
+    const char *sockname;
+    if(gobj_has_bottom_attr(src, "sockname")) {
+        sockname = gobj_read_str_attr(src, "sockname");
+    } else {
+        sockname = kw_get_str(gobj, kw, "sockname", "", 0);
+    }
 
     /*-----------------------------*
      *  peername is required
@@ -882,6 +887,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "msg",          "%s", "Destination service not found",
             "username",     "%s", username,
             "service",      "%s", dst_service,
+            "peername",     "%s", peername,
+            "sockname",     "%s", sockname,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -904,6 +911,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "msg",          "%s", "Ip denied",
             "username",     "%s", username,
             "service",      "%s", dst_service,
+            "peername",     "%s", peername,
+            "sockname",     "%s", sockname,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -940,6 +949,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                         "msg",          "%s", "Invalid username or password",
                         "username",     "%s", username,
                         "service",      "%s", dst_service,
+                        "peername",     "%s", peername,
+                        "sockname",     "%s", sockname,
                         NULL
                     );
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -970,6 +981,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                         "msg",          "%s", "Without JWT/passw only yuneta is allowed",
                         "username",     "%s", username,
                         "service",      "%s", dst_service,
+                        "peername",     "%s", peername,
+                        "sockname",     "%s", sockname,
                         NULL
                     );
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1002,6 +1015,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     "msg",          "%s", "Without JWT/passw only localhost is allowed",
                     "username",     "%s", username,
                     "service",      "%s", dst_service,
+                    "peername",     "%s", peername,
+                    "sockname",     "%s", sockname,
                     NULL
                 );
                 json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1040,6 +1055,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "status",       "%s", temp,
                 "username",     "%s", username,
                 "service",      "%s", dst_service,
+                "peername",     "%s", peername,
+                "sockname",     "%s", sockname,
                 "jwt",          "%s", jwt,
                 NULL
             );
@@ -1066,6 +1083,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "msg",          "%s", "Email not verified",
                 "username",     "%s", username,
                 "service",      "%s", dst_service,
+                "peername",     "%s", peername,
+                "sockname",     "%s", sockname,
                 NULL
             );
             json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1085,6 +1104,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "msg",          "%s", "Username must be an email address",
                 "username",     "%s", username,
                 "service",      "%s", dst_service,
+                "peername",     "%s", peername,
+                "sockname",     "%s", sockname,
                 NULL
             );
             json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -2773,7 +2794,7 @@ PRIVATE BOOL verify_token(
              * value). Surface this checker's reason so the caller gets a
              * specific error instead of the generic default, then keep trying
              * any other configured issuers. */
-            if(jwt_checker->error) {
+            if(jwt_checker_error(jwt_checker)) {
                 *status = jwt_checker_error_msg(jwt_checker);
             }
             continue;
@@ -2787,7 +2808,7 @@ PRIVATE BOOL verify_token(
 
         *jwt_payload_ = payload;
 
-        if(!jwt_checker->error) {
+        if(!jwt_checker_error(jwt_checker)) {
             validated = TRUE;
         }
         *status = jwt_checker_error_msg(jwt_checker);

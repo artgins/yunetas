@@ -43,8 +43,6 @@ Here's how the schema translates to mbedTLS:
 ***********************************************************************/
 #include <yuneta_config.h>
 
-#include "../../../gobj-c/src/glogger.h"
-
 #ifdef CONFIG_HAVE_MBEDTLS
 
 #include <time.h>

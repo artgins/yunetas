@@ -690,6 +690,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     /*------------------------------------*
      *  Analyze
      *------------------------------------*/
+    const char *peername = gobj_read_str_attr(src, "peername");
+    const char *sockname = gobj_read_str_attr(src, "sockname");
 
     /*------------------------------------*
      *  Match wanted yuno role. Required.
@@ -701,6 +703,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             "msg",          "%s", "dst_role NOT MATCH",
             "my_role",      "%s", gobj_yuno_role(),
             "dst_role",     "%s", iev_dst_role,
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             NULL
         );
         gobj_trace_json(gobj, kw, "dst_role NOT MATCH");
@@ -719,6 +723,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
                 "msg",          "%s", "dst_yuno NOT MATCH",
                 "my_yuno",      "%s", gobj_yuno_name(),
                 "dst_yuno",     "%s", iev_dst_yuno,
+                "peername",     "%s", peername?peername:"",
+                "sockname",     "%s", sockname?sockname:"",
                 NULL
             );
             gobj_trace_json(gobj, kw, "dst_yuno NOT MATCH");
@@ -735,6 +741,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "GOT identity card without yuno role",
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             NULL
         );
         gobj_trace_json(gobj, kw, "GOT identity card without yuno role");
@@ -750,6 +758,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "GOT identity card without yuno service",
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             NULL
         );
         gobj_trace_json(gobj, kw, "GOT identity card without yuno service");
@@ -767,6 +777,8 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "dst_srv NOT FOUND in this yuno",
             "dst_service",  "%s", iev_dst_service,
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             NULL
         );
         gobj_trace_json(gobj, kw, "dst_srv NOT FOUND in this yuno");
@@ -873,8 +885,6 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     gobj_write_str_attr(gobj, "client_yuno_role", iev_src_role);
     gobj_write_str_attr(gobj, "client_yuno_service", iev_src_service);
     if(empty_string(iev_src_yuno)) {
-        const char *peername = gobj_read_str_attr(src, "peername");
-        const char *sockname = gobj_read_str_attr(src, "sockname");
         // anonymous yuno name
         char temp[80];
         snprintf(temp, sizeof(temp), "^%s-%s", peername, sockname);
@@ -1086,10 +1096,20 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
+        const char *peername = "";
+        const char *sockname = "";
+        if(gobj_has_bottom_attr(gobj, "peername")) {
+            peername = gobj_read_str_attr(gobj, "peername");
+        }
+        if(gobj_has_bottom_attr(gobj, "sockname")) {
+            sockname = gobj_read_str_attr(gobj, "sockname");
+        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             NULL
         );
         drop(gobj);

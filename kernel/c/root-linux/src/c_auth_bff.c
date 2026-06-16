@@ -969,6 +969,20 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->st_bff_errors++;
 
+    /*
+     *  Tag the log line with the connection origin (peername/sockname),
+     *  so rejected requests can be traced back to who tried to enter.
+     *  browser is the connection gobj; the attrs live on its bottom (c_tcp).
+     */
+    const char *peername = "";
+    const char *sockname = "";
+    if(gobj_has_bottom_attr(browser, "peername")) {
+        peername = gobj_read_str_attr(browser, "peername");
+    }
+    if(gobj_has_bottom_attr(browser, "sockname")) {
+        sockname = gobj_read_str_attr(browser, "sockname");
+    }
+
     if(status_code >= 500) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -978,6 +992,8 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
             "error",        "%s", error_msg ? error_msg : "",
+            "peername",     "%s", peername ? peername : "",
+            "sockname",     "%s", sockname ? sockname : "",
             NULL
         );
     } else {
@@ -989,6 +1005,8 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
             "error",        "%s", error_msg ? error_msg : "",
+            "peername",     "%s", peername ? peername : "",
+            "sockname",     "%s", sockname ? sockname : "",
             NULL
         );
     }
