@@ -45,10 +45,10 @@ import {
     register_c_g6_nodes_tree,
     register_c_yui_gobj_tree_js,
     inject_svg_icons,
-} from "@yuneta/lib-yui";
+} from "@yuneta/gobj-ui";
 
 import "bulma/css/bulma.css";
-import "@yuneta/lib-yui/src/yui_icons.css";
+import "@yuneta/gobj-ui/src/yui_icons.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
@@ -60,12 +60,12 @@ import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 
 import "bulma-switch-control/css/main.css";
 
-import "@yuneta/lib-yui/src/c_yui_main.css";
-import "@yuneta/lib-yui/src/c_yui_map.css";
-import "@yuneta/lib-yui/src/c_yui_routing.css";
-import "@yuneta/lib-yui/src/ytable.css";
-import "@yuneta/lib-yui/src/yui_toolbar.css";
-import "@yuneta/lib-yui/src/lib_graph.css";
+import "@yuneta/gobj-ui/src/c_yui_main.css";
+import "@yuneta/gobj-ui/src/c_yui_map.css";
+import "@yuneta/gobj-ui/src/c_yui_routing.css";
+import "@yuneta/gobj-ui/src/ytable.css";
+import "@yuneta/gobj-ui/src/yui_toolbar.css";
+import "@yuneta/gobj-ui/src/lib_graph.css";
 
 /************************************************
  *          Data

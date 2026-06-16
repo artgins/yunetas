@@ -23,10 +23,10 @@ Provides:
 
 See [`gobj-js/README.md`](gobj-js/README.md) for the full API reference.
 
-### [`lib-yui`](lib-yui/) — UI Component Library
+### [`gobj-ui`](gobj-ui/) — UI Component Library
 
 Reusable GUI components for Yuneta-based web applications.
-Published as [`@yuneta/lib-yui`](https://www.npmjs.com/package/@yuneta/lib-yui).
+Published as [`@yuneta/gobj-ui`](https://www.npmjs.com/package/@yuneta/gobj-ui).
 
 Provides:
 - App shell, floating windows, tabs, forms, routing
@@ -36,7 +36,7 @@ Provides:
 - Vite plugin for CSP generation and HTML templating
 - Project skeleton for bootstrapping new GUIs
 
-See [`lib-yui/README.md`](lib-yui/README.md) for the component guide and setup instructions.
+See [`gobj-ui/README.md`](gobj-ui/README.md) for the component guide and setup instructions.
 
 ## Quick Start
 
@@ -48,8 +48,8 @@ npm install -g vite
 # Build gobj-js
 cd gobj-js && npm install && vite build && cd ..
 
-# Build lib-yui
-cd lib-yui && npm install && vite build && cd ..
+# Build gobj-ui
+cd gobj-ui && npm install && vite build && cd ..
 ```
 
 ## Directory Layout
@@ -73,7 +73,7 @@ kernel/js/
 │       ├── sprintf.js     ← printf-style formatting   (~  210 LOC)
 │       ├── command_parser.js
 │       └── stats_parser.js
-└── lib-yui/               ← @yuneta/lib-yui npm package
+└── gobj-ui/               ← @yuneta/gobj-ui npm package
     ├── README.md          ← component guide & setup
     ├── package.json
     ├── index.js           ← barrel re-exports

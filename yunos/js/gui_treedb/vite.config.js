@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { yunetaHtmlPlugin } from "@yuneta/lib-yui/vite-plugin-yuneta-html.js";
+import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,8 +14,8 @@ export default defineConfig({
                 replacement: path.resolve(__dirname, "../../../kernel/js/gobj-js/src/index.js"),
             },
             {
-                find: /^@yuneta\/lib-yui($|\/)/,
-                replacement: path.resolve(__dirname, "../../../kernel/js/lib-yui") + "/",
+                find: /^@yuneta\/gobj-ui($|\/)/,
+                replacement: path.resolve(__dirname, "../../../kernel/js/gobj-ui") + "/",
             },
         ],
     },

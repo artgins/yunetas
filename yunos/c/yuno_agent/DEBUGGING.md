@@ -460,11 +460,11 @@ the local log file, plus the ievent message bodies.
   configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`.
 - The SPA installs that callback by writing the attribute:
   `gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic)`
-  ([`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/lib-yui/src/yui_dev.js)).
-- The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/lib-yui/src/yui_dev.js#L29)) appends the message into the
+  ([`kernel/js/gobj-ui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-ui/src/yui_dev.js)).
+- The `info_traffic()` function ([yui_dev.js:29](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-ui/src/yui_dev.js#L29)) appends the message into the
   DOM container `#developer-traffic-logger`, which lives inside either:
   - the **legacy** `C_YUI_WINDOW` modal, or
-  - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/lib-yui/src/yui_dev.js#L452)).
+  - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-ui/src/yui_dev.js#L452)).
 
 Both still ship — apps pick one based on the shell version.
 
@@ -734,6 +734,6 @@ works on any host without enabling anything.
 | `ievent_gate_stack` push/pop                  | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/msg_ievent.c)                             |
 | logcenter listener                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/logcenter/src/c_logcenter.c)                     |
 | logcenter commands                            | [`yunos/c/logcenter/src/c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/c/logcenter/src/c_logcenter.c)                           |
-| SPA dev-panel renderer                        | [`kernel/js/lib-yui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/lib-yui/src/yui_dev.js)                         |
+| SPA dev-panel renderer                        | [`kernel/js/gobj-ui/src/yui_dev.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-ui/src/yui_dev.js)                         |
 | SPA inter-event callback hook                 | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-js/src/c_ievent_cli.js)                     |
 | SPA teardown order                            | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/js/gobj-js/src/c_ievent_cli.js)                       |

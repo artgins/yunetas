@@ -13,13 +13,13 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
-### `kernel/js/lib-yui/` is a git submodule of the standalone lib-yui repo
+### `kernel/js/gobj-ui/` is a git submodule of the standalone gobj-ui repo
 
 The C kernel, `kernel/js/gobj-js/` and the runtime gclasses are consolidated:
 treat them as described above.
 
-`kernel/js/lib-yui/` is different: lib-yui now lives in its **own repository**
-`github.com/artgins/lib-yui.js` and is embedded here as a **git submodule** (the
+`kernel/js/gobj-ui/` is different: gobj-ui now lives in its **own repository**
+`github.com/artgins/gobj-ui.js` and is embedded here as a **git submodule** (the
 same model as `utils/python/tui_yunetas`). Clone yunetas with
 `--recurse-submodules` (or run `git submodule update --init`).
 
@@ -28,12 +28,12 @@ The standalone repo carries **two maintained lines**:
 - **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
   (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). **This
   submodule tracks `v1`.** estadodelaire and hidraulia consume it through their
-  `@yuneta/lib-yui` `file:` dependency, which resolves to this path. `v1` is
+  `@yuneta/gobj-ui` `file:` dependency, which resolves to this path. `v1` is
   **maintenance-only** — do not land feature work here.
 - **`main` branch** (tag `2.0.0`, the v2 line) — **active development**: the
   declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack.
-  It is embedded as a submodule in **wattyzer** at `gui/src/lib-yui` (tracking
-  `main`). **All new lib-yui work lands on `main`/v2 in the standalone repo** (do
+  It is embedded as a submodule in **wattyzer** at `gui/src/gobj-ui` (tracking
+  `main`). **All new gobj-ui work lands on `main`/v2 in the standalone repo** (do
   it from the wattyzer checkout, then bump wattyzer's submodule pointer).
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
@@ -41,9 +41,9 @@ The JS GUI scaffold (declarative-shell yuno template) lives under
 
 Operational notes:
 - After updating the `v1` submodule, **rebuild `dist/`**:
-  `cd kernel/js/lib-yui && npm install && npm run build`. `dist/` is gitignored
-  but estadodelaire/hidraulia import the package root (`@yuneta/lib-yui`), which
-  the exports map resolves to `dist/lib-yui.es.js` — a stale/absent `dist/`
+  `cd kernel/js/gobj-ui && npm install && npm run build`. `dist/` is gitignored
+  but estadodelaire/hidraulia import the package root (`@yuneta/gobj-ui`), which
+  the exports map resolves to `dist/gobj-ui.es.js` — a stale/absent `dist/`
   breaks their build.
 - The vitest suite lives on the **v2/`main`** line (`npm test` there); the `v1`
   submodule has only the build target.
@@ -219,17 +219,17 @@ cd kernel/c/gobj-c/build && make install
 cd tests/c/c_timer/build && make && ctest --output-on-failure
 ```
 
-### JavaScript framework (kernel/js/gobj-js/, kernel/js/lib-yui/)
+### JavaScript framework (kernel/js/gobj-js/, kernel/js/gobj-ui/)
 
 ```bash
 cd kernel/js/gobj-js && npm install && npm run build && npm test
-# lib-yui is a submodule (v1 line): build only, no test target on v1
-cd kernel/js/lib-yui && npm install && npm run build
+# gobj-ui is a submodule (v1 line): build only, no test target on v1
+cd kernel/js/gobj-ui && npm install && npm run build
 # the vitest suite lives on the v2/main line (in wattyzer's submodule checkout):
-cd /yuneta/development/projects/wattyzer/gui/src/lib-yui && npm install && npm test
+cd /yuneta/development/projects/wattyzer/gui/src/gobj-ui && npm install && npm test
 ```
 
-Run this matrix locally when touching `kernel/js/gobj-js/**` (lib-yui changes
+Run this matrix locally when touching `kernel/js/gobj-js/**` (gobj-ui changes
 land on the v2/main line — see the submodule note above). There is no GitHub
 Actions workflow for it — by design,
 the only workflow in `.github/` is `release-packages.yml` (builds the AMD64
@@ -300,7 +300,7 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
 
 - C is primary.
 - `kernel/js/gobj-js/` — JavaScript framework (Vite).
-- `kernel/js/lib-yui/` — Yuneta UI Library (reusable GUI components).
+- `kernel/js/gobj-ui/` — Yuneta UI Library (reusable GUI components).
 
 ### Layered Build Dependencies
 
@@ -332,7 +332,7 @@ stress/c/*            ← stress test programs
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
 | `kernel/c/linux-ext-libs/` | External dep libs (OpenSSL, liburing, …) |
 | `kernel/c/root-linux/src/` | Runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
-| `kernel/js/` | JS implementations (gobj-js, lib-yui) |
+| `kernel/js/` | JS implementations (gobj-js, gobj-ui) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker |
 | `yunos/c/yuno_agent/` | Yuno lifecycle manager (start/stop/update) |
 | `utils/c/ycommand/` | Control-plane CLI |
@@ -365,8 +365,8 @@ the structure exactly — count blank lines if in doubt.
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
 
 The **JS GUI yuno** scaffold (Vite + declarative shell from
-the vendored lib-yui) was moved out of this repo on 2026-05-21
-when the new shell stack left `kernel/js/lib-yui` (v8.0).  Its
+the vendored gobj-ui) was moved out of this repo on 2026-05-21
+when the new shell stack left `kernel/js/gobj-ui` (v8.0).  Its
 canonical home is now `wattyzer/templates/js_gui/` (a private
 repo).  Use the wattyzer copy when starting a new declarative-
 shell GUI yuno.

@@ -17,4 +17,4 @@ Set in the yuno's `kw` section:
 
 ## Example
 
-See `kernel/js/lib-yui/watch.json` and `watch.sh` for a dev loop that rebuilds `lib-yui` with Vite whenever a source file changes.
+See `kernel/js/gobj-ui/watch.json` and `watch.sh` for a dev loop that rebuilds `gobj-ui` with Vite whenever a source file changes.

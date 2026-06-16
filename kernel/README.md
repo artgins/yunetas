@@ -15,6 +15,6 @@ JavaScript/ES6 implementation, fully operative. Built with Vite.
 | Package | Description |
 |---------|-------------|
 | [`gobj-js`](js/gobj-js/) | Core GObject + FSM runtime (`@yuneta/gobj-js`) |
-| [`lib-yui`](js/lib-yui/) | Reusable UI component library (`@yuneta/lib-yui`) |
+| [`gobj-ui`](js/gobj-ui/) | Reusable UI component library (`@yuneta/gobj-ui`) |
 
 See [`js/README.md`](js/README.md) for an overview of the JavaScript packages.

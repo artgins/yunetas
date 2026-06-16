@@ -48,7 +48,7 @@ import {
 
 import {backend_urls} from "./conf/backend_config.js";
 
-import {setup_dev, display_error_message} from "@yuneta/lib-yui";
+import {setup_dev, display_error_message} from "@yuneta/gobj-ui";
 
 import {setup_locale} from "./locales/locales.js";
 import {flags_of_world} from "./locales/flags.js";

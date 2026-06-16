@@ -395,7 +395,7 @@ template — closer to "clone this project into a new name". The
 ### 9.7 The JS yuno scaffold lives outside this repo (since 2026-05-21)
 
 CLAUDE.md notes that the **JS GUI yuno** scaffold moved out of yunetas
-to `wattyzer/templates/js_gui/` when lib-yui v8.0 landed. The
+to `wattyzer/templates/js_gui/` when gobj-ui v8.0 landed. The
 `js_gclass` template still lives here and produces a single JS gclass,
 not a full GUI yuno project. For a new SPA, start from wattyzer's
 template.

@@ -25,7 +25,7 @@
         "uplot": "^1.6.32",
         "vanilla-jsoneditor": "0.23.8",
         "@yuneta/gobj-js": "file:../../../kernel/js/gobj-js",
-        "@yuneta/lib-yui": "file:../../../kernel/js/lib-yui"
+        "@yuneta/gobj-ui": "file:../../../kernel/js/gobj-ui"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
