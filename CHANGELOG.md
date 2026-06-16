@@ -1,5 +1,23 @@
 # **Changelog**
 
+## Unreleased
+    - **build(js): the JS UI library was extracted to its own repository and
+      renamed `@yuneta/lib-yui` → `@yuneta/gobj-ui`.** It now lives at
+      `github.com/artgins/gobj-ui.js` and is embedded as a git submodule at
+      `kernel/js/gobj-ui` (clone with `--recurse-submodules`), the same model as
+      `utils/python/tui_yunetas`. The repo carries two maintained lines:
+        - **`v1`** (tag `1.0.0`, npm dist-tag `legacy`) — the frozen legacy
+          GClass GUI stack, `src/` layout. This is the submodule yunetas pins,
+          and the line consumed by `estadodelaire`, `hidraulia` and the in-repo
+          `yunos/js/gui_treedb` (via their `@yuneta/gobj-ui` `file:` dependency).
+        - **`main`/v2** (tag `2.0.0`, npm dist-tag `latest`) — active
+          development: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on
+          top of the legacy stack, flat layout, consumed by wattyzer.
+      The old `lib-yui` name collided with Yahoo's YUI on npm; only the package
+      identity changed — internal naming (`C_YUI_*`, `c_yui_*`, `yui_*`, `yi-*`)
+      is unchanged. Published to npm as `@yuneta/gobj-ui` (`latest`=2.0.0,
+      `legacy`=1.0.0); the abandoned `@yuneta/lib-yui` was unpublished.
+
 ## 7.6.5
     - **security(libjwt): re-review against upstream v3.4.0 and backport the
       reachable hardenings.** v3.4.0 is a large feature release (full JWE, the
