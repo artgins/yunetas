@@ -4,4 +4,4 @@
 [submodule "kernel/js/lib-yui"]
 	path = kernel/js/gobj-ui
 	url = git@github.com:artgins/gobj-ui.js.git
-	branch = v1
+	branch = main

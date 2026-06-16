@@ -23,33 +23,46 @@ treat them as described above.
 same model as `utils/python/tui_yunetas`). Clone yunetas with
 `--recurse-submodules` (or run `git submodule update --init`).
 
-The standalone repo carries **two maintained lines**:
+The standalone repo carries **two maintained lines**, and they are consumed in
+**two different ways** (since 2026-06-16):
 
-- **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
-  (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). **This
-  submodule tracks `v1`.** estadodelaire and hidraulia consume it through their
-  `@yuneta/gobj-ui` `file:` dependency, which resolves to this path. `v1` is
-  **maintenance-only** — do not land feature work here.
-- **`main` branch** (tag `2.0.0`, the v2 line) — **active development**: the
+- **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**: the
   declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack.
-  It is embedded as a submodule in **wattyzer** at `gui/src/gobj-ui` (tracking
-  `main`). **All new gobj-ui work lands on `main`/v2 in the standalone repo** (do
-  it from the wattyzer checkout, then bump wattyzer's submodule pointer).
+  **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
+  as a `file:` dependency (`@yuneta/gobj-ui` → `../../../yunetas/kernel/js/gobj-ui`,
+  exactly like `@yuneta/gobj-js`); wattyzer imports it by package specifier
+  (`@yuneta/gobj-ui/*.js`, resolved by v2's exports map `"./*"`). **All new
+  gobj-ui work lands on `main`/v2**: edit `kernel/js/gobj-ui` directly, commit on
+  `main` in the standalone repo, then bump this submodule pointer in yunetas.
+- **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
+  (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). `v1` is
+  **maintenance-only** — do not land feature work here. estadodelaire and
+  hidraulia consume it from the **npm registry** as `@yuneta/gobj-ui@^1.0.0`
+  (the **published** package, **not** this local checkout). The local
+  `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a `file:`
+  dependency at it for a v1 consumer.
+
+`@yuneta/gobj-js` (`kernel/js/gobj-js`) is versioned to track `YUNETA_VERSION`
+(currently `7.6.5`); all three projects consume it locally via `file:`. Bump its
+`package.json` version in lockstep with `YUNETA_VERSION`.
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
 `wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).
 
 Operational notes:
-- After updating the `v1` submodule, **rebuild `dist/`**:
-  `cd kernel/js/gobj-ui && npm install && npm run build`. `dist/` is gitignored
-  but estadodelaire/hidraulia import the package root (`@yuneta/gobj-ui`), which
-  the exports map resolves to `dist/gobj-ui.es.js` — a stale/absent `dist/`
-  breaks their build.
-- The vitest suite lives on the **v2/`main`** line (`npm test` there); the `v1`
-  submodule has only the build target.
+- The vitest suite + active source live here now (v2/`main`):
+  `cd kernel/js/gobj-ui && npm install && npm test` (and `npm run build`). Run
+  this when touching `kernel/js/gobj-ui/**`.
+- `dist/` is no longer on any consumer's critical path: wattyzer (v2) imports
+  source files by specifier, and estadodelaire/hidraulia (v1) pull `dist/` from
+  the **published** npm tarball. Still run `npm run build` to validate, and
+  before publishing.
+- To ship a new **v1** release for estadodelaire/hidraulia: from a **v1**
+  checkout of the standalone repo, `npm run build` + `npm publish`, then bump
+  their `@yuneta/gobj-ui` `^1.x` range. (This local submodule stays on `main`.)
 - Preserve backwards compatibility for existing consumers (estadodelaire +
-  hidraulia on v1, wattyzer on v2) and update the repo's `README.md` when the
-  contract changes.
+  hidraulia on published v1, wattyzer on local v2) and update the repo's
+  `README.md` when the contract changes.
 
 ## ⚠️ CRITICAL: Memory allocation in C code
 
@@ -223,15 +236,13 @@ cd tests/c/c_timer/build && make && ctest --output-on-failure
 
 ```bash
 cd kernel/js/gobj-js && npm install && npm run build && npm test
-# gobj-ui is a submodule (v1 line): build only, no test target on v1
-cd kernel/js/gobj-ui && npm install && npm run build
-# the vitest suite lives on the v2/main line (in wattyzer's submodule checkout):
-cd /yuneta/development/projects/wattyzer/gui/src/gobj-ui && npm install && npm test
+# gobj-ui submodule now tracks main/v2 — full vitest suite + build live here:
+cd kernel/js/gobj-ui && npm install && npm run build && npm test
 ```
 
-Run this matrix locally when touching `kernel/js/gobj-js/**` (gobj-ui changes
-land on the v2/main line — see the submodule note above). There is no GitHub
-Actions workflow for it — by design,
+Run this matrix locally when touching `kernel/js/gobj-js/**` or
+`kernel/js/gobj-ui/**` (the submodule now tracks main/v2 — see the submodule
+note above). There is no GitHub Actions workflow for it — by design,
 the only workflow in `.github/` is `release-packages.yml` (builds the AMD64
 `.deb` and the x86_64 `.rpm` on a published release).
 
