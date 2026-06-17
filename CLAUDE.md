@@ -36,19 +36,19 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   the package root). **All new gobj-ui work lands on `main`/v2**: edit
   `kernel/js/gobj-ui` directly, commit on `main` in the standalone repo, then
   bump this submodule pointer in yunetas.
-- **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
-  (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). `v1` is
-  **maintenance-only** — do not land feature work here. estadodelaire and
-  hidraulia consume it from the **npm registry** as `@yuneta/gobj-ui@^1.0.0`
-  (the **published** package, **not** this local checkout). The local
-  `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a `file:`
-  dependency at it for a v1 consumer.
+- **`v1` branch** (tag `1.0.1`, npm dist-tag `legacy`) — the **frozen** legacy
+  GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
+  charts/maps). `v1` is **maintenance-only** — do not land feature work here.
+  estadodelaire, hidraulia and the in-repo `yunos/js/gui_treedb` consume it from
+  the **npm registry** as `@yuneta/gobj-ui@^1.0.1` (the **published** package,
+  **not** this local checkout). The local `kernel/js/gobj-ui` checkout is **no
+  longer `v1`** — do not point a `file:` dependency at it for a v1 consumer.
 
 `@yuneta/gobj-js` (`kernel/js/gobj-js`) is versioned to track `YUNETA_VERSION`
 (currently `7.6.5`) and **published to npm**. Bump its `package.json` version in
 lockstep with `YUNETA_VERSION` and `npm publish`. estadodelaire/hidraulia consume
-it from the registry (`@yuneta/gobj-js@^7.6.5`); only **wattyzer** keeps a local
-`file:` dep on this checkout (it is the active v2 dev consumer).
+it from the registry (`@yuneta/gobj-js@^7.6.5`); **wattyzer** and the in-repo
+`yunos/js/gui_treedb` keep a local `file:` dep on this checkout.
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
 `wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).

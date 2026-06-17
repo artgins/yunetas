@@ -15,6 +15,8 @@
     },
     "dependencies": {
         "@antv/g6": "^5.1.0",
+        "@yuneta/gobj-js": "file:../../../kernel/js/gobj-js",
+        "@yuneta/gobj-ui": "^1.0.1",
         "bulma": "^1.0.4",
         "bulma-switch-control": "^1.2.2",
         "i18next": "^26.0.3",
@@ -23,9 +25,7 @@
         "tabulator-tables": "^6.4.0",
         "tom-select": "^2.5.2",
         "uplot": "^1.6.32",
-        "vanilla-jsoneditor": "0.23.8",
-        "@yuneta/gobj-js": "file:../../../kernel/js/gobj-js",
-        "@yuneta/gobj-ui": "file:../../../kernel/js/gobj-ui"
+        "vanilla-jsoneditor": "0.23.8"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",

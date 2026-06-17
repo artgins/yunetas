@@ -5,18 +5,30 @@
       renamed `@yuneta/lib-yui` → `@yuneta/gobj-ui`.** It now lives at
       `github.com/artgins/gobj-ui.js` and is embedded as a git submodule at
       `kernel/js/gobj-ui` (clone with `--recurse-submodules`), the same model as
-      `utils/python/tui_yunetas`. The repo carries two maintained lines:
-        - **`v1`** (tag `1.0.0`, npm dist-tag `legacy`) — the frozen legacy
-          GClass GUI stack, `src/` layout. This is the submodule yunetas pins,
-          and the line consumed by `estadodelaire`, `hidraulia` and the in-repo
-          `yunos/js/gui_treedb` (via their `@yuneta/gobj-ui` `file:` dependency).
-        - **`main`/v2** (tag `2.0.0`, npm dist-tag `latest`) — active
-          development: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on
-          top of the legacy stack, flat layout, consumed by wattyzer.
+      `utils/python/tui_yunetas`. The repo carries two maintained lines, each
+      consumed a different way:
+        - **`main`/v2** (npm dist-tag `latest`, tag `2.0.0`+, `src/` layout) —
+          active development: the declarative shell
+          (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack. **The
+          yunetas submodule now tracks this line**, and `wattyzer` consumes that
+          checkout locally via a `file:` dependency (importing
+          `@yuneta/gobj-ui/src/*` by package specifier).
+        - **`v1`** (npm dist-tag `legacy`, tag `1.0.1`, `src/` layout) — the
+          frozen legacy GClass GUI stack. Consumed from the **npm registry** as
+          `@yuneta/gobj-ui@^1.0.1` by `estadodelaire`, `hidraulia` and the
+          in-repo `yunos/js/gui_treedb` (NOT a local `file:` — the local
+          submodule is v2 now).
       The old `lib-yui` name collided with Yahoo's YUI on npm; only the package
       identity changed — internal naming (`C_YUI_*`, `c_yui_*`, `yui_*`, `yi-*`)
-      is unchanged. Published to npm as `@yuneta/gobj-ui` (`latest`=2.0.0,
-      `legacy`=1.0.0); the abandoned `@yuneta/lib-yui` was unpublished.
+      is unchanged. Both lines use the `src/` layout (v2 was restructured to
+      match v1). Published to npm as `@yuneta/gobj-ui` (`latest`=2.0.0,
+      `legacy`=1.0.1); the abandoned `@yuneta/lib-yui` was unpublished.
+    - **build(js): `@yuneta/gobj-js` is versioned to `YUNETA_VERSION` and
+      published to npm.** `kernel/js/gobj-js/package.json` now tracks the SDK
+      version (currently `7.6.5`); bump it in lockstep and `npm publish`.
+      `estadodelaire`/`hidraulia` consume it from the registry
+      (`@yuneta/gobj-js@^7.6.5`); `wattyzer` and `yunos/js/gui_treedb` keep a
+      local `file:` dependency on `kernel/js/gobj-js`.
 
 ## 7.6.5
     - **security(libjwt): re-review against upstream v3.4.0 and backport the
