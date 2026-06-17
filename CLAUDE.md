@@ -43,8 +43,10 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   dependency at it for a v1 consumer.
 
 `@yuneta/gobj-js` (`kernel/js/gobj-js`) is versioned to track `YUNETA_VERSION`
-(currently `7.6.5`); all three projects consume it locally via `file:`. Bump its
-`package.json` version in lockstep with `YUNETA_VERSION`.
+(currently `7.6.5`) and **published to npm**. Bump its `package.json` version in
+lockstep with `YUNETA_VERSION` and `npm publish`. estadodelaire/hidraulia consume
+it from the registry (`@yuneta/gobj-js@^7.6.5`); only **wattyzer** keeps a local
+`file:` dep on this checkout (it is the active v2 dev consumer).
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
 `wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).
