@@ -31,9 +31,11 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
   as a `file:` dependency (`@yuneta/gobj-ui` → `../../../yunetas/kernel/js/gobj-ui`,
   exactly like `@yuneta/gobj-js`); wattyzer imports it by package specifier
-  (`@yuneta/gobj-ui/*.js`, resolved by v2's exports map `"./*"`). **All new
-  gobj-ui work lands on `main`/v2**: edit `kernel/js/gobj-ui` directly, commit on
-  `main` in the standalone repo, then bump this submodule pointer in yunetas.
+  (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map `"./src/*"`; the
+  source lives under `src/` mirroring v1, with `index.js` and the vite plugin at
+  the package root). **All new gobj-ui work lands on `main`/v2**: edit
+  `kernel/js/gobj-ui` directly, commit on `main` in the standalone repo, then
+  bump this submodule pointer in yunetas.
 - **`v1` branch** (tag `1.0.0`) — the **frozen** legacy GClass GUI stack
   (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors + charts/maps). `v1` is
   **maintenance-only** — do not land feature work here. estadodelaire and
