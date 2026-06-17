@@ -283,20 +283,6 @@ the dynamically-linked nginx/openresty and as convenience.
 - `telnet`                            — required by tests
 ```
 
-````{dropdown} Optional: gobj-ui end-to-end tests (Playwright)
-The WebKit browser used by the gobj-ui e2e suite needs two extra
-packages on Debian/Ubuntu:
-
-```bash
-sudo apt -y install --no-install-recommends \
-    libgstreamer-plugins-bad1.0-0 libavif16
-```
-
-The `kernel/js/gobj-ui/install-e2e-deps.sh` helper installs them
-along with all three Playwright browsers. Chromium and Firefox bundle
-their own deps.
-````
-
 ### 3. Install the `yunetas` CLI
 
 ::::{tab-set}
