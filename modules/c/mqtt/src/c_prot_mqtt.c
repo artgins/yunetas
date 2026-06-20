@@ -2310,31 +2310,10 @@ PRIVATE int framehead_consume(
                     );
                     return -1;
                 }
-                if(frame->frame_length == 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT,
-                        "msg",          "%s", "Mqtt malformed packet, payload required",
-                        "command",      "%d", (int)frame->command,
-                        NULL
-                    );
-                    return -1;
-                }
                 break;
 
-            /*
-             *  MQTT5 allows a zero-length payload for DISCONNECT (normal
-             *  disconnection) and AUTH; their handlers tolerate a NULL gbuf.
-             */
             case CMD_DISCONNECT:
             case CMD_AUTH:
-                break;
-
-            /*
-             *  Payload is mandatory: a zero remaining-length here means the
-             *  frame carries no gbuffer, and frame_completed() would hand a
-             *  NULL gbuf to a handler that dereferences it. Reject as malformed.
-             */
             case CMD_CONNACK:
             case CMD_PUBLISH:
             case CMD_PUBACK:
@@ -2345,16 +2324,6 @@ PRIVATE int framehead_consume(
             case CMD_SUBACK:
             case CMD_UNSUBSCRIBE:
             case CMD_UNSUBACK:
-                if(frame->frame_length == 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT,
-                        "msg",          "%s", "Mqtt malformed packet, payload required",
-                        "command",      "%d", (int)frame->command,
-                        NULL
-                    );
-                    return -1;
-                }
                 break;
 
             case CMD_PINGREQ:
@@ -2383,6 +2352,29 @@ PRIVATE int framehead_consume(
                     send_disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
                 }
                 return -1;
+        }
+
+        /*
+         *  Payload is mandatory for every command except the zero-length-allowed
+         *  ones below. A zero remaining-length otherwise means frame_completed()
+         *  leaves gbuf == NULL and hands it to a handler that dereferences it
+         *  (remote DoS). MQTT5 permits a zero-length DISCONNECT (normal
+         *  disconnection) and AUTH; PINGREQ/PINGRESP were validated to 0 above.
+         */
+        if(frame->frame_length == 0
+            && frame->command != CMD_DISCONNECT
+            && frame->command != CMD_AUTH
+            && frame->command != CMD_PINGREQ
+            && frame->command != CMD_PINGRESP
+        ) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt malformed packet, payload required",
+                "command",      "%d", (int)frame->command,
+                NULL
+            );
+            return -1;
         }
     }
 
