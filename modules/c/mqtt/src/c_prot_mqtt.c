@@ -2310,10 +2310,31 @@ PRIVATE int framehead_consume(
                     );
                     return -1;
                 }
-                break;
-            case CMD_DISCONNECT:
+                if(frame->frame_length == 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT,
+                        "msg",          "%s", "Mqtt malformed packet, payload required",
+                        "command",      "%d", (int)frame->command,
+                        NULL
+                    );
+                    return -1;
+                }
                 break;
 
+            /*
+             *  MQTT5 allows a zero-length payload for DISCONNECT (normal
+             *  disconnection) and AUTH; their handlers tolerate a NULL gbuf.
+             */
+            case CMD_DISCONNECT:
+            case CMD_AUTH:
+                break;
+
+            /*
+             *  Payload is mandatory: a zero remaining-length here means the
+             *  frame carries no gbuffer, and frame_completed() would hand a
+             *  NULL gbuf to a handler that dereferences it. Reject as malformed.
+             */
             case CMD_CONNACK:
             case CMD_PUBLISH:
             case CMD_PUBACK:
@@ -2324,7 +2345,16 @@ PRIVATE int framehead_consume(
             case CMD_SUBACK:
             case CMD_UNSUBSCRIBE:
             case CMD_UNSUBACK:
-            case CMD_AUTH:
+                if(frame->frame_length == 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT,
+                        "msg",          "%s", "Mqtt malformed packet, payload required",
+                        "command",      "%d", (int)frame->command,
+                        NULL
+                    );
+                    return -1;
+                }
                 break;
 
             case CMD_PINGREQ:
@@ -2957,7 +2987,7 @@ PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
 {
     uint8_t msb, lsb;
 
-    if(gbuffer_leftbytes(gbuf) < 2) {
+    if(!gbuf || gbuffer_leftbytes(gbuf) < 2) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -2983,7 +3013,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 {
     uint32_t val = 0;
 
-    if(gbuffer_leftbytes(gbuf) < 4) {
+    if(!gbuf || gbuffer_leftbytes(gbuf) < 4) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -3009,7 +3039,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
  ***************************************************************************/
 PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 {
-    if(gbuffer_leftbytes(gbuf) < bflen) {
+    if(!gbuf || gbuffer_leftbytes(gbuf) < bflen) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -3030,7 +3060,7 @@ PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
  ***************************************************************************/
 PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 {
-    if(gbuffer_leftbytes(gbuf) < 1) {
+    if(!gbuf || gbuffer_leftbytes(gbuf) < 1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -3130,6 +3160,16 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
     unsigned int remaining_mult = 1;
     uint32_t lword = 0;
     uint8_t lbytes = 0;
+
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt malformed packet, not enough data",
+            NULL
+        );
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
 
     for(i=0; i<4; i++) {
         if(gbuffer_leftbytes(gbuf)>0) {
