@@ -1,6 +1,23 @@
 # **Changelog**
 
 ## Unreleased
+    - **security(mqtt): reject zero-length payload frames that crashed the
+      broker (NULL-gbuf remote DoS).** A control packet whose MQTT "remaining
+      length" was 0 left `frame_completed()` with a NULL payload gbuffer, which
+      it then handed to a handler that dereferenced it
+      (`gbuffer_leftbytes(NULL)`) → SIGSEGV. A single malformed packet from a
+      remote client crashed the whole broker process (observed in
+      `handle__subscribe`). Fixed in both protocol gclasses (`C_PROT_MQTT` and
+      `C_PROT_MQTT2`) with two layers: at header validation, `frame_length == 0`
+      is now rejected for every command carrying a mandatory payload, before a
+      NULL gbuf can reach a handler (MQTT5 still permits a zero-length
+      DISCONNECT/AUTH, whose handlers already tolerate it; PINGREQ/PINGRESP keep
+      their must-be-zero check); and the read primitives
+      (`mqtt_read_uint16/uint32/bytes/byte/varint`) now treat a NULL gbuf as a
+      malformed packet before touching `gbuffer_leftbytes`. Regression test
+      `tests/c/c_mqtt/test_mqtt_malformed` injects a malformed in-session
+      SUBSCRIBE (`0x82 0x00`) at the transport: it crashes with the exact
+      production backtrace without the fix and passes with it.
     - **build(js): the JS UI library was extracted to its own repository and
       renamed `@yuneta/lib-yui` → `@yuneta/gobj-ui`.** It now lives at
       `github.com/artgins/gobj-ui.js` and is embedded as a git submodule at
