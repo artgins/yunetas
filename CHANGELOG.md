@@ -1,6 +1,25 @@
 # **Changelog**
 
 ## Unreleased
+    - **security(glogger): escape invalid UTF-8 in log fields (logcenter parse
+      DoS).** `_ul_str_escape()` copied every byte `0x7f-0xff` verbatim (via the
+      `json_exceptions[]` table) without validating UTF-8. A corrupted device
+      payload logged verbatim (e.g. an FS00802_4G sensor leaking modem AT
+      commands + raw bytes into its MQTT JSON) leaked lone invalid bytes
+      (`0x8a`, `0xc2`, ...) into the log record; the record was then no longer
+      valid UTF-8, so the logcenter's `gbuf2json()` rejected and dropped it
+      ("unable to decode byte 0x8a"), losing the log. Fixed at the root so no
+      field from any emitter can produce an unparseable record: `json_exceptions[]`
+      and the non-thread-safe static `exmap` are gone; a strict
+      `utf8_valid_seq_len()` validator (rejects overlong encodings, surrogates,
+      `> U+10FFFF`, never reads past the NUL terminator) now drives the escaper,
+      which copies valid UTF-8 sequences verbatim (logs stay readable) and
+      escapes invalid/control bytes as `\u00XX`. Worst-case output size is
+      unchanged (<=6 bytes/char), so the caller's buffer sizing is untouched.
+      Regression test `tests/c/glogger_utf8` registers a capture log handler and
+      re-parses the emitted record with `anystring2json` (what the logcenter
+      does), proving an invalid-UTF-8 payload now yields a valid JSON/UTF-8
+      record while legitimate UTF-8 (`café`, `€`) is preserved verbatim.
     - **security(mqtt): reject zero-length payload frames that crashed the
       broker (NULL-gbuf remote DoS).** A control packet whose MQTT "remaining
       length" was 0 left `frame_completed()` with a NULL payload gbuffer, which
