@@ -1,6 +1,22 @@
 # **Changelog**
 
 ## Unreleased
+    - **observability(prot): attribute protocol parse errors to the source IP
+      (`peername`).** Server-side protocol gclasses logged malformed-input
+      errors without the remote peer's address — `peername` is set on the bottom
+      `C_TCP` (`SDF_VOLATIL`) and the upper layers never copied it into their own
+      logs, so a bad-frame / bad-header event was not attributable to a device
+      or attacker without cross-referencing the `C_TCP` `Connected` line by
+      timestamp. The canonical read pattern (already in `c_websocket.c` /
+      `c_prot_mqtt2.c`) is now applied in the cold error branch of each
+      remote-data parse-error log: `c_prot_tcp4h.c` (head-too-long,
+      protocol-error disconnect, protocol timeouts) and `ghttp_parser.c` (the
+      invalid-UTF-8 header-value store error; the main "non-HTTP data received"
+      violation already carried it). `c_prot_http_sr.c` / `c_channel.c` only
+      emit registration / internal "no bottom" logs (not remote-attributable)
+      and are left untouched; outbound clients (`c_prot_http_cl.c`) and the
+      `c_prot_mqtt2.c` gap-fill are deferred. No FSM/schema/API change — logs
+      gain a `peername` field only. See TODO.md "source-IP attribution".
     - **security(glogger): escape invalid UTF-8 in log fields (logcenter parse
       DoS).** `_ul_str_escape()` copied every byte `0x7f-0xff` verbatim (via the
       `json_exceptions[]` table) without validating UTF-8. A corrupted device

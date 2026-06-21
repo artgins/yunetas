@@ -550,10 +550,12 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
     // (next continuation chunk re-reads a missing value) is visible rather
     // than silently truncating the header.
     if(json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value)) < 0) {
+        const char *peername = gobj_read_str_attr(gobj, "peername");
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cannot store header value (invalid utf-8?)",
+            "peername",     "%s", peername?peername:"",
             "key",          "%s", parser->cur_key,
             NULL
         );
