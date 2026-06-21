@@ -122,3 +122,32 @@ decisions (Rosa):
   exists (the same `gobj_list_nodes` check `create-yuno` does at its
   "already exists" guard). Consolidated project — read in depth, preserve the
   `create=1` semantics, before touching.
+
+## Observability: source-IP attribution in decoder logs
+
+- **Add `peername` to the decoder-layer log events.** Protocol/decoder gclasses
+  log ERROR/WARNING events (malformed payload, unsupported HTTP method, missing
+  param, …) **without the source IP**, because `peername` is set on the bottom
+  `C_TCP` at accept/connect (`c_tcp.c:483`, `SDF_VOLATIL`) and the upper layers
+  never copy it into their own logs. Today a malformed-MQTT or bad-HTTP event is
+  not attributable to an attacker/device without cross-referencing by timestamp
+  against the `C_TCP` `Connected` line. **Fix:** in each `gobj_log_*` of the
+  decoders, add `"peername", "%s", peername`, reading it from the bottom
+  `C_TCP` with the canonical pattern already used in `c_websocket.c:1762`:
+  ```c
+  const char *peername = "";
+  if(gobj_has_bottom_attr(gobj, "peername")) {
+      peername = gobj_read_str_attr(gobj, "peername");
+  }
+  ```
+  - **Scope: the decoders only** — `C_DECODER_MQTT` (`kw_get_real` etc.) and
+    `C_DECODER_HTTP` (`process_http_message`). Both are **Hidraulia-private
+    gclasses**, so the edit lands in the Hidraulia repo (Git only, never hg);
+    this entry tracks the task. Low effort: no FSM/schema change, no auth_bff
+    coupling.
+  - **Out of scope:** `C_PROT_MQTT` (the `modules/c/mqtt` gclass). It is
+    deprecated in favour of `C_PROT_MQTT2`, **but kept in Hidraulia production
+    indefinitely** — do not migrate it and do not expand this task to it.
+  - Unrelated/already handled: the `string2json`/`gbuf2json` records carry no
+    gobj context by design (kernel helpers); the invalid-UTF-8-breaks-logcenter
+    problem is already fixed (CHANGELOG, glogger UTF-8 escaping).
