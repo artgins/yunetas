@@ -1,6 +1,18 @@
 # **Changelog**
 
 ## Unreleased
+    - **chore(ext-libs): bump nginx 1.30.2 → 1.31.2 (v1.17)**. Fixes three
+      CVEs: CVE-2026-42530 (use-after-free in `ngx_http_v3_module`),
+      CVE-2026-42055 (buffer overflow in the HTTP/2 paths of
+      `ngx_http_proxy_module` / `ngx_http_grpc_module`) and CVE-2026-48142
+      (buffer overread in `ngx_http_charset_module`). Pin-only — nginx is a
+      separate dynamically-linked binary (see `configure-libs.sh` v1.10), so
+      no yuneta consumer / header / CMake change rides along. NOTE: `1.31.x`
+      is the nginx *mainline* branch (odd minor), not the `1.30.x` stable
+      line we were on — chosen because the fixes landed there. openresty
+      (`1.29.2.5`) is a separate binary and is **not** covered by this bump;
+      track upstream openresty for a release that picks up these patches.
+      Each deployed project must rebuild its own nginx copy.
     - **observability(prot): attribute protocol parse errors to the source IP
       (`peername`).** Server-side protocol gclasses logged malformed-input
       errors without the remote peer's address — `peername` is set on the bottom

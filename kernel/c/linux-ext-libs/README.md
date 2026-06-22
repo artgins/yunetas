@@ -66,6 +66,23 @@ Resolved in two pin bumps:
 Same caveat as the previous CVE: each deployed project must
 rebuild its own nginx / openresty copy.
 
+### nginx CVE-2026-42530 / CVE-2026-42055 / CVE-2026-48142
+
+- CVE-2026-42530: use-after-free in `ngx_http_v3_module`.
+- CVE-2026-42055: buffer overflow in the HTTP/2 paths of
+  `ngx_http_proxy_module` / `ngx_http_grpc_module`.
+- CVE-2026-48142: buffer overread in `ngx_http_charset_module`.
+
+Resolved by a pin bump:
+- nginx pin → `release-1.31.2` (configure-libs.sh v1.17).
+
+Note: `1.31.x` is the nginx **mainline** branch (odd minor), not the
+`1.30.x` stable line we were on — chosen because the fixes landed there.
+openresty (`1.29.2.5`) is a separate binary and is **not** covered by
+this bump; track upstream openresty for a release that picks up these
+patches. Same caveat as the previous CVEs: each deployed project must
+rebuild its own nginx / openresty copy.
+
 > If you change the version of any library, update
 > `VERSION_INSTALLED.txt` and the corresponding version in
 > `configure-libs.sh`.

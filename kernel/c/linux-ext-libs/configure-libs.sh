@@ -129,8 +129,23 @@
 #       ASN.1 / AES CVEs. openssl is linked statically into every yuno, so
 #       every yuno must be rebuilt + relinked to pick it up. Stayed on 3.6
 #       (not 4.0) — same LTS rationale as 1.12.
+#   version 1.17
+#       upgrade to nginx release-1.31.2 (was release-1.30.2) to fix three
+#       CVEs: CVE-2026-42530 (use-after-free in ngx_http_v3_module),
+#       CVE-2026-42055 (buffer overflow in the HTTP/2 paths of
+#       ngx_http_proxy_module / ngx_http_grpc_module) and CVE-2026-48142
+#       (buffer overread in ngx_http_charset_module). Same pin-only bump
+#       rationale as 1.12 / 1.13: nginx is a separate binary linked
+#       dynamically against the host libssl/libpcre/libz (see version
+#       1.10), so no yuneta consumer, header or CMakeLists change rides
+#       along. NOTE: 1.31.x is the nginx *mainline* branch (odd minor),
+#       not the 1.30.x stable line we were on — chosen because the fixes
+#       landed there; revisit if a 1.30.x stable backport appears.
+#       openresty (1.29.2.5) is a separate binary and is NOT covered by
+#       this bump — track upstream openresty for a release that picks up
+#       these patches before bumping it.
 
-VERSION="1.16"
+VERSION="1.17"
 
 
 source ./repos2clone.sh
