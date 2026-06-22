@@ -73,15 +73,23 @@ rebuild its own nginx / openresty copy.
   `ngx_http_proxy_module` / `ngx_http_grpc_module`.
 - CVE-2026-48142: buffer overread in `ngx_http_charset_module`.
 
-Resolved by a pin bump:
+Resolved for the **standalone nginx** binary by a pin bump:
 - nginx pin → `release-1.31.2` (configure-libs.sh v1.17).
 
 Note: `1.31.x` is the nginx **mainline** branch (odd minor), not the
 `1.30.x` stable line we were on — chosen because the fixes landed there.
-openresty (`1.29.2.5`) is a separate binary and is **not** covered by
-this bump; track upstream openresty for a release that picks up these
-patches. Same caveat as the previous CVEs: each deployed project must
-rebuild its own nginx / openresty copy.
+
+⚠️ **openresty is NOT yet covered.** The openresty pin was advanced
+`1.29.2.5` → `1.31.1.1` (configure-libs.sh v1.18), which moves its
+bundled nginx core from `1.29.2` to **`1.31.1`**. But these three CVEs
+were fixed in nginx **`1.31.2`** (2026-06-17), and openresty `1.31.1.1`
+was tagged 2026-05-29 — *before* 1.31.2. So the openresty binary (the
+one that actually fronts the SPAs) remains exposed to CVE-2026-42530 /
+42055 / 48142 until upstream ships a release based on ≥ nginx 1.31.2 (or
+backports the patches). Track upstream openresty.
+
+Same caveat as the previous CVEs: each deployed project must rebuild its
+own nginx / openresty copy.
 
 > If you change the version of any library, update
 > `VERSION_INSTALLED.txt` and the corresponding version in

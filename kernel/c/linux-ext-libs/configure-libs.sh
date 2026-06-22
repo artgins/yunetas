@@ -144,8 +144,24 @@
 #       openresty (1.29.2.5) is a separate binary and is NOT covered by
 #       this bump — track upstream openresty for a release that picks up
 #       these patches before bumping it.
+#   version 1.18
+#       upgrade to openresty 1.31.1.1 (was 1.29.2.5): advances the
+#       openresty-bundled nginx core from 1.29.2 to 1.31.1 (released
+#       2026-05-29). Same pin-only / separate-dynamic-binary rationale as
+#       v1.14 — no yuneta consumer change rides along; openresty links
+#       dynamically against host libssl/libpcre/libz, so its bundled
+#       OpenSSL 3.5.6 is irrelevant to our build.
+#       CVE STATUS: nginx 1.31.1 core fixes CVE-2026-9256 (already had a
+#       backport in 1.29.2.5). It does NOT cover the three CVEs fixed in
+#       nginx 1.31.2 (2026-06-17): CVE-2026-42530 (http_v3 UAF),
+#       CVE-2026-42055 (proxy/grpc HTTP/2 overflow) and CVE-2026-48142
+#       (charset overread). openresty 1.31.1.1 was tagged 2026-05-29,
+#       before nginx 1.31.2 — so the openresty binary remains exposed to
+#       those three until upstream ships a 1.31.x.y based on >= nginx
+#       1.31.2 (or backports). The standalone nginx binary IS patched
+#       (pinned to release-1.31.2, v1.17). Track upstream openresty.
 
-VERSION="1.17"
+VERSION="1.18"
 
 
 source ./repos2clone.sh

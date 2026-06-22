@@ -13,6 +13,16 @@
       (`1.29.2.5`) is a separate binary and is **not** covered by this bump;
       track upstream openresty for a release that picks up these patches.
       Each deployed project must rebuild its own nginx copy.
+    - **chore(ext-libs): bump openresty 1.29.2.5 → 1.31.1.1 (v1.18)**. Advances
+      the openresty-bundled nginx core from `1.29.2` to `1.31.1` (released
+      2026-05-29). Pin-only — openresty is a separate dynamically-linked binary
+      (so its bundled OpenSSL 3.5.6 is irrelevant to our build). ⚠️ **CVE
+      status:** nginx 1.31.1 does NOT cover the three CVEs fixed in nginx
+      `1.31.2` (CVE-2026-42530 / 42055 / 48142, 2026-06-17); openresty 1.31.1.1
+      was tagged *before* nginx 1.31.2, so the openresty binary — the one that
+      actually fronts the SPAs — remains exposed until upstream ships a release
+      based on ≥ nginx 1.31.2. The standalone nginx binary IS patched (v1.17).
+      Each deployed project must rebuild its own openresty copy.
     - **observability(prot): attribute protocol parse errors to the source IP
       (`peername`).** Server-side protocol gclasses logged malformed-input
       errors without the remote peer's address — `peername` is set on the bottom
