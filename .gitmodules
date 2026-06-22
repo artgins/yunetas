@@ -1,7 +1,7 @@
 [submodule "utils/python/tui_yunetas"]
 	path = utils/python/tui_yunetas
 	url = https://github.com/artgins/tui_yunetas.py.git
-[submodule "kernel/js/lib-yui"]
+[submodule "kernel/js/gobj-ui"]
 	path = kernel/js/gobj-ui
 	url = git@github.com:artgins/gobj-ui.js.git
 	branch = main
