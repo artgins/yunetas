@@ -1,6 +1,22 @@
 # **Changelog**
 
 ## Unreleased
+    - **build(js): extract `@yuneta/gobj-js` to its own repository as a git
+      submodule (symmetric with gobj-ui).** gobj-js was the last in-tree JS
+      framework package; it now lives at `github.com/artgins/gobj-js` (public)
+      and is embedded as a git submodule at `kernel/js/gobj-js`, the same model
+      as gobj-ui and `utils/python/tui_yunetas`. The new repo is a clean
+      snapshot (history not preserved), single line on `main`, tag `7.6.5`
+      tracking `YUNETA_VERSION`. **Clone with `--recurse-submodules`** (or
+      `git submodule update --init`). The submodule sits at the original path,
+      so local `file:` consumers (`wattyzer`, in-repo `yunos/js/gui_treedb`)
+      resolve unchanged and npm consumers (`estadodelaire`, `hidraulia`) are
+      unaffected. New publish flow: bump `package.json` in lockstep with
+      `YUNETA_VERSION` and `npm publish` **in the standalone repo**, then bump
+      the submodule pointer here. `.gitmodules` uses the HTTPS url (so
+      `--recurse-submodules` works for every cloner) for all three submodules;
+      the gobj-ui submodule's stale internal name (`lib-yui`) was also aligned
+      to `gobj-ui` and its url switched SSH → HTTPS in the same pass.
     - **chore(ext-libs): bump nginx 1.30.2 → 1.31.2 (v1.17)**. Fixes three
       CVEs: CVE-2026-42530 (use-after-free in `ngx_http_v3_module`),
       CVE-2026-42055 (buffer overflow in the HTTP/2 paths of

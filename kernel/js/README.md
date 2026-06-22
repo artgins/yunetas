@@ -3,6 +3,14 @@
 JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
 Built with [Vite](https://vite.dev/), requires Node.js LTS (v22+).
 
+> **Both packages are git submodules.** `gobj-js` and `gobj-ui` each live in
+> their own repository (`github.com/artgins/gobj-js`,
+> `github.com/artgins/gobj-ui.js`) and are embedded here at `kernel/js/gobj-js`
+> and `kernel/js/gobj-ui`. Clone yunetas with `--recurse-submodules` (or run
+> `git submodule update --init`) or these directories will be empty. To ship a
+> new version: edit the submodule directly, commit + `npm publish` in the
+> standalone repo, then bump the submodule pointer in yunetas.
+
 ## Packages
 
 ### [`gobj-js`](gobj-js/) — Core Framework
