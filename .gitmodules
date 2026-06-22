@@ -5,3 +5,7 @@
 	path = kernel/js/gobj-ui
 	url = https://github.com/artgins/gobj-ui.js.git
 	branch = main
+[submodule "kernel/js/gobj-js"]
+	path = kernel/js/gobj-js
+	url = https://github.com/artgins/gobj-js.git
+	branch = main

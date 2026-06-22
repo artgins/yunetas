@@ -13,15 +13,21 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
-### `kernel/js/gobj-ui/` is a git submodule of the standalone gobj-ui repo
+### `kernel/js/gobj-js/` and `kernel/js/gobj-ui/` are git submodules
 
-The C kernel, `kernel/js/gobj-js/` and the runtime gclasses are consolidated:
-treat them as described above.
+The C kernel and the runtime gclasses are consolidated: treat them as described
+above.
 
-`kernel/js/gobj-ui/` is different: gobj-ui now lives in its **own repository**
-`github.com/artgins/gobj-ui.js` and is embedded here as a **git submodule** (the
-same model as `utils/python/tui_yunetas`). Clone yunetas with
-`--recurse-submodules` (or run `git submodule update --init`).
+The two JS framework packages are **not** consolidated — each lives in its
+**own repository** and is embedded here as a **git submodule** (the same model
+as `utils/python/tui_yunetas`), at the same path it used to occupy:
+
+- `kernel/js/gobj-js/` → `github.com/artgins/gobj-js` (tracks `main`).
+- `kernel/js/gobj-ui/` → `github.com/artgins/gobj-ui.js` (tracks `main`/v2).
+
+Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
+Because each submodule sits at its original path, local `file:` consumers
+(wattyzer, `yunos/js/gui_treedb`) resolve unchanged.
 
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
@@ -44,11 +50,16 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   **not** this local checkout). The local `kernel/js/gobj-ui` checkout is **no
   longer `v1`** — do not point a `file:` dependency at it for a v1 consumer.
 
-`@yuneta/gobj-js` (`kernel/js/gobj-js`) is versioned to track `YUNETA_VERSION`
-(currently `7.6.5`) and **published to npm**. Bump its `package.json` version in
-lockstep with `YUNETA_VERSION` and `npm publish`. estadodelaire/hidraulia consume
-it from the registry (`@yuneta/gobj-js@^7.6.5`); **wattyzer** and the in-repo
-`yunos/js/gui_treedb` keep a local `file:` dep on this checkout.
+`@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
+(public, snapshot start — history not preserved; single line on `main`, symmetric
+with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
+versioned to track `YUNETA_VERSION` (currently `7.6.5`) and **published to npm**.
+To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
+in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
+`npm publish`, then **bump this submodule pointer in yunetas**. estadodelaire/
+hidraulia consume it from the registry (`@yuneta/gobj-js@^7.6.5`); **wattyzer**
+and the in-repo `yunos/js/gui_treedb` keep a local `file:` dep on this checkout
+(the path is unchanged, so the `file:` deps still resolve).
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
 `wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).
