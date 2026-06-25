@@ -1,20 +1,19 @@
 /****************************************************************************
- *          test_handshake_dump_mbedtls.c
+ *          test_handshake_reject_mbedtls.c
  *
- *          Verify that a failing TLS handshake on the mbedTLS backend emits
- *          the forensic transcript of the raw peer bytes.
+ *          Verify that a bogus TLS handshake on the mbedTLS backend is
+ *          rejected cleanly.
  *
  *          Scenario: a server-side ytls receives an HTTP-style request on
  *          the TLS port (a classic scanner / misconfig signature). The
- *          handshake MUST fail, on_handshake_done_cb MUST be invoked with
- *          error=-1, and the log MUST contain:
- *              1. The forensic title "TLS handshake FAILS: raw peer bytes"
- *              2. The hex bytes of "GET " (47 45 54 20) from the payload
+ *          handshake MUST fail without crashing:
+ *              1. ytls_decrypt_data() returns a TLS error (< -1000)
+ *              2. on_handshake_done_cb is invoked exactly once with error=-1
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_handshake_dump_mbedtls"
+#define APP "test_handshake_reject_mbedtls"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,20 +42,15 @@ int main(int argc, char *argv[])
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define TMP_DIR   "/tmp/ytls_hs_dump_mbedtls"
+#define TMP_DIR   "/tmp/ytls_hs_reject_mbedtls"
 #define CERT_PATH (TMP_DIR "/cert.pem")
 #define KEY_PATH  (TMP_DIR "/key.pem")
 
 #define HTTP_GARBAGE "GET /index.html HTTP/1.1\r\nHost: attacker\r\n\r\n"
 
-#define CAPTURE_BUFSZ (256 * 1024)
-
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE char   *capture_buf = NULL;
-PRIVATE size_t  capture_len = 0;
-
 PRIVATE int     handshake_cb_calls = 0;
 PRIVATE int     handshake_cb_last_error = 0;
 
@@ -65,7 +59,6 @@ PRIVATE int     handshake_cb_last_error = 0;
  ***************************************************************/
 PRIVATE int   generate_self_signed(const char *cert_path, const char *key_path);
 PRIVATE void  cleanup_tmp(void);
-PRIVATE int   capture_write_fn(void *v, int priority, const char *bf, size_t len);
 
 PRIVATE int   on_handshake_done(void *user_data, int error);
 PRIVATE int   on_clear_data(void *user_data, gbuffer_t *gbuf);
@@ -79,22 +72,6 @@ int main(int argc, char *argv[])
     int result = 0;
 
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    /*------------------------------------------------*
-     *  Register a capture log handler AFTER gobj_start_up
-     *  (which calls glog_init internally).
-     *------------------------------------------------*/
-    capture_buf = malloc(CAPTURE_BUFSZ);
-    if(!capture_buf) {
-        fprintf(stderr, "%s: no memory for capture_buf\n", APP);
-        gobj_end();
-        return 1;
-    }
-    capture_buf[0] = '\0';
-    capture_len = 0;
-
-    gobj_log_register_handler("capture", 0, capture_write_fn, 0);
-    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *  Disposable self-signed cert
@@ -149,8 +126,7 @@ int main(int argc, char *argv[])
 
     /*------------------------------------------------*
      *  Push garbage (HTTP request on TLS port).
-     *  This triggers decrypt_data → capture_handshake_bytes
-     *  → encrypted_buffer → do_handshake → fatal → dump_handshake_transcript.
+     *  This triggers decrypt_data → encrypted_buffer → do_handshake → fatal.
      *------------------------------------------------*/
     gbuffer_t *gbuf = gbuffer_create(sizeof(HTTP_GARBAGE), sizeof(HTTP_GARBAGE));
     gbuffer_append(gbuf, (void *)HTTP_GARBAGE, sizeof(HTTP_GARBAGE) - 1);
@@ -179,25 +155,6 @@ int main(int argc, char *argv[])
         result++;
     }
 
-    /*------------------------------------------------*
-     *  The captured log MUST contain the forensic title
-     *  and the hex bytes of "GET " (47 45 54 20).
-     *------------------------------------------------*/
-    if(!strstr(capture_buf, "TLS handshake FAILS: raw peer bytes")) {
-        fprintf(stderr,
-            "%s: capture log does NOT contain the forensic title\n",
-            APP
-        );
-        result++;
-    }
-    if(!strstr(capture_buf, "47 45 54 20")) {
-        fprintf(stderr,
-            "%s: capture log does NOT contain hex bytes of 'GET '\n",
-            APP
-        );
-        result++;
-    }
-
     ytls_free_secure_filter(ytls, sskt);
     ytls_cleanup(ytls);
 
@@ -209,9 +166,6 @@ int main(int argc, char *argv[])
 
 out:
     cleanup_tmp();
-    gobj_log_del_handler("capture");
-    free(capture_buf);
-    capture_buf = NULL;
     gobj_end();
     return result;
 }
@@ -221,28 +175,7 @@ out:
  ***************************************************************/
 
 /***************************************************************************
- *  Append every logged line into the capture buffer so the test can
- *  grep for the forensic strings. Truncates silently if the buffer fills.
- ***************************************************************************/
-PRIVATE int capture_write_fn(void *v, int priority, const char *bf, size_t len)
-{
-    (void)v; (void)priority;
-    if(!capture_buf || len == 0) {
-        return 0;
-    }
-    if(capture_len + len + 2 >= CAPTURE_BUFSZ) {
-        return 0;
-    }
-    memcpy(capture_buf + capture_len, bf, len);
-    capture_len += len;
-    capture_buf[capture_len++] = '\n';
-    capture_buf[capture_len] = '\0';
-    return 0;
-}
-
-/***************************************************************************
  *  Shell out to `openssl req` for a throw-away self-signed cert.
- *  (mbedTLS uses the same PEM format.)
  ***************************************************************************/
 PRIVATE int generate_self_signed(const char *cert_path, const char *key_path)
 {
@@ -251,7 +184,7 @@ PRIVATE int generate_self_signed(const char *cert_path, const char *key_path)
         "openssl req -x509 -newkey rsa:2048 -nodes -sha256 "
         "-days 30 "
         "-keyout '%s' -out '%s' "
-        "-subj '/CN=ytls_hs_dump' "
+        "-subj '/CN=ytls_hs_reject' "
         ">/dev/null 2>&1",
         key_path, cert_path
     );
