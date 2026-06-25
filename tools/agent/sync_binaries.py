@@ -34,20 +34,25 @@ For every installed binary it decides:
 Then it shows the candidates, asks what to apply, and runs the corresponding
 ``install-binary`` / ``update-binary`` for each chosen role.
 
-For a same-version REBUILD (``update-binary``) the agent overwrites the very
-slot the running yuno is executing from, so the copy fails with text-file-busy
-unless the running instance is stopped first. Once the operator has cleared the
-two confirmation gates (Apply-all / Proceed) the intent to deploy is explicit,
-so this script runs the documented per-role hot-patch cycle itself, scoped by
-``yuno_role`` (never node-wide):
+For a REBUILD (``update-binary``) the agent overwrites the slot whose version
+equals the uploaded binary's. The copy fails with text-file-busy only if a LIVE
+process is mapped to that exact file — an instance whose ``role_version`` is the
+version being written. Once the operator has cleared the two confirmation gates
+(Apply-all / Proceed) the intent to deploy is explicit, so this script runs the
+documented per-role hot-patch cycle itself, scoped by ``yuno_role`` (never
+node-wide):
 
-    kill-yuno yuno_role=R   (only if running) -> poll until the process exits
+    kill-yuno yuno_role=R   (only if running THAT version) -> poll until it exits
     update-binary id=R
     run-yuno yuno_role=R play=0   (only if it had been running)
     play-yuno yuno_role=R         (only if it had been playing)
 
-Prior run/play state is read from ``*list-yunos`` and restored per role, so a
-deliberately stopped or paused yuno is left as it was. Pass ``--no-restart`` to
+If the running instances are on a DIFFERENT version (e.g. a snap pins an older
+release), the slot being overwritten is not the one executing, so the
+kill/restart is skipped and ``update-binary`` writes in place. Prior run/play
+state is read from ``*list-yunos`` (the ``role_version`` per instance) and
+restored per role, so a deliberately stopped or paused yuno is left as it was.
+Pass ``--no-restart`` to
 keep the old print-only behaviour. A role with several instances across realms
 is handled in one shot: the role-scoped commands act on every instance, which
 all share the one slot.
@@ -583,16 +588,39 @@ def deploy_install(ycommand, url, jwt, action, role, dry_run):
     return ok
 
 
-def deploy_update_with_restart(ycommand, url, jwt, role, dry_run):
+def deploy_update_with_restart(ycommand, url, jwt, role, local_version, dry_run):
     """
     Same-version REBUILD hot-patch, scoped to `role`: stop the running
     instance(s) so the slot is free, overwrite it, then restore each
     instance's prior run/play state. Reads state up front; if nothing is
     running it degrades to a plain update-binary.
+
+    update-binary overwrites the slot whose version equals the uploaded
+    binary's (`local_version`). text-file-busy only bites if a LIVE process is
+    mapped to that exact file — an instance whose role_version is the version
+    being written. If the running instances are on a different version (e.g. a
+    snap pins an older release), the slot we overwrite is not the one
+    executing, so the kill/restart cycle is skipped and update-binary writes
+    in place. An instance with no role_version (predates the column) is treated
+    as on-target, so we kill on the safe side rather than risk text-file-busy.
     """
     states = yuno_states(ycommand, url, jwt, role)
-    was_running = any(s.get("yuno_running") for s in states)
-    was_playing = any(s.get("yuno_playing") for s in states)
+
+    def on_target(s):
+        rv = str(s.get("role_version", "")).strip()
+        if not rv:
+            return True  # unknown running version -> assume ours (kill, safe side)
+        return cmp_versions(rv, local_version) == 0
+
+    was_running = any(s.get("yuno_running") and on_target(s) for s in states)
+    was_playing = any(s.get("yuno_playing") and on_target(s) for s in states)
+
+    if not was_running and any(s.get("yuno_running") for s in states):
+        # Something IS running, but on another version; overwriting our
+        # (non-running) slot can't hit text-file-busy. No kill/restart needed.
+        print(dim(
+            "   running version differs from the rebuilt %s; update-binary in "
+            "place (no kill/restart)" % local_version))
 
     if was_running:
         # Orderly shutdown (SIGQUIT, not force) so the gbmem audit runs.
@@ -762,7 +790,7 @@ def main():
     for r in chosen:
         if r["action"] == "update-binary" and not args.no_restart:
             success = deploy_update_with_restart(
-                ycommand, args.url, jwt, r["role"], args.dry_run)
+                ycommand, args.url, jwt, r["role"], r["local"]["version"], args.dry_run)
         else:
             success = deploy_install(
                 ycommand, args.url, jwt, r["action"], r["role"], args.dry_run)
