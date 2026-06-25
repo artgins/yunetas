@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.6.6
     - **build(js): extract `@yuneta/gobj-js` to its own repository as a git
       submodule (symmetric with gobj-ui).** gobj-js was the last in-tree JS
       framework package; it now lives at `github.com/artgins/gobj-js` (public)
