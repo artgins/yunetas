@@ -63,7 +63,7 @@ typedef void * hsskt;
  *              - "ssl_ciphers"                 str, default "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4"
  *              - "rx_buffer_size"              int, default 32*1024
  *              - "ssl_trusted_certificate"     str
- *              - "ssl_verify_depth"            int, default 1
+ *              - "ssl_verify_depth"            int, default 2
  *
  *          Fields for library "mbedtls"
  *              - "trace"                       bool
@@ -134,7 +134,7 @@ typedef struct { // Common to all ytls_t types
         ssl_certificate         (string, required in server side)
         ssl_certificate_key     (string, required in server side)
         ssl_trusted_certificate (string, required in server side)
-        ssl_verify_depth        (integer, default:1)
+        ssl_verify_depth        (integer, default:2)
         ssl_ciphers             (string, default: "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4")
         rx_buffer_size          (integer, default: 32*1024)
 

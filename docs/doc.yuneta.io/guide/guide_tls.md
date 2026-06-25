@@ -189,7 +189,7 @@ clients and are unaffected.
 | `ssl_verify_mode` | computed (table above) | `required` / `optional` / `none` |
 | `ssl_trusted_certificate` | unset | path to a CA bundle (PEM) used to verify the peer |
 | `ssl_use_system_ca` | `false` | also trust the OS CA store (OpenSSL only) |
-| `ssl_verify_depth` | `1` | max certificate chain depth |
+| `ssl_verify_depth` | `2` | max certificate chain depth (leaf → intermediate → root) |
 | `ssl_allow_insecure_client` | `false` | `true` → run an unverified **client** anyway (accept the MITM risk) |
 | `ssl_ciphers` | backend default | cipher list (`@SECLEVEL=0` to reach legacy suites) |
 

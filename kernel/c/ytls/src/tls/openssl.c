@@ -496,7 +496,13 @@ PRIVATE SSL_CTX *build_ssl_ctx(
     const char *ssl_trusted_certificate = kw_get_str(gobj,
         jn_config, "ssl_trusted_certificate", "", 0
     );
-    int ssl_verify_depth = kw_get_int(gobj, jn_config, "ssl_verify_depth", 1, 0);
+    /*
+     *  Default 2: the minimal verification path against a public CA is
+     *  leaf(0) -> intermediate(1) -> root(2), so depth 1 rejects every
+     *  normal modern chain as X509_V_ERR_CERT_CHAIN_TOO_LONG. 2 is the
+     *  de-facto floor; raise it for cross-signed / extra-intermediate chains.
+     */
+    int ssl_verify_depth = kw_get_int(gobj, jn_config, "ssl_verify_depth", 2, 0);
 
     if(SSL_CTX_set_cipher_list(ctx, ssl_ciphers)<0) {
         unsigned long err = ERR_get_error();

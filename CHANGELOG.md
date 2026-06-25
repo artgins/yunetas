@@ -1,6 +1,18 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(ytls): raise the `ssl_verify_depth` default from 1 to 2.** OpenSSL
+      counts the trust anchor in the chain depth, so the minimal verification
+      path against any public CA is leaf(0) → intermediate(1) → root(2). With
+      the old default of 1, a verifying TLS **client** (`ssl_verify_mode`
+      `required`/`optional` with a CA) rejected every normal modern chain as
+      `X509_V_ERR_CERT_CHAIN_TOO_LONG` at depth 2 — observed on `auth_bff`
+      connecting to a Let's Encrypt-fronted Keycloak (`certificate verify
+      failed` after "certificate chain too long"). 2 is the de-facto floor;
+      cross-signed / extra-intermediate chains still need an explicit higher
+      `ssl_verify_depth`. Only the computed default changed in `openssl.c`;
+      `ytls.h` and `guide_tls.md` updated. The mbed-TLS backend has no depth
+      knob and is unaffected.
     - **refactor(ytls): drop the handshake "forensic transcript".** Both TLS
       backends captured every inbound handshake byte into a 16 KB per-socket
       buffer and dumped it (hex) on handshake failure. The dump was useless — in
