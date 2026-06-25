@@ -34,13 +34,17 @@ batch/deploy helpers):
   2. reads ``__version__`` from the file (a file without it is not a deployable
      config under the current agent contract -> skipped),
   3. looks the id up in the agent via ``ycommand -c '*list-configs'`` (the
-     leading ``*`` makes ycommand emit raw JSON instead of the table),
+     leading ``*`` makes ycommand emit raw JSON instead of the table) for the
+     PRIMARY version, and reads every installed version from
+     ``ycommand -c '*list-configs-instances'``,
   4. classifies it.
 
 Classification
 --------------
   * NEW        — id not in the agent                       -> create-config
-  * BUMP       — local version  >  agent version           -> create-config
+  * BUMP       — local version not installed, > primary    -> create-config
+  * INSTALLED  — local version already an installed record  -> skipped (pending
+                 but not the primary (pending promote)         promote)
   * UPDATE     — same version, content changed             -> update-config
   * UP-TO-DATE — same version, identical content           -> skipped
   * DOWNGRADE  — local version  <  agent version           -> reported only, NOT pushed
@@ -48,6 +52,14 @@ Classification
 
 A DOWNGRADE is never offered for install: seeding a stale version with
 create-config would break the version logic, so it is reported and left alone.
+
+Like ``*list-binaries``, ``*list-configs`` reports only the primary (id,version);
+if a freshly built config's version is already created as a non-primary record,
+create-config would fail "already exists". The instance list from
+``*list-configs-instances`` is the authoritative "is this version already
+installed?" check that guards the BUMP path (it carries no content, so a content
+change to an already-installed non-primary version must be pushed manually with
+update-config).
 
 The new-version install verb is ``create-config`` (it refuses to overwrite an
 existing ``(id, version)``); ``update-config`` overwrites the content of an
@@ -395,32 +407,79 @@ def agent_configs(ycommand, url, jwt):
     return out
 
 
+def agent_config_instances(ycommand, url, jwt):
+    """
+    Return {id: set(version, ...)} for EVERY installed config record, via
+    'ycommand -c *list-configs-instances' (the '*' forces raw JSON).
+
+    '*list-configs' reports only the primary (id,version); a freshly built
+    config whose version is already created as a non-primary record must not be
+    offered to create-config (which refuses to overwrite an existing
+    (id,version)). This set is the authoritative "is this version already
+    installed?". Returns {} on any error so classify() degrades gracefully.
+    """
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-configs-instances"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        data = parse_leading_json(res.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, list):
+        return {}
+    out = {}
+    for rec in data:
+        cid = rec.get("id")
+        ver = rec.get("version")
+        if not cid or ver is None:
+            continue
+        out.setdefault(cid, set()).add(str(ver))
+    return out
+
+
 # ----------------------------------------------------------------------------
 #   Classification
 # ----------------------------------------------------------------------------
-def classify(local, agent):
+def classify(local, agent, instances):
     """
     Drive from the LOCAL configs found in the directory. For each one look it up
     in the agent and compare. Agent-only configs (present in the agent, absent
     here) are appended as informational 'orphan' rows.
 
-    kind in {new, bump, update, uptodate, downgrade, orphan}.
+    `instances` is {id: set(version)} from '*list-configs-instances'; it guards
+    the NEW/BUMP paths so a version already created as a non-primary record
+    (pending promote) is not offered to a doomed create-config.
+
+    kind in {new, bump, installed, update, uptodate, downgrade, orphan}.
     """
     rows = []
     for cid, lc in sorted(local.items()):
         ac = agent.get(cid)
+        already_installed = lc["version"] in instances.get(cid, set())
         if ac is None:
+            # No primary at all. If the version is somehow already a record,
+            # create-config would still fail; flag it as installed not new.
             rows.append({
-                "id": cid, "kind": "new", "action": "create-config",
+                "id": cid,
+                "kind": "installed" if already_installed else "new",
+                "action": None if already_installed else "create-config",
                 "local": lc, "agent": None,
             })
             continue
         cmp = cmp_versions(lc["version"], ac["version"])
         if cmp > 0:
-            rows.append({
-                "id": cid, "kind": "bump", "action": "create-config",
-                "local": lc, "agent": ac,
-            })
+            if already_installed:
+                # Version already created as a non-primary record (primary is an
+                # older one, e.g. pending promote). create-config would fail
+                # "already exists"; nothing to push — it only needs promotion.
+                rows.append({
+                    "id": cid, "kind": "installed", "action": None,
+                    "local": lc, "agent": ac,
+                })
+            else:
+                rows.append({
+                    "id": cid, "kind": "bump", "action": "create-config",
+                    "local": lc, "agent": ac,
+                })
         elif cmp < 0:
             # Local is OLDER than the agent. Installing it would break the
             # version logic (create-config would seed a stale version), so we
@@ -454,6 +513,7 @@ def classify(local, agent):
 KIND_LABEL = {
     "new":       (lambda s: green(s),  "NEW",        "create-config"),
     "bump":      (lambda s: green(s),  "BUMP",       "create-config"),
+    "installed": (lambda s: cyan(s),   "INSTALLED",  "-"),
     "update":    (lambda s: yellow(s), "UPDATE",     "update-config"),
     "uptodate":  (lambda s: dim(s),    "up-to-date", "-"),
     "downgrade": (lambda s: red(s),    "DOWNGRADE",  "-"),
@@ -666,6 +726,8 @@ def main():
 
     print(dim("\nreading agent configs (*list-configs)..."))
     agent = agent_configs(ycommand, args.url, jwt)
+    print(dim("reading installed records (*list-configs-instances)..."))
+    instances = agent_config_instances(ycommand, args.url, jwt)
     print(dim("reading local configs (*.json in dir)..."))
     local = local_configs(config_dir)
 
@@ -673,12 +735,19 @@ def main():
         print(yellow("\nNo deployable *.json configs found in %s." % config_dir))
         return
 
-    rows = classify(local, agent)
+    rows = classify(local, agent, instances)
     print_table(rows, show_uptodate=args.show_uptodate or args.dry_run)
+
+    installed = [r for r in rows if r["kind"] == "installed"]
+    if installed:
+        print(yellow(
+            "%d config(s) already installed but NOT primary (pending "
+            "promote)." % len(installed)))
 
     candidates = [r for r in rows if r["action"]]
     if not candidates:
-        print(green("Everything is up to date. Nothing to do."))
+        if not installed:
+            print(green("Everything is up to date. Nothing to do."))
         return
 
     # Summary line.

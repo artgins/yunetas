@@ -32,7 +32,13 @@ only roles the agent already manages on this node are candidates, so it never
 proposes installing a role this node doesn't run.
 
 - Agent side: `ycommand -c '*list-binaries'` (the leading `*` makes ycommand
-  emit raw JSON instead of the table).
+  emit raw JSON instead of the table) for the **primary** (active) slot, plus
+  `ycommand -c '*list-binaries-instances'` for **every** installed version.
+  `*list-binaries` reports only the primary, so when a snap is active the primary
+  can be an OLD version while the freshly built one is already installed as a
+  non-primary slot. The instance list is the authoritative "is this version
+  already installed?" check that keeps a `BUMP` from firing a doomed
+  `install-binary` (which would fail "Node already exists").
 - Local side: each installed id is looked up in `$YUNETAS_BASE/outputs/yunos/`
   (the exact directory the agent's `$$(<role>)` macro reads from on upload) and
   queried with `--print-role` for its version.
@@ -41,7 +47,8 @@ Classification per installed binary:
 
 | Status | Condition | Action |
 |--------|-----------|--------|
-| `BUMP` | local version > agent version | `install-binary` |
+| `BUMP` | local version not installed, > primary | `install-binary` |
+| `INSTALLED` | local version already an installed slot, but not the primary (snap active / pending promote) | skipped (promote with `yunetas upgrade-yunos`) |
 | `DOWNGRADE` | local version < agent version | `install-binary` (flagged red) |
 | `REBUILD` | same version, size changed | `update-binary` |
 | `UP-TO-DATE` | same version, same size | skipped |
@@ -87,15 +94,21 @@ directory**: you `cd` into the batches directory and run it.
   `auth_bff.1801`), matching the agent's config ids.
 - Its `version` is read from the `__version__` field **inside the file** (a file
   without it is skipped); `_*.json` batch/deploy helpers are skipped too.
-- Agent side: `ycommand -c '*list-configs'`. Content upload uses the same
-  `content64=$$(<path>)` macro (absolute path, resolves regardless of cwd).
+- Agent side: `ycommand -c '*list-configs'` for the **primary** (id, version),
+  plus `ycommand -c '*list-configs-instances'` for **every** installed version
+  (same primary-vs-installed caveat as binaries: a freshly built config whose
+  version is already created as a non-primary record must not be offered to
+  `create-config`, which refuses to overwrite an existing `(id, version)`).
+  Content upload uses the same `content64=$$(<path>)` macro (absolute path,
+  resolves regardless of cwd).
 
 Classification per local config:
 
 | Status | Condition | Action |
 |--------|-----------|--------|
 | `NEW` | id not in the agent | `create-config` |
-| `BUMP` | local version > agent version | `create-config` |
+| `BUMP` | local version not installed, > primary | `create-config` |
+| `INSTALLED` | local version already an installed record, but not the primary (pending promote) | skipped |
 | `UPDATE` | same version, content changed | `update-config` |
 | `UP-TO-DATE` | same version, identical content | skipped |
 | `DOWNGRADE` | local version < agent version | reported only, **not** pushed |

@@ -10,14 +10,22 @@ in outputs/yunos is meant to be installed here, so iterating the agent avoids
 proposing roles this node doesn't run.
 
 The agent side is read from ``ycommand -c '*list-binaries'`` (the leading ``*``
-makes ycommand emit raw JSON instead of the table). For each installed id its
-freshly built counterpart is looked up in ``$YUNETAS_BASE/outputs/yunos/`` — the
-exact directory the agent's ``$$(<role>)`` macro reads from when it base64-
+makes ycommand emit raw JSON instead of the table). That command reports only the
+PRIMARY (active) slot per role; the full set of installed versions is read from
+``ycommand -c '*list-binaries-instances'``. The instance list is what decides
+"is this version already installed?": with a snap active the primary can be an
+OLD version while the freshly built one is already installed as a non-primary
+slot — comparing only against the primary would mis-classify that as a BUMP and
+then fail ``install-binary`` with "Node already exists". For each installed id
+its freshly built counterpart is looked up in ``$YUNETAS_BASE/outputs/yunos/`` —
+the exact directory the agent's ``$$(<role>)`` macro reads from when it base64-
 encodes a binary for upload — and queried with ``--print-role`` for its version.
 
 For every installed binary it decides:
 
-  * BUMP       — local version  >  agent version             -> install-binary
+  * BUMP       — local version not installed, > primary       -> install-binary
+  * INSTALLED  — local version already an installed slot, but  -> skipped (promote
+                 not the primary (snap active / pending promote)   with upgrade-yunos)
   * DOWNGRADE  — local version  <  agent version             -> install-binary (flagged)
   * REBUILD    — same version, content changed (size)        -> update-binary
   * UP-TO-DATE — same version, same size                     -> skipped
@@ -328,16 +336,51 @@ def agent_binaries(ycommand, url, jwt):
     return out
 
 
+def agent_binary_instances(ycommand, url, jwt):
+    """
+    Return {role: {version: size}} for EVERY installed slot, via
+    'ycommand -c *list-binaries-instances' (the '*' forces raw JSON).
+
+    '*list-binaries' reports only the PRIMARY (active) version per role. When a
+    snap is active the primary can be an OLD version while the freshly built one
+    is already installed as a non-primary slot; classifying against the primary
+    alone would call that a BUMP and then fail install-binary with "Node already
+    exists". This map is the authoritative "is this version already installed?".
+
+    On any error returns {} so classify() degrades to the primary-only compare.
+    """
+    cmd = ycmd_base(ycommand, url, jwt) + ["-c", "*list-binaries-instances"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        data = parse_leading_json(res.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, list):
+        return {}
+    out = {}
+    for rec in data:
+        bid = rec.get("id")
+        ver = rec.get("version")
+        if not bid or ver is None:
+            continue
+        out.setdefault(bid, {})[str(ver)] = rec.get("size", 0)
+    return out
+
+
 # ----------------------------------------------------------------------------
 #   Classification
 # ----------------------------------------------------------------------------
-def classify(local, agent):
+def classify(local, agent, instances):
     """
     Drive from the AGENT's installed binaries (not from outputs/yunos): only
     roles the agent already manages on this node are candidates. For each one
     look up its freshly built counterpart and compare.
 
-    kind in {bump, downgrade, rebuild, uptodate, nolocal}.
+    `instances` is {role: {version: size}} from '*list-binaries-instances'; it
+    guards the BUMP path so a version already installed as a non-primary slot
+    (snap active / pending promote) is not offered to a doomed install-binary.
+
+    kind in {bump, installed, downgrade, rebuild, uptodate, nolocal}.
     """
     rows = []
     for role, ab in sorted(agent.items()):
@@ -349,8 +392,27 @@ def classify(local, agent):
                 "local": None, "agent": ab,
             })
             continue
+        inst = instances.get(role, {})
         cmp = cmp_versions(lb["version"], ab["version"])
         if cmp > 0:
+            if lb["version"] in inst:
+                # The freshly built version is ALREADY installed as a slot that
+                # is not the active primary (a snap is pinning an older one).
+                # install-binary would fail "Node already exists"; nothing to
+                # push — it only needs promotion (yunetas upgrade-yunos). If its
+                # content drifted (size differs) it is a same-version REBUILD of
+                # that slot instead, which update-binary overwrites in place.
+                if lb["size"] == inst[lb["version"]]:
+                    rows.append({
+                        "role": role, "kind": "installed", "action": None,
+                        "local": lb, "agent": ab,
+                    })
+                else:
+                    rows.append({
+                        "role": role, "kind": "rebuild", "action": "update-binary",
+                        "local": lb, "agent": ab,
+                    })
+                continue
             rows.append({
                 "role": role, "kind": "bump", "action": "install-binary",
                 "local": lb, "agent": ab,
@@ -377,6 +439,7 @@ def classify(local, agent):
 
 KIND_LABEL = {
     "bump":      (lambda s: green(s),  "BUMP",       "install-binary"),
+    "installed": (lambda s: cyan(s),   "INSTALLED",  "-"),
     "downgrade": (lambda s: red(s),    "DOWNGRADE",  "install-binary"),
     "rebuild":   (lambda s: yellow(s), "REBUILD",    "update-binary"),
     "uptodate":  (lambda s: dim(s),    "up-to-date", "-"),
@@ -622,15 +685,25 @@ def main():
 
     print(dim("\nreading agent binaries (*list-binaries)..."))
     agent = agent_binaries(ycommand, args.url, jwt)
+    print(dim("reading installed slots (*list-binaries-instances)..."))
+    instances = agent_binary_instances(ycommand, args.url, jwt)
     print(dim("reading local binaries (--print-role)..."))
     local = local_binaries(yunos_dir)
 
-    rows = classify(local, agent)
+    rows = classify(local, agent, instances)
     print_table(rows, show_uptodate=args.show_uptodate or args.dry_run)
+
+    installed = [r for r in rows if r["kind"] == "installed"]
+    if installed:
+        print(yellow(
+            "%d binary(ies) already installed but NOT primary (snap active / "
+            "pending promote)." % len(installed)))
+        print(dim("Promote the staged version(s) with:  yunetas upgrade-yunos"))
 
     candidates = [r for r in rows if r["action"]]
     if not candidates:
-        print(green("Everything is up to date. Nothing to do."))
+        if not installed:
+            print(green("Everything is up to date. Nothing to do."))
         return
 
     # Summary line.
