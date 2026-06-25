@@ -1,5 +1,41 @@
 # **Changelog**
 
+## Unreleased
+    - **refactor(ytls): drop the handshake "forensic transcript".** Both TLS
+      backends captured every inbound handshake byte into a 16 KB per-socket
+      buffer and dumped it (hex) on handshake failure. The dump was useless — in
+      TLS 1.3 everything after ServerHello is ciphertext, and the cleartext
+      records are better read with the `C_TCP` `traffic` trace or a pcap — while
+      every connection paid for the allocation and a per-chunk memcpy. Removed
+      `HANDSHAKE_TRANSCRIPT_MAX`, the `handshake_transcript` field,
+      `capture_handshake_bytes()` and all decref sites from `openssl.c` /
+      `mbedtls.c`. The default-on `gobj_log_warning` recording the rejection
+      reason (error, peername, sockname, SNI, tls_version) is kept. The two
+      `test_handshake_dump_{openssl,mbedtls}` tests were repurposed as
+      `test_handshake_reject_*` (a bogus HTTP-on-TLS-port handshake is rejected
+      cleanly: `error=-1`, no crash) — both backends pass.
+    - **fix(agent-sync): classify `sync-binaries`/`sync-configs` against every
+      installed slot, not just the active primary.** `*list-binaries` /
+      `*list-configs` report only the primary; with a snap active the primary
+      can be an OLD version while the freshly built one is already installed as a
+      non-primary slot, so every role was mis-classed `BUMP` and then fired a
+      doomed `install-binary` / `create-config` (the agent rejects with "Node
+      already exists"). The full set is now read from `*list-binaries-instances`
+      / `*list-configs-instances` and used as the authoritative "is this version
+      already installed?" check: a version installed but not primary is the new
+      `INSTALLED` status (skipped, with a hint to promote via
+      `yunetas upgrade-yunos`); `BUMP` now means "not installed and newer than
+      the primary". `tools/README.md` tables updated.
+    - **fix(agent-sync): skip the kill/restart cycle when the rebuilt version
+      isn't the one running.** The REBUILD path (`update-binary`) stopped and
+      restarted the role if ANY instance was live, but `update-binary` overwrites
+      only the slot whose version equals the uploaded binary's, and
+      text-file-busy bites only when a LIVE process is mapped to that exact file.
+      `deploy_update_with_restart` now reads `role_version` per instance from
+      `*list-yunos` and only kills/restarts when an instance running the version
+      being written is live (unknown `role_version` → treated as on-target,
+      killed on the safe side).
+
 ## 7.6.6
     - **build(js): extract `@yuneta/gobj-js` to its own repository as a git
       submodule (symmetric with gobj-ui).** gobj-js was the last in-tree JS
