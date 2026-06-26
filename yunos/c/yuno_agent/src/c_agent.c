@@ -2929,6 +2929,41 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Add the on-disk file time of each record's `binary` as the sibling of
+ *  `size`: `time` (epoch seconds) and `time_str` (local timestamp). This lets
+ *  a consumer (sync_binaries) detect a rebuild that kept the byte count
+ *  identical — a relink against a changed static lib, or a one-char edit — by
+ *  comparing the local file's mtime against the installed slot's, since `size`
+ *  alone would call it up-to-date.
+ *
+ *  Computed live by stat()'ing the stored path: it covers records installed
+ *  before this field existed and never mutates the in-memory treedb node (the
+ *  array elements are fresh node_collapsed_view dicts, not store references).
+ ***************************************************************************/
+PRIVATE void add_binary_file_time(json_t *jn_data)
+{
+    if(!json_is_array(jn_data)) {
+        return;
+    }
+    size_t idx; json_t *node;
+    json_array_foreach(jn_data, idx, node) {
+        const char *binary = json_string_value(json_object_get(node, "binary"));
+        if(empty_string(binary)) {
+            continue;
+        }
+        struct stat st;
+        if(stat(binary, &st) != 0) {
+            // No log: a slot whose file was pruned is not an error here.
+            continue;
+        }
+        char timestamp[80];
+        t2timestamp(timestamp, sizeof(timestamp), st.st_mtime, TRUE);
+        json_object_set_new(node, "time", json_integer((json_int_t)st.st_mtime));
+        json_object_set_new(node, "time_str", json_string(timestamp));
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -2951,6 +2986,8 @@ PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
+
+    add_binary_file_time(jn_data);
 
     /*
      *  Inform
@@ -6540,6 +6577,8 @@ PRIVATE json_t *cmd_binaries_instances(hgobj gobj, const char *cmd, json_t *kw, 
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
+
+    add_binary_file_time(jn_data);
 
     /*
      *  Inform

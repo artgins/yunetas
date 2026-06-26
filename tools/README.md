@@ -50,9 +50,16 @@ Classification per installed binary:
 | `BUMP` | local version not installed, > primary | `install-binary` |
 | `INSTALLED` | local version already an installed slot, but not the primary (snap active / pending promote) | skipped (promote with `yunetas upgrade-yunos`) |
 | `DOWNGRADE` | local version < agent version | `install-binary` (flagged red) |
-| `REBUILD` | same version, size changed | `update-binary` |
-| `UP-TO-DATE` | same version, same size | skipped |
+| `REBUILD` | same version, size changed **or** local file newer than the agent slot | `update-binary` |
+| `UP-TO-DATE` | same version, same size and not newer | skipped |
 | `NO-BUILD` | agent has it, no build in `outputs/yunos` | skipped (informational) |
+
+A rebuild that keeps the byte count identical (a one-char log edit, or a relink
+against a changed static lib) is still caught: `*list-binaries[-instances]`
+reports each binary's on-disk mtime as `time` (epoch) / `time_str` next to
+`size`, and a local file newer than the agent's slot is flagged `REBUILD` even
+when `Δsize` is 0 (the table notes it as "newer build"). Against an agent that
+predates the `time` field it falls back to the embedded build date (`date`).
 
 It shows the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for

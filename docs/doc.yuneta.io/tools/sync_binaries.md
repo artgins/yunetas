@@ -24,13 +24,22 @@ For each binary the agent has installed:
 |--------------|--------------------------------------------|------------------|
 | `BUMP`       | local version > agent version              | `install-binary` |
 | `DOWNGRADE`  | local version < agent version              | `install-binary` (flagged) |
-| `REBUILD`    | same version, size changed                 | `update-binary`  |
-| `UP-TO-DATE` | same version, same size                    | skipped          |
+| `REBUILD`    | same version, size changed **or** local file newer | `update-binary`  |
+| `UP-TO-DATE` | same version, same size and not newer      | skipped          |
 | `NO-BUILD`   | agent has it, no build in `outputs/yunos`  | skipped (informational) |
 
 It prints the candidate table, asks what to apply (all / one-by-one / quit),
 then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
 each chosen role.
+
+A rebuild that keeps the byte count identical — a one-character log edit, or a
+relink against a changed static lib — would otherwise read as `UP-TO-DATE`. To
+catch it, `*list-binaries` / `*list-binaries-instances` report each binary's
+on-disk file time as `time` (epoch) and `time_str` next to `size`; when the
+local file is newer than the agent's installed slot the role is flagged
+`REBUILD` even though `Δsize` is 0 (the table notes it as "newer build"). For an
+older agent that does not report `time`, the comparison falls back to the
+embedded build date (`date`, the C `__DATE__ " " __TIME__`).
 
 ## REBUILD lifecycle is automated; the bump path is not
 

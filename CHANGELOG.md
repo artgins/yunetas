@@ -1,6 +1,26 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(agent): report each binary's on-disk file time in
+      `*list-binaries` / `*list-binaries-instances`.** Both commands now add
+      `time` (epoch seconds) and `time_str` (local timestamp) next to `size`,
+      computed live by `stat()`ing the stored `binary` path (no treedb schema
+      change; covers binaries installed before the field existed; never mutates
+      the in-memory node — the listed records are fresh `node_collapsed_view`
+      dicts). The motivation is `sync_binaries`: `size` alone calls a rebuild
+      that kept the byte count identical (a one-char log edit, or a relink
+      against a changed static lib) "up-to-date", so it was never offered for
+      `update-binary`. Added `add_binary_file_time()` in `c_agent.c`.
+    - **fix(sync-binaries): detect a same-version rebuild by file time, not just
+      size.** `classify()` now flags a `REBUILD` when the local file is newer
+      than the agent's installed slot even when `Δsize` is 0: it prefers the
+      numeric `time` (file mtime) the agent reports next to `size`, and falls
+      back to the embedded build `date` (`__DATE__ " " __TIME__`, in
+      `--print-role` / `*list-binaries`) for an older agent. The candidate table
+      gains a `note` column spelling out a date-triggered rebuild ("newer
+      build") so a 0-`Δsize` `REBUILD` doesn't read as a no-op. `tools/README.md`
+      updated. The same newer-than-slot check now also applies in the snap-pinned
+      (`INSTALLED`) branch.
     - **refactor(ytls): clarify the rejected-handshake log line (both backends).**
       The default-on `gobj_log_warning` in `do_handshake` dropped the misleading
       parenthetical hint from its `msg` — OpenSSL's

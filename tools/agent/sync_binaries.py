@@ -27,9 +27,21 @@ For every installed binary it decides:
   * INSTALLED  — local version already an installed slot, but  -> skipped (promote
                  not the primary (snap active / pending promote)   with upgrade-yunos)
   * DOWNGRADE  — local version  <  agent version             -> install-binary (flagged)
-  * REBUILD    — same version, content changed (size)        -> update-binary
-  * UP-TO-DATE — same version, same size                     -> skipped
+  * REBUILD    — same version, content changed: size differs,  -> update-binary
+                 OR the local file is newer than the agent
+                 slot (a relink/edit that left the byte count
+                 unchanged still bumps the file time)
+  * UP-TO-DATE — same version, same size AND not newer         -> skipped
   * NO-BUILD   — agent has it, but no build in outputs/yunos  -> skipped (informational)
+
+Size alone misses a rebuild that keeps the byte count identical (e.g. a one-char
+log-string edit, or a relink against a changed static lib). The file time is the
+second signal: ``*list-binaries[-instances]`` reports each binary's on-disk
+mtime as ``time`` (epoch) / ``time_str`` next to ``size``; a LOCAL file mtime
+newer than the agent's installed slot is offered as a REBUILD even when the size
+matches. When the agent predates the ``time`` field it falls back to the
+embedded build datetime (``date``, the C ``__DATE__ " " __TIME__``, reported by
+both ``--print-role`` and ``*list-binaries``).
 
 Then it shows the candidates, asks what to apply, and runs the corresponding
 ``install-binary`` / ``update-binary`` for each chosen role.
@@ -81,6 +93,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 
 # ----------------------------------------------------------------------------
 #   ANSI colours (only when stdout is a tty)
@@ -161,6 +174,58 @@ def cmp_versions(a, b):
     if ta > tb:
         return 1
     return 0
+
+
+def parse_build_date(s):
+    """
+    Parse the build datetime embedded in a binary and reported identically by
+    '--print-role' and '*list-binaries' as the `date` field ('Mmm D YYYY
+    HH:MM:SS' — the C `__DATE__ " " __TIME__`). __DATE__ space-pads a single
+    digit day ('Jun  5 2026'), so collapse runs of whitespace before parsing.
+    Returns a datetime, or None when absent/malformed so the caller falls back
+    to the size-only compare.
+    """
+    if not s or s == "?":
+        return None
+    norm = re.sub(r"\s+", " ", str(s)).strip()
+    for fmt in ("%b %d %Y %H:%M:%S", "%b %d %Y"):
+        try:
+            return datetime.strptime(norm, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def is_newer_build(local_date, ref_date):
+    """
+    True iff `local_date` parses to a strictly later build datetime than
+    `ref_date`. If either side is missing/unparseable returns False (the caller
+    then relies on size alone), so a malformed date never forces a spurious
+    REBUILD.
+    """
+    ld = parse_build_date(local_date)
+    rd = parse_build_date(ref_date)
+    return ld is not None and rd is not None and ld > rd
+
+
+def local_is_newer(lb, ref_time, ref_date):
+    """
+    True iff the freshly built local binary is newer than the reference slot.
+
+    Prefers the numeric file mtime ('time', epoch seconds) the agent reports
+    next to 'size' in *list-binaries[-instances]: local file mtime > the
+    installed slot's. This is the robust signal — it catches a relink that left
+    the byte count unchanged AND a recompile, on the same node clock.
+
+    Falls back to the embedded build-date string ('date', the C
+    __DATE__ " " __TIME__) when the agent predates the 'time' field. Either
+    side missing -> False (size alone decides), so it never forces a spurious
+    REBUILD.
+    """
+    lt = lb.get("mtime")
+    if lt is not None and ref_time is not None:
+        return lt > ref_time
+    return is_newer_build(lb.get("date"), ref_date)
 
 
 # ----------------------------------------------------------------------------
@@ -295,11 +360,16 @@ def local_binaries(yunos_dir):
             # $$(<file>) uploads by filename; update-binary id=<role> targets by
             # the agent id. They normally coincide; warn if they don't.
             print(yellow("  ! %s: role '%s' != filename, using filename for upload" % (name, role)))
+        try:
+            mtime = int(os.path.getmtime(path))
+        except OSError:
+            mtime = None
         out[name] = {
             "role": name,            # what $$(...) and id= will use
             "reported_role": role,
             "version": info.get("version", "?"),
             "date": info.get("date", "?"),
+            "mtime": mtime,          # local file mtime, vs the agent's `time`
             "size": os.path.getsize(path),
             "path": path,
         }
@@ -336,6 +406,7 @@ def agent_binaries(ycommand, url, jwt):
             "version": rec.get("version", "?"),
             "size": rec.get("size", 0),
             "date": rec.get("date", "?"),
+            "time": rec.get("time"),   # agent-reported file mtime (epoch), or None
             "binary": rec.get("binary", ""),
         }
     return out
@@ -368,7 +439,11 @@ def agent_binary_instances(ycommand, url, jwt):
         ver = rec.get("version")
         if not bid or ver is None:
             continue
-        out.setdefault(bid, {})[str(ver)] = rec.get("size", 0)
+        out.setdefault(bid, {})[str(ver)] = {
+            "size": rec.get("size", 0),
+            "date": rec.get("date", "?"),
+            "time": rec.get("time"),   # agent-reported file mtime (epoch), or None
+        }
     return out
 
 
@@ -405,16 +480,23 @@ def classify(local, agent, instances):
                 # is not the active primary (a snap is pinning an older one).
                 # install-binary would fail "Node already exists"; nothing to
                 # push — it only needs promotion (yunetas upgrade-yunos). If its
-                # content drifted (size differs) it is a same-version REBUILD of
-                # that slot instead, which update-binary overwrites in place.
-                if lb["size"] == inst[lb["version"]]:
+                # content drifted (size differs, OR the local build is newer-
+                # dated than that slot) it is a same-version REBUILD of that slot
+                # instead, which update-binary overwrites in place.
+                slot = inst[lb["version"]]
+                if lb["size"] != slot["size"]:
                     rows.append({
-                        "role": role, "kind": "installed", "action": None,
-                        "local": lb, "agent": ab,
+                        "role": role, "kind": "rebuild", "action": "update-binary",
+                        "local": lb, "agent": ab, "reason": "size",
+                    })
+                elif local_is_newer(lb, slot.get("time"), slot.get("date")):
+                    rows.append({
+                        "role": role, "kind": "rebuild", "action": "update-binary",
+                        "local": lb, "agent": ab, "reason": "newer build",
                     })
                 else:
                     rows.append({
-                        "role": role, "kind": "rebuild", "action": "update-binary",
+                        "role": role, "kind": "installed", "action": None,
                         "local": lb, "agent": ab,
                     })
                 continue
@@ -428,11 +510,20 @@ def classify(local, agent, instances):
                 "local": lb, "agent": ab,
             })
         else:
-            # Same version. Only worth an update-binary if content changed.
+            # Same version. Worth an update-binary if the content changed. Size
+            # is the cheap signal; a rebuild that doesn't move the byte count
+            # (a one-char log edit, or a relink) is caught by comparing the file
+            # mtime — the agent's `time` vs the local file's (or the embedded
+            # build `date` when the agent predates `time`).
             if lb["size"] != ab["size"]:
                 rows.append({
                     "role": role, "kind": "rebuild", "action": "update-binary",
-                    "local": lb, "agent": ab,
+                    "local": lb, "agent": ab, "reason": "size",
+                })
+            elif local_is_newer(lb, ab.get("time"), ab.get("date")):
+                rows.append({
+                    "role": role, "kind": "rebuild", "action": "update-binary",
+                    "local": lb, "agent": ab, "reason": "newer build",
                 })
             else:
                 rows.append({
@@ -452,11 +543,21 @@ KIND_LABEL = {
 }
 
 
+def _short_mtime(epoch):
+    """epoch -> 'YYYY-MM-DD HH:MM' for the table note, or '' if unavailable."""
+    if not epoch:
+        return ""
+    try:
+        return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
+    except (OverflowError, OSError, ValueError):
+        return ""
+
+
 def print_table(rows, show_uptodate):
     print()
-    print(bold("%-18s %-11s %-12s %-12s %-9s %-9s" % (
-        "role", "status", "local ver", "agent ver", "Δsize", "command")))
-    print(dim("-" * 78))
+    print(bold("%-18s %-11s %-12s %-12s %-9s %-15s %s" % (
+        "role", "status", "local ver", "agent ver", "Δsize", "command", "note")))
+    print(dim("-" * 92))
     for r in rows:
         kind = r["kind"]
         if kind in ("uptodate", "nolocal") and not show_uptodate:
@@ -470,10 +571,16 @@ def print_table(rows, show_uptodate):
         else:
             dtxt = "-"
         action = r["action"] or "-"
-        print("%-18s %s %-12s %-12s %-9s %-9s" % (
+        # A date-triggered REBUILD shows Δsize 0; spell out why so it doesn't
+        # read as a no-op. Show the local file's build time as the evidence.
+        note = ""
+        if kind == "rebuild" and r.get("reason") == "newer build":
+            stamp = _short_mtime(r["local"].get("mtime")) if r["local"] else ""
+            note = dim("newer build" + (" (%s)" % stamp if stamp else ""))
+        print("%-18s %s %-12s %-12s %-9s %-15s %s" % (
             r["role"],
             colour("%-11s" % label),
-            lv, av, dtxt, action,
+            lv, av, dtxt, action, note,
         ))
     print()
 
