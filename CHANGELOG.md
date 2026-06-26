@@ -1,17 +1,23 @@
 # **Changelog**
 
 ## Unreleased
-    - **refactor(ytls): clarify the rejected-handshake log line.** The default-on
-      `gobj_log_warning` in `do_handshake` (OpenSSL backend) dropped the
-      `(check ssl_min_version for legacy peers)` hint from its `msg` — it was
-      misleading: most rejections are internet background noise (HTTP-on-TLS-port,
-      port-scan garbage, open-proxy `CONNECT`) that has nothing to do with the
-      protocol floor; only `unsupported protocol` / `version too low` are actual
-      legacy peers. The `tls_version` field was renamed to `negotiated_version`,
-      since `SSL_get_version()` returns the **server** object's version — equal to
-      the peer's offer only when the ClientHello was parsed far enough to negotiate
-      one, and otherwise the server default (so a plaintext-HTTP probe is logged as
-      `TLSv1.3`). Log-text/field-name only; no behaviour change.
+    - **refactor(ytls): clarify the rejected-handshake log line (both backends).**
+      The default-on `gobj_log_warning` in `do_handshake` dropped the misleading
+      parenthetical hint from its `msg` — OpenSSL's
+      `(check ssl_min_version for legacy peers)` and mbedTLS's
+      `(mbedTLS floors at TLS1.2; use OpenSSL backend for legacy peers)` both now
+      read just `TLS handshake rejected`. The hint implied every rejection was a
+      protocol-floor issue, but most are internet background noise
+      (HTTP-on-TLS-port, port-scan garbage, open-proxy `CONNECT`); only
+      `unsupported protocol` / `version too low` are actual legacy peers. The
+      OpenSSL `tls_version` field was renamed to `negotiated_version` (since
+      `SSL_get_version()` returns the **server** object's version — equal to the
+      peer's offer only when the ClientHello was parsed far enough, otherwise the
+      server default, so a plaintext-HTTP probe is logged as `TLSv1.3`), and the
+      same `negotiated_version` field was **added** to the mbedTLS line via
+      `mbedtls_ssl_get_version()` (which honestly returns `"unknown"` pre-
+      negotiation) so both backends log a symmetric field set. Log-text/field-name
+      only; no behaviour change.
     - **fix(ytls): raise the `ssl_verify_depth` default from 1 to 2.** OpenSSL
       counts the trust anchor in the chain depth, so the minimal verification
       path against any public CA is leaf(0) → intermediate(1) → root(2). With
