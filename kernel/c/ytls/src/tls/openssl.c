@@ -1170,12 +1170,12 @@ PRIVATE int do_handshake(hsskt sskt_)
             gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPENSSL,
-                "msg",              "%s", "TLS handshake rejected (check ssl_min_version for legacy peers)",
+                "msg",              "%s", "TLS handshake rejected",
                 "error",            "%s", sskt->last_error,
                 "peername",         "%s", sskt->peername,
                 "sockname",         "%s", sskt->sockname,
                 "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
-                "tls_version",      "%s", SSL_get_version(sskt->ssl),
+                "negotiated_version", "%s", SSL_get_version(sskt->ssl),
                 NULL
             );
             sskt->on_handshake_done_cb(sskt->user_data, -1);

@@ -1,6 +1,17 @@
 # **Changelog**
 
 ## Unreleased
+    - **refactor(ytls): clarify the rejected-handshake log line.** The default-on
+      `gobj_log_warning` in `do_handshake` (OpenSSL backend) dropped the
+      `(check ssl_min_version for legacy peers)` hint from its `msg` — it was
+      misleading: most rejections are internet background noise (HTTP-on-TLS-port,
+      port-scan garbage, open-proxy `CONNECT`) that has nothing to do with the
+      protocol floor; only `unsupported protocol` / `version too low` are actual
+      legacy peers. The `tls_version` field was renamed to `negotiated_version`,
+      since `SSL_get_version()` returns the **server** object's version — equal to
+      the peer's offer only when the ClientHello was parsed far enough to negotiate
+      one, and otherwise the server default (so a plaintext-HTTP probe is logged as
+      `TLSv1.3`). Log-text/field-name only; no behaviour change.
     - **fix(ytls): raise the `ssl_verify_depth` default from 1 to 2.** OpenSSL
       counts the trust anchor in the chain depth, so the minimal verification
       path against any public CA is leaf(0) → intermediate(1) → root(2). With
@@ -22,7 +33,7 @@
       `HANDSHAKE_TRANSCRIPT_MAX`, the `handshake_transcript` field,
       `capture_handshake_bytes()` and all decref sites from `openssl.c` /
       `mbedtls.c`. The default-on `gobj_log_warning` recording the rejection
-      reason (error, peername, sockname, SNI, tls_version) is kept. The two
+      reason (error, peername, sockname, SNI, negotiated_version) is kept. The two
       `test_handshake_dump_{openssl,mbedtls}` tests were repurposed as
       `test_handshake_reject_*` (a bogus HTTP-on-TLS-port handshake is rejected
       cleanly: `error=-1`, no crash) — both backends pass.
