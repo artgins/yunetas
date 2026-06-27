@@ -754,7 +754,7 @@ PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t 
     if(gobj_has_bottom_attr(gobj, "peername")) {
         peername = gobj_read_str_attr(gobj, "peername");
     }
-    gobj_log_info(gobj, 0,
+    gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting PAYLOAD data",
         "peername",     "%s", peername,
