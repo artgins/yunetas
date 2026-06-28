@@ -210,8 +210,11 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
   for a PR; one is staged on branch `exact-alg-pin-verify` in the upstream clone
   — fixes both paths (`libjwt/jwt-verify.c`) + `tests/jwt_alg_downgrade.c`
   (Compact and Flattened-JSON, each proven to fail without its fix) + a no-`alg`
-  RSA fixture, full suite 40/40 — pending push from our fork. Patch + description
-  in the security-review workspace.
+  RSA fixture, full suite 40/40 — pending push from our fork. Patch, issue text,
+  and PR description live in the security-review workspace
+  `/yuneta/development/projects/libjwt-review/` (a machine-local, durable
+  directory alongside the upstream clone `../libjwt.original`; outside both git
+  trees on purpose).
 - **mbedTLS v4.0/PSA backend — now moot.** Per Ben, upstream moved to the
   MbedTLS **PSA** API in **v3.5.0** (works with 3.x and 4.1), so our PSA rewrite
   is no longer a differentiator and is immune-by-construction to `5fada81` the
@@ -225,8 +228,9 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
   disabled in CMakeLists; JWKS is loaded from a config attr, not libjwt's curl
   path). Re-classify if the curl backend is ever enabled.
 - **Periodic re-vendor from upstream** rather than growing the backport list —
-  procedure below. Full analysis lives in the security-review workspace
-  `UPSTREAM-DRIFT.md`.
+  procedure below. The security-review workspace
+  `/yuneta/development/projects/libjwt-review/` (machine-local, durable) holds
+  the drift analysis and upstream-PR artifacts.
 
 ### Re-vendor procedure
 
