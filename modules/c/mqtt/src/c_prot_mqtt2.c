@@ -2258,7 +2258,7 @@ PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
     uint8_t msb, lsb;
 
     if(!gbuf || gbuffer_leftbytes(gbuf) < 2) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2284,7 +2284,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
     uint32_t val = 0;
 
     if(!gbuf || gbuffer_leftbytes(gbuf) < 4) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2310,7 +2310,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 {
     if(!gbuf || gbuffer_leftbytes(gbuf) < bflen) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2331,7 +2331,7 @@ PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 {
     if(!gbuf || gbuffer_leftbytes(gbuf) < 1) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2357,7 +2357,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
     *length = 0;
 
     if(mqtt_read_uint16(gobj, gbuf, &slen)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2374,7 +2374,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
     }
 
     if(gbuffer_leftbytes(gbuf) < slen) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2432,7 +2432,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
     uint8_t lbytes = 0;
 
     if(!gbuf) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2464,7 +2464,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
         }
     }
 
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2486,7 +2486,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_RESPONSE_TOPIC:
         case MQTT_PROP_CORRELATION_DATA:
             if(command != CMD_PUBLISH && command != CMD_WILL) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2500,7 +2500,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
             if(command != CMD_PUBLISH && command != CMD_SUBSCRIBE) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2514,7 +2514,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
             if(command != CMD_CONNECT && command != CMD_CONNACK && command != CMD_DISCONNECT) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2529,7 +2529,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_AUTHENTICATION_METHOD:
         case MQTT_PROP_AUTHENTICATION_DATA:
             if(command != CMD_CONNECT && command != CMD_CONNACK && command != CMD_AUTH) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2550,7 +2550,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE:
         case MQTT_PROP_SHARED_SUB_AVAILABLE:
             if(command != CMD_CONNACK) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2564,7 +2564,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_WILL_DELAY_INTERVAL:
             if(command != CMD_WILL) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2579,7 +2579,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_REQUEST_PROBLEM_INFORMATION:
         case MQTT_PROP_REQUEST_RESPONSE_INFORMATION:
             if(command != CMD_CONNECT) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2593,7 +2593,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SERVER_REFERENCE:
             if(command != CMD_CONNACK && command != CMD_DISCONNECT) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2608,7 +2608,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_REASON_STRING:
             if(command == CMD_CONNECT || command == CMD_PUBLISH ||
                 command == CMD_SUBSCRIBE || command == CMD_UNSUBSCRIBE) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2624,7 +2624,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
         case MQTT_PROP_MAXIMUM_PACKET_SIZE:
             if(command != CMD_CONNECT && command != CMD_CONNACK) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2638,7 +2638,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_TOPIC_ALIAS:
             if(command != CMD_PUBLISH) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
@@ -2654,7 +2654,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
             break;
 
         default:
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt unknown property of command",
@@ -2690,7 +2690,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 PRIVATE int property_len_consume(hgobj gobj, uint32_t *len, uint32_t consumed, const char *property_name)
 {
     if(*len < consumed) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "MQTT property length underflow",
@@ -2885,7 +2885,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             return 0;  /* handled: skip the generic json_object_set_new below */
 
         default:
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Unsupported property type",
@@ -2927,7 +2927,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
 
             int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value > 1) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 1",
@@ -2939,7 +2939,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
         } else if(identifier == MQTT_PROP_MAXIMUM_PACKET_SIZE) {
             int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value == 0) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 2",
@@ -2953,7 +2953,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
 
             int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value == 0) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt check property failed 3",
@@ -3054,7 +3054,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
 //             && identifier != MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
 //             && identifier != MQTT_PROP_SHARED_SUB_AVAILABLE
 //     ) {
-//         gobj_log_error(gobj, 0,
+//         gobj_log_warning(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
 //             "msgset",       "%s", MSGSET_MQTT,
 //             "msg",          "%s", "Bad byte property identifier",
@@ -3083,7 +3083,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
 //             && identifier != MQTT_PROP_TOPIC_ALIAS_MAXIMUM
 //             && identifier != MQTT_PROP_TOPIC_ALIAS
 //     ) {
-//         gobj_log_error(gobj, 0,
+//         gobj_log_warning(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
 //             "msgset",       "%s", MSGSET_MQTT,
 //             "msg",          "%s", "Bad int16 property identifier",
@@ -3112,7 +3112,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
 //             && identifier != MQTT_PROP_WILL_DELAY_INTERVAL
 //             && identifier != MQTT_PROP_MAXIMUM_PACKET_SIZE
 //     ) {
-//         gobj_log_error(gobj, 0,
+//         gobj_log_warning(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
 //             "msgset",       "%s", MSGSET_MQTT,
 //             "msg",          "%s", "Bad int32 property identifier",
@@ -3138,7 +3138,7 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
 
     if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER
     ) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Bad variant property identifier",
@@ -3165,7 +3165,7 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
 //     if(identifier != MQTT_PROP_CORRELATION_DATA
 //             && identifier != MQTT_PROP_AUTHENTICATION_DATA
 //     ) {
-//         gobj_log_error(gobj, 0,
+//         gobj_log_warning(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
 //             "msgset",       "%s", MSGSET_MQTT,
 //             "msg",          "%s", "Bad binary property identifier",
@@ -3196,7 +3196,7 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
             && identifier != MQTT_PROP_SERVER_REFERENCE
             && identifier != MQTT_PROP_REASON_STRING
     ) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Bad string property identifier",
@@ -3326,7 +3326,7 @@ PRIVATE int property_process_will(hgobj gobj, json_t *all_properties)
                 break;
 
             default:
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt auth: will property unknown",
@@ -3813,7 +3813,7 @@ PRIVATE int handle__pingreq_s(hgobj gobj)
     if(priv->iamServer) {
         return send_simple_command(gobj, CMD_PINGRESP);
     } else {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_PINGREQ and not broker",
@@ -3831,7 +3831,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->in_session) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_PINGRESP: not in session",
@@ -3843,7 +3843,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
     if(priv->iamServer) {
         if(!priv->is_bridge) {
             // It seems the broker shouldn't receive pingresp, only if it's bridged.
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt CMD_PINGREQ: not bridge",
@@ -4333,7 +4333,7 @@ PRIVATE int will__read(
         return ret;
     }
     if(!tlen) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: not topic",
@@ -4344,7 +4344,7 @@ PRIVATE int will__read(
     gobj_write_strn_attr(gobj, "will_topic", will_topic, tlen);
 
     if((ret=mqtt_pub_topic_check2(will_topic, tlen))<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
@@ -4395,7 +4395,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     if(!priv->iamServer) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: not server",
@@ -4413,7 +4413,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     uint8_t version_byte;
 
     if(!gbuf) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt CMD_CONNECT: gbuf NULL",
@@ -4449,7 +4449,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
     if(strcmp(protocol_name, PROTOCOL_NAME_v31)==0) {
         if((version_byte & 0x7F) != PROTOCOL_VERSION_v31) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Invalid protocol version",
@@ -4473,7 +4473,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         } else if((version_byte & 0x7F) == PROTOCOL_VERSION_v5) {
             protocol_version = mosq_p_mqtt5;
         } else {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Invalid protocol version",
@@ -4485,7 +4485,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
         if(priv->frame_head.flags != 0x00) {
             /* Reserved flags not set to 0, must disconnect. */
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt Reserved flags not set to 0",
@@ -4496,7 +4496,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
 
     } else {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt Invalid protocol",
@@ -4511,7 +4511,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     gobj_write_bool_attr(gobj, "is_bridge", is_bridge);
 
     if(is_bridge) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt bridge not supported",
@@ -4569,7 +4569,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     uint8_t username_flag, password_flag;
 
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: no connect_flags ",
@@ -4580,7 +4580,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
         if((connect_flags & 0x01) != 0x00) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: bad connect_flags",
@@ -4604,7 +4604,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     will = connect_flags & 0x04;
     will_qos = (connect_flags & 0x18) >> 3;
     if(will_qos == 3) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid Will QoS in CONNECT",
@@ -4619,7 +4619,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     username_flag = connect_flags & 0x80;
 
     if(will && will_retain && priv->retain_available == FALSE) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: retain not available",
@@ -4666,7 +4666,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         if(protocol_version == mosq_p_mqtt5){
             send__connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
         }
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Unsupporred Will QoS in CONNECT",
@@ -4723,7 +4723,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     uint16_t client_id_len;
 
     if(mqtt_read_string(gobj, gbuf, &client_id, &client_id_len)<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: bad client id",
@@ -4735,7 +4735,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     if(client_id_len == 0) {
         if(protocol_version == mosq_p_mqtt31) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: no client id",
@@ -4771,7 +4771,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 );
                 client_id = uuid;
                 if(!client_id) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "Mqtt: client_id_gen() FAILED",
@@ -4873,7 +4873,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *-------------------------------------------*/
     if(will) {
         if(will__read(gobj, gbuf)<0) { // Write in gbuf_will_payload the will payload
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: will__read FAILED()",
@@ -4886,7 +4886,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     } else {
         if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
             if(will_qos != 0 || will_retain != 0) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: will_qos will_retain",
@@ -4911,7 +4911,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 /* Username flag given, but no username. Ignore. */
                 username_flag = 0;
             } else {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: no username",
@@ -4926,7 +4926,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
             if(password_flag) {
                 /* username_flag == 0 && password_flag == 1 is forbidden */
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: password without username",
@@ -4943,7 +4943,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             if(protocol_version == mosq_p_mqtt31) {
                 /* Password flag given, but no password. Ignore. */
             } else {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: Password flag given, but no password",
@@ -4960,7 +4960,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *      All data readn, cannot be more
      *-------------------------------------------*/
     if(gbuffer_leftbytes(gbuf)>0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: too much data",
@@ -4976,7 +4976,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *-------------------------------------------*/
     if(!empty_string(priv->auth_method)) {
         // TODO Auth implement JWT method
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: AUTHORIZATION METHOD not supported",
@@ -5273,7 +5273,7 @@ PRIVATE int handle__connack(
     json_t *properties = NULL;
 
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -5282,7 +5282,7 @@ PRIVATE int handle__connack(
         return MOSQ_ERR_PROTOCOL;
     }
     if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -5302,7 +5302,7 @@ PRIVATE int handle__connack(
             /* This could occur because we are connecting to a v3.x broker and
              * it has replied with "unacceptable protocol version", but with a
              * v3 CONNACK. */
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Error in properties",
@@ -5321,7 +5321,7 @@ PRIVATE int handle__connack(
             return ret;
 
         } else if(ret<0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Error in properties",
@@ -5339,7 +5339,7 @@ PRIVATE int handle__connack(
             if(!empty_string(gobj_read_str_attr(gobj, "mqtt_client_id"))) {
                 /* We've been sent a client identifier but already have one. This
                  * shouldn't happen. */
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "assigned client identifier",
@@ -5467,7 +5467,7 @@ PRIVATE int handle__connack(
                  */
                 const char *reason = priv->protocol_version != mosq_p_mqtt5?
                     mqtt_connack_string(reason_code):mqtt_reason_string(reason_code);
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt connection refused",
@@ -5483,7 +5483,7 @@ PRIVATE int handle__connack(
             return MOSQ_ERR_CONN_REFUSED;
 
         default:
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt connection refused",
@@ -5508,7 +5508,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
         /* FIXME - must handle reason code */
         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -5595,7 +5595,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     int ret = 0;
 
     if(priv->protocol_version != mosq_p_mqtt5) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Receiving cmd_disconnect and not mqtt v5",
@@ -5639,7 +5639,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 2) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt subscribe: flags != 2",
@@ -5654,7 +5654,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt subscribe: mid == 0",
@@ -5675,7 +5675,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         if(subscription_identifier != -1) {
             /* If the identifier exists and was force set to 0, this is an error */
             if(subscription_identifier == 0) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt subscribe: subscription_identifier == 0",
@@ -5707,7 +5707,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(!slen) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt subscribe: Empty subscription string",
@@ -5720,7 +5720,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mqtt_sub_topic_check2(sub, slen)<0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt subscribe: Invalid subscription string",
@@ -5752,7 +5752,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             subscription_options &= 0xFC;
 
             if((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 1",
@@ -5767,7 +5767,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
             retain_handling = (subscription_options & 0x30);
             if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 2",
@@ -5781,7 +5781,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             }
         }
         if(qos > 2) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt subscribe: Invalid QoS in subscription command",
@@ -5820,7 +5820,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version != mosq_p_mqtt31) {
         if(!json_size(jn_list)) {
             /* No subscriptions specified, protocol error. */
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt subscribe: No subscriptions specified",
@@ -5953,7 +5953,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 2) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt unsubscribe: flags != 2",
@@ -5968,7 +5968,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt unsubscribe: mid == 0",
@@ -5990,7 +5990,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
         if(gbuffer_leftbytes(gbuf)==0) {
             /* No topic specified, protocol error. */
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt unsubscribe: no topic specified",
@@ -6016,7 +6016,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(!slen) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Empty unsubscription string",
@@ -6029,7 +6029,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mqtt_sub_topic_check2(sub, slen)<0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Invalid unsubscription string",
@@ -6164,7 +6164,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         return rc;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Suback with mid == 0",
@@ -6243,7 +6243,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         return rc;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Unsuback with mid == 0",
@@ -6332,7 +6332,7 @@ PRIVATE int handle__publish_s(
     BOOL retain = (header & 0x01);      // possible values of 0,1
 
     if(dup == 1 && qos == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid PUBLISH (QoS=0 and DUP=1), disconnecting",
@@ -6342,7 +6342,7 @@ PRIVATE int handle__publish_s(
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(qos == 3) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Invalid QoS in PUBLISH, disconnecting",
@@ -6353,7 +6353,7 @@ PRIVATE int handle__publish_s(
     }
 
     if(qos > priv->max_qos) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Too high QoS in PUBLISH, disconnecting",
@@ -6364,7 +6364,7 @@ PRIVATE int handle__publish_s(
     }
 
     if(retain && priv->retain_available == FALSE) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Retain not supported in PUBLISH, disconnecting",
@@ -6384,7 +6384,7 @@ PRIVATE int handle__publish_s(
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: topic len 0 and not mqtt5",
@@ -6403,7 +6403,7 @@ PRIVATE int handle__publish_s(
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mid == 0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: qos>0 and mid=0",
@@ -6461,7 +6461,7 @@ PRIVATE int handle__publish_s(
     }
 
     if(topic_alias == 0 || (topic_alias > priv->max_topic_alias)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MQTT,
             "msg",              "%s", "Mqtt: invalid topic alias",
@@ -6490,7 +6490,7 @@ PRIVATE int handle__publish_s(
              */
             json_t *jn_alias_topic = json_object_get(priv->jn_alias_list, alias_key);
             if(!jn_alias_topic) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_MQTT,
                     "msg",              "%s", "Mqtt: topic alias NOT FOUND",
@@ -6515,7 +6515,7 @@ PRIVATE int handle__publish_s(
 
     if(mqtt_pub_topic_check2(topic, slen)<0) {
         /* Invalid publish topic, just swallow it. */
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt will: invalid topic",
@@ -6535,7 +6535,7 @@ PRIVATE int handle__publish_s(
 
     if(payloadlen) {
         if(priv->message_size_limit && payloadlen > priv->message_size_limit) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MQTT,
                 "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
@@ -6858,7 +6858,7 @@ PRIVATE int handle__publish_c(
     char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Empty topic is only valid in MQTT v5 (when a topic alias is used) */
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: topic len 0",
@@ -6879,7 +6879,7 @@ PRIVATE int handle__publish_c(
         }
 
         if(mid == 0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt: discard message, qos>0 and mid=0",
@@ -6934,7 +6934,7 @@ PRIVATE int handle__publish_c(
                     break;
 
                 default:
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "Mqtt: discard message, property invalid",
@@ -6958,7 +6958,7 @@ PRIVATE int handle__publish_c(
         if(topic_alias == -1) {
             /* No alias property — topic string must be present */
             if(!topic) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt: empty topic and no topic alias",
@@ -6969,7 +6969,7 @@ PRIVATE int handle__publish_c(
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
         } else if(topic_alias == 0 || topic_alias > priv->max_topic_alias) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MQTT,
                 "msg",              "%s", "Mqtt: invalid topic alias",
@@ -6992,7 +6992,7 @@ PRIVATE int handle__publish_c(
                 /* Empty topic + alias: look up stored mapping */
                 json_t *jn_alias_topic = json_object_get(priv->jn_alias_list, alias_key);
                 if(!jn_alias_topic) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_MQTT,
                         "msg",              "%s", "Mqtt: topic alias NOT FOUND",
@@ -7210,7 +7210,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
 
     if(priv->protocol_version != mosq_p_mqtt31) {
         if((priv->frame_head.flags) != 0x00) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt pubackcomp: flags != 0",
@@ -7234,7 +7234,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
         qos = 2;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubackcomp: mid == 0",
@@ -7270,7 +7270,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                     && reason_code != MQTT_RC_QUOTA_EXCEEDED
                     && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID
             ) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt puback: bad reason code",
@@ -7285,7 +7285,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             if(reason_code != MQTT_RC_SUCCESS
                     && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND
             ) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt pubcomp: bad reason code",
@@ -7299,7 +7299,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
         }
     }
     if(gbuffer_leftbytes(gbuf)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubackcomp: packet too long",
@@ -7409,7 +7409,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: malformed packet",
@@ -7425,7 +7425,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         return rc;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: mid == 0",
@@ -7451,7 +7451,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 && reason_code != MQTT_RC_PACKET_ID_IN_USE
                 && reason_code != MQTT_RC_QUOTA_EXCEEDED
                 && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt pubrec: wrong reason code",
@@ -7478,7 +7478,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gbuffer_leftbytes(gbuf)>0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrec: too much data",
@@ -7557,7 +7557,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(rc == MOSQ_ERR_NOT_FOUND) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt: Received PUBREC for an unknown packet ID",
@@ -7587,7 +7587,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->protocol_version != mosq_p_mqtt31 && priv->frame_head.flags != 0x02) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: malformed packet",
@@ -7602,7 +7602,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         return rc;
     }
     if(mid == 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: mid == 0",
@@ -7620,7 +7620,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(reason_code != MQTT_RC_SUCCESS && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt pubrel: bad reason",
@@ -7641,7 +7641,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gbuffer_leftbytes(gbuf)>0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt pubrel: too much data",
@@ -7972,7 +7972,7 @@ PRIVATE int framehead_consume(
         unsigned char byte = *data;
         frame->frame_length += (byte & 0x7F) * (128*128*128);
         if(byte & 0x80) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
@@ -7991,7 +7991,7 @@ PRIVATE int framehead_consume(
     /* Per MQTT spec §3.12/3.13: PINGREQ and PINGRESP remaining length MUST be 0 */
     if(frame->command == CMD_PINGREQ || frame->command == CMD_PINGRESP) {
         if(frame->frame_length != 0) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "PING remaining length must be 0",
@@ -8016,7 +8016,7 @@ PRIVATE int framehead_consume(
         && frame->command != CMD_PINGREQ
         && frame->command != CMD_PINGRESP
     ) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, payload required",
@@ -8033,7 +8033,7 @@ PRIVATE int framehead_consume(
      */
     if(priv->iamServer && priv->max_packet_size > 0) {
         if((int)frame->frame_length > priv->max_packet_size) {
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Incoming packet exceeds max_packet_size",
@@ -8100,9 +8100,6 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 break;
             }
             ret = handle__connect(gobj, gbuf, src);
-            if(ret < 0) {
-                gobj_trace_dump_full_gbuf(gobj, gbuf, "MQTT error in handle__connect");
-            }
             break;
 
         case CMD_CONNACK:       // NOT common to server(bridge)/client
@@ -8187,7 +8184,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 
         case CMD_RESERVED:
         default:
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Command unknown or not implemented",
@@ -8196,6 +8193,14 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             );
             ret = MOSQ_ERR_PROTOCOL;
             break;
+    }
+
+    if(ret < 0 && gbuf) {
+        // Malformed packet from the peer: dump the offending frame (length-capped)
+        gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
+            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
+            "MQTT malformed packet: %s", mqtt_command_string(frame->command)
+        );
     }
 
     GBUFFER_DECREF(gbuf);
@@ -8412,7 +8417,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
             if(priv->iamServer) {
                 if(frame->command != CMD_CONNECT) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "mqtt server: first command MUST be CONNECT",
@@ -8428,7 +8433,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 }
             } else {
                 if(frame->command != CMD_CONNACK) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
@@ -8460,7 +8465,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 }
 
                 if(frame->frame_length > 1000) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "CONNECT command too large",
