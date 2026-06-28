@@ -1065,9 +1065,9 @@ PRIVATE int frame_completed(hgobj gobj)
                     gbuffer_decref(unmasked);
                     unmasked = 0;
                 }
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
                     "msg",          "%s", "Websocket BAD OPCODE",
                     "opcode",       "%d", operation,
                     NULL

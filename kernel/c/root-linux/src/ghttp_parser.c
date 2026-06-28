@@ -15,6 +15,7 @@
  *         Constants
  ****************************************************************/
 #define RX_GBUFFER_SIZE (4*1024)
+#define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
 
 /****************************************************************
  *         Structures
@@ -169,7 +170,9 @@ PUBLIC int ghttp_parser_received(
             "desc",         "%s", llhttp_get_error_reason(&parser->llhttp),
             NULL
         );
-        gobj_trace_dump(gobj, buf, received, "Protocol violation: non-HTTP data received");
+        gobj_trace_dump(gobj, buf, MIN(received, MAX_LOG_DUMP_SIZE),
+            "Protocol violation: non-HTTP data received"
+        );
         return -1;
     }
     return (int)received;
@@ -550,14 +553,16 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
     // (next continuation chunk re-reads a missing value) is visible rather
     // than silently truncating the header.
     if(json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value)) < 0) {
-        const char *peername = gobj_read_str_attr(gobj, "peername");
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "cannot store header value (invalid utf-8?)",
-            "peername",     "%s", peername?peername:"",
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
             "key",          "%s", parser->cur_key,
             NULL
+        );
+        gobj_trace_dump(gobj, value, MIN(pos + length, MAX_LOG_DUMP_SIZE),
+            "cannot store header value (invalid utf-8?)"
         );
     }
     GBMEM_FREE(value);
