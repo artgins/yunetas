@@ -122,8 +122,8 @@
                                 "route": "/console/agent",
                                 "target": {
                                     "stage": "main",
-                                    "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "Agent CLI", "subtitle": "Send control-plane commands to an agent (Phase 1)", "color": "#2E7CD6" },
+                                    "gclass": "C_AGENT_CONSOLE",
+                                    "kw": { "title": "console" },
                                     "lifecycle": "keep_alive"
                                 }
                             }

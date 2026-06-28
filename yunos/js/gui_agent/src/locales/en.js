@@ -62,6 +62,12 @@ const en = {
         "authentication":    "Authentication",
         "connected":         "Connected",
         "disconnected":      "Disconnected",
+        "connecting":        "Connecting",
+        "no active agent":   "No active agent — add one in Settings",
+        "not connected to an agent": "Not connected to an agent",
+        "cannot connect":    "Cannot connect",
+        "authentication required": "Authentication required",
+        "identity card refused": "Identity card refused",
 
         /* settings · agents */
         "agents subtitle":   "Agent endpoints, stored in this browser",

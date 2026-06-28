@@ -42,6 +42,7 @@ import {
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
 import {register_c_agent_config} from "./c_agent_config.js";
 import {register_c_settings} from "./c_settings.js";
+import {register_c_agent_console} from "./c_agent_console.js";
 
 import {setup_locale} from "./locales/locales.js";
 
@@ -89,6 +90,7 @@ function main()
     register_c_agent_config();
     register_c_gui_agent_view();
     register_c_settings();
+    register_c_agent_console();
 
     /*------------------------------------------------*
      *          Start yuneta

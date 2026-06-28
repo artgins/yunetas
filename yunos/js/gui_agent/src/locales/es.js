@@ -62,6 +62,12 @@ const es = {
         "authentication":    "Autenticación",
         "connected":         "Conectado",
         "disconnected":      "Desconectado",
+        "connecting":        "Conectando",
+        "no active agent":   "Sin agente activo — añade uno en Configuración",
+        "not connected to an agent": "Sin conexión con un agente",
+        "cannot connect":    "No se puede conectar",
+        "authentication required": "Autenticación requerida",
+        "identity card refused": "Tarjeta de identidad rechazada",
 
         /* configuración · agentes */
         "agents subtitle":   "Endpoints de agentes, guardados en este navegador",
