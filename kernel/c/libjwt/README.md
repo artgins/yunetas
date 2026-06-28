@@ -199,21 +199,29 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
 
 ### Worth contributing upstream
 
-- **Exact-alg pin (same-family downgrade) — PR submitted upstream (2026-06-28):
-  [benmcollins/libjwt#340](https://github.com/benmcollins/libjwt/pull/340),
-  issue [#339](https://github.com/benmcollins/libjwt/issues/339).** Upstream
-  through **v3.6.1** lacks it on **both** verify paths: in
-  `__verify_config_post` (Compact) the both-set pinned path only checks config↔key
+- **Exact-alg pin (same-family downgrade) — MERGED upstream (2026-06-28):
+  [benmcollins/libjwt#340](https://github.com/benmcollins/libjwt/pull/340)
+  (merge `94e3cdf`), issue
+  [#339](https://github.com/benmcollins/libjwt/issues/339).** Upstream
+  through **v3.6.1** lacked it on **both** verify paths: in
+  `__verify_config_post` (Compact) the both-set pinned path only checked config↔key
   consistency, and in `try_candidate` (JSON Serialization) the explicit-key and
-  `kid`-matched branches gate only on the family-granular `kty`, never on the
-  key's declared `alg` — so an RS512 token still verifies against an RS256-pinned
+  `kid`-matched branches gated only on the family-granular `kty`, never on the
+  key's declared `alg` — so an RS512 token still verified against an RS256-pinned
   key. (The new v3.6.0 RFC 8725 `jwt_checker_setalgs()` allowlist does not close
   it — it is opt-in and inactive on the default pinned path.) Ben Collins asked
-  for a PR; one is open from our fork `artgins/libjwt` (branch
-  `exact-alg-pin-verify`) — fixes both paths (`libjwt/jwt-verify.c`) +
-  `tests/jwt_alg_downgrade.c` (Compact and Flattened-JSON, each proven to fail
-  without its fix) + a no-`alg` RSA fixture, full suite 40/40. As of save it was
-  **OPEN, mergeable, CI pending the maintainer's first-contributor approval**.
+  for a PR; merged from our fork `artgins/libjwt` (branch `exact-alg-pin-verify`)
+  — fixes both paths (`libjwt/jwt-verify.c`) + `tests/jwt_alg_downgrade.c`
+  (Compact and Flattened-JSON, each proven to fail without its fix) + a no-`alg`
+  RSA fixture, full suite 40/40. **Follow-up available (not yet sent):** the
+  merged Compact hunk keeps a redundant second `else if` branch (the
+  key-only-pinned case is already pinned exactly by the `config->alg ==
+  JWT_ALG_NONE` branch above), which is unreachable dead code and the source of
+  codecov's 2 uncovered lines on the PR; collapsing it to the single
+  `config->alg` check keeps 40/40 and restores 100% patch coverage
+  (`followup-collapse-dead-branch.diff` in the workspace). The **vendored copy
+  here carries the same redundant branch** (`src/jwt-verify.c`) and could take
+  the same neutral cleanup.
   Patch, issue text, and PR description live in the security-review workspace
   `/yuneta/development/projects/libjwt-review/` (a machine-local, durable
   directory alongside the upstream clone `../libjwt.original`; outside both git
