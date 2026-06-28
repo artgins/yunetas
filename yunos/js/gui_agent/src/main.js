@@ -41,7 +41,9 @@ import {
 
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
 import {register_c_agent_config} from "./c_agent_config.js";
+import {register_c_agent_login} from "./c_agent_login.js";
 import {register_c_settings} from "./c_settings.js";
+import {register_c_auth_settings} from "./c_auth_settings.js";
 import {register_c_agent_console} from "./c_agent_console.js";
 
 import {setup_locale} from "./locales/locales.js";
@@ -86,10 +88,12 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
 
-    /*  App-level config service + views  */
+    /*  App-level config + login services + views  */
     register_c_agent_config();
+    register_c_agent_login();
     register_c_gui_agent_view();
     register_c_settings();
+    register_c_auth_settings();
     register_c_agent_console();
 
     /*------------------------------------------------*
@@ -139,6 +143,18 @@ function main()
     );
 
     /*------------------------------------------------*
+     *      Login service (named service of the yuno).
+     *      Holds the OIDC token in memory and forwards it to the
+     *      console's transport.
+     *------------------------------------------------*/
+    let agent_login = gobj_create_service(
+        "agent_login",
+        "C_AGENT_LOGIN",
+        {},
+        yuno
+    );
+
+    /*------------------------------------------------*
      *      The shell IS the default service.
      *      It builds the whole UI from app_config.
      *------------------------------------------------*/
@@ -159,6 +175,7 @@ function main()
      *------------------------------------------------*/
     gobj_start(yuno);
     gobj_start(agent_config);
+    gobj_start(agent_login);
     gobj_play(yuno);
 }
 

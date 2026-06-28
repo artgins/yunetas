@@ -26,8 +26,8 @@
             },
             "/settings/auth": {
                 "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "Settings · Authentication", "subtitle": "OIDC / auth URL, stored locally (Phase 2)", "color": "#4A5A6E" },
+                "gclass": "C_AUTH_SETTINGS",
+                "kw": { "title": "authentication" },
                 "lifecycle": "lazy_destroy"
             },
             "/help/about": {

@@ -84,6 +84,21 @@ const es = {
         "url must start with ws or wss": "La URL debe empezar por ws:// o wss://",
         "an agent with this label already exists": "Ya existe un agente con esa etiqueta",
 
+        /* configuración · autenticación */
+        "auth subtitle":     "OIDC / Keycloak, guardado en este navegador",
+        "provider":          "Proveedor",
+        "auth url":          "URL de auth",
+        "realm":             "Realm",
+        "client id":         "Client ID",
+        "session":           "Sesión",
+        "username":          "Usuario",
+        "logged in as":      "Conectado como",
+        "signing in":        "Conectando",
+        "logged out":        "Sesión cerrada",
+        "username and password are required": "Usuario y contraseña son obligatorios",
+        "auth config saved": "Configuración de autenticación guardada",
+        "login failed":      "Error de inicio de sesión",
+
         /* preferencias */
         "select language":   "Seleccionar idioma",
         "select theme":      "Seleccionar tema",

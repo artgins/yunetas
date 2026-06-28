@@ -42,6 +42,7 @@ import i18next from "i18next";
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/index.js";
 
 import {agent_config_get_active} from "./c_agent_config.js";
+import {agent_login_get_token} from "./c_agent_login.js";
 
 
 /***************************************************************
@@ -64,6 +65,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",  0,  null,        "Subscriber of o
 SDATA(data_type_t.DTP_STRING,   "title",       0,  "console",   "View title (i18n key)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,        "Root HTMLElement"),
 SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,        "C_AGENT_CONFIG service"),
+SDATA(data_type_t.DTP_POINTER,  "login_svc",   0,  null,        "C_AGENT_LOGIN service"),
 SDATA(data_type_t.DTP_POINTER,  "iev",         0,  null,        "C_IEVENT_CLI child to the active agent"),
 SDATA(data_type_t.DTP_BOOLEAN,  "connected",   0,  false,       "True while in session with the agent"),
 SDATA(data_type_t.DTP_STRING,   "active_label",0,  "",          "Label of the agent we are connected to"),
@@ -111,6 +113,15 @@ function mt_create(gobj)
     gobj_write_attr(gobj, "config_svc", svc);
     if(svc) {
         gobj_subscribe_event(svc, "EV_AGENTS_CHANGED", {}, gobj);
+    }
+
+    /*  Watch the login service: reconnect with the fresh token on login,
+     *  drop the session on logout. */
+    let login = gobj_find_service("agent_login", true);
+    gobj_write_attr(gobj, "login_svc", login);
+    if(login) {
+        gobj_subscribe_event(login, "EV_LOGIN_ACCEPTED", {}, gobj);
+        gobj_subscribe_event(login, "EV_LOGOUT_DONE", {}, gobj);
     }
 
     build_ui(gobj);
@@ -183,12 +194,15 @@ function connect(gobj)
      *  layout cannot cascade-stop the session. The view owns the ref
      *  and releases it in mt_destroy / on reconnect. Subscriber is the
      *  view, so all link events reach us. */
+    let login = gobj_read_attr(gobj, "login_svc");
+    let jwt = login ? agent_login_get_token(login) : "";
+
     let iev = gobj_create("agent_iev", "C_IEVENT_CLI", {
         url:                 active.url,
         remote_yuno_role:    active.yuno_role || "yuneta_agent",
         remote_yuno_service: active.service || "__default_service__",
         remote_yuno_name:    active.yuno_name || "",
-        jwt:                 "",            // Phase 2: real token
+        jwt:                 jwt,
         subscriber:          gobj
     }, gobj_yuno());
     gobj_write_attr(gobj, "iev", iev);
@@ -479,6 +493,16 @@ function ac_agents_changed(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Login state changed: reconnect so the new token (or its
+ *  absence) takes effect on the session.
+ ***************************************************************/
+function ac_login_changed(gobj, event, kw, src)
+{
+    connect(gobj);
+    return 0;
+}
+
 
 
 
@@ -519,7 +543,9 @@ function create_gclass(gclass_name)
             ["EV_ON_OPEN_ERROR",     ac_on_open_error,     null],
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
             ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
-            ["EV_AGENTS_CHANGED",    ac_agents_changed,    null]
+            ["EV_AGENTS_CHANGED",    ac_agents_changed,    null],
+            ["EV_LOGIN_ACCEPTED",    ac_login_changed,     null],
+            ["EV_LOGOUT_DONE",       ac_login_changed,     null]
         ]]
     ];
 
@@ -532,7 +558,9 @@ function create_gclass(gclass_name)
         ["EV_ON_OPEN_ERROR",     0],
         ["EV_ON_ID_NAK",         0],
         ["EV_MT_COMMAND_ANSWER", 0],
-        ["EV_AGENTS_CHANGED",    0]
+        ["EV_AGENTS_CHANGED",    0],
+        ["EV_LOGIN_ACCEPTED",    0],
+        ["EV_LOGOUT_DONE",       0]
     ];
 
     __gclass__ = gclass_create(

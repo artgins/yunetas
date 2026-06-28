@@ -46,6 +46,10 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                      null, "S
 
 SDATA(data_type_t.DTP_JSON,     "agents",       sdata_flag_t.SDF_PERSIST, "[]", "Configured agent endpoints"),
 SDATA(data_type_t.DTP_STRING,   "active_agent", sdata_flag_t.SDF_PERSIST, "",   "Label of the active agent"),
+
+SDATA(data_type_t.DTP_STRING,   "auth_url",       sdata_flag_t.SDF_PERSIST, "", "OIDC/Keycloak base URL (e.g. https://auth.artgins.com)"),
+SDATA(data_type_t.DTP_STRING,   "auth_realm",     sdata_flag_t.SDF_PERSIST, "", "Keycloak realm"),
+SDATA(data_type_t.DTP_STRING,   "auth_client_id", sdata_flag_t.SDF_PERSIST, "", "Keycloak public client id (Direct Access Grants enabled)"),
 SDATA_END()
 ];
 
@@ -139,6 +143,30 @@ function agent_config_set(gobj, agents, active_agent)
         agents:       agents,
         active_agent: active_agent || ""
     });
+}
+
+/***************************************************************
+ *  Read the OIDC/Keycloak auth config: {auth_url, realm, client_id}.
+ ***************************************************************/
+function agent_config_get_auth(gobj)
+{
+    return {
+        auth_url:  gobj_read_attr(gobj, "auth_url") || "",
+        realm:     gobj_read_attr(gobj, "auth_realm") || "",
+        client_id: gobj_read_attr(gobj, "auth_client_id") || ""
+    };
+}
+
+/***************************************************************
+ *  Replace the auth config and persist it.
+ ***************************************************************/
+function agent_config_set_auth(gobj, auth)
+{
+    auth = auth || {};
+    gobj_write_attr(gobj, "auth_url", auth.auth_url || "");
+    gobj_write_attr(gobj, "auth_realm", auth.realm || "");
+    gobj_write_attr(gobj, "auth_client_id", auth.client_id || "");
+    gobj_save_persistent_attrs(gobj);
 }
 
 /***************************************************************
@@ -238,4 +266,6 @@ export {
     agent_config_get,
     agent_config_set,
     agent_config_get_active,
+    agent_config_get_auth,
+    agent_config_set_auth,
 };
