@@ -3028,7 +3028,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 {
     if(!gbuf || gbuffer_leftbytes(gbuf) < bflen) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -3049,7 +3049,7 @@ PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 {
     if(!gbuf || gbuffer_leftbytes(gbuf) < 1) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -3075,7 +3075,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
     *length = 0;
 
     if(mqtt_read_uint16(gobj, gbuf, &slen)<0) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -3150,7 +3150,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
     uint8_t lbytes = 0;
 
     if(!gbuf) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -3182,7 +3182,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
         }
     }
 
-    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+    gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Mqtt malformed packet, not enough data",
