@@ -1,0 +1,19 @@
+{
+    "_comment": "Build-time config for index.html (read by the @yuneta/gobj-ui html-transform Vite plugin). title + metadata + Content-Security-Policy connect-src.",
+
+    "title": "Yuneta Agent Console",
+
+    "metadata": {
+        "application-name": "Yuneta Agent Console",
+        "description": "Web console to operate yuneta agents: control-plane CLI, treedb, stats.",
+        "keywords": "yuneta agent console cli treedb stats gui"
+    },
+
+    "csp_connect_src": [
+        "_comment: CSP is a BUILD-TIME security boundary. The browser only allows WebSocket/HTTPS connections to the origins listed here. Agent URLs typed by the user in Settings MUST match one of these origins; adding a brand-new agent origin requires adding it here and rebuilding. Keep this list as the single source of allowed origins.",
+        "wss://localhost:1991",
+        "wss://localhost:1993",
+        "wss://app.wattyzer.com:1993",
+        "https://auth.artgins.com"
+    ]
+}
