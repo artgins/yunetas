@@ -200,15 +200,18 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
 ### Worth contributing upstream
 
 - **Exact-alg pin (same-family downgrade) — PR prepared (2026-06-28).** Upstream
-  through **v3.6.1** *still* lacks it: `__verify_config_post` only checks
-  config↔key consistency on the both-set path and relies on the family-granular
-  `kty` backstop, so an RS512 token still verifies against an RS256-pinned key.
-  (The new v3.6.0 RFC 8725 `jwt_checker_setalgs()` allowlist does not close it —
-  it is opt-in and inactive on the default pinned path.) Ben Collins asked for a
-  PR; one is staged on branch `exact-alg-pin-verify` in the upstream clone
-  (`libjwt/jwt-verify.c` + `tests/jwt_alg_downgrade.c` + a no-`alg` RSA fixture,
-  full suite 40/40), pending push from our fork. Patch + description in the
-  security-review workspace.
+  through **v3.6.1** *still* lacks it on **both** verify paths: in
+  `__verify_config_post` (Compact) the both-set pinned path only checks config↔key
+  consistency, and in `try_candidate` (JSON Serialization) the explicit-key and
+  `kid`-matched branches gate only on the family-granular `kty`, never on the
+  key's declared `alg` — so an RS512 token still verifies against an RS256-pinned
+  key. (The new v3.6.0 RFC 8725 `jwt_checker_setalgs()` allowlist does not close
+  it — it is opt-in and inactive on the default pinned path.) Ben Collins asked
+  for a PR; one is staged on branch `exact-alg-pin-verify` in the upstream clone
+  — fixes both paths (`libjwt/jwt-verify.c`) + `tests/jwt_alg_downgrade.c`
+  (Compact and Flattened-JSON, each proven to fail without its fix) + a no-`alg`
+  RSA fixture, full suite 40/40 — pending push from our fork. Patch + description
+  in the security-review workspace.
 - **mbedTLS v4.0/PSA backend — now moot.** Per Ben, upstream moved to the
   MbedTLS **PSA** API in **v3.5.0** (works with 3.x and 4.1), so our PSA rewrite
   is no longer a differentiator and is immune-by-construction to `5fada81` the
