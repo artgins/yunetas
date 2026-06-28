@@ -1,20 +1,41 @@
 {
-    "_comment": "Agent Console shell config. Primary areas (Console / TreeDB / Stats) fit the mobile bottom-bar cleanly (<=5 icons). Settings and Help live in the burger drawer (menu.quick). Every leaf currently targets C_GUI_AGENT_VIEW (placeholder) — real views replace them per phase: Console -> C_AGENT_CONSOLE (Phase 1), Settings -> C_SETTINGS (Phase 1), TreeDB/Stats (Phase 3).",
+    "_comment": "Agent Console shell config — mobile-app style (wattyzer-like): an always-on top toolbar with a left brand + right-aligned status/actions (connection dot, language, settings dropdown), NO burger drawer. Primary nav (Console / TreeDB / Stats) is the left rail on desktop and the bottom icon-bar on mobile; submenus render as top tabs. Routes reached from the toolbar dropdown (settings/about) live in shell.routes. Every leaf currently targets C_GUI_AGENT_VIEW (placeholder) — real views replace them per phase.",
 
     "shell": {
         "breakpoints": "bulma",
 
         "zones": {
-            "top":     { "host": "toolbar",        "show_on": ">=tablet" },
+            "top":     { "host": "toolbar",        "show_on": "*" },
             "left":    { "host": "menu.primary",   "show_on": ">=desktop" },
             "bottom":  { "host": "menu.primary",   "show_on": "<desktop"  },
-            "top-sub": { "host": "menu.secondary", "show_on": "<desktop"  },
-            "right":   { "host": "menu.secondary", "show_on": ">=desktop" },
+            "top-sub": { "host": "menu.secondary", "show_on": "*" },
             "center":  { "host": "stage.main" }
         },
 
         "stages": {
             "main": { "zone": "center", "default_route": "/console/agent" }
+        },
+
+        "_routes_comment": "Routes that are NOT a primary-menu item: reached from the toolbar settings dropdown. Kept here so each path is deep-linkable and survives reload.",
+        "routes": {
+            "/settings/agents": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "Settings · Agents", "subtitle": "Agent endpoints, stored locally (Phase 1)", "color": "#5B6B7E" },
+                "lifecycle": "lazy_destroy"
+            },
+            "/settings/auth": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "Settings · Authentication", "subtitle": "OIDC / auth URL, stored locally (Phase 2)", "color": "#4A5A6E" },
+                "lifecycle": "lazy_destroy"
+            },
+            "/help/about": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" },
+                "lifecycle": "lazy_destroy"
+            }
         }
     },
 
@@ -23,11 +44,19 @@
         "aria_label": "Agent Console toolbar",
         "items": [
             {
-                "id": "burger",
-                "icon": "yi-bars",
-                "name": "",
-                "aria_label": "Open quick menu",
-                "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" }
+                "id": "brand",
+                "type": "brand",
+                "logo": "/agent-mark.svg",
+                "wordmark": "Agent Console",
+                "alt": "Agent Console",
+                "aria_label": "Agent Console home",
+                "action": { "type": "navigate", "route": "/console/agent" }
+            },
+            {
+                "id": "conn",
+                "type": "connection",
+                "align": "end",
+                "aria_label": "Agent connection status"
             },
             {
                 "id": "lang",
@@ -38,20 +67,34 @@
                 "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" }
             },
             {
-                "id": "settings",
+                "id": "menu",
                 "icon": "yi-gear",
-                "name": "",
                 "align": "end",
-                "aria_label": "Settings",
-                "action": { "type": "navigate", "route": "/settings/agents" }
-            },
-            {
-                "id": "help",
-                "icon": "yi-question",
-                "name": "",
-                "align": "end",
-                "aria_label": "Help",
-                "action": { "type": "navigate", "route": "/help/about" }
+                "aria_label": "Settings menu",
+                "action": {
+                    "type": "dropdown",
+                    "items": [
+                        {
+                            "id": "set-agents",
+                            "name": "Agents",
+                            "icon": "yi-cloudversify",
+                            "action": { "type": "navigate", "route": "/settings/agents" }
+                        },
+                        {
+                            "id": "set-auth",
+                            "name": "Authentication",
+                            "icon": "yi-lock",
+                            "action": { "type": "navigate", "route": "/settings/auth" }
+                        },
+                        { "type": "divider" },
+                        {
+                            "id": "about",
+                            "name": "About",
+                            "icon": "yi-question",
+                            "action": { "type": "navigate", "route": "/help/about" }
+                        }
+                    ]
+                }
             }
         ]
     },
@@ -70,7 +113,7 @@
                     "tooltip": "Control-plane CLI to a yuneta agent",
                     "route": "/console",
                     "submenu": {
-                        "render": { "top-sub": "tabs", "right": "submenu" },
+                        "render": { "top-sub": "tabs" },
                         "items": [
                             {
                                 "id": "agent",
@@ -94,7 +137,7 @@
                     "tooltip": "Browse treedb topics as tables and graphs",
                     "route": "/treedb",
                     "submenu": {
-                        "render": { "top-sub": "tabs", "right": "submenu" },
+                        "render": { "top-sub": "tabs" },
                         "items": [
                             {
                                 "id": "graph",
@@ -128,7 +171,7 @@
                     "tooltip": "Live stats from a yuno",
                     "route": "/stats",
                     "submenu": {
-                        "render": { "top-sub": "tabs", "right": "submenu" },
+                        "render": { "top-sub": "tabs" },
                         "items": [
                             {
                                 "id": "live",
@@ -139,70 +182,6 @@
                                     "stage": "main",
                                     "gclass": "C_GUI_AGENT_VIEW",
                                     "kw": { "title": "Stats · Live", "subtitle": "Time-series charts (Phase 3)", "color": "#F5A623" }
-                                }
-                            }
-                        ]
-                    }
-                }
-            ]
-        },
-
-        "quick": {
-            "_comment": "Drawer opened from the burger toolbar item. Settings and Help live here so they don't take a primary-bar slot but still get a secondary nav when their routes are visited.",
-            "render": { "top-sub": "drawer" },
-            "items": [
-                {
-                    "id": "settings",
-                    "name": "Settings",
-                    "icon": "yi-gear",
-                    "tooltip": "Agents and authentication (stored in this browser)",
-                    "route": "/settings",
-                    "submenu": {
-                        "render": { "top-sub": "tabs", "right": "submenu" },
-                        "items": [
-                            {
-                                "id": "agents",
-                                "name": "Agents",
-                                "icon": "yi-cloudversify",
-                                "route": "/settings/agents",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "Settings · Agents", "subtitle": "Agent endpoints, stored locally (Phase 1)", "color": "#5B6B7E" }
-                                }
-                            },
-                            {
-                                "id": "auth",
-                                "name": "Authentication",
-                                "icon": "yi-lock",
-                                "route": "/settings/auth",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "Settings · Authentication", "subtitle": "OIDC / auth URL, stored locally (Phase 2)", "color": "#4A5A6E" }
-                                }
-                            }
-                        ]
-                    }
-                },
-                {
-                    "id": "help",
-                    "name": "Help",
-                    "icon": "yi-question",
-                    "tooltip": "About this console",
-                    "route": "/help",
-                    "submenu": {
-                        "render": { "top-sub": "tabs", "right": "submenu" },
-                        "items": [
-                            {
-                                "id": "about",
-                                "name": "About",
-                                "icon": "yi-question",
-                                "route": "/help/about",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" }
                                 }
                             }
                         ]
