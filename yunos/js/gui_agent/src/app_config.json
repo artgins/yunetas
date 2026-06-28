@@ -1,5 +1,5 @@
 {
-    "_comment": "Agent Console shell config — mobile-app style (wattyzer-like): an always-on top toolbar with a left brand + right-aligned status/actions (connection dot, language, settings dropdown), NO burger drawer. Primary nav (Console / TreeDB / Stats) is the left rail on desktop and the bottom icon-bar on mobile; submenus render as top tabs. Routes reached from the toolbar dropdown (settings/about) live in shell.routes. Every leaf currently targets C_GUI_AGENT_VIEW (placeholder) — real views replace them per phase.",
+    "_comment": "Agent Console shell config — mobile-app style: an always-on top toolbar with a left brand + right-aligned status/actions (connection dot, language, theme, user avatar). Primary nav (Console / TreeDB / Stats / Settings) is the left rail on desktop and the bottom icon-bar on mobile; submenus render as top tabs. The toolbar user avatar shows the logged-in user's initials and navigates to /settings/auth (login form when signed out).",
 
     "shell": {
         "breakpoints": "bulma",
@@ -14,28 +14,6 @@
 
         "stages": {
             "main": { "zone": "center", "default_route": "/console/agent" }
-        },
-
-        "_routes_comment": "Routes that are NOT a primary-menu item: reached from the toolbar settings dropdown. Kept here so each path is deep-linkable and survives reload.",
-        "routes": {
-            "/settings/agents": {
-                "stage": "main",
-                "gclass": "C_SETTINGS",
-                "kw": { "title": "settings" },
-                "lifecycle": "lazy_destroy"
-            },
-            "/settings/auth": {
-                "stage": "main",
-                "gclass": "C_AUTH_SETTINGS",
-                "kw": { "title": "authentication" },
-                "lifecycle": "lazy_destroy"
-            },
-            "/help/about": {
-                "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" },
-                "lifecycle": "lazy_destroy"
-            }
         }
     },
 
@@ -75,34 +53,11 @@
                 "action": { "type": "event", "event": "EV_TOGGLE_THEME" }
             },
             {
-                "id": "menu",
-                "icon": "yi-gear",
+                "id": "user",
+                "type": "avatar",
                 "align": "end",
-                "aria_label": "Settings menu",
-                "action": {
-                    "type": "dropdown",
-                    "items": [
-                        {
-                            "id": "set-agents",
-                            "name": "Agents",
-                            "icon": "yi-cloudversify",
-                            "action": { "type": "navigate", "route": "/settings/agents" }
-                        },
-                        {
-                            "id": "set-auth",
-                            "name": "Authentication",
-                            "icon": "yi-lock",
-                            "action": { "type": "navigate", "route": "/settings/auth" }
-                        },
-                        { "type": "divider" },
-                        {
-                            "id": "about",
-                            "name": "About",
-                            "icon": "yi-question",
-                            "action": { "type": "navigate", "route": "/help/about" }
-                        }
-                    ]
-                }
+                "aria_label": "Account / Sign in",
+                "action": { "type": "navigate", "route": "/settings/auth" }
             }
         ]
     },
@@ -191,6 +146,53 @@
                                     "stage": "main",
                                     "gclass": "C_GUI_AGENT_VIEW",
                                     "kw": { "title": "Stats · Live", "subtitle": "Time-series charts (Phase 3)", "color": "#F5A623" }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "settings",
+                    "name": "Settings",
+                    "icon": "yi-gear",
+                    "tooltip": "Agents, authentication, about",
+                    "route": "/settings",
+                    "submenu": {
+                        "render": { "top-sub": "tabs" },
+                        "items": [
+                            {
+                                "id": "agents",
+                                "name": "Agents",
+                                "icon": "yi-cloudversify",
+                                "route": "/settings/agents",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_SETTINGS",
+                                    "kw": { "title": "settings" },
+                                    "lifecycle": "lazy_destroy"
+                                }
+                            },
+                            {
+                                "id": "auth",
+                                "name": "Authentication",
+                                "icon": "yi-lock",
+                                "route": "/settings/auth",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_AUTH_SETTINGS",
+                                    "kw": { "title": "authentication" },
+                                    "lifecycle": "lazy_destroy"
+                                }
+                            },
+                            {
+                                "id": "about",
+                                "name": "About",
+                                "icon": "yi-question",
+                                "route": "/settings/about",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_GUI_AGENT_VIEW",
+                                    "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" }
                                 }
                             }
                         ]

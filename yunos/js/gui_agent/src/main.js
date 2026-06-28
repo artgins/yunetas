@@ -34,12 +34,19 @@ import {
     register_c_ievent_cli,
 } from "@yuneta/gobj-js";
 
-import {
-    register_c_yui_shell,
-    register_c_yui_nav,
-    register_c_yui_treedb_topics,
-    register_c_yui_treedb_topic_with_form,
-} from "@yuneta/gobj-ui/index.js";
+/*
+ *  Import the specific gobj-ui modules (NOT the @yuneta/gobj-ui/index.js
+ *  barrel): the barrel transitively loads c_yui_uplot.js -> uplot, whose
+ *  module-top-level Intl.NumberFormat(navigator.language) throws on any
+ *  browser that reports a non-standard navigator.language (and crashes the
+ *  whole app before the shell renders). Same pattern as wattyzer.
+ */
+import {register_c_yui_shell} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_treedb_topics}
+    from "@yuneta/gobj-ui/src/c_yui_treedb_topics.js";
+import {register_c_yui_treedb_topic_with_form}
+    from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
 import {register_c_agent_config} from "./c_agent_config.js";
