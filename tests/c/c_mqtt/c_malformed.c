@@ -168,6 +168,22 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
+     *  Arm the expectation now: startup is done (session is up), so the
+     *  only captured warning will be the broker rejecting our malformed
+     *  frame. set_expected_results() resets the capture, discarding the
+     *  benign startup warnings (e.g. "No authz db").
+     */
+    set_expected_results(
+        "test_mqtt_malformed",
+        json_pack("[{s:s}]",
+            "msg", "Mqtt malformed packet, payload required"
+        ),
+        NULL,           // no JSON comparison
+        NULL,           // no ignore_keys
+        TRUE            // verbose
+    );
+
+    /*
      *  Malformed SUBSCRIBE: fixed header 0x82 (CMD_SUBSCRIBE | flags 2),
      *  remaining length 0. A valid command for an in-session client, but
      *  zero payload, the exact shape that left a NULL gbuffer reaching

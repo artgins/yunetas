@@ -238,19 +238,12 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*------------------------------------------------------------*
-     *  We expect exactly one error: the broker rejecting the
-     *  malformed zero-length frame. Anything else fails the test.
+     *  We expect exactly one warning: the broker rejecting the
+     *  malformed zero-length frame (a malformed packet from the
+     *  peer is a warning, not an internal error). The expectation
+     *  is armed in c_malformed's ac_on_open, right before injecting
+     *  the frame, so benign startup warnings are not captured.
      *------------------------------------------------------------*/
-    set_expected_results(
-        APP_NAME,
-        json_pack("[{s:s}]",
-            "msg", "Mqtt malformed packet, payload required"
-        ),
-        NULL,           // no JSON comparison
-        NULL,           // no ignore_keys
-        TRUE            // verbose
-    );
-
     MT_START_TIME(time_measure)
 
     return res;
@@ -288,7 +281,7 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
 
     /*------------------------------------------------*
      *      Memory leak check
