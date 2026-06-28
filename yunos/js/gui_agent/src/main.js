@@ -26,6 +26,7 @@ import {
     db_list_persistent_attrs,
     gobj_create_yuno,
     gobj_create_default_service,
+    gobj_create_service,
     gobj_start,
     gobj_play,
     register_c_yuno,
@@ -39,6 +40,8 @@ import {
 } from "@yuneta/gobj-ui/index.js";
 
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
+import {register_c_agent_config} from "./c_agent_config.js";
+import {register_c_settings} from "./c_settings.js";
 
 import {setup_locale} from "./locales/locales.js";
 
@@ -82,8 +85,10 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
 
-    /*  App-level views  */
+    /*  App-level config service + views  */
+    register_c_agent_config();
     register_c_gui_agent_view();
+    register_c_settings();
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -120,6 +125,18 @@ function main()
     setup_locale();
 
     /*------------------------------------------------*
+     *      App config service (named service of the yuno).
+     *      Holds the user-entered agent endpoints (persisted in
+     *      localStorage), shared by the Settings and Console views.
+     *------------------------------------------------*/
+    let agent_config = gobj_create_service(
+        "agent_config",
+        "C_AGENT_CONFIG",
+        {},
+        yuno
+    );
+
+    /*------------------------------------------------*
      *      The shell IS the default service.
      *      It builds the whole UI from app_config.
      *------------------------------------------------*/
@@ -135,8 +152,11 @@ function main()
 
     /*------------------------------------------------*
      *          Play
+     *  The default service (shell) autostarts on play; the named
+     *  config service is NOT autostart, so start it explicitly.
      *------------------------------------------------*/
     gobj_start(yuno);
+    gobj_start(agent_config);
     gobj_play(yuno);
 }
 

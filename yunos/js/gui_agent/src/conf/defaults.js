@@ -20,31 +20,17 @@
  ***********************************************************************/
 
 /*
- *  Shape of one agent endpoint entry (stored in the `agents` attr).
+ *  Shape of one agent endpoint entry (stored in the C_AGENT_CONFIG
+ *  `agents` attr; one is marked active via `active_agent`). The
+ *  transport (plain ws / TLS wss) is derived from the url scheme.
  */
 const AGENT_TEMPLATE = {
     label:      "",                 // human-friendly name shown in the picker
-    url:        "",                 // e.g. "wss://app.wattyzer.com:1993" (plain: ":1991")
+    url:        "",                 // "wss://host:1993" (OAuth2) | "ws://host:1991" (plain, local)
     yuno_role:  "yuneta_agent",     // remote yuno role (agent default)
     yuno_name:  "",                 // remote yuno name (optional)
-    service:    "__default_service__", // remote service that handles commands
-    transport:  "wss"               // "wss" (OAuth2) | "ws" (plain, local only)
+    service:    "__default_service__" // remote service that handles commands
 };
-
-/*
- *  Example entries to seed an EMPTY config — the user edits/replaces
- *  these in Settings. They carry no secrets (no jwt, no password).
- */
-const EXAMPLE_AGENTS = [
-    {
-        label:      "Local agent (plain)",
-        url:        "wss://localhost:1991",
-        yuno_role:  "yuneta_agent",
-        yuno_name:  "",
-        service:    "__default_service__",
-        transport:  "ws"
-    }
-];
 
 /*
  *  Default (empty) auth config. Filled by the user in Settings · Auth.
@@ -55,4 +41,4 @@ const AUTH_TEMPLATE = {
     client_id:  ""
 };
 
-export {AGENT_TEMPLATE, EXAMPLE_AGENTS, AUTH_TEMPLATE};
+export {AGENT_TEMPLATE, AUTH_TEMPLATE};

@@ -63,6 +63,21 @@ const en = {
         "connected":         "Connected",
         "disconnected":      "Disconnected",
 
+        /* settings · agents */
+        "agents subtitle":   "Agent endpoints, stored in this browser",
+        "no agents configured": "No agents configured yet",
+        "set active":        "Set active",
+        "add agent":         "Add agent",
+        "edit agent":        "Edit agent",
+        "label":             "Label",
+        "endpoint url":      "Endpoint URL",
+        "remote role":       "Remote role",
+        "remote service":    "Remote service",
+        "remote name":       "Remote name",
+        "label and url are required": "Label and URL are required",
+        "url must start with ws or wss": "URL must start with ws:// or wss://",
+        "an agent with this label already exists": "An agent with this label already exists",
+
         /* prefs */
         "select language":   "Select Language",
         "select theme":      "Select Theme",

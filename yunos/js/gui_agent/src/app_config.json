@@ -20,8 +20,8 @@
         "routes": {
             "/settings/agents": {
                 "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "Settings · Agents", "subtitle": "Agent endpoints, stored locally (Phase 1)", "color": "#5B6B7E" },
+                "gclass": "C_SETTINGS",
+                "kw": { "title": "settings" },
                 "lifecycle": "lazy_destroy"
             },
             "/settings/auth": {

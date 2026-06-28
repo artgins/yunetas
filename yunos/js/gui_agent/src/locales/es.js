@@ -63,6 +63,21 @@ const es = {
         "connected":         "Conectado",
         "disconnected":      "Desconectado",
 
+        /* configuración · agentes */
+        "agents subtitle":   "Endpoints de agentes, guardados en este navegador",
+        "no agents configured": "Aún no hay agentes configurados",
+        "set active":        "Activar",
+        "add agent":         "Añadir agente",
+        "edit agent":        "Editar agente",
+        "label":             "Etiqueta",
+        "endpoint url":      "URL del endpoint",
+        "remote role":       "Rol remoto",
+        "remote service":    "Servicio remoto",
+        "remote name":       "Nombre remoto",
+        "label and url are required": "La etiqueta y la URL son obligatorias",
+        "url must start with ws or wss": "La URL debe empezar por ws:// o wss://",
+        "an agent with this label already exists": "Ya existe un agente con esa etiqueta",
+
         /* preferencias */
         "select language":   "Seleccionar idioma",
         "select theme":      "Seleccionar tema",
