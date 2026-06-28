@@ -9,7 +9,11 @@
       `MSGSET_MQTT` for mqtt) plus a length-capped dump of the offending frame
       (`MAX_LOG_DUMP_SIZE`, 256). MQTT uses a single capped dump at the
       `frame_completed()` dispatch chokepoint, and the peer-malformed warnings
-      no longer carry `LOG_OPT_TRACE_STACK`. Reserved for our own faults
+      no longer carry `LOG_OPT_TRACE_STACK`. This also covers `mqtt_read_string`'s
+      "malformed utf8" path (both gclasses), previously mis-tagged
+      `MSGSET_INTERNAL` with a stack trace: a peer sending an invalid-UTF8 string
+      field is peer-malformed, now a `MSGSET_MQTT` warning with a capped dump of
+      the offending bytes. Reserved for our own faults
       (`gobj_log_error`): broken internal invariants (e.g. `c_ievent_srv`'s
       "gbuffer NULL", where the gbuffer must arrive in the `kw`), allocation
       failures, outgoing-encode paths, and unsupported/unknown protocol fields

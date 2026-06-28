@@ -3124,14 +3124,15 @@ PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *
     }
 
     if(mosquitto_validate_utf8(*str, (int)(*length))<0) {
-        *str = NULL;
-        *length = 0;
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "malformed utf8",
             NULL
         );
+        gobj_trace_dump(gobj, *str, MIN(*length, MAX_LOG_DUMP_SIZE), "malformed utf8");
+        *str = NULL;
+        *length = 0;
         return MOSQ_ERR_MALFORMED_UTF8;
     }
 
