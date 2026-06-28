@@ -15,7 +15,10 @@
         "@yuneta/gobj-js": "file:../../../kernel/js/gobj-js",
         "@yuneta/gobj-ui": "file:../../../kernel/js/gobj-ui",
         "bulma": "^1.0.4",
-        "i18next": "^26.0.7"
+        "i18next": "^26.0.7",
+        "tabulator-tables": "^6.4.0",
+        "tom-select": "^2.5.2",
+        "vanilla-jsoneditor": "0.23.8"
     },
     "devDependencies": {
         "vite": "^8.0.10"

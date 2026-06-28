@@ -155,10 +155,11 @@
                                 "name": "Table",
                                 "icon": "yi-table",
                                 "route": "/treedb/table",
+                                "_target_comment": "WIP: switch gclass to C_TREEDB_PANEL {mode:table} once a dedicated treedb-yuno target + shared connection land. The agent's own treedb_agentdb is not served over the descs/nodes command surface.",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "TreeDB · Table", "subtitle": "Topic rows (Phase 3)", "color": "#1F8A5F" }
+                                    "kw": { "title": "TreeDB · Table", "subtitle": "Topic rows (Phase 3, WIP)", "color": "#1F8A5F" }
                                 }
                             }
                         ]

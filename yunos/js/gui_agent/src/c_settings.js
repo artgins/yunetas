@@ -36,6 +36,7 @@ const GCLASS_NAME = "C_SETTINGS";
 
 const DEFAULT_ROLE    = "yuneta_agent";
 const DEFAULT_SERVICE = "__default_service__";
+const DEFAULT_TREEDB  = "treedb_agentdb";
 
 
 /***************************************************************
@@ -294,6 +295,7 @@ function build_form(gobj, svc, agents, editing)
             field("remote role",    "yuno_role", cur ? cur.yuno_role : DEFAULT_ROLE,    DEFAULT_ROLE),
             field("remote service", "service",   cur ? cur.service : DEFAULT_SERVICE,   DEFAULT_SERVICE),
             field("remote name",    "yuno_name", cur ? cur.yuno_name : "", "(optional)"),
+            field("treedb",         "treedb",    cur ? cur.treedb : DEFAULT_TREEDB,     DEFAULT_TREEDB),
             $err,
             ["div", {class: "buttons"}, buttons]
         ]]
@@ -344,7 +346,8 @@ function on_save(gobj, svc, $form, $err)
         url:       url,
         yuno_role: field_value($form, "yuno_role") || DEFAULT_ROLE,
         service:   field_value($form, "service")   || DEFAULT_SERVICE,
-        yuno_name: field_value($form, "yuno_name")
+        yuno_name: field_value($form, "yuno_name"),
+        treedb:    field_value($form, "treedb")    || DEFAULT_TREEDB
     };
 
     let {agents, active_agent} = agent_config_get(svc);
