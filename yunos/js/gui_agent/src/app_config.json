@@ -67,6 +67,14 @@
                 "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" }
             },
             {
+                "id": "theme",
+                "icon": "yi-moon",
+                "name": "",
+                "align": "end",
+                "aria_label": "Toggle dark theme",
+                "action": { "type": "event", "event": "EV_TOGGLE_THEME" }
+            },
+            {
                 "id": "menu",
                 "icon": "yi-gear",
                 "align": "end",

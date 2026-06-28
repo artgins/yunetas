@@ -163,6 +163,36 @@ function field_value($root, name)
 }
 
 /***************************************************************
+ *  Password field with a show/hide eye toggle.
+ ***************************************************************/
+function password_field(name, value)
+{
+    let $input = createElement2(["input", {
+        class: "input is-small", type: "password", name: name, value: value || ""
+    }]);
+    let $icon = createElement2(["i", {class: "yi-eye"}]);
+    let $btn = createElement2(
+        ["button", {class: "button is-small", type: "button", "aria-label": "show password"},
+            [["span", {class: "icon is-small"}, [$icon]]]]
+    );
+    $btn.addEventListener("click", () => {
+        let show = ($input.type === "password");
+        $input.type = show ? "text" : "password";
+        $icon.className = show ? "yi-eye-slash" : "yi-eye";
+        $input.focus();
+    });
+    return createElement2(
+        ["div", {class: "field"}, [
+            ["label", {class: "label is-small", i18n: "password"}, "Password"],
+            ["div", {class: "field has-addons mb-0"}, [
+                ["div", {class: "control is-expanded"}, [$input]],
+                ["div", {class: "control"}, [$btn]]
+            ]]
+        ]]
+    );
+}
+
+/***************************************************************
  *  Rebuild the whole view.
  ***************************************************************/
 function render(gobj)
@@ -241,7 +271,7 @@ function render(gobj)
             ["div", {class: "box"}, [
                 ["h2", {class: "title is-5", i18n: "login"}, "Sign In"],
                 field("username", "username", "", "text", ""),
-                field("password", "password", "", "password", ""),
+                password_field("password", ""),
                 ["div", {class: "buttons"}, [
                     ["button", {class: "button is-small is-primary", type: "button", i18n: "login"},
                         "Sign In", {click: () => on_login(gobj, $login)}]

@@ -52,6 +52,7 @@ import {register_c_treedb_gate} from "./c_treedb_gate.js";
 import {register_c_treedb_panel} from "./c_treedb_panel.js";
 
 import {setup_locale} from "./locales/locales.js";
+import {apply_theme, current_theme} from "./theme.js";
 
 import "bulma/css/bulma.css";
 import "@yuneta/gobj-ui/src/c_yui_shell.css";
@@ -144,6 +145,9 @@ function main()
      *      Initialise i18n (en / es).
      *------------------------------------------------*/
     setup_locale();
+
+    /*  Apply the saved light/dark theme before the shell renders.  */
+    apply_theme(current_theme());
 
     /*------------------------------------------------*
      *      App config service (named service of the yuno).
