@@ -8,6 +8,13 @@ It is the modern successor of the old webix "Yuneta CLI"
 (`yuno_gui/v2/.../ui_yuneta_cli.js`): the control-plane **CLI to the agent**
 is the first panel; treedb (table + graph) and live stats follow.
 
+**Canonical URL:** the SPA is served at `https://agents.yunetacontrol.com`
+(new apex — needs its own DNS zone + TLS cert at deploy time). This is the
+app's own origin, **not** a backend endpoint: it does not go in
+`csp_connect_src`. In Phase 2 it must be registered in the IdP as a Valid
+Redirect URI (`https://agents.yunetacontrol.com/*`) and Web Origin, and the
+agent must accept `wss` upgrades from this origin.
+
 ## Key design choice: config lives in the browser, not the repo
 
 Unlike `gui_treedb` (which hardcodes endpoints in `src/conf/backend_config.js`),
