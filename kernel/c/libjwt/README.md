@@ -36,11 +36,13 @@ on a per-commit basis when they're worth the integration cost.
 > 3.x branch, not 1.x.
 
 A security review of this vendored copy against upstream was done on
-**2026-06-05** and re-run against **v3.4.0** on **2026-06-15**.
+**2026-06-05**, re-run against **v3.4.0** on **2026-06-15**, and re-run again
+against **v3.6.1** on **2026-06-28**.
 
 - **Vendored base:** upstream commit `375e539`
   (`v3.2.1`+2, 2025-06-04 — "jwt: Use long long for json integers").
-- **Analyzed up to:** upstream commit `6ea3b6b` (**v3.4.0**, 2026-06-15).
+- **Analyzed up to:** upstream commit `197ac58` (**v3.6.1**, 2026-06-28).
+  The prior pass stopped at `6ea3b6b` (**v3.4.0**, 2026-06-15).
 - **Gap:** v3.4.0 is a large feature release (full JWE, `crit` header, `jti`
   callbacks, PEM→JWK public API). Almost none of it touches Yuneta's compiled
   subset: JWE, `jwks-curl.c`, the `gnutls`/`json-c` backends are all excluded
@@ -110,6 +112,45 @@ A security review of this vendored copy against upstream was done on
   machinery were intentionally NOT ported (C_AUTHZ does not sign). Covered by
   `test_crit_header` (well-formed + malformed `crit` rejected on both entry
   points; the no-`crit` positive control in `test_oct_key` still verifies).
+
+#### v3.6.0 / v3.6.1 re-review (2026-06-28) — nothing to backport
+
+The v3.4.0→v3.6.1 gap (`6ea3b6b..197ac58`) is a **feature** release (v3.5.0 +
+v3.6.0/v3.6.1), not a hardening pass on the verify path. Every commit was mapped
+against the compiled subset (`CMakeLists.txt`) and the only reachable entry from
+`C_AUTHZ` — Compact verification (`jwt_parse` / `jwt_checker_verify2`). **No
+security fix lands on compiled, reachable code; nothing was backported.**
+
+- **`eafe5e2` JWS JSON Serialization (multi-signature) + keyring verify, and its
+  follow-ups `929bd68` (a `jwt_checker_require()` *policy bypass*) and `b3f1a70`
+  (a per-verify header leak).** All three live in `jwt_verify_json()` — a **new
+  serialization** absent from this tree (we only do Compact). The "bypass" is
+  unreachable: the code path does not exist here.
+- **`2469253` + `eca511e` — RFC 7797 unencoded (`b64=false`) / detached
+  payloads.** New feature. Not reachable: the already-backported `crit` rejection
+  (`fe8840a`) rejects any token carrying the `b64` critical header outright, so an
+  unencoded-payload token never reaches claim handling.
+- **`f4a536f` (#320, route key ops to the parsing backend) + `b6d2c1c` (#327,
+  free `provider_data` via the origin backend).** A genuine multi-backend
+  memory-safety fix upstream, but **not reachable here**: this tree selects a
+  single crypto backend at startup (via `ytls`), never calls `jwt_set_crypto_ops`,
+  and never switches the active backend between parsing a JWK and verifying with
+  it — so a key is always freed/used under the same ops that parsed it.
+- **`910e3e4` — RFC 8725 `typ` helper + `jwt_checker_setalgs()` algorithm
+  allowlist.** Opt-in checker hardening (active only when configured). Functionally
+  **redundant** with this tree's local *exact-alg pin* in `__verify_config_post`
+  (which already rejects any non-pinned alg, including `alg:none`). The upstream
+  allowlist is the spec-blessed equivalent; not ported (no behavioural gain).
+- **`6579215` application profiles (#317), `a1bc8d3` `jwks_generate()`, `f648626`
+  RFC 7638/9278 thumbprints, `c222fb4` x5c/x5t, `9cd2114`/`6ef66d2` JWE
+  PBES2/AES-GCM-KW, `a69d823` RFC 7800 `cnf`, ML-DSA additions.** Producer-side or
+  opt-in feature primitives. Their touches on compiled files (e.g. the OpenSSL
+  backend) are **purely additive** — new functions registered in `jwt_openssl_ops`,
+  no change to `openssl_verify_sha_pem`. `C_AUTHZ` only verifies; none are reached.
+- **`6f23796` / `22a089a` cached remote JWKS (incl. the `Cache-Control` `time_t`
+  overflow), `590beb2` / `6903450` (`jwk-export.c`, tools), gnutls.** In
+  `jwks-curl.c` / files **not compiled** here (JWKS is loaded from a config attr).
+  N/A — re-classify only if the curl backend is ever enabled.
 
 ### N/A in this tree (v3.4.0 batch, after reachability analysis)
 
