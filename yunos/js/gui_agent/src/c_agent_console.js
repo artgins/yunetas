@@ -5,20 +5,17 @@
  *      stage view (mounted by C_YUI_SHELL at /console/agent).
  *
  *      The v2 successor of the old webix "Yuneta CLI": a command input
- *      with history + a response area. It opens a C_IEVENT_CLI child to
- *      the ACTIVE agent (from C_AGENT_CONFIG), sends commands with
- *      gobj_command() and renders the agent's EV_MT_COMMAND_ANSWER
- *      ({result, comment, schema, data}) — exactly the ycommand path.
+ *      with history + a response area. It does NOT own a transport —
+ *      it uses the shared C_AGENT_LINK ("agent_link"), which owns the
+ *      single C_IEVENT_CLI to the active agent. The console subscribes
+ *      to the link's re-published events (EV_ON_OPEN/CLOSE/OPEN_ERROR/
+ *      ID_NAK/MT_COMMAND_ANSWER) and sends commands with
+ *      agent_link_command(). Connection state drives the shell's
+ *      toolbar dot via yui_shell_set_connection_state().
  *
- *      Connection state drives the shell's toolbar connection dot via
- *      yui_shell_set_connection_state(): EV_ON_OPEN → connected,
- *      close / errors / NAK → disconnected. Re-connects when the active
- *      agent changes (EV_AGENTS_CHANGED from C_AGENT_CONFIG).
- *
- *      Auth (jwt for wss:1993 OAuth2 agents) lands in Phase 2; until
- *      then a wss+OAuth2 agent answers the identity card with a NAK,
- *      which this view surfaces. A plain local agent (ws://…:1991)
- *      connects and executes end-to-end already.
+ *      Auth (jwt for OAuth2 agents) lands in the login service; until a
+ *      user signs in, an OAuth2 agent answers the identity card with a
+ *      NAK, which this view surfaces.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -30,9 +27,6 @@ import {
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_find_service,
-    gobj_yuno,
-    gobj_create, gobj_start_tree, gobj_stop_tree, gobj_destroy,
-    gobj_command,
     createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
@@ -41,8 +35,7 @@ import i18next from "i18next";
 
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/index.js";
 
-import {agent_config_get_active} from "./c_agent_config.js";
-import {agent_login_get_token} from "./c_agent_login.js";
+import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 
 
 /***************************************************************
@@ -64,11 +57,8 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",  0,  null,        "Subscriber of o
 
 SDATA(data_type_t.DTP_STRING,   "title",       0,  "console",   "View title (i18n key)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,        "Root HTMLElement"),
-SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,        "C_AGENT_CONFIG service"),
-SDATA(data_type_t.DTP_POINTER,  "login_svc",   0,  null,        "C_AGENT_LOGIN service"),
-SDATA(data_type_t.DTP_POINTER,  "iev",         0,  null,        "C_IEVENT_CLI child to the active agent"),
+SDATA(data_type_t.DTP_POINTER,  "link_svc",    0,  null,        "C_AGENT_LINK service"),
 SDATA(data_type_t.DTP_BOOLEAN,  "connected",   0,  false,       "True while in session with the agent"),
-SDATA(data_type_t.DTP_STRING,   "active_label",0,  "",          "Label of the agent we are connected to"),
 SDATA_END()
 ];
 
@@ -108,20 +98,15 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    /*  Watch the config service so a change of active agent reconnects. */
-    let svc = gobj_find_service("agent_config", true);
-    gobj_write_attr(gobj, "config_svc", svc);
-    if(svc) {
-        gobj_subscribe_event(svc, "EV_AGENTS_CHANGED", {}, gobj);
-    }
-
-    /*  Watch the login service: reconnect with the fresh token on login,
-     *  drop the session on logout. */
-    let login = gobj_find_service("agent_login", true);
-    gobj_write_attr(gobj, "login_svc", login);
-    if(login) {
-        gobj_subscribe_event(login, "EV_LOGIN_ACCEPTED", {}, gobj);
-        gobj_subscribe_event(login, "EV_LOGOUT_DONE", {}, gobj);
+    /*  Use the shared link; subscribe to its re-published events. */
+    let link = gobj_find_service("agent_link", true);
+    gobj_write_attr(gobj, "link_svc", link);
+    if(link) {
+        gobj_subscribe_event(link, "EV_ON_OPEN", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_CLOSE", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_OPEN_ERROR", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_ID_NAK", {}, gobj);
+        gobj_subscribe_event(link, "EV_MT_COMMAND_ANSWER", {}, gobj);
     }
 
     build_ui(gobj);
@@ -132,16 +117,17 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
-    connect(gobj);
+    /*  Reflect whatever state the shared link is already in. */
+    let link = gobj_read_attr(gobj, "link_svc");
+    if(link && agent_link_is_connected(link)) {
+        set_status(gobj, true, i18next.t("connected"));
+    } else {
+        set_status(gobj, false, "");
+    }
 }
 
 /***************************************************************
  *          Framework Method: Stop
- *
- *  Do NOT drop the agent link here: this view is keep_alive and the
- *  shell may stop/start it during mount/layout. Tearing down the
- *  C_IEVENT_CLI on every stop would kill the session mid-handshake.
- *  The link lives on the yuno and is released in mt_destroy.
  ***************************************************************/
 function mt_stop(gobj)
 {
@@ -152,7 +138,6 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
-    disconnect(gobj);
     let $c = gobj_read_attr(gobj, "$container");
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
@@ -169,61 +154,6 @@ function mt_destroy(gobj)
 
 
 
-
-/***************************************************************
- *  (Re)connect a C_IEVENT_CLI child to the active agent.
- ***************************************************************/
-function connect(gobj)
-{
-    disconnect(gobj);
-
-    let svc = gobj_read_attr(gobj, "config_svc");
-    let active = svc ? agent_config_get_active(svc) : null;
-    if(!active) {
-        gobj_write_attr(gobj, "active_label", "");
-        set_status(gobj, false, i18next.t("no active agent"));
-        return;
-    }
-
-    gobj_write_attr(gobj, "active_label", active.label);
-
-    gobj.priv.got_nak = false;
-
-    /*  Parent the transport to the yuno (always alive), NOT to this
-     *  keep_alive view, so a transient view stop/start during shell
-     *  layout cannot cascade-stop the session. The view owns the ref
-     *  and releases it in mt_destroy / on reconnect. Subscriber is the
-     *  view, so all link events reach us. */
-    let login = gobj_read_attr(gobj, "login_svc");
-    let jwt = login ? agent_login_get_token(login) : "";
-
-    let iev = gobj_create("agent_iev", "C_IEVENT_CLI", {
-        url:                 active.url,
-        remote_yuno_role:    active.yuno_role || "yuneta_agent",
-        remote_yuno_service: active.service || "__default_service__",
-        remote_yuno_name:    active.yuno_name || "",
-        jwt:                 jwt,
-        subscriber:          gobj
-    }, gobj_yuno());
-    gobj_write_attr(gobj, "iev", iev);
-
-    set_status(gobj, false, `${i18next.t("connecting")}… ${active.label}`);
-    gobj_start_tree(iev);
-}
-
-/***************************************************************
- *  Tear down the current C_IEVENT_CLI child, if any.
- ***************************************************************/
-function disconnect(gobj)
-{
-    let iev = gobj_read_attr(gobj, "iev");
-    if(iev) {
-        gobj_write_attr(gobj, "iev", null);
-        gobj_stop_tree(iev);
-        gobj_destroy(iev);
-    }
-    gobj_write_attr(gobj, "connected", false);
-}
 
 /***************************************************************
  *  Update the connection dot (shell) + the local status line.
@@ -340,7 +270,6 @@ function add_history(gobj, cmd)
     if(priv.history.length > HISTORY_MAX) {
         priv.history.pop();
     }
-    /*  Surface it for autocomplete if not already an option. */
     if(priv.$datalist &&
         !priv.$datalist.querySelector(`option[value="${CSS.escape(cmd)}"]`)) {
         priv.$datalist.appendChild(createElement2(["option", {value: cmd}]));
@@ -385,7 +314,7 @@ function show_data(gobj, data)
 }
 
 /***************************************************************
- *  Send the current input to the active agent.
+ *  Send the current input to the active agent via the link.
  ***************************************************************/
 function send_command(gobj)
 {
@@ -395,8 +324,8 @@ function send_command(gobj)
         return;
     }
 
-    let iev = gobj_read_attr(gobj, "iev");
-    if(!iev || !gobj_read_attr(gobj, "connected")) {
+    let link = gobj_read_attr(gobj, "link_svc");
+    if(!link || !gobj_read_attr(gobj, "connected")) {
         show_comment(gobj, i18next.t("not connected to an agent"), -1);
         return;
     }
@@ -405,7 +334,7 @@ function send_command(gobj)
     show_comment(gobj, "…", 0);
     show_data(gobj, null);
 
-    gobj_command(iev, cmd, {}, gobj);
+    agent_link_command(link, cmd, {}, gobj);
 }
 
 
@@ -481,28 +410,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
     return 0;
 }
 
-/***************************************************************
- *  The active agent (or the agent list) changed: reconnect.
- ***************************************************************/
-function ac_agents_changed(gobj, event, kw, src)
-{
-    let new_active = (kw && kw.active_agent) || "";
-    if(new_active !== gobj_read_attr(gobj, "active_label")) {
-        connect(gobj);
-    }
-    return 0;
-}
-
-/***************************************************************
- *  Login state changed: reconnect so the new token (or its
- *  absence) takes effect on the session.
- ***************************************************************/
-function ac_login_changed(gobj, event, kw, src)
-{
-    connect(gobj);
-    return 0;
-}
-
 
 
 
@@ -542,10 +449,7 @@ function create_gclass(gclass_name)
             ["EV_ON_CLOSE",          ac_on_close,          null],
             ["EV_ON_OPEN_ERROR",     ac_on_open_error,     null],
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
-            ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
-            ["EV_AGENTS_CHANGED",    ac_agents_changed,    null],
-            ["EV_LOGIN_ACCEPTED",    ac_login_changed,     null],
-            ["EV_LOGOUT_DONE",       ac_login_changed,     null]
+            ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null]
         ]]
     ];
 
@@ -557,10 +461,7 @@ function create_gclass(gclass_name)
         ["EV_ON_CLOSE",          0],
         ["EV_ON_OPEN_ERROR",     0],
         ["EV_ON_ID_NAK",         0],
-        ["EV_MT_COMMAND_ANSWER", 0],
-        ["EV_AGENTS_CHANGED",    0],
-        ["EV_LOGIN_ACCEPTED",    0],
-        ["EV_LOGOUT_DONE",       0]
+        ["EV_MT_COMMAND_ANSWER", 0]
     ];
 
     __gclass__ = gclass_create(
