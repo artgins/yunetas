@@ -172,7 +172,7 @@ security fix lands on compiled, reachable code; nothing was backported.**
 
 ### Could we link upstream directly instead of vendoring? — No
 
-v3.4.0's new public API (`jwks_create_fromkey`, PEM→JWK, JWE) does not close the
+The new public API (`jwks_create_fromkey`, PEM→JWK, JWE) does not close the
 structural divergence: the `gbmem` allocator wiring (`jwt-memory.c`), the
 `#include <gobj.h>` + `gobj_trace_json` coupling (`jwt-verify.c`), the mbedTLS
 v4.0/PSA backend rewrite, the `jwt-common.c`→`jwt-builder.c`/`jwt-checker.c`
@@ -181,14 +181,38 @@ as `json_t *` — the basis of `verify_token()` — plus `jwk_process_one` /
 `jwks_item_add` / `jwks_item_free2`, none public upstream). Re-vendor remains the
 model.
 
+**The `json_t *` boundary is the load-bearing one, confirmed by Ben (2026-06-28).**
+Upstream **deliberately** does not expose `json_t` through `jwt.h`: it compiles
+against either Jansson **or** json-c, and `jwt_t` is intentionally volatile
+verify/generate state (a post-v3 security decision to stop callers treating it as
+a durable, ambiguous "generated-or-verified" object). His suggested path is a
+verify **callback** plus the `jwt_get_*()` getters (which can hand back the full
+claims JSON *string*) to rebuild a `json_t` caller-side. **That does not fit
+Yuneta**, where `json_t *` is a *first-order* native currency — `verify_token()`
+must return the parsed claims **as a live `json_t *`**, not re-parse a string —
+so our `jwt_checker_verify2()` (which returns `json_t *` directly) is a permanent
+divergence, not something to upstream or refactor away. Likewise, his public
+incremental keyring API (`jwks_create()` + `jwks_load*()`, with PEM/DER/BIN since
+v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
+`jwks_item_free2` exports on a re-vendor, but only the keyring wiring — the
+`json_t *` return contract stays. Bottom line: **re-vendor, never link.**
+
 ### Worth contributing upstream
 
-- **Exact-alg pin (same-family downgrade).** Upstream v3.4.0 *still* lacks it:
-  `__verify_config_post` only checks config↔key consistency on the both-set path
-  and relies on the family-granular `kty` backstop, so an RS512 token still
-  verifies against an RS256-pinned key. Our local pin (above) fixes it.
-- **mbedTLS v4.0/PSA backend** — forward-compatible and immune-by-construction to
-  `5fada81`; offerable as portability (divergent design, not a clean patch).
+- **Exact-alg pin (same-family downgrade) — PR prepared (2026-06-28).** Upstream
+  through **v3.6.1** *still* lacks it: `__verify_config_post` only checks
+  config↔key consistency on the both-set path and relies on the family-granular
+  `kty` backstop, so an RS512 token still verifies against an RS256-pinned key.
+  (The new v3.6.0 RFC 8725 `jwt_checker_setalgs()` allowlist does not close it —
+  it is opt-in and inactive on the default pinned path.) Ben Collins asked for a
+  PR; one is staged on branch `exact-alg-pin-verify` in the upstream clone
+  (`libjwt/jwt-verify.c` + `tests/jwt_alg_downgrade.c` + a no-`alg` RSA fixture,
+  full suite 40/40), pending push from our fork. Patch + description in the
+  security-review workspace.
+- **mbedTLS v4.0/PSA backend — now moot.** Per Ben, upstream moved to the
+  MbedTLS **PSA** API in **v3.5.0** (works with 3.x and 4.1), so our PSA rewrite
+  is no longer a differentiator and is immune-by-construction to `5fada81` the
+  same way. A future re-vendor from ≥v3.5.0 inherits upstream's PSA backend.
 
 ### Still to do — see the repo [`TODO.md`](../../../TODO.md)
 
