@@ -48,6 +48,7 @@ import {register_c_agent_link} from "./c_agent_link.js";
 import {register_c_settings} from "./c_settings.js";
 import {register_c_auth_settings} from "./c_auth_settings.js";
 import {register_c_agent_console} from "./c_agent_console.js";
+import {register_c_treedb_gate} from "./c_treedb_gate.js";
 import {register_c_treedb_panel} from "./c_treedb_panel.js";
 
 import {setup_locale} from "./locales/locales.js";
@@ -104,9 +105,10 @@ function main()
     register_c_auth_settings();
     register_c_agent_console();
 
-    /*  TreeDB table stack (reused gobj-ui components)  */
+    /*  TreeDB table stack (reused gobj-ui components + agent-gate adapter)  */
     register_c_yui_treedb_topic_with_form();
     register_c_yui_treedb_topics();
+    register_c_treedb_gate();
     register_c_treedb_panel();
 
     /*------------------------------------------------*

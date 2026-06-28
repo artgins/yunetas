@@ -56,6 +56,7 @@ const en = {
         "clear":             "Clear",
         "response":          "Response",
         "treedb":            "TreeDB",
+        "pick a treedb":     "Select a treedb to open",
         "stats":             "Stats",
         "settings":          "Settings",
         "agents":            "Agents",

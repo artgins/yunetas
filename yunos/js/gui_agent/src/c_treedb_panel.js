@@ -1,20 +1,17 @@
 /***********************************************************************
  *          c_treedb_panel.js
  *
- *      C_TREEDB_PANEL — browse a yuno's TreeDB as a table or a graph,
- *      a routed stage view (shell mounts it at /treedb/table and
- *      /treedb/graph; the `mode` kw picks the component).
+ *      C_TREEDB_PANEL — browse a treedb that lives on a managed yuno,
+ *      through the agent, as a table. A routed stage view.
  *
- *      It reuses the proven gobj-ui components C_YUI_TREEDB_TOPICS
- *      (table) and C_YUI_TREEDB_GRAPH (graph). Those need a connected
- *      C_IEVENT_CLI (`gobj_remote_yuno`) + a `treedb_name`; this panel
- *      opens that link to the ACTIVE agent's treedb (the agent serves
- *      `treedb_agentdb`), forwarding the login JWT, and mounts the
- *      component once the session is up.
+ *      It uses the shared C_AGENT_LINK (single connection to the agent)
+ *      and a per-tab C_TREEDB_GATE adapter that wraps the reused
+ *      C_YUI_TREEDB_TOPICS component's raw treedb commands into the
+ *      agent's `command-yuno` so they reach the target yuno's C_NODE
+ *      service. Mount happens once the shared link is in session.
  *
- *      Lifecycle mirrors C_AGENT_CONSOLE: the C_IEVENT_CLI is parented
- *      to the yuno (always alive) and released in mt_destroy, never in
- *      mt_stop, so a shell stop/start during layout cannot drop it.
+ *      Target (yuno_id + treedb_service) currently comes from the route
+ *      kw; the discovery + picker + tabs land next.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -26,18 +23,15 @@ import {
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_find_service,
-    gobj_yuno,
-    gobj_name,
-    gobj_create, gobj_create_service,
-    gobj_start, gobj_start_tree, gobj_stop_tree, gobj_destroy,
+    gobj_create_service,
+    gobj_start, gobj_stop_tree, gobj_destroy,
     gobj_send_event,
     createElement2,
 } from "@yuneta/gobj-js";
 
 import i18next from "i18next";
 
-import {agent_config_get_active} from "./c_agent_config.js";
-import {agent_login_get_token} from "./c_agent_login.js";
+import {agent_link_is_connected} from "./c_agent_link.js";
 
 
 /***************************************************************
@@ -45,23 +39,21 @@ import {agent_login_get_token} from "./c_agent_login.js";
  ***************************************************************/
 const GCLASS_NAME = "C_TREEDB_PANEL";
 
-const DEFAULT_TREEDB = "treedb_agentdb";
-
 
 /***************************************************************
  *              Attrs
  ***************************************************************/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",  0,  null,       "Subscriber of output events"),
+SDATA(data_type_t.DTP_POINTER,  "subscriber",     0,  null,      "Subscriber of output events"),
 
-SDATA(data_type_t.DTP_STRING,   "title",       0,  "treedb",   "View title (i18n key)"),
-SDATA(data_type_t.DTP_STRING,   "mode",        0,  "table",    "table | graph"),
-SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,       "Root HTMLElement"),
-SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,       "C_AGENT_CONFIG service"),
-SDATA(data_type_t.DTP_POINTER,  "login_svc",   0,  null,       "C_AGENT_LOGIN service"),
-SDATA(data_type_t.DTP_POINTER,  "iev",         0,  null,       "C_IEVENT_CLI to the treedb"),
-SDATA(data_type_t.DTP_POINTER,  "component",   0,  null,       "C_YUI_TREEDB_TOPICS / _GRAPH"),
-SDATA(data_type_t.DTP_STRING,   "active_label",0,  "",         "Label of the connected agent"),
+SDATA(data_type_t.DTP_STRING,   "title",          0,  "treedb",  "View title (i18n key)"),
+SDATA(data_type_t.DTP_STRING,   "mode",           0,  "table",   "table | graph"),
+SDATA(data_type_t.DTP_STRING,   "yuno_id",        0,  "",        "Target managed yuno id"),
+SDATA(data_type_t.DTP_STRING,   "treedb_service", 0,  "",        "Target C_NODE service name"),
+SDATA(data_type_t.DTP_POINTER,  "$container",     0,  null,      "Root HTMLElement"),
+SDATA(data_type_t.DTP_POINTER,  "link_svc",       0,  null,      "C_AGENT_LINK service"),
+SDATA(data_type_t.DTP_POINTER,  "gate",           0,  null,      "C_TREEDB_GATE adapter"),
+SDATA(data_type_t.DTP_POINTER,  "component",      0,  null,      "C_YUI_TREEDB_TOPICS"),
 SDATA_END()
 ];
 
@@ -92,17 +84,13 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    let config = gobj_find_service("agent_config", true);
-    gobj_write_attr(gobj, "config_svc", config);
-    if(config) {
-        gobj_subscribe_event(config, "EV_AGENTS_CHANGED", {}, gobj);
-    }
-
-    let login = gobj_find_service("agent_login", true);
-    gobj_write_attr(gobj, "login_svc", login);
-    if(login) {
-        gobj_subscribe_event(login, "EV_LOGIN_ACCEPTED", {}, gobj);
-        gobj_subscribe_event(login, "EV_LOGOUT_DONE", {}, gobj);
+    let link = gobj_find_service("agent_link", true);
+    gobj_write_attr(gobj, "link_svc", link);
+    if(link) {
+        gobj_subscribe_event(link, "EV_ON_OPEN", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_CLOSE", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_OPEN_ERROR", {}, gobj);
+        gobj_subscribe_event(link, "EV_ON_ID_NAK", {}, gobj);
     }
 
     let $c = createElement2(["div", {class: "view-card", style: "display:flex; flex-direction:column; height:100%; padding:0;"}, []]);
@@ -114,14 +102,16 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
-    connect(gobj);
+    let link = gobj_read_attr(gobj, "link_svc");
+    if(link && agent_link_is_connected(link)) {
+        mount(gobj);
+    } else {
+        show_message(gobj, i18next.t("connecting") + "…");
+    }
 }
 
 /***************************************************************
  *          Framework Method: Stop
- *
- *  Keep the link alive across shell layout stop/starts (see
- *  C_AGENT_CONSOLE). Released in mt_destroy.
  ***************************************************************/
 function mt_stop(gobj)
 {
@@ -132,7 +122,7 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
-    disconnect(gobj);
+    unmount(gobj);
     let $c = gobj_read_attr(gobj, "$container");
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
@@ -150,12 +140,19 @@ function mt_destroy(gobj)
 
 
 
+function clear_node($n)
+{
+    while($n && $n.firstChild) {
+        $n.removeChild($n.firstChild);
+    }
+}
+
 /***************************************************************
- *  Show a centered message in the panel (no component mounted).
+ *  Centered message (no component mounted).
  ***************************************************************/
 function show_message(gobj, text)
 {
-    destroy_component(gobj);
+    unmount(gobj);
     let $c = gobj_read_attr(gobj, "$container");
     if(!$c) {
         return;
@@ -166,99 +163,44 @@ function show_message(gobj, text)
     ));
 }
 
-function clear_node($n)
-{
-    while($n && $n.firstChild) {
-        $n.removeChild($n.firstChild);
-    }
-}
-
 /***************************************************************
- *  (Re)open the link to the active agent's treedb.
+ *  Create the gate + treedb component and mount it.
  ***************************************************************/
-function connect(gobj)
+function mount(gobj)
 {
-    disconnect(gobj);
+    unmount(gobj);
 
-    let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active(config) : null;
-    if(!active) {
-        gobj_write_attr(gobj, "active_label", "");
-        show_message(gobj, i18next.t("no active agent"));
+    let link = gobj_read_attr(gobj, "link_svc");
+    let yuno_id = gobj_read_attr(gobj, "yuno_id");
+    let treedb_service = gobj_read_attr(gobj, "treedb_service");
+
+    if(!yuno_id || !treedb_service) {
+        show_message(gobj, i18next.t("pick a treedb"));
         return;
     }
 
-    let treedb_name = active.treedb || DEFAULT_TREEDB;
-    gobj_write_attr(gobj, "active_label", active.label);
+    let key = `${yuno_id}_${treedb_service}`;
 
-    let login = gobj_read_attr(gobj, "login_svc");
-    let jwt = login ? agent_login_get_token(login) : "";
+    /*  Per-tab adapter: wraps the component's raw treedb commands into
+     *  command-yuno toward (yuno_id, treedb_service) over the link. */
+    let gate = gobj_create_service(`treedb_gate_${key}`, "C_TREEDB_GATE", {
+        link_svc:       link,
+        yuno_id:        yuno_id,
+        treedb_service: treedb_service
+    }, gobj);
+    gobj_write_attr(gobj, "gate", gate);
+    gobj_start(gate);
 
-    /*  Link parented to the yuno (always alive). The identity-card
-     *  session is established against the agent's default service (same
-     *  as the console — the agent closes the channel if the identity
-     *  card targets an arbitrary service); the treedb components then
-     *  target `treedb_name` per command via kw.service. The JWT comes
-     *  from the login service. */
-    let iev = gobj_create("treedb_iev", "C_IEVENT_CLI", {
-        url:                 active.url,
-        remote_yuno_role:    active.yuno_role || "yuneta_agent",
-        remote_yuno_service: active.service || "__default_service__",
-        remote_yuno_name:    active.yuno_name || "",
-        jwt:                 jwt,
-        subscriber:          gobj
-    }, gobj_yuno());
-    gobj_write_attr(gobj, "iev", iev);
-
-    show_message(gobj, `${i18next.t("connecting")}… ${active.label}`);
-    gobj_start_tree(iev);
-}
-
-/***************************************************************
- *  Tear down the link (and any mounted component).
- ***************************************************************/
-function disconnect(gobj)
-{
-    destroy_component(gobj);
-    let iev = gobj_read_attr(gobj, "iev");
-    if(iev) {
-        gobj_write_attr(gobj, "iev", null);
-        gobj_stop_tree(iev);
-        gobj_destroy(iev);
-    }
-}
-
-/***************************************************************
- *  Create + mount the treedb component once the session is up.
- ***************************************************************/
-function mount_component(gobj)
-{
-    destroy_component(gobj);
-
-    let iev = gobj_read_attr(gobj, "iev");
-    if(!iev) {
-        return;
-    }
-    let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active(config) : null;
-    let treedb_name = (active && active.treedb) || DEFAULT_TREEDB;
-
+    /*  The reused table component talks to the gate as its remote. */
     let mode = gobj_read_attr(gobj, "mode");
     let gclass = (mode === "graph") ? "C_YUI_TREEDB_GRAPH" : "C_YUI_TREEDB_TOPICS";
-
-    /*  The treedb components are SERVICES so the command answers route
-     *  back to them by name (gobj_find_service). */
-    let component = gobj_create_service(
-        `treedb_${mode}_${treedb_name}`,
-        gclass,
-        {
-            gobj_remote_yuno: iev,
-            treedb_name:      treedb_name,
-            subscriber:       gobj
-        },
-        gobj
-    );
+    let component = gobj_create_service(`treedb_view_${key}`, gclass, {
+        gobj_remote_yuno: gate,
+        treedb_name:      treedb_service,
+        subscriber:       gobj
+    }, gobj);
     gobj_write_attr(gobj, "component", component);
+    gobj_write_attr(gate, "component", component);
 
     let $c = gobj_read_attr(gobj, "$container");
     clear_node($c);
@@ -272,15 +214,21 @@ function mount_component(gobj)
 }
 
 /***************************************************************
- *  Destroy the mounted component, if any.
+ *  Destroy the component + gate.
  ***************************************************************/
-function destroy_component(gobj)
+function unmount(gobj)
 {
     let component = gobj_read_attr(gobj, "component");
     if(component) {
         gobj_write_attr(gobj, "component", null);
         gobj_stop_tree(component);
         gobj_destroy(component);
+    }
+    let gate = gobj_read_attr(gobj, "gate");
+    if(gate) {
+        gobj_write_attr(gobj, "gate", null);
+        gobj_stop_tree(gate);
+        gobj_destroy(gate);
     }
 }
 
@@ -294,18 +242,12 @@ function destroy_component(gobj)
 
 
 
-/***************************************************************
- *  Link in session — mount the treedb component.
- ***************************************************************/
 function ac_on_open(gobj, event, kw, src)
 {
-    mount_component(gobj);
+    mount(gobj);
     return 0;
 }
 
-/***************************************************************
- *  Link dropped / failed / refused.
- ***************************************************************/
 function ac_on_close(gobj, event, kw, src)
 {
     show_message(gobj, i18next.t("disconnected"));
@@ -321,15 +263,6 @@ function ac_on_open_error(gobj, event, kw, src)
 function ac_on_id_nak(gobj, event, kw, src)
 {
     show_message(gobj, kw.comment || i18next.t("authentication required"));
-    return 0;
-}
-
-/***************************************************************
- *  Active agent or login state changed: reconnect.
- ***************************************************************/
-function ac_reconnect(gobj, event, kw, src)
-{
-    connect(gobj);
     return 0;
 }
 
@@ -380,9 +313,6 @@ function create_gclass(gclass_name)
             ["EV_ON_CLOSE",             ac_on_close,      null],
             ["EV_ON_OPEN_ERROR",        ac_on_open_error, null],
             ["EV_ON_ID_NAK",            ac_on_id_nak,     null],
-            ["EV_AGENTS_CHANGED",       ac_reconnect,     null],
-            ["EV_LOGIN_ACCEPTED",       ac_reconnect,     null],
-            ["EV_LOGOUT_DONE",          ac_reconnect,     null],
 
             /*  bubbled up from the treedb component */
             ["EV_TOPIC_SELECTED",       ac_noop,          null],
@@ -402,9 +332,6 @@ function create_gclass(gclass_name)
         ["EV_ON_CLOSE",               0],
         ["EV_ON_OPEN_ERROR",          0],
         ["EV_ON_ID_NAK",              0],
-        ["EV_AGENTS_CHANGED",         0],
-        ["EV_LOGIN_ACCEPTED",         0],
-        ["EV_LOGOUT_DONE",            0],
         ["EV_TOPIC_SELECTED",         0],
         ["EV_MT_COMMAND_ANSWER",      0],
         ["EV_TREEDB_NODE_CREATED",    0],

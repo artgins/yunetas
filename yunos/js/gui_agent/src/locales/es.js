@@ -56,6 +56,7 @@ const es = {
         "clear":             "Limpiar",
         "response":          "Respuesta",
         "treedb":            "TreeDB",
+        "pick a treedb":     "Selecciona un treedb para abrir",
         "stats":             "Estadísticas",
         "settings":          "Configuración",
         "agents":            "Agentes",
