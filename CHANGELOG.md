@@ -1,6 +1,22 @@
 # **Changelog**
 
 ## Unreleased
+    - **refactor(decoders): protocol decode errors caused by a malformed packet
+      from the peer are now warnings, not errors.** Across the protocol gclasses
+      (`c_prot_tcp4h`, `c_websocket`, `ghttp_parser`, `c_prot_mqtt`,
+      `c_prot_mqtt2`) a malformed/unexpected frame from the peer logs as
+      `gobj_log_warning` with its assigned category (`MSGSET_PROTOCOL`, or
+      `MSGSET_MQTT` for mqtt) plus a length-capped dump of the offending frame
+      (`MAX_LOG_DUMP_SIZE`, 256). MQTT uses a single capped dump at the
+      `frame_completed()` dispatch chokepoint, and the peer-malformed warnings
+      no longer carry `LOG_OPT_TRACE_STACK`. Reserved for our own faults
+      (`gobj_log_error`): broken internal invariants (e.g. `c_ievent_srv`'s
+      "gbuffer NULL", where the gbuffer must arrive in the `kw`), allocation
+      failures, outgoing-encode paths, and unsupported/unknown protocol fields
+      ("NOT IMPLEMENTED"/"NOT FOUND") that mark our own TODO/map-gaps. The point:
+      error logs should mean "our fault", so routine peer misbehaviour stops
+      polluting error counts. Test `c_mqtt/malformed` updated to expect the
+      rejection as a warning.
     - **feat(agent): report each binary's on-disk file time in
       `*list-binaries` / `*list-binaries-instances`.** Both commands now add
       `time` (epoch seconds) and `time_str` (local timestamp) next to `size`,
