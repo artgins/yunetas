@@ -32,6 +32,8 @@
  */
 #define WEBSOCKET_VERSION 13
 
+#define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
+
 /*
  * closing frame status codes.
  */
@@ -1757,26 +1759,18 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
             } else {
-                const char *peername = "";
-                const char *sockname = "";
-                if(gobj_has_bottom_attr(gobj, "peername")) {
-                    peername = gobj_read_str_attr(gobj, "peername");
-                }
-                if(gobj_has_bottom_attr(gobj, "sockname")) {
-                    sockname = gobj_read_str_attr(gobj, "sockname");
-                }
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
                     "msg",          "%s", "NO 101 HTTP Response",
                     "status",       "%d", 0, //response->status,
-                    "peername",     "%s", peername?peername:"",
-                    "sockname",     "%s", sockname?sockname:"",
+                    "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                    "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
                     NULL
                 );
                 size_t ln = gbuffer_leftbytes(gbuf);
                 char *bf = gbuffer_cur_rd_pointer(gbuf);
-                gobj_trace_dump(gobj, bf, ln, "NO 101 HTTP Response");
+                gobj_trace_dump(gobj, bf, MIN(ln, MAX_LOG_DUMP_SIZE), "NO 101 HTTP Response");
 
                 priv->close_frame_sent = TRUE;
                 priv->inform_on_close = FALSE;
@@ -1796,19 +1790,11 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *peername = "";
-    const char *sockname = "";
-    if(gobj_has_bottom_attr(gobj, "peername")) {
-        peername = gobj_read_str_attr(gobj, "peername");
-    }
-    if(gobj_has_bottom_attr(gobj, "sockname")) {
-        sockname = gobj_read_str_attr(gobj, "sockname");
-    }
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting websocket handshake",
-        "peername",     "%s", peername?peername:"",
-        "sockname",     "%s", sockname?sockname:"",
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
         NULL
     );
 
@@ -1825,19 +1811,11 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    const char *peername = "";
-    const char *sockname = "";
-    if(gobj_has_bottom_attr(gobj, "peername")) {
-        peername = gobj_read_str_attr(gobj, "peername");
-    }
-    if(gobj_has_bottom_attr(gobj, "sockname")) {
-        sockname = gobj_read_str_attr(gobj, "sockname");
-    }
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting websocket disconnected",
-        "peername",     "%s", peername?peername:"",
-        "sockname",     "%s", sockname?sockname:"",
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
         NULL
     );
 

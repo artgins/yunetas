@@ -30,6 +30,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
 
 /***************************************************************
  *              Prototypes
@@ -373,15 +374,11 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     }
 
     if(header_erpl4.len > priv->max_pkt_size) {
-        const char *peername = "";
-        if(gobj_has_bottom_attr(gobj, "peername")) {
-            peername = gobj_read_str_attr(gobj, "peername");
-        }
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "tcp4h head too long",
-            "peername",     "%s", peername,
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
             "len",          "%d", header_erpl4.len,
             NULL
         );
@@ -537,14 +534,10 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    const char *peername = "";
-    if(gobj_has_bottom_attr(gobj, "peername")) {
-        peername = gobj_read_str_attr(gobj, "peername");
-    }
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting disconnected",
-        "peername",     "%s", peername,
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
         NULL
     );
 
@@ -559,14 +552,10 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t 
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    const char *peername = "";
-    if(gobj_has_bottom_attr(gobj, "peername")) {
-        peername = gobj_read_str_attr(gobj, "peername");
-    }
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting handshake",
-        "peername",     "%s", peername,
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
         NULL
     );
 
@@ -717,18 +706,17 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
     }
     if(istream_is_completed(priv->istream_payload)) {
         if(frame_completed(gobj)<0) {
-            const char *peername = "";
-            if(gobj_has_bottom_attr(gobj, "peername")) {
-                peername = gobj_read_str_attr(gobj, "peername");
-            }
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Protocol error, disconnect",
-                "peername",     "%s", peername,
+                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 NULL
             );
-            gobj_trace_dump_full_gbuf(gobj, gbuf, "Protocol error, disconnect");
+            gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
+                MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
+                "Protocol error, disconnect"
+            );
             ws_close(gobj, -1);
             KW_DECREF(kw)
             return -1;
@@ -750,14 +738,10 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    const char *peername = "";
-    if(gobj_has_bottom_attr(gobj, "peername")) {
-        peername = gobj_read_str_attr(gobj, "peername");
-    }
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting PAYLOAD data",
-        "peername",     "%s", peername,
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
         NULL
     );
 

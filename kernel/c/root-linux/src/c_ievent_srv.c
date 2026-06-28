@@ -1096,20 +1096,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
-        const char *peername = "";
-        const char *sockname = "";
-        if(gobj_has_bottom_attr(gobj, "peername")) {
-            peername = gobj_read_str_attr(gobj, "peername");
-        }
-        if(gobj_has_bottom_attr(gobj, "sockname")) {
-            sockname = gobj_read_str_attr(gobj, "sockname");
-        }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
-            "peername",     "%s", peername?peername:"",
-            "sockname",     "%s", sockname?sockname:"",
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
             NULL
         );
         drop(gobj);
