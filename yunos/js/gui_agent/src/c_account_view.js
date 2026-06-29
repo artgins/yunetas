@@ -23,7 +23,7 @@ import {
     gclass_create, log_error,
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
-    gobj_subscribe_event,
+    gobj_subscribe_event, gobj_find_service,
     createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
@@ -264,10 +264,18 @@ function build_preference(gobj)
 function build_developer(gobj)
 {
     let dep = deploy_info();
-    let connected = agent_link_is_connected();
-    let logged    = agent_login_is_logged_in();
-    let username  = agent_login_username() || "—";
-    let node      = agent_config_get_active_node();
+
+    /*  These helpers read attrs off their service gobj — fetch the
+     *  services first (passing undefined would dereference jn_attrs on
+     *  undefined and abort gobj_create of this view). */
+    let link   = gobj_find_service("agent_link", false);
+    let login  = gobj_find_service("agent_login", false);
+    let config = gobj_find_service("agent_config", false);
+
+    let connected = !!(link && agent_link_is_connected(link));
+    let logged    = agent_login_is_logged_in(login);
+    let username  = agent_login_username(login) || "—";
+    let node      = config ? agent_config_get_active_node(config) : "";
 
     function row(label_key, label_text, value, value_attrs)
     {
