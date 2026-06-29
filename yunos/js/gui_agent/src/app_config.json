@@ -14,6 +14,28 @@
 
         "stages": {
             "main": { "zone": "center", "default_route": "/nodes/list" }
+        },
+
+        "_routes_comment": "Routes reached from the account-menu dropdown (not primary-menu items).",
+        "routes": {
+            "/account/preference": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "Preference", "subtitle": "User preferences (coming soon)", "color": "#2E7CD6" },
+                "lifecycle": "lazy_destroy"
+            },
+            "/account/developer": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "Developer", "subtitle": "Traces and dev tools (coming soon)", "color": "#5B6B7E" },
+                "lifecycle": "lazy_destroy"
+            },
+            "/account/about": {
+                "stage": "main",
+                "gclass": "C_GUI_AGENT_VIEW",
+                "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" },
+                "lifecycle": "lazy_destroy"
+            }
         }
     },
 
@@ -56,8 +78,37 @@
                 "id": "user",
                 "type": "avatar",
                 "align": "end",
-                "aria_label": "Account / Sign in",
-                "action": { "type": "navigate", "route": "/settings/auth" }
+                "aria_label": "Account menu",
+                "action": {
+                    "type": "dropdown",
+                    "items": [
+                        {
+                            "id": "preference",
+                            "name": "Preference",
+                            "icon": "yi-gear",
+                            "action": { "type": "navigate", "route": "/account/preference" }
+                        },
+                        {
+                            "id": "developer",
+                            "name": "Developer",
+                            "icon": "yi-square-js",
+                            "action": { "type": "navigate", "route": "/account/developer" }
+                        },
+                        {
+                            "id": "about",
+                            "name": "About",
+                            "icon": "yi-question",
+                            "action": { "type": "navigate", "route": "/account/about" }
+                        },
+                        { "type": "divider" },
+                        {
+                            "id": "logout",
+                            "name": "Sign Out",
+                            "icon": "yi-sign-out-alt",
+                            "action": { "type": "event", "event": "EV_LOGOUT" }
+                        }
+                    ]
+                }
             }
         ]
     },
@@ -170,41 +221,6 @@
                                     "stage": "main",
                                     "gclass": "C_GUI_AGENT_VIEW",
                                     "kw": { "title": "Stats · Live", "subtitle": "Time-series charts (Phase 3)", "color": "#F5A623" }
-                                }
-                            }
-                        ]
-                    }
-                },
-                {
-                    "id": "settings",
-                    "name": "Settings",
-                    "icon": "yi-gear",
-                    "tooltip": "Authentication, about",
-                    "route": "/settings",
-                    "submenu": {
-                        "render": { "top-sub": "tabs" },
-                        "items": [
-                            {
-                                "id": "auth",
-                                "name": "Authentication",
-                                "icon": "yi-lock",
-                                "route": "/settings/auth",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_AUTH_SETTINGS",
-                                    "kw": { "title": "authentication" },
-                                    "lifecycle": "lazy_destroy"
-                                }
-                            },
-                            {
-                                "id": "about",
-                                "name": "About",
-                                "icon": "yi-question",
-                                "route": "/settings/about",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_GUI_AGENT_VIEW",
-                                    "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" }
                                 }
                             }
                         ]
