@@ -24,12 +24,6 @@
                 "kw": { "view": "preference" },
                 "lifecycle": "lazy_destroy"
             },
-            "/account/developer": {
-                "stage": "main",
-                "gclass": "C_ACCOUNT_VIEW",
-                "kw": { "view": "developer" },
-                "lifecycle": "lazy_destroy"
-            },
             "/account/about": {
                 "stage": "main",
                 "gclass": "C_ACCOUNT_VIEW",
@@ -92,7 +86,7 @@
                             "id": "developer",
                             "name": "developer",
                             "icon": "yi-square-js",
-                            "action": { "type": "navigate", "route": "/account/developer" }
+                            "action": { "type": "event", "event": "EV_OPEN_DEVTOOLS" }
                         },
                         {
                             "id": "about",

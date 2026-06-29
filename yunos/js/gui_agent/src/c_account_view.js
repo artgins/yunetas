@@ -152,8 +152,6 @@ function render(gobj)
     let body;
     if(view === "preference") {
         body = build_preference(gobj);
-    } else if(view === "developer") {
-        body = build_developer(gobj);
     } else {
         body = build_about(gobj);
     }
@@ -259,9 +257,10 @@ function build_preference(gobj)
 }
 
 /***************************************************************
- *  Developer — read-only diagnostics (one flat definition table).
+ *  Diagnostics — read-only deployment / link / session table,
+ *  shown on the About page (one flat definition table).
  ***************************************************************/
-function build_developer(gobj)
+function build_diagnostics(gobj)
 {
     let dep = deploy_info();
 
@@ -315,24 +314,19 @@ function build_developer(gobj)
             logged ? username : "", logged ? {} : {i18n: "logged out"})
     ];
 
-    return ce(
-        ["div", {},
-            [
-                page_header("developer", "Developer", "diagnostics", "Diagnostics"),
-                ["div", {style: "max-width:680px;"},
-                    [
-                        ["table", {class: "table is-fullwidth is-narrow"},
-                            [["tbody", {}, rows]]
-                        ]
-                    ]
-                ]
+    return ["div", {style: "max-width:680px; margin-top:1.5rem;"},
+        [
+            ["h2", {class: "title is-5", style: "margin-bottom:0.5rem;", i18n: "diagnostics"},
+                "Diagnostics"],
+            ["table", {class: "table is-fullwidth is-narrow"},
+                [["tbody", {}, rows]]
             ]
         ]
-    );
+    ];
 }
 
 /***************************************************************
- *  About — product card.
+ *  About — product card + diagnostics.
  ***************************************************************/
 function build_about(gobj)
 {
@@ -372,7 +366,8 @@ function build_about(gobj)
                         ["p", {class: "is-size-7", style: "color:#9AA7B4; margin-top:1.25rem;"},
                             "© 2026 ArtGins"]
                     ]
-                ]
+                ],
+                build_diagnostics(gobj)
             ]
         ]
     );

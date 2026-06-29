@@ -41,8 +41,9 @@ import {
  *  browser that reports a non-standard navigator.language (and crashes the
  *  whole app before the shell renders). Same pattern as wattyzer.
  */
-import {register_c_yui_shell} from "@yuneta/gobj-ui/src/c_yui_shell.js";
-import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_shell}  from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {register_c_yui_nav}    from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_window} from "@yuneta/gobj-ui/src/c_yui_window.js";
 import {register_c_yui_treedb_topics}
     from "@yuneta/gobj-ui/src/c_yui_treedb_topics.js";
 import {register_c_yui_treedb_topic_with_form}
@@ -104,6 +105,7 @@ function main()
     /*  Shell + nav stack (v2)  */
     register_c_yui_shell();
     register_c_yui_nav();
+    register_c_yui_window();     // legacy window host for the developer panel
 
     /*  App root + config + login + link services + views  */
     register_c_app();

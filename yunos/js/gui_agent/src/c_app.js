@@ -40,6 +40,12 @@ import {
     yui_shell_set_toolbar_item_icon,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
+import {
+    setup_dev,
+    apply_dev_traces,
+    dev_window_was_open,
+} from "@yuneta/gobj-ui/src/yui_dev.js";
+
 import {switch_locale, current_locale} from "./locales/locales.js";
 import {current_theme, apply_theme, toggle_theme} from "./theme.js";
 import {mount_login} from "./login.js";
@@ -90,6 +96,12 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     __app_gobj__ = gobj;
+
+    /*  Re-apply any persisted developer-trace flags to the yuno NOW,
+     *  before the link's C_IEVENT_CLI starts trafficking, so a refresh
+     *  keeps capturing whatever was enabled (traffic, automata, …) from
+     *  the very first inter-event. Independent of the dev window. */
+    apply_dev_traces();
 
     /*  Config service (child of self).  */
     gobj_create_service("agent_config", "C_AGENT_CONFIG", {}, gobj);
@@ -213,6 +225,7 @@ function build_shell(gobj)
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_LOGOUT",          {}, gobj);
+    gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
     gobj_start_tree(shell);
 
     yui_shell_set_avatar_provider(shell, () => compute_initials(gobj));
@@ -222,6 +235,15 @@ function build_shell(gobj)
      *  now, else it shows the raw keys until the first language toggle. */
     refresh_language(document.body, i18next.t.bind(i18next));
     update_theme_icon(gobj);
+
+    /*  If the developer window was open last session, reopen it now as
+     *  the first thing after the shell paints, so it resumes collecting
+     *  the traffic/automata traces it had enabled (the traffic logger
+     *  only renders into the open panel). setup_dev re-arms
+     *  apply_dev_traces; guard against a double open. */
+    if(dev_window_was_open() && !gobj_find_service("Developer-Window", false)) {
+        setup_dev(gobj, true);
+    }
     return shell;
 }
 
@@ -390,6 +412,26 @@ function ac_toggle_language(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Developer entry in the account menu — toggle the dev window
+ *  (traffic/automata/creation/... traces in a C_YUI_WINDOW). If
+ *  it is up, tear it down; otherwise open it. setup_dev persists
+ *  "open_developer_window" so a refresh reopens it (see build_shell).
+ ***************************************************************/
+function ac_open_devtools(gobj, event, kw, src)
+{
+    let win = gobj_find_service("Developer-Window", false);
+    if(win) {
+        if(gobj_is_running(win)) {
+            gobj_stop_tree(win);
+        }
+        gobj_destroy(win);
+        return 0;
+    }
+    setup_dev(gobj, true);
+    return 0;
+}
+
 
 
 
@@ -435,7 +477,8 @@ function create_gclass(gclass_name)
             /*  shell chrome  */
             ["EV_LOGOUT",           ac_logout,          null],
             ["EV_TOGGLE_THEME",     ac_toggle_theme,    null],
-            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language, null]
+            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language, null],
+            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,   null]
         ]]
     ];
 
@@ -452,7 +495,8 @@ function create_gclass(gclass_name)
         ["EV_ON_ID_NAK",        0],
         ["EV_LOGOUT",           0],
         ["EV_TOGGLE_THEME",     0],
-        ["EV_TOGGLE_LANGUAGE",  0]
+        ["EV_TOGGLE_LANGUAGE",  0],
+        ["EV_OPEN_DEVTOOLS",    0]
     ];
 
     __gclass__ = gclass_create(
