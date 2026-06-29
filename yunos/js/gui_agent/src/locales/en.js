@@ -113,6 +113,27 @@ const en = {
         "light theme":       "Light theme",
         "system theme":      "System theme",
 
+        /* account menu · preference / developer / about */
+        "preferences":       "Preferences",
+        "appearance":        "Appearance",
+        "theme":             "Theme",
+        "language":          "Language",
+        "developer":         "Developer",
+        "diagnostics":       "Diagnostics",
+        "application":       "Application",
+        "version":           "Version",
+        "tenant":            "Tenant",
+        "plane":             "Plane",
+        "host":              "Host",
+        "control center":    "Control center",
+        "auth bff":          "Auth BFF",
+        "active node":       "Active node",
+        "none":              "None",
+        "about":             "About",
+        "agent console":     "Agent Console",
+        "about description": "Browser console to operate Yuneta agents through the control center.",
+        "documentation":     "Documentation",
+
         /* keep this last so adding new keys above never hits the comma trap */
         "_xxx":              "last key — insert new ones above"
     }

@@ -113,6 +113,27 @@ const es = {
         "light theme":       "Tema claro",
         "system theme":      "Tema del sistema",
 
+        /* menú de cuenta · preferencias / desarrollador / acerca de */
+        "preferences":       "Preferencias",
+        "appearance":        "Apariencia",
+        "theme":             "Tema",
+        "language":          "Idioma",
+        "developer":         "Desarrollador",
+        "diagnostics":       "Diagnóstico",
+        "application":       "Aplicación",
+        "version":           "Versión",
+        "tenant":            "Inquilino",
+        "plane":             "Plano",
+        "host":              "Host",
+        "control center":    "Control center",
+        "auth bff":          "Auth BFF",
+        "active node":       "Nodo activo",
+        "none":              "Ninguno",
+        "about":             "Acerca de",
+        "agent console":     "Consola de agentes",
+        "about description": "Consola web para operar agentes Yuneta a través del control center.",
+        "documentation":     "Documentación",
+
         /* mantener al final — insertar nuevas claves antes */
         "_xxx":              "última clave — insertar nuevas antes"
     }

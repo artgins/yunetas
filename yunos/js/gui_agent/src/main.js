@@ -50,6 +50,7 @@ import {register_c_yui_treedb_topic_with_form}
 
 import {register_c_app} from "./c_app.js";
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
+import {register_c_account_view} from "./c_account_view.js";
 import {register_c_agent_config} from "./c_agent_config.js";
 import {register_c_agent_login} from "./c_agent_login.js";
 import {register_c_agent_link} from "./c_agent_link.js";
@@ -106,6 +107,7 @@ function main()
 
     /*  App root + config + login + link services + views  */
     register_c_app();
+    register_c_account_view();
     register_c_agent_config();
     register_c_agent_login();
     register_c_agent_link();

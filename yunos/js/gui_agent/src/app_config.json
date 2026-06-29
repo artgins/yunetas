@@ -20,20 +20,20 @@
         "routes": {
             "/account/preference": {
                 "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "Preference", "subtitle": "User preferences (coming soon)", "color": "#2E7CD6" },
+                "gclass": "C_ACCOUNT_VIEW",
+                "kw": { "view": "preference" },
                 "lifecycle": "lazy_destroy"
             },
             "/account/developer": {
                 "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "Developer", "subtitle": "Traces and dev tools (coming soon)", "color": "#5B6B7E" },
+                "gclass": "C_ACCOUNT_VIEW",
+                "kw": { "view": "developer" },
                 "lifecycle": "lazy_destroy"
             },
             "/account/about": {
                 "stage": "main",
-                "gclass": "C_GUI_AGENT_VIEW",
-                "kw": { "title": "About", "subtitle": "Yuneta Agent Console", "color": "#2E7CD6" },
+                "gclass": "C_ACCOUNT_VIEW",
+                "kw": { "view": "about" },
                 "lifecycle": "lazy_destroy"
             }
         }
@@ -84,7 +84,7 @@
                     "items": [
                         {
                             "id": "preference",
-                            "name": "Preference",
+                            "name": "Preferences",
                             "icon": "yi-gear",
                             "action": { "type": "navigate", "route": "/account/preference" }
                         },
