@@ -39,7 +39,6 @@ import {
     yui_shell_set_translator,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
-import {agent_login_username} from "./c_agent_login.js";
 import {switch_locale, current_locale} from "./locales/locales.js";
 import {toggle_theme} from "./theme.js";
 import {mount_login} from "./login.js";
@@ -139,8 +138,11 @@ function mt_destroy(gobj)
 
 function compute_initials(gobj)
 {
-    let login = gobj_find_service("agent_login", false);
-    let name = login ? agent_login_username(login) : "";
+    /*  Read THIS gobj's username attr — set from a fresh /auth/login
+     *  (kw.username) and, crucially after F5, from the control-center
+     *  identity-ack in ac_on_open (the BFF /auth/refresh used to restore
+     *  the session does not return a username). */
+    let name = gobj_read_attr(gobj, "username") || "";
     if(!name) {
         return "";
     }
