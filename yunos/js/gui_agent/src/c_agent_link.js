@@ -40,7 +40,7 @@ import {
     gobj_current_state,
 } from "@yuneta/gobj-js";
 
-import {agent_config_get_active} from "./c_agent_config.js";
+import {deploy_info} from "./conf/deploy.js";
 
 
 /***************************************************************
@@ -85,12 +85,6 @@ function mt_create(gobj)
     const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
-    }
-
-    let config = gobj_find_service("agent_config", true);
-    gobj_write_attr(gobj, "config_svc", config);
-    if(config) {
-        gobj_subscribe_event(config, "EV_AGENTS_CHANGED", {}, gobj);
     }
 
     let login = gobj_find_service("agent_login", true);
@@ -204,33 +198,29 @@ function close_link(gobj)
 }
 
 /***************************************************************
- *  (Re)create the transport for the active agent. Recreating
- *  (vs reconfiguring) is required because the C_IEVENT_CLI bakes
- *  the wanted_yuno_* identity-card fields in its mt_create from
- *  remote_yuno_*; those are not repointable on a live gobj.
+ *  (Re)create the transport to the CONTROL CENTER co-located on
+ *  this host (conf/deploy.js). The browser only ever talks to the
+ *  control center (trusted cert + BFF cookie, same host); the CC
+ *  federates to the remote nodes' agents. Recreating (vs
+ *  reconfiguring) is required because C_IEVENT_CLI bakes the
+ *  wanted_yuno_* identity-card fields at mt_create.
+ *
+ *  Auth is the BFF httpOnly cookie the browser sends with the
+ *  WebSocket upgrade (same host) — no JWT travels through JS, so
+ *  jwt is empty.
  ***************************************************************/
 function open_link(gobj)
 {
     close_link(gobj);
 
-    let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active(config) : null;
-    if(!active) {
-        gobj_write_attr(gobj, "active_label", "");
-        return;
-    }
-    gobj_write_attr(gobj, "active_label", active.label);
+    let dep = deploy_info();
+    gobj_write_attr(gobj, "active_label", dep.cc_url);
 
-    /*  Parented to the yuno (always alive); subscriber is THIS link so
-     *  its events flow here and get re-published to consumers. The
-     *  identity card targets the agent's default service. Auth is by the
-     *  BFF httpOnly cookie the browser sends with the WebSocket upgrade
-     *  (same-host agent) — no JWT travels through JS, so jwt is empty. */
     let iev = gobj_create("agent_iev", "C_IEVENT_CLI", {
-        url:                 active.url,
-        remote_yuno_role:    active.yuno_role || "yuneta_agent",
-        remote_yuno_service: active.service || "__default_service__",
-        remote_yuno_name:    active.yuno_name || "",
+        url:                 dep.cc_url,
+        remote_yuno_role:    "controlcenter",
+        remote_yuno_service: "controlcenter",
+        remote_yuno_name:    "",
         jwt:                 "",
         subscriber:          gobj
     }, gobj_yuno());
@@ -339,7 +329,6 @@ function create_gclass(gclass_name)
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
             ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
             ["EV_MT_STATS_ANSWER",   ac_mt_stats_answer,   null],
-            ["EV_AGENTS_CHANGED",    ac_reopen,            null],
             ["EV_LOGIN_ACCEPTED",    ac_reopen,            null],
             ["EV_LOGOUT_DONE",       ac_reopen,            null]
         ]]
@@ -357,7 +346,6 @@ function create_gclass(gclass_name)
         ["EV_ON_ID_NAK",         out],
         ["EV_MT_COMMAND_ANSWER", out],
         ["EV_MT_STATS_ANSWER",   out],
-        ["EV_AGENTS_CHANGED",    0],
         ["EV_LOGIN_ACCEPTED",    0],
         ["EV_LOGOUT_DONE",       0]
     ];

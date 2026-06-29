@@ -1,17 +1,21 @@
 #!/bin/sh
 #
-#   Deploy the built SPA to artgins.com, served as agents.yunetacontrol.com.
+#   Deploy the built SPA to artgins.com, served per tenant/plane domain.
 #
-#   The served directory name differs from the SSH host: the files live on
-#   artgins.com (the company server) under /yuneta/gui/agents.yunetacontrol.com,
-#   which the nginx vhost serves for server_name agents.yunetacontrol.com.
+#   The SAME build is served at multiple domains; each derives its
+#   control-center + BFF endpoints from its own hostname (src/conf/deploy.js):
+#       artgins.yunetacontrol.com  -> agents  plane (CC 1996, BFF 1806)
+#       artgins.yunetacontrol.ovh  -> agent22 plane (CC 1997, BFF 1807)
 #
-#   Run `npm run build` first (or rely on prebuild), then ./deploy-com.sh
+#   Usage:
+#       npm run build
+#       ./deploy-com.sh                              # artgins.yunetacontrol.com
+#       ./deploy-com.sh artgins.yunetacontrol.ovh    # the .ovh plane
 #
 SSH_HOST="artgins.com"
-GUI_DIR="agents.yunetacontrol.com"
+DOMAIN="${1:-artgins.yunetacontrol.com}"
 
 rsync -avzL --delete \
     --exclude \.webassets-cache --exclude \.sass-cache --exclude \.cache \
     ./dist/ \
-    "yuneta@$SSH_HOST:/yuneta/gui/$GUI_DIR"
+    "yuneta@$SSH_HOST:/yuneta/gui/$DOMAIN"

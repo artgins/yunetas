@@ -13,7 +13,7 @@
         },
 
         "stages": {
-            "main": { "zone": "center", "default_route": "/console/agent" }
+            "main": { "zone": "center", "default_route": "/nodes/list" }
         }
     },
 
@@ -94,6 +94,30 @@
                     }
                 },
                 {
+                    "id": "nodes",
+                    "name": "Nodes",
+                    "icon": "yi-cloudversify",
+                    "tooltip": "Nodes connected to the control center",
+                    "route": "/nodes",
+                    "submenu": {
+                        "render": { "top-sub": "tabs" },
+                        "items": [
+                            {
+                                "id": "list",
+                                "name": "Nodes",
+                                "icon": "yi-cloudversify",
+                                "route": "/nodes/list",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_NODES",
+                                    "kw": { "title": "nodes" },
+                                    "lifecycle": "keep_alive"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
                     "id": "treedb",
                     "name": "TreeDB",
                     "icon": "yi-hexagon-nodes",
@@ -155,23 +179,11 @@
                     "id": "settings",
                     "name": "Settings",
                     "icon": "yi-gear",
-                    "tooltip": "Agents, authentication, about",
+                    "tooltip": "Authentication, about",
                     "route": "/settings",
                     "submenu": {
                         "render": { "top-sub": "tabs" },
                         "items": [
-                            {
-                                "id": "agents",
-                                "name": "Agents",
-                                "icon": "yi-cloudversify",
-                                "route": "/settings/agents",
-                                "target": {
-                                    "stage": "main",
-                                    "gclass": "C_SETTINGS",
-                                    "kw": { "title": "settings" },
-                                    "lifecycle": "lazy_destroy"
-                                }
-                            },
                             {
                                 "id": "auth",
                                 "name": "Authentication",

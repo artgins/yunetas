@@ -28,7 +28,6 @@ import {
 
 import i18next from "i18next";
 
-import {agent_config_get_auth, agent_config_set_auth} from "./c_agent_config.js";
 import {agent_login_is_logged_in, agent_login_username} from "./c_agent_login.js";
 
 
@@ -203,9 +202,7 @@ function render(gobj)
     }
     clear_node($c);
 
-    let config_svc = gobj_read_attr(gobj, "config_svc");
     let login_svc  = gobj_read_attr(gobj, "login_svc");
-    let auth = config_svc ? agent_config_get_auth(config_svc) : {bff_url: ""};
     let logged_in = login_svc ? agent_login_is_logged_in(login_svc) : false;
     let username  = login_svc ? agent_login_username(login_svc) : "";
 
@@ -216,7 +213,7 @@ function render(gobj)
         ["div", {}, [
             ["h1", {class: "title is-4", style: "color:#2E7CD6;", i18n: "authentication"}, "Authentication"],
             ["p", {class: "subtitle is-6", style: "color:#5B6B7E;",
-                   i18n: "auth subtitle"}, "OIDC / Keycloak, stored in this browser"]
+                   i18n: "auth subtitle"}, "Sign in via the control center's BFF"]
         ]]
     ));
 
@@ -230,23 +227,6 @@ function render(gobj)
             ["div", {class: `notification is-light ${err ? "is-danger" : "is-success"} p-2 mb-3`}, notice]
         ));
     }
-
-    /*-------------------------------*
-     *      Provider config form
-     *-------------------------------*/
-    let $cfg = createElement2(
-        ["div", {class: "box"}, [
-            ["h2", {class: "title is-5", i18n: "provider"}, "Provider"],
-            field("bff url", "bff_url", auth.bff_url, "text", "https://agents.yunetacontrol.com:1806"),
-            ["p", {class: "help", i18n: "bff help"},
-                "Auth BFF base URL. Leave empty to use https://<this host>:1806."],
-            ["div", {class: "buttons"}, [
-                ["button", {class: "button is-small is-primary", type: "button", i18n: "save"}, "Save",
-                    {click: () => on_save_config(gobj, $cfg)}]
-            ]]
-        ]]
-    );
-    $c.appendChild($cfg);
 
     /*-------------------------------*
      *      Login form / session
@@ -293,22 +273,6 @@ function render(gobj)
 
 
 
-
-/***************************************************************
- *  Save the provider config.
- ***************************************************************/
-function on_save_config(gobj, $cfg)
-{
-    let svc = gobj_read_attr(gobj, "config_svc");
-    if(!svc) {
-        return;
-    }
-    agent_config_set_auth(svc, {
-        bff_url: field_value($cfg, "bff_url")
-    });
-    set_notice(gobj, i18next.t("auth config saved"), false);
-    render(gobj);
-}
 
 /***************************************************************
  *  Submit the login form.

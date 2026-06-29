@@ -29,6 +29,8 @@ import {
     gobj_find_service,
     createElement2,
     refresh_language,
+    msg_iev_get_stack,
+    kw_get_str,
 } from "@yuneta/gobj-js";
 
 import i18next from "i18next";
@@ -41,7 +43,7 @@ import {
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_active} from "./c_agent_config.js";
+import {agent_config_get_active_node} from "./c_agent_config.js";
 import {agent_login_username} from "./c_agent_login.js";
 import {switch_locale, current_locale} from "./locales/locales.js";
 import {toggle_theme} from "./theme.js";
@@ -125,7 +127,7 @@ function mt_create(gobj)
     let config = gobj_find_service("agent_config", true);
     gobj_write_attr(gobj, "config_svc", config);
     if(config) {
-        gobj_subscribe_event(config, "EV_AGENTS_CHANGED", {}, gobj);
+        gobj_subscribe_event(config, "EV_ACTIVE_NODE_CHANGED", {}, gobj);
     }
 
     /*  Login service: drive the toolbar avatar (initials of the logged
@@ -159,23 +161,23 @@ function mt_start(gobj)
 }
 
 /***************************************************************
- *  Reflect the real connection state in the status line + dot.
- *  Distinguishes "no active agent" (nothing to connect to) from a
- *  link that is connecting / was refused.
+ *  Reflect the real state in the status line + dot. The dot tracks
+ *  the control-center link; the message also tells the operator to
+ *  pick a node once connected.
  ***************************************************************/
 function refresh_status(gobj)
 {
     let link = gobj_read_attr(gobj, "link_svc");
-    if(link && agent_link_is_connected(link)) {
-        set_status(gobj, true, i18next.t("connected"));
-        return;
-    }
+    let connected = !!(link && agent_link_is_connected(link));
     let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active(config) : null;
-    if(!active) {
-        set_status(gobj, false, i18next.t("no active agent"));
+    let node = config ? agent_config_get_active_node(config) : "";
+
+    if(connected) {
+        set_status(gobj, true, node
+            ? `${i18next.t("connected")} · ${node}`
+            : i18next.t("select a node"));
     } else {
-        /*  Link is connecting or was refused; its events drive the
+        /*  Not connected to the control center; link events drive the
          *  detailed message (NAK reason, cannot connect). */
         set_status(gobj, false, "");
     }
@@ -386,7 +388,8 @@ function show_data(gobj, data)
 }
 
 /***************************************************************
- *  Send the current input to the active agent via the link.
+ *  Send the typed command to the ACTIVE NODE's agent, routed by
+ *  the control center: command-agent agent_id=<node> cmd2agent=<cmd>.
  ***************************************************************/
 function send_command(gobj)
 {
@@ -402,11 +405,18 @@ function send_command(gobj)
         return;
     }
 
+    let config = gobj_read_attr(gobj, "config_svc");
+    let node = config ? agent_config_get_active_node(config) : "";
+    if(!node) {
+        show_comment(gobj, i18next.t("select a node"), -1);
+        return;
+    }
+
     add_history(gobj, cmd);
     show_comment(gobj, "…", 0);
     show_data(gobj, null);
 
-    agent_link_command(link, cmd, {}, gobj);
+    agent_link_command(link, "command-agent", {agent_id: node, cmd2agent: cmd}, gobj);
 }
 
 
@@ -473,10 +483,17 @@ function ac_on_id_nak(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  Command answer from the agent.
+ *  Command answer. The shared link re-publishes every answer; only
+ *  render our own command-agent results (the node picker handles
+ *  list-agents). Filter by the command in the command_stack.
  ***************************************************************/
 function ac_mt_command_answer(gobj, event, kw, src)
 {
+    let stk = msg_iev_get_stack(gobj, kw, "command_stack", false);
+    let command = kw_get_str(gobj, stk, "command", "", 0);
+    if(command && command !== "command-agent") {
+        return 0;   /*  belongs to another panel (e.g. list-agents)  */
+    }
     show_comment(gobj, kw.comment, kw.result);
     show_data(gobj, kw.data);
     return 0;
@@ -568,7 +585,7 @@ function create_gclass(gclass_name)
             ["EV_ON_OPEN_ERROR",     ac_on_open_error,     null],
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
             ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
-            ["EV_AGENTS_CHANGED",    ac_agents_changed,    null],
+            ["EV_ACTIVE_NODE_CHANGED", ac_agents_changed,  null],
             ["EV_LOGIN_ACCEPTED",    ac_login_changed,     null],
             ["EV_LOGOUT_DONE",       ac_login_changed,     null],
             ["EV_TOGGLE_LANGUAGE",   ac_toggle_language,   null],
@@ -585,7 +602,7 @@ function create_gclass(gclass_name)
         ["EV_ON_OPEN_ERROR",     0],
         ["EV_ON_ID_NAK",         0],
         ["EV_MT_COMMAND_ANSWER", 0],
-        ["EV_AGENTS_CHANGED",    0],
+        ["EV_ACTIVE_NODE_CHANGED", 0],
         ["EV_LOGIN_ACCEPTED",    0],
         ["EV_LOGOUT_DONE",       0],
         ["EV_TOGGLE_LANGUAGE",   0],

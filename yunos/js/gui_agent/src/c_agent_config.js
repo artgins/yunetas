@@ -1,23 +1,13 @@
 /***********************************************************************
  *          c_agent_config.js
  *
- *      C_AGENT_CONFIG — app-level config service (named service "agent_config").
+ *      C_AGENT_CONFIG — app-level config service (named "agent_config").
  *
- *      Single source of truth for the user-entered agent endpoints. Lives
- *      for the whole app lifetime (a named service of the yuno), so it
- *      outlives the Settings/Console views that are created and destroyed
- *      as the user navigates.
- *
- *      State is held in two SDF_PERSIST attrs, auto-loaded from the browser
- *      localStorage on create and saved with gobj_save_persistent_attrs():
- *          - agents        : array of {label, url, yuno_role, yuno_name, service}
- *          - active_agent  : label of the agent the Console connects to
- *
- *      NOTHING private is committed: this file only defines the shape; the
- *      values are entered by the user in C_SETTINGS.
- *
- *      When Phase 2 adds login, this service is the natural seed of a
- *      wattyzer-style C_WZ_APP root service (it would also own the shell).
+ *      In the controlcenter model the SPA does NOT store agent URLs: the
+ *      single backend is the control center co-located on this host
+ *      (derived in conf/deploy.js), and the operable nodes come live from
+ *      `list-agents`. The only persisted choice is which node is active
+ *      (its hostname or UUID, as returned by the control center).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -42,12 +32,8 @@ const GCLASS_NAME = "C_AGENT_CONFIG";
  *              Attrs
  ***************************************************************/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                      null, "Subscriber of output events"),
-
-SDATA(data_type_t.DTP_JSON,     "agents",       sdata_flag_t.SDF_PERSIST, "[]", "Configured agent endpoints"),
-SDATA(data_type_t.DTP_STRING,   "active_agent", sdata_flag_t.SDF_PERSIST, "",   "Label of the active agent"),
-
-SDATA(data_type_t.DTP_STRING,   "bff_url",        sdata_flag_t.SDF_PERSIST, "", "Auth BFF base URL (e.g. https://agents.yunetacontrol.com:1806). Empty = derive https://<host>:1806"),
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                        null, "Subscriber of output events"),
+SDATA(data_type_t.DTP_STRING,   "active_node",  sdata_flag_t.SDF_PERSIST, "",   "Active node (hostname/UUID from list-agents)"),
 SDATA_END()
 ];
 
@@ -110,90 +96,21 @@ function mt_destroy(gobj)
 
 
 /***************************************************************
- *  Read the current config: {agents, active_agent}.
+ *  Active node (hostname/UUID), or "".
  ***************************************************************/
-function agent_config_get(gobj)
+function agent_config_get_active_node(gobj)
 {
-    let agents = gobj_read_attr(gobj, "agents");
-    if(!Array.isArray(agents)) {
-        agents = [];
-    }
-    return {
-        agents:       agents,
-        active_agent: gobj_read_attr(gobj, "active_agent") || ""
-    };
+    return gobj_read_attr(gobj, "active_node") || "";
 }
 
 /***************************************************************
- *  Replace the config, persist it, and notify subscribers.
- *  Single write path so every mutation persists + publishes.
+ *  Set the active node, persist it, notify subscribers.
  ***************************************************************/
-function agent_config_set(gobj, agents, active_agent)
+function agent_config_set_active_node(gobj, node)
 {
-    if(!Array.isArray(agents)) {
-        agents = [];
-    }
-    gobj_write_attr(gobj, "agents", agents);
-    gobj_write_attr(gobj, "active_agent", active_agent || "");
+    gobj_write_attr(gobj, "active_node", node || "");
     gobj_save_persistent_attrs(gobj);
-
-    gobj_publish_event(gobj, "EV_AGENTS_CHANGED", {
-        agents:       agents,
-        active_agent: active_agent || ""
-    });
-}
-
-/***************************************************************
- *  Effective auth BFF base URL. If not configured, derive it
- *  from the current host on port 1806 (the BFF must be same-host
- *  as the SPA — its cookie is scoped to this hostname).
- ***************************************************************/
-function agent_config_get_bff_url(gobj)
-{
-    let url = gobj_read_attr(gobj, "bff_url") || "";
-    if(url) {
-        return url;
-    }
-    let host = (typeof window !== "undefined" && window.location)
-        ? window.location.hostname : "localhost";
-    return `https://${host}:1806`;
-}
-
-/***************************************************************
- *  Read the auth config: {bff_url} (raw, as stored).
- ***************************************************************/
-function agent_config_get_auth(gobj)
-{
-    return {
-        bff_url: gobj_read_attr(gobj, "bff_url") || ""
-    };
-}
-
-/***************************************************************
- *  Replace the auth config and persist it.
- ***************************************************************/
-function agent_config_set_auth(gobj, auth)
-{
-    auth = auth || {};
-    gobj_write_attr(gobj, "bff_url", auth.bff_url || "");
-    gobj_save_persistent_attrs(gobj);
-}
-
-/***************************************************************
- *  Return the active agent object, or null if none/invalid.
- ***************************************************************/
-function agent_config_get_active(gobj)
-{
-    let {agents, active_agent} = agent_config_get(gobj);
-    if(!active_agent) {
-        return null;
-    }
-    for(let a of agents) {
-        if(a && a.label === active_agent) {
-            return a;
-        }
-    }
-    return null;
+    gobj_publish_event(gobj, "EV_ACTIVE_NODE_CHANGED", {active_node: node || ""});
 }
 
 
@@ -235,11 +152,9 @@ function create_gclass(gclass_name)
 
     /*---------------------------------------------*
      *          Events
-     *  Subscribers (the Console) are optional in Phase 1, so the
-     *  change event is tagged EVF_NO_WARN_SUBS.
-     *---------------------------------------------*/
+     ***************************************************************/
     const event_types = [
-        ["EV_AGENTS_CHANGED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS]
+        ["EV_ACTIVE_NODE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(
@@ -273,10 +188,6 @@ function register_c_agent_config()
 
 export {
     register_c_agent_config,
-    agent_config_get,
-    agent_config_set,
-    agent_config_get_active,
-    agent_config_get_auth,
-    agent_config_set_auth,
-    agent_config_get_bff_url,
+    agent_config_get_active_node,
+    agent_config_set_active_node,
 };

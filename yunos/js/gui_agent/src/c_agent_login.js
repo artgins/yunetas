@@ -32,7 +32,7 @@ import {
     set_timeout, clear_timeout,
 } from "@yuneta/gobj-js";
 
-import {agent_config_get_bff_url} from "./c_agent_config.js";
+import {deploy_info} from "./conf/deploy.js";
 
 
 /***************************************************************
@@ -152,7 +152,7 @@ function agent_login_is_logged_in(gobj)
 
 function bff_base(gobj)
 {
-    return agent_config_get_bff_url(gobj_read_attr(gobj, "config_svc"));
+    return deploy_info().bff_url;
 }
 
 /***************************************************************
