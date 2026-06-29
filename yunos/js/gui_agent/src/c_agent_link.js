@@ -41,7 +41,6 @@ import {
 } from "@yuneta/gobj-js";
 
 import {agent_config_get_active} from "./c_agent_config.js";
-import {agent_login_get_token} from "./c_agent_login.js";
 
 
 /***************************************************************
@@ -222,18 +221,17 @@ function open_link(gobj)
     }
     gobj_write_attr(gobj, "active_label", active.label);
 
-    let login = gobj_read_attr(gobj, "login_svc");
-    let jwt = login ? agent_login_get_token(login) : "";
-
     /*  Parented to the yuno (always alive); subscriber is THIS link so
      *  its events flow here and get re-published to consumers. The
-     *  identity card targets the agent's default service. */
+     *  identity card targets the agent's default service. Auth is by the
+     *  BFF httpOnly cookie the browser sends with the WebSocket upgrade
+     *  (same-host agent) — no JWT travels through JS, so jwt is empty. */
     let iev = gobj_create("agent_iev", "C_IEVENT_CLI", {
         url:                 active.url,
         remote_yuno_role:    active.yuno_role || "yuneta_agent",
         remote_yuno_service: active.service || "__default_service__",
         remote_yuno_name:    active.yuno_name || "",
-        jwt:                 jwt,
+        jwt:                 "",
         subscriber:          gobj
     }, gobj_yuno());
     gobj_write_attr(gobj, "iev", iev);

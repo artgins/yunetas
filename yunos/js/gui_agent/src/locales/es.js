@@ -88,6 +88,8 @@ const es = {
         /* configuración · autenticación */
         "auth subtitle":     "OIDC / Keycloak, guardado en este navegador",
         "provider":          "Proveedor",
+        "bff url":           "URL del BFF",
+        "bff help":          "URL base del BFF de auth. Vacío = usar https://<este host>:1806.",
         "auth url":          "URL de auth",
         "realm":             "Realm",
         "client id":         "Client ID",

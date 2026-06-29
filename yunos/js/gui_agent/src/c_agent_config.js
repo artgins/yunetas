@@ -47,9 +47,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                      null, "S
 SDATA(data_type_t.DTP_JSON,     "agents",       sdata_flag_t.SDF_PERSIST, "[]", "Configured agent endpoints"),
 SDATA(data_type_t.DTP_STRING,   "active_agent", sdata_flag_t.SDF_PERSIST, "",   "Label of the active agent"),
 
-SDATA(data_type_t.DTP_STRING,   "auth_url",       sdata_flag_t.SDF_PERSIST, "", "OIDC/Keycloak base URL (e.g. https://auth.artgins.com)"),
-SDATA(data_type_t.DTP_STRING,   "auth_realm",     sdata_flag_t.SDF_PERSIST, "", "Keycloak realm"),
-SDATA(data_type_t.DTP_STRING,   "auth_client_id", sdata_flag_t.SDF_PERSIST, "", "Keycloak public client id (Direct Access Grants enabled)"),
+SDATA(data_type_t.DTP_STRING,   "bff_url",        sdata_flag_t.SDF_PERSIST, "", "Auth BFF base URL (e.g. https://agents.yunetacontrol.com:1806). Empty = derive https://<host>:1806"),
 SDATA_END()
 ];
 
@@ -146,14 +144,28 @@ function agent_config_set(gobj, agents, active_agent)
 }
 
 /***************************************************************
- *  Read the OIDC/Keycloak auth config: {auth_url, realm, client_id}.
+ *  Effective auth BFF base URL. If not configured, derive it
+ *  from the current host on port 1806 (the BFF must be same-host
+ *  as the SPA — its cookie is scoped to this hostname).
+ ***************************************************************/
+function agent_config_get_bff_url(gobj)
+{
+    let url = gobj_read_attr(gobj, "bff_url") || "";
+    if(url) {
+        return url;
+    }
+    let host = (typeof window !== "undefined" && window.location)
+        ? window.location.hostname : "localhost";
+    return `https://${host}:1806`;
+}
+
+/***************************************************************
+ *  Read the auth config: {bff_url} (raw, as stored).
  ***************************************************************/
 function agent_config_get_auth(gobj)
 {
     return {
-        auth_url:  gobj_read_attr(gobj, "auth_url") || "",
-        realm:     gobj_read_attr(gobj, "auth_realm") || "",
-        client_id: gobj_read_attr(gobj, "auth_client_id") || ""
+        bff_url: gobj_read_attr(gobj, "bff_url") || ""
     };
 }
 
@@ -163,9 +175,7 @@ function agent_config_get_auth(gobj)
 function agent_config_set_auth(gobj, auth)
 {
     auth = auth || {};
-    gobj_write_attr(gobj, "auth_url", auth.auth_url || "");
-    gobj_write_attr(gobj, "auth_realm", auth.realm || "");
-    gobj_write_attr(gobj, "auth_client_id", auth.client_id || "");
+    gobj_write_attr(gobj, "bff_url", auth.bff_url || "");
     gobj_save_persistent_attrs(gobj);
 }
 
@@ -268,4 +278,5 @@ export {
     agent_config_get_active,
     agent_config_get_auth,
     agent_config_set_auth,
+    agent_config_get_bff_url,
 };

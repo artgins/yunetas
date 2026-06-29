@@ -205,7 +205,7 @@ function render(gobj)
 
     let config_svc = gobj_read_attr(gobj, "config_svc");
     let login_svc  = gobj_read_attr(gobj, "login_svc");
-    let auth = config_svc ? agent_config_get_auth(config_svc) : {auth_url: "", realm: "", client_id: ""};
+    let auth = config_svc ? agent_config_get_auth(config_svc) : {bff_url: ""};
     let logged_in = login_svc ? agent_login_is_logged_in(login_svc) : false;
     let username  = login_svc ? agent_login_username(login_svc) : "";
 
@@ -237,9 +237,9 @@ function render(gobj)
     let $cfg = createElement2(
         ["div", {class: "box"}, [
             ["h2", {class: "title is-5", i18n: "provider"}, "Provider"],
-            field("auth url",  "auth_url",  auth.auth_url,  "text", "https://auth.artgins.com"),
-            field("realm",     "realm",     auth.realm,     "text", "artgins"),
-            field("client id", "client_id", auth.client_id, "text", "agents.yunetacontrol.com"),
+            field("bff url", "bff_url", auth.bff_url, "text", "https://agents.yunetacontrol.com:1806"),
+            ["p", {class: "help", i18n: "bff help"},
+                "Auth BFF base URL. Leave empty to use https://<this host>:1806."],
             ["div", {class: "buttons"}, [
                 ["button", {class: "button is-small is-primary", type: "button", i18n: "save"}, "Save",
                     {click: () => on_save_config(gobj, $cfg)}]
@@ -304,9 +304,7 @@ function on_save_config(gobj, $cfg)
         return;
     }
     agent_config_set_auth(svc, {
-        auth_url:  field_value($cfg, "auth_url"),
-        realm:     field_value($cfg, "realm"),
-        client_id: field_value($cfg, "client_id")
+        bff_url: field_value($cfg, "bff_url")
     });
     set_notice(gobj, i18next.t("auth config saved"), false);
     render(gobj);
