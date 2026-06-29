@@ -94,8 +94,11 @@ function mt_create(gobj)
 
     /*  Shared control-center link — child of the YUNO (NOT of self), so
      *  gobj_start_tree(self) does NOT start it. Started only after login
-     *  so it never retries against the CC without a cookie. */
-    let link = gobj_create_service("agent_link", "C_AGENT_LINK", {subscriber: gobj}, gobj_yuno());
+     *  so it never retries against the CC without a cookie.
+     *  Subscribe ONLY to the events we act on (not the subscriber=ALL
+     *  attr, which would deliver EV_ON_CLOSE/MT_* and trip "event NOT
+     *  defined in state"). */
+    let link = gobj_create_service("agent_link", "C_AGENT_LINK", {}, gobj_yuno());
     gobj.priv.link = link;
     gobj_subscribe_event(link, "EV_ON_OPEN", {}, gobj);
     gobj_subscribe_event(link, "EV_ON_ID_NAK", {}, gobj);
@@ -190,12 +193,19 @@ function build_shell(gobj)
         return priv.shell;
     }
 
+    /*  Create the shell WITHOUT subscriber=ALL: the shell publishes its
+     *  own chrome (EV_ROUTE_REQUESTED/CHANGED, search, resize, …) to its
+     *  subscriber, and C_APP must not receive events it does not declare
+     *  ("event NOT defined in state"). Subscribe ONLY to the chrome we
+     *  act on: theme/language toggles and Sign Out. */
     let shell = gobj_create_pure_child("shell", "C_YUI_SHELL", {
         config:     gobj_read_attr(gobj, "config"),
-        use_hash:   gobj_read_attr(gobj, "use_hash"),
-        subscriber: gobj
+        use_hash:   gobj_read_attr(gobj, "use_hash")
     }, gobj);
     priv.shell = shell;
+    gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
+    gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+    gobj_subscribe_event(shell, "EV_LOGOUT",          {}, gobj);
     gobj_start_tree(shell);
 
     yui_shell_set_avatar_provider(shell, () => compute_initials(gobj));
