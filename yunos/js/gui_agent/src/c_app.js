@@ -35,6 +35,7 @@ import i18next from "i18next";
 
 import {
     yui_shell_set_avatar_provider,
+    yui_shell_refresh_avatars,
     yui_shell_set_translator,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
@@ -241,10 +242,20 @@ function ac_login_accepted(gobj, event, kw, src)
 
 /***************************************************************
  *  Control-center session open → build the shell.
+ *
+ *  The CC identity-ack carries the authenticated username — this is
+ *  the authoritative source (the BFF /auth/refresh used on F5 does
+ *  NOT return a username, unlike /auth/login). Adopt it before
+ *  building the shell so the avatar initials are correct, and repaint
+ *  if the shell already existed.
  ***************************************************************/
 function ac_on_open(gobj, event, kw, src)
 {
-    build_shell(gobj);
+    if(kw && kw.username) {
+        gobj_write_str_attr(gobj, "username", kw.username);
+    }
+    let shell = build_shell(gobj);
+    yui_shell_refresh_avatars(shell);
     return 0;
 }
 
