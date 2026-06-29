@@ -86,13 +86,8 @@ function mt_create(gobj)
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
-
-    let login = gobj_find_service("agent_login", true);
-    gobj_write_attr(gobj, "login_svc", login);
-    if(login) {
-        gobj_subscribe_event(login, "EV_LOGIN_ACCEPTED", {}, gobj);
-        gobj_subscribe_event(login, "EV_LOGOUT_DONE", {}, gobj);
-    }
+    /*  C_APP owns the lifecycle: it starts this link after login and
+     *  stops it on logout, so the link never connects without a cookie. */
 }
 
 /***************************************************************
@@ -329,8 +324,7 @@ function create_gclass(gclass_name)
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
             ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
             ["EV_MT_STATS_ANSWER",   ac_mt_stats_answer,   null],
-            ["EV_LOGIN_ACCEPTED",    ac_reopen,            null],
-            ["EV_LOGOUT_DONE",       ac_reopen,            null]
+            ["EV_REOPEN",            ac_reopen,            null]
         ]]
     ];
 
@@ -346,8 +340,7 @@ function create_gclass(gclass_name)
         ["EV_ON_ID_NAK",         out],
         ["EV_MT_COMMAND_ANSWER", out],
         ["EV_MT_STATS_ANSWER",   out],
-        ["EV_LOGIN_ACCEPTED",    0],
-        ["EV_LOGOUT_DONE",       0]
+        ["EV_REOPEN",            0]
     ];
 
     __gclass__ = gclass_create(

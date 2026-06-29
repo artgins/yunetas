@@ -35,18 +35,10 @@ import {
 
 import i18next from "i18next";
 
-import {
-    yui_shell_set_connection_state,
-    yui_shell_set_toolbar_item_icon,
-    yui_shell_set_avatar_provider,
-    yui_shell_refresh_avatars,
-} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node} from "./c_agent_config.js";
-import {agent_login_username} from "./c_agent_login.js";
-import {switch_locale, current_locale} from "./locales/locales.js";
-import {toggle_theme} from "./theme.js";
 
 
 /***************************************************************
@@ -70,7 +62,6 @@ SDATA(data_type_t.DTP_STRING,   "title",       0,  "console",   "View title (i18
 SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,        "Root HTMLElement"),
 SDATA(data_type_t.DTP_POINTER,  "link_svc",    0,  null,        "C_AGENT_LINK service"),
 SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,        "C_AGENT_CONFIG service"),
-SDATA(data_type_t.DTP_POINTER,  "login_svc",   0,  null,        "C_AGENT_LOGIN service"),
 SDATA(data_type_t.DTP_BOOLEAN,  "connected",   0,  false,       "True while in session with the agent"),
 SDATA_END()
 ];
@@ -128,25 +119,6 @@ function mt_create(gobj)
     gobj_write_attr(gobj, "config_svc", config);
     if(config) {
         gobj_subscribe_event(config, "EV_ACTIVE_NODE_CHANGED", {}, gobj);
-    }
-
-    /*  Login service: drive the toolbar avatar (initials of the logged
-     *  user) and re-evaluate the status when the session changes. */
-    let login = gobj_find_service("agent_login", true);
-    gobj_write_attr(gobj, "login_svc", login);
-    if(login) {
-        gobj_subscribe_event(login, "EV_LOGIN_ACCEPTED", {}, gobj);
-        gobj_subscribe_event(login, "EV_LOGOUT_DONE", {}, gobj);
-    }
-
-    /*  App-chrome events published by the shell (our parent): handle
-     *  theme + language + the user avatar here since the console is
-     *  always alive. */
-    let shell = gobj_parent(gobj);
-    if(shell) {
-        gobj_subscribe_event(shell, "EV_TOGGLE_THEME", {}, gobj);
-        gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
-        yui_shell_set_avatar_provider(shell, () => user_initials(login));
     }
 
     build_ui(gobj);
@@ -211,23 +183,6 @@ function mt_destroy(gobj)
 
 
 
-
-/***************************************************************
- *  Initials shown in the toolbar avatar: first letters of the
- *  logged-in username, or "" when signed out (the avatar then
- *  reads as an empty "sign in" affordance).
- ***************************************************************/
-function user_initials(login_svc)
-{
-    let name = login_svc ? agent_login_username(login_svc) : "";
-    if(!name) {
-        return "";
-    }
-    let local = String(name).split("@")[0];
-    let parts = local.split(/[._\-\s]+/).filter(Boolean);
-    let ini = parts.slice(0, 2).map(p => p[0]).join("");
-    return (ini || local.slice(0, 2)).toUpperCase();
-}
 
 /***************************************************************
  *  Update the connection dot (shell) + the local status line.
@@ -508,43 +463,6 @@ function ac_agents_changed(gobj, event, kw, src)
     return 0;
 }
 
-/***************************************************************
- *  Login / logout — repaint the avatar and re-evaluate status.
- ***************************************************************/
-function ac_login_changed(gobj, event, kw, src)
-{
-    let shell = gobj_parent(gobj);
-    if(shell) {
-        yui_shell_refresh_avatars(shell);
-    }
-    refresh_status(gobj);
-    return 0;
-}
-
-/***************************************************************
- *  Toolbar: toggle language (app-wide).
- ***************************************************************/
-function ac_toggle_language(gobj, event, kw, src)
-{
-    switch_locale(current_locale() === "es" ? "en" : "es");
-    refresh_language(document.body, i18next.t.bind(i18next));
-    return 0;
-}
-
-/***************************************************************
- *  Toolbar: toggle dark / light theme (app-wide).
- ***************************************************************/
-function ac_toggle_theme(gobj, event, kw, src)
-{
-    let theme = toggle_theme();
-    let shell = gobj_parent(gobj);
-    if(shell) {
-        yui_shell_set_toolbar_item_icon(shell, "theme",
-            theme === "dark" ? "yi-sun" : "yi-moon");
-    }
-    return 0;
-}
-
 
 
 
@@ -585,11 +503,7 @@ function create_gclass(gclass_name)
             ["EV_ON_OPEN_ERROR",     ac_on_open_error,     null],
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
             ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
-            ["EV_ACTIVE_NODE_CHANGED", ac_agents_changed,  null],
-            ["EV_LOGIN_ACCEPTED",    ac_login_changed,     null],
-            ["EV_LOGOUT_DONE",       ac_login_changed,     null],
-            ["EV_TOGGLE_LANGUAGE",   ac_toggle_language,   null],
-            ["EV_TOGGLE_THEME",      ac_toggle_theme,      null]
+            ["EV_ACTIVE_NODE_CHANGED", ac_agents_changed,  null]
         ]]
     ];
 
@@ -602,11 +516,7 @@ function create_gclass(gclass_name)
         ["EV_ON_OPEN_ERROR",     0],
         ["EV_ON_ID_NAK",         0],
         ["EV_MT_COMMAND_ANSWER", 0],
-        ["EV_ACTIVE_NODE_CHANGED", 0],
-        ["EV_LOGIN_ACCEPTED",    0],
-        ["EV_LOGOUT_DONE",       0],
-        ["EV_TOGGLE_LANGUAGE",   0],
-        ["EV_TOGGLE_THEME",      0]
+        ["EV_ACTIVE_NODE_CHANGED", 0]
     ];
 
     __gclass__ = gclass_create(

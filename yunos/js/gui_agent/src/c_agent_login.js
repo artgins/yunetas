@@ -245,10 +245,12 @@ function try_restore_session(gobj)
             gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
         } else {
             gobj_change_state(gobj, "ST_LOGOUT");
+            gobj_publish_event(gobj, "EV_RESTORE_FAILED", {});
         }
     })
     .catch(() => {
         gobj_change_state(gobj, "ST_LOGOUT");
+        gobj_publish_event(gobj, "EV_RESTORE_FAILED", {});
     });
 }
 
@@ -412,7 +414,8 @@ function create_gclass(gclass_name)
         ["EV_LOGIN_ACCEPTED",  out],
         ["EV_LOGIN_REFRESHED", out],
         ["EV_LOGIN_DENIED",    out],
-        ["EV_LOGOUT_DONE",     out]
+        ["EV_LOGOUT_DONE",     out],
+        ["EV_RESTORE_FAILED",  out]
     ];
 
     __gclass__ = gclass_create(

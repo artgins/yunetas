@@ -48,6 +48,7 @@ import {register_c_yui_treedb_topics}
 import {register_c_yui_treedb_topic_with_form}
     from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
+import {register_c_app} from "./c_app.js";
 import {register_c_gui_agent_view} from "./c_gui_agent_view.js";
 import {register_c_agent_config} from "./c_agent_config.js";
 import {register_c_agent_login} from "./c_agent_login.js";
@@ -104,7 +105,8 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
 
-    /*  App-level config + login + link services + views  */
+    /*  App root + config + login + link services + views  */
+    register_c_app();
     register_c_agent_config();
     register_c_agent_login();
     register_c_agent_link();
@@ -153,52 +155,17 @@ function main()
      *------------------------------------------------*/
     setup_locale();
 
-    /*  Apply the saved light/dark theme before the shell renders.  */
+    /*  Apply the saved light/dark theme before anything renders.  */
     apply_theme(current_theme());
 
     /*------------------------------------------------*
-     *      App config service (named service of the yuno).
-     *      Holds the user-entered agent endpoints (persisted in
-     *      localStorage), shared by the Settings and Console views.
-     *------------------------------------------------*/
-    let agent_config = gobj_create_service(
-        "agent_config",
-        "C_AGENT_CONFIG",
-        {},
-        yuno
-    );
-
-    /*------------------------------------------------*
-     *      Login service (named service of the yuno).
-     *      Holds the OIDC token in memory and forwards it to the
-     *      console's transport.
-     *------------------------------------------------*/
-    let agent_login = gobj_create_service(
-        "agent_login",
-        "C_AGENT_LOGIN",
-        {},
-        yuno
-    );
-
-    /*------------------------------------------------*
-     *      Shared link service: the single C_IEVENT_CLI to the
-     *      active agent. Panels (console, …) use it instead of
-     *      opening their own duplicate channels.
-     *------------------------------------------------*/
-    let agent_link = gobj_create_service(
-        "agent_link",
-        "C_AGENT_LINK",
-        {},
-        yuno
-    );
-
-    /*------------------------------------------------*
-     *      The shell IS the default service.
-     *      It builds the whole UI from app_config.
+     *      C_APP is the default service: it owns login + the
+     *      control-center link, gates the shell behind a session,
+     *      and shows the login screen when signed out.
      *------------------------------------------------*/
     gobj_create_default_service(
-        "shell",
-        "C_YUI_SHELL",
+        "app",
+        "C_APP",
         {
             config:   app_config,
             use_hash: true
@@ -208,13 +175,8 @@ function main()
 
     /*------------------------------------------------*
      *          Play
-     *  The default service (shell) autostarts on play; the named
-     *  config service is NOT autostart, so start it explicitly.
-     *------------------------------------------------*/
+     ***************************************************************/
     gobj_start(yuno);
-    gobj_start(agent_config);
-    gobj_start(agent_login);
-    gobj_start(agent_link);
     gobj_play(yuno);
 }
 
