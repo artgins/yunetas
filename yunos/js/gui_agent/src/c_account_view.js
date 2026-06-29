@@ -126,9 +126,14 @@ function mt_destroy(gobj)
 
 
 
-function t(key)
+/***************************************************************
+ *  createElement2 bound to the i18next translator, so every node
+ *  carrying an `i18n` attr is translated at build time AND can be
+ *  re-translated in place by refresh_language() on a language switch.
+ ***************************************************************/
+function ce(desc)
 {
-    return i18next.t(key);
+    return createElement2(desc, i18next.t.bind(i18next));
 }
 
 /***************************************************************
@@ -155,16 +160,19 @@ function render(gobj)
 }
 
 /***************************************************************
- *  Page header (title + optional subtitle).
+ *  Page header (title + optional subtitle). *_text is the English
+ *  fallback; *_key the i18n key that overrides it per language.
  ***************************************************************/
-function page_header(title, subtitle)
+function page_header(title_key, title_text, sub_key, sub_text)
 {
     let children = [
-        ["h1", {class: "title is-3", style: `color:${ACCENT}; margin-bottom:0.25rem;`}, title]
+        ["h1", {class: "title is-3", style: `color:${ACCENT}; margin-bottom:0.25rem;`, i18n: title_key},
+            title_text]
     ];
-    if(subtitle) {
+    if(sub_key) {
         children.push(
-            ["p", {class: "subtitle is-6", style: "color:#5B6B7E; margin-bottom:1rem;"}, subtitle]
+            ["p", {class: "subtitle is-6", style: "color:#5B6B7E; margin-bottom:1rem;", i18n: sub_key},
+                sub_text]
         );
     }
     return ["div", {style: "margin-bottom:0.5rem;"}, children];
@@ -178,7 +186,9 @@ function build_preference(gobj)
     let theme = current_theme();
     let lang  = current_locale();
 
-    /*  A segmented button group; the active option carries is-primary.  */
+    /*  A segmented button group; the active option carries is-primary.
+     *  Click handlers go in the 4th (events) slot of the createElement2
+     *  description — an `onclick` attr would be silently dropped. */
     function segment(options, current, on_pick)
     {
         let btns = options.map(function(opt) {
@@ -188,20 +198,19 @@ function build_preference(gobj)
             if(opt.icon) {
                 kids.push(["span", {class: "icon"}, [["span", {class: opt.icon}, ""]]]);
             }
-            kids.push(["span", {}, opt.label]);
-            return ["button", {
-                type: "button",
-                class: cls,
-                onclick: function() { on_pick(opt.value); }
-            }, kids];
+            kids.push(opt.i18n
+                ? ["span", {i18n: opt.i18n}, opt.text]
+                : ["span", {}, opt.text]);
+            return ["button", {type: "button", class: cls}, kids,
+                {click: function() { on_pick(opt.value); }}];
         });
         return ["div", {class: "buttons has-addons"}, btns];
     }
 
     let theme_seg = segment(
         [
-            {value: "light", label: t("light theme"), icon: "yi-sun"},
-            {value: "dark",  label: t("dark theme"),  icon: "yi-moon"}
+            {value: "light", i18n: "light theme", text: "Light theme", icon: "yi-sun"},
+            {value: "dark",  i18n: "dark theme",  text: "Dark theme",  icon: "yi-moon"}
         ],
         theme,
         function(v) {
@@ -212,8 +221,8 @@ function build_preference(gobj)
 
     let lang_seg = segment(
         [
-            {value: "en", label: "English"},
-            {value: "es", label: "Español"}
+            {value: "en", text: "English"},
+            {value: "es", text: "Español"}
         ],
         lang,
         function(v) {
@@ -223,24 +232,24 @@ function build_preference(gobj)
         }
     );
 
-    function field(label_key, control)
+    function field(label_key, label_text, control)
     {
         return ["div", {class: "field", style: "margin-bottom:1.25rem;"},
             [
-                ["label", {class: "label"}, t(label_key)],
+                ["label", {class: "label", i18n: label_key}, label_text],
                 ["div", {class: "control"}, [control]]
             ]
         ];
     }
 
-    return createElement2(
+    return ce(
         ["div", {},
             [
-                page_header(t("preferences"), t("appearance")),
+                page_header("preferences", "Preferences", "appearance", "Appearance"),
                 ["div", {class: "box", style: "max-width:540px;"},
                     [
-                        field("theme", theme_seg),
-                        field("language", lang_seg)
+                        field("theme", "Theme", theme_seg),
+                        field("language", "Language", lang_seg)
                     ]
                 ]
             ]
@@ -249,7 +258,7 @@ function build_preference(gobj)
 }
 
 /***************************************************************
- *  Developer — read-only diagnostics.
+ *  Developer — read-only diagnostics (one flat definition table).
  ***************************************************************/
 function build_developer(gobj)
 {
@@ -257,76 +266,55 @@ function build_developer(gobj)
     let connected = agent_link_is_connected();
     let logged    = agent_login_is_logged_in();
     let username  = agent_login_username() || "—";
-    let node      = agent_config_get_active_node() || t("none");
+    let node      = agent_config_get_active_node();
 
-    function row(label_key, value, value_style)
+    function row(label_key, label_text, value, value_attrs)
     {
         return ["tr", {},
             [
-                ["th", {style: "white-space:nowrap; color:#5B6B7E; font-weight:600; width:14rem;"},
-                    t(label_key)],
-                ["td", {style: value_style || ""}, String(value)]
+                ["th", {style: "white-space:nowrap; color:#5B6B7E; font-weight:600; width:14rem;",
+                        i18n: label_key}, label_text],
+                ["td", value_attrs || {}, String(value)]
             ]
         ];
     }
 
-    function yesno(b)
-    {
-        return b ? t("connected") : t("disconnected");
-    }
+    let node_cell = node
+        ? ["td", {style: "font-family:monospace;"}, node]
+        : ["td", {i18n: "none"}, "None"];
 
-    let app_table = ["table", {class: "table is-fullwidth is-narrow"},
-        [["tbody", {},
-            [
-                row("application", "gui_agent"),
-                row("version", pkg.version || "—"),
-                row("tenant", dep.tenant),
-                row("plane", dep.plane),
-                row("host", dep.host)
-            ]
-        ]]
+    let conn_attrs = {
+        i18n: connected ? "connected" : "disconnected",
+        style: `font-weight:600; color:${connected ? "#1FAE6F" : "#D64545"};`
+    };
+
+    let rows = [
+        row("application", "Application", "gui_agent"),
+        row("version", "Version", pkg.version || "—"),
+        row("tenant", "Tenant", dep.tenant),
+        row("plane", "Plane", dep.plane),
+        row("host", "Host", dep.host),
+        row("control center", "Control center", dep.cc_url, {style: "font-family:monospace;"}),
+        row("auth bff", "Auth BFF", dep.bff_url, {style: "font-family:monospace;"}),
+        row("connected", connected ? "Connected" : "Disconnected", "", conn_attrs),
+        ["tr", {}, [
+            ["th", {style: "white-space:nowrap; color:#5B6B7E; font-weight:600; width:14rem;",
+                    i18n: "active node"}, "Active node"],
+            node_cell
+        ]],
+        row("logged in as", "Logged in as",
+            logged ? username : "", logged ? {} : {i18n: "logged out"})
     ];
 
-    let link_table = ["table", {class: "table is-fullwidth is-narrow"},
-        [["tbody", {},
-            [
-                row("control center", dep.cc_url, "font-family:monospace;"),
-                row("auth bff", dep.bff_url, "font-family:monospace;"),
-                row("connected", yesno(connected),
-                    `font-weight:600; color:${connected ? "#1FAE6F" : "#D64545"};`),
-                row("active node", node, "font-family:monospace;")
-            ]
-        ]]
-    ];
-
-    let session_table = ["table", {class: "table is-fullwidth is-narrow"},
-        [["tbody", {},
-            [
-                row("logged in as", logged ? username : t("logged out")),
-                row("username", username, "font-family:monospace;")
-            ]
-        ]]
-    ];
-
-    function section(title_key, table)
-    {
-        return ["div", {style: "margin-bottom:1.5rem;"},
-            [
-                ["h2", {class: "title is-5", style: "margin-bottom:0.5rem;"}, t(title_key)],
-                table
-            ]
-        ];
-    }
-
-    return createElement2(
+    return ce(
         ["div", {},
             [
-                page_header(t("developer"), t("diagnostics")),
+                page_header("developer", "Developer", "diagnostics", "Diagnostics"),
                 ["div", {style: "max-width:680px;"},
                     [
-                        section("application", app_table),
-                        section("control center", link_table),
-                        section("session", session_table)
+                        ["table", {class: "table is-fullwidth is-narrow"},
+                            [["tbody", {}, rows]]
+                        ]
                     ]
                 ]
             ]
@@ -342,10 +330,10 @@ function build_about(gobj)
     let dep = deploy_info();
     let plane_label = (dep.plane === "agent22") ? "agent22" : "agents";
 
-    return createElement2(
+    return ce(
         ["div", {},
             [
-                page_header(t("about"), ""),
+                page_header("about", "About", null, ""),
                 ["div", {class: "box", style: "max-width:540px; text-align:center;"},
                     [
                         ["img", {
@@ -355,12 +343,12 @@ function build_about(gobj)
                             height: "72",
                             style: "margin-bottom:0.75rem;"
                         }, ""],
-                        ["h1", {class: "title is-4", style: "margin-bottom:0.25rem;"},
-                            t("agent console")],
+                        ["h1", {class: "title is-4", style: "margin-bottom:0.25rem;", i18n: "agent console"},
+                            "Agent Console"],
                         ["p", {class: "subtitle is-6", style: "color:#5B6B7E; margin-bottom:0.75rem;"},
                             `v${pkg.version || ""} · ${dep.tenant} · ${plane_label}`],
-                        ["p", {style: "color:#5B6B7E; margin-bottom:1rem;"},
-                            t("about description")],
+                        ["p", {style: "color:#5B6B7E; margin-bottom:1rem;", i18n: "about description"},
+                            "Browser console to operate Yuneta agents through the control center."],
                         ["a", {
                             class: "button is-link is-light",
                             href: "https://doc.yuneta.io",
@@ -369,7 +357,7 @@ function build_about(gobj)
                         },
                             [
                                 ["span", {class: "icon"}, [["span", {class: "yi-question"}, ""]]],
-                                ["span", {}, t("documentation")]
+                                ["span", {i18n: "documentation"}, "Documentation"]
                             ]
                         ],
                         ["p", {class: "is-size-7", style: "color:#9AA7B4; margin-top:1.25rem;"},

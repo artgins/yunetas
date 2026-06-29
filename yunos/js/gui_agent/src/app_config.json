@@ -84,26 +84,26 @@
                     "items": [
                         {
                             "id": "preference",
-                            "name": "Preferences",
+                            "name": "preferences",
                             "icon": "yi-gear",
                             "action": { "type": "navigate", "route": "/account/preference" }
                         },
                         {
                             "id": "developer",
-                            "name": "Developer",
+                            "name": "developer",
                             "icon": "yi-square-js",
                             "action": { "type": "navigate", "route": "/account/developer" }
                         },
                         {
                             "id": "about",
-                            "name": "About",
+                            "name": "about",
                             "icon": "yi-question",
                             "action": { "type": "navigate", "route": "/account/about" }
                         },
                         { "type": "divider" },
                         {
                             "id": "logout",
-                            "name": "Sign Out",
+                            "name": "logout",
                             "icon": "yi-sign-out-alt",
                             "action": { "type": "event", "event": "EV_LOGOUT" }
                         }
@@ -122,7 +122,7 @@
             "items": [
                 {
                     "id": "console",
-                    "name": "Console",
+                    "name": "console",
                     "icon": "yi-square-js",
                     "tooltip": "Control-plane CLI to a yuneta agent",
                     "route": "/console",
@@ -131,7 +131,7 @@
                         "items": [
                             {
                                 "id": "agent",
-                                "name": "Agent CLI",
+                                "name": "agent cli",
                                 "icon": "yi-square-js",
                                 "route": "/console/agent",
                                 "target": {
@@ -146,7 +146,7 @@
                 },
                 {
                     "id": "nodes",
-                    "name": "Nodes",
+                    "name": "nodes",
                     "icon": "yi-cloudversify",
                     "tooltip": "Nodes connected to the control center",
                     "route": "/nodes",
@@ -155,7 +155,7 @@
                         "items": [
                             {
                                 "id": "list",
-                                "name": "Nodes",
+                                "name": "nodes",
                                 "icon": "yi-cloudversify",
                                 "route": "/nodes/list",
                                 "target": {
@@ -170,7 +170,7 @@
                 },
                 {
                     "id": "treedb",
-                    "name": "TreeDB",
+                    "name": "treedb",
                     "icon": "yi-hexagon-nodes",
                     "tooltip": "Browse treedb topics as tables and graphs",
                     "route": "/treedb",
@@ -179,7 +179,7 @@
                         "items": [
                             {
                                 "id": "graph",
-                                "name": "Graph",
+                                "name": "graph",
                                 "icon": "yi-hexagon-nodes",
                                 "route": "/treedb/graph",
                                 "target": {
@@ -190,7 +190,7 @@
                             },
                             {
                                 "id": "table",
-                                "name": "Table",
+                                "name": "table",
                                 "icon": "yi-table",
                                 "route": "/treedb/table",
                                 "_target_comment": "WIP: C_TREEDB_PANEL + C_TREEDB_GATE are built but BLOCKED — JS C_IEVENT_CLI.mt_command routes the inter-event by kw.service, which collides with command-yuno's inner 'service' param (the agent then can't find the service). Needs a gobj-js fix to decouple routing-service from command params. Until then keep the placeholder.",
@@ -205,7 +205,7 @@
                 },
                 {
                     "id": "stats",
-                    "name": "Stats",
+                    "name": "stats",
                     "icon": "yi-eye",
                     "tooltip": "Live stats from a yuno",
                     "route": "/stats",
@@ -214,7 +214,7 @@
                         "items": [
                             {
                                 "id": "live",
-                                "name": "Live",
+                                "name": "live",
                                 "icon": "yi-eye",
                                 "route": "/stats/live",
                                 "target": {

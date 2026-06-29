@@ -210,6 +210,10 @@ function build_shell(gobj)
 
     yui_shell_set_avatar_provider(shell, () => compute_initials(gobj));
     yui_shell_set_translator(shell, i18next.t.bind(i18next));
+    /*  set_translator only stores the t-function; the static shell tree
+     *  (toolbar + nav labels carrying i18n keys) must be translated once
+     *  now, else it shows the raw keys until the first language toggle. */
+    refresh_language(document.body, i18next.t.bind(i18next));
     return shell;
 }
 
