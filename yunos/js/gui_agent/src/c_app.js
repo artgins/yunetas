@@ -37,10 +37,11 @@ import {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
+    yui_shell_set_toolbar_item_icon,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {switch_locale, current_locale} from "./locales/locales.js";
-import {toggle_theme} from "./theme.js";
+import {current_theme, apply_theme, toggle_theme} from "./theme.js";
 import {mount_login} from "./login.js";
 
 
@@ -48,6 +49,10 @@ import {mount_login} from "./login.js";
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_APP";
+
+/*  The single C_APP instance, so module helpers (app_set_theme, called
+ *  from the Preferences page) can reach the shell to repaint chrome. */
+let __app_gobj__ = null;
 
 
 /***************************************************************
@@ -84,6 +89,8 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    __app_gobj__ = gobj;
+
     /*  Config service (child of self).  */
     gobj_create_service("agent_config", "C_AGENT_CONFIG", {}, gobj);
 
@@ -214,7 +221,22 @@ function build_shell(gobj)
      *  (toolbar + nav labels carrying i18n keys) must be translated once
      *  now, else it shows the raw keys until the first language toggle. */
     refresh_language(document.body, i18next.t.bind(i18next));
+    update_theme_icon(gobj);
     return shell;
+}
+
+/***************************************************************
+ *  Reflect the current theme on the toolbar toggle icon
+ *  (sun when light, moon when dark), like wattyzer.
+ ***************************************************************/
+function update_theme_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.shell) {
+        return;
+    }
+    let icon = (current_theme() === "light") ? "yi-sun" : "yi-moon";
+    yui_shell_set_toolbar_item_icon(priv.shell, "theme", icon);
 }
 
 function destroy_shell(gobj)
@@ -357,6 +379,7 @@ function ac_logout_done(gobj, event, kw, src)
 function ac_toggle_theme(gobj, event, kw, src)
 {
     toggle_theme();
+    update_theme_icon(gobj);
     return 0;
 }
 
@@ -461,4 +484,16 @@ function register_c_app()
     return create_gclass(GCLASS_NAME);
 }
 
-export {register_c_app};
+/***************************************************************
+ *  Set the theme from elsewhere (the Preferences page) and keep
+ *  the toolbar toggle icon in sync.
+ ***************************************************************/
+function app_set_theme(theme)
+{
+    apply_theme(theme);
+    if(__app_gobj__) {
+        update_theme_icon(__app_gobj__);
+    }
+}
+
+export {register_c_app, app_set_theme};

@@ -33,8 +33,9 @@ import i18next from "i18next";
 import pkg from "../package.json";
 
 import {deploy_info} from "./conf/deploy.js";
-import {current_theme, apply_theme} from "./theme.js";
+import {current_theme} from "./theme.js";
 import {current_locale, switch_locale} from "./locales/locales.js";
+import {app_set_theme} from "./c_app.js";
 import {agent_login_username, agent_login_is_logged_in} from "./c_agent_login.js";
 import {agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node} from "./c_agent_config.js";
@@ -214,7 +215,7 @@ function build_preference(gobj)
         ],
         theme,
         function(v) {
-            apply_theme(v);
+            app_set_theme(v);
             render(gobj);
         }
     );
