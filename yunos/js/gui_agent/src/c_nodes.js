@@ -325,13 +325,16 @@ function create_table(gobj)
         row.getElement().classList.toggle("node-row-active", is_active_node(gobj, n));
     }
 
+    /*  Select first: on mobile the action is visible without scrolling
+     *  right; the node detail columns follow and only need a horizontal
+     *  scroll when the operator wants to inspect them.  */
     let columns = [
+        {title: "", field: "_action", width: 90, headerSort: false, hozAlign: "center",
+            formatter: action_formatter, cellClick: action_click},
         {title: t("host"),    field: "host",    formatter: host_formatter},
         {title: t("role"),    field: "role"},
         {title: t("version"), field: "version"},
-        {title: t("uuid"),    field: "uuid",    formatter: uuid_formatter},
-        {title: "", field: "_action", width: 90, headerSort: false, hozAlign: "right",
-            formatter: action_formatter, cellClick: action_click}
+        {title: t("uuid"),    field: "uuid",    formatter: uuid_formatter}
     ];
 
     let settings = {
