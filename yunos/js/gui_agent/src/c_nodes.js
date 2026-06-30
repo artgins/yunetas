@@ -112,10 +112,24 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
     build_dom(gobj);
     create_table(gobj);
     update_table(gobj);
     request_agents(gobj);
+
+    /*  Tabulator headers + cell text are rendered by formatters, not
+     *  data-i18n DOM, so refresh_language() can't touch them. Rebuild
+     *  the columns on a language switch so titles + the Select button
+     *  re-translate live (no browser refresh).  */
+    priv.on_lang = () => {
+        let table = gobj_read_attr(gobj, "tabulator");
+        if(table && table._ready) {
+            table.setColumns(make_columns(gobj));
+        }
+    };
+    i18next.on("languageChanged", priv.on_lang);
 }
 
 /***************************************************************
@@ -123,6 +137,11 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+    if(priv.on_lang) {
+        i18next.off("languageChanged", priv.on_lang);
+        priv.on_lang = null;
+    }
     let table = gobj_read_attr(gobj, "tabulator");
     if(table) {
         table.destroy();
@@ -277,12 +296,13 @@ function build_dom(gobj)
 }
 
 /***************************************************************
- *  Create the Tabulator instance with sortable columns, the
- *  active-row formatter, and the Select action column.
+ *  Column definitions. Built fresh (so titles + cell text pick up
+ *  the current language) on create and on every languageChanged.
+ *  Select is its own first column, wide enough for the longest
+ *  label ("Seleccionar"); the active row shows a ✓ there instead.
  ***************************************************************/
-function create_table(gobj)
+function make_columns(gobj)
 {
-    let priv = gobj.priv;
     let t = i18next.t.bind(i18next);
 
     /*  host: bold + "active" tag when selected  */
@@ -304,7 +324,7 @@ function create_table(gobj)
                `${esc(cell.getValue() || "")}</span>`;
     }
 
-    /*  action: Select button (none on the active row)  */
+    /*  action: Select button (a ✓ on the active row)  */
     function action_formatter(cell)
     {
         let n = cell.getData();
@@ -325,6 +345,28 @@ function create_table(gobj)
         on_select(gobj, n);
     }
 
+    /*  Select first: on mobile the action is visible without scrolling
+     *  right; the node detail columns follow and only need a horizontal
+     *  scroll when the operator wants to inspect them.  */
+    return [
+        {title: "", field: "_action", width: 120, headerSort: false, hozAlign: "center",
+            formatter: action_formatter, cellClick: action_click},
+        {title: t("host"),    field: "host",    formatter: host_formatter},
+        {title: t("role"),    field: "role"},
+        {title: t("version"), field: "version"},
+        {title: t("uuid"),    field: "uuid",    formatter: uuid_formatter}
+    ];
+}
+
+/***************************************************************
+ *  Create the Tabulator instance with sortable columns, the
+ *  active-row formatter, and the Select action column.
+ ***************************************************************/
+function create_table(gobj)
+{
+    let priv = gobj.priv;
+    let t = i18next.t.bind(i18next);
+
     /*  green wash + accent on the active row (styles in app.css)  */
     function row_formatter(row)
     {
@@ -332,25 +374,13 @@ function create_table(gobj)
         row.getElement().classList.toggle("node-row-active", is_active_node(gobj, n));
     }
 
-    /*  Select first: on mobile the action is visible without scrolling
-     *  right; the node detail columns follow and only need a horizontal
-     *  scroll when the operator wants to inspect them.  */
-    let columns = [
-        {title: "", field: "_action", width: 90, headerSort: false, hozAlign: "center",
-            formatter: action_formatter, cellClick: action_click},
-        {title: t("host"),    field: "host",    formatter: host_formatter},
-        {title: t("role"),    field: "role"},
-        {title: t("version"), field: "version"},
-        {title: t("uuid"),    field: "uuid",    formatter: uuid_formatter}
-    ];
-
     let settings = {
         index:       "uuid",
         layout:      "fitDataFill",
         maxHeight:   "100%",
         placeholder: t("no nodes"),
         columnDefaults: {headerHozAlign: "left", resizable: false},
-        columns:     columns,
+        columns:     make_columns(gobj),
         rowFormatter: row_formatter
     };
 
