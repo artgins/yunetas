@@ -221,20 +221,9 @@ function build_dom(gobj)
     }
     clear_node($c);
 
-    /*  Header + refresh  */
-    $c.appendChild(createElement2(
-        ["div", {class: "is-flex is-justify-content-space-between is-align-items-center mb-3"}, [
-            ["div", {}, [
-                ["h1", {class: "title is-4", style: "color:#2E7CD6;", i18n: "nodes"}, "Nodes"],
-                ["p", {class: "subtitle is-6", style: "color:#5B6B7E;", i18n: "nodes subtitle"},
-                    "Nodes connected to the control center"]
-            ]],
-            ["button", {class: "button is-small", type: "button", i18n: "refresh"}, "Refresh",
-                {click: () => request_agents(gobj)}]
-        ]]
-    ));
-
-    /*  Search toolbar: live filter on the left, match count on the right  */
+    /*  Single-line toolbar: search (grows) · count · refresh.
+     *  No title/subtitle block — the nav already labels the view, and
+     *  on mobile every extra header line steals the table's space.  */
     let $input = createElement2(["input", {
         class:        "input is-small",
         type:         "search",
@@ -249,14 +238,16 @@ function build_dom(gobj)
     priv.$count = $count;
 
     priv.$toolbar = createElement2(
-        ["div", {class: "is-flex is-align-items-center mb-2", style: "gap:0.75rem;"}, [
-            ["div", {class: "control has-icons-left", style: "flex:1; max-width:24rem;"}, [
+        ["div", {class: "is-flex is-align-items-center mb-2", style: "gap:0.5rem;"}, [
+            ["div", {class: "control has-icons-left", style: "flex:1; min-width:0;"}, [
                 $input,
                 ["span", {class: "icon is-small is-left"}, [
                     ["span", {class: "yi-magnifying-glass", style: "font-size:0.8rem;"}, ""]
                 ]]
             ]],
-            $count
+            $count,
+            ["button", {class: "button is-small", type: "button", i18n: "refresh"}, "Refresh",
+                {click: () => request_agents(gobj)}]
         ]]
     );
     $c.appendChild(priv.$toolbar);
