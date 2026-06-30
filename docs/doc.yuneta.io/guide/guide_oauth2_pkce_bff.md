@@ -15,12 +15,12 @@ BFF code names everything as *IdP* (`idp_calls`, `idp_timeouts`,
 
 | Layer | Component | File | Role |
 |-------|-----------|------|------|
-| **Frontend (JS)** | `C_LOGIN` GClass | [`yunos/js/gui_treedb/src/c_login.js`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/js/gui_treedb/src/c_login.js) | Initiates PKCE flow, handles redirect callback, schedules token refresh |
-| **Config** | Per-hostname settings | [`yunos/js/gui_treedb/src/conf/backend_config.js`](https://github.com/artgins/yunetas/blob/7.6.0/yunos/js/gui_treedb/src/conf/backend_config.js) | BFF URLs, Keycloak realm/client configuration |
-| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) GClass | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c) | HTTP server on port 1801; exchanges codes for tokens, manages cookies |
-| **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_websocket.c) | Captures `Cookie` header from HTTP Upgrade request |
-| **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_ievent_srv.c) | Extracts `access_token` from cookie, injects into IDENTITY_CARD |
-| **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_authz.c) | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
+| **Frontend (JS)** | `C_LOGIN` GClass | [`yunos/js/gui_treedb/src/c_login.js`](https://github.com/artgins/yunetas/blob/7.6.7/yunos/js/gui_treedb/src/c_login.js) | Initiates PKCE flow, handles redirect callback, schedules token refresh |
+| **Config** | Per-hostname settings | [`yunos/js/gui_treedb/src/conf/backend_config.js`](https://github.com/artgins/yunetas/blob/7.6.7/yunos/js/gui_treedb/src/conf/backend_config.js) | BFF URLs, Keycloak realm/client configuration |
+| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) GClass | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c) | HTTP server on port 1801; exchanges codes for tokens, manages cookies |
+| **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_websocket.c) | Captures `Cookie` header from HTTP Upgrade request |
+| **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_ievent_srv.c) | Extracts `access_token` from cookie, injects into IDENTITY_CARD |
+| **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_authz.c) | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
 | **JWT Library** | `libjwt` | `kernel/c/libjwt/src/` | Cryptographic JWT verification (RS256, ES256, EdDSA, etc.) |
 
 ---
@@ -342,7 +342,7 @@ in production:
 - **Log hygiene.** 4xx IdP replies are logged as `INFO`, not `ERROR` —
   a wrong password is not a server error. All secrets (cookies,
   authorization headers, client_secret) are redacted by
-  [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c#L863) with case-insensitive key matching.
+  [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c#L863) with case-insensitive key matching.
 - **Stats.** `mt_stats` exposes:
   `requests_total`, `q_count`, `q_max_seen`, `q_full_drops`,
   `idp_calls`, `idp_ok`, `idp_errors`, `idp_timeouts`,

@@ -12,8 +12,8 @@ json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 
 Source code in:
 
-- [stats_parser.c](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/stats_parser.c)
-- [stats_parser.h](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/gobj-c/src/stats_parser.h)
+- [stats_parser.c](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.c)
+- [stats_parser.h](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.h)
 
 ---
 
@@ -157,11 +157,11 @@ Return the result via [`build_stats_response`](#build_stats_response)
 (`{result, comment, schema, data}`) so the envelope is identical to
 what the default parser would return.
 
-#### Example — [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c)
+#### Example — [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c)
 
 [`C_AUTH_BFF`](#gclass-c-auth-bff) is the per-channel BFF processor of the auth_bff yuno.
-Each browser request crosses several increment points ([`enqueue`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c#L1036),
-[`process_next`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c#L1770), `result_token_response`, [`send_error_response`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c#L960)), and
+Each browser request crosses several increment points ([`enqueue`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c#L1036),
+[`process_next`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c#L1770), `result_token_response`, [`send_error_response`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c#L960)), and
 there are up to 25 instances per yuno, so the counters live as raw
 struct fields:
 
@@ -233,7 +233,7 @@ PRIVATE const GMETHODS gmt = {
 };
 ```
 
-The full source is in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.0/kernel/c/root-linux/src/c_auth_bff.c).
+The full source is in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/root-linux/src/c_auth_bff.c).
 
 ### Quick rule of thumb
 
