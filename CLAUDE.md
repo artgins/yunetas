@@ -53,11 +53,11 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (currently `7.6.5`) and **published to npm**.
+versioned to track `YUNETA_VERSION` (currently `7.6.6`) and **published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. estadodelaire/
-hidraulia consume it from the registry (`@yuneta/gobj-js@^7.6.5`); **wattyzer**
+hidraulia consume it from the registry (`@yuneta/gobj-js@^7.6.6`); **wattyzer**
 and the in-repo `yunos/js/gui_treedb` keep a local `file:` dep on this checkout
 (the path is unchanged, so the `file:` deps still resolve).
 
