@@ -4444,8 +4444,9 @@ PRIVATE json_t *get_cpus(void)
             continue;
         }
 
-        char *key = strtok(line, ":");
-        char *value = strtok(NULL, "\n");
+        char *saveptr = NULL;
+        char *key = strtok_r(line, ":", &saveptr);
+        char *value = strtok_r(NULL, "\n", &saveptr);
 
         if(!key || !value) {
             continue;
