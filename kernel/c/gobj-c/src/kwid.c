@@ -4016,7 +4016,8 @@ PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
 
     if(first_key) {
         char *copy = gbmem_strdup(first_key);
-        char *first_token = strtok(copy, "`");
+        char *saveptr = NULL;
+        char *first_token = strtok_r(copy, "`", &saveptr);
         BOOL root_is_array = first_token && is_array_index(first_token);
         gbmem_free(copy);
         result = root_is_array ? json_array() : json_object();
