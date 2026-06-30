@@ -1,6 +1,19 @@
 # **Changelog**
 
 ## Unreleased
+    - **fix(js): bump `@yuneta/gobj-js` submodule to 7.6.7 — restore the
+      `EV_ON_CLOSE`-on-deliberate-stop contract in `c_ievent_cli`.** 7.6.6
+      nulled the WebSocket `.onclose` handler in `mt_stop()`, so a deliberate
+      stop never delivered the async `EV_ON_CLOSE` to the FSM and never
+      published it to subscribers — diverging from the C kernel (where
+      `mt_stop` stops the bottom transport and `ac_on_close` publishes
+      `EV_ON_CLOSE` when a session was open). Consumers that drive their logout
+      UI teardown from that event (estadodelaire) stopped hiding the app. 7.6.7
+      keeps `.onclose` wired and instead guards the handler with
+      `gobj_is_destroying()`, so only the stop+destroy-in-the-same-turn case
+      (gui_agent) bails out silently while a stop that keeps the gobj alive
+      still gets its `EV_ON_CLOSE`. wattyzer/gui_agent (explicit teardown) are
+      unaffected. gobj-js-only patch: `YUNETA_VERSION` stays 7.6.6.
     - **refactor(decoders): protocol decode errors caused by a malformed packet
       from the peer are now warnings, not errors.** Across the protocol gclasses
       (`c_prot_tcp4h`, `c_websocket`, `ghttp_parser`, `c_prot_mqtt`,

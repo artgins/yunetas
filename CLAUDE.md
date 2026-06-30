@@ -56,8 +56,11 @@ with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
 versioned to track `YUNETA_VERSION` (currently `7.6.6`) and **published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
-`npm publish`, then **bump this submodule pointer in yunetas**. estadodelaire/
-hidraulia consume it from the registry (`@yuneta/gobj-js@^7.6.6`); **wattyzer**
+`npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
+patch may move ahead of `YUNETA_VERSION` — e.g. the published `7.6.7` carries an
+`EV_ON_CLOSE`-on-deliberate-stop fix while the SDK stays `7.6.6`.) estadodelaire/
+hidraulia consume it from the registry (estadodelaire on `@yuneta/gobj-js@^7.6.7`,
+hidraulia on `^7.6.6`); **wattyzer**
 and the in-repo `yunos/js/gui_treedb` keep a local `file:` dep on this checkout
 (the path is unchanged, so the `file:` deps still resolve).
 
