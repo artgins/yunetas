@@ -37,6 +37,7 @@ import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node, agent_config_set_active_node} from "./c_agent_config.js";
+import {attach_clear} from "./ui_inputs.js";
 
 
 /***************************************************************
@@ -226,7 +227,7 @@ function build_dom(gobj)
      *  on mobile every extra header line steals the table's space.  */
     let $input = createElement2(["input", {
         class:        "input",
-        type:         "search",
+        type:         "text",
         placeholder:  t("search nodes"),
         "aria-label": t("search nodes")
     }, null, {
@@ -237,14 +238,19 @@ function build_dom(gobj)
     let $count = createElement2(["span", {class: "is-size-7 has-text-grey"}, ""]);
     priv.$count = $count;
 
+    let $search_control = createElement2(
+        ["div", {class: "control has-icons-left", style: "flex:0 1 22rem; min-width:0;"}, [
+            $input,
+            ["span", {class: "icon is-left"}, [
+                ["span", {class: "yi-magnifying-glass"}, ""]
+            ]]
+        ]]
+    );
+    attach_clear($search_control, $input);
+
     priv.$toolbar = createElement2(
         ["div", {class: "is-flex is-align-items-center mb-2", style: "gap:0.5rem;"}, [
-            ["div", {class: "control has-icons-left", style: "flex:0 1 22rem; min-width:0;"}, [
-                $input,
-                ["span", {class: "icon is-left"}, [
-                    ["span", {class: "yi-magnifying-glass"}, ""]
-                ]]
-            ]],
+            $search_control,
             $count,
             ["button", {class: "button", type: "button", style: "margin-left:auto;", i18n: "refresh"},
                 "Refresh", {click: () => request_agents(gobj)}]
