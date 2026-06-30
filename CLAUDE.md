@@ -53,12 +53,13 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (currently `7.6.6`) and **published to npm**.
+versioned to track `YUNETA_VERSION` (currently `7.6.7`) and **published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
-patch may move ahead of `YUNETA_VERSION` — e.g. the published `7.6.7` carries an
-`EV_ON_CLOSE`-on-deliberate-stop fix while the SDK stays `7.6.6`.) estadodelaire/
+patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
+`EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
+caught up at the `7.6.7` release.) estadodelaire/
 hidraulia consume it from the registry (estadodelaire on `@yuneta/gobj-js@^7.6.7`,
 hidraulia on `^7.6.6`); **wattyzer**
 and the in-repo `yunos/js/gui_treedb` keep a local `file:` dep on this checkout
@@ -697,7 +698,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.6.6) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.6.7) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

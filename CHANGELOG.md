@@ -1,6 +1,31 @@
 # **Changelog**
 
-## Unreleased
+## 7.6.7
+    - **fix(security): close three buffer/parse defects found in a source
+      audit.** (1) `release-packages.yml` interpolated `github.event.release.
+      tag_name` / the `workflow_dispatch` input straight into a `run:` shell
+      body — an actor with write access could inject commands via a crafted tag;
+      the values now flow through `env:` and are referenced as quoted shell
+      variables. (2) `c_auth_bff`'s `make_set_cookie()` reused `snprintf`'s
+      return value without clamping, so an oversized token value (truncation)
+      drove the later `buf+n` / `sizeof(buf)-n` offsets past the stack buffer —
+      an out-of-bounds write in the auth path; `n` is now clamped to
+      `[0, sizeof(buf)-1]`. (3) `c_agent`'s `multiple_dir()` advanced
+      `p += ln; bflen -= ln;` on the `snprintf` return without a truncation
+      check, so a domain component that overflowed the buffer sent `p` past the
+      end and `bflen` (int) negative — widening to a huge `size_t` in the next
+      `snprintf`; it now breaks on truncation.
+    - **harden: route every `strtok` through `strtok_r`; add split-helper
+      tests.** `get_cpus()` (`c_yuno`), `split2()` (`helpers`) and
+      `json_unflatten_dict()` (`kwid`) relied on `strtok`'s hidden static state
+      — not a live bug (single-threaded, self-contained parses) but a
+      reentrancy footgun, notably for the public `split2()` (16 call sites). All
+      now use `strtok_r` with a local saveptr; no behaviour or signature change.
+      Added `tests/c/helpers/` (split2 + a reentrancy regression asserting
+      split2 no longer clobbers a caller's in-progress `strtok` parse) and a
+      `json_unflatten_dict` case in `tests/c/kw`. The vendored `linenoise.c/.h`
+      reference snapshot was refreshed (it is non-compiled — the console uses
+      `c_editline`) and `modules/c/console/README.md` now documents that.
     - **fix(js): bump `@yuneta/gobj-js` submodule to 7.6.7 — restore the
       `EV_ON_CLOSE`-on-deliberate-stop contract in `c_ievent_cli`.** 7.6.6
       nulled the WebSocket `.onclose` handler in `mt_stop()`, so a deliberate
