@@ -70,6 +70,11 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    let priv = gobj.priv;
+    priv.filter   = "";         /*  live search text (lower-case)  */
+    priv.sort_key = "host";     /*  host | role | version          */
+    priv.sort_dir = "asc";      /*  asc | desc                     */
+
     /*
      *  CHILD subscription model
      */
@@ -97,7 +102,8 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
-    render(gobj);
+    build_dom(gobj);
+    render_rows(gobj);
     request_agents(gobj);
 }
 
@@ -167,24 +173,61 @@ function parse_agent_line(s)
 }
 
 /***************************************************************
- *  Rebuild the view from the current node list.
+ *  Sortable columns (the search box matches all four fields).
  ***************************************************************/
-function render(gobj)
+const SORT_COLUMNS = ["host", "role", "version"];
+
+/***************************************************************
+ *  Apply the live filter + current sort to the raw node list.
+ ***************************************************************/
+function visible_nodes(gobj)
 {
+    let priv = gobj.priv;
+    let nodes = gobj_read_attr(gobj, "nodes");
+    if(!Array.isArray(nodes)) {
+        nodes = [];
+    }
+
+    let f = (priv.filter || "").trim();
+    let list = nodes;
+    if(f) {
+        list = nodes.filter((n) => {
+            return (n.host || "").toLowerCase().includes(f) ||
+                   (n.role || "").toLowerCase().includes(f) ||
+                   (n.version || "").toLowerCase().includes(f) ||
+                   (n.uuid || "").toLowerCase().includes(f);
+        });
+    }
+
+    let key = priv.sort_key || "host";
+    let dir = (priv.sort_dir === "desc") ? -1 : 1;
+    list = list.slice().sort((a, b) => {
+        let va = String(a[key] || "").toLowerCase();
+        let vb = String(b[key] || "").toLowerCase();
+        if(va < vb) {
+            return -1 * dir;
+        }
+        if(va > vb) {
+            return 1 * dir;
+        }
+        return 0;
+    });
+    return list;
+}
+
+/***************************************************************
+ *  Build the static shell once: header, search toolbar, table
+ *  skeleton with sortable headers, and the empty/disconnected
+ *  notification slot. Rows are filled by render_rows().
+ ***************************************************************/
+function build_dom(gobj)
+{
+    let priv = gobj.priv;
     let $c = gobj_read_attr(gobj, "$container");
     if(!$c) {
         return;
     }
     clear_node($c);
-
-    let link = gobj_read_attr(gobj, "link_svc");
-    let connected = !!(link && agent_link_is_connected(link));
-    let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active_node(config) : "";
-    let nodes = gobj_read_attr(gobj, "nodes");
-    if(!Array.isArray(nodes)) {
-        nodes = [];
-    }
 
     /*  Header + refresh  */
     $c.appendChild(createElement2(
@@ -199,51 +242,193 @@ function render(gobj)
         ]]
     ));
 
-    if(!connected) {
-        $c.appendChild(createElement2(
-            ["div", {class: "notification is-light", i18n: "not connected to an agent"},
-                "Not connected"]));
-        return;
-    }
-    if(!nodes.length) {
-        $c.appendChild(createElement2(
-            ["div", {class: "notification is-light", i18n: "no nodes"}, "No nodes connected"]));
-        return;
-    }
+    /*  Search toolbar: live filter on the left, match count on the right  */
+    let $input = createElement2(["input", {
+        class:        "input is-small",
+        type:         "search",
+        placeholder:  i18next.t("search nodes"),
+        "aria-label": i18next.t("search nodes")
+    }, null, {
+        input: () => {
+            priv.filter = String(priv.$input.value || "").toLowerCase();
+            render_rows(gobj);
+        }
+    }]);
+    priv.$input = $input;
 
-    for(let n of nodes) {
-        $c.appendChild(build_node_card(gobj, n, active));
+    let $count = createElement2(["span", {class: "is-size-7 has-text-grey"}, ""]);
+    priv.$count = $count;
+
+    priv.$toolbar = createElement2(
+        ["div", {class: "is-flex is-align-items-center mb-2", style: "gap:0.75rem;"}, [
+            ["div", {class: "control has-icons-left", style: "flex:1; max-width:24rem;"}, [
+                $input,
+                ["span", {class: "icon is-small is-left"}, [
+                    ["span", {class: "yi-magnifying-glass", style: "font-size:0.8rem;"}, ""]
+                ]]
+            ]],
+            $count
+        ]]
+    );
+    $c.appendChild(priv.$toolbar);
+
+    /*  Sortable table  */
+    priv.$arrows = {};
+    let $thead_cells = [];
+    for(let key of SORT_COLUMNS) {
+        let $arrow = createElement2(["span", {class: "is-size-7 has-text-grey ml-1"}, ""]);
+        priv.$arrows[key] = $arrow;
+        $thead_cells.push(createElement2(
+            ["th", {style: "cursor:pointer; user-select:none; white-space:nowrap;", i18n: key},
+                key, {click: () => set_sort(gobj, key)}]
+        ));
+        /*  attach the arrow span after the (translated) label  */
+        $thead_cells[$thead_cells.length - 1].appendChild($arrow);
     }
+    $thead_cells.push(createElement2(["th", {i18n: "uuid"}, "uuid"]));
+    $thead_cells.push(createElement2(["th", {style: "width:1%;"}, ""]));
+
+    let $tbody = createElement2(["tbody", {}, []]);
+    priv.$tbody = $tbody;
+
+    priv.$table = createElement2(
+        ["table", {class: "table is-fullwidth is-narrow is-hoverable"}, [
+            ["thead", {}, [
+                ["tr", {}, $thead_cells]
+            ]],
+            $tbody
+        ]]
+    );
+    $c.appendChild(priv.$table);
+
+    /*  Notification slot (not-connected / no-nodes / no-matches)  */
+    priv.$notif = createElement2(["div", {class: "notification is-light", style: "display:none;"}, ""]);
+    $c.appendChild(priv.$notif);
+
+    refresh_language($c, i18next.t.bind(i18next));
 }
 
 /***************************************************************
- *  One node row.
+ *  Fill the table body from the filtered + sorted node list,
+ *  and toggle the notification slot for the empty states.
  ***************************************************************/
-function build_node_card(gobj, n, active)
+function render_rows(gobj)
 {
-    let is_active = (active && (active === n.host || active === n.uuid));
-    let badge = is_active
-        ? ["span", {class: "tag is-success ml-2", i18n: "active"}, "active"]
-        : null;
+    let priv = gobj.priv;
+    if(!priv.$tbody) {
+        return;
+    }
+
+    let link = gobj_read_attr(gobj, "link_svc");
+    let connected = !!(link && agent_link_is_connected(link));
+    let config = gobj_read_attr(gobj, "config_svc");
+    let active = config ? agent_config_get_active_node(config) : "";
+    let total = (gobj_read_attr(gobj, "nodes") || []).length;
+
+    /*  Sort arrows  */
+    for(let key of SORT_COLUMNS) {
+        let arrow = "";
+        if(priv.sort_key === key) {
+            arrow = (priv.sort_dir === "desc") ? "▼" : "▲";
+        }
+        priv.$arrows[key].textContent = arrow;
+    }
+
+    let show_table = false;
+    let notif_key = "";
+    if(!connected) {
+        notif_key = "not connected to an agent";
+    } else if(!total) {
+        notif_key = "no nodes";
+    } else {
+        show_table = true;
+    }
+
+    /*  Disconnected / no-nodes: hide table + toolbar, show notice  */
+    priv.$toolbar.style.display = connected ? "" : "none";
+    priv.$table.style.display = show_table ? "" : "none";
+
+    if(notif_key) {
+        priv.$notif.setAttribute("data-i18n", notif_key);
+        priv.$notif.textContent = i18next.t(notif_key);
+        priv.$notif.style.display = "";
+        clear_node(priv.$tbody);
+        priv.$count.textContent = "";
+        return;
+    }
+
+    let list = visible_nodes(gobj);
+    clear_node(priv.$tbody);
+    for(let n of list) {
+        priv.$tbody.appendChild(build_node_row(gobj, n, active));
+    }
+
+    /*  No rows after filtering: keep the table header, note the gap  */
+    if(!list.length) {
+        priv.$notif.setAttribute("data-i18n", "no matching nodes");
+        priv.$notif.textContent = i18next.t("no matching nodes");
+        priv.$notif.style.display = "";
+    } else {
+        priv.$notif.style.display = "none";
+    }
+
+    priv.$count.textContent = (list.length === total)
+        ? `${total}`
+        : `${list.length} / ${total}`;
+}
+
+/***************************************************************
+ *  One compact table row. The active node gets a green left
+ *  accent + tinted background + bold host so it stands out.
+ ***************************************************************/
+function build_node_row(gobj, n, active)
+{
+    let is_active = !!(active && (active === n.host || active === n.uuid));
+
+    let host_cell = is_active
+        ? ["td", {style: "white-space:nowrap;"}, [
+            ["span", {class: "has-text-weight-bold"}, n.host || n.uuid],
+            ["span", {class: "tag is-success is-light ml-2", i18n: "active"}, "active"]
+        ]]
+        : ["td", {style: "white-space:nowrap;"}, n.host || n.uuid];
 
     let action = is_active
-        ? null
-        : ["button", {class: "button is-small is-success is-light", type: "button", i18n: "select"},
-            "Select", {click: () => on_select(gobj, n)}];
+        ? ["td", {}, ""]
+        : ["td", {style: "width:1%;"}, [
+            ["button", {class: "button is-small is-success is-light", type: "button", i18n: "select"},
+                "Select", {click: () => on_select(gobj, n)}]
+        ]];
+
+    let row_style = is_active
+        ? "background:#E8F6EE; box-shadow:inset 4px 0 0 #2BB673;"
+        : "";
 
     return createElement2(
-        ["div", {class: "box p-3 mb-2"}, [
-            ["div", {class: "is-flex is-justify-content-space-between is-align-items-flex-start"}, [
-                ["div", {}, [
-                    ["span", {class: "has-text-weight-bold"}, n.host || n.uuid],
-                    badge,
-                    ["p", {class: "is-size-7", style: "color:#9AA7B4;"},
-                        `${n.role || ""} ${n.version || ""}  ·  ${n.uuid}`]
-                ]],
-                ["div", {class: "buttons are-small"}, action ? [action] : []]
-            ]]
+        ["tr", {style: row_style}, [
+            host_cell,
+            ["td", {style: "white-space:nowrap;"}, n.role || ""],
+            ["td", {style: "white-space:nowrap;"}, n.version || ""],
+            ["td", {class: "is-family-monospace is-size-7", style: "color:#9AA7B4;", title: n.uuid},
+                n.uuid || ""],
+            action
         ]]
     );
+}
+
+/***************************************************************
+ *  Header click — toggle direction if same column, else switch
+ *  column and reset to ascending.
+ ***************************************************************/
+function set_sort(gobj, key)
+{
+    let priv = gobj.priv;
+    if(priv.sort_key === key) {
+        priv.sort_dir = (priv.sort_dir === "asc") ? "desc" : "asc";
+    } else {
+        priv.sort_key = key;
+        priv.sort_dir = "asc";
+    }
+    render_rows(gobj);
 }
 
 
@@ -265,7 +450,7 @@ function on_select(gobj, n)
     if(config) {
         agent_config_set_active_node(config, n.host || n.uuid);
     }
-    render(gobj);
+    render_rows(gobj);
 }
 
 /***************************************************************
@@ -279,7 +464,7 @@ function ac_on_open(gobj, event, kw, src)
 
 function ac_on_close(gobj, event, kw, src)
 {
-    render(gobj);
+    render_rows(gobj);
     return 0;
 }
 
@@ -302,7 +487,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         }
     }
     gobj_write_attr(gobj, "nodes", nodes);
-    render(gobj);
+    render_rows(gobj);
     return 0;
 }
 
