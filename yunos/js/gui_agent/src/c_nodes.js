@@ -5,6 +5,12 @@
  *      center (`list-agents`) and lets the operator choose the ACTIVE
  *      node; the Console then routes commands to it via command-agent.
  *
+ *      The list is a Tabulator table (the repo's official table
+ *      manager): header-click sorting, a live search box, and a
+ *      strongly highlighted active row. Tabulator's dark palette is
+ *      supplied by src/app.css (the v2 shell does not ship gobj-ui v1's
+ *      c_yui_main.css override).
+ *
  *      The control-center link re-publishes EV_MT_COMMAND_ANSWER to all
  *      panels, so this view filters by the command in the command_stack
  *      and only handles `list-agents` answers (the Console handles
@@ -16,7 +22,7 @@
 import {
     SDATA, SDATA_END, data_type_t,
     gclass_create, log_error,
-    gobj_parent,
+    gobj_parent, gobj_name,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_find_service,
@@ -27,6 +33,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import i18next from "i18next";
+import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node, agent_config_set_active_node} from "./c_agent_config.js";
@@ -46,6 +53,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",  0,  null,     "Subscriber of outp
 
 SDATA(data_type_t.DTP_STRING,   "title",       0,  "nodes",  "View title (i18n key)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,     "Root HTMLElement"),
+SDATA(data_type_t.DTP_POINTER,  "tabulator",   0,  null,     "Tabulator instance"),
 SDATA(data_type_t.DTP_POINTER,  "link_svc",    0,  null,     "C_AGENT_LINK service"),
 SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,     "C_AGENT_CONFIG service"),
 SDATA(data_type_t.DTP_JSON,     "nodes",       0,  "[]",     "Parsed list-agents result"),
@@ -71,9 +79,8 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     let priv = gobj.priv;
-    priv.filter   = "";         /*  live search text (lower-case)  */
-    priv.sort_key = "host";     /*  host | role | version          */
-    priv.sort_dir = "asc";      /*  asc | desc                     */
+    priv.active   = "";     /*  currently selected node (host or uuid)  */
+    priv.table_id = `nodes_table_${gobj_name(gobj)}`;
 
     /*
      *  CHILD subscription model
@@ -93,7 +100,9 @@ function mt_create(gobj)
     }
     gobj_write_attr(gobj, "config_svc", gobj_find_service("agent_config", true));
 
-    let $c = createElement2(["div", {class: "view-card", style: "overflow:auto;"}, []]);
+    let $c = createElement2(
+        ["div", {class: "view-card", style: "display:flex; flex-direction:column; height:100%;"}, []]
+    );
     gobj_write_attr(gobj, "$container", $c);
 }
 
@@ -103,7 +112,8 @@ function mt_create(gobj)
 function mt_start(gobj)
 {
     build_dom(gobj);
-    render_rows(gobj);
+    create_table(gobj);
+    update_table(gobj);
     request_agents(gobj);
 }
 
@@ -112,6 +122,11 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let table = gobj_read_attr(gobj, "tabulator");
+    if(table) {
+        table.destroy();
+        gobj_write_attr(gobj, "tabulator", null);
+    }
 }
 
 /***************************************************************
@@ -144,6 +159,17 @@ function clear_node($n)
 }
 
 /***************************************************************
+ *  Minimal HTML escaping for values rendered as Tabulator
+ *  formatter HTML (host/role/version/uuid come from the agent).
+ ***************************************************************/
+function esc(s)
+{
+    return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => {
+        return {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"}[c];
+    });
+}
+
+/***************************************************************
  *  Ask the control center for the connected nodes.
  ***************************************************************/
 function request_agents(gobj)
@@ -173,56 +199,22 @@ function parse_agent_line(s)
 }
 
 /***************************************************************
- *  Sortable columns (the search box matches all four fields).
+ *  Is this node the active one? (matched by host or uuid)
  ***************************************************************/
-const SORT_COLUMNS = ["host", "role", "version"];
-
-/***************************************************************
- *  Apply the live filter + current sort to the raw node list.
- ***************************************************************/
-function visible_nodes(gobj)
+function is_active_node(gobj, n)
 {
-    let priv = gobj.priv;
-    let nodes = gobj_read_attr(gobj, "nodes");
-    if(!Array.isArray(nodes)) {
-        nodes = [];
-    }
-
-    let f = (priv.filter || "").trim();
-    let list = nodes;
-    if(f) {
-        list = nodes.filter((n) => {
-            return (n.host || "").toLowerCase().includes(f) ||
-                   (n.role || "").toLowerCase().includes(f) ||
-                   (n.version || "").toLowerCase().includes(f) ||
-                   (n.uuid || "").toLowerCase().includes(f);
-        });
-    }
-
-    let key = priv.sort_key || "host";
-    let dir = (priv.sort_dir === "desc") ? -1 : 1;
-    list = list.slice().sort((a, b) => {
-        let va = String(a[key] || "").toLowerCase();
-        let vb = String(b[key] || "").toLowerCase();
-        if(va < vb) {
-            return -1 * dir;
-        }
-        if(va > vb) {
-            return 1 * dir;
-        }
-        return 0;
-    });
-    return list;
+    let active = gobj.priv.active;
+    return !!(active && (active === n.host || active === n.uuid));
 }
 
 /***************************************************************
- *  Build the static shell once: header, search toolbar, table
- *  skeleton with sortable headers, and the empty/disconnected
- *  notification slot. Rows are filled by render_rows().
+ *  Build the static shell once: header, search toolbar, the
+ *  Tabulator host div, and the not-connected notice slot.
  ***************************************************************/
 function build_dom(gobj)
 {
     let priv = gobj.priv;
+    let t = i18next.t.bind(i18next);
     let $c = gobj_read_attr(gobj, "$container");
     if(!$c) {
         return;
@@ -246,13 +238,10 @@ function build_dom(gobj)
     let $input = createElement2(["input", {
         class:        "input is-small",
         type:         "search",
-        placeholder:  i18next.t("search nodes"),
-        "aria-label": i18next.t("search nodes")
+        placeholder:  t("search nodes"),
+        "aria-label": t("search nodes")
     }, null, {
-        input: () => {
-            priv.filter = String(priv.$input.value || "").toLowerCase();
-            render_rows(gobj);
-        }
+        input: () => apply_filter(gobj)
     }]);
     priv.$input = $input;
 
@@ -272,163 +261,206 @@ function build_dom(gobj)
     );
     $c.appendChild(priv.$toolbar);
 
-    /*  Sortable table  */
-    priv.$arrows = {};
-    let $thead_cells = [];
-    for(let key of SORT_COLUMNS) {
-        let $arrow = createElement2(["span", {class: "is-size-7 has-text-grey ml-1"}, ""]);
-        priv.$arrows[key] = $arrow;
-        $thead_cells.push(createElement2(
-            ["th", {style: "cursor:pointer; user-select:none; white-space:nowrap;", i18n: key},
-                key, {click: () => set_sort(gobj, key)}]
-        ));
-        /*  attach the arrow span after the (translated) label  */
-        $thead_cells[$thead_cells.length - 1].appendChild($arrow);
-    }
-    $thead_cells.push(createElement2(["th", {i18n: "uuid"}, "uuid"]));
-    $thead_cells.push(createElement2(["th", {style: "width:1%;"}, ""]));
-
-    let $tbody = createElement2(["tbody", {}, []]);
-    priv.$tbody = $tbody;
-
-    priv.$table = createElement2(
-        ["table", {class: "table is-fullwidth is-narrow is-hoverable"}, [
-            ["thead", {}, [
-                ["tr", {}, $thead_cells]
-            ]],
-            $tbody
+    /*  Tabulator host  */
+    priv.$tablewrap = createElement2(
+        ["div", {style: "flex:1; min-height:0;"}, [
+            ["div", {id: priv.table_id}, []]
         ]]
     );
-    $c.appendChild(priv.$table);
+    $c.appendChild(priv.$tablewrap);
 
-    /*  Notification slot (not-connected / no-nodes / no-matches)  */
-    priv.$notif = createElement2(["div", {class: "notification is-light", style: "display:none;"}, ""]);
+    /*  Not-connected notice (Tabulator's own placeholder covers no-nodes)  */
+    priv.$notif = createElement2(
+        ["div", {class: "notification is-light", style: "display:none;", i18n: "not connected to an agent"},
+            "Not connected"]
+    );
     $c.appendChild(priv.$notif);
 
-    refresh_language($c, i18next.t.bind(i18next));
+    refresh_language($c, t);
 }
 
 /***************************************************************
- *  Fill the table body from the filtered + sorted node list,
- *  and toggle the notification slot for the empty states.
+ *  Create the Tabulator instance with sortable columns, the
+ *  active-row formatter, and the Select action column.
  ***************************************************************/
-function render_rows(gobj)
+function create_table(gobj)
 {
     let priv = gobj.priv;
-    if(!priv.$tbody) {
-        return;
+    let t = i18next.t.bind(i18next);
+
+    /*  host: bold + "active" tag when selected  */
+    function host_formatter(cell)
+    {
+        let n = cell.getData();
+        let host = n.host || n.uuid || "";
+        if(is_active_node(gobj, n)) {
+            return `<span class="has-text-weight-bold">${esc(host)}</span>` +
+                   `<span class="tag is-success is-light ml-2">${esc(t("active"))}</span>`;
+        }
+        return esc(host);
     }
 
+    /*  uuid: muted monospace  */
+    function uuid_formatter(cell)
+    {
+        return `<span class="is-family-monospace is-size-7" style="color:#9AA7B4;">` +
+               `${esc(cell.getValue() || "")}</span>`;
+    }
+
+    /*  action: Select button (none on the active row)  */
+    function action_formatter(cell)
+    {
+        let n = cell.getData();
+        if(is_active_node(gobj, n)) {
+            return "";
+        }
+        return `<button class="button is-small is-success is-light" type="button">` +
+               `${esc(t("select"))}</button>`;
+    }
+
+    function action_click(e, cell)
+    {
+        let n = cell.getData();
+        if(is_active_node(gobj, n)) {
+            return;
+        }
+        on_select(gobj, n);
+    }
+
+    /*  green wash + accent on the active row (styles in app.css)  */
+    function row_formatter(row)
+    {
+        let n = row.getData();
+        row.getElement().classList.toggle("node-row-active", is_active_node(gobj, n));
+    }
+
+    let columns = [
+        {title: t("host"),    field: "host",    widthGrow: 2, formatter: host_formatter},
+        {title: t("role"),    field: "role",    widthGrow: 1},
+        {title: t("version"), field: "version", width: 110},
+        {title: t("uuid"),    field: "uuid",    widthGrow: 2, formatter: uuid_formatter},
+        {title: "", field: "_action", width: 90, headerSort: false, hozAlign: "right",
+            formatter: action_formatter, cellClick: action_click}
+    ];
+
+    let settings = {
+        index:       "uuid",
+        layout:      "fitColumns",
+        maxHeight:   "100%",
+        placeholder: t("no nodes"),
+        columnDefaults: {headerHozAlign: "left", resizable: false},
+        columns:     columns,
+        rowFormatter: row_formatter
+    };
+
+    let table = new Tabulator(`#${priv.table_id}`, settings);
+    table._ready = false;
+    table.on("tableBuilt", function() {
+        table._ready = true;
+        if(table._pendingData !== undefined) {
+            table.setData(table._pendingData);
+            delete table._pendingData;
+        }
+        update_count(gobj);
+    });
+    table.on("dataProcessed", () => update_count(gobj));
+    gobj_write_attr(gobj, "tabulator", table);
+}
+
+/***************************************************************
+ *  Push the current node list into the table and refresh the
+ *  connected / disconnected state.
+ ***************************************************************/
+function update_table(gobj)
+{
+    let priv = gobj.priv;
+    let config = gobj_read_attr(gobj, "config_svc");
+    priv.active = config ? agent_config_get_active_node(config) : "";
+
+    let nodes = gobj_read_attr(gobj, "nodes");
+    if(!Array.isArray(nodes)) {
+        nodes = [];
+    }
+
+    let table = gobj_read_attr(gobj, "tabulator");
+    if(table) {
+        if(table._ready) {
+            table.replaceData(nodes);
+        } else {
+            table._pendingData = nodes;
+        }
+    }
+    render_state(gobj);
+    update_count(gobj);
+}
+
+/***************************************************************
+ *  Re-run the row/cell formatters so the active highlight moves
+ *  without reloading data (selection changed, not the list).
+ ***************************************************************/
+function refresh_active(gobj)
+{
+    let table = gobj_read_attr(gobj, "tabulator");
+    if(table && table._ready) {
+        table.getRows().forEach((row) => row.reformat());
+    }
+}
+
+/***************************************************************
+ *  Toggle table/toolbar vs the not-connected notice.
+ ***************************************************************/
+function render_state(gobj)
+{
+    let priv = gobj.priv;
     let link = gobj_read_attr(gobj, "link_svc");
     let connected = !!(link && agent_link_is_connected(link));
-    let config = gobj_read_attr(gobj, "config_svc");
-    let active = config ? agent_config_get_active_node(config) : "";
-    let total = (gobj_read_attr(gobj, "nodes") || []).length;
 
-    /*  Sort arrows  */
-    for(let key of SORT_COLUMNS) {
-        let arrow = "";
-        if(priv.sort_key === key) {
-            arrow = (priv.sort_dir === "desc") ? "▼" : "▲";
-        }
-        priv.$arrows[key].textContent = arrow;
-    }
-
-    let show_table = false;
-    let notif_key = "";
-    if(!connected) {
-        notif_key = "not connected to an agent";
-    } else if(!total) {
-        notif_key = "no nodes";
-    } else {
-        show_table = true;
-    }
-
-    /*  Disconnected / no-nodes: hide table + toolbar, show notice  */
     priv.$toolbar.style.display = connected ? "" : "none";
-    priv.$table.style.display = show_table ? "" : "none";
-
-    if(notif_key) {
-        priv.$notif.setAttribute("data-i18n", notif_key);
-        priv.$notif.textContent = i18next.t(notif_key);
-        priv.$notif.style.display = "";
-        clear_node(priv.$tbody);
-        priv.$count.textContent = "";
-        return;
-    }
-
-    let list = visible_nodes(gobj);
-    clear_node(priv.$tbody);
-    for(let n of list) {
-        priv.$tbody.appendChild(build_node_row(gobj, n, active));
-    }
-
-    /*  No rows after filtering: keep the table header, note the gap  */
-    if(!list.length) {
-        priv.$notif.setAttribute("data-i18n", "no matching nodes");
-        priv.$notif.textContent = i18next.t("no matching nodes");
-        priv.$notif.style.display = "";
-    } else {
-        priv.$notif.style.display = "none";
-    }
-
-    priv.$count.textContent = (list.length === total)
-        ? `${total}`
-        : `${list.length} / ${total}`;
+    priv.$tablewrap.style.display = connected ? "" : "none";
+    priv.$notif.style.display = connected ? "none" : "";
 }
 
 /***************************************************************
- *  One compact table row. The active node gets a green left
- *  accent + tinted background + bold host so it stands out.
+ *  Update the "<shown> / <total>" match count.
  ***************************************************************/
-function build_node_row(gobj, n, active)
-{
-    let is_active = !!(active && (active === n.host || active === n.uuid));
-
-    let host_cell = is_active
-        ? ["td", {style: "white-space:nowrap;"}, [
-            ["span", {class: "has-text-weight-bold"}, n.host || n.uuid],
-            ["span", {class: "tag is-success is-light ml-2", i18n: "active"}, "active"]
-        ]]
-        : ["td", {style: "white-space:nowrap;"}, n.host || n.uuid];
-
-    let action = is_active
-        ? ["td", {}, ""]
-        : ["td", {style: "width:1%;"}, [
-            ["button", {class: "button is-small is-success is-light", type: "button", i18n: "select"},
-                "Select", {click: () => on_select(gobj, n)}]
-        ]];
-
-    /*  Theme-aware highlight lives in app.css (.node-row-active) so the
-     *  dark palette can override it — an inline background can't.  */
-    let row_attrs = is_active ? {class: "node-row-active"} : {};
-
-    return createElement2(
-        ["tr", row_attrs, [
-            host_cell,
-            ["td", {style: "white-space:nowrap;"}, n.role || ""],
-            ["td", {style: "white-space:nowrap;"}, n.version || ""],
-            ["td", {class: "is-family-monospace is-size-7", style: "color:#9AA7B4;", title: n.uuid},
-                n.uuid || ""],
-            action
-        ]]
-    );
-}
-
-/***************************************************************
- *  Header click — toggle direction if same column, else switch
- *  column and reset to ascending.
- ***************************************************************/
-function set_sort(gobj, key)
+function update_count(gobj)
 {
     let priv = gobj.priv;
-    if(priv.sort_key === key) {
-        priv.sort_dir = (priv.sort_dir === "asc") ? "desc" : "asc";
-    } else {
-        priv.sort_key = key;
-        priv.sort_dir = "asc";
+    let table = gobj_read_attr(gobj, "tabulator");
+    if(!priv.$count || !table) {
+        return;
     }
-    render_rows(gobj);
+    let shown = 0;
+    let total = 0;
+    try {
+        shown = table.getDataCount("active");
+        total = table.getDataCount();
+    } catch(e) {
+        shown = total = 0;
+    }
+    priv.$count.textContent = (shown === total) ? `${total}` : `${shown} / ${total}`;
+}
+
+/***************************************************************
+ *  Apply the live search across host / role / version / uuid.
+ ***************************************************************/
+function apply_filter(gobj)
+{
+    let priv = gobj.priv;
+    let table = gobj_read_attr(gobj, "tabulator");
+    if(!table) {
+        return;
+    }
+    let term = String(priv.$input.value || "").trim().toLowerCase();
+    if(term) {
+        table.setFilter((data) => {
+            return ["host", "role", "version", "uuid"].some((k) => {
+                return String(data[k] || "").toLowerCase().includes(term);
+            });
+        });
+    } else {
+        table.clearFilter();
+    }
 }
 
 
@@ -450,7 +482,8 @@ function on_select(gobj, n)
     if(config) {
         agent_config_set_active_node(config, n.host || n.uuid);
     }
-    render_rows(gobj);
+    gobj.priv.active = n.host || n.uuid;
+    refresh_active(gobj);
 }
 
 /***************************************************************
@@ -464,7 +497,7 @@ function ac_on_open(gobj, event, kw, src)
 
 function ac_on_close(gobj, event, kw, src)
 {
-    render_rows(gobj);
+    render_state(gobj);
     return 0;
 }
 
@@ -487,7 +520,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         }
     }
     gobj_write_attr(gobj, "nodes", nodes);
-    render_rows(gobj);
+    update_table(gobj);
     return 0;
 }
 
