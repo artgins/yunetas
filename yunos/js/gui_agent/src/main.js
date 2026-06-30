@@ -69,6 +69,7 @@ import "@yuneta/gobj-ui/src/yui_icons.css";
 import "@yuneta/gobj-ui/src/ytable.css";
 import "tabulator-tables/dist/css/tabulator.min.css";
 import "tabulator-tables/dist/css/tabulator_bulma.css";
+import "./app.css";
 
 import app_config from "./app_config.json";
 

@@ -399,12 +399,12 @@ function build_node_row(gobj, n, active)
                 "Select", {click: () => on_select(gobj, n)}]
         ]];
 
-    let row_style = is_active
-        ? "background:#E8F6EE; box-shadow:inset 4px 0 0 #2BB673;"
-        : "";
+    /*  Theme-aware highlight lives in app.css (.node-row-active) so the
+     *  dark palette can override it — an inline background can't.  */
+    let row_attrs = is_active ? {class: "node-row-active"} : {};
 
     return createElement2(
-        ["tr", {style: row_style}, [
+        ["tr", row_attrs, [
             host_cell,
             ["td", {style: "white-space:nowrap;"}, n.role || ""],
             ["td", {style: "white-space:nowrap;"}, n.version || ""],

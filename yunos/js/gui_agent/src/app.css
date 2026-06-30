@@ -1,0 +1,25 @@
+/***********************************************************************
+ *          app.css
+ *
+ *          App-level style overrides that must react to the active
+ *          theme (Bulma's `data-theme` on <html>). Inline styles can't
+ *          be overridden by the theme cascade, so anything that differs
+ *          between light and dark lives here.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+/*  Nodes view: the active node row.
+ *  Light theme: pale green wash + green left accent.
+ *  Dark theme: translucent green so the light text stays readable.
+ */
+.node-row-active {
+    background: #E8F6EE;
+    box-shadow: inset 4px 0 0 #2BB673;
+}
+
+[data-theme="dark"] .node-row-active {
+    background: rgba(43, 182, 115, 0.18);
+    box-shadow: inset 4px 0 0 #2BB673;
+}
