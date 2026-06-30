@@ -37,7 +37,7 @@ import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node, agent_config_set_active_node} from "./c_agent_config.js";
-import {attach_clear} from "./ui_inputs.js";
+import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 
 /***************************************************************

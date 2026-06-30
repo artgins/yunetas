@@ -11,29 +11,6 @@
  ***********************************************************************/
 
 /* ====================================================================
- *  NORM: clear (✕) button for editable inputs (see ui_inputs.js).
- *  The button itself is Bulma's `.delete`; here we only position it
- *  over the input's right padding and show it only while there's text.
- * ==================================================================== */
-.control.has-clear {
-    position: relative;
-}
-.control.has-clear input.input {
-    padding-right: 2.25em;
-}
-.yui-input-clear {
-    position: absolute;
-    top: 50%;
-    right: 0.5em;
-    transform: translateY(-50%);
-    display: none;
-    z-index: 4;
-}
-.yui-input-clear.is-visible {
-    display: inline-block;
-}
-
-/* ====================================================================
  *  Secondary-nav tab strip (top-sub zone).
  *  Bulma gives `.tabs:not(:last-child)` a 1.5rem block-spacing
  *  margin-bottom, which steals content height on every view (worst on

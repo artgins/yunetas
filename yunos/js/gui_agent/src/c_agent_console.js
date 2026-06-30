@@ -36,6 +36,7 @@ import {
 import i18next from "i18next";
 
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {agent_config_get_active_node} from "./c_agent_config.js";
@@ -239,15 +240,12 @@ function build_ui(gobj)
     );
     $exec.addEventListener("click", () => send_command(gobj));
 
-    let $clear = createElement2(
-        ["button", {class: "button", type: "button", i18n: "clear"}, "Clear"],
-        i18next.t.bind(i18next)
-    );
-    $clear.addEventListener("click", () => {
-        priv.$input.value = "";
+    /*  No separate Clear button: the input's own ✕ (attach_clear) wipes
+     *  the command, and its on_clear also empties the response panel.  */
+    let $input_control = createElement2(["div", {class: "control is-expanded"}, [$input]]);
+    attach_clear($input_control, $input, () => {
         priv.$comment.textContent = "";
         priv.$data.textContent = "";
-        priv.$input.focus();
     });
 
     let $status = createElement2(["p", {class: "is-size-7 has-text-grey mb-2"}, ""]);
@@ -271,9 +269,8 @@ function build_ui(gobj)
             [
                 $status,
                 ["div", {class: "field has-addons mb-2"}, [
-                    ["div", {class: "control is-expanded"}, [$input]],
-                    ["div", {class: "control"}, [$exec]],
-                    ["div", {class: "control"}, [$clear]]
+                    $input_control,
+                    ["div", {class: "control"}, [$exec]]
                 ]],
                 $datalist,
                 $comment,
