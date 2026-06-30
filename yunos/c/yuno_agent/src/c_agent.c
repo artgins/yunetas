@@ -7358,6 +7358,15 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
                 *bf = 0;
                 return 0;
             }
+            if(ln >= bflen) {
+                /*
+                 *  snprintf truncated: the buffer is full and already
+                 *  NUL-terminated. Stop before p/bflen advance past the end
+                 *  (bflen would go negative and widen to a huge size_t in the
+                 *  next snprintf -> out-of-bounds write).
+                 */
+                break;
+            }
 
             p += ln;
             bflen -= ln;
