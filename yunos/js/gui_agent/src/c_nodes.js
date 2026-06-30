@@ -225,7 +225,7 @@ function build_dom(gobj)
      *  No title/subtitle block — the nav already labels the view, and
      *  on mobile every extra header line steals the table's space.  */
     let $input = createElement2(["input", {
-        class:        "input is-small",
+        class:        "input",
         type:         "search",
         placeholder:  t("search nodes"),
         "aria-label": t("search nodes")
@@ -239,15 +239,15 @@ function build_dom(gobj)
 
     priv.$toolbar = createElement2(
         ["div", {class: "is-flex is-align-items-center mb-2", style: "gap:0.5rem;"}, [
-            ["div", {class: "control has-icons-left", style: "flex:1; min-width:0;"}, [
+            ["div", {class: "control has-icons-left", style: "flex:0 1 22rem; min-width:0;"}, [
                 $input,
-                ["span", {class: "icon is-small is-left"}, [
-                    ["span", {class: "yi-magnifying-glass", style: "font-size:0.8rem;"}, ""]
+                ["span", {class: "icon is-left"}, [
+                    ["span", {class: "yi-magnifying-glass"}, ""]
                 ]]
             ]],
             $count,
-            ["button", {class: "button is-small", type: "button", i18n: "refresh"}, "Refresh",
-                {click: () => request_agents(gobj)}]
+            ["button", {class: "button", type: "button", style: "margin-left:auto;", i18n: "refresh"},
+                "Refresh", {click: () => request_agents(gobj)}]
         ]]
     );
     $c.appendChild(priv.$toolbar);
