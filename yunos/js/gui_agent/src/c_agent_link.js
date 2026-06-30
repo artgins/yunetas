@@ -143,8 +143,11 @@ function agent_link_is_connected(gobj)
 
 /***************************************************************
  *  Send a control-plane command to the agent (or a service of it
- *  via kw.service). `src` is the caller, so the answer's routing
- *  carries its name.
+ *  via kw.service). The answer is addressed (inter-yuno) to the
+ *  NAME of `src`, so `src` MUST be a named service with the answer
+ *  event public — otherwise the reply can't be routed back. Pass a
+ *  service (e.g. C_TREEDB_GATE), or omit `src` to default to this
+ *  link service, which re-publishes the answer to the view panels.
  ***************************************************************/
 function agent_link_command(gobj, command, kw, src)
 {
@@ -331,15 +334,20 @@ function create_gclass(gclass_name)
     /*---------------------------------------------*
      *          Events
      *  The re-published events are output (optional subscribers).
+     *  The two answer events are ALSO public: inter-yuno replies from
+     *  the agent are addressed to this named service ("agent_link"), so
+     *  the iev's on_message can only route them here if they are public
+     *  (cf. C_TREEDB_GATE). Output keeps the re-publish to the panels.
      *---------------------------------------------*/
     const out = event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS;
+    const answer = out | event_flag_t.EVF_PUBLIC_EVENT;
     const event_types = [
         ["EV_ON_OPEN",           out],
         ["EV_ON_CLOSE",          out],
         ["EV_ON_OPEN_ERROR",     out],
         ["EV_ON_ID_NAK",         out],
-        ["EV_MT_COMMAND_ANSWER", out],
-        ["EV_MT_STATS_ANSWER",   out],
+        ["EV_MT_COMMAND_ANSWER", answer],
+        ["EV_MT_STATS_ANSWER",   answer],
         ["EV_REOPEN",            0]
     ];
 

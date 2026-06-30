@@ -196,7 +196,10 @@ function request_agents(gobj)
 {
     let link = gobj_read_attr(gobj, "link_svc");
     if(link && agent_link_is_connected(link)) {
-        agent_link_command(link, "list-agents", {}, gobj);
+        /*  src defaults to the link service; the answer routes back
+         *  there and is re-published to this panel (a routed view is
+         *  not a service and cannot receive the inter-yuno reply).  */
+        agent_link_command(link, "list-agents", {});
     }
 }
 

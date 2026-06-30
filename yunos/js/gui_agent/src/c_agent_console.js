@@ -368,7 +368,10 @@ function send_command(gobj)
     show_comment(gobj, "…", 0);
     show_data(gobj, null);
 
-    agent_link_command(link, "command-agent", {agent_id: node, cmd2agent: cmd}, gobj);
+    /*  src defaults to the link service; the answer routes back there
+     *  and is re-published to this console (a routed view is not a
+     *  service and cannot receive the inter-yuno reply).  */
+    agent_link_command(link, "command-agent", {agent_id: node, cmd2agent: cmd});
 }
 
 
