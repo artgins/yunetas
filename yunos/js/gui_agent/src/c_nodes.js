@@ -32,7 +32,7 @@ import {
     kw_get_str,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
+import i18next, {t} from "i18next";
 import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
@@ -234,7 +234,6 @@ function is_active_node(gobj, n)
 function build_dom(gobj)
 {
     let priv = gobj.priv;
-    let t = i18next.t.bind(i18next);
     let $c = gobj_read_attr(gobj, "$container");
     if(!$c) {
         return;
@@ -303,7 +302,6 @@ function build_dom(gobj)
  ***************************************************************/
 function make_columns(gobj)
 {
-    let t = i18next.t.bind(i18next);
 
     /*  host: bold + "active" tag when selected  */
     function host_formatter(cell)
@@ -365,7 +363,6 @@ function make_columns(gobj)
 function create_table(gobj)
 {
     let priv = gobj.priv;
-    let t = i18next.t.bind(i18next);
 
     /*  green wash + accent on the active row (styles in app.css)  */
     function row_formatter(row)

@@ -13,7 +13,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {createElement2, refresh_language} from "@yuneta/gobj-js";
-import i18next from "i18next";
+import {t} from "i18next";
 
 import {deploy_info} from "./conf/deploy.js";
 
@@ -59,7 +59,7 @@ function mount_login(opts)
         let username = $user.value.trim();
         let password = $pwd.value;
         if(!username || !password) {
-            set_error(i18next.t("username and password are required"));
+            set_error(t("username and password are required"));
             return;
         }
         set_error("");
@@ -105,7 +105,7 @@ function mount_login(opts)
             [$form]]
     );
     document.body.appendChild($overlay);
-    refresh_language($overlay, i18next.t.bind(i18next));
+    refresh_language($overlay, t);
     setTimeout(() => { $user.focus(); }, 0);
 
     function set_busy(busy)

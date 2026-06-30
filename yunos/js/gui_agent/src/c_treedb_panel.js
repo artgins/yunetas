@@ -29,7 +29,7 @@ import {
     createElement2,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
+import {t} from "i18next";
 
 import {agent_link_is_connected} from "./c_agent_link.js";
 
@@ -106,7 +106,7 @@ function mt_start(gobj)
     if(link && agent_link_is_connected(link)) {
         mount(gobj);
     } else {
-        show_message(gobj, i18next.t("connecting") + "…");
+        show_message(gobj, t("connecting") + "…");
     }
 }
 
@@ -175,7 +175,7 @@ function mount(gobj)
     let treedb_service = gobj_read_attr(gobj, "treedb_service");
 
     if(!yuno_id || !treedb_service) {
-        show_message(gobj, i18next.t("pick a treedb"));
+        show_message(gobj, t("pick a treedb"));
         return;
     }
 
@@ -250,19 +250,19 @@ function ac_on_open(gobj, event, kw, src)
 
 function ac_on_close(gobj, event, kw, src)
 {
-    show_message(gobj, i18next.t("disconnected"));
+    show_message(gobj, t("disconnected"));
     return 0;
 }
 
 function ac_on_open_error(gobj, event, kw, src)
 {
-    show_message(gobj, `${i18next.t("cannot connect")}: ${kw.url || ""}`);
+    show_message(gobj, `${t("cannot connect")}: ${kw.url || ""}`);
     return 0;
 }
 
 function ac_on_id_nak(gobj, event, kw, src)
 {
-    show_message(gobj, kw.comment || i18next.t("authentication required"));
+    show_message(gobj, kw.comment || t("authentication required"));
     return 0;
 }
 

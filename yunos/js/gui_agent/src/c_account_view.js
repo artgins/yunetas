@@ -28,7 +28,7 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
+import {t} from "i18next";
 
 import pkg from "../package.json";
 
@@ -134,7 +134,7 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ce(desc)
 {
-    return createElement2(desc, i18next.t.bind(i18next));
+    return createElement2(desc, t);
 }
 
 /***************************************************************
@@ -226,7 +226,7 @@ function build_preference(gobj)
         lang,
         function(v) {
             switch_locale(v);
-            refresh_language(document.body, i18next.t.bind(i18next));
+            refresh_language(document.body, t);
             render(gobj);
         }
     );

@@ -33,7 +33,7 @@ import {
     kw_get_str,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
+import {t} from "i18next";
 
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
@@ -147,8 +147,8 @@ function refresh_status(gobj)
 
     if(connected) {
         set_status(gobj, true, node
-            ? `${i18next.t("connected")} · ${node}`
-            : i18next.t("select a node"));
+            ? `${t("connected")} · ${node}`
+            : t("select a node"));
     } else {
         /*  Not connected to the control center; link events drive the
          *  detailed message (NAK reason, cannot connect). */
@@ -236,7 +236,7 @@ function build_ui(gobj)
 
     let $exec = createElement2(
         ["button", {class: "button is-primary", type: "button", i18n: "execute"}, "Execute"],
-        i18next.t.bind(i18next)
+        t
     );
     $exec.addEventListener("click", () => send_command(gobj));
 
@@ -280,7 +280,7 @@ function build_ui(gobj)
     );
     gobj_write_attr(gobj, "$container", $c);
 
-    refresh_language($c, i18next.t.bind(i18next));
+    refresh_language($c, t);
 }
 
 /***************************************************************
@@ -353,14 +353,14 @@ function send_command(gobj)
 
     let link = gobj_read_attr(gobj, "link_svc");
     if(!link || !gobj_read_attr(gobj, "connected")) {
-        show_comment(gobj, i18next.t("not connected to an agent"), -1);
+        show_comment(gobj, t("not connected to an agent"), -1);
         return;
     }
 
     let config = gobj_read_attr(gobj, "config_svc");
     let node = config ? agent_config_get_active_node(config) : "";
     if(!node) {
-        show_comment(gobj, i18next.t("select a node"), -1);
+        show_comment(gobj, t("select a node"), -1);
         return;
     }
 
@@ -388,7 +388,7 @@ function ac_on_open(gobj, event, kw, src)
 {
     gobj.priv.got_nak = false;
     let remote = `${kw.remote_yuno_role || ""}^${kw.remote_yuno_name || ""}`;
-    set_status(gobj, true, `${i18next.t("connected")} · ${remote}`);
+    set_status(gobj, true, `${t("connected")} · ${remote}`);
     return 0;
 }
 
@@ -397,7 +397,7 @@ function ac_on_open(gobj, event, kw, src)
  ***************************************************************/
 function ac_on_close(gobj, event, kw, src)
 {
-    set_status(gobj, false, i18next.t("disconnected"));
+    set_status(gobj, false, t("disconnected"));
     return 0;
 }
 
@@ -417,9 +417,9 @@ function ac_on_open_error(gobj, event, kw, src)
         }
         return 0;
     }
-    set_status(gobj, false, i18next.t("disconnected"));
+    set_status(gobj, false, t("disconnected"));
     show_comment(gobj,
-        `${i18next.t("cannot connect")}: ${kw.url || ""} (${kw.reason || kw.code || ""})`, -1);
+        `${t("cannot connect")}: ${kw.url || ""} (${kw.reason || kw.code || ""})`, -1);
     return 0;
 }
 
@@ -429,8 +429,8 @@ function ac_on_open_error(gobj, event, kw, src)
 function ac_on_id_nak(gobj, event, kw, src)
 {
     gobj.priv.got_nak = true;
-    set_status(gobj, false, i18next.t("authentication required"));
-    show_comment(gobj, kw.comment || i18next.t("identity card refused"), -1);
+    set_status(gobj, false, t("authentication required"));
+    show_comment(gobj, kw.comment || t("identity card refused"), -1);
     return 0;
 }
 

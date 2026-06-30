@@ -31,7 +31,7 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
+import {t} from "i18next";
 
 import {
     yui_shell_set_avatar_provider,
@@ -229,11 +229,11 @@ function build_shell(gobj)
     gobj_start_tree(shell);
 
     yui_shell_set_avatar_provider(shell, () => compute_initials(gobj));
-    yui_shell_set_translator(shell, i18next.t.bind(i18next));
+    yui_shell_set_translator(shell, t);
     /*  set_translator only stores the t-function; the static shell tree
      *  (toolbar + nav labels carrying i18n keys) must be translated once
      *  now, else it shows the raw keys until the first language toggle. */
-    refresh_language(document.body, i18next.t.bind(i18next));
+    refresh_language(document.body, t);
     update_theme_icon(gobj);
 
     /*  If the developer window was open last session, reopen it now as
@@ -326,7 +326,7 @@ function ac_on_open(gobj, event, kw, src)
 function ac_login_denied(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let msg = (kw && (kw.error || kw.error_code)) || i18next.t("login failed");
+    let msg = (kw && (kw.error || kw.error_code)) || t("login failed");
 
     if(priv.shell) {
         destroy_shell(gobj);
@@ -337,7 +337,7 @@ function ac_login_denied(gobj, event, kw, src)
     show_login_screen(gobj);
     if(priv.login_ui) {
         priv.login_ui.set_busy(false);
-        priv.login_ui.set_error(`${i18next.t("login failed")}: ${msg}`);
+        priv.login_ui.set_error(`${t("login failed")}: ${msg}`);
     }
     return 0;
 }
@@ -349,7 +349,7 @@ function ac_login_denied(gobj, event, kw, src)
 function ac_on_id_nak(gobj, event, kw, src)
 {
     return ac_login_denied(gobj, event,
-        {error: (kw && kw.comment) || i18next.t("authentication required")}, src);
+        {error: (kw && kw.comment) || t("authentication required")}, src);
 }
 
 /***************************************************************
@@ -408,7 +408,7 @@ function ac_toggle_theme(gobj, event, kw, src)
 function ac_toggle_language(gobj, event, kw, src)
 {
     switch_locale(current_locale() === "es" ? "en" : "es");
-    refresh_language(document.body, i18next.t.bind(i18next));
+    refresh_language(document.body, t);
     return 0;
 }
 
