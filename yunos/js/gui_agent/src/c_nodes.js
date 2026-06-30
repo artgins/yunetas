@@ -303,7 +303,8 @@ function create_table(gobj)
     {
         let n = cell.getData();
         if(is_active_node(gobj, n)) {
-            return "";
+            return `<span class="has-text-success has-text-weight-bold" ` +
+                   `title="${esc(t("active"))}">✓</span>`;
         }
         return `<button class="button is-small is-success is-light" type="button">` +
                `${esc(t("select"))}</button>`;
