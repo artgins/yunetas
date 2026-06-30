@@ -326,17 +326,17 @@ function create_table(gobj)
     }
 
     let columns = [
-        {title: t("host"),    field: "host",    widthGrow: 2, formatter: host_formatter},
-        {title: t("role"),    field: "role",    widthGrow: 1},
-        {title: t("version"), field: "version", width: 110},
-        {title: t("uuid"),    field: "uuid",    widthGrow: 2, formatter: uuid_formatter},
+        {title: t("host"),    field: "host",    formatter: host_formatter},
+        {title: t("role"),    field: "role"},
+        {title: t("version"), field: "version"},
+        {title: t("uuid"),    field: "uuid",    formatter: uuid_formatter},
         {title: "", field: "_action", width: 90, headerSort: false, hozAlign: "right",
             formatter: action_formatter, cellClick: action_click}
     ];
 
     let settings = {
         index:       "uuid",
-        layout:      "fitColumns",
+        layout:      "fitDataFill",
         maxHeight:   "100%",
         placeholder: t("no nodes"),
         columnDefaults: {headerHozAlign: "left", resizable: false},
