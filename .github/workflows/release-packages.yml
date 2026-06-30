@@ -114,11 +114,17 @@ jobs:
 
       - name: Resolve release tag
         id: tag
+        # Untrusted values (release tag / dispatch input) are passed via env,
+        # never interpolated into the script body, to avoid shell injection.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "release" ]; then
+            echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload .deb + .rpm to GitHub Release
