@@ -314,11 +314,11 @@ function build_diagnostics(gobj)
             logged ? username : "", logged ? {} : {i18n: "logged out"})
     ];
 
-    return ["div", {style: "max-width:680px; margin-top:1.5rem;"},
+    return ["div", {class: "box"},
         [
-            ["h2", {class: "title is-5", style: "margin-bottom:0.5rem;", i18n: "diagnostics"},
+            ["h2", {class: "title is-5", style: "margin-bottom:0.75rem;", i18n: "diagnostics"},
                 "Diagnostics"],
-            ["table", {class: "table is-fullwidth is-narrow"},
+            ["table", {class: "table is-fullwidth is-narrow", style: "margin-bottom:0;"},
                 [["tbody", {}, rows]]
             ]
         ]
@@ -334,40 +334,56 @@ function build_about(gobj)
     let plane_label = (dep.plane === "agent22") ? "agent22" : "agents";
 
     return ce(
-        ["div", {},
+        ["div", {class: "account-about", style: "max-width:640px;"},
             [
                 page_header("about", "About", null, ""),
-                ["div", {class: "box", style: "max-width:540px; text-align:center;"},
+
+                /*  Product header — logo + identity as a left-aligned
+                 *  media object, same box width as the diagnostics below
+                 *  so the two sections read as one page.  */
+                ["div", {class: "box"},
                     [
-                        ["img", {
-                            src: "/agent-mark.svg",
-                            alt: "Agent Console",
-                            width: "72",
-                            height: "72",
-                            style: "margin-bottom:0.75rem;"
-                        }, ""],
-                        ["h1", {class: "title is-4", style: "margin-bottom:0.25rem;", i18n: "agent console"},
-                            "Agent Console"],
-                        ["p", {class: "subtitle is-6", style: "color:#5B6B7E; margin-bottom:0.75rem;"},
-                            `v${pkg.version || ""} · ${dep.tenant} · ${plane_label}`],
-                        ["p", {style: "color:#5B6B7E; margin-bottom:1rem;", i18n: "about description"},
-                            "Browser console to operate Yuneta agents through the control center."],
-                        ["a", {
-                            class: "button is-link is-light",
-                            href: "https://doc.yuneta.io",
-                            target: "_blank",
-                            rel: "noopener noreferrer"
-                        },
+                        ["div", {style: "display:flex; gap:1rem; align-items:center;"},
                             [
-                                ["span", {class: "icon"}, [["span", {class: "yi-question"}, ""]]],
-                                ["span", {i18n: "documentation"}, "Documentation"]
+                                ["img", {
+                                    src: "/agent-mark.svg",
+                                    alt: "Agent Console",
+                                    width: "60",
+                                    height: "60",
+                                    style: "flex:0 0 auto;"
+                                }, ""],
+                                ["div", {style: "flex:1 1 auto; min-width:0;"},
+                                    [
+                                        ["h2", {class: "title is-4", style: "margin-bottom:0.15rem;",
+                                                i18n: "agent console"}, "Agent Console"],
+                                        ["p", {class: "subtitle is-6",
+                                               style: "color:#5B6B7E; margin-bottom:0.6rem;"},
+                                            `v${pkg.version || ""} · ${dep.tenant} · ${plane_label}`],
+                                        ["p", {style: "color:#5B6B7E; margin-bottom:0.75rem;",
+                                               i18n: "about description"},
+                                            "Browser console to operate Yuneta agents through the control center."],
+                                        ["a", {
+                                            class: "button is-link is-light is-small",
+                                            href: "https://doc.yuneta.io",
+                                            target: "_blank",
+                                            rel: "noopener noreferrer"
+                                        },
+                                            [
+                                                ["span", {class: "icon"}, [["span", {class: "yi-question"}, ""]]],
+                                                ["span", {i18n: "documentation"}, "Documentation"]
+                                            ]
+                                        ]
+                                    ]
+                                ]
                             ]
-                        ],
-                        ["p", {class: "is-size-7", style: "color:#9AA7B4; margin-top:1.25rem;"},
-                            "© 2026 ArtGins"]
+                        ]
                     ]
                 ],
-                build_diagnostics(gobj)
+
+                build_diagnostics(gobj),
+
+                ["p", {class: "is-size-7", style: "color:#9AA7B4; margin-top:0.5rem; text-align:right;"},
+                    "© 2026 ArtGins"]
             ]
         ]
     );
