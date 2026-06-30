@@ -160,8 +160,21 @@
 #       those three until upstream ships a 1.31.x.y based on >= nginx
 #       1.31.2 (or backports). The standalone nginx binary IS patched
 #       (pinned to release-1.31.2, v1.17). Track upstream openresty.
+#   version 1.19
+#       upgrade to liburing-2.15 (was liburing-2.14). No API/ABI change
+#       and no removed/renamed symbols, so no yuneta consumer, header or
+#       CMakeLists change rides along. Two of the bug fixes land on the
+#       exact APIs the event loop uses (kernel/c/yev_loop/src/yev_loop.c):
+#         - io_uring_peek_cqe(): drops out-of-line round trips and a
+#           redundant acquire ordering (used in yev_loop_run drain path).
+#         - stale CQE pointer fix on wait-with-timeout errors
+#           (io_uring_wait_cqe_timeout in the loop's wait path).
+#       The new helpers (register_bpf_filter / register_query /
+#       register_zcrx_ctrl) are additive and unused here. liburing.a is
+#       linked statically into every yuno, so every yuno that links
+#       yev_loop must be rebuilt + relinked to pick it up.
 
-VERSION="1.18"
+VERSION="1.19"
 
 
 source ./repos2clone.sh
