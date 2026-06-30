@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+    - **chore(ext-libs): bump liburing 2.14 → 2.15 (v1.19)**. Pin-only — no
+      API/ABI change and no removed/renamed symbols, so no yuneta consumer,
+      header or CMakeLists change rides along. Two of the 2.15 bug fixes land
+      on the exact APIs the event loop uses (`kernel/c/yev_loop/src/yev_loop.c`):
+      `io_uring_peek_cqe()` drops out-of-line round trips and a redundant
+      acquire ordering (loop drain path), and a stale-CQE-pointer fix on
+      wait-with-timeout errors (`io_uring_wait_cqe_timeout` in the wait path).
+      The new 2.15 helpers (`register_bpf_filter` / `register_query` /
+      `register_zcrx_ctrl`) are additive and unused here. `liburing.a` is
+      linked statically into every yuno, so yunos that link `yev_loop` must be
+      rebuilt + relinked (`extrae.sh` + `configure-libs.sh`) to pick it up.
+
 ## 7.6.7
     - **fix(security): close three buffer/parse defects found in a source
       audit.** (1) `release-packages.yml` interpolated `github.event.release.
