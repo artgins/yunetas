@@ -1204,6 +1204,7 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
 PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 {
     char *ptr;
+    char *saveptr = NULL;
 
     if(plist_size) {
         *plist_size = 0; // error case
@@ -1215,7 +1216,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 
     // Get list size
     int list_size = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+    for (ptr = strtok_r(buffer, delim, &saveptr); ptr != NULL; ptr = strtok_r(NULL, delim, &saveptr)) {
         list_size++;
     }
     GBMEM_FREE(buffer)
@@ -1231,7 +1232,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 
     // Fill list
     int i = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+    for (ptr = strtok_r(buffer, delim, &saveptr); ptr != NULL; ptr = strtok_r(NULL, delim, &saveptr)) {
         if (i < list_size) {
             list[i++] = gbmem_strdup(ptr);
         } else {
