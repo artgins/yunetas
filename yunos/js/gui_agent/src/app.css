@@ -11,6 +11,17 @@
  ***********************************************************************/
 
 /* ====================================================================
+ *  Secondary-nav tab strip (top-sub zone).
+ *  Bulma gives `.tabs:not(:last-child)` a 1.5rem block-spacing
+ *  margin-bottom, which steals content height on every view (worst on
+ *  mobile). The zone already has its own bottom border for separation,
+ *  so drop the margin. Specificity (3 classes) beats Bulma's rule.
+ * ==================================================================== */
+.yui-zone-top-sub .yui-nav-tabs.tabs {
+    margin-bottom: 0.25rem;
+}
+
+/* ====================================================================
  *  Nodes view: the active node row inside the Tabulator table.
  *  Green wash + left accent, theme-aware, with enough specificity
  *  (three classes) to beat the striped row !important backgrounds.
