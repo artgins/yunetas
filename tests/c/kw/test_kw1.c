@@ -567,6 +567,56 @@ static int test_reg_f002_find_record_not_found(void)
 }
 
 /***************************************************************************
+ *  json_unflatten_dict(): backtick-path flat dict -> nested json.
+ *  Exercises the root-kind detection that reads the FIRST path token
+ *  (parsed with strtok_r): a numeric first token makes the root an array,
+ *  otherwise an object.
+ ***************************************************************************/
+static int test_json_unflatten_dict(void)
+{
+    int result = 0;
+
+    /* object root: first token "a" is not an array index */
+    json_t *flat1 = json_pack("{s:i, s:i}",
+        "a`b", 1,
+        "a`c", 2
+    );
+    json_t *got1 = json_unflatten_dict(flat1);
+    json_t *exp1 = json_pack("{s:{s:i, s:i}}",
+        "a",
+            "b", 1,
+            "c", 2
+    );
+    if(!json_equal(got1, exp1)) {
+        result += -1;
+        printf("FAIL json_unflatten_dict object root\n");
+    }
+    JSON_DECREF(flat1)
+    JSON_DECREF(got1)
+    JSON_DECREF(exp1)
+
+    /* array root: first token "0" IS an array index -> root is an array */
+    json_t *flat2 = json_pack("{s:s, s:s}",
+        "0`name", "zero",
+        "1`name", "one"
+    );
+    json_t *got2 = json_unflatten_dict(flat2);
+    json_t *exp2 = json_pack("[{s:s}, {s:s}]",
+        "name", "zero",
+        "name", "one"
+    );
+    if(!json_equal(got2, exp2)) {
+        result += -1;
+        printf("FAIL json_unflatten_dict array root\n");
+    }
+    JSON_DECREF(flat2)
+    JSON_DECREF(got2)
+    JSON_DECREF(exp2)
+
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
@@ -579,6 +629,7 @@ PRIVATE int do_test(void)
     result += test1_false();
     result += test2_true();
     result += test2_false();
+    result += test_json_unflatten_dict();
 
     result += test_reg_f001_gbuffer_deserialize_null_data();
     result += test_reg_f001_gbuffer_deserialize_bad_base64();
