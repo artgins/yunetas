@@ -734,6 +734,16 @@ PRIVATE char *make_set_cookie(const char *name, const char *value,
     int n = snprintf(buf, sizeof(buf),
         "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Strict",
         name, value, max_age);
+    /*
+     *  snprintf returns the length it WOULD have written; on truncation
+     *  (oversized token value) n >= sizeof(buf). Clamp to what actually fit
+     *  so the buf+n / sizeof(buf)-n offsets below stay inside the buffer.
+     */
+    if(n < 0) {
+        n = 0;
+    } else if(n >= (int)sizeof(buf)) {
+        n = (int)sizeof(buf) - 1;
+    }
     if(!empty_string(domain) && n < (int)sizeof(buf) - 64) {
         snprintf(buf + n, sizeof(buf) - n, "; Domain=%s", domain);
         n = (int)strlen(buf);
