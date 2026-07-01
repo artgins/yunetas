@@ -446,9 +446,27 @@ function ac_mt_command_answer(gobj, event, kw, src)
 {
     let stk = msg_iev_get_stack(gobj, kw, "command_stack", false);
     let command = kw_get_str(gobj, stk, "command", "", 0);
-    if(command && command !== "command-agent") {
-        return 0;   /*  belongs to another panel (e.g. list-agents)  */
+
+    /*  The Nodes panel's own answer — not ours.  */
+    if(command === "list-agents") {
+        return 0;
     }
+
+    /*  command-agent forwards cmd2agent to the agent and returns TWO
+     *  answers: (1) the controlcenter's synchronous dispatch ack
+     *  ("Command sent to N nodes"), and (2) the agent's asynchronous
+     *  real answer, whose stack carries the INNER command we typed.
+     *  Surface the ack only when the dispatch itself failed (no agent
+     *  matched / not authorized) — on success just wait for (2).  */
+    if(command === "command-agent") {
+        if(typeof kw.result === "number" && kw.result < 0) {
+            show_comment(gobj, kw.comment, kw.result);
+            show_data(gobj, kw.data);
+        }
+        return 0;
+    }
+
+    /*  Anything else is the agent's real answer to our command.  */
     show_comment(gobj, kw.comment, kw.result);
     show_data(gobj, kw.data);
     return 0;
