@@ -37,6 +37,8 @@ import {
 
 import {t} from "i18next";
 
+import {TabulatorFull as Tabulator} from "tabulator-tables";
+
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
@@ -95,6 +97,7 @@ function mt_create(gobj)
     priv.$comment = null;
     priv.$data = null;
     priv.$datalist = null;
+    priv.tabulator = null;    /*  Tabulator instance for table-mode answers  */
 
     /*
      *  CHILD subscription model
@@ -163,6 +166,7 @@ function refresh_status(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    destroy_table(gobj);
 }
 
 /***************************************************************
@@ -170,6 +174,7 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    destroy_table(gobj);
     let $c = gobj_read_attr(gobj, "$container");
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
@@ -264,10 +269,11 @@ function build_ui(gobj)
     );
     priv.$comment = $comment;
 
+    /*  Response host: holds either a Tabulator table (schema answers) or
+     *  a <pre> with raw JSON / text.  Tabulator manages its own scroll;
+     *  the <pre> gets overflow:auto when used.  */
     let $data = createElement2(
-        ["pre", {class: "CONSOLE_RESPONSE",
-                 style: "flex:1; overflow:auto; padding:0.75rem; border-radius:4px; font-size:12px;"},
-            ""]
+        ["div", {class: "CONSOLE_RESPONSE", style: "flex:1; min-height:0;"}]
     );
     priv.$data = $data;
 
@@ -329,103 +335,164 @@ function show_comment(gobj, comment, result)
 }
 
 /***************************************************************
- *  Render the data payload of a command answer.
+ *  Render a command answer's payload into CONSOLE_RESPONSE.
  *
- *  Mirrors ycommand: when `raw` (display_mode "form") show the raw
- *  JSON; otherwise an array payload that carries a schema is drawn as a
- *  fixed-width table, everything else falls back to raw JSON.
+ *  Mirrors ycommand's display_webix_result mapped to the console:
+ *    - array + table mode + schema  -> interactive Tabulator table
+ *    - array + form/no-schema       -> raw JSON
+ *    - object                       -> raw JSON
+ *    - no data but a (non-error)    -> paint the comment; this is how
+ *      comment (e.g. `help`)           `help` arrives: text in comment,
+ *                                       data + schema null.
+ *  Errors keep their short comment in the CONSOLE_COMMENT line.
  ***************************************************************/
-function show_data(gobj, data, schema, raw)
+function show_data(gobj, data, schema, raw, comment, result)
 {
     let priv = gobj.priv;
     if(!priv.$data) {
         return;
     }
-    if(data === null || data === undefined) {
-        priv.$data.textContent = "";
+
+    /*  Tear down any previous table + content.  */
+    destroy_table(gobj);
+    priv.$data.replaceChildren();
+
+    /*  Table mode: array payload + schema -> Tabulator.  */
+    if(!raw && Array.isArray(data) && Array.isArray(schema) && schema.length) {
+        render_table(gobj, schema, data);
         return;
     }
-    if(!raw && Array.isArray(data) &&
-            Array.isArray(schema) && schema.length) {
-        priv.$data.textContent = json_table_to_text(schema, data);
+
+    /*  Otherwise paint "what arrives": the data as raw JSON/text, or the
+     *  comment when the answer carries its text there (help) and is not
+     *  an error.  */
+    let text = null;
+    if(data !== null && data !== undefined) {
+        if(typeof data === "string") {
+            text = data;
+        } else {
+            try {
+                text = JSON.stringify(data, null, 2);
+            } catch(e) {
+                text = String(data);
+            }
+        }
+    } else if(comment && !(typeof result === "number" && result < 0)) {
+        text = comment;
+    }
+
+    if(text === null || text === "") {
         return;
     }
-    if(typeof data === "string") {
-        priv.$data.textContent = data;
-        return;
-    }
-    try {
-        priv.$data.textContent = JSON.stringify(data, null, 2);
-    } catch(e) {
-        priv.$data.textContent = String(data);
-    }
+    priv.$data.appendChild(createElement2(
+        ["pre", {class: "CONSOLE_RESPONSE_TEXT",
+                 style: "margin:0; height:100%; overflow:auto; white-space:pre-wrap; " +
+                        "font-size:12px; padding:0.5rem;"},
+            text]
+    ));
 }
 
 /***************************************************************
- *  Render an array of row objects as a fixed-width text table,
- *  driven by a ycommand-style schema: each column has an `id`
- *  (row field), a `header`, and a `fillspace` width (default 10,
- *  0 = hidden column).
+ *  Build a Tabulator table from a ycommand-style schema. Follows the
+ *  treedb table convention: skip internal columns (id starting with
+ *  '_') and fillspace==0 columns; boolean -> tickCross; integer/real
+ *  -> right-aligned numeric.
  ***************************************************************/
-function json_table_to_text(schema, data)
+function render_table(gobj, schema, data)
 {
-    let cols = [];
+    let priv = gobj.priv;
+    let host = createElement2(["div", {class: "CONSOLE_RESPONSE_TABLE"}]);
+    priv.$data.appendChild(host);
+
+    priv.tabulator = new Tabulator(host, {
+        data:           data,
+        layout:         "fitDataFill",
+        columns:        make_columns_from_schema(schema),
+        columnDefaults: {headerHozAlign: "left"},
+        maxHeight:      "100%",
+        placeholder:    "—"
+    });
+}
+
+/***************************************************************
+ *  Map a ycommand schema (cols with id/header/fillspace/type) to
+ *  Tabulator column definitions.
+ ***************************************************************/
+function make_columns_from_schema(schema)
+{
+    let columns = [];
     for(let col of schema) {
-        let fillspace = (typeof col.fillspace === "number") ? col.fillspace : 10;
-        if(fillspace <= 0) {
-            continue;   /*  hidden column  */
+        if(!col.id || col.id[0] === "_") {
+            continue;   /*  internal / hidden column  */
         }
-        let header = col.header || col.id || "";
-        if(fillspace < header.length) {
-            fillspace = header.length;
+        if(col.fillspace === 0) {
+            continue;   /*  explicitly hidden (ycommand: fillspace 0)  */
         }
-        cols.push({id: col.id, header: header, w: fillspace});
+        let colDef = {
+            title: col.header || col.id,
+            field: col.id
+        };
+        switch(col.type) {
+            case "boolean":
+                colDef.hozAlign = "center";
+                colDef.sorter = "boolean";
+                colDef.formatter = "tickCross";
+                break;
+            case "integer":
+            case "real":
+                colDef.hozAlign = "right";
+                colDef.sorter = "number";
+                colDef.formatter = cell_scalar_or_json;
+                break;
+            default:
+                colDef.formatter = cell_scalar_or_json;
+                break;
+        }
+        columns.push(colDef);
     }
-
-    let lines = [];
-    lines.push(cols.map((c) => pad_cell(c.header, c.w)).join(" "));
-    lines.push(cols.map((c) => "=".repeat(c.w)).join(" "));
-    for(let row of data) {
-        lines.push(cols.map((c) => {
-            return pad_cell(cell_to_text(row ? row[c.id] : undefined), c.w);
-        }).join(" "));
-    }
-    lines.push("");
-    lines.push(`Total: ${data.length}`);
-    return lines.join("\n");
+    return columns;
 }
 
 /***************************************************************
- *  Left-justify to `w`, truncating anything longer (like %-*.*s).
+ *  Tabulator cell formatter: scalars as text, objects/arrays as
+ *  compact JSON (Tabulator can't render objects). HTML-escaped.
  ***************************************************************/
-function pad_cell(s, w)
+function cell_scalar_or_json(cell)
 {
-    s = (s === null || s === undefined) ? "" : String(s);
-    if(s.length > w) {
-        s = s.slice(0, w);
-    }
-    return s.padEnd(w);
-}
-
-/***************************************************************
- *  A cell value as plain text: strings bare, numbers/booleans as
- *  their literal, objects/arrays as compact JSON.
- ***************************************************************/
-function cell_to_text(cell)
-{
-    if(cell === null || cell === undefined) {
+    let v = cell.getValue();
+    if(v === null || v === undefined) {
         return "";
     }
-    if(typeof cell === "string") {
-        return cell;
+    if(typeof v === "object") {
+        return esc_html(JSON.stringify(v));
     }
-    if(typeof cell === "number" || typeof cell === "boolean") {
-        return String(cell);
-    }
-    try {
-        return JSON.stringify(cell);
-    } catch(e) {
-        return String(cell);
+    return esc_html(String(v));
+}
+
+/***************************************************************
+ *  Minimal HTML escaping for values inserted as Tabulator cell HTML.
+ ***************************************************************/
+function esc_html(s)
+{
+    return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+}
+
+/***************************************************************
+ *  Destroy the current Tabulator instance, if any.
+ ***************************************************************/
+function destroy_table(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.tabulator) {
+        try {
+            priv.tabulator.destroy();
+        } catch(e) {
+            /*  already gone  */
+        }
+        priv.tabulator = null;
     }
 }
 
@@ -583,14 +650,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
     if(command === "command-agent") {
         if(typeof kw.result === "number" && kw.result < 0) {
             show_comment(gobj, kw.comment, kw.result);
-            show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw));
+            show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw), kw.comment, kw.result);
         }
         return 0;
     }
 
     /*  Anything else is the agent's real answer to our command.  */
     show_comment(gobj, kw.comment, kw.result);
-    show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw));
+    show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw), kw.comment, kw.result);
     return 0;
 }
 
