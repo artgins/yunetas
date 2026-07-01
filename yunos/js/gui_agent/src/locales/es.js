@@ -60,6 +60,8 @@ const es = {
         "table":             "Tabla",
         "display mode":      "Respuestas de comandos",
         "raw json":          "JSON crudo",
+        "no consoles":       "No hay consolas abiertas",
+        "pick nodes hint":   "Selecciona uno o más nodos en Nodos para abrir una pestaña de consola por cada uno.",
         "live":              "En vivo",
         "pick a treedb":     "Selecciona un treedb para abrir",
         "nodes":             "Nodos",

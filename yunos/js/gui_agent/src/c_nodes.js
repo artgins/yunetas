@@ -36,7 +36,12 @@ import i18next, {t} from "i18next";
 import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_active_node, agent_config_set_active_node} from "./c_agent_config.js";
+import {
+    agent_config_get_selected_nodes,
+    agent_config_set_selected_nodes,
+    agent_config_is_node_selected,
+    agent_config_toggle_selected_node,
+} from "./c_agent_config.js";
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 
@@ -80,7 +85,6 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     let priv = gobj.priv;
-    priv.active   = "";     /*  currently selected node (host or uuid)  */
     priv.table_id = `nodes_table_${gobj_name(gobj)}`;
 
     /*
@@ -99,7 +103,11 @@ function mt_create(gobj)
         gobj_subscribe_event(link, "EV_ON_CLOSE", {}, gobj);
         gobj_subscribe_event(link, "EV_MT_COMMAND_ANSWER", {}, gobj);
     }
-    gobj_write_attr(gobj, "config_svc", gobj_find_service("agent_config", true));
+    let config = gobj_find_service("agent_config", true);
+    gobj_write_attr(gobj, "config_svc", config);
+    if(config) {
+        gobj_subscribe_event(config, "EV_SELECTED_NODES_CHANGED", {}, gobj);
+    }
 
     let $c = createElement2(
         ["div", {class: "view-card", style: "display:flex; flex-direction:column; height:100%;"}, []]
@@ -222,12 +230,20 @@ function parse_agent_line(s)
 }
 
 /***************************************************************
- *  Is this node the active one? (matched by host or uuid)
+ *  A node's id for selection/routing: host preferred, else uuid.
  ***************************************************************/
-function is_active_node(gobj, n)
+function node_id(n)
 {
-    let active = gobj.priv.active;
-    return !!(active && (active === n.host || active === n.uuid));
+    return (n && (n.host || n.uuid)) || "";
+}
+
+/***************************************************************
+ *  Is this node currently selected (has an open Console tab)?
+ ***************************************************************/
+function is_selected_node(gobj, n)
+{
+    let config = gobj_read_attr(gobj, "config_svc");
+    return !!(config && agent_config_is_node_selected(config, node_id(n)));
 }
 
 /***************************************************************
@@ -306,14 +322,13 @@ function build_dom(gobj)
 function make_columns(gobj)
 {
 
-    /*  host: bold + "active" tag when selected  */
+    /*  host: bold when the node has an open Console tab  */
     function host_formatter(cell)
     {
         let n = cell.getData();
         let host = n.host || n.uuid || "";
-        if(is_active_node(gobj, n)) {
-            return `<span class="has-text-weight-bold">${esc(host)}</span>` +
-                   `<span class="tag is-success is-light ml-2">${esc(t("active"))}</span>`;
+        if(is_selected_node(gobj, n)) {
+            return `<span class="has-text-weight-bold">${esc(host)}</span>`;
         }
         return esc(host);
     }
@@ -325,33 +340,59 @@ function make_columns(gobj)
                `${esc(cell.getValue() || "")}</span>`;
     }
 
-    /*  action: Select button (a ✓ on the active row)  */
-    function action_formatter(cell)
+    /*  Per-row checkbox: checked when the node has an open Console tab.
+     *  State is config-driven — the formatter always reflects
+     *  selected_nodes, so no separate selection bookkeeping. */
+    function sel_formatter(cell)
     {
-        let n = cell.getData();
-        if(is_active_node(gobj, n)) {
-            return `<span class="has-text-success has-text-weight-bold" ` +
-                   `title="${esc(t("active"))}">✓</span>`;
-        }
-        return `<button class="button is-small is-success is-light" type="button">` +
-               `${esc(t("select"))}</button>`;
+        let checked = is_selected_node(gobj, cell.getData()) ? " checked" : "";
+        return `<input type="checkbox" class="node-sel"${checked} aria-label="open console tab">`;
     }
 
-    function action_click(e, cell)
+    function sel_click(e, cell)
     {
         let n = cell.getData();
-        if(is_active_node(gobj, n)) {
+        let config = gobj_read_attr(gobj, "config_svc");
+        if(config) {
+            agent_config_toggle_selected_node(config, {id: node_id(n), host: n.host || node_id(n)});
+        }
+    }
+
+    /*  Header "select all": checked when every node is selected;
+     *  clicking selects all (or clears when already all).  */
+    function selall_formatter()
+    {
+        let config = gobj_read_attr(gobj, "config_svc");
+        let nodes = gobj_read_attr(gobj, "nodes") || [];
+        let sel = config ? agent_config_get_selected_nodes(config).length : 0;
+        let checked = (nodes.length > 0 && sel >= nodes.length) ? " checked" : "";
+        return `<input type="checkbox" class="node-sel-all"${checked} aria-label="select all nodes">`;
+    }
+
+    function selall_click(e, column)
+    {
+        let config = gobj_read_attr(gobj, "config_svc");
+        if(!config) {
             return;
         }
-        on_select(gobj, n);
+        let nodes = gobj_read_attr(gobj, "nodes") || [];
+        let cur = agent_config_get_selected_nodes(config).length;
+        if(nodes.length > 0 && cur >= nodes.length) {
+            agent_config_set_selected_nodes(config, []);
+        } else {
+            agent_config_set_selected_nodes(config, nodes.map((n) => {
+                let id = node_id(n);
+                return {id: id, host: n.host || id};
+            }));
+        }
     }
 
-    /*  Select first: on mobile the action is visible without scrolling
-     *  right; the node detail columns follow and only need a horizontal
-     *  scroll when the operator wants to inspect them.  */
+    /*  Checkbox first: on mobile the toggle is visible without scrolling
+     *  right; the node detail columns follow.  */
     return [
-        {title: "", field: "_action", width: 120, headerSort: false, hozAlign: "center",
-            formatter: action_formatter, cellClick: action_click},
+        {title: "", field: "_sel", width: 44, headerSort: false, hozAlign: "center",
+            formatter: sel_formatter, cellClick: sel_click,
+            titleFormatter: selall_formatter, headerClick: selall_click},
         {title: t("host"),    field: "host",    formatter: host_formatter},
         {title: t("role"),    field: "role"},
         {title: t("version"), field: "version"},
@@ -367,11 +408,12 @@ function create_table(gobj)
 {
     let priv = gobj.priv;
 
-    /*  green wash + accent on the active row (styles in app.css)  */
+    /*  green wash + accent on rows with an open Console tab
+     *  (styles in app.css, reusing the .node-row-active class)  */
     function row_formatter(row)
     {
         let n = row.getData();
-        row.getElement().classList.toggle("node-row-active", is_active_node(gobj, n));
+        row.getElement().classList.toggle("node-row-active", is_selected_node(gobj, n));
     }
 
     let settings = {
@@ -404,10 +446,6 @@ function create_table(gobj)
  ***************************************************************/
 function update_table(gobj)
 {
-    let priv = gobj.priv;
-    let config = gobj_read_attr(gobj, "config_svc");
-    priv.active = config ? agent_config_get_active_node(config) : "";
-
     let nodes = gobj_read_attr(gobj, "nodes");
     if(!Array.isArray(nodes)) {
         nodes = [];
@@ -505,16 +543,13 @@ function apply_filter(gobj)
 
 
 /***************************************************************
- *  Pick a node as active (commands route there).
+ *  Selection changed (here or from a closed Console tab) — move
+ *  the row highlight + checkboxes without reloading the list.
  ***************************************************************/
-function on_select(gobj, n)
+function ac_selected_nodes_changed(gobj, event, kw, src)
 {
-    let config = gobj_read_attr(gobj, "config_svc");
-    if(config) {
-        agent_config_set_active_node(config, n.host || n.uuid);
-    }
-    gobj.priv.active = n.host || n.uuid;
     refresh_active(gobj);
+    return 0;
 }
 
 /***************************************************************
@@ -590,9 +625,10 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_ON_OPEN",           ac_on_open,           null],
-            ["EV_ON_CLOSE",          ac_on_close,          null],
-            ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null]
+            ["EV_ON_OPEN",              ac_on_open,               null],
+            ["EV_ON_CLOSE",             ac_on_close,              null],
+            ["EV_MT_COMMAND_ANSWER",    ac_mt_command_answer,     null],
+            ["EV_SELECTED_NODES_CHANGED", ac_selected_nodes_changed, null]
         ]]
     ];
 
@@ -600,9 +636,10 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_ON_OPEN",           0],
-        ["EV_ON_CLOSE",          0],
-        ["EV_MT_COMMAND_ANSWER", 0]
+        ["EV_ON_OPEN",              0],
+        ["EV_ON_CLOSE",             0],
+        ["EV_MT_COMMAND_ANSWER",    0],
+        ["EV_SELECTED_NODES_CHANGED", 0]
     ];
 
     __gclass__ = gclass_create(

@@ -29,6 +29,7 @@ import {
     gobj_find_service,
     createElement2,
     refresh_language,
+    empty_string,
     msg_iev_get_stack,
     msg_iev_write_key,
     msg_iev_read_key,
@@ -43,7 +44,7 @@ import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_active_node, agent_config_get_display_mode} from "./c_agent_config.js";
+import {agent_config_get_display_mode} from "./c_agent_config.js";
 
 
 /***************************************************************
@@ -68,6 +69,7 @@ SDATA(data_type_t.DTP_POINTER,  "$container",  0,  null,        "Root HTMLElemen
 SDATA(data_type_t.DTP_POINTER,  "link_svc",    0,  null,        "C_AGENT_LINK service"),
 SDATA(data_type_t.DTP_POINTER,  "config_svc",  0,  null,        "C_AGENT_CONFIG service"),
 SDATA(data_type_t.DTP_BOOLEAN,  "connected",   0,  false,       "True while in session with the agent"),
+SDATA(data_type_t.DTP_STRING,   "node",        0,  "",          "Agent id this panel targets (host/uuid); '' = empty state"),
 SDATA_END()
 ];
 
@@ -119,15 +121,16 @@ function mt_create(gobj)
         gobj_subscribe_event(link, "EV_MT_COMMAND_ANSWER", {}, gobj);
     }
 
-    /*  Re-evaluate the status line when the agent list changes (so a
-     *  missing/added active agent is reflected). */
-    let config = gobj_find_service("agent_config", true);
-    gobj_write_attr(gobj, "config_svc", config);
-    if(config) {
-        gobj_subscribe_event(config, "EV_ACTIVE_NODE_CHANGED", {}, gobj);
-    }
+    /*  config_svc is used for the persistent display_mode.  This panel
+     *  is pinned to a single node (the `node` attr), so it does NOT track
+     *  the global active_node. */
+    gobj_write_attr(gobj, "config_svc", gobj_find_service("agent_config", true));
 
-    build_ui(gobj);
+    if(empty_string(gobj_read_attr(gobj, "node"))) {
+        build_empty_state(gobj);   /*  no node -> "select nodes in Nodos"  */
+    } else {
+        build_ui(gobj);
+    }
 }
 
 /***************************************************************
@@ -135,7 +138,37 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    if(empty_string(gobj_read_attr(gobj, "node"))) {
+        return;   /*  empty-state panel: nothing to refresh  */
+    }
     refresh_status(gobj);
+}
+
+/***************************************************************
+ *  Empty-state panel (no node): shown at the console home when no
+ *  nodes are selected. Prompts the operator to pick nodes in Nodos.
+ ***************************************************************/
+function build_empty_state(gobj)
+{
+    let $c = createElement2(
+        ["div", {class: "C_AGENT_CONSOLE CONSOLE_CARD view-card",
+                 style: "display:flex; align-items:center; justify-content:center; height:100%;"},
+            [
+                ["div", {class: "has-text-grey has-text-centered", style: "max-width:32rem;"},
+                    [
+                        ["p", {class: "is-size-4 mb-2"},
+                            [["span", {class: "icon is-large"}, [["i", {class: "yi-square-js"}]]]]],
+                        ["p", {class: "is-size-5", i18n: "no consoles"},
+                            "No consoles open"],
+                        ["p", {class: "is-size-6 mt-2", i18n: "pick nodes hint"},
+                            "Select one or more nodes in Nodes to open a console tab for each."]
+                    ]
+                ]
+            ]
+        ]
+    );
+    gobj_write_attr(gobj, "$container", $c);
+    refresh_language($c, t);
 }
 
 /***************************************************************
@@ -147,8 +180,7 @@ function refresh_status(gobj)
 {
     let link = gobj_read_attr(gobj, "link_svc");
     let connected = !!(link && agent_link_is_connected(link));
-    let config = gobj_read_attr(gobj, "config_svc");
-    let node = config ? agent_config_get_active_node(config) : "";
+    let node = gobj_read_attr(gobj, "node") || "";
 
     if(connected) {
         set_status(gobj, true, node
@@ -528,7 +560,7 @@ function send_command(gobj)
         return;
     }
 
-    let node = config ? agent_config_get_active_node(config) : "";
+    let node = gobj_read_attr(gobj, "node") || "";
     if(!node) {
         show_comment(gobj, t("select a node"), -1);
         return;
@@ -539,12 +571,13 @@ function send_command(gobj)
     show_data(gobj, null);
 
     /*  src defaults to the link service; the answer routes back there
-     *  and is re-published to this console (a routed view is not a
-     *  service and cannot receive the inter-yuno reply).  The display
-     *  mode travels in __md_iev__ and is echoed back on the answer
-     *  (ycommand parity).  */
+     *  and is re-published to EVERY console panel.  Both the display
+     *  mode and this panel's node id travel in __md_iev__ and are
+     *  echoed back, so each panel renders only its own node's answer
+     *  ([[__md_iev__ round-trip]] / ycommand parity).  */
     let kw_send = {agent_id: node, cmd2agent: cmd};
     msg_iev_write_key(kw_send, "display_mode", mode);
+    msg_iev_write_key(kw_send, "console_node", node);
     agent_link_command(link, "command-agent", kw_send);
 }
 
@@ -641,6 +674,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;
     }
 
+    /*  Multi-agent: each command echoes its origin node in __md_iev__;
+     *  render only answers for THIS panel's node.  */
+    let my_node = gobj_read_attr(gobj, "node") || "";
+    let ans_node = msg_iev_read_key(kw, "console_node");
+    if(my_node && ans_node && ans_node !== my_node) {
+        return 0;
+    }
+
     /*  command-agent forwards cmd2agent to the agent and returns TWO
      *  answers: (1) the controlcenter's synchronous dispatch ack
      *  ("Command sent to N nodes"), and (2) the agent's asynchronous
@@ -661,14 +702,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
     return 0;
 }
 
-/***************************************************************
- *  Agent list changed — re-evaluate the status line.
- ***************************************************************/
-function ac_agents_changed(gobj, event, kw, src)
-{
-    refresh_status(gobj);
-    return 0;
-}
 
 
 
@@ -709,8 +742,7 @@ function create_gclass(gclass_name)
             ["EV_ON_CLOSE",          ac_on_close,          null],
             ["EV_ON_OPEN_ERROR",     ac_on_open_error,     null],
             ["EV_ON_ID_NAK",         ac_on_id_nak,         null],
-            ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null],
-            ["EV_ACTIVE_NODE_CHANGED", ac_agents_changed,  null]
+            ["EV_MT_COMMAND_ANSWER", ac_mt_command_answer, null]
         ]]
     ];
 
@@ -722,8 +754,7 @@ function create_gclass(gclass_name)
         ["EV_ON_CLOSE",          0],
         ["EV_ON_OPEN_ERROR",     0],
         ["EV_ON_ID_NAK",         0],
-        ["EV_MT_COMMAND_ANSWER", 0],
-        ["EV_ACTIVE_NODE_CHANGED", 0]
+        ["EV_MT_COMMAND_ANSWER", 0]
     ];
 
     __gclass__ = gclass_create(

@@ -131,7 +131,7 @@
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_AGENT_CONSOLE",
-                                    "kw": { "title": "console" },
+                                    "kw": { "title": "console", "node": "" },
                                     "lifecycle": "keep_alive"
                                 }
                             }

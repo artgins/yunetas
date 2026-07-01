@@ -60,6 +60,8 @@ const en = {
         "table":             "Table",
         "display mode":      "Command answers",
         "raw json":          "Raw JSON",
+        "no consoles":       "No consoles open",
+        "pick nodes hint":   "Select one or more nodes in Nodes to open a console tab for each.",
         "live":              "Live",
         "pick a treedb":     "Select a treedb to open",
         "nodes":             "Nodes",

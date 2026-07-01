@@ -29,6 +29,7 @@ import {
     gobj_find_service, gobj_yuno,
     gobj_start, gobj_start_tree, gobj_stop, gobj_stop_tree, gobj_destroy, gobj_is_running,
     refresh_language,
+    msg_iev_get_stack, kw_get_str,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -38,7 +39,15 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
     yui_shell_set_toolbar_item_icon,
+    yui_shell_set_submenu,
+    yui_shell_navigate,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
+import {
+    agent_config_get_selected_nodes,
+    agent_config_remove_selected_node,
+} from "./c_agent_config.js";
 
 import {
     setup_dev,
@@ -76,6 +85,8 @@ let PRIVATE_DATA = {
     shell:          null,
     login_ui:       null,
     link:           null,
+    live_hosts:     {},     /*  set of node ids currently in list-agents  */
+    live_timer:     null,   /*  periodic list-agents poll (browser interval)  */
     nak_recovering: false,  /*  a NAK is being recovered via silent refresh  */
 };
 
@@ -104,8 +115,10 @@ function mt_create(gobj)
      *  the very first inter-event. Independent of the dev window. */
     apply_dev_traces();
 
-    /*  Config service (child of self).  */
-    gobj_create_service("agent_config", "C_AGENT_CONFIG", {}, gobj);
+    /*  Config service (child of self).  Subscribe to selection changes so
+     *  the multi-agent console tabs track selected_nodes. */
+    let config = gobj_create_service("agent_config", "C_AGENT_CONFIG", {}, gobj);
+    gobj_subscribe_event(config, "EV_SELECTED_NODES_CHANGED", {}, gobj);
 
     /*  Login service (child of self) — subscribe to all its output
      *  events (EV_LOGIN_ACCEPTED/DENIED/REFRESHED/LOGOUT_DONE) with the
@@ -122,6 +135,8 @@ function mt_create(gobj)
     gobj.priv.link = link;
     gobj_subscribe_event(link, "EV_ON_OPEN", {}, gobj);
     gobj_subscribe_event(link, "EV_ON_ID_NAK", {}, gobj);
+    /*  list-agents answers keep the live-node set fresh (tab red state). */
+    gobj_subscribe_event(link, "EV_MT_COMMAND_ANSWER", {}, gobj);
 }
 
 /***************************************************************
@@ -227,6 +242,10 @@ function build_shell(gobj)
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_LOGOUT",          {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
+    /*  Multi-agent console: a tab's ✕ removes its node; landing on the
+     *  console home redirects to the first open node tab. */
+    gobj_subscribe_event(shell, "EV_NAV_ITEM_CLOSE",  {}, gobj);
+    gobj_subscribe_event(shell, "EV_ROUTE_CHANGED",   {}, gobj);
     gobj_start_tree(shell);
 
     yui_shell_set_avatar_provider(shell, () => compute_initials(gobj));
@@ -265,12 +284,117 @@ function update_theme_icon(gobj)
 function destroy_shell(gobj)
 {
     let priv = gobj.priv;
+    stop_live_timer(gobj);
     if(priv.shell) {
         if(gobj_is_running(priv.shell)) {
             gobj_stop_tree(priv.shell);
         }
         gobj_destroy(priv.shell);
         priv.shell = null;
+    }
+}
+
+
+/***************************************************************
+ *      Multi-agent console tabs controller
+ *
+ *  Selected nodes (C_AGENT_CONFIG.selected_nodes) drive one top-sub
+ *  tab per node, built at runtime via yui_shell_set_submenu(). Each
+ *  tab routes to a C_AGENT_CONSOLE pinned to that node; it is red when
+ *  the node is not in the live list-agents set, and closable.
+ ***************************************************************/
+const CONSOLE_HOME_ROUTE = "/console/agent";
+
+function console_tab_route(id)
+{
+    return CONSOLE_HOME_ROUTE + "/" + encodeURIComponent(id);
+}
+
+/*  nav item id "node-<id>" -> "<id>"  */
+function node_id_from_item(item_id)
+{
+    let s = String(item_id || "");
+    return s.startsWith("node-") ? s.slice(5) : "";
+}
+
+/*  Parse a list-agents result into a set of live node ids (host||uuid). */
+function parse_live_hosts(data)
+{
+    let live = {};
+    if(Array.isArray(data)) {
+        for(let line of data) {
+            let s = String(line || "");
+            let uuid = (/UUID:(\S+)/.exec(s) || [])[1] || "";
+            let host = (/HOSTNAME:'([^']*)'/.exec(s) || [])[1] || "";
+            let id = host || uuid;
+            if(id) {
+                live[id] = true;
+            }
+        }
+    }
+    return live;
+}
+
+/*  One tab per selected node; red when not live; each closable. */
+function rebuild_console_tabs(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.shell) {
+        return;
+    }
+    let config = gobj_find_service("agent_config", false);
+    let nodes = config ? agent_config_get_selected_nodes(config) : [];
+    let live = priv.live_hosts || {};
+    let items = nodes.map((n) => {
+        let connected = !!live[n.id];
+        return {
+            id:       "node-" + n.id,
+            name:     n.host || n.id,
+            route:    console_tab_route(n.id),
+            class:    connected ? "" : "yui-nav-disconnected",
+            closable: true,
+            target: {
+                stage:     "main",
+                gclass:    "C_AGENT_CONSOLE",
+                kw:        {node: n.id, title: n.host || n.id},
+                lifecycle: "keep_alive"
+            }
+        };
+    });
+    yui_shell_set_submenu(priv.shell, "console", items);
+}
+
+/*  Route of the first open node tab, or null when none. */
+function console_first_route(gobj)
+{
+    let config = gobj_find_service("agent_config", false);
+    let nodes = config ? agent_config_get_selected_nodes(config) : [];
+    return nodes.length ? console_tab_route(nodes[0].id) : null;
+}
+
+function request_live_agents(gobj)
+{
+    let link = gobj.priv.link;
+    if(link && agent_link_is_connected(link)) {
+        agent_link_command(link, "list-agents", {});
+    }
+}
+
+function start_live_timer(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.live_timer) {
+        return;
+    }
+    priv.live_timer = setInterval(() => request_live_agents(gobj), 10000);
+}
+
+function stop_live_timer(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.live_timer) {
+        clearInterval(priv.live_timer);
+        priv.live_timer = null;
     }
 }
 
@@ -318,6 +442,12 @@ function ac_on_open(gobj, event, kw, src)
     }
     let shell = build_shell(gobj);
     yui_shell_refresh_avatars(shell);
+
+    /*  Multi-agent console: paint the per-node tabs from the persisted
+     *  selection, then keep the live-node set (tab red state) fresh. */
+    rebuild_console_tabs(gobj);
+    request_live_agents(gobj);
+    start_live_timer(gobj);
     return 0;
 }
 
@@ -463,6 +593,76 @@ function ac_open_devtools(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Selected nodes changed (Nodes checkbox or a closed tab) →
+ *  rebuild the console tabs.
+ ***************************************************************/
+function ac_selected_nodes_changed(gobj, event, kw, src)
+{
+    rebuild_console_tabs(gobj);
+    return 0;
+}
+
+/***************************************************************
+ *  A console tab's ✕ → drop that node; if it was the visible tab,
+ *  land on a remaining one (or the home empty-state).
+ ***************************************************************/
+function ac_nav_item_close(gobj, event, kw, src)
+{
+    let id = node_id_from_item(kw && kw.item_id);
+    if(!id) {
+        return 0;
+    }
+    let shell = gobj.priv.shell;
+    let closed_route = (kw && kw.route) || console_tab_route(id);
+    let was_active = !!(shell && gobj_read_attr(shell, "current_route") === closed_route);
+
+    let config = gobj_find_service("agent_config", false);
+    if(config) {
+        /*  -> EV_SELECTED_NODES_CHANGED -> ac_selected_nodes_changed -> rebuild */
+        agent_config_remove_selected_node(config, id);
+    }
+    if(was_active && shell) {
+        yui_shell_navigate(shell, console_first_route(gobj) || CONSOLE_HOME_ROUTE);
+    }
+    return 0;
+}
+
+/***************************************************************
+ *  Landing on the console home with nodes open → jump to the first
+ *  tab (deferred, so we don't re-enter navigate_to mid-publish).
+ ***************************************************************/
+function ac_route_changed(gobj, event, kw, src)
+{
+    if(((kw && kw.route) || "") !== CONSOLE_HOME_ROUTE) {
+        return 0;
+    }
+    let first = console_first_route(gobj);
+    if(first) {
+        setTimeout(() => {
+            if(gobj.priv.shell) {
+                yui_shell_navigate(gobj.priv.shell, first);
+            }
+        }, 0);
+    }
+    return 0;
+}
+
+/***************************************************************
+ *  list-agents answer → refresh the live-node set + recolor tabs.
+ ***************************************************************/
+function ac_link_answer(gobj, event, kw, src)
+{
+    let stk = msg_iev_get_stack(gobj, kw, "command_stack", false);
+    let command = kw_get_str(gobj, stk, "command", "", 0);
+    if(command !== "list-agents") {
+        return 0;
+    }
+    gobj.priv.live_hosts = parse_live_hosts(kw.data);
+    rebuild_console_tabs(gobj);
+    return 0;
+}
+
 
 
 
@@ -509,7 +709,12 @@ function create_gclass(gclass_name)
             ["EV_LOGOUT",           ac_logout,          null],
             ["EV_TOGGLE_THEME",     ac_toggle_theme,    null],
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language, null],
-            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,   null]
+            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,   null],
+            /*  multi-agent console tabs  */
+            ["EV_SELECTED_NODES_CHANGED", ac_selected_nodes_changed, null],
+            ["EV_NAV_ITEM_CLOSE",   ac_nav_item_close,  null],
+            ["EV_ROUTE_CHANGED",    ac_route_changed,   null],
+            ["EV_MT_COMMAND_ANSWER", ac_link_answer,    null]
         ]]
     ];
 
@@ -527,7 +732,11 @@ function create_gclass(gclass_name)
         ["EV_LOGOUT",           0],
         ["EV_TOGGLE_THEME",     0],
         ["EV_TOGGLE_LANGUAGE",  0],
-        ["EV_OPEN_DEVTOOLS",    0]
+        ["EV_OPEN_DEVTOOLS",    0],
+        ["EV_SELECTED_NODES_CHANGED", 0],
+        ["EV_NAV_ITEM_CLOSE",   0],
+        ["EV_ROUTE_CHANGED",    0],
+        ["EV_MT_COMMAND_ANSWER", 0]
     ];
 
     __gclass__ = gclass_create(
