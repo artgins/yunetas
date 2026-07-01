@@ -245,6 +245,7 @@ function build_ui(gobj)
     let $input_control = createElement2(["div", {class: "CONSOLE_INPUT_CONTROL control is-expanded"}, [$input]]);
     attach_clear($input_control, $input, () => {
         priv.$comment.textContent = "";
+        priv.$comment.classList.add("is-hidden");
         priv.$data.textContent = "";
     });
 
@@ -255,7 +256,7 @@ function build_ui(gobj)
      *  (--bulma-pre-*) drive background/text so both panels read well in
      *  light AND dark.  */
     let $comment = createElement2(
-        ["pre", {class: "CONSOLE_COMMENT is-size-7 mb-2",
+        ["pre", {class: "CONSOLE_COMMENT is-size-7 is-hidden",
                  style: "white-space:pre-wrap; padding:0.5rem; border-radius:4px; min-height:1.5rem;"},
             ""]
     );
@@ -269,16 +270,16 @@ function build_ui(gobj)
     priv.$data = $data;
 
     let $c = createElement2(
-        ["div", {class: "C_AGENT_CONSOLE CONSOLE_CARD view-card", style: "display:flex; flex-direction:column; height:100%;"},
+        ["div", {class: "C_AGENT_CONSOLE CONSOLE_CARD view-card", style: "display:flex; flex-direction:column; height:100%; gap:0.5rem;"},
             [
                 $status,
-                $comment,
                 $data,
                 $datalist,
-                ["div", {class: "CONSOLE_INPUT_ROW field has-addons"}, [
+                ["div", {class: "CONSOLE_INPUT_ROW field has-addons mb-0"}, [
                     $input_control,
                     ["div", {class: "control"}, [$exec]]
-                ]]
+                ]],
+                $comment
             ]
         ]
     );
@@ -315,8 +316,14 @@ function show_comment(gobj, comment, result)
     if(!priv.$comment) {
         return;
     }
-    priv.$comment.textContent = comment || "";
-    priv.$comment.classList.toggle("has-text-danger", typeof result === "number" && result < 0);
+    let is_error = typeof result === "number" && result < 0;
+    let text = comment || "";
+    priv.$comment.textContent = text;
+    priv.$comment.classList.toggle("has-text-danger", is_error);
+    /*  Only surface the comment line on an error answer; on success the
+     *  payload goes to CONSOLE_RESPONSE, so keep it hidden to reclaim
+     *  vertical space (matters on mobile). */
+    priv.$comment.classList.toggle("is-hidden", !(is_error && text !== ""));
 }
 
 /***************************************************************
