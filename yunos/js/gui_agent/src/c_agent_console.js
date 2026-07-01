@@ -478,8 +478,36 @@ function update_hint(gobj)
 }
 
 /***************************************************************
- *  Tab completion of the command word: complete to the longest
- *  common prefix, or the unique match (+ a trailing space).
+ *  All known command names (seed + cached).
+ ***************************************************************/
+function command_names(gobj)
+{
+    let pool = new Set(SEED_COMMANDS);
+    for(let name in gobj.priv.commands) {
+        pool.add(name);
+    }
+    return Array.from(pool);
+}
+
+/***************************************************************
+ *  Longest common prefix of a non-empty string array.
+ ***************************************************************/
+function longest_common_prefix(arr)
+{
+    return arr.reduce((a, b) => {
+        let i = 0;
+        while(i < a.length && i < b.length && a[i] === b[i]) {
+            i++;
+        }
+        return a.slice(0, i);
+    });
+}
+
+/***************************************************************
+ *  Tab completion of the LAST token: the command name when still on
+ *  the first word, otherwise a parameter of that command (the ones
+ *  not yet used on the line), completed to the common prefix / unique
+ *  match.  Params complete with a trailing '=' (ready for the value).
  *  Returns true when it changed the input.
  ***************************************************************/
 function complete_command(gobj)
@@ -488,41 +516,47 @@ function complete_command(gobj)
     let raw = String(priv.$input.value || "");
     let star = raw.charAt(0) === "*" ? "*" : "";
     let body = star ? raw.slice(1) : raw;
-    /*  Only the first word (the command name); leave args alone. */
-    if(/\s/.test(body.trim())) {
-        return false;
-    }
-    let prefix = body.trim();
-    if(!prefix) {
-        return false;
-    }
-    let pool = new Set(SEED_COMMANDS);
-    for(let name in priv.commands) {
-        pool.add(name);
-    }
-    let matches = [];
-    for(let n of pool) {
-        if(n.indexOf(prefix) === 0) {
-            matches.push(n);
+
+    let last_space = body.lastIndexOf(" ");
+    let cur = body.slice(last_space + 1);        /*  token being typed  */
+    let before = body.slice(0, last_space + 1);  /*  keeps the trailing space  */
+
+    let candidates;
+    if(last_space < 0) {
+        /*  Completing the command name.  */
+        candidates = command_names(gobj);
+    } else {
+        /*  Completing a parameter of the first word.  */
+        let name = body.trimStart().split(/\s+/)[0] || "";
+        let cmd = priv.commands[name];
+        if(!cmd || !cmd.params.length) {
+            return false;
         }
+        let used = {};
+        let re = /([a-zA-Z0-9_]+)=/g;
+        let m;
+        while((m = re.exec(body)) !== null) {
+            used[m[1]] = true;
+        }
+        candidates = cmd.params
+            .filter((p) => !used[p])
+            .map((p) => `${p}=`);
     }
+
+    let matches = candidates.filter((c) => c.indexOf(cur) === 0);
     if(matches.length === 0) {
         return false;
     }
-    let common = matches.reduce((a, b) => {
-        let i = 0;
-        while(i < a.length && i < b.length && a[i] === b[i]) {
-            i++;
-        }
-        return a.slice(0, i);
-    });
-    if(common.length > prefix.length) {
-        priv.$input.value = star + common;
+    let common = longest_common_prefix(matches);
+    if(common.length > cur.length) {
+        priv.$input.value = star + before + common;
         update_hint(gobj);
         return true;
     }
     if(matches.length === 1) {
-        priv.$input.value = star + matches[0] + " ";
+        /*  Command names get a trailing space; params already end with '='. */
+        let suffix = (last_space < 0) ? " " : "";
+        priv.$input.value = star + before + matches[0] + suffix;
         update_hint(gobj);
         return true;
     }
