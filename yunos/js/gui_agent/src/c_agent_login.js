@@ -349,6 +349,19 @@ function ac_timeout(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  EV_DO_REFRESH — force a token refresh now (e.g. the app got a
+ *  WebSocket NAK after sleep: the access token expired but the
+ *  refresh token may still be valid).  Success -> EV_LOGIN_REFRESHED
+ *  (fresh cookie), failure -> EV_LOGIN_DENIED (-> ST_LOGOUT, so the
+ *  login form works again).
+ ***************************************************************/
+function ac_do_refresh(gobj, event, kw, src)
+{
+    do_bff_refresh(gobj);
+    return 0;
+}
+
 
 
 
@@ -385,6 +398,7 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_LOGOUT", [
             ["EV_DO_LOGIN",        ac_do_login,        "ST_WAIT_TOKEN"],
+            ["EV_DO_REFRESH",      ac_do_refresh,      null],
             ["EV_LOGIN_DENIED",    ac_login_denied,    null],
             ["EV_DO_LOGOUT",       ac_clear_session,   null],
             ["EV_LOGOUT_DONE",     ac_clear_session,   null]
@@ -396,6 +410,7 @@ function create_gclass(gclass_name)
         ]],
         ["ST_LOGIN", [
             ["EV_DO_LOGOUT",       ac_do_logout,       null],
+            ["EV_DO_REFRESH",      ac_do_refresh,      null],
             ["EV_LOGIN_REFRESHED", ac_login_refreshed, null],
             ["EV_LOGIN_DENIED",    ac_login_denied,    "ST_LOGOUT"],
             ["EV_LOGOUT_DONE",     ac_logout_done,     "ST_LOGOUT"],
@@ -410,6 +425,7 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_DO_LOGIN",        0],
         ["EV_DO_LOGOUT",       0],
+        ["EV_DO_REFRESH",      0],
         ["EV_TIMEOUT",         0],
         ["EV_LOGIN_ACCEPTED",  out],
         ["EV_LOGIN_REFRESHED", out],

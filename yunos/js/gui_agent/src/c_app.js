@@ -73,9 +73,10 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    shell:    null,
-    login_ui: null,
-    link:     null,
+    shell:          null,
+    login_ui:       null,
+    link:           null,
+    nak_recovering: false,  /*  a NAK is being recovered via silent refresh  */
 };
 
 let __gclass__ = null;
@@ -311,6 +312,7 @@ function ac_login_accepted(gobj, event, kw, src)
  ***************************************************************/
 function ac_on_open(gobj, event, kw, src)
 {
+    gobj.priv.nak_recovering = false;   /*  session open again: recovery done  */
     if(kw && kw.username) {
         gobj_write_str_attr(gobj, "username", kw.username);
     }
@@ -326,6 +328,7 @@ function ac_on_open(gobj, event, kw, src)
 function ac_login_denied(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    priv.nak_recovering = false;
     let msg = (kw && (kw.error || kw.error_code)) || t("login failed");
 
     if(priv.shell) {
@@ -348,6 +351,26 @@ function ac_login_denied(gobj, event, kw, src)
  ***************************************************************/
 function ac_on_id_nak(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+    let login = gobj_find_service("agent_login", false);
+
+    /*  A WebSocket NAK after sleep is usually just an expired access token
+     *  while the refresh token is still valid (an F5 would restore the
+     *  session).  Try a SILENT refresh + reconnect ONCE, keeping the shell
+     *  up; only fall back to the login screen if the refresh itself fails
+     *  (login self-resets to ST_LOGOUT then) or a second NAK follows.  */
+    if(login && !priv.nak_recovering) {
+        priv.nak_recovering = true;
+        gobj_send_event(login, "EV_DO_REFRESH", {}, gobj);
+        return 0;
+    }
+
+    /*  Second NAK after a successful refresh (deeper auth problem): reset
+     *  the login FSM so the login form accepts a fresh submit. */
+    priv.nak_recovering = false;
+    if(login) {
+        gobj_send_event(login, "EV_DO_LOGOUT", {}, gobj);
+    }
     return ac_login_denied(gobj, event,
         {error: (kw && kw.comment) || t("authentication required")}, src);
 }
@@ -366,6 +389,14 @@ function ac_restore_failed(gobj, event, kw, src)
  ***************************************************************/
 function ac_login_refreshed(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+    /*  If this refresh was triggered to recover from a NAK, the cookie is
+     *  now fresh — reconnect the control-center link.  nak_recovering
+     *  stays set until EV_ON_OPEN confirms success, so a second NAK falls
+     *  back to the login screen instead of looping. */
+    if(priv.nak_recovering && priv.link) {
+        gobj_send_event(priv.link, "EV_REOPEN", {}, gobj);
+    }
     return 0;
 }
 
