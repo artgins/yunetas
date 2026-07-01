@@ -248,7 +248,7 @@ function build_ui(gobj)
         priv.$data.textContent = "";
     });
 
-    let $status = createElement2(["p", {class: "is-size-5 has-text-grey mb-2"}, ""]);
+    let $status = createElement2(["p", {class: "is-size-5 has-text-grey"}, ""]);
     priv.$status = $status;
 
     /*  No hardcoded colours: let Bulma's theme-aware <pre> styling
