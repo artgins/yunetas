@@ -12,6 +12,22 @@
       `register_zcrx_ctrl`) are additive and unused here. `liburing.a` is
       linked statically into every yuno, so yunos that link `yev_loop` must be
       rebuilt + relinked (`extrae.sh` + `configure-libs.sh`) to pick it up.
+    - **feat(js): `attach_clear()` in `@yuneta/gobj-ui` (submodule bump).** New
+      reusable helper (`kernel/js/gobj-ui/src/yui_inputs.{js,css}`, exported from
+      `index.js`) that adds a Bulma `.delete` clear (✕) button to any `.control`
+      wrapping an `<input>` — shown only while the field has content, clearing +
+      refocusing + dispatching a synthetic `input` event on click. Its CSS scopes
+      under `.control.has-clear` so it wins over Bulma's `.delete` regardless of
+      stylesheet load order. Adopted by the Agent Console (`gui_agent`) search and
+      command inputs.
+    - **fix(js): `gui_agent` Agent Console — command round-trip works.** Commands
+      are now sent from the `agent_link` **service** (not a routed view), honoring
+      the inter-yuno contract (cross-boundary events only between named services
+      with public events), so the agent's answer routes back cleanly instead of
+      logging `gobj service not found`; the Console displays the agent's real
+      asynchronous answer (not just the controlcenter dispatch ack). Nodes list
+      rebuilt on Tabulator (search / sort / active-row highlight), response panes
+      and active-row made theme-aware for dark mode.
 
 ## 7.6.7
     - **fix(security): close three buffer/parse defects found in a source

@@ -45,12 +45,24 @@ estadodelaire/hidraulia.
 
 ## Transport to the agent
 
-The CLI panel will create a `C_IEVENT_CLI` child (from `@yuneta/gobj-js`) and
-send commands with `gobj_command(iev, command, kw, src)`, exactly like
-`ycommand`. Defaults match `ycommand`: remote role `yuneta_agent`, service
-`__default_service__`, transport `wss://…:1993` (OAuth2) or `ws://…:1991`
-(plain, local only). Answers arrive as `EV_MT_COMMAND_ANSWER`
-(`{result, comment, schema, data}`).
+A single shared **`C_AGENT_LINK`** service (`"agent_link"`) owns the one
+`C_IEVENT_CLI` to the **control center** co-located on the SPA's host
+(`wss://<host>:1996`, derived in `src/conf/deploy.js`); the control center then
+federates to the remote nodes' agents. Panels don't own a transport — they call
+`agent_link_command(link, command, kw)` and receive answers via the link's
+re-published `EV_MT_COMMAND_ANSWER` (`{result, comment, schema, data}`).
+
+**Inter-yuno service contract.** A command's answer is addressed (across the
+browser↔backend yuno boundary) to the *name* of its `src`, and cross-boundary
+delivery only works between **named services with public events**. So commands
+are sent with `src` = the `agent_link` service (which declares the answer events
+`EVF_PUBLIC_EVENT`), never a routed view; `agent_link` re-publishes the answer to
+the view panels intra-yuno. A panel that *is* a named service (e.g.
+`C_TREEDB_GATE`) may pass itself as `src` and receive the reply directly.
+
+The Console targets remote role `controlcenter` / service `controlcenter` and
+wraps each typed line in a `command-agent` (which returns a synchronous dispatch
+ack plus the agent's asynchronous real answer).
 
 ## Build & run
 
