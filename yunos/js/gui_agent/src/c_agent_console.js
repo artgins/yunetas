@@ -219,7 +219,7 @@ function build_ui(gobj)
     priv.$datalist = $datalist;
 
     let $input = createElement2(["input", {
-        class:        "input is-family-monospace",
+        class:        "CONSOLE_INPUT input is-family-monospace",
         type:         "text",
         list:         "agent-cmd-history",
         placeholder:  "help",
@@ -235,49 +235,50 @@ function build_ui(gobj)
     priv.$input = $input;
 
     let $exec = createElement2(
-        ["button", {class: "button is-primary", type: "button", i18n: "execute"}, "Execute"],
+        ["button", {class: "CONSOLE_EXEC button is-primary", type: "button", i18n: "execute"}, "Execute"],
         t
     );
     $exec.addEventListener("click", () => send_command(gobj));
 
     /*  No separate Clear button: the input's own ✕ (attach_clear) wipes
      *  the command, and its on_clear also empties the response panel.  */
-    let $input_control = createElement2(["div", {class: "control is-expanded"}, [$input]]);
+    let $input_control = createElement2(["div", {class: "CONSOLE_INPUT_CONTROL control is-expanded"}, [$input]]);
     attach_clear($input_control, $input, () => {
         priv.$comment.textContent = "";
         priv.$data.textContent = "";
     });
 
-    let $status = createElement2(["p", {class: "has-text-grey"}, ""]);
+    let $status = createElement2(["p", {class: "CONSOLE_STATUS has-text-grey"}, ""]);
     priv.$status = $status;
 
     /*  No hardcoded colours: let Bulma's theme-aware <pre> styling
      *  (--bulma-pre-*) drive background/text so both panels read well in
      *  light AND dark.  */
     let $comment = createElement2(
-        ["pre", {class: "is-size-7 mb-2",
+        ["pre", {class: "CONSOLE_COMMENT is-size-7 mb-2",
                  style: "white-space:pre-wrap; padding:0.5rem; border-radius:4px; min-height:1.5rem;"},
             ""]
     );
     priv.$comment = $comment;
 
     let $data = createElement2(
-        ["pre", {style: "flex:1; overflow:auto; padding:0.75rem; border-radius:4px; font-size:12px;"},
+        ["pre", {class: "CONSOLE_RESPONSE",
+                 style: "flex:1; overflow:auto; padding:0.75rem; border-radius:4px; font-size:12px;"},
             ""]
     );
     priv.$data = $data;
 
     let $c = createElement2(
-        ["div", {class: "view-card", style: "display:flex; flex-direction:column; height:100%;"},
+        ["div", {class: "C_AGENT_CONSOLE CONSOLE_CARD view-card", style: "display:flex; flex-direction:column; height:100%;"},
             [
                 $status,
-                ["div", {class: "field has-addons mb-2"}, [
+                $comment,
+                $data,
+                $datalist,
+                ["div", {class: "CONSOLE_INPUT_ROW field has-addons"}, [
                     $input_control,
                     ["div", {class: "control"}, [$exec]]
-                ]],
-                $datalist,
-                $comment,
-                $data
+                ]]
             ]
         ]
     );
