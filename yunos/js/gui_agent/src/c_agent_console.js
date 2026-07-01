@@ -23,7 +23,7 @@
 import {
     SDATA, SDATA_END, data_type_t,
     gclass_create, log_error,
-    gobj_parent,
+    gobj_parent, gobj_name,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_find_service,
@@ -99,7 +99,10 @@ function mt_create(gobj)
     priv.$comment = null;
     priv.$data = null;
     priv.$datalist = null;
+    priv.$hint = null;
     priv.tabulator = null;    /*  Tabulator instance for table-mode answers  */
+    priv.commands = {};       /*  name -> {name, params[], desc} from `help`  */
+    priv.commands_loaded = false;
 
     /*
      *  CHILD subscription model
@@ -142,6 +145,7 @@ function mt_start(gobj)
         return;   /*  empty-state panel: nothing to refresh  */
     }
     refresh_status(gobj);
+    ensure_commands_cache(gobj);
 }
 
 /***************************************************************
@@ -251,27 +255,36 @@ function build_ui(gobj)
 {
     let priv = gobj.priv;
 
-    let $datalist = createElement2(["datalist", {id: "agent-cmd-history"}, []]);
-    for(let c of SEED_COMMANDS) {
-        $datalist.appendChild(createElement2(["option", {value: c}]));
-    }
+    /*  Unique per panel — several console panels coexist (one per node),
+     *  so a shared datalist id would cross-wire their completions. */
+    let list_id = `cmd-list-${gobj_name(gobj)}`;
+    let $datalist = createElement2(["datalist", {id: list_id}, []]);
     priv.$datalist = $datalist;
 
     let $input = createElement2(["input", {
         class:        "CONSOLE_INPUT input is-family-monospace",
         type:         "text",
-        list:         "agent-cmd-history",
+        list:         list_id,
         placeholder:  "help",
+        autocomplete: "off",
         "aria-label": "command"
     }, null, {
         keydown: (ev) => {
             if(ev.key === "Enter") {
                 ev.preventDefault();
                 send_command(gobj);
+            } else if(ev.key === "Tab") {
+                /*  Complete the command word to the unique match / common
+                 *  prefix; only swallow Tab when it actually completes. */
+                if(complete_command(gobj)) {
+                    ev.preventDefault();
+                }
             }
-        }
+        },
+        input: () => update_hint(gobj)
     }]);
     priv.$input = $input;
+    populate_datalist(gobj);   /*  SEED + any cached commands + history  */
 
     let $exec = createElement2(
         ["button", {class: "CONSOLE_EXEC button is-primary", type: "button", i18n: "execute"}, "Execute"],
@@ -290,6 +303,14 @@ function build_ui(gobj)
 
     let $status = createElement2(["p", {class: "CONSOLE_STATUS has-text-grey"}, ""]);
     priv.$status = $status;
+
+    /*  Command helper: shows the matched command's signature + description
+     *  as you type (from the `help` cache). Hidden when nothing matches. */
+    let $hint = createElement2(
+        ["p", {class: "CONSOLE_HINT is-size-7 is-family-monospace has-text-grey is-hidden",
+               style: "white-space:pre-wrap; margin:0;"}, ""]
+    );
+    priv.$hint = $hint;
 
     /*  No hardcoded colours: let Bulma's theme-aware <pre> styling
      *  (--bulma-pre-*) drive background/text so both panels read well in
@@ -319,6 +340,7 @@ function build_ui(gobj)
                     $input_control,
                     ["div", {class: "control"}, [$exec]]
                 ]],
+                $hint,
                 $comment
             ]
         ]
@@ -345,6 +367,166 @@ function add_history(gobj, cmd)
         !priv.$datalist.querySelector(`option[value="${CSS.escape(cmd)}"]`)) {
         priv.$datalist.appendChild(createElement2(["option", {value: cmd}]));
     }
+}
+
+/***************************************************************
+ *  Command helper: cache this node's command list once, by fetching
+ *  `help` and parsing it. The answer is tagged console_purpose:"cache"
+ *  in __md_iev__ so ac_mt_command_answer routes it here (not to the
+ *  response panel).
+ ***************************************************************/
+function ensure_commands_cache(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.commands_loaded) {
+        return;
+    }
+    let node = gobj_read_attr(gobj, "node") || "";
+    let link = gobj_read_attr(gobj, "link_svc");
+    if(!node || !link || !agent_link_is_connected(link)) {
+        return;
+    }
+    let kw_send = {agent_id: node, cmd2agent: "help"};
+    msg_iev_write_key(kw_send, "console_node", node);
+    msg_iev_write_key(kw_send, "console_purpose", "cache");
+    agent_link_command(link, "command-agent", kw_send);
+}
+
+/***************************************************************
+ *  Parse a `help` answer into {name -> {name, params[], desc}}.
+ *  Command lines look like:
+ *    - list-yunos            (1 ) [id='?'] [realm_id='?'] ... . List all yunos
+ ***************************************************************/
+function parse_help(text)
+{
+    let cmds = {};
+    let lines = String(text || "").split("\n");
+    for(let line of lines) {
+        let m = /^-\s+(\S+)\s*(?:\(([^)]*)\))?\s*(.*)$/.exec(line);
+        if(!m) {
+            continue;
+        }
+        let name = m[1];
+        let rest = m[3] || "";
+        let params = [];
+        let re = /\[([a-zA-Z0-9_]+)=/g;
+        let pm;
+        while((pm = re.exec(rest)) !== null) {
+            params.push(pm[1]);
+        }
+        let desc = rest.replace(/\[[^\]]*\]/g, "").replace(/^[\s.]+/, "").trim();
+        cmds[name] = {name: name, params: params, desc: desc};
+    }
+    return cmds;
+}
+
+/***************************************************************
+ *  Store the parsed command cache + refresh the datalist.
+ ***************************************************************/
+function load_commands_cache(gobj, help_text)
+{
+    let priv = gobj.priv;
+    priv.commands = parse_help(help_text);
+    priv.commands_loaded = true;
+    populate_datalist(gobj);
+    update_hint(gobj);
+}
+
+/***************************************************************
+ *  Rebuild the datalist from SEED + cached command names + history.
+ ***************************************************************/
+function populate_datalist(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.$datalist) {
+        return;
+    }
+    let names = new Set(SEED_COMMANDS);
+    for(let name in priv.commands) {
+        names.add(name);
+    }
+    for(let h of priv.history) {
+        names.add(h);
+    }
+    priv.$datalist.replaceChildren();
+    for(let n of names) {
+        priv.$datalist.appendChild(createElement2(["option", {value: n}]));
+    }
+}
+
+/***************************************************************
+ *  Show the current command's signature under the input.
+ ***************************************************************/
+function update_hint(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.$hint || !priv.$input) {
+        return;
+    }
+    let val = String(priv.$input.value || "").replace(/^\*/, "").trimStart();
+    let word = val.split(/\s+/)[0] || "";
+    let cmd = word ? priv.commands[word] : null;
+    if(cmd) {
+        let sig = (cmd.params.length ? " " + cmd.params.map((p) => `[${p}]`).join(" ") : "");
+        let desc = cmd.desc ? `  —  ${cmd.desc}` : "";
+        priv.$hint.textContent = word + sig + desc;
+        priv.$hint.classList.remove("is-hidden");
+    } else {
+        priv.$hint.textContent = "";
+        priv.$hint.classList.add("is-hidden");
+    }
+}
+
+/***************************************************************
+ *  Tab completion of the command word: complete to the longest
+ *  common prefix, or the unique match (+ a trailing space).
+ *  Returns true when it changed the input.
+ ***************************************************************/
+function complete_command(gobj)
+{
+    let priv = gobj.priv;
+    let raw = String(priv.$input.value || "");
+    let star = raw.charAt(0) === "*" ? "*" : "";
+    let body = star ? raw.slice(1) : raw;
+    /*  Only the first word (the command name); leave args alone. */
+    if(/\s/.test(body.trim())) {
+        return false;
+    }
+    let prefix = body.trim();
+    if(!prefix) {
+        return false;
+    }
+    let pool = new Set(SEED_COMMANDS);
+    for(let name in priv.commands) {
+        pool.add(name);
+    }
+    let matches = [];
+    for(let n of pool) {
+        if(n.indexOf(prefix) === 0) {
+            matches.push(n);
+        }
+    }
+    if(matches.length === 0) {
+        return false;
+    }
+    let common = matches.reduce((a, b) => {
+        let i = 0;
+        while(i < a.length && i < b.length && a[i] === b[i]) {
+            i++;
+        }
+        return a.slice(0, i);
+    });
+    if(common.length > prefix.length) {
+        priv.$input.value = star + common;
+        update_hint(gobj);
+        return true;
+    }
+    if(matches.length === 1) {
+        priv.$input.value = star + matches[0] + " ";
+        update_hint(gobj);
+        return true;
+    }
+    return false;
 }
 
 /***************************************************************
@@ -599,6 +781,7 @@ function ac_on_open(gobj, event, kw, src)
     gobj.priv.got_nak = false;
     let remote = `${kw.remote_yuno_role || ""}^${kw.remote_yuno_name || ""}`;
     set_status(gobj, true, `${t("connected")} · ${remote}`);
+    ensure_commands_cache(gobj);
     return 0;
 }
 
@@ -693,6 +876,13 @@ function ac_mt_command_answer(gobj, event, kw, src)
             show_comment(gobj, kw.comment, kw.result);
             show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw), kw.comment, kw.result);
         }
+        return 0;
+    }
+
+    /*  Command-cache fetch (a `help` sent by ensure_commands_cache):
+     *  parse it into the completion cache instead of rendering it. */
+    if(msg_iev_read_key(kw, "console_purpose") === "cache") {
+        load_commands_cache(gobj, kw.comment);
         return 0;
     }
 
