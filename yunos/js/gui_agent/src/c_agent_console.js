@@ -251,15 +251,18 @@ function build_ui(gobj)
     let $status = createElement2(["p", {class: "is-size-7 has-text-grey mb-2"}, ""]);
     priv.$status = $status;
 
+    /*  No hardcoded colours: let Bulma's theme-aware <pre> styling
+     *  (--bulma-pre-*) drive background/text so both panels read well in
+     *  light AND dark.  */
     let $comment = createElement2(
         ["pre", {class: "is-size-7 mb-2",
-                 style: "white-space:pre-wrap; background:#F4F6F8; padding:0.5rem; border-radius:4px; min-height:1.5rem;"},
+                 style: "white-space:pre-wrap; padding:0.5rem; border-radius:4px; min-height:1.5rem;"},
             ""]
     );
     priv.$comment = $comment;
 
     let $data = createElement2(
-        ["pre", {style: "flex:1; overflow:auto; background:#1F2430; color:#D7DEE9; padding:0.75rem; border-radius:4px; font-size:12px;"},
+        ["pre", {style: "flex:1; overflow:auto; padding:0.75rem; border-radius:4px; font-size:12px;"},
             ""]
     );
     priv.$data = $data;
