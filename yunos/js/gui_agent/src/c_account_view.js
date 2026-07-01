@@ -38,7 +38,11 @@ import {current_locale, switch_locale} from "./locales/locales.js";
 import {app_set_theme} from "./c_app.js";
 import {agent_login_username, agent_login_is_logged_in} from "./c_agent_login.js";
 import {agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_active_node} from "./c_agent_config.js";
+import {
+    agent_config_get_active_node,
+    agent_config_get_display_mode,
+    agent_config_set_display_mode,
+} from "./c_agent_config.js";
 
 
 /***************************************************************
@@ -231,6 +235,24 @@ function build_preference(gobj)
         }
     );
 
+    /*  Command-answer display mode (Console), persisted on the shared
+     *  C_AGENT_CONFIG service — "table" or "form" (raw JSON).  */
+    let config = gobj_find_service("agent_config", false);
+    let display_mode = config ? agent_config_get_display_mode(config) : "table";
+    let display_seg = segment(
+        [
+            {value: "table", i18n: "table",    text: "Table",    icon: "yi-table"},
+            {value: "form",  i18n: "raw json", text: "Raw JSON", icon: "yi-square-js"}
+        ],
+        display_mode,
+        function(v) {
+            if(config) {
+                agent_config_set_display_mode(config, v);
+            }
+            render(gobj);
+        }
+    );
+
     function field(label_key, label_text, control)
     {
         return ["div", {class: "field", style: "margin-bottom:1.25rem;"},
@@ -248,7 +270,8 @@ function build_preference(gobj)
                 ["div", {class: "box", style: "max-width:540px;"},
                     [
                         field("theme", "Theme", theme_seg),
-                        field("language", "Language", lang_seg)
+                        field("language", "Language", lang_seg),
+                        field("display mode", "Command answers", display_seg)
                     ]
                 ]
             ]

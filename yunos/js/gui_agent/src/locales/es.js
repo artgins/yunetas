@@ -58,6 +58,8 @@ const es = {
         "treedb":            "TreeDB",
         "graph":             "Grafo",
         "table":             "Tabla",
+        "display mode":      "Respuestas de comandos",
+        "raw json":          "JSON crudo",
         "live":              "En vivo",
         "pick a treedb":     "Selecciona un treedb para abrir",
         "nodes":             "Nodos",

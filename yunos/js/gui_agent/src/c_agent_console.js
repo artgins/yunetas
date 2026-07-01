@@ -30,6 +30,8 @@ import {
     createElement2,
     refresh_language,
     msg_iev_get_stack,
+    msg_iev_write_key,
+    msg_iev_read_key,
     kw_get_str,
 } from "@yuneta/gobj-js";
 
@@ -39,7 +41,7 @@ import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_active_node} from "./c_agent_config.js";
+import {agent_config_get_active_node, agent_config_get_display_mode} from "./c_agent_config.js";
 
 
 /***************************************************************
@@ -328,8 +330,12 @@ function show_comment(gobj, comment, result)
 
 /***************************************************************
  *  Render the data payload of a command answer.
+ *
+ *  Mirrors ycommand: when `raw` (display_mode "form") show the raw
+ *  JSON; otherwise an array payload that carries a schema is drawn as a
+ *  fixed-width table, everything else falls back to raw JSON.
  ***************************************************************/
-function show_data(gobj, data)
+function show_data(gobj, data, schema, raw)
 {
     let priv = gobj.priv;
     if(!priv.$data) {
@@ -337,6 +343,11 @@ function show_data(gobj, data)
     }
     if(data === null || data === undefined) {
         priv.$data.textContent = "";
+        return;
+    }
+    if(!raw && Array.isArray(data) &&
+            Array.isArray(schema) && schema.length) {
+        priv.$data.textContent = json_table_to_text(schema, data);
         return;
     }
     if(typeof data === "string") {
@@ -347,6 +358,74 @@ function show_data(gobj, data)
         priv.$data.textContent = JSON.stringify(data, null, 2);
     } catch(e) {
         priv.$data.textContent = String(data);
+    }
+}
+
+/***************************************************************
+ *  Render an array of row objects as a fixed-width text table,
+ *  driven by a ycommand-style schema: each column has an `id`
+ *  (row field), a `header`, and a `fillspace` width (default 10,
+ *  0 = hidden column).
+ ***************************************************************/
+function json_table_to_text(schema, data)
+{
+    let cols = [];
+    for(let col of schema) {
+        let fillspace = (typeof col.fillspace === "number") ? col.fillspace : 10;
+        if(fillspace <= 0) {
+            continue;   /*  hidden column  */
+        }
+        let header = col.header || col.id || "";
+        if(fillspace < header.length) {
+            fillspace = header.length;
+        }
+        cols.push({id: col.id, header: header, w: fillspace});
+    }
+
+    let lines = [];
+    lines.push(cols.map((c) => pad_cell(c.header, c.w)).join(" "));
+    lines.push(cols.map((c) => "=".repeat(c.w)).join(" "));
+    for(let row of data) {
+        lines.push(cols.map((c) => {
+            return pad_cell(cell_to_text(row ? row[c.id] : undefined), c.w);
+        }).join(" "));
+    }
+    lines.push("");
+    lines.push(`Total: ${data.length}`);
+    return lines.join("\n");
+}
+
+/***************************************************************
+ *  Left-justify to `w`, truncating anything longer (like %-*.*s).
+ ***************************************************************/
+function pad_cell(s, w)
+{
+    s = (s === null || s === undefined) ? "" : String(s);
+    if(s.length > w) {
+        s = s.slice(0, w);
+    }
+    return s.padEnd(w);
+}
+
+/***************************************************************
+ *  A cell value as plain text: strings bare, numbers/booleans as
+ *  their literal, objects/arrays as compact JSON.
+ ***************************************************************/
+function cell_to_text(cell)
+{
+    if(cell === null || cell === undefined) {
+        return "";
+    }
+    if(typeof cell === "string") {
+        return cell;
+    }
+    if(typeof cell === "number" || typeof cell === "boolean") {
+        return String(cell);
+    }
+    try {
+        return JSON.stringify(cell);
+    } catch(e) {
+        return String(cell);
     }
 }
 
@@ -362,13 +441,26 @@ function send_command(gobj)
         return;
     }
 
+    /*  Like ycommand: the display mode is the persistent `display_mode`
+     *  attr (default "table"); a leading '*' overrides it to "form" (raw
+     *  JSON) for this one command. The '*' is a client-side flag — strip
+     *  it before sending.  */
+    let config = gobj_read_attr(gobj, "config_svc");
+    let mode = config ? agent_config_get_display_mode(config) : "table";
+    if(cmd.charAt(0) === "*") {
+        mode = "form";
+        cmd = cmd.slice(1).trim();
+        if(!cmd) {
+            return;
+        }
+    }
+
     let link = gobj_read_attr(gobj, "link_svc");
     if(!link || !gobj_read_attr(gobj, "connected")) {
         show_comment(gobj, t("not connected to an agent"), -1);
         return;
     }
 
-    let config = gobj_read_attr(gobj, "config_svc");
     let node = config ? agent_config_get_active_node(config) : "";
     if(!node) {
         show_comment(gobj, t("select a node"), -1);
@@ -381,8 +473,12 @@ function send_command(gobj)
 
     /*  src defaults to the link service; the answer routes back there
      *  and is re-published to this console (a routed view is not a
-     *  service and cannot receive the inter-yuno reply).  */
-    agent_link_command(link, "command-agent", {agent_id: node, cmd2agent: cmd});
+     *  service and cannot receive the inter-yuno reply).  The display
+     *  mode travels in __md_iev__ and is echoed back on the answer
+     *  (ycommand parity).  */
+    let kw_send = {agent_id: node, cmd2agent: cmd};
+    msg_iev_write_key(kw_send, "display_mode", mode);
+    agent_link_command(link, "command-agent", kw_send);
 }
 
 
@@ -449,6 +545,21 @@ function ac_on_id_nak(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  Effective display mode for an answer: the value echoed back in
+ *  __md_iev__ (set when the command was sent) wins; otherwise fall
+ *  back to the persistent `display_mode` attr. "form" => raw JSON.
+ ***************************************************************/
+function answer_is_raw(gobj, kw)
+{
+    let mode = msg_iev_read_key(kw, "display_mode");
+    if(!mode) {
+        let config = gobj_read_attr(gobj, "config_svc");
+        mode = config ? agent_config_get_display_mode(config) : "table";
+    }
+    return mode === "form";
+}
+
+/***************************************************************
  *  Command answer. The shared link re-publishes every answer; only
  *  render our own command-agent results (the node picker handles
  *  list-agents). Filter by the command in the command_stack.
@@ -472,14 +583,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
     if(command === "command-agent") {
         if(typeof kw.result === "number" && kw.result < 0) {
             show_comment(gobj, kw.comment, kw.result);
-            show_data(gobj, kw.data);
+            show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw));
         }
         return 0;
     }
 
     /*  Anything else is the agent's real answer to our command.  */
     show_comment(gobj, kw.comment, kw.result);
-    show_data(gobj, kw.data);
+    show_data(gobj, kw.data, kw.schema, answer_is_raw(gobj, kw));
     return 0;
 }
 

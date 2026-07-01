@@ -33,7 +33,8 @@ const GCLASS_NAME = "C_AGENT_CONFIG";
  ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                        null, "Subscriber of output events"),
-SDATA(data_type_t.DTP_STRING,   "active_node",  sdata_flag_t.SDF_PERSIST, "",   "Active node (hostname/UUID from list-agents)"),
+SDATA(data_type_t.DTP_STRING,   "active_node",  sdata_flag_t.SDF_PERSIST, "",      "Active node (hostname/UUID from list-agents)"),
+SDATA(data_type_t.DTP_STRING,   "display_mode", sdata_flag_t.SDF_PERSIST, "table", "Command answer display: table | form (raw JSON)"),
 SDATA_END()
 ];
 
@@ -109,8 +110,26 @@ function agent_config_get_active_node(gobj)
 function agent_config_set_active_node(gobj, node)
 {
     gobj_write_attr(gobj, "active_node", node || "");
-    gobj_save_persistent_attrs(gobj);
+    gobj_save_persistent_attrs(gobj, "active_node");
     gobj_publish_event(gobj, "EV_ACTIVE_NODE_CHANGED", {active_node: node || ""});
+}
+
+/***************************************************************
+ *  Command-answer display mode: "table" (default) or "form"
+ *  (raw JSON), mirroring ycommand's display_mode attribute.
+ ***************************************************************/
+function agent_config_get_display_mode(gobj)
+{
+    return gobj_read_attr(gobj, "display_mode") || "table";
+}
+
+/***************************************************************
+ *  Set the display mode and persist it.
+ ***************************************************************/
+function agent_config_set_display_mode(gobj, mode)
+{
+    gobj_write_attr(gobj, "display_mode", mode || "table");
+    gobj_save_persistent_attrs(gobj, "display_mode");
 }
 
 
@@ -190,4 +209,6 @@ export {
     register_c_agent_config,
     agent_config_get_active_node,
     agent_config_set_active_node,
+    agent_config_get_display_mode,
+    agent_config_set_display_mode,
 };
