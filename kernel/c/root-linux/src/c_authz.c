@@ -176,6 +176,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -254,7 +255,17 @@ SDATAPM (DTP_BOOLEAN,   "disabled",     0,      0,          "Disabled"),
 SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
 SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
 SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_update_user[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_STRING,    "role",         0,      0,          "ROLE format: roles^ROLE^users"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,      0,          "Disabled"),
 
+SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user[] = {
@@ -334,7 +345,8 @@ SDATACM2(DTP_SCHEMA,    "add-jwk",      SDF_AUTHZ_X,    0,      pm_add_jwk,     
 SDATACM2(DTP_SCHEMA,    "remove-jwk",   SDF_AUTHZ_X,    0,      pm_rm_jwk,      cmd_remove_jwk, "Remove OAuth2 JWK"),
 SDATACM2(DTP_SCHEMA,    "users",        SDF_AUTHZ_X,    a_users,pm_users,       cmd_users,      "List users"),
 SDATACM2(DTP_SCHEMA,    "accesses",     SDF_AUTHZ_X,    0,      pm_users,       cmd_accesses,   "List user accesses"),
-SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
+SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user,"Create user (see ROLE format)"),
+SDATACM2(DTP_SCHEMA,    "update-user",  SDF_AUTHZ_X,    0,      pm_update_user, cmd_update_user,"Update user (see ROLE format)"),
 SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_enable_user,"Enable user"),
 SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_user,        cmd_disable_user,"Disable user"),
 SDATACM2 (DTP_SCHEMA,   "delete-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_delete_user, "Delete user"),
@@ -1905,7 +1917,127 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("User created or updated: %s", username),
+            json_sprintf("User created: %s", username),
+            tranger2_list_topic_desc_cols(priv->tranger, "users"),
+            user,
+            kw  // owned
+        );
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *  Check if username exists
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User not exist: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    JSON_DECREF(user)   // only needed to confirm existence; drop before re-fetch
+
+    /*-----------------------------*
+     *      Optional password
+     *  KC/IdP-authenticated users have no local password (credentials
+     *  null) — auth is by JWT.  Only build credentials when a password is
+     *  explicitly given; otherwise leave the stored credentials untouched
+     *  (gobj_update_node merges columns), so a password-less update keeps
+     *  the existing password / JWT-only login intact.
+     *-----------------------------*/
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(!empty_string(password)) {
+        int hashIterations = (int)kw_get_int(
+            gobj,
+            kw,
+            "hashIterations",
+            gobj_read_integer_attr(gobj, "hashIterations"),
+            KW_WILD_NUMBER
+        );
+        const char *algorithm = kw_get_str(
+            gobj,
+            kw,
+            "algorithm",
+            gobj_read_str_attr(gobj, "algorithm"),
+            0
+        );
+        json_t *credentials = hash_password(
+            gobj,
+            password,
+            algorithm,
+            hashIterations
+        );
+        if(!credentials) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        json_object_set_new(kw, "credentials", credentials);
+    }
+
+    gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
+
+    user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Can't update user: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    } else {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("User updated: %s", username),
             tranger2_list_topic_desc_cols(priv->tranger, "users"),
             user,
             kw  // owned
@@ -3976,6 +4108,10 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
     BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
+    /*  Only write "disabled" when the caller supplied it, or the user is new.
+     *  On an update that omits the param, forcing disabled=false would
+     *  silently re-enable a disabled account (update-user path). */
+    BOOL disabled_given = kw_has_key(kw, "disabled");
     json_t *credentials = kw_get_dict_value(gobj, kw, "credentials", 0, 0);
     json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
 
@@ -3995,11 +4131,13 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     JSON_DECREF(user)
 
     if(empty_string(role)) {
-        json_t *record = json_pack("{s:s, s:b}",
-            "id", username,
-            "disabled", disabled
+        json_t *record = json_pack("{s:s}",
+            "id", username
         );
 
+        if(new_user || disabled_given) {
+            json_object_set_new(record, "disabled", json_boolean(disabled));
+        }
         if(new_user) {
             json_object_set_new(record, "time", json_integer((json_int_t)t));
         }
@@ -4021,12 +4159,14 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             src
         ));
     } else {
-        json_t *record = json_pack("{s:s, s:s, s:b}",
+        json_t *record = json_pack("{s:s, s:s}",
             "id", username,
-            "roles", role,
-            "disabled", disabled
+            "roles", role
         );
 
+        if(new_user || disabled_given) {
+            json_object_set_new(record, "disabled", json_boolean(disabled));
+        }
         if(new_user) {
             json_object_set_new(record, "time", json_integer((json_int_t)t));
         }
