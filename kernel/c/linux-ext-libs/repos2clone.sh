@@ -6,7 +6,7 @@ declare -A REPOS
 # If you change some version of those libraries
 #   remember to change the VERSION of installation in configure-libs.sh
 #--------------------------------------------------------------------------
-TAG_JANSSON="v2.15.0"
+TAG_JANSSON="v2.15.1"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.1.0"
 TAG_OPENSSL="openssl-3.6.3"

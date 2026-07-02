@@ -174,7 +174,24 @@
 #       linked statically into every yuno, so every yuno that links
 #       yev_loop must be rebuilt + relinked to pick it up.
 
-VERSION="1.19"
+#   version 1.20
+#       upgrade to jansson v2.15.1 (was v2.15.0): patch release within the
+#       2.15 series (2026-06-30), no API/ABI change. libjansson.a is linked
+#       statically into every yuno (and jansson is routed through gbmem_*),
+#       so every yuno must be rebuilt + relinked to pick it up — no consumer,
+#       header or CMakeLists change rides along. Relevant fixes:
+#         - Limit recursion depth in json_dump / json_equal / json_deep_copy
+#           to prevent stack overflow on deeply nested JSON (anti-DoS
+#           hardening; those three run on every kw serialize/compare/copy).
+#         - Reject negative string length in the json_pack "s#" / "+#"
+#           formats (json_pack is used pervasively across the kernel).
+#         - Include the object key / array index in json_unpack type-mismatch
+#           error messages (better diagnostics).
+#       Build-side: CMake now only exports json_ / jansson_ symbols and only
+#       passes --default-symver when the linker supports it — helps the
+#       fully-static / cross (ARM/RISCV) builds. No CVE announced.
+
+VERSION="1.20"
 
 
 source ./repos2clone.sh
