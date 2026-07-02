@@ -41,7 +41,6 @@ import {t} from "i18next";
 import {TabulatorFull as Tabulator} from "tabulator-tables";
 
 import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js";
-import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
 import {
@@ -311,33 +310,33 @@ function build_ui(gobj)
                 recall_history(gobj, -1);   /*  newer / back to draft  */
             }
         },
-        input: (ev) => {
-            /*  Only REAL typing (trusted) leaves history-recall mode; the
-             *  synthetic input events fired for programmatic value changes
-             *  (history recall / popover insert, which sync the ✕ clear
-             *  button + hint) must not reset it.  */
-            if(ev.isTrusted) {
-                priv.hist_idx = -1;
-            }
+        input: () => {
+            priv.hist_idx = -1;   /*  typing leaves history-recall mode  */
             update_hint(gobj);
         }
     }]);
     priv.$input = $input;
 
+    /*  Icon + label; the label is hidden on mobile (is-hidden-mobile) so the
+     *  input keeps its width — the icon alone carries the action there. */
     let $exec = createElement2(
-        ["button", {class: "CONSOLE_EXEC button is-primary", type: "button", i18n: "execute"}, "Execute"],
-        t
+        ["button", {class: "CONSOLE_EXEC button is-primary", type: "button"}, [
+            ["span", {class: "icon"}, [["i", {class: "yi-arrow-right"}]]],
+            ["span", {class: "is-hidden-mobile", i18n: "execute"}, "Execute"]
+        ]]
     );
     $exec.addEventListener("click", () => send_command(gobj));
 
-    /*  No separate Clear button: the input's own ✕ (attach_clear) wipes
-     *  the command, and its on_clear also empties the response panel.  */
+    /*  Clear as its OWN addon button (right of history), NOT an in-input ✕:
+     *  on mobile the in-input ✕ sits under the typing thumb and gets tapped
+     *  by accident. Wipes the command AND the response panel. */
+    let $clear = createElement2(
+        ["button", {class: "CONSOLE_CLEAR button", type: "button", title: t("clear")},
+            [["span", {class: "icon"}, [["i", {class: "yi-xmark"}]]]]]
+    );
+    $clear.addEventListener("click", () => clear_console(gobj));
+
     let $input_control = createElement2(["div", {class: "CONSOLE_INPUT_CONTROL control is-expanded"}, [$input]]);
-    attach_clear($input_control, $input, () => {
-        priv.$comment.textContent = "";
-        priv.$comment.classList.add("is-hidden");
-        priv.$data.textContent = "";
-    });
 
     /*  "?" (available commands) + history popovers. Clicking an item inserts
      *  it into the input to edit — it does NOT auto-run. */
@@ -386,6 +385,7 @@ function build_ui(gobj)
                     $input_control,
                     help_pop.control,
                     hist_pop.control,
+                    ["div", {class: "control"}, [$clear]],
                     ["div", {class: "control"}, [$exec]]
                 ]],
                 $hint,
@@ -492,10 +492,9 @@ function load_commands_cache(gobj, help_text)
 }
 
 /***************************************************************
- *  Set the input value programmatically and keep the ✕ clear button
- *  (attach_clear) + the hint in sync. attach_clear only reacts to the
- *  input's `input` event, so we fire a synthetic one; it is untrusted,
- *  so the input handler won't reset history-recall (see build_ui).
+ *  Set the input value programmatically (history recall / popover
+ *  insert / clear) and refresh the hint. It does NOT go through the
+ *  input event, so it never disturbs the history-recall pointer.
  ***************************************************************/
 function set_input_value(gobj, text)
 {
@@ -506,7 +505,7 @@ function set_input_value(gobj, text)
     priv.$input.value = text;
     let n = String(text).length;
     priv.$input.setSelectionRange(n, n);
-    priv.$input.dispatchEvent(new Event("input", {bubbles: true}));
+    update_hint(gobj);
 }
 
 /***************************************************************
@@ -555,6 +554,22 @@ function insert_command(gobj, text)
 }
 
 /***************************************************************
+ *  Clear button: wipe the command AND the response panel, then
+ *  refocus the input (what the old in-input ✕ did).
+ ***************************************************************/
+function clear_console(gobj)
+{
+    let priv = gobj.priv;
+    priv.hist_idx = -1;
+    set_input_value(gobj, "");
+    show_comment(gobj, "", 0);   /*  hide the comment line  */
+    show_data(gobj, null);       /*  tear down table + empty the response  */
+    if(priv.$input) {
+        priv.$input.focus();
+    }
+}
+
+/***************************************************************
  *  Build a Bulma dropdown popover (theme-aware, self-contained) with an
  *  icon trigger. kind is "HELP" | "HIST"; content is filled on open.
  *  Returns {control, dd, content} for wiring into the input row.
@@ -569,7 +584,7 @@ function build_popover(gobj, kind, icon, title)
             [["span", {class: "icon"}, [["i", {class: icon}]]]]]
     );
     let $dd = createElement2(
-        ["div", {class: `CONSOLE_${kind}_DD dropdown is-up is-right`}, [
+        ["div", {class: `CONSOLE_${kind}_DD dropdown is-up`}, [
             ["div", {class: "dropdown-trigger"}, [$btn]],
             ["div", {class: "dropdown-menu", role: "menu"}, [$content]]
         ]]
@@ -578,7 +593,13 @@ function build_popover(gobj, kind, icon, title)
         ev.stopPropagation();   /*  don't let the doc handler close it first  */
         toggle_popover(gobj, kind);
     });
-    return {control: createElement2(["div", {class: "control"}, [$dd]]), dd: $dd, content: $content};
+    /*  CONSOLE_POP_CONTROL is made position:static in app.css so the menu
+     *  anchors to the input row and spans it full width.  */
+    return {
+        control: createElement2(["div", {class: "control CONSOLE_POP_CONTROL"}, [$dd]]),
+        dd: $dd,
+        content: $content
+    };
 }
 
 /***************************************************************

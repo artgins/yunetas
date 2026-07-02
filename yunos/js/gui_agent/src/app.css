@@ -39,3 +39,27 @@
     background-color: rgba(43, 182, 115, 0.22) !important;
     box-shadow: inset 4px 0 0 #2BB673;
 }
+
+/* ====================================================================
+ *  Console input row: full-width "?" (help) and history popovers.
+ *  Bulma anchors a dropdown menu to its (narrow) button with a small
+ *  min-width — cramped on mobile. Make the two console popovers span the
+ *  whole input row: the row is the positioning context, and the popover
+ *  controls + dropdowns go position:static (Bulma's .control and
+ *  .dropdown are position:relative by default) so the absolute menus
+ *  anchor to the row (left:0 right:0) and open upward (is-up) above it.
+ * ==================================================================== */
+.CONSOLE_INPUT_ROW {
+    position: relative;
+}
+.CONSOLE_INPUT_ROW .CONSOLE_POP_CONTROL,
+.CONSOLE_INPUT_ROW .CONSOLE_HELP_DD,
+.CONSOLE_INPUT_ROW .CONSOLE_HIST_DD {
+    position: static;
+}
+.CONSOLE_INPUT_ROW .CONSOLE_HELP_DD .dropdown-menu,
+.CONSOLE_INPUT_ROW .CONSOLE_HIST_DD .dropdown-menu {
+    left: 0;
+    right: 0;
+    width: auto;
+}
