@@ -23,7 +23,7 @@
 import {
     SDATA, SDATA_END, data_type_t,
     gclass_create, log_error,
-    gobj_parent, gobj_name,
+    gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_find_service,
@@ -54,7 +54,7 @@ const GCLASS_NAME = "C_AGENT_CONSOLE";
 
 const HISTORY_MAX = 30;
 
-/*  A few common agent commands seeded into the input's datalist. */
+/*  A few common agent commands seeded into the command completions. */
 const SEED_COMMANDS = ["help", "list-yunos", "stats", "list-binaries", "view-config"];
 
 
@@ -98,11 +98,21 @@ function mt_create(gobj)
     priv.$status = null;
     priv.$comment = null;
     priv.$data = null;
-    priv.$datalist = null;
     priv.$hint = null;
     priv.tabulator = null;    /*  Tabulator instance for table-mode answers  */
     priv.commands = {};       /*  name -> {name, params[], desc} from `help`  */
     priv.commands_loaded = false;
+
+    /*  Shell-style history recall (Up/Down): hist_idx walks priv.history
+     *  (0 = most recent); -1 = editing the live line. hist_draft keeps the
+     *  in-progress text so Down past the newest restores it.  */
+    priv.hist_idx = -1;
+    priv.hist_draft = "";
+    priv.$help_dd = null;      /*  "?" available-commands popover  */
+    priv.$help_content = null;
+    priv.$hist_dd = null;      /*  history popover  */
+    priv.$hist_content = null;
+    priv.doc_click = null;     /*  outside-click closer for the popovers  */
 
     /*
      *  CHILD subscription model
@@ -211,6 +221,11 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     destroy_table(gobj);
+    let priv = gobj.priv;
+    if(priv.doc_click) {
+        document.removeEventListener("click", priv.doc_click);
+        priv.doc_click = null;
+    }
     let $c = gobj_read_attr(gobj, "$container");
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
@@ -255,16 +270,13 @@ function build_ui(gobj)
 {
     let priv = gobj.priv;
 
-    /*  Unique per panel — several console panels coexist (one per node),
-     *  so a shared datalist id would cross-wire their completions. */
-    let list_id = `cmd-list-${gobj_name(gobj)}`;
-    let $datalist = createElement2(["datalist", {id: list_id}, []]);
-    priv.$datalist = $datalist;
-
+    /*  No native <datalist>: its dropdown hijacks Up/Down to browse command
+     *  NAMES, burying the history. Up/Down now recall history (shell-style);
+     *  command discovery is served by Tab completion, the live hint line and
+     *  the "?" popover. */
     let $input = createElement2(["input", {
         class:        "CONSOLE_INPUT input is-family-monospace",
         type:         "text",
-        list:         list_id,
         placeholder:  "help",
         autocomplete: "off",
         "aria-label": "command"
@@ -279,12 +291,20 @@ function build_ui(gobj)
                 if(complete_command(gobj)) {
                     ev.preventDefault();
                 }
+            } else if(ev.key === "ArrowUp") {
+                ev.preventDefault();
+                recall_history(gobj, +1);   /*  older  */
+            } else if(ev.key === "ArrowDown") {
+                ev.preventDefault();
+                recall_history(gobj, -1);   /*  newer / back to draft  */
             }
         },
-        input: () => update_hint(gobj)
+        input: () => {
+            priv.hist_idx = -1;   /*  typing leaves history-recall mode  */
+            update_hint(gobj);
+        }
     }]);
     priv.$input = $input;
-    populate_datalist(gobj);   /*  SEED + any cached commands + history  */
 
     let $exec = createElement2(
         ["button", {class: "CONSOLE_EXEC button is-primary", type: "button", i18n: "execute"}, "Execute"],
@@ -300,6 +320,15 @@ function build_ui(gobj)
         priv.$comment.classList.add("is-hidden");
         priv.$data.textContent = "";
     });
+
+    /*  "?" (available commands) + history popovers. Clicking an item inserts
+     *  it into the input to edit — it does NOT auto-run. */
+    let help_pop = build_popover(gobj, "HELP", "yi-question", t("help"));
+    let hist_pop = build_popover(gobj, "HIST", "yi-arrow-rotate-left", t("command history"));
+    priv.$help_dd = help_pop.dd;
+    priv.$help_content = help_pop.content;
+    priv.$hist_dd = hist_pop.dd;
+    priv.$hist_content = hist_pop.content;
 
     let $status = createElement2(["p", {class: "CONSOLE_STATUS has-text-grey"}, ""]);
     priv.$status = $status;
@@ -335,9 +364,10 @@ function build_ui(gobj)
             [
                 $status,
                 $data,
-                $datalist,
                 ["div", {class: "CONSOLE_INPUT_ROW field has-addons mb-0"}, [
                     $input_control,
+                    help_pop.control,
+                    hist_pop.control,
                     ["div", {class: "control"}, [$exec]]
                 ]],
                 $hint,
@@ -347,11 +377,21 @@ function build_ui(gobj)
     );
     gobj_write_attr(gobj, "$container", $c);
 
+    /*  Outside-click closes either popover.  */
+    priv.doc_click = (ev) => {
+        let in_help = priv.$help_dd && priv.$help_dd.contains(ev.target);
+        let in_hist = priv.$hist_dd && priv.$hist_dd.contains(ev.target);
+        if(!in_help && !in_hist) {
+            close_popovers(gobj);
+        }
+    };
+    document.addEventListener("click", priv.doc_click);
+
     refresh_language($c, t);
 }
 
 /***************************************************************
- *  Push a command onto the in-memory history + datalist.
+ *  Push a command onto the in-memory history.
  ***************************************************************/
 function add_history(gobj, cmd)
 {
@@ -362,10 +402,6 @@ function add_history(gobj, cmd)
     priv.history.unshift(cmd);
     if(priv.history.length > HISTORY_MAX) {
         priv.history.pop();
-    }
-    if(priv.$datalist &&
-        !priv.$datalist.querySelector(`option[value="${CSS.escape(cmd)}"]`)) {
-        priv.$datalist.appendChild(createElement2(["option", {value: cmd}]));
     }
 }
 
@@ -421,36 +457,197 @@ function parse_help(text)
 }
 
 /***************************************************************
- *  Store the parsed command cache + refresh the datalist.
+ *  Store the parsed command cache + refresh the hint.
  ***************************************************************/
 function load_commands_cache(gobj, help_text)
 {
     let priv = gobj.priv;
     priv.commands = parse_help(help_text);
     priv.commands_loaded = true;
-    populate_datalist(gobj);
     update_hint(gobj);
 }
 
 /***************************************************************
- *  Rebuild the datalist from SEED + cached command names + history.
+ *  Shell-style history recall. dir=+1 older, dir=-1 newer. On the first
+ *  Up we stash the live line (hist_draft) so Down past the newest brings
+ *  it back. priv.history[0] is the most recent command.
  ***************************************************************/
-function populate_datalist(gobj)
+function recall_history(gobj, dir)
 {
     let priv = gobj.priv;
-    if(!priv.$datalist) {
+    if(!priv.$input || priv.history.length === 0) {
         return;
     }
-    let names = new Set(SEED_COMMANDS);
-    for(let name in priv.commands) {
-        names.add(name);
+    if(priv.hist_idx === -1 && dir > 0) {
+        priv.hist_draft = priv.$input.value;
     }
-    for(let h of priv.history) {
-        names.add(h);
+    let idx = priv.hist_idx + dir;
+    if(idx >= priv.history.length) {
+        idx = priv.history.length - 1;   /*  clamp at the oldest  */
     }
-    priv.$datalist.replaceChildren();
-    for(let n of names) {
-        priv.$datalist.appendChild(createElement2(["option", {value: n}]));
+    if(idx < 0) {
+        priv.hist_idx = -1;
+        priv.$input.value = priv.hist_draft;   /*  back to the live line  */
+    } else {
+        priv.hist_idx = idx;
+        priv.$input.value = priv.history[idx];
+    }
+    let n = priv.$input.value.length;
+    priv.$input.setSelectionRange(n, n);
+    update_hint(gobj);
+}
+
+/***************************************************************
+ *  Put text in the input (replacing it), focus + move caret to end.
+ *  Used by the "?" and history popovers — it does NOT execute.
+ ***************************************************************/
+function insert_command(gobj, text)
+{
+    let priv = gobj.priv;
+    if(!priv.$input) {
+        return;
+    }
+    priv.$input.value = text;
+    priv.hist_idx = -1;
+    close_popovers(gobj);
+    priv.$input.focus();
+    let n = priv.$input.value.length;
+    priv.$input.setSelectionRange(n, n);
+    update_hint(gobj);
+}
+
+/***************************************************************
+ *  Build a Bulma dropdown popover (theme-aware, self-contained) with an
+ *  icon trigger. kind is "HELP" | "HIST"; content is filled on open.
+ *  Returns {control, dd, content} for wiring into the input row.
+ ***************************************************************/
+function build_popover(gobj, kind, icon, title)
+{
+    let $content = createElement2(
+        ["div", {class: "dropdown-content", style: "max-height:22rem; overflow:auto;"}, []]
+    );
+    let $btn = createElement2(
+        ["button", {class: "button", type: "button", "aria-haspopup": "true", title: title},
+            [["span", {class: "icon"}, [["i", {class: icon}]]]]]
+    );
+    let $dd = createElement2(
+        ["div", {class: `CONSOLE_${kind}_DD dropdown is-up is-right`}, [
+            ["div", {class: "dropdown-trigger"}, [$btn]],
+            ["div", {class: "dropdown-menu", role: "menu"}, [$content]]
+        ]]
+    );
+    $btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();   /*  don't let the doc handler close it first  */
+        toggle_popover(gobj, kind);
+    });
+    return {control: createElement2(["div", {class: "control"}, [$dd]]), dd: $dd, content: $content};
+}
+
+/***************************************************************
+ *  Open one popover (filling it), closing the other.
+ ***************************************************************/
+function toggle_popover(gobj, kind)
+{
+    let priv = gobj.priv;
+    let dd = (kind === "HELP") ? priv.$help_dd : priv.$hist_dd;
+    let other = (kind === "HELP") ? priv.$hist_dd : priv.$help_dd;
+    if(!dd) {
+        return;
+    }
+    if(other) {
+        other.classList.remove("is-active");
+    }
+    let open = !dd.classList.contains("is-active");
+    dd.classList.toggle("is-active", open);
+    if(open) {
+        if(kind === "HELP") {
+            fill_help_popover(gobj);
+        } else {
+            fill_hist_popover(gobj);
+        }
+    }
+}
+
+/***************************************************************
+ *  Close both popovers.
+ ***************************************************************/
+function close_popovers(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.$help_dd) {
+        priv.$help_dd.classList.remove("is-active");
+    }
+    if(priv.$hist_dd) {
+        priv.$hist_dd.classList.remove("is-active");
+    }
+}
+
+/***************************************************************
+ *  Fill the "?" popover: available commands (seed + cached), each
+ *  showing its name + parameter signature; the description is the
+ *  tooltip. Clicking inserts "name " ready for parameters.
+ ***************************************************************/
+function fill_help_popover(gobj)
+{
+    let priv = gobj.priv;
+    let $c = priv.$help_content;
+    if(!$c) {
+        return;
+    }
+    $c.replaceChildren();
+    let names = command_names(gobj).sort();
+    if(names.length === 0) {
+        $c.appendChild(createElement2(
+            ["div", {class: "dropdown-item has-text-grey", i18n: "no commands"}, t("no commands")]));
+        return;
+    }
+    for(let name of names) {
+        let cmd = priv.commands[name];
+        let sig = (cmd && cmd.params && cmd.params.length)
+            ? " " + cmd.params.map((p) => `[${p}]`).join(" ") : "";
+        let $item = createElement2(
+            ["a", {class: "dropdown-item is-family-monospace",
+                   style: "white-space:normal;", title: (cmd && cmd.desc) ? cmd.desc : ""},
+                [
+                    ["span", {class: "has-text-weight-semibold"}, name],
+                    ["span", {class: "has-text-grey"}, sig]
+                ]
+            ]
+        );
+        $item.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            insert_command(gobj, name + " ");
+        });
+        $c.appendChild($item);
+    }
+}
+
+/***************************************************************
+ *  Fill the history popover: recent commands, most-recent first.
+ *  Clicking inserts the full command line.
+ ***************************************************************/
+function fill_hist_popover(gobj)
+{
+    let priv = gobj.priv;
+    let $c = priv.$hist_content;
+    if(!$c) {
+        return;
+    }
+    $c.replaceChildren();
+    if(priv.history.length === 0) {
+        $c.appendChild(createElement2(
+            ["div", {class: "dropdown-item has-text-grey", i18n: "no history yet"}, t("no history yet")]));
+        return;
+    }
+    for(let cmd of priv.history) {
+        let $item = createElement2(
+            ["a", {class: "dropdown-item is-family-monospace", style: "white-space:normal;", title: cmd}, cmd]
+        );
+        $item.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            insert_command(gobj, cmd);
+        });
+        $c.appendChild($item);
     }
 }
 
@@ -783,6 +980,7 @@ function send_command(gobj)
     }
 
     add_history(gobj, cmd);
+    priv.hist_idx = -1;   /*  a sent command resets history-recall  */
     show_comment(gobj, "…", 0);
     show_data(gobj, null);
 
