@@ -36,8 +36,12 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,                        null, 
 SDATA(data_type_t.DTP_STRING,   "active_node",  sdata_flag_t.SDF_PERSIST, "",      "Active node (hostname/UUID from list-agents)"),
 SDATA(data_type_t.DTP_STRING,   "display_mode", sdata_flag_t.SDF_PERSIST, "table", "Command answer display: table | form (raw JSON)"),
 SDATA(data_type_t.DTP_JSON,     "selected_nodes", sdata_flag_t.SDF_PERSIST, "[]",  "Nodes with an open Console tab: [{id, host}, ...]"),
+SDATA(data_type_t.DTP_JSON,     "cmd_history",  sdata_flag_t.SDF_PERSIST, "{}",    "Per-node console command history: {node_id: [cmd,...]} most-recent first"),
 SDATA_END()
 ];
+
+/*  Per-node history cap (defensive; the console caps its own working copy). */
+const HISTORY_MAX = 50;
 
 let PRIVATE_DATA = {};
 let __gclass__ = null;
@@ -197,6 +201,35 @@ function agent_config_remove_selected_node(gobj, id)
     agent_config_set_selected_nodes(gobj, list);
 }
 
+/***************************************************************
+ *  Persisted console command history for a node (most-recent first).
+ *  Returns a fresh copy so the caller can mutate it freely.
+ ***************************************************************/
+function agent_config_get_history(gobj, node)
+{
+    if(!node) {
+        return [];
+    }
+    let all = gobj_read_attr(gobj, "cmd_history") || {};
+    let list = all[node];
+    return Array.isArray(list) ? list.slice() : [];
+}
+
+/***************************************************************
+ *  Replace a node's command history and persist it. The console
+ *  owns dedup/cap on its working copy; we bound it defensively.
+ ***************************************************************/
+function agent_config_set_history(gobj, node, list)
+{
+    if(!node) {
+        return;
+    }
+    let all = Object.assign({}, gobj_read_attr(gobj, "cmd_history") || {});
+    all[node] = (Array.isArray(list) ? list : []).slice(0, HISTORY_MAX);
+    gobj_write_attr(gobj, "cmd_history", all);
+    gobj_save_persistent_attrs(gobj, "cmd_history");
+}
+
 
 
 
@@ -282,4 +315,6 @@ export {
     agent_config_is_node_selected,
     agent_config_toggle_selected_node,
     agent_config_remove_selected_node,
+    agent_config_get_history,
+    agent_config_set_history,
 };

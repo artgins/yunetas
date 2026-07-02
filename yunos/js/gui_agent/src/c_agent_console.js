@@ -44,7 +44,11 @@ import {yui_shell_set_connection_state} from "@yuneta/gobj-ui/src/c_yui_shell.js
 import {attach_clear} from "@yuneta/gobj-ui/src/yui_inputs.js";
 
 import {agent_link_command, agent_link_is_connected} from "./c_agent_link.js";
-import {agent_config_get_display_mode} from "./c_agent_config.js";
+import {
+    agent_config_get_display_mode,
+    agent_config_get_history,
+    agent_config_set_history,
+} from "./c_agent_config.js";
 
 
 /***************************************************************
@@ -270,6 +274,14 @@ function build_ui(gobj)
 {
     let priv = gobj.priv;
 
+    /*  Restore this node's persisted command history (survives reload and
+     *  tab close/reopen); priv.history is the mutable working copy.  */
+    let config0 = gobj_read_attr(gobj, "config_svc");
+    let node0 = gobj_read_attr(gobj, "node") || "";
+    if(config0 && node0) {
+        priv.history = agent_config_get_history(config0, node0);
+    }
+
     /*  No native <datalist>: its dropdown hijacks Up/Down to browse command
      *  NAMES, burying the history. Up/Down now recall history (shell-style);
      *  command discovery is served by Tab completion, the live hint line and
@@ -402,6 +414,12 @@ function add_history(gobj, cmd)
     priv.history.unshift(cmd);
     if(priv.history.length > HISTORY_MAX) {
         priv.history.pop();
+    }
+    /*  Persist per-node so recall survives reloads / tab reopen.  */
+    let config = gobj_read_attr(gobj, "config_svc");
+    let node = gobj_read_attr(gobj, "node") || "";
+    if(config && node) {
+        agent_config_set_history(config, node, priv.history);
     }
 }
 
