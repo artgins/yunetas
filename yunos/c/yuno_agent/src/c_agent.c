@@ -10757,17 +10757,13 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         /*
          *  Command cascaded from a controlcenter: it arrived via the outbound
          *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
-         *  Route the answer up through that link's C_IOGATE (the CLI's bottom
-         *  gobj), which handles EV_SEND_IEV via ac_send_iev exactly like the
-         *  input-side C_CHANNEL — unwrapping the inner iev (EV_MT_COMMAND_ANSWER
-         *  / EV_MT_STATS_ANSWER) onto the wire.  Sending EV_SEND_IEV to the
-         *  C_IEVENT_CLI itself would ship it by name (the CLI has no EV_SEND_IEV
-         *  handler) and the peer would reject it as a non-public event.
+         *  Send EV_SEND_IEV to that C_IEVENT_CLI: it is the ievent serializer on
+         *  its own stack (its channel sits above a raw C_PROT_TCP4H, not a
+         *  C_IEVENT_SRV), so its ac_send_iev unwraps and serializes the inner
+         *  iev (EV_MT_COMMAND_ANSWER / EV_MT_STATS_ANSWER) up the link — uniform
+         *  with the input-side C_CHANNEL path.
          */
-        hgobj gobj_cli = gobj_find_service(dst_service, FALSE);
-        if(gobj_cli) {
-            gobj_requester = gobj_bottom_gobj(gobj_cli);
-        }
+        gobj_requester = gobj_find_service(dst_service, FALSE);
     }
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
@@ -10825,17 +10821,13 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
         /*
          *  Command cascaded from a controlcenter: it arrived via the outbound
          *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
-         *  Route the answer up through that link's C_IOGATE (the CLI's bottom
-         *  gobj), which handles EV_SEND_IEV via ac_send_iev exactly like the
-         *  input-side C_CHANNEL — unwrapping the inner iev (EV_MT_COMMAND_ANSWER
-         *  / EV_MT_STATS_ANSWER) onto the wire.  Sending EV_SEND_IEV to the
-         *  C_IEVENT_CLI itself would ship it by name (the CLI has no EV_SEND_IEV
-         *  handler) and the peer would reject it as a non-public event.
+         *  Send EV_SEND_IEV to that C_IEVENT_CLI: it is the ievent serializer on
+         *  its own stack (its channel sits above a raw C_PROT_TCP4H, not a
+         *  C_IEVENT_SRV), so its ac_send_iev unwraps and serializes the inner
+         *  iev (EV_MT_COMMAND_ANSWER / EV_MT_STATS_ANSWER) up the link — uniform
+         *  with the input-side C_CHANNEL path.
          */
-        hgobj gobj_cli = gobj_find_service(dst_service, FALSE);
-        if(gobj_cli) {
-            gobj_requester = gobj_bottom_gobj(gobj_cli);
-        }
+        gobj_requester = gobj_find_service(dst_service, FALSE);
     }
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,

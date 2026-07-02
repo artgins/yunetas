@@ -1460,6 +1460,24 @@ PRIVATE int ac_send_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 }
 
 /***************************************************************************
+ *  Serialize and send an inter-event UP the link (reverse reply).
+ *
+ *  On this stack the C_IEVENT_CLI is the ievent serializer (below the channel
+ *  is a raw C_PROT_TCP4H, not a C_IEVENT_SRV), so unwrap the inner event and
+ *  serialize it here — the same job C_CHANNEL.ac_send_iev delegates to the
+ *  C_IEVENT_SRV beneath it on the server side.  This lets a cascaded command/
+ *  stats answer be routed back with a uniform gobj_send_event(cli, EV_SEND_IEV)
+ *  regardless of whether the requester link is server- or client-initiated.
+ ***************************************************************************/
+PRIVATE int ac_send_iev(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
+        gobj, kw, "__iev_event__", 0, KW_REQUIRED|KW_EXTRACT
+    );
+    return send_static_iev(gobj, iev_event, kw, src);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1553,6 +1571,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MT_COMMAND,         ac_mt_command,          0},
         {EV_MT_STATS,           ac_mt_stats,            0},
         {EV_SEND_COMMAND_ANSWER,ac_send_command_answer, 0},
+        {EV_SEND_IEV,           ac_send_iev,            0},
         {EV_PLAY_YUNO,          ac_play_yuno,           0},
         {EV_PAUSE_YUNO,         ac_pause_yuno,          0},
         {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
@@ -1572,6 +1591,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
         {EV_MT_STATS,               EVF_PUBLIC_EVENT},
         {EV_SEND_COMMAND_ANSWER,    EVF_PUBLIC_EVENT},
+        {EV_SEND_IEV,               0},     // internal: local reverse-reply, never from the wire
         {EV_IDENTITY_CARD_ACK,      EVF_PUBLIC_EVENT},
         {EV_PLAY_YUNO,              EVF_PUBLIC_EVENT},  // Extra events to let agent
         {EV_PAUSE_YUNO,             EVF_PUBLIC_EVENT},  // request clients
