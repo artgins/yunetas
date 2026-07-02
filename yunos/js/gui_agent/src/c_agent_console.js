@@ -311,8 +311,14 @@ function build_ui(gobj)
                 recall_history(gobj, -1);   /*  newer / back to draft  */
             }
         },
-        input: () => {
-            priv.hist_idx = -1;   /*  typing leaves history-recall mode  */
+        input: (ev) => {
+            /*  Only REAL typing (trusted) leaves history-recall mode; the
+             *  synthetic input events fired for programmatic value changes
+             *  (history recall / popover insert, which sync the ✕ clear
+             *  button + hint) must not reset it.  */
+            if(ev.isTrusted) {
+                priv.hist_idx = -1;
+            }
             update_hint(gobj);
         }
     }]);
@@ -486,6 +492,24 @@ function load_commands_cache(gobj, help_text)
 }
 
 /***************************************************************
+ *  Set the input value programmatically and keep the ✕ clear button
+ *  (attach_clear) + the hint in sync. attach_clear only reacts to the
+ *  input's `input` event, so we fire a synthetic one; it is untrusted,
+ *  so the input handler won't reset history-recall (see build_ui).
+ ***************************************************************/
+function set_input_value(gobj, text)
+{
+    let priv = gobj.priv;
+    if(!priv.$input) {
+        return;
+    }
+    priv.$input.value = text;
+    let n = String(text).length;
+    priv.$input.setSelectionRange(n, n);
+    priv.$input.dispatchEvent(new Event("input", {bubbles: true}));
+}
+
+/***************************************************************
  *  Shell-style history recall. dir=+1 older, dir=-1 newer. On the first
  *  Up we stash the live line (hist_draft) so Down past the newest brings
  *  it back. priv.history[0] is the most recent command.
@@ -503,16 +527,15 @@ function recall_history(gobj, dir)
     if(idx >= priv.history.length) {
         idx = priv.history.length - 1;   /*  clamp at the oldest  */
     }
+    let text;
     if(idx < 0) {
         priv.hist_idx = -1;
-        priv.$input.value = priv.hist_draft;   /*  back to the live line  */
+        text = priv.hist_draft;   /*  back to the live line  */
     } else {
         priv.hist_idx = idx;
-        priv.$input.value = priv.history[idx];
+        text = priv.history[idx];
     }
-    let n = priv.$input.value.length;
-    priv.$input.setSelectionRange(n, n);
-    update_hint(gobj);
+    set_input_value(gobj, text);
 }
 
 /***************************************************************
@@ -525,13 +548,10 @@ function insert_command(gobj, text)
     if(!priv.$input) {
         return;
     }
-    priv.$input.value = text;
     priv.hist_idx = -1;
     close_popovers(gobj);
     priv.$input.focus();
-    let n = priv.$input.value.length;
-    priv.$input.setSelectionRange(n, n);
-    update_hint(gobj);
+    set_input_value(gobj, text);
 }
 
 /***************************************************************
