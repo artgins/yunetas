@@ -1129,6 +1129,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     if(empty_string(iev_event)) {
         // Error already logged
+        gobj_trace_json(gobj, iev_kw, "iev_event NULL");
         drop(gobj);
         KW_DECREF(iev_kw)
         KW_DECREF(kw)

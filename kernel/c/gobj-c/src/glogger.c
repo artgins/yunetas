@@ -810,6 +810,7 @@ PUBLIC void gobj_trace_json(
     const char *fmt, ...
 ) {
     va_list ap;
+    log_opt_t opt = 0;
     int priority = LOG_DEBUG;
 
     if(!jn) {
@@ -827,7 +828,23 @@ PUBLIC void gobj_trace_json(
     if((gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
         if(gbuf) {
-            gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+            char *p = gbuffer_cur_rd_pointer(gbuf);
+            if(p && *p == '{') {
+                json_t *j = string2json(p, TRUE);
+                if(j) {
+                    char *s = json_dumps(j, JSON_INDENT(4)|JSON_ENCODE_ANY);
+                    if(s) {
+                        _log_bf(priority, opt, s, strlen(s));
+                        jsonp_free(s);
+                    }
+                    JSON_DECREF(j)
+                } else {
+                    gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+                }
+
+            } else {
+                gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+            }
         }
     }
 }
