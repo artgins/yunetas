@@ -10756,11 +10756,18 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(!gobj_requester) {
         /*
          *  Command cascaded from a controlcenter: it arrived via the outbound
-         *  "controlcenter" C_IEVENT_CLI service, so the requester is that
-         *  service, not an __input_side__ child.  Resolve it as a top-level
-         *  service so the answer routes back up the link to the controlcenter.
+         *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
+         *  Route the answer up through that link's C_IOGATE (the CLI's bottom
+         *  gobj), which handles EV_SEND_IEV via ac_send_iev exactly like the
+         *  input-side C_CHANNEL — unwrapping the inner iev (EV_MT_COMMAND_ANSWER
+         *  / EV_MT_STATS_ANSWER) onto the wire.  Sending EV_SEND_IEV to the
+         *  C_IEVENT_CLI itself would ship it by name (the CLI has no EV_SEND_IEV
+         *  handler) and the peer would reject it as a non-public event.
          */
-        gobj_requester = gobj_find_service(dst_service, FALSE);
+        hgobj gobj_cli = gobj_find_service(dst_service, FALSE);
+        if(gobj_cli) {
+            gobj_requester = gobj_bottom_gobj(gobj_cli);
+        }
     }
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
@@ -10817,11 +10824,18 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     if(!gobj_requester) {
         /*
          *  Command cascaded from a controlcenter: it arrived via the outbound
-         *  "controlcenter" C_IEVENT_CLI service, so the requester is that
-         *  service, not an __input_side__ child.  Resolve it as a top-level
-         *  service so the answer routes back up the link to the controlcenter.
+         *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
+         *  Route the answer up through that link's C_IOGATE (the CLI's bottom
+         *  gobj), which handles EV_SEND_IEV via ac_send_iev exactly like the
+         *  input-side C_CHANNEL — unwrapping the inner iev (EV_MT_COMMAND_ANSWER
+         *  / EV_MT_STATS_ANSWER) onto the wire.  Sending EV_SEND_IEV to the
+         *  C_IEVENT_CLI itself would ship it by name (the CLI has no EV_SEND_IEV
+         *  handler) and the peer would reject it as a non-public event.
          */
-        gobj_requester = gobj_find_service(dst_service, FALSE);
+        hgobj gobj_cli = gobj_find_service(dst_service, FALSE);
+        if(gobj_cli) {
+            gobj_requester = gobj_bottom_gobj(gobj_cli);
+        }
     }
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
