@@ -10754,6 +10754,15 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         dst_service
     );
     if(!gobj_requester) {
+        /*
+         *  Command cascaded from a controlcenter: it arrived via the outbound
+         *  "controlcenter" C_IEVENT_CLI service, so the requester is that
+         *  service, not an __input_side__ child.  Resolve it as a top-level
+         *  service so the answer routes back up the link to the controlcenter.
+         */
+        gobj_requester = gobj_find_service(dst_service, FALSE);
+    }
+    if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -10805,6 +10814,15 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
         priv->gobj_input_side,
         dst_service
     );
+    if(!gobj_requester) {
+        /*
+         *  Command cascaded from a controlcenter: it arrived via the outbound
+         *  "controlcenter" C_IEVENT_CLI service, so the requester is that
+         *  service, not an __input_side__ child.  Resolve it as a top-level
+         *  service so the answer routes back up the link to the controlcenter.
+         */
+        gobj_requester = gobj_find_service(dst_service, FALSE);
+    }
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
