@@ -86,7 +86,6 @@ let PRIVATE_DATA = {
     login_ui:       null,
     link:           null,
     live_hosts:     {},     /*  set of node ids currently in list-agents  */
-    live_timer:     null,   /*  periodic list-agents poll (browser interval)  */
     nak_recovering: false,  /*  a NAK is being recovered via silent refresh  */
 };
 
@@ -284,7 +283,6 @@ function update_theme_icon(gobj)
 function destroy_shell(gobj)
 {
     let priv = gobj.priv;
-    stop_live_timer(gobj);
     if(priv.shell) {
         if(gobj_is_running(priv.shell)) {
             gobj_stop_tree(priv.shell);
@@ -372,29 +370,20 @@ function console_first_route(gobj)
     return nodes.length ? console_tab_route(nodes[0].id) : null;
 }
 
+/*
+ *  Ask the control center once for the live-agent set (tab red state).
+ *  NOT polled: polling is a discarded pattern in Yuneta. The set is
+ *  refreshed on session-open (below) and on every list-agents answer on
+ *  the shared link — e.g. when the operator hits the Nodes "Refresh"
+ *  button (ac_link_answer catches any list-agents reply). To make the
+ *  tab liveness track in real time, controlcenter should PUBLISH an event
+ *  the SPA subscribes to, instead of the SPA re-asking on a timer.
+ */
 function request_live_agents(gobj)
 {
     let link = gobj.priv.link;
     if(link && agent_link_is_connected(link)) {
         agent_link_command(link, "list-agents", {});
-    }
-}
-
-function start_live_timer(gobj)
-{
-    let priv = gobj.priv;
-    if(priv.live_timer) {
-        return;
-    }
-    priv.live_timer = setInterval(() => request_live_agents(gobj), 10000);
-}
-
-function stop_live_timer(gobj)
-{
-    let priv = gobj.priv;
-    if(priv.live_timer) {
-        clearInterval(priv.live_timer);
-        priv.live_timer = null;
     }
 }
 
@@ -444,10 +433,10 @@ function ac_on_open(gobj, event, kw, src)
     yui_shell_refresh_avatars(shell);
 
     /*  Multi-agent console: paint the per-node tabs from the persisted
-     *  selection, then keep the live-node set (tab red state) fresh. */
+     *  selection, then seed the live-node set (tab red state) once. No
+     *  polling — later refreshes come from the Nodes "Refresh" button. */
     rebuild_console_tabs(gobj);
     request_live_agents(gobj);
-    start_live_timer(gobj);
     return 0;
 }
 
