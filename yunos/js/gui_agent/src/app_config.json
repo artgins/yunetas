@@ -117,7 +117,7 @@
                 {
                     "id": "console",
                     "name": "console",
-                    "icon": "yi-square-js",
+                    "icon": "yi-terminal",
                     "tooltip": "Control-plane CLI to a yuneta agent",
                     "route": "/console",
                     "submenu": {
@@ -126,7 +126,7 @@
                             {
                                 "id": "agent",
                                 "name": "agent cli",
-                                "icon": "yi-square-js",
+                                "icon": "yi-terminal",
                                 "route": "/console/agent",
                                 "target": {
                                     "stage": "main",

@@ -174,7 +174,7 @@ function build_empty_state(gobj)
                 ["div", {class: "has-text-grey has-text-centered", style: "max-width:32rem;"},
                     [
                         ["p", {class: "is-size-4 mb-2"},
-                            [["span", {class: "icon is-large"}, [["i", {class: "yi-square-js"}]]]]],
+                            [["span", {class: "icon is-large"}, [["i", {class: "yi-terminal"}]]]]],
                         ["p", {class: "is-size-5", i18n: "no consoles"},
                             "No consoles open"],
                         ["p", {class: "is-size-6 mt-2", i18n: "pick nodes hint"},
