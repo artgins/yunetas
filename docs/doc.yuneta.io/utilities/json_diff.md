@@ -22,4 +22,4 @@ Files are passed via flags — `json_diff` takes **no positional arguments**.
 
 ## See also
 
-- [`utils/c/json_diff/README.md`](https://github.com/artgins/yunetas/blob/7.6.7/utils/c/json_diff/README.md).
+- [`utils/c/json_diff/README.md`](https://github.com/artgins/yunetas/blob/7.6.8/utils/c/json_diff/README.md).

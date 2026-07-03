@@ -161,7 +161,7 @@ The `sdata_desc_t` structure defines a field or schema. Each descriptor specifie
 | `default_value` | `const char *`         | The default value of the field. |
 | `header`        | `const char *`         | Header text for table columns. |
 | `fillspace`     | `int`                  | Column width for table formatting. |
-| [`description`](https://github.com/artgins/yunetas/blob/7.6.7/utils/c/yuno-skeleton/make_skeleton.c#L199)   | `const char *`         | A description of the field's purpose. |
+| [`description`](https://github.com/artgins/yunetas/blob/7.6.8/utils/c/yuno-skeleton/make_skeleton.c#L199)   | `const char *`         | A description of the field's purpose. |
 | `json_fn`       | `json_function_fn`     | Custom function for processing JSON data. |
 | `schema`        | `const sdata_desc_t *` | Pointer to a sub-schema for compound fields. |
 | `authpth`       | `const char *`         | Authorization path for accessing or modifying the field. |

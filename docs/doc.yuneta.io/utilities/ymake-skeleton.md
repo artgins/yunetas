@@ -22,4 +22,4 @@ All four are mandatory.
 ## See also
 
 - [`yuno-skeleton`](yuno-skeleton.md) — instantiate from a skeleton.
-- [`utils/c/ymake-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.6.7/utils/c/ymake-skeleton/README.md).
+- [`utils/c/ymake-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.6.8/utils/c/ymake-skeleton/README.md).

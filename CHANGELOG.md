@@ -1,6 +1,44 @@
 # **Changelog**
 
 ## Unreleased
+
+## 7.6.8
+_C / SDK release. JavaScript framework changes are tracked in their own
+repositories (`@yuneta/gobj-js`, `@yuneta/gobj-ui` CHANGELOGs); the `gui_agent`
+yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
+
+    - **fix(agent): controlcenter-cascaded `command-yuno` / `stats-yuno`
+      answers now return to the requester.** A command routed down from a
+      controlcenter (SPA → controlcenter → agent → target yuno) reached the
+      yuno and produced its answer, but the agent dropped it on the way back
+      (`ac_command_yuno_answer` / `ac_stats_yuno_answer` logged
+      `child not found`), so the caller only saw the synchronous dispatch ack.
+      The reverse hop resolved the requester **only** among `__input_side__`
+      children; a command that arrived over the agent's outbound
+      `controlcenter` `C_IEVENT_CLI` link has its requester on the client side,
+      not there. The answer is now handed to that `C_IEVENT_CLI`, which gained
+      an `EV_SEND_IEV` action (`kernel/c/root-linux/src/c_ievent_cli.c`) that
+      unwraps and serializes the inner inter-event exactly as `C_CHANNEL` does
+      on the server side — one uniform path for both server- and
+      client-initiated links, covering command and stats answers alike
+      (`yunos/c/yuno_agent/src/c_agent.c`).
+    - **feat(authz): add `update-user`, split from `create-user`.**
+      `create-user` already rejected an existing user, so there was no way to
+      modify one: `create-user` now cleanly creates (reject if exists) and the
+      new `update-user` modifies (reject if missing); both funnel through
+      `EV_ADD_USER`. Two latent defects fixed while reviewing the new path
+      (`kernel/c/root-linux/src/c_authz.c`): a password-less update no longer
+      wipes stored credentials or silently re-enables a disabled account
+      (`disabled` is written only when supplied or the user is new), and the
+      existence-check node is no longer leaked. The `ROLE` format
+      (`roles^ROLE^users`) is now spelled out in the command help.
+    - **chore(ext-libs): bump jansson 2.15.0 → 2.15.1 (v1.20).** Patch release,
+      no API/ABI change. Caps recursion depth in `json_dump` / `json_equal` /
+      `json_deep_copy` (anti-DoS hardening on functions every `kw`
+      serialize/compare/copy runs through), rejects a negative string length in
+      the `json_pack` `s#` / `+#` formats, and adds the offending key/index to
+      `json_unpack` type-mismatch errors. `libjansson.a` links statically into
+      every yuno, so all must be rebuilt + relinked.
     - **chore(ext-libs): bump liburing 2.14 → 2.15 (v1.19)**. Pin-only — no
       API/ABI change and no removed/renamed symbols, so no yuneta consumer,
       header or CMakeLists change rides along. Two of the 2.15 bug fixes land
@@ -12,22 +50,15 @@
       `register_zcrx_ctrl`) are additive and unused here. `liburing.a` is
       linked statically into every yuno, so yunos that link `yev_loop` must be
       rebuilt + relinked (`extrae.sh` + `configure-libs.sh`) to pick it up.
-    - **feat(js): `attach_clear()` in `@yuneta/gobj-ui` (submodule bump).** New
-      reusable helper (`kernel/js/gobj-ui/src/yui_inputs.{js,css}`, exported from
-      `index.js`) that adds a Bulma `.delete` clear (✕) button to any `.control`
-      wrapping an `<input>` — shown only while the field has content, clearing +
-      refocusing + dispatching a synthetic `input` event on click. Its CSS scopes
-      under `.control.has-clear` so it wins over Bulma's `.delete` regardless of
-      stylesheet load order. Adopted by the Agent Console (`gui_agent`) search and
-      command inputs.
-    - **fix(js): `gui_agent` Agent Console — command round-trip works.** Commands
-      are now sent from the `agent_link` **service** (not a routed view), honoring
-      the inter-yuno contract (cross-boundary events only between named services
-      with public events), so the agent's answer routes back cleanly instead of
-      logging `gobj service not found`; the Console displays the agent's real
-      asynchronous answer (not just the controlcenter dispatch ack). Nodes list
-      rebuilt on Tabulator (search / sort / active-row highlight), response panes
-      and active-row made theme-aware for dark mode.
+    - **chore(trace): richer unknown-event drop diagnostics + JSON-gbuffer
+      pretty-print.** On the empty-`iev_event` drop path both `C_IEVENT_SRV`
+      and `C_IEVENT_CLI` now dump the offending kw via `gobj_trace_json` — the
+      informative error is already logged upstream by
+      `gclass_find_public_event`, so the CLI's duplicate `gobj_log_error` was
+      removed. `gobj_trace_json` also pretty-prints a JSON gbuffer under
+      `TRACE_GBUFFERS` instead of a hex dump (and decrefs the parsed value, so
+      the trace path no longer leaks). (`kernel/c/gobj-c/src/glogger.c`,
+      `kernel/c/root-linux/src/c_ievent_{cli,srv}.c`)
 
 ## 7.6.7
     - **fix(security): close three buffer/parse defects found in a source

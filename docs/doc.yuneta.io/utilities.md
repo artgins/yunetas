@@ -1,7 +1,7 @@
 # Utilities
 
 Command-line tools shipped with Yuneta. `yunetas build` installs these binaries
-into `/yuneta/bin/`, which [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.6.7/yunetas-env.sh) puts on your `PATH` with top
+into `/yuneta/bin/`, which [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.6.8/yunetas-env.sh) puts on your `PATH` with top
 priority — so every tool below is runnable by name from any directory.
 
 **Source:** `utils/c/`

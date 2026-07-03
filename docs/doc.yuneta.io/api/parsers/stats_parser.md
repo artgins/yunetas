@@ -4,11 +4,11 @@ Default parser for the control-plane `stats` verb. Resolves the target gobj and 
 
 Source code:
 
-- [`stats_parser.h`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.h)
-- [`stats_parser.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.c)
+- [`stats_parser.h`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/stats_parser.h)
+- [`stats_parser.c`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/stats_parser.c)
 
 (build_stats)=
-## [`build_stats()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.c#L192)
+## [`build_stats()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/stats_parser.c#L192)
 
 `build_stats()` constructs a JSON object containing statistical data extracted from the attributes of a given `hgobj` instance, including attributes marked with `SFD_STATS` flags.
 
@@ -42,7 +42,7 @@ The function iterates through the hierarchy of `hgobj` instances, aggregating st
 ---
 
 (stats_parser)=
-## [`stats_parser()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.c#L34)
+## [`stats_parser()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/stats_parser.c#L34)
 
 `stats_parser()` generates a JSON-formatted statistical report by extracting relevant attributes from the given `hgobj` instance and formatting them into a structured response.
 
@@ -76,7 +76,7 @@ The function wraps the generated statistics in a standard command response forma
 ---
 
 (build_stats_response)=
-## [`build_stats_response()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/gobj-c/src/stats_parser.c#L212)
+## [`build_stats_response()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/stats_parser.c#L212)
 
 `build_stats_response()` builds a standardized JSON response object for statistics operations. It has the same structure and behavior as [`build_command_response()`](../parsers/command_parser.md#build_command_response), producing a response with `result`, `comment`, `schema`, and `data` fields.
 

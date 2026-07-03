@@ -84,5 +84,39 @@ npm run build      # production bundle into dist/
 
 ## Status
 
-**Phase 0 — skeleton.** Every menu leaf targets the placeholder
-`C_GUI_AGENT_VIEW`; real views replace them per the table above.
+**Phases 1–2 shipped.** The multi-agent Console (`C_AGENT_CONSOLE`) and the
+Nodes list are live against the controlcenter over `wss`+OAuth2. TreeDB (table
++ graph) and live stats (phase 3) are the remaining work. See **Changes**
+below.
+
+## Changes
+
+This yuno is JavaScript and deploys independently of the SDK (see
+`deploy-com.sh`), so its changes live here rather than in the top-level
+`CHANGELOG.md`.
+
+### 7.6.8 cycle
+
+- **Multi-agent Console.** One top-sub tab per selected node (built on
+  gobj-ui's runtime nav API); each tab is a `C_AGENT_CONSOLE` pinned to that
+  node — red when disconnected, closable. On F5 (or landing on the console
+  home) the exact open node is restored from the route subpath, falling back
+  to the first open node.
+- **Command helper.** A per-node `help` cache drives Tab completion (command
+  name *and* parameters), a live signature/description hint, and a **“?”
+  popover** of available commands. Up/Down recall shell-style **per-node
+  command history** (persisted in the browser); a **history popover** lists
+  recent commands. No polling — the node list refreshes on demand.
+- **Answers.** Commands are sent from the shared `agent_link` service (honoring
+  the inter-yuno contract), so the agent's real asynchronous answer routes back
+  (not just the controlcenter dispatch ack). Table answers render on Tabulator;
+  a `display_mode` toggle switches table vs raw JSON (like `ycommand`); the
+  comment line under the input shows only on errors.
+- **Mobile & theme.** Clear (✕) moved out of the input to its own button (no
+  accidental taps); icon-only Execute on mobile; full-width help/history
+  popovers; a terminal (`>_`) icon for the Console nav tab and Execute button;
+  theme-aware response panes and active rows for dark mode.
+- **Nodes.** Compact searchable/sortable nodes list on Tabulator with
+  active-row highlight and a single search+refresh toolbar line.
+- **Session.** Silent recovery after a sleep/reconnect NAK (refresh + reopen)
+  instead of dropping to the login screen.

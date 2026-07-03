@@ -4,11 +4,11 @@ Dict-style message store: one value per key, backed by timeranger2. Updates are 
 
 Source code:
 
-- [`tr_msg2db.h`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.h)
-- [`tr_msg2db.c`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c)
+- [`tr_msg2db.h`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.h)
+- [`tr_msg2db.c`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c)
 
 (build_msg2db_index_path)=
-## [`build_msg2db_index_path()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L63)
+## [`build_msg2db_index_path()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L63)
 
 `build_msg2db_index_path()` constructs a file system path for a message database index using the provided database name, topic name, and key.
 
@@ -43,7 +43,7 @@ Ensure that `bf` has sufficient space (`bfsize`) to store the generated path to 
 ---
 
 (msg2db_append_message)=
-## [`msg2db_append_message()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L992)
+## [`msg2db_append_message()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L992)
 
 `msg2db_append_message()` appends a new message to the specified topic in the given message database.
 
@@ -79,7 +79,7 @@ Ensure that [`msg2db_open_db()`](<#msg2db_open_db>) has been called before using
 ---
 
 (msg2db_close_db)=
-## [`msg2db_close_db()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L402)
+## [`msg2db_close_db()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L402)
 
 `msg2db_close_db()` closes an open message database identified by `msg2db_name`, ensuring that all resources associated with it are properly released.
 
@@ -108,7 +108,7 @@ Ensure that [`msg2db_close_db()`](<#msg2db_close_db>) is called after all operat
 ---
 
 (msg2db_get_message)=
-## [`msg2db_get_message()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L1227)
+## [`msg2db_get_message()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L1227)
 
 `msg2db_get_message()` retrieves a message from the specified database and topic using the given primary and secondary keys.
 
@@ -145,7 +145,7 @@ The function relies on the structure and indexing of the database, which must be
 ---
 
 (msg2db_list_messages)=
-## [`msg2db_list_messages()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L1146)
+## [`msg2db_list_messages()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L1146)
 
 `msg2db_list_messages()` retrieves a list of messages from the specified database and topic, filtered by the given criteria. It supports optional filtering and a custom matching function.
 
@@ -187,7 +187,7 @@ This function is useful for retrieving messages based on specific IDs or filteri
 ---
 
 (msg2db_open_db)=
-## [`msg2db_open_db()`](https://github.com/artgins/yunetas/blob/7.6.7/kernel/c/timeranger2/src/tr_msg2db.c#L94)
+## [`msg2db_open_db()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/timeranger2/src/tr_msg2db.c#L94)
 
 `msg2db_open_db()` initializes and opens a message database using TimeRanger, loading its schema and configuration. The function supports persistence by loading the schema from a file if the 'persistent' option is enabled.
 
