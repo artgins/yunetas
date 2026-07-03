@@ -634,11 +634,29 @@ function ac_route_changed(gobj, event, kw, src)
     if(((kw && kw.base) || "") !== CONSOLE_HOME_ROUTE) {
         return 0;
     }
-    let first = console_first_route(gobj);
-    if(first) {
+    /*  Prefer the EXACT node from the restored URL tail (subpath) when it is
+     *  still an open tab — so F5 lands back on the very console you were on,
+     *  not just the first. Fall back to the first open node otherwise (bare
+     *  console home, or a node that was closed). */
+    let target = console_first_route(gobj);
+    let sub = (kw && kw.subpath) || "";
+    if(sub) {
+        let id = sub;
+        try {
+            id = decodeURIComponent(sub);
+        } catch(e) {
+            id = sub;   /*  malformed % escape: use the raw tail  */
+        }
+        let config = gobj_find_service("agent_config", false);
+        let nodes = config ? agent_config_get_selected_nodes(config) : [];
+        if(nodes.some((n) => n && n.id === id)) {
+            target = console_tab_route(id);
+        }
+    }
+    if(target) {
         setTimeout(() => {
             if(gobj.priv.shell) {
-                yui_shell_navigate(gobj.priv.shell, first);
+                yui_shell_navigate(gobj.priv.shell, target);
             }
         }, 0);
     }
