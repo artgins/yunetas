@@ -13,21 +13,32 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
-### `kernel/js/gobj-js/` and `kernel/js/gobj-ui/` are git submodules
+### `kernel/js/gobj-js/`, `kernel/js/gobj-ui/` and `yunos/js/` are git submodules
 
 The C kernel and the runtime gclasses are consolidated: treat them as described
 above.
 
-The two JS framework packages are **not** consolidated — each lives in its
-**own repository** and is embedded here as a **git submodule** (the same model
-as `utils/python/tui_yunetas`), at the same path it used to occupy:
+The JavaScript layer is **not** consolidated — it lives in its **own
+repositories** and is embedded here as **git submodules** (the same model as
+`utils/python/tui_yunetas`), each at the same path it used to occupy:
 
-- `kernel/js/gobj-js/` → `github.com/artgins/gobj-js` (tracks `main`).
-- `kernel/js/gobj-ui/` → `github.com/artgins/gobj-ui.js` (tracks `main`/v2).
+- `kernel/js/gobj-js/` → `github.com/artgins/gobj-js` (tracks `main`) — the
+  GObject-JS runtime.
+- `kernel/js/gobj-ui/` → `github.com/artgins/gobj-ui.js` (tracks `main`/v2) — the
+  UI library.
+- `yunos/js/` → `github.com/artgins/yunos-js` (tracks `main`) — the JS **yunos**
+  (browser SPAs: `gui_agent`, `gui_treedb`). Extracted from `yunetas/yunos/js`
+  at 7.6.8 as a fresh snapshot (history stays in yunetas); it is the most
+  active-changing JS layer, so it evolves on its own line with its own
+  `CHANGELOG.md`.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
-Because each submodule sits at its original path, local `file:` consumers
-(wattyzer, `yunos/js/gui_treedb`) resolve unchanged.
+Because each submodule sits at its original path, local `file:` consumers resolve
+unchanged: the yunos' `@yuneta/gobj-js` / `@yuneta/gobj-ui` deps
+(`../../../kernel/js/…` from `yunos/js/<yuno>`) and wattyzer's `file:` deps still
+point at the checked-out `kernel/js/*` submodules. To edit a JS yuno: work in
+`yunos/js` directly, commit on `main` in the `yunos-js` repo, then **bump this
+submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):

@@ -9,3 +9,7 @@
 	path = kernel/js/gobj-js
 	url = https://github.com/artgins/gobj-js.git
 	branch = main
+[submodule "yunos/js"]
+	path = yunos/js
+	url = https://github.com/artgins/yunos-js.git
+	branch = main
