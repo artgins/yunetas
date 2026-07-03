@@ -618,12 +618,20 @@ function ac_nav_item_close(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  Landing on the console home with nodes open → jump to the first
- *  tab (deferred, so we don't re-enter navigate_to mid-publish).
+ *  Landing on the node-less console home with nodes open → jump to
+ *  the first tab (deferred, so we don't re-enter navigate_to mid-publish).
+ *
+ *  Match on the RESOLVED `base`, not the raw `route`: after an F5 the
+ *  restored hash is a node route (/console/agent/<node>) that resolves to
+ *  the declared ancestor /console/agent (the node-less empty-state console)
+ *  because the per-node tabs aren't rebuilt yet. `base` is /console/agent
+ *  in that fallback, so we catch it and redirect; a real, resolved node tab
+ *  has `base` === its own node route and is left alone (no yank on every
+ *  tab switch).
  ***************************************************************/
 function ac_route_changed(gobj, event, kw, src)
 {
-    if(((kw && kw.route) || "") !== CONSOLE_HOME_ROUTE) {
+    if(((kw && kw.base) || "") !== CONSOLE_HOME_ROUTE) {
         return 0;
     }
     let first = console_first_route(gobj);
