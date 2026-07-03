@@ -321,7 +321,7 @@ function build_ui(gobj)
      *  input keeps its width — the icon alone carries the action there. */
     let $exec = createElement2(
         ["button", {class: "CONSOLE_EXEC button is-primary", type: "button"}, [
-            ["span", {class: "icon"}, [["i", {class: "yi-arrow-right"}]]],
+            ["span", {class: "icon"}, [["i", {class: "yi-terminal"}]]],
             ["span", {class: "is-hidden-mobile", i18n: "execute"}, "Execute"]
         ]]
     );
