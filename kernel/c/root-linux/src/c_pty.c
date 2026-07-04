@@ -631,7 +631,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}}",
+        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}",
             "name", gobj_name(gobj),
             "process", priv->argv[0],
             "uuid", node_uuid(),
