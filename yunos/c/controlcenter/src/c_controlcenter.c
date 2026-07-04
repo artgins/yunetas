@@ -1251,11 +1251,18 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
+            /*
+             *  Match by UUID OR hostname, like command-agent (a caller such
+             *  as the browser console addresses nodes by hostname). Matching
+             *  only the UUID here silently missed every hostname-addressed
+             *  write-tty.
+             */
             const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-            if(strcmp(id_, agent_id)!=0) {
+            const char *host_ = kw_get_str(gobj, jn_attrs,
+                "__md_iev__`ievent_gate_stack`0`host", "", 0);
+            if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
                 continue;
             }
-
         }
 
         json_t *webix = gobj_command( // debe retornar siempre 0.
@@ -1271,7 +1278,20 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_free_iter(dl_children);
 
     if(!some) {
-        gobj_send_event(src, EV_DROP, 0, gobj);
+        /*
+         *  No connected agent matched agent_id. Do NOT drop src: it is a
+         *  shared control channel (the browser console multiplexes every
+         *  panel and several PTY consoles over one link), so a single stray
+         *  write-tty must not tear the whole session down. Log and ignore;
+         *  a truly gone console is cleaned up via EV_TTY_CLOSE / on_close.
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "write-tty: no connected agent matched",
+            "agent_id",     "%s", agent_id,
+            NULL
+        );
     }
 
     KW_DECREF(kw);
