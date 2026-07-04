@@ -11504,21 +11504,29 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, EV_DROP, 0, gobj);
+        /*  Malformed write-tty frame: log and drop THIS message, not the
+         *  shared controlcenter_cli link. */
         KW_DECREF(kw);
         return 0;
     }
 
     hgobj gobj_console = gobj_find_service(name, FALSE);
     if(!gobj_console) {
-        gobj_log_error(gobj, 0,
+        /*
+         *  A write-tty for a console that isn't here — usually a benign race:
+         *  the client (e.g. gui_agent) sent a keystroke in the window between
+         *  the console closing on this node and its EV_TTY_CLOSE reaching the
+         *  client. Do NOT EV_DROP src: over the shared controlcenter_cli link
+         *  that would tear down the whole control channel (every panel + every
+         *  other console) for one stray tty write. Log and ignore.
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "console not found",
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -11532,7 +11540,8 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, EV_DROP, 0, gobj);
+        /*  Undecodable base64: log and drop THIS message, not the shared
+         *  controlcenter_cli link. */
         KW_DECREF(kw);
         return 0;
     }
