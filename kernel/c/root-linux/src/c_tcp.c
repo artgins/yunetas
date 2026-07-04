@@ -1162,7 +1162,23 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             priv->fd_clisrv = -1;
         }
         if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-            gobj_change_state(gobj, ST_STOPPED);
+            /*
+             *  set_disconnected() already ran on the disconnect callback: it
+             *  put us in ST_DISCONNECTED and, for a RUNNING client, armed the
+             *  reconnect EV_TIMEOUT (or left it disconnected for an on-demand
+             *  EV_TX_DATA reconnect). Forcing ST_STOPPED here would ORPHAN that
+             *  timer — EV_TIMEOUT then fires in ST_STOPPED (st_stopped handles
+             *  nothing) and the client never reconnects. This bit the
+             *  controlcenter_cli after an EV_DROP: it landed in ST_STOPPED and
+             *  the reconnect timeout was silently dropped.
+             *
+             *  Only finalize to ST_STOPPED when the gobj is actually being
+             *  stopped (mt_stop clears the running flag before we get here);
+             *  otherwise stay ST_DISCONNECTED so the armed reconnect fires.
+             */
+            if(!gobj_is_running(gobj)) {
+                gobj_change_state(gobj, ST_STOPPED);
+            }
         } else {
             gobj_change_state(gobj, ST_STOPPED);
             set_disconnected(gobj);
