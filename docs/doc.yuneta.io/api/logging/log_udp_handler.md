@@ -4,11 +4,11 @@ Log handler that sends each record over UDP to a collector. Useful for aggregati
 
 Source code:
 
-- [`log_udp_handler.h`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.h)
-- [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c)
+- [`log_udp_handler.h`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.h)
+- [`log_udp_handler.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c)
 
 (udpc_close)=
-## [`udpc_close()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L293)
+## [`udpc_close()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L293)
 
 Closes the UDP client instance referenced by `udpc`, releasing all associated resources.
 
@@ -38,7 +38,7 @@ On ESP32 platforms, the associated event loop is deleted before freeing resource
 ---
 
 (udpc_end)=
-## [`udpc_end()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L142)
+## [`udpc_end()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L142)
 
 Closes all active UDP client handlers and releases associated resources.
 
@@ -63,7 +63,7 @@ This function iterates through all active UDP clients and calls [`udpc_close()`]
 ---
 
 (udpc_fwrite)=
-## [`udpc_fwrite()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L495)
+## [`udpc_fwrite()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L495)
 
 `udpc_fwrite()` formats and sends a log message over UDP using a specified format string and arguments.
 
@@ -96,7 +96,7 @@ Internally, `udpc_fwrite()` formats the message using `vsnprintf()` and then cal
 ---
 
 (udpc_open)=
-## [`udpc_open()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L154)
+## [`udpc_open()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L154)
 
 `udpc_open()` initializes and opens a UDP client for logging, configuring its buffer size, frame size, and output format.
 
@@ -137,7 +137,7 @@ If the socket cannot be created, the function logs an error and returns `NULL`.
 ---
 
 (udpc_start_up)=
-## [`udpc_start_up()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L121)
+## [`udpc_start_up()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L121)
 
 `udpc_start_up()` initializes the UDP client system by setting process-related metadata and preparing internal structures.
 
@@ -168,7 +168,7 @@ This function must be called before using [`udpc_open()`](#udpc_open) or other U
 ---
 
 (udpc_write)=
-## [`udpc_write()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/log_udp_handler.c#L319)
+## [`udpc_write()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/log_udp_handler.c#L319)
 
 `udpc_write()` sends a log message over UDP, formatting it according to the specified output format.
 

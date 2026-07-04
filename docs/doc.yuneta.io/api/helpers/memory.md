@@ -4,11 +4,11 @@ Yuneta's memory management API: allocate, free, and reallocate memory through th
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c)
 
 (print_track_mem)=
-## [`print_track_mem()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L275)
+## [`print_track_mem()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L275)
 
 Prints a debug log of memory allocations that have not been freed, helping to track memory leaks.
 
@@ -33,7 +33,7 @@ This function is only effective when CONFIG_TRACK_MEMORY is enabled. It logs mem
 ---
 
 (set_memory_check_list)=
-## [`set_memory_check_list()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L265)
+## [`set_memory_check_list()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L265)
 
 Sets a global list of memory addresses to be checked for tracking memory allocations.
 
@@ -58,7 +58,7 @@ This function is only available when `CONFIG_TRACK_MEMORY` is defined. It allows
 ---
 
 (gbmem_calloc)=
-## [`gbmem_calloc()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L182)
+## [`gbmem_calloc()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L182)
 
 Allocates memory for an array of elements and initializes them to zero.
 
@@ -87,7 +87,7 @@ The total allocation is `n * size` bytes. All bytes are initialized to zero befo
 ---
 
 (gbmem_free)=
-## [`gbmem_free()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L166)
+## [`gbmem_free()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L166)
 
 Frees a block of memory previously allocated by gbmem allocation functions.
 
@@ -114,7 +114,7 @@ Only pass pointers obtained from `gbmem_malloc()`, `gbmem_calloc()`, `gbmem_real
 ---
 
 (gbmem_get_allocators)=
-## [`gbmem_get_allocators()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L133)
+## [`gbmem_get_allocators()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L133)
 
 Retrieves the current memory allocator function pointers.
 
@@ -147,7 +147,7 @@ Any parameter can be `NULL` if you do not need that particular function pointer.
 ---
 
 (gbmem_get_maximum_block)=
-## [`gbmem_get_maximum_block()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L237)
+## [`gbmem_get_maximum_block()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L237)
 
 Returns the maximum size of a single memory allocation block.
 
@@ -172,7 +172,7 @@ This limit is set during `gbmem_setup()` via the `mem_max_block` parameter.
 ---
 
 (gbmem_malloc)=
-## [`gbmem_malloc()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L158)
+## [`gbmem_malloc()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L158)
 
 Allocates a block of memory of the specified size.
 
@@ -199,7 +199,7 @@ The contents of the allocated block are uninitialized. Use `gbmem_calloc()` if y
 ---
 
 (gbmem_realloc)=
-## [`gbmem_realloc()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L174)
+## [`gbmem_realloc()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L174)
 
 Resizes a previously allocated memory block.
 
@@ -228,7 +228,7 @@ If `ptr` is `NULL`, this behaves like `gbmem_malloc()`. The returned pointer may
 ---
 
 (gbmem_set_allocators)=
-## [`gbmem_set_allocators()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L116)
+## [`gbmem_set_allocators()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L116)
 
 Replaces the memory allocator functions with custom implementations.
 
@@ -261,7 +261,7 @@ All subsequent `gbmem_*` calls will use the provided functions instead of the de
 ---
 
 (gbmem_setup)=
-## [`gbmem_setup()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L80)
+## [`gbmem_setup()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L80)
 
 Initializes the memory manager with custom configuration parameters.
 
@@ -296,7 +296,7 @@ Must be called before any other `gbmem_*` allocation function. Typically called 
 ---
 
 (gbmem_shutdown)=
-## [`gbmem_shutdown()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L108)
+## [`gbmem_shutdown()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L108)
 
 Shuts down the memory manager and cleans up resources.
 
@@ -321,7 +321,7 @@ Should be called during yuno shutdown. After this call, no further `gbmem_*` all
 ---
 
 (gbmem_strdup)=
-## [`gbmem_strdup()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L226)
+## [`gbmem_strdup()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L226)
 
 Duplicates a null-terminated string.
 
@@ -348,7 +348,7 @@ The returned string must be freed with `gbmem_free()`.
 ---
 
 (gbmem_strndup)=
-## [`gbmem_strndup()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L190)
+## [`gbmem_strndup()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L190)
 
 Duplicates a substring of specified length.
 
@@ -377,7 +377,7 @@ Copies at most `size` characters from `str` and appends a null terminator. The r
 ---
 
 (get_cur_system_memory)=
-## [`get_cur_system_memory()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L253)
+## [`get_cur_system_memory()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L253)
 
 Returns the current amount of system memory in use by the allocator.
 
@@ -402,7 +402,7 @@ Useful for monitoring memory consumption at runtime.
 ---
 
 (get_max_system_memory)=
-## [`get_max_system_memory()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gbmem.c#L245)
+## [`get_max_system_memory()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gbmem.c#L245)
 
 Returns the maximum amount of system memory allowed by the allocator.
 

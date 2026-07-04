@@ -4,11 +4,11 @@ Create, destroy, and navigate gobj instances. Every gobj belongs to a parent and
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_create)=
-## [`gobj_create()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1804)
+## [`gobj_create()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1804)
 
 Creates a new `gobj` (generic object) instance of the specified `gclass` and assigns it to a parent `gobj` if provided.
 
@@ -41,7 +41,7 @@ Returns a handle to the newly created `gobj` (`hgobj`). Returns `NULL` if the cr
 ---
 
 (gobj_create2)=
-## [`gobj_create2()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1453)
+## [`gobj_create2()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1453)
 
 Creates a new `gobj` (generic object) with the specified name, class, attributes, and parent. The function initializes the object, sets its attributes, and registers it if it is a service.
 
@@ -83,7 +83,7 @@ If the `gobj` has a parent, it is added to the parent's child list.
 ---
 
 (gobj_create_default_service)=
-## [`gobj_create_default_service()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1759)
+## [`gobj_create_default_service()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1759)
 
 The function `gobj_create_default_service()` creates a default service gobj with autostart enabled but autoplay disabled. The service will be played by the yuno's play method.
 
@@ -116,7 +116,7 @@ The created gobj is marked as a default service and will be started automaticall
 ---
 
 (gobj_create_pure_child)=
-## [`gobj_create_pure_child()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1789)
+## [`gobj_create_pure_child()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1789)
 
 Creates a new `gobj` as a pure child of the specified parent. A pure child sends events directly to its parent instead of publishing them.
 
@@ -149,7 +149,7 @@ A pure child does not publish events but instead sends them directly to its pare
 ---
 
 (gobj_create_service)=
-## [`gobj_create_service()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1750)
+## [`gobj_create_service()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1750)
 
 The `gobj_create_service()` function creates a new service GObj instance with the specified name, gclass, and configuration, and assigns it to the given parent GObj.
 
@@ -182,7 +182,7 @@ The created GObj is marked as a service using the `gobj_flag_service` flag. If t
 ---
 
 (gobj_create_tree)=
-## [`gobj_create_tree()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L2222)
+## [`gobj_create_tree()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L2222)
 
 Creates a hierarchical tree of `gobj` instances from a JSON configuration string. The function parses the configuration, applies global settings, and instantiates the objects accordingly.
 
@@ -213,7 +213,7 @@ This function internally calls `gobj_create_tree0()` after parsing and applying 
 ---
 
 (gobj_create_volatil)=
-## [`gobj_create_volatil()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1774)
+## [`gobj_create_volatil()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1774)
 
 Creates a new volatile `gobj` instance of the specified `gclass_name` with the given attributes and parent. A volatile `gobj` is automatically destroyed when its parent is destroyed.
 
@@ -246,7 +246,7 @@ A volatile `gobj` is automatically destroyed when its parent is destroyed. Use [
 ---
 
 (gobj_create_yuno)=
-## [`gobj_create_yuno()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L1742)
+## [`gobj_create_yuno()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L1742)
 
 Creates a new Yuno object with the specified name and gclass. The Yuno object serves as the root object in the hierarchical structure of gobjs.
 
@@ -277,7 +277,7 @@ The Yuno object is the top-level object in the gobj hierarchy and must be unique
 ---
 
 (gobj_destroy)=
-## [`gobj_destroy()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L2272)
+## [`gobj_destroy()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L2272)
 
 The `gobj_destroy()` function deallocates and removes a given `hgobj` instance, ensuring proper cleanup of its resources, subscriptions, and child objects.
 
@@ -304,7 +304,7 @@ This function does not return a value.
 ---
 
 (gobj_destroy_children)=
-## [`gobj_destroy_children()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L2439)
+## [`gobj_destroy_children()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L2439)
 
 Destroys all child objects of the given `hgobj`, ensuring proper cleanup and deallocation.
 
@@ -331,7 +331,7 @@ Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a chi
 ---
 
 (gobj_service_factory)=
-## [`gobj_service_factory()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L2093)
+## [`gobj_service_factory()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L2093)
 
 Creates a service gobj using `gobj_create_tree0()` and registers it as a service.
 
@@ -360,7 +360,7 @@ The function extracts global settings, applies configuration variables, and invo
 ---
 
 (gobj_destroy_named_children)=
-## [`gobj_destroy_named_children()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L2497)
+## [`gobj_destroy_named_children()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L2497)
 
 Destroys all direct children of the given gobj that match the specified name. Before destruction, each matching child is automatically paused and stopped if it is currently running or playing. The function walks first-level children only.
 
@@ -389,7 +389,7 @@ Matching children are automatically paused and stopped before being destroyed. O
 ---
 
 (gobj_sdata_create)=
-## [`gobj_sdata_create()`](https://github.com/artgins/yunetas/blob/7.6.8/kernel/c/gobj-c/src/gobj.c#L3055)
+## [`gobj_sdata_create()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/gobj-c/src/gobj.c#L3055)
 
 Creates a new JSON object populated with default values according to the given `sdata_desc_t` schema. Each attribute defined in the schema is initialized to its declared default value (string, boolean, integer, real, JSON list, or JSON dict). This is an attribute function without bottom inheritance.
 

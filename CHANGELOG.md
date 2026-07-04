@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+## 7.7.0
+_C / SDK release — **capability marker**. No C/SDK source change since 7.6.8;
+this minor advertises the agent version boundary from which a **controlcenter**
+can drive the command/stats control plane of a node's managed yunos. JavaScript
+framework packages (`@yuneta/gobj-js`, `@yuneta/gobj-ui`) are unchanged this
+cycle; the `gui_agent` yuno records its own UI changes in
+`yunos/js/gui_agent/README.md`._
+
+    - **Controlcenter-driven `command-yuno` / `stats-yuno` of managed yunos —
+      minimum agent version is now `7.7.0`.** The agent-side plumbing that
+      returns a controlcenter-cascaded answer to the original requester
+      (SPA → controlcenter → agent → yuno, back again) shipped in 7.6.8: the
+      agent hands the answer to its outbound `controlcenter` `C_IEVENT_CLI`,
+      which serializes the inner inter-event via its `EV_SEND_IEV` action
+      exactly as `C_CHANNEL` does server-side
+      (`kernel/c/root-linux/src/c_ievent_cli.c`, `yunos/c/yuno_agent/src/c_agent.c`).
+      7.7.0 **promotes this to an advertised compatibility boundary**: the agent
+      reports `YUNETA_VERSION` as its `__version__`
+      (`yunos/c/yuno_agent/src/main.c`: `APP_VERSION = YUNETA_VERSION`), so a
+      controlcenter can gate on `agent >= 7.7.0` before routing commands/stats
+      down to a node. An agent below 7.7.0 must not be assumed to answer these
+      cascaded control-plane calls.
+    - **chore(gui_agent): controlcenter web console rollup.** The console that
+      consumes this capability matured into the `yunos-js` submodule: a live
+      **Stats** panel per selected node, console command **history**,
+      command **shortkeys** (ycli parity) managed from Preferences, a
+      **copy-response** button, and TreeDB removed from the console. Tracked in
+      `yunos/js/gui_agent/README.md`.
+    - **chore(repo): `yunos/js` extracted into the `yunos-js` submodule**
+      (`github.com/artgins/yunos-js`, tracks `main`). It sits at its original
+      path, so the yunos' local `@yuneta/gobj-js` / `@yuneta/gobj-ui` `file:`
+      deps resolve unchanged. Edit in `yunos/js`, commit on `main` in the
+      standalone repo, then bump the submodule pointer here — the same flow as
+      `gobj-js` / `gobj-ui`.
+    - **chore(cli): yunetas CLI `0.12.0`** — pre-build ext-libs version guard,
+      published to PyPI.
+
 ## 7.6.8
 _C / SDK release. JavaScript framework changes are tracked in their own
 repositories (`@yuneta/gobj-js`, `@yuneta/gobj-ui` CHANGELOGs); the `gui_agent`

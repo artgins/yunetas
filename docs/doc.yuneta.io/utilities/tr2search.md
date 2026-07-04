@@ -27,4 +27,4 @@ tr2search PATH [options]
 ## See also
 
 - [`tr2list`](tr2list.md), [`tr2keys`](tr2keys.md).
-- [`utils/c/tr2search/README.md`](https://github.com/artgins/yunetas/blob/7.6.8/utils/c/tr2search/README.md).
+- [`utils/c/tr2search/README.md`](https://github.com/artgins/yunetas/blob/7.7.0/utils/c/tr2search/README.md).

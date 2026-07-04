@@ -50,4 +50,4 @@ Authentication uses the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand)
 - [`ycommand`](ycommand.md) — one-shot `stats` / `stats-yuno` requests when you
   do not need a live refresh.
 - Repository README (for code navigators):
-  [`utils/c/ystats/README.md`](https://github.com/artgins/yunetas/blob/7.6.8/utils/c/ystats/README.md).
+  [`utils/c/ystats/README.md`](https://github.com/artgins/yunetas/blob/7.7.0/utils/c/ystats/README.md).
