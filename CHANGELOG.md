@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **fix(c_tcp):** a running client dropped via `EV_DROP` could stall in
+  `ST_STOPPED` (the reconnect `EV_TIMEOUT` was then ignored) and never
+  reconnect; `try_to_stop_yevents()` now finalizes to `ST_STOPPED` only when the
+  gobj is actually stopping. Generic to every C_TCP client dropped while alive.
+- **fix(c_pty):** `EV_TTY_CLOSE`'s `json_pack` had a stray extra `}` → NULL kw
+  (no `name`/`uuid`/`slave_name`), so consumers keying off the console name
+  (e.g. gui_agent's Terminal) never saw a usable close.
+- **fix(controlcenter):** `write-tty` now matches a node by UUID **or** hostname
+  (like `command-agent`) and, on a no-match, logs instead of `EV_DROP`-ping the
+  requester's shared control socket.
+- **fix(yuno_agent):** `write-tty` no longer drops the whole control link on a
+  benign per-write error ("console not found" → warning); it logs and drops just
+  that message.
+
 ## 7.7.0
 _C / SDK release — **capability marker**. No C/SDK source change since 7.6.8;
 this minor advertises the agent version boundary from which a **controlcenter**
