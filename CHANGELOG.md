@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **feat(c_auth_bff):** new opt-in `POST /auth/token` endpoint returns the
+  access_token to JavaScript so a single SPA can forward it in a `C_IEVENT_CLI`
+  identity_card to Yuneta backends on **other** hosts (multi-backend browsing,
+  e.g. `gui_treedb`). A deliberate, scoped SEC-06 relaxation, off by default and
+  double-guarded: `expose_access_token` attr (default `false`; when off the
+  endpoint is an invisible `404`) **and** fail-closed Origin pinning (the token
+  is emitted only when the request `Origin` exactly matches `allowed_origin`,
+  else `403 origin_not_allowed`; enabling the flag without pinning an origin
+  yields nothing). Every existing BFF (wattyzer, estadodelaire, hidraulia) keeps
+  full SEC-06 — they never enable the flag. The server side already accepts an
+  identity-card JWT with priority over the cookie (`c_ievent_srv.c`) and
+  validates it against the issuer JWKS (`c_authz.c`); each remote backend must
+  have that JWKS provisioned. Docs: `YUNO_AUTH.md` §2.2.
 - **fix(c_tcp):** a running client dropped via `EV_DROP` could stall in
   `ST_STOPPED` (the reconnect `EV_TIMEOUT` was then ignored) and never
   reconnect; `try_to_stop_yevents()` now finalizes to `ST_STOPPED` only when the

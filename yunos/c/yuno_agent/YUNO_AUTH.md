@@ -100,7 +100,7 @@ cannot read them; XSS attacks cannot exfiltrate them. The SPA only knows
 "am I authenticated" by the response code of API calls. This is the
 SEC-04/-06/-07/-09 hardening Yuneta deployments require.
 
-### 2.2 The four endpoints
+### 2.2 The endpoints
 
 Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/c_auth_bff.c). URL dispatcher at
 [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/c_auth_bff.c).
@@ -111,7 +111,39 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | `/auth/callback`   | POST   | PKCE code exchange (authorisation_code grant)        | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token    | yes                 |
 | `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies     | yes (Max-Age=0)     |
+| `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding) | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
+
+#### `/auth/token` — multi-backend identity-card forwarding (opt-in)
+
+By default the SPA never sees a raw token (SEC-06): tokens live only in
+HttpOnly cookies scoped to the BFF host, so they cannot be forwarded to a
+backend on a **different** host. When a single SPA must open WebSockets to
+Yuneta backends on *other* hosts (e.g. the `gui_treedb` browser served at
+`artgins.ytreedb.com` connecting to `wss://app.wattyzer.com:1602`), it
+forwards the access_token itself in the `C_IEVENT_CLI` identity_card `jwt`
+field; the remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
+over the (absent) cookie, and `C_AUTHZ` validates it against the issuer JWKS
+exactly as a cookie token — so each remote backend must have the issuer's
+JWKS provisioned (`add-jwk`) and a role for the target service.
+
+`POST /auth/token` (reads the `access_token` cookie, sent same-origin by the
+browser, and returns it in the body: `{success, access_token}`) is the only
+way the SPA obtains that token. It is a **deliberate, opt-in SEC-06
+relaxation** and is disabled by default. Two guards keep it safe:
+
+- **`expose_access_token`** attr (default `false`) — when off, the endpoint
+  is invisible (`404 unknown_endpoint`), so every other BFF keeps tokens
+  unreadable by JS. Enable it **only** on the BFF whose SPA needs forwarding.
+- **Origin pinning (fail-closed)** — even when enabled, the token is emitted
+  only when the request `Origin` exactly matches `allowed_origin`; if that
+  origin is unset or does not match, the BFF answers `403 origin_not_allowed`
+  and never the token. Exposing the token therefore *requires* pinning the
+  single SPA origin allowed to read it.
+
+Residual risk: an XSS running **on the pinned origin itself** could read the
+token (it is same-origin then). Mitigate with a short access_token TTL and a
+strict CSP on that SPA. Keep the flag off on every BFF that does not need it.
 
 ### 2.3 PKCE authorisation-code flow
 

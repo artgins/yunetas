@@ -36,6 +36,23 @@
  *      Action: call IdP logout endpoint, clear cookies (Max-Age=0).
  *      Returns { "success": true }.
  *
+ *    POST /auth/token
+ *      Reads the "access_token" httpOnly cookie from the request.
+ *      Action: return the access_token in the JSON body so the SPA can
+ *              forward it in a C_IEVENT_CLI identity_card to a DIFFERENT
+ *              backend host (multi-backend browsing).  Synchronous — no
+ *              IdP round-trip.  Gated by the `expose_access_token` attr
+ *              (default false); when disabled the endpoint responds 404 as
+ *              if it did not exist.  This is a DELIBERATE, opt-in SEC-06
+ *              relaxation: it makes the access_token readable by JavaScript,
+ *              so enable it ONLY on a BFF whose SPA must forward the token
+ *              cross-origin (e.g. gui_treedb).  Keep it off everywhere else.
+ *              Origin-pinned (fail-closed): the token is emitted only when the
+ *              request Origin exactly matches `allowed_origin`, and only when
+ *              that origin is configured — so the token can never be exposed
+ *              without also pinning the single SPA origin allowed to read it.
+ *      Returns { "success": true, "access_token": "…" }.
+ *
  *    OPTIONS *
  *      CORS preflight response.
  *
@@ -188,6 +205,7 @@ SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
+SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in SEC-06 relaxation: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
@@ -2249,6 +2267,64 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj, "👤BFF /auth/logout: rt_len=%zu", strlen(rt));
         }
+
+    } else if(strcmp(url, "/auth/token") == 0) {
+        /*
+         *  POST /auth/token — return the access_token from the httpOnly
+         *  cookie so the SPA can forward it in a C_IEVENT_CLI identity_card
+         *  to a DIFFERENT backend host (multi-backend browsing).  Synchronous:
+         *  no IdP round-trip, so it is answered inline here (like OPTIONS) and
+         *  never enters the PENDING_AUTH queue.
+         *
+         *  Gated by `expose_access_token` (default false): a DELIBERATE,
+         *  opt-in SEC-06 relaxation.  When disabled the endpoint is invisible
+         *  (404 unknown_endpoint), so a BFF that does not opt in keeps its
+         *  tokens unreadable by JavaScript exactly as before.
+         */
+        if(!gobj_read_bool_attr(gobj, "expose_access_token")) {
+            send_error_response(gobj, src, 404, "404 Not Found",
+                "unknown_endpoint", "Unknown endpoint", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        /*
+         *  Origin pinning (fail-closed).  The token is handed out ONLY to the
+         *  exact SPA origin configured in `allowed_origin`.  CORS already stops
+         *  a cross-origin browser from READING the response; this hard,
+         *  server-side check additionally refuses to EMIT the token for
+         *  anything but the pinned origin, and — critically — makes exposing
+         *  the token IMPOSSIBLE unless an origin is pinned at all (a BFF that
+         *  sets expose_access_token=true but leaves allowed_origin empty gets
+         *  403, never the token).  A missing or mismatched Origin → 403.
+         */
+        const char *token_origin = gobj_read_str_attr(gobj, "allowed_origin");
+        if(empty_string(token_origin) || strcmp(origin, token_origin) != 0) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed",
+                "Origin not allowed for /auth/token", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        char at[4096];
+        if(!extract_cookie(cookie_hdr, COOKIE_NAME_AT, at, sizeof(at)) ||
+                empty_string(at)) {
+            send_error_response(gobj, src, 401, status_str(401),
+                "missing_access_token",
+                "Missing access_token cookie", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj, "👤BFF /auth/token: at_len=%zu", strlen(at));
+        }
+        json_t *jn_body = json_pack("{s:b, s:s}",
+            "success",      1,
+            "access_token", at
+        );
+        send_json_response(src, 200, "200 OK", jn_body, cors_hdrs);
+        JSON_DECREF(jn_body)
+        KW_DECREF(kw)
+        return 0;
 
     } else {
         send_error_response(gobj, src, 404, "404 Not Found",

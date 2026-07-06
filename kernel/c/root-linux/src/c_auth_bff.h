@@ -8,10 +8,16 @@
  *    POST /auth/callback  — exchange PKCE authorization code for tokens
  *    POST /auth/refresh   — refresh access_token using the httpOnly cookie
  *    POST /auth/logout    — revoke refresh_token and clear cookies
+ *    POST /auth/token     — return the access_token to JS (opt-in; off by
+ *                           default; see `expose_access_token` in c_auth_bff.c)
  *
- *  Tokens are NEVER returned to JavaScript.  They are written as
- *  httpOnly; Secure; SameSite=Strict cookies so the browser forwards
- *  them automatically with every WebSocket HTTP Upgrade to port 1800.
+ *  Tokens are NEVER returned to JavaScript, with ONE opt-in exception:
+ *  POST /auth/token (gated by the `expose_access_token` attr, default off)
+ *  returns the access_token so a multi-backend SPA can forward it in a
+ *  C_IEVENT_CLI identity_card to another backend host.  Everywhere else the
+ *  tokens are written as httpOnly; Secure; SameSite=Strict cookies so the
+ *  browser forwards them automatically with every WebSocket HTTP Upgrade to
+ *  port 1800.
  *
  *  IdP configuration (priority order):
  *
@@ -82,8 +88,15 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  missing_body              400  POST without JSON body
  *  missing_params            400  Required body fields absent
  *  redirect_uri_not_allowed  400  redirect_uri fails allowlist check
+ *  origin_not_allowed        403  /auth/token Origin does not match
+ *                                 allowed_origin, or allowed_origin unset
+ *                                 (origin-pinned, fail-closed)
  *  missing_refresh_token     401  /auth/refresh called without RT cookie
- *  unknown_endpoint          404  URL not one of /auth/{callback,login,refresh,logout}
+ *  missing_access_token      401  /auth/token called without AT cookie
+ *                                 (only reachable when expose_access_token=true)
+ *  unknown_endpoint          404  URL not one of /auth/{callback,login,refresh,
+ *                                 logout,token}; also /auth/token when
+ *                                 expose_access_token is false (invisible)
  *  server_busy               503  Pending queue full
  *
  *  New codes MUST be added here first, then implemented in c_auth_bff.c,
