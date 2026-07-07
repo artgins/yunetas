@@ -4,11 +4,11 @@ Graph memory database with hook/fkey relationships, persisted through timeranger
 
 Source code:
 
-- [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.h)
-- [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c)
+- [`tr_treedb.h`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.h)
+- [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c)
 
 (_treedb_create_topic_cols_desc)=
-## [`_treedb_create_topic_cols_desc()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L420)
+## [`_treedb_create_topic_cols_desc()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L440)
 
 The `_treedb_create_topic_cols_desc()` function creates and returns a JSON object describing the column schema for a TreeDB topic.
 
@@ -33,7 +33,7 @@ The returned JSON object must not be modified or freed by the caller.
 ---
 
 (add_jtree_path)=
-## [`add_jtree_path()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8480)
+## [`add_jtree_path()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8681)
 
 The `add_jtree_path()` function appends a child node to a parent node in a hierarchical JSON tree structure.
 
@@ -62,7 +62,7 @@ The function does not take ownership of the `parent` or `child` nodes, meaning t
 ---
 
 (create_template_record)=
-## [`create_template_record()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L9193)
+## [`create_template_record()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L9394)
 
 `create_template_record()` generates a new template record based on the provided column definitions and input data.
 
@@ -93,7 +93,7 @@ The returned JSON object must be decremented (`json_decref()`) by the caller whe
 ---
 
 (current_snap_tag)=
-## [`current_snap_tag()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L119)
+## [`current_snap_tag()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L119)
 
 Retrieves the current snapshot tag of the specified `treedb_name` in the given `tranger` instance.
 
@@ -122,7 +122,7 @@ The snapshot tag is used to track versions of the tree database.
 ---
 
 (decode_child_ref)=
-## [`decode_child_ref()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L3455)
+## [`decode_child_ref()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L3519)
 
 Parses a child reference string formatted as 'child_topic_name^child_id' and extracts its components into separate buffers.
 
@@ -155,7 +155,7 @@ This function is used to extract child references from hierarchical tree structu
 ---
 
 (decode_parent_ref)=
-## [`decode_parent_ref()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L3401)
+## [`decode_parent_ref()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L3465)
 
 Parses a parent reference string into its components: topic name, ID, and hook name. The reference format is 'parent_topic_name^parent_id^hook_name'.
 
@@ -191,7 +191,7 @@ This function is used to extract structured information from a parent reference 
 ---
 
 (node_collapsed_view)=
-## [`node_collapsed_view()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7472)
+## [`node_collapsed_view()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7673)
 
 Generates a collapsed view of a node in the tree database, applying filtering and transformation options.
 
@@ -222,7 +222,7 @@ The function applies filtering and transformation rules based on `jn_options` to
 ---
 
 (parse_hooks)=
-## [`parse_hooks()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1904)
+## [`parse_hooks()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1964)
 
 `parse_hooks()` processes the schema to extract and validate hook definitions.
 
@@ -249,7 +249,7 @@ This function ensures that hooks in the schema are correctly defined and structu
 ---
 
 (parse_schema)=
-## [`parse_schema()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1825)
+## [`parse_schema()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1885)
 
 `parse_schema()` validates and processes a JSON schema definition, ensuring its structure and integrity.
 
@@ -276,7 +276,7 @@ This function does not modify the input `schema` and does not take ownership of 
 ---
 
 (parse_schema_cols)=
-## [`parse_schema_cols()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1860)
+## [`parse_schema_cols()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1920)
 
 `parse_schema_cols()` validates and processes the column definitions in a schema, ensuring correctness and consistency.
 
@@ -305,7 +305,7 @@ The function ensures that the column definitions conform to the expected schema 
 ---
 
 (set_volatil_values)=
-## [`set_volatil_values()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L2801)
+## [`set_volatil_values()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L2861)
 
 The `set_volatil_values()` function assigns volatile values to a record in the TreeDB, ensuring that non-persistent fields are set using default values if not provided.
 
@@ -339,7 +339,7 @@ This function does not modify foreign key (`fkey`), hook, or persistent fields. 
 ---
 
 (treedb_activate_snap)=
-## [`treedb_activate_snap()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L9055)
+## [`treedb_activate_snap()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L9256)
 
 Marks a previously shot snapshot as active (`active: true` on the snap node in `__snaps__`). Use the reserved name `"__clear__"` to instead deactivate whichever snap is currently active — this is the *deactivate-snap* path.
 
@@ -379,7 +379,7 @@ Ensure that the snapshot exists before calling [`treedb_activate_snap()`](<#tree
 ---
 
 (treedb_autolink)=
-## [`treedb_autolink()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L6861)
+## [`treedb_autolink()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7062)
 
 `treedb_autolink()` automatically links a node using foreign key fields from the provided JSON object.
 
@@ -414,7 +414,7 @@ The `node` parameter must be a valid pure node object.
 ---
 
 (treedb_clean_node)=
-## [`treedb_clean_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L6709)
+## [`treedb_clean_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L6910)
 
 `treedb_clean_node()` removes all foreign key links from a given node in the tree database, effectively disconnecting it from its parent and child relationships.
 
@@ -445,7 +445,7 @@ This function only removes foreign key links; it does not delete the node itself
 ---
 
 (treedb_close_db)=
-## [`treedb_close_db()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1081)
+## [`treedb_close_db()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1111)
 
 Closes the TreeDB instance identified by `treedb_name` in the given `json_t *` `tranger`. This function ensures that all resources associated with the TreeDB instance are properly released.
 
@@ -474,7 +474,7 @@ Ensure that [`treedb_open_db()`](<#treedb_open_db>) was previously called before
 ---
 
 (treedb_close_topic)=
-## [`treedb_close_topic()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1412)
+## [`treedb_close_topic()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1456)
 
 Closes the specified topic in the TreeDB system, ensuring that all associated resources are properly released.
 
@@ -505,7 +505,7 @@ Ensure that the topic is not in use before calling [`treedb_close_topic()`](<#tr
 ---
 
 (treedb_create_node)=
-## [`treedb_create_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L4498)
+## [`treedb_create_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L4562)
 
 Creates a new node in the TreeDB. The node is stored in [`tranger`](<#treedb_create_node>) under the specified [`treedb_name`](<#treedb_create_node>) and [`topic_name`](<#treedb_create_node>).
 
@@ -538,7 +538,7 @@ This function creates a 'pure node' without loading hook links. The primary key 
 ---
 
 (treedb_create_topic)=
-## [`treedb_create_topic()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1120)
+## [`treedb_create_topic()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1150)
 
 `treedb_create_topic()` creates a new topic in the TreeDB with the specified schema and primary key constraints.
 
@@ -590,7 +590,7 @@ individual records (rather than whole topics) non-deletable.
 ---
 
 (treedb_delete_instance)=
-## [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L5452)
+## [`treedb_delete_instance()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L5628)
 
 `treedb_delete_instance()` deletes a specific instance of a node in the TreeDB, identified by its primary and secondary keys. If links exist and the `force` option is not set, the deletion will fail.
 
@@ -627,7 +627,7 @@ A record marked immutable (`__md_treedb__`immutable`, see
 ---
 
 (treedb_delete_node)=
-## [`treedb_delete_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L5098)
+## [`treedb_delete_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L5254)
 
 The `treedb_delete_node()` function deletes a node from the tree database. If the node has existing links, the deletion will fail unless the 'force' option is enabled.
 
@@ -662,7 +662,7 @@ A record marked immutable (`__md_treedb__`immutable`, see
 ---
 
 (treedb_delete_topic)=
-## [`treedb_delete_topic()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1462)
+## [`treedb_delete_topic()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1506)
 
 Deletes a topic from the TreeDB identified by `treedb_name`. The topic and all its associated data will be permanently removed.
 
@@ -696,7 +696,7 @@ is refused; there is no `force` override.
 ---
 
 (treedb_get_id_index)=
-## [`treedb_get_id_index()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L226)
+## [`treedb_get_id_index()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L246)
 
 `treedb_get_id_index()` retrieves the index of node IDs for a given topic in a TreeDB instance.
 
@@ -727,7 +727,7 @@ The returned JSON object should not be modified or freed by the caller.
 ---
 
 (treedb_get_instance)=
-## [`treedb_get_instance()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7413)
+## [`treedb_get_instance()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7614)
 
 `treedb_get_instance()` retrieves a specific node instance from a TreeDB topic using both primary and secondary keys.
 
@@ -764,7 +764,7 @@ If the specified instance does not exist, `NULL` is returned. Use [`treedb_get_n
 ---
 
 (treedb_get_node)=
-## [`treedb_get_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7370)
+## [`treedb_get_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7571)
 
 Retrieves a node from the TreeDB using its primary key. The function returns a reference to the node stored in the database, which must not be modified directly.
 
@@ -797,7 +797,7 @@ The returned node is not owned by the caller and should not be modified or freed
 ---
 
 (treedb_get_topic_hooks)=
-## [`treedb_get_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8700)
+## [`treedb_get_topic_hooks()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8901)
 
 Retrieves a list of column names that are hooks in the specified topic of the `treedb_name` tree database.
 
@@ -828,7 +828,7 @@ Hooks define relationships between nodes in the tree database. Use [`treedb_get_
 ---
 
 (treedb_get_topic_links)=
-## [`treedb_get_topic_links()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8659)
+## [`treedb_get_topic_links()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8860)
 
 `treedb_get_topic_links()` returns a list of column names that are foreign key links in the specified topic of a TreeDB.
 
@@ -859,7 +859,7 @@ The function provides insight into the schema of a topic by identifying its fore
 ---
 
 (treedb_is_treedbs_topic)=
-## [`treedb_is_treedbs_topic()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L211)
+## [`treedb_is_treedbs_topic()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L231)
 
 `treedb_is_treedbs_topic()` checks if a given topic belongs to the internal system topics of a TreeDB instance.
 
@@ -890,7 +890,7 @@ System topics include `__snaps__` and `__graphs__`.
 ---
 
 (treedb_link_nodes)=
-## [`treedb_link_nodes()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7038)
+## [`treedb_link_nodes()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7239)
 
 The `treedb_link_nodes()` function establishes a hierarchical relationship between a parent node and a child node using the specified hook.
 
@@ -923,7 +923,7 @@ The function does not take ownership of `parent_node` or `child_node`. Ensure th
 ---
 
 (treedb_list_instances)=
-## [`treedb_list_instances()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7744)
+## [`treedb_list_instances()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7945)
 
 `treedb_list_instances()` returns a list of instances from a specified topic in a tree database, optionally filtered by a given JSON filter and a custom match function.
 
@@ -964,7 +964,7 @@ The returned list must be decref'd by the caller to avoid memory leaks. Filterin
 ---
 
 (treedb_list_nodes)=
-## [`treedb_list_nodes()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7603)
+## [`treedb_list_nodes()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7804)
 
 `treedb_list_nodes()` retrieves a list of nodes from a specified topic in a tree database, optionally filtering the results based on a provided filter and a custom matching function.
 
@@ -1003,7 +1003,7 @@ If `match_fn` is provided, it is used to further refine the selection of nodes b
 ---
 
 (treedb_list_parents)=
-## [`treedb_list_parents()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8219)
+## [`treedb_list_parents()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8420)
 
 `treedb_list_parents()` returns a list of parent nodes linked to the given node through a specified foreign key (`fkey`). The function can return either full parent nodes or collapsed views based on the `collapsed_view` parameter.
 
@@ -1037,7 +1037,7 @@ The function retrieves parent nodes based on the specified `fkey`. If `collapsed
 ---
 
 (treedb_list_snaps)=
-## [`treedb_list_snaps()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L9173)
+## [`treedb_list_snaps()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L9374)
 
 `treedb_list_snaps()` returns a list of snapshots associated with a given TreeDB.
 
@@ -1068,7 +1068,7 @@ The returned JSON array must be properly decremented using `json_decref()` to av
 ---
 
 (treedb_list_treedb)=
-## [`treedb_list_treedb()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1492)
+## [`treedb_list_treedb()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1552)
 
 `treedb_list_treedb()` returns a list of available TreeDB names stored in the given `tranger` instance.
 
@@ -1097,7 +1097,7 @@ The returned list is managed internally and should not be altered or freed by th
 ---
 
 (treedb_node_children)=
-## [`treedb_node_children()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8428)
+## [`treedb_node_children()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8629)
 
 `treedb_node_children()` returns a list of child nodes linked to a given node through a specified hook, optionally applying filters and recursive traversal.
 
@@ -1132,7 +1132,7 @@ If the `recursive` option is enabled in `jn_options`, [`treedb_node_children()`]
 ---
 
 (treedb_node_jtree)=
-## [`treedb_node_jtree()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8588)
+## [`treedb_node_jtree()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8789)
 
 `treedb_node_jtree()` constructs a hierarchical tree representation of child nodes linked through a specified hook.
 
@@ -1169,7 +1169,7 @@ The function recursively traverses child nodes using the specified `hook`. The `
 ---
 
 (treedb_open_db)=
-## [`treedb_open_db()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L485)
+## [`treedb_open_db()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L505)
 
 `treedb_open_db()` initializes and opens a tree database within a `tranger` instance, using the specified schema and options.
 
@@ -1204,7 +1204,7 @@ If the `persistent` option is enabled, the schema is loaded from a file, and mod
 ---
 
 (treedb_parent_refs)=
-## [`treedb_parent_refs()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8129)
+## [`treedb_parent_refs()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L8330)
 
 Retrieves a list of parent references for a given node using a specified foreign key. The references are formatted according to the provided options.
 
@@ -1237,7 +1237,7 @@ The function supports multiple formatting options for the returned references, i
 ---
 
 (treedb_save_node)=
-## [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L4861)
+## [`treedb_save_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L4944)
 
 The `treedb_save_node()` function directly saves a given node to the `tranger` database. The `__tag__` (user_flag) attribute is inherited during the save operation.
 
@@ -1266,7 +1266,7 @@ The `__tag__` (user_flag) attribute of the node is inherited during the save ope
 ---
 
 (treedb_set_callback)=
-## [`treedb_set_callback()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1036)
+## [`treedb_set_callback()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1066)
 
 Sets a callback function for `treedb_name` in `tranger`. The callback is triggered on node operations such as creation, update, or deletion.
 
@@ -1300,7 +1300,7 @@ The callback function must follow the `treedb_callback_t` signature and will rec
 ---
 
 (treedb_set_node_immutable)=
-## [`treedb_set_node_immutable()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L5124)
+## [`treedb_set_node_immutable()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L5124)
 
 `treedb_set_node_immutable()` marks (or unmarks) a single node as immutable —
 once set, the record cannot be deleted by [`treedb_delete_node()`](<#treedb_delete_node>)
@@ -1343,7 +1343,7 @@ To protect a whole topic from deletion (rather than individual records), pass
 ---
 
 (treedb_set_trace)=
-## [`treedb_set_trace()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L4320)
+## [`treedb_set_trace()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L4384)
 
 Enables or disables trace logging for the TreeDB system.
 
@@ -1370,7 +1370,7 @@ This function is useful for debugging and monitoring TreeDB operations.
 ---
 
 (treedb_shoot_snap)=
-## [`treedb_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L8844)
+## [`treedb_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L9045)
 
 Captures the current primary set of every user topic by stamping each primary record's `user_flag` field with the snap's id. The snap is registered as a row in `__snaps__` (assigned an integer `id` from its `g_rowid`); that same `id` is then written *in place* via `tranger2_write_user_flag()` on the live `.md2` record of each current primary. The snap is created with `active: false` — use [`treedb_activate_snap()`](<#treedb_activate_snap>) to switch to it.
 
@@ -1411,7 +1411,7 @@ Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate
 ---
 
 (treedb_topic_pkey2s)=
-## [`treedb_topic_pkey2s()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L132)
+## [`treedb_topic_pkey2s()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L132)
 
 `treedb_topic_pkey2s()` returns a list of primary key secondary values (`pkey2s`) for a given topic in the tree database.
 
@@ -1440,7 +1440,7 @@ The returned list should not be modified or freed by the caller.
 ---
 
 (treedb_topic_pkey2s_filter)=
-## [`treedb_topic_pkey2s_filter()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L147)
+## [`treedb_topic_pkey2s_filter()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L147)
 
 `treedb_topic_pkey2s_filter()` retrieves a filtered list of primary key secondary values (`pkey2s`) for a given topic in a TreeDB, based on the provided node and identifier.
 
@@ -1473,7 +1473,7 @@ This function is useful for retrieving secondary key values associated with a pr
 ---
 
 (treedb_topic_size)=
-## [`treedb_topic_size()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1574)
+## [`treedb_topic_size()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1634)
 
 `treedb_topic_size()` returns the number of nodes in the specified topic within the given TreeDB instance.
 
@@ -1504,7 +1504,7 @@ If the topic does not exist, the function may return `0`.
 ---
 
 (treedb_topics)=
-## [`treedb_topics()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L1525)
+## [`treedb_topics()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L1585)
 
 `treedb_topics()` retrieves a list of topic names from the specified TreeDB, optionally returning detailed information in dictionary format.
 
@@ -1535,7 +1535,7 @@ The returned JSON object should not be modified or freed by the caller. Use [`tr
 ---
 
 (treedb_unlink_nodes)=
-## [`treedb_unlink_nodes()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L7069)
+## [`treedb_unlink_nodes()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L7270)
 
 The `treedb_unlink_nodes()` function removes the hierarchical relationship between a parent and a child node in the tree database, identified by the specified hook.
 
@@ -1568,7 +1568,7 @@ The function does not take ownership of `parent_node` or `child_node`, meaning t
 ---
 
 (treedb_update_node)=
-## [`treedb_update_node()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L5018)
+## [`treedb_update_node()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L5174)
 
 `treedb_update_node()` updates an existing node with the provided fields from `kw`, without modifying foreign keys (`fkeys`) or hook fields.
 
@@ -1602,7 +1602,7 @@ The returned node must not be modified or freed by the caller.
 ---
 
 (get_hook_list)=
-## [`get_hook_list()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L4330)
+## [`get_hook_list()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L4394)
 
 `get_hook_list()` converts hook data of various JSON types into a uniform JSON array of child node references. This normalizes the different internal representations of hook data (array, object, or dict) into a single list format for iteration.
 
@@ -1631,7 +1631,7 @@ When `hook_data` is a JSON array, the returned array is the same object with an 
 ---
 
 (topic_desc_fkey_names)=
-## [`topic_desc_fkey_names()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L2108)
+## [`topic_desc_fkey_names()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L2168)
 
 `topic_desc_fkey_names()` extracts the names of all foreign key (`fkey`) fields from a topic descriptor. It iterates over the columns in the topic descriptor and collects the `id` of each column whose `flag` contains the word `"fkey"`.
 
@@ -1658,7 +1658,7 @@ The `topic_desc` parameter is consumed by this function. Do not use it after cal
 ---
 
 (topic_desc_hook_names)=
-## [`topic_desc_hook_names()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/tr_treedb.c#L2083)
+## [`topic_desc_hook_names()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/tr_treedb.c#L2143)
 
 `topic_desc_hook_names()` extracts the names of all hook fields from a topic descriptor. It iterates over the columns in the topic descriptor and collects the `id` of each column whose `flag` contains the word `"hook"`.
 

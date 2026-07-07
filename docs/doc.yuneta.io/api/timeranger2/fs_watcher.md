@@ -4,11 +4,11 @@ inotify-based filesystem watcher used by timeranger2 and by the `C_FS` gclass to
 
 Source code:
 
-- [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/fs_watcher.h)
-- [`fs_watcher.c`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/fs_watcher.c)
+- [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/fs_watcher.h)
+- [`fs_watcher.c`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/fs_watcher.c)
 
 (fs_create_watcher_event)=
-## [`fs_create_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/fs_watcher.c#L89)
+## [`fs_create_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/fs_watcher.c#L89)
 
 `fs_create_watcher_event()` initializes a new file system watcher event, monitoring the specified `path` for changes based on the given `fs_flag`. The event is associated with the provided `yev_loop` and invokes the specified `callback` when triggered.
 
@@ -47,7 +47,7 @@ The created watcher event must be started using [`fs_start_watcher_event()`](<#f
 ---
 
 (fs_start_watcher_event)=
-## [`fs_start_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/fs_watcher.c#L212)
+## [`fs_start_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/fs_watcher.c#L212)
 
 `fs_start_watcher_event()` starts monitoring the specified file system event, enabling notifications for file and directory changes.
 
@@ -74,7 +74,7 @@ Once started, the event will trigger the associated callback when file system ch
 ---
 
 (fs_stop_watcher_event)=
-## [`fs_stop_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/timeranger2/src/fs_watcher.c#L225)
+## [`fs_stop_watcher_event()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/timeranger2/src/fs_watcher.c#L225)
 
 `fs_stop_watcher_event()` stops the given file system watcher event and destroys the associated `fs_event_t` instance.
 

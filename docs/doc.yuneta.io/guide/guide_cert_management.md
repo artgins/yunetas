@@ -41,7 +41,7 @@ failing. Layer 3 covers **both** failing.
 
 ## Layer 1 — deploy hook (fast path)
 
-The `.deb` package ([`packages/deb/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.7.0/packages/deb/make-yuneta-agent-deb.sh)) installs a
+The `.deb` package ([`packages/deb/make-yuneta-agent-deb.sh`](https://github.com/artgins/yunetas/blob/7.7.1/packages/deb/make-yuneta-agent-deb.sh)) installs a
 certbot `deploy-hook` at
 `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`:
 
@@ -95,7 +95,7 @@ cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
    read `/etc/letsencrypt/live/`.
 2. Snapshot `size+mtime` of every `*.crt` under `cert_sync_store_dir`
    before and after the copy.
-3. If any file changed, invoke [`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.7.0/yunos/c/yuno_agent/src/c_agent.c#L6090) internally to
+3. If any file changed, invoke [`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.7.1/yunos/c/yuno_agent/src/c_agent.c#L6127) internally to
    broadcast `reload-certs` to every running yuno — plus `gobj_command(gobj_yuno(), "reload-certs", ...)`
    on the agent itself.
 4. Update the read-only stats attrs:
@@ -252,15 +252,15 @@ source.
 
 Five tests ship in-tree to protect the feature:
 
-- [`tests/c/ytls/test_cert_reload.c`](https://github.com/artgins/yunetas/blob/7.7.0/tests/c/ytls/test_cert_reload.c) — swap A→B + rollback on invalid cert.
-- [`tests/c/ytls/test_cert_info.c`](https://github.com/artgins/yunetas/blob/7.7.0/tests/c/ytls/test_cert_info.c) — cert introspection edge cases
+- [`tests/c/ytls/test_cert_reload.c`](https://github.com/artgins/yunetas/blob/7.7.1/tests/c/ytls/test_cert_reload.c) — swap A→B + rollback on invalid cert.
+- [`tests/c/ytls/test_cert_info.c`](https://github.com/artgins/yunetas/blob/7.7.1/tests/c/ytls/test_cert_info.c) — cert introspection edge cases
   (short / long validity, self-signed invariant, serial shape,
   client-side NULL, already-expired cert).
-- [`tests/c/ytls/test_cert_reload_mem.c`](https://github.com/artgins/yunetas/blob/7.7.0/tests/c/ytls/test_cert_reload_mem.c) — 1000 reloads with no live
+- [`tests/c/ytls/test_cert_reload_mem.c`](https://github.com/artgins/yunetas/blob/7.7.1/tests/c/ytls/test_cert_reload_mem.c) — 1000 reloads with no live
   session, asserts `get_cur_system_memory() == 0`.
-- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c`](https://github.com/artgins/yunetas/blob/7.7.0/tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c) — one
+- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c`](https://github.com/artgins/yunetas/blob/7.7.1/tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c) — one
   reload while a TCP session is live; the session keeps working.
-- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c`](https://github.com/artgins/yunetas/blob/7.7.0/tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c) — 50
+- [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c`](https://github.com/artgins/yunetas/blob/7.7.1/tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c) — 50
   reloads with a live session, one echo message per iteration.
 
 Run the full suite under valgrind for an exhaustive leak check:

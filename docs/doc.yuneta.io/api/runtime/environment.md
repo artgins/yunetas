@@ -7,7 +7,7 @@ Functions for managing yuneta directory paths and file permissions.
 ---
 
 (register_yuneta_environment)=
-## [`register_yuneta_environment()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L30)
+## [`register_yuneta_environment()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L30)
 
 Registers the yuneta environment with root directory, domain directory,
 and file permission masks.
@@ -37,7 +37,7 @@ int register_yuneta_environment(
 ---
 
 (yuneta_xpermission)=
-## [`yuneta_xpermission()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L51)
+## [`yuneta_xpermission()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L51)
 
 Returns the permission mask for directories and executable files.
 
@@ -59,7 +59,7 @@ The `xpermission` value registered with
 ---
 
 (yuneta_rpermission)=
-## [`yuneta_rpermission()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L59)
+## [`yuneta_rpermission()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L59)
 
 Returns the permission mask for regular files.
 
@@ -81,7 +81,7 @@ The `rpermission` value registered with
 ---
 
 (yuneta_root_dir)=
-## [`yuneta_root_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L67)
+## [`yuneta_root_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L67)
 
 Returns the main root directory path.
 
@@ -102,7 +102,7 @@ Root directory path string.
 ---
 
 (yuneta_domain_dir)=
-## [`yuneta_domain_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L75)
+## [`yuneta_domain_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L75)
 
 Returns the domain directory path (base path for realms).
 
@@ -123,7 +123,7 @@ Domain directory path string.
 ---
 
 (yuneta_realm_dir)=
-## [`yuneta_realm_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L83)
+## [`yuneta_realm_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L83)
 
 Builds the path for a realm directory: `root_dir/domain_dir/subdomain`.
 
@@ -152,7 +152,7 @@ Pointer to `bf`, or `NULL` if `create` is `TRUE` and directory creation failed.
 ---
 
 (yuneta_realm_file)=
-## [`yuneta_realm_file()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L112)
+## [`yuneta_realm_file()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L112)
 
 Builds the path for a file inside a realm directory.
 
@@ -183,7 +183,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_log_dir)=
-## [`yuneta_log_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L133)
+## [`yuneta_log_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L133)
 
 Builds the path for the logs directory: `root_dir/domain_dir/logs`.
 
@@ -210,7 +210,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_log_file)=
-## [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L141)
+## [`yuneta_log_file()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L141)
 
 Builds the path for a log file.
 
@@ -239,7 +239,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_bin_dir)=
-## [`yuneta_bin_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L161)
+## [`yuneta_bin_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L161)
 
 Builds the path for the bin directory: `root_dir/domain_dir/bin`.
 
@@ -266,7 +266,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_bin_file)=
-## [`yuneta_bin_file()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L169)
+## [`yuneta_bin_file()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L169)
 
 Builds the path for a binary file.
 
@@ -295,7 +295,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_store_dir)=
-## [`yuneta_store_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L189)
+## [`yuneta_store_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L189)
 
 Builds the path for a store directory: `root_dir/store/dir/subdir`.
 
@@ -326,7 +326,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_store_file)=
-## [`yuneta_store_file()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L219)
+## [`yuneta_store_file()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L219)
 
 Builds the path for a file in a store directory.
 
@@ -359,7 +359,7 @@ Pointer to `bf`.
 ---
 
 (yuneta_realm_store_dir)=
-## [`yuneta_realm_store_dir()`](https://github.com/artgins/yunetas/blob/7.7.0/kernel/c/root-linux/src/yunetas_environment.c#L241)
+## [`yuneta_realm_store_dir()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/root-linux/src/yunetas_environment.c#L241)
 
 Builds the path for a realm store directory:
 `root_dir/store/service/owner/realm_id/tenant/dir`.

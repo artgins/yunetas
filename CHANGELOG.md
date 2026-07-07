@@ -2,82 +2,95 @@
 
 ## Unreleased
 
-- **harden(c_auth_bff):** cookie/token paths sized and fail-closed. One
-  `BFF_TOKEN_MAX` (8 KB) now covers the stored refresh_token, the cookie
-  extraction buffers and the Set-Cookie build (a Keycloak access_token with
-  many roles exceeds the old 4 KB extraction buffer — `/auth/token` would
-  forward it silently clipped and remote backends rejected the signature with
-  no evidence). `make_set_cookie` refuses to emit a truncated cookie (logs +
-  returns NULL; the login/refresh answer becomes `500 token_too_large`),
-  `extract_cookie` treats a value that doesn't fit as missing (clean 401
-  instead of a corrupted token), and `/auth/token` checks its `json_pack`.
-- **fix(c_authz):** `create-user` / `update-user` no longer report success
-  when the treedb write failed — the `EV_ADD_USER` result is propagated, so a
-  failed autolink (bad `roles^ROLE^users` string) or tranger write error
-  answers `Can't create/update user`. Also: "User not exist" → "User does not
-  exist", and `update-user` shares `pm_create_user` (the table was a verbatim
-  copy).
-- **fix(yuno_agent):** a `write-tty` naming a console that no longer exists
-  now answers the requester with a synthetic `EV_TTY_CLOSE` (same path as
-  `ac_tty_close`), so a client whose original close was lost in a link flap
-  can close its Terminal tab instead of typing into the void. `multiple_dir`
-  logs on snprintf failure/truncation (a truncated tags path silently placed
-  the yuno under a wrong repos dir). `ac_stats_yuno_answer` gains the same
-  self-name short-circuit as its command twin (no more "Event NOT DEFINED"
-  noise when the agent itself is the stats requester).
-- **fix(prot):** restore the `gobj_has_bottom_attr()` guard on the
-  peername/sockname log reads in `c_prot_tcp4h` / `c_ievent_srv` — the bare
-  `gobj_read_str_attr()` logged "Attribute NOT FOUND" + stack trace in the
-  race windows where the bottom chain is unset (dropped by 390b8c679, which
-  overlooked that internal log).
-- **fix(glogger):** the `TRACE_GBUFFERS` pretty-print also accepts
-  `[`-rooted JSON arrays (they fell through to the hex dump).
-- **chore(trace samples):** drop the `"monitor"` / `"event_monitor"` lines
-  from the commented trace blocks in `ycommand` and the yuno skeletons — those
-  global levels don't exist (uncommenting yielded "global trace level NOT
-  FOUND"); the stale `gobj.h` name list is now synced with
-  `s_global_trace_level`.
+## 7.7.1
+_C / SDK patch release — control-plane / auth-BFF hardening and correctness
+fixes, plus an mbedTLS backend bump. JavaScript framework changes are tracked in
+their own repositories (`@yuneta/gobj-js`, `@yuneta/gobj-ui` CHANGELOGs); the
+`gui_agent` / `gui_treedb` yunos record their own UI changes under
+`yunos/js/*/README.md`._
 
-- **feat(c_auth_bff):** new opt-in `POST /auth/token` endpoint returns the
-  access_token to JavaScript so a single SPA can forward it in a `C_IEVENT_CLI`
-  identity_card to Yuneta backends on **other** hosts (multi-backend browsing,
-  e.g. `gui_treedb`). A deliberate, scoped SEC-06 relaxation, off by default and
-  double-guarded: `expose_access_token` attr (default `false`; when off the
-  endpoint is an invisible `404`) **and** fail-closed Origin pinning (the token
-  is emitted only when the request `Origin` exactly matches `allowed_origin`,
-  else `403 origin_not_allowed`; enabling the flag without pinning an origin
-  yields nothing). Every existing BFF (wattyzer, estadodelaire, hidraulia) keeps
-  full SEC-06 — they never enable the flag. The server side already accepts an
-  identity-card JWT with priority over the cookie (`c_ievent_srv.c`) and
-  validates it against the issuer JWKS (`c_authz.c`); each remote backend must
-  have that JWKS provisioned. Docs: `YUNO_AUTH.md` §2.2.
-- **fix(c_ievent_srv):** `ac_mt_command`'s "Service not found" error path
-  answered with `EV_MT_STATS_ANSWER` (copy-paste from the stats handler)
-  instead of `EV_MT_COMMAND_ANSWER`, so a remote command to an unknown service
-  got its error back under the wrong answer event.
-- **fix(c_tcp):** a running client dropped via `EV_DROP` could stall in
-  `ST_STOPPED` (the reconnect `EV_TIMEOUT` was then ignored) and never
-  reconnect; `try_to_stop_yevents()` now finalizes to `ST_STOPPED` only when the
-  gobj is actually stopping. Generic to every C_TCP client dropped while alive.
-- **fix(c_pty):** `EV_TTY_CLOSE`'s `json_pack` had a stray extra `}` → NULL kw
-  (no `name`/`uuid`/`slave_name`), so consumers keying off the console name
-  (e.g. gui_agent's Terminal) never saw a usable close.
-- **fix(controlcenter):** `write-tty` now matches a node by UUID **or** hostname
-  (like `command-agent`) and, on a no-match, logs instead of `EV_DROP`-ping the
-  requester's shared control socket.
-- **fix(controlcenter):** the `write-tty` no-match log is now a **warning**
-  (`MSGSET_PROTOCOL`), matching the agent side's demotion of the same benign
-  client race — an agent briefly disconnecting while a Terminal tab is focused
-  no longer emits one ERROR per keystroke into logcenter.
-- **fix(glogger):** `gobj_trace_json`'s `TRACE_GBUFFERS` pretty-print path
-  parsed the gbuffer with `string2json(…, verbose=TRUE)`: a gbuffer starting
-  with `{` that is not one complete JSON value (partially-consumed buffer,
-  back-to-back messages, binary starting `0x7B`) injected a spurious
-  `gobj_log_error` + stack trace from a pure trace path. Now non-verbose — the
-  existing hex-dump fallback covers the parse failure.
-- **fix(yuno_agent):** `write-tty` no longer drops the whole control link on a
-  benign per-write error ("console not found" → warning); it logs and drops just
-  that message.
+    - **chore(ext-libs): bump mbedTLS 4.1.0 → 4.2.0 (v1.21).** The mbedTLS
+      TLS backend (runtime-selectable, statically linked into every yuno built
+      with `CONFIG_HAVE_MBEDTLS`) moves to the `v4.2.0` upstream tag;
+      `repos2clone.sh` re-pins `TAG_MBEDTLS` and `configure-libs.sh` bumps the
+      ext-libs `VERSION` 1.20 → 1.21. Rebuild ext-libs (`extrae.sh` +
+      `configure-libs.sh`) and relink the affected yunos.
+    - **harden(c_auth_bff):** cookie/token paths sized and fail-closed. One
+      `BFF_TOKEN_MAX` (8 KB) now covers the stored refresh_token, the cookie
+      extraction buffers and the Set-Cookie build (a Keycloak access_token with
+      many roles exceeds the old 4 KB extraction buffer — `/auth/token` would
+      forward it silently clipped and remote backends rejected the signature with
+      no evidence). `make_set_cookie` refuses to emit a truncated cookie (logs +
+      returns NULL; the login/refresh answer becomes `500 token_too_large`),
+      `extract_cookie` treats a value that doesn't fit as missing (clean 401
+      instead of a corrupted token), and `/auth/token` checks its `json_pack`.
+    - **fix(c_authz):** `create-user` / `update-user` no longer report success
+      when the treedb write failed — the `EV_ADD_USER` result is propagated, so a
+      failed autolink (bad `roles^ROLE^users` string) or tranger write error
+      answers `Can't create/update user`. Also: "User not exist" → "User does not
+      exist", and `update-user` shares `pm_create_user` (the table was a verbatim
+      copy).
+    - **fix(yuno_agent):** a `write-tty` naming a console that no longer exists
+      now answers the requester with a synthetic `EV_TTY_CLOSE` (same path as
+      `ac_tty_close`), so a client whose original close was lost in a link flap
+      can close its Terminal tab instead of typing into the void. `multiple_dir`
+      logs on snprintf failure/truncation (a truncated tags path silently placed
+      the yuno under a wrong repos dir). `ac_stats_yuno_answer` gains the same
+      self-name short-circuit as its command twin (no more "Event NOT DEFINED"
+      noise when the agent itself is the stats requester).
+    - **fix(prot):** restore the `gobj_has_bottom_attr()` guard on the
+      peername/sockname log reads in `c_prot_tcp4h` / `c_ievent_srv` — the bare
+      `gobj_read_str_attr()` logged "Attribute NOT FOUND" + stack trace in the
+      race windows where the bottom chain is unset (dropped by 390b8c679, which
+      overlooked that internal log).
+    - **fix(glogger):** the `TRACE_GBUFFERS` pretty-print also accepts
+      `[`-rooted JSON arrays (they fell through to the hex dump).
+    - **chore(trace samples):** drop the `"monitor"` / `"event_monitor"` lines
+      from the commented trace blocks in `ycommand` and the yuno skeletons — those
+      global levels don't exist (uncommenting yielded "global trace level NOT
+      FOUND"); the stale `gobj.h` name list is now synced with
+      `s_global_trace_level`.
+
+    - **feat(c_auth_bff):** new opt-in `POST /auth/token` endpoint returns the
+      access_token to JavaScript so a single SPA can forward it in a `C_IEVENT_CLI`
+      identity_card to Yuneta backends on **other** hosts (multi-backend browsing,
+      e.g. `gui_treedb`). A deliberate, scoped SEC-06 relaxation, off by default and
+      double-guarded: `expose_access_token` attr (default `false`; when off the
+      endpoint is an invisible `404`) **and** fail-closed Origin pinning (the token
+      is emitted only when the request `Origin` exactly matches `allowed_origin`,
+      else `403 origin_not_allowed`; enabling the flag without pinning an origin
+      yields nothing). Every existing BFF (wattyzer, estadodelaire, hidraulia) keeps
+      full SEC-06 — they never enable the flag. The server side already accepts an
+      identity-card JWT with priority over the cookie (`c_ievent_srv.c`) and
+      validates it against the issuer JWKS (`c_authz.c`); each remote backend must
+      have that JWKS provisioned. Docs: `YUNO_AUTH.md` §2.2.
+    - **fix(c_ievent_srv):** `ac_mt_command`'s "Service not found" error path
+      answered with `EV_MT_STATS_ANSWER` (copy-paste from the stats handler)
+      instead of `EV_MT_COMMAND_ANSWER`, so a remote command to an unknown service
+      got its error back under the wrong answer event.
+    - **fix(c_tcp):** a running client dropped via `EV_DROP` could stall in
+      `ST_STOPPED` (the reconnect `EV_TIMEOUT` was then ignored) and never
+      reconnect; `try_to_stop_yevents()` now finalizes to `ST_STOPPED` only when the
+      gobj is actually stopping. Generic to every C_TCP client dropped while alive.
+    - **fix(c_pty):** `EV_TTY_CLOSE`'s `json_pack` had a stray extra `}` → NULL kw
+      (no `name`/`uuid`/`slave_name`), so consumers keying off the console name
+      (e.g. gui_agent's Terminal) never saw a usable close.
+    - **fix(controlcenter):** `write-tty` now matches a node by UUID **or** hostname
+      (like `command-agent`) and, on a no-match, logs instead of `EV_DROP`-ping the
+      requester's shared control socket.
+    - **fix(controlcenter):** the `write-tty` no-match log is now a **warning**
+      (`MSGSET_PROTOCOL`), matching the agent side's demotion of the same benign
+      client race — an agent briefly disconnecting while a Terminal tab is focused
+      no longer emits one ERROR per keystroke into logcenter.
+    - **fix(glogger):** `gobj_trace_json`'s `TRACE_GBUFFERS` pretty-print path
+      parsed the gbuffer with `string2json(…, verbose=TRUE)`: a gbuffer starting
+      with `{` that is not one complete JSON value (partially-consumed buffer,
+      back-to-back messages, binary starting `0x7B`) injected a spurious
+      `gobj_log_error` + stack trace from a pure trace path. Now non-verbose — the
+      existing hex-dump fallback covers the parse failure.
+    - **fix(yuno_agent):** `write-tty` no longer drops the whole control link on a
+      benign per-write error ("console not found" → warning); it logs and drops just
+      that message.
 
 ## 7.7.0
 _C / SDK release — **capability marker**. No C/SDK source change since 7.6.8;
