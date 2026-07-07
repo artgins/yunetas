@@ -829,7 +829,7 @@ PUBLIC void gobj_trace_json(
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
         if(gbuf) {
             char *p = gbuffer_cur_rd_pointer(gbuf);
-            if(p && *p == '{') {
+            if(p && (*p == '{' || *p == '[')) {
                 json_t *j = string2json(p, FALSE); // not verbose: hex dump fallback covers it
                 if(j) {
                     char *s = json_dumps(j, JSON_INDENT(4)|JSON_ENCODE_ANY);

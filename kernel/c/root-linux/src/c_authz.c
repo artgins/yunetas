@@ -257,17 +257,6 @@ SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a 
 SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_update_user[] = {
-/*-PM----type-----------name------------flag----default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
-SDATAPM (DTP_STRING,    "role",         0,      0,          "ROLE format: roles^ROLE^users"),
-SDATAPM (DTP_BOOLEAN,   "disabled",     0,      0,          "Disabled"),
-
-SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
-SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
-SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
-SDATA_END()
-};
 PRIVATE sdata_desc_t pm_user[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
@@ -346,7 +335,7 @@ SDATACM2(DTP_SCHEMA,    "remove-jwk",   SDF_AUTHZ_X,    0,      pm_rm_jwk,      
 SDATACM2(DTP_SCHEMA,    "users",        SDF_AUTHZ_X,    a_users,pm_users,       cmd_users,      "List users"),
 SDATACM2(DTP_SCHEMA,    "accesses",     SDF_AUTHZ_X,    0,      pm_users,       cmd_accesses,   "List user accesses"),
 SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user,"Create user (see ROLE format: roles^ROLE^users)"),
-SDATACM2(DTP_SCHEMA,    "update-user",  SDF_AUTHZ_X,    0,      pm_update_user, cmd_update_user,"Update user (see ROLE format: roles^ROLE^users)"),
+SDATACM2(DTP_SCHEMA,    "update-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_update_user,"Update user (see ROLE format: roles^ROLE^users)"),
 SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_enable_user,"Enable user"),
 SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_user,        cmd_disable_user,"Disable user"),
 SDATACM2 (DTP_SCHEMA,   "delete-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_delete_user, "Delete user"),
@@ -1233,14 +1222,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "User not exist",
+            "msg",          "%s", "User does not exist",
             "username",     "%s", username,
             "service",      "%s", dst_service,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
-            "comment", "User not exist",
+            "comment", "User does not exist",
             "username", username,
             "dst_service", dst_service
         );
@@ -1893,7 +1882,17 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_set_new(kw, "credentials", credentials);
     }
 
-    gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
+    if(gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src) < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            // Error already logged by treedb
+            json_sprintf("Can't create user: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     user = gobj_get_node(
         priv->gobj_treedb,
@@ -1962,7 +1961,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User not exist: %s", username),
+            json_sprintf("User does not exist: %s", username),
             0,
             0,
             kw  // owned
@@ -2013,7 +2012,17 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_set_new(kw, "credentials", credentials);
     }
 
-    gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
+    if(gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src) < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            // Error already logged by treedb
+            json_sprintf("Can't update user: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     user = gobj_get_node(
         priv->gobj_treedb,
@@ -2272,7 +2281,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User not exist: %s", username),
+            json_sprintf("User does not exist: %s", username),
             0,
             0,
             kw  // owned
@@ -2341,7 +2350,7 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
     if(!user) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("User not exist: %s", username),
+            json_sprintf("User does not exist: %s", username),
             0,
             0,
             kw  // owned
@@ -3467,7 +3476,7 @@ PRIVATE int check_password(
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "User not exist",
+            "msg",          "%s", "User does not exist",
             "username",     "%s", username,
             NULL
         );
@@ -4130,6 +4139,7 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     BOOL new_user = user?FALSE:TRUE;    // node found => NOT new (was inverted)
     JSON_DECREF(user)
 
+    int ret = 0;
     if(empty_string(role)) {
         json_t *record = json_pack("{s:s}",
             "id", username
@@ -4148,7 +4158,7 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             json_object_set(record, "properties", properties);
         }
 
-        json_decref(gobj_update_node(
+        json_t *updated = gobj_update_node(
             priv->gobj_treedb,
             "users",
             record,
@@ -4157,7 +4167,11 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
                 "autolink", 0
             ),
             src
-        ));
+        );
+        if(!updated) {
+            ret = -1;   // Error already logged by treedb
+        }
+        JSON_DECREF(updated)
     } else {
         json_t *record = json_pack("{s:s, s:s}",
             "id", username,
@@ -4177,7 +4191,7 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             json_object_set(record, "properties", properties);
         }
 
-        json_decref(gobj_update_node(
+        json_t *updated = gobj_update_node(
             priv->gobj_treedb,
             "users",
             record,
@@ -4186,11 +4200,15 @@ PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
                 "autolink", 1
             ),
             src
-        ));
+        );
+        if(!updated) {
+            ret = -1;   // Error already logged by treedb
+        }
+        JSON_DECREF(updated)
     }
 
     KW_DECREF(kw)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************

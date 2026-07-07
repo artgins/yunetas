@@ -383,7 +383,7 @@ stress/c/*            ← stress test programs
 | `tests/c/` | Test suites (ctest) |
 | `performance/c/` | Benchmarks (TCP, TLS, ping-pong) |
 | `tools/cmake/` | CMake toolchain files |
-| `tools/packages/` | Debian packaging (AMD64, ARM32, ARMhf, RISCV64) |
+| `packages/deb`, `packages/rpm` | Debian/RPM packaging (used by `release-packages.yml`) |
 | `scripts/` | Utility scripts (added to `PATH` by `yunetas-env.sh`) |
 | `docs/doc.yuneta.io/` | Sphinx documentation site |
 | `outputs/` | Compiled libs, headers, yuno binaries (created by `yunetas init`) |

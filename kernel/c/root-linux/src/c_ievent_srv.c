@@ -1100,8 +1100,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+            "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
             NULL
         );
         drop(gobj);

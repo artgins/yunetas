@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **harden(c_auth_bff):** cookie/token paths sized and fail-closed. One
+  `BFF_TOKEN_MAX` (8 KB) now covers the stored refresh_token, the cookie
+  extraction buffers and the Set-Cookie build (a Keycloak access_token with
+  many roles exceeds the old 4 KB extraction buffer — `/auth/token` would
+  forward it silently clipped and remote backends rejected the signature with
+  no evidence). `make_set_cookie` refuses to emit a truncated cookie (logs +
+  returns NULL; the login/refresh answer becomes `500 token_too_large`),
+  `extract_cookie` treats a value that doesn't fit as missing (clean 401
+  instead of a corrupted token), and `/auth/token` checks its `json_pack`.
+- **fix(c_authz):** `create-user` / `update-user` no longer report success
+  when the treedb write failed — the `EV_ADD_USER` result is propagated, so a
+  failed autolink (bad `roles^ROLE^users` string) or tranger write error
+  answers `Can't create/update user`. Also: "User not exist" → "User does not
+  exist", and `update-user` shares `pm_create_user` (the table was a verbatim
+  copy).
+- **fix(yuno_agent):** a `write-tty` naming a console that no longer exists
+  now answers the requester with a synthetic `EV_TTY_CLOSE` (same path as
+  `ac_tty_close`), so a client whose original close was lost in a link flap
+  can close its Terminal tab instead of typing into the void. `multiple_dir`
+  logs on snprintf failure/truncation (a truncated tags path silently placed
+  the yuno under a wrong repos dir). `ac_stats_yuno_answer` gains the same
+  self-name short-circuit as its command twin (no more "Event NOT DEFINED"
+  noise when the agent itself is the stats requester).
+- **fix(prot):** restore the `gobj_has_bottom_attr()` guard on the
+  peername/sockname log reads in `c_prot_tcp4h` / `c_ievent_srv` — the bare
+  `gobj_read_str_attr()` logged "Attribute NOT FOUND" + stack trace in the
+  race windows where the bottom chain is unset (dropped by 390b8c679, which
+  overlooked that internal log).
+- **fix(glogger):** the `TRACE_GBUFFERS` pretty-print also accepts
+  `[`-rooted JSON arrays (they fell through to the hex dump).
+- **chore(trace samples):** drop the `"monitor"` / `"event_monitor"` lines
+  from the commented trace blocks in `ycommand` and the yuno skeletons — those
+  global levels don't exist (uncommenting yielded "global trace level NOT
+  FOUND"); the stale `gobj.h` name list is now synced with
+  `s_global_trace_level`.
+
 - **feat(c_auth_bff):** new opt-in `POST /auth/token` endpoint returns the
   access_token to JavaScript so a single SPA can forward it in a `C_IEVENT_CLI`
   identity_card to Yuneta backends on **other** hosts (multi-backend browsing,

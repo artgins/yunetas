@@ -7355,6 +7355,13 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
                 ln = snprintf(p, bflen, "/%s", json_string_value(jn_s_domain_name));
             }
             if(ln<0) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "snprintf() FAILED building tags dir",
+                    "domain",       "%s", json_string_value(jn_s_domain_name),
+                    NULL
+                );
                 *bf = 0;
                 return 0;
             }
@@ -7363,8 +7370,17 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
                  *  snprintf truncated: the buffer is full and already
                  *  NUL-terminated. Stop before p/bflen advance past the end
                  *  (bflen would go negative and widen to a huge size_t in the
-                 *  next snprintf -> out-of-bounds write).
+                 *  next snprintf -> out-of-bounds write). A truncated tags
+                 *  path would silently place the yuno under a WRONG repos
+                 *  dir — surface it.
                  */
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "tags dir truncated, domain list too long",
+                    "tags",         "%s", bf,
+                    NULL
+                );
                 break;
             }
 
@@ -10748,6 +10764,12 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    if(strcmp(dst_service, gobj_name(gobj))==0) {
+        // Stats requested by the agent itself: nothing to forward
+        JSON_DECREF(jn_ievent_id);
+        KW_DECREF(kw);
+        return 0;
+    }
 
     hgobj gobj_requester = gobj_child_by_name(
         priv->gobj_input_side,
@@ -10807,7 +10829,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     if(strcmp(dst_service, gobj_name(gobj))==0) {
-        // Comando directo del agente
+        // Command requested by the agent itself: nothing to forward
         JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
@@ -11526,6 +11548,24 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",          "%s", "console not found",
             "name",         "%s", name,
             NULL
+        );
+        /*
+         *  Tell the requester the console is gone so its Terminal tab can
+         *  close/cleanup: the original EV_TTY_CLOSE may have been lost while
+         *  its link flapped. src is the gate this write-tty came through —
+         *  the same path ac_tty_close() uses to reach the client.
+         */
+        gobj_send_event(
+            src,
+            EV_TTY_CLOSE,
+            msg_iev_build_response(gobj,
+                0,  // result
+                0,  // comment
+                0,  // schema
+                json_pack("{s:s}", "name", name?name:""),   // owned
+                json_incref(kw)  // owned, echoes __md_iev__ back
+            ),
+            gobj
         );
         KW_DECREF(kw);
         return 0;

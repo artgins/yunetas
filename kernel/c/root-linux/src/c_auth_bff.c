@@ -113,6 +113,15 @@
 #define COOKIE_NAME_RT      "refresh_token"
 
 /*
+ *  IdP tokens are JWTs whose size grows with roles/groups (a Keycloak
+ *  access_token with many client roles exceeds 4 KB). One max, used for
+ *  the stored token, the extraction buffers and the Set-Cookie build, so
+ *  a token that fits one always fits the others.
+ */
+#define BFF_TOKEN_MAX       (8*1024)
+#define BFF_SET_COOKIE_MAX  (BFF_TOKEN_MAX + 512)   /* + name/attrs/Domain */
+
+/*
  *  http-parser method codes (from llhttp / http_parser).
  *  We only need GET (1), POST (3), and OPTIONS (6).
  */
@@ -146,7 +155,7 @@ typedef struct _PENDING_AUTH {
     char        redirect_uri[1024];     /* /auth/callback: redirect URI */
     char        username[256];          /* /auth/login: username */
     char        password[256];          /* /auth/login: password */
-    char        refresh_token[4096];    /* /auth/refresh + /auth/logout */
+    char        refresh_token[BFF_TOKEN_MAX];   /* /auth/refresh + /auth/logout */
     char        client_origin[512];     /* Origin header (for CORS) */
     char        client_host[256];       /* Host header (for cookie domain check) */
 } PENDING_AUTH;
@@ -743,24 +752,27 @@ PRIVATE const char *status_str(int code)
 
 /***************************************************************************
  *  Build Set-Cookie header string for one token.
- *  Returns a heap-allocated string; caller must GBMEM_FREE it.
+ *  Returns a heap-allocated string (caller must GBMEM_FREE it), or NULL
+ *  when the value does not fit: a truncated cookie is a corrupted token
+ *  that fails signature checks with no evidence — refuse to emit it.
  ***************************************************************************/
-PRIVATE char *make_set_cookie(const char *name, const char *value,
+PRIVATE char *make_set_cookie(hgobj gobj, const char *name, const char *value,
     int max_age, const char *domain)
 {
-    char buf[8192];
+    char buf[BFF_SET_COOKIE_MAX];
     int n = snprintf(buf, sizeof(buf),
         "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Strict",
         name, value, max_age);
-    /*
-     *  snprintf returns the length it WOULD have written; on truncation
-     *  (oversized token value) n >= sizeof(buf). Clamp to what actually fit
-     *  so the buf+n / sizeof(buf)-n offsets below stay inside the buffer.
-     */
-    if(n < 0) {
-        n = 0;
-    } else if(n >= (int)sizeof(buf)) {
-        n = (int)sizeof(buf) - 1;
+    if(n < 0 || n >= (int)sizeof(buf)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Set-Cookie truncated, dropping cookie",
+            "cookie",       "%s", name,
+            "value_len",    "%d", (int)strlen(value),
+            NULL
+        );
+        return NULL;
     }
     if(!empty_string(domain) && n < (int)sizeof(buf) - 64) {
         snprintf(buf + n, sizeof(buf) - n, "; Domain=%s", domain);
@@ -774,14 +786,17 @@ PRIVATE char *make_set_cookie(const char *name, const char *value,
 /***************************************************************************
  *  Build a "clear cookie" Set-Cookie header (Max-Age=0).
  ***************************************************************************/
-PRIVATE char *make_clear_cookie(const char *name, const char *domain)
+PRIVATE char *make_clear_cookie(hgobj gobj, const char *name, const char *domain)
 {
-    return make_set_cookie(name, "", 0, domain);
+    return make_set_cookie(gobj, name, "", 0, domain);
 }
 
 /***************************************************************************
  *  Extract a named cookie value from a Cookie: header string.
- *  Returns a pointer to `out` or NULL if not found.
+ *  Returns a pointer to `out`, or NULL if not found OR the value does not
+ *  fit `out` (fail-closed: a clipped token is a corrupted token; treating
+ *  it as missing yields a clean 401 instead of a signature failure on a
+ *  remote backend with no evidence here).
  ***************************************************************************/
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size)
@@ -800,7 +815,9 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
             const char *val_start = p + name_len + 1;
             const char *val_end   = strchr(val_start, ';');
             size_t val_len = val_end ? (size_t)(val_end - val_start) : strlen(val_start);
-            if(val_len >= out_size) val_len = out_size - 1;
+            if(val_len >= out_size) {
+                return NULL;
+            }
             memcpy(out, val_start, val_len);
             out[val_len] = '\0';
             return out;
@@ -1358,10 +1375,20 @@ PRIVATE json_t *send_token_to_browser(
     const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
     const char *cookie_domain = effective_cookie_domain(
         gobj, cookie_domain_cfg, request_host);
-    char *at_cookie = make_set_cookie(COOKIE_NAME_AT, access_token,
+    char *at_cookie = make_set_cookie(gobj, COOKIE_NAME_AT, access_token,
         (int)expires_in, cookie_domain);
-    char *rt_cookie = make_set_cookie(COOKIE_NAME_RT, refresh_token,
+    char *rt_cookie = make_set_cookie(gobj, COOKIE_NAME_RT, refresh_token,
         (int)ref_exp_in, cookie_domain);
+    if(!at_cookie || !rt_cookie) {
+        /* Error already logged: a truncated cookie would break auth silently */
+        GBMEM_FREE(at_cookie)
+        GBMEM_FREE(rt_cookie)
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 500, status_str(500),
+            "token_too_large",
+            "Token too large for cookie", cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     /* extra_headers = CORS + two Set-Cookie lines */
     size_t extra_len = strlen(cors_hdrs) + strlen(at_cookie) + strlen(rt_cookie) + 4;
@@ -1673,8 +1700,14 @@ PRIVATE json_t *send_logout_to_browser(
         const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
         const char *cookie_domain = effective_cookie_domain(
             gobj, cookie_domain_cfg, request_host);
-        char *at_clear = make_clear_cookie(COOKIE_NAME_AT, cookie_domain);
-        char *rt_clear = make_clear_cookie(COOKIE_NAME_RT, cookie_domain);
+        char *at_clear = make_clear_cookie(gobj, COOKIE_NAME_AT, cookie_domain);
+        char *rt_clear = make_clear_cookie(gobj, COOKIE_NAME_RT, cookie_domain);
+        if(!at_clear) {
+            at_clear = gbmem_strdup("");    /* Error already logged (unreachable: "" value) */
+        }
+        if(!rt_clear) {
+            rt_clear = gbmem_strdup("");    /* Error already logged (unreachable: "" value) */
+        }
 
         size_t extra_len = strlen(cors_hdrs) + strlen(at_clear) + strlen(rt_clear) + 4;
         char *extra = gbmem_malloc(extra_len);
@@ -2236,7 +2269,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strcmp(url, "/auth/refresh") == 0) {
         /* POST /auth/refresh  (reads httpOnly cookie) */
-        char rt[4096];
+        char rt[BFF_TOKEN_MAX];
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
             send_error_response(gobj, src, 401, status_str(401),
@@ -2253,7 +2286,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strcmp(url, "/auth/logout") == 0) {
         /* POST /auth/logout  (reads httpOnly cookie) */
-        char rt[4096];
+        char rt[BFF_TOKEN_MAX];
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
             send_error_response(gobj, src, 401, status_str(401),
@@ -2305,7 +2338,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return 0;
         }
-        char at[4096];
+        char at[BFF_TOKEN_MAX];
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_AT, at, sizeof(at)) ||
                 empty_string(at)) {
             send_error_response(gobj, src, 401, status_str(401),
@@ -2321,6 +2354,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "success",      1,
             "access_token", at
         );
+        if(!jn_body) {
+            send_error_response(gobj, src, 500, status_str(500),
+                "internal_error",
+                "Cannot build token response", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         send_json_response(src, 200, "200 OK", jn_body, cors_hdrs);
         JSON_DECREF(jn_body)
         KW_DECREF(kw)

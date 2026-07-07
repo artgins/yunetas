@@ -378,7 +378,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "tcp4h head too long",
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
             "len",          "%d", header_erpl4.len,
             NULL
         );
@@ -537,7 +537,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t 
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting disconnected",
-        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
         NULL
     );
 
@@ -555,7 +555,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting handshake",
-        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
         NULL
     );
 
@@ -710,7 +710,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Protocol error, disconnect",
-                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
                 NULL
             );
             gobj_trace_dump(gobj, gbuffer_head_pointer(gbuf),
@@ -741,7 +741,7 @@ PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t 
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting PAYLOAD data",
-        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
         NULL
     );
 
