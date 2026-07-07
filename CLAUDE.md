@@ -64,8 +64,10 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK now `7.7.0`; the gobj-js package sits at
-`7.6.7` — no gobj-js changes in the 7.7.0 cycle) and **published to npm**.
+versioned to track `YUNETA_VERSION` (SDK `7.7.0`; the gobj-js package is now at
+`7.7.0` too — the dev-monitor hooks `set_log_callback` /
+`gobj_set_trace_machine_format` / `trace_json`-to-sink landed this cycle) and
+**published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
