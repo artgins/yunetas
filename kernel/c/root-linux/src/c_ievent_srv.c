@@ -1791,7 +1791,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
 
             return send_static_iev(gobj,
-                EV_MT_STATS_ANSWER,
+                EV_MT_COMMAND_ANSWER,
                 kw_response,
                 src
             );

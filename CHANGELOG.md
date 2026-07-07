@@ -15,6 +15,10 @@
   identity-card JWT with priority over the cookie (`c_ievent_srv.c`) and
   validates it against the issuer JWKS (`c_authz.c`); each remote backend must
   have that JWKS provisioned. Docs: `YUNO_AUTH.md` §2.2.
+- **fix(c_ievent_srv):** `ac_mt_command`'s "Service not found" error path
+  answered with `EV_MT_STATS_ANSWER` (copy-paste from the stats handler)
+  instead of `EV_MT_COMMAND_ANSWER`, so a remote command to an unknown service
+  got its error back under the wrong answer event.
 - **fix(c_tcp):** a running client dropped via `EV_DROP` could stall in
   `ST_STOPPED` (the reconnect `EV_TIMEOUT` was then ignored) and never
   reconnect; `try_to_stop_yevents()` now finalizes to `ST_STOPPED` only when the
