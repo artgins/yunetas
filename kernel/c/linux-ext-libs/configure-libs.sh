@@ -191,7 +191,10 @@
 #       passes --default-symver when the linker supports it — helps the
 #       fully-static / cross (ARM/RISCV) builds. No CVE announced.
 
-VERSION="1.20"
+#   version 1.21
+#       upgrade to mbedtls-4.2.0
+
+VERSION="1.21"
 
 
 source ./repos2clone.sh
