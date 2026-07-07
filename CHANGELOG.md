@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-## 7.7.1
+- **feat(c_pty + agent): live console resize (`resize-console` /
+  `EV_RESIZE_TTY`).** The pty gclass gains an `EV_RESIZE_TTY` input event whose
+  action updates the stored geometry and pushes it to the pty master with
+  `ioctl(TIOCSWINSZ)`, so the kernel raises `SIGWINCH` in the child's foreground
+  process group and full-screen programs (vim, less, htop) reflow. The agent
+  exposes it as a new `resize-console name=<c> cx=<cols> cy=<rows>` command that
+  resolves the console service by name and sends it `EV_RESIZE_TTY` (benign, so
+  it shares the `write-tty` trust level — no separate authz). Until now the pty
+  geometry was frozen at `open-console`; a browser terminal whose viewport
+  changed (mobile soft keyboard, rotation) had no way to resync. Event declared
+  in `g_ev_kernel.{h,c}` (`EV_RESIZE_TTY`).
 _C / SDK patch release — control-plane / auth-BFF hardening and correctness
 fixes, plus an mbedTLS backend bump. JavaScript framework changes are tracked in
 their own repositories (`@yuneta/gobj-js`, `@yuneta/gobj-ui` CHANGELOGs); the
