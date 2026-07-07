@@ -830,7 +830,7 @@ PUBLIC void gobj_trace_json(
         if(gbuf) {
             char *p = gbuffer_cur_rd_pointer(gbuf);
             if(p && *p == '{') {
-                json_t *j = string2json(p, TRUE);
+                json_t *j = string2json(p, FALSE); // not verbose: hex dump fallback covers it
                 if(j) {
                     char *s = json_dumps(j, JSON_INDENT(4)|JSON_ENCODE_ANY);
                     if(s) {

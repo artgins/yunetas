@@ -1285,9 +1285,9 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  write-tty must not tear the whole session down. Log and ignore;
          *  a truly gone console is cleaned up via EV_TTY_CLOSE / on_close.
          */
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "write-tty: no connected agent matched",
             "agent_id",     "%s", agent_id,
             NULL

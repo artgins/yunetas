@@ -29,6 +29,16 @@
 - **fix(controlcenter):** `write-tty` now matches a node by UUID **or** hostname
   (like `command-agent`) and, on a no-match, logs instead of `EV_DROP`-ping the
   requester's shared control socket.
+- **fix(controlcenter):** the `write-tty` no-match log is now a **warning**
+  (`MSGSET_PROTOCOL`), matching the agent side's demotion of the same benign
+  client race — an agent briefly disconnecting while a Terminal tab is focused
+  no longer emits one ERROR per keystroke into logcenter.
+- **fix(glogger):** `gobj_trace_json`'s `TRACE_GBUFFERS` pretty-print path
+  parsed the gbuffer with `string2json(…, verbose=TRUE)`: a gbuffer starting
+  with `{` that is not one complete JSON value (partially-consumed buffer,
+  back-to-back messages, binary starting `0x7B`) injected a spurious
+  `gobj_log_error` + stack trace from a pure trace path. Now non-verbose — the
+  existing hex-dump fallback covers the parse failure.
 - **fix(yuno_agent):** `write-tty` no longer drops the whole control link on a
   benign per-write error ("console not found" → warning); it logs and drops just
   that message.
