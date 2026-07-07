@@ -6,10 +6,11 @@
   `EV_RESIZE_TTY`).** The pty gclass gains an `EV_RESIZE_TTY` input event whose
   action updates the stored geometry and pushes it to the pty master with
   `ioctl(TIOCSWINSZ)`, so the kernel raises `SIGWINCH` in the child's foreground
-  process group and full-screen programs (vim, less, htop) reflow. The agent
-  exposes it as a new `resize-console name=<c> cx=<cols> cy=<rows>` command that
-  resolves the console service by name and sends it `EV_RESIZE_TTY` (benign, so
-  it shares the `write-tty` trust level — no separate authz). Until now the pty
+  process group and full-screen programs (vim, less, htop) reflow. **Both**
+  agents (`yuno_agent` + `yuno_agent22`, which each serve consoles) expose it as
+  a new `resize-console name=<c> cx=<cols> cy=<rows>` command that resolves the
+  console service by name and sends it `EV_RESIZE_TTY` (benign, so it shares the
+  `write-tty` trust level — no separate authz). Until now the pty
   geometry was frozen at `open-console`; a browser terminal whose viewport
   changed (mobile soft keyboard, rotation) had no way to resync. Event declared
   in `g_ev_kernel.{h,c}` (`EV_RESIZE_TTY`).

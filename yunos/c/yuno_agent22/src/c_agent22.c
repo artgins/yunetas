@@ -70,6 +70,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_resize_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -92,6 +93,13 @@ PRIVATE sdata_desc_t pm_close_console[] = {
 SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_resize_console[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
+SDATAPM (DTP_INTEGER,   "cx",           0,              "80",       "Columns"),
+SDATAPM (DTP_INTEGER,   "cy",           0,              "24",       "Rows"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
     SDATAPM (DTP_STRING,    "name",         0,              0,          "Name of console"),
@@ -110,6 +118,7 @@ SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    
 SDATACM2 (DTP_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
 SDATACM2 (DTP_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
 SDATACM2 (DTP_SCHEMA,    "close-console",   0,                  0,                  pm_close_console,cmd_close_console,"Close console"),
+SDATACM2 (DTP_SCHEMA,    "resize-console",  0,                  0,                  pm_resize_console,cmd_resize_console,"Resize console (live TIOCSWINSZ)"),
 
 SDATA_END()
 };
@@ -689,6 +698,75 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         gobj,
         ret,
         json_sprintf("Console closed: '%s'", name),
+        0,
+        0, // owned
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Command: resize-console
+ *  Live window resize of an open console's pty (TIOCSWINSZ -> SIGWINCH),
+ *  so a browser terminal whose viewport changed (soft keyboard, rotation)
+ *  keeps the remote pty geometry in sync. Benign, so it shares the
+ *  write-tty trust level (no separate authz).
+ ***************************************************************************/
+PRIVATE json_t *cmd_resize_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name = kw_get_str(gobj, kw, "name", "", 0);
+    int cx = kw_get_int(gobj, kw, "cx", 80, KW_WILD_NUMBER);
+    int cy = kw_get_int(gobj, kw, "cy", 24, KW_WILD_NUMBER);
+
+    if(empty_string(name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What console name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!kw_has_key(priv->list_consoles, name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Console not found: '%s'", name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    hgobj gobj_console = gobj_find_service(name, FALSE);
+    if(!gobj_console) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Console gobj not found: '%s'", name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_send_event(
+        gobj_console,
+        EV_RESIZE_TTY,
+        json_pack("{s:i, s:i}",
+            "cols", cx,
+            "rows", cy
+        ),
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Console resized: '%s' (%dx%d)", name, cx, cy),
         0,
         0, // owned
         kw  // owned
