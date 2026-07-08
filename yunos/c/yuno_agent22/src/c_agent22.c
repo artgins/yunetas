@@ -54,6 +54,7 @@ PRIVATE int add_console_route(
     hgobj src,
     json_t *kw
 );
+PRIVATE int delete_console(hgobj gobj, const char *name);
 
 /***************************************************************************
  *              Resources
@@ -323,6 +324,21 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Close the live consoles (volatil C_PTY services): left running
+     *  they reach gobj_end still started ("Destroying a RUNNING gobj").
+     *  HACK copy the key: delete_console KW_EXTRACTs it from
+     *  list_consoles and the original string dies mid-call.
+     */
+    const char *name; json_t *jn_console; void *n;
+    json_object_foreach_safe(priv->list_consoles, n, name, jn_console) {
+        char name_[NAME_MAX];
+        snprintf(name_, sizeof(name_), "%s", name);
+        delete_console(gobj, name_);
+    }
+
     return 0;
 }
 

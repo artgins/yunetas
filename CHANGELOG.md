@@ -16,6 +16,14 @@
       `max_consoles` off-by-one (`>` → `>=`: the limit admitted max+1
       consoles). Pairs with the gui_agent stable per-tab console name
       (yunos-js); both `c_agent.c` and `c_agent22.c`.
+    - **fix(agent/agent22): close live consoles on shutdown.** With a console
+      open, an orderly exit (Ctrl-C) reached `gobj_end` with the C_PTY still
+      started — "Destroying a RUNNING gobj" + "hgobj destroying" + a running
+      `YEV_READ_TYPE` event destroyed hot. `mt_stop` now deletes every entry
+      of `list_consoles` (the volatil C_PTY services stop before the tree is
+      destroyed). Note the key-aliasing trap: `delete_console` KW_EXTRACTs the
+      console from `list_consoles`, freeing the dict key mid-call, so the
+      loop passes a copy of the name.
 
 ## 7.7.1
 _C / SDK patch release — control-plane / auth-BFF hardening and correctness
