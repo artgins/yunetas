@@ -82,12 +82,12 @@ is `sha512` with **27500 iterations**.
 
 ## Source code
 
-- [`ytls.c`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c) /
-  [`ytls.h`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.h)
-- [`openssl.c`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/openssl.c) /
-  [`openssl.h`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/openssl.h)
-- [`mbedtls.c`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/mbedtls.c) /
-  [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/mbedtls.h)
+- [`ytls.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c) /
+  [`ytls.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.h)
+- [`openssl.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/openssl.c) /
+  [`openssl.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/openssl.h)
+- [`mbedtls.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/mbedtls.c) /
+  [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/mbedtls.h)
 
 ## Function reference
 
@@ -95,7 +95,7 @@ The individual function reference pages are listed in the left-hand
 sidebar under **TLS API**.
 
 (ytls_cleanup)=
-## [`ytls_cleanup()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L127)
+## [`ytls_cleanup()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L127)
 
 The `ytls_cleanup()` function releases resources associated with the given TLS context.
 
@@ -122,7 +122,7 @@ Ensure that [`ytls_cleanup()`](<#ytls_cleanup>) is called to free resources allo
 ---
 
 (ytls_reload_certificates)=
-## [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L136)
+## [`ytls_reload_certificates()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L136)
 
 Hot-reloads the TLS certificate material of an existing context **without
 disrupting live connections**. Builds a fresh backend state (OpenSSL
@@ -175,7 +175,7 @@ full operational flow.
 ---
 
 (ytls_decrypt_data)=
-## [`ytls_decrypt_data()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L245)
+## [`ytls_decrypt_data()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L245)
 
 `ytls_decrypt_data()` decrypts encrypted data from a secure connection and delivers the clear data via the `on_clear_data_cb` callback.
 
@@ -206,7 +206,7 @@ The decrypted data is provided through the `on_clear_data_cb` callback.
 ---
 
 (ytls_do_handshake)=
-## [`ytls_do_handshake()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L221)
+## [`ytls_do_handshake()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L221)
 
 `ytls_do_handshake()` initiates the TLS handshake process for a secure connection, returning the handshake status.
 
@@ -235,7 +235,7 @@ The callback `on_handshake_done_cb` will be invoked once upon success or multipl
 ---
 
 (ytls_encrypt_data)=
-## [`ytls_encrypt_data()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L231)
+## [`ytls_encrypt_data()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L231)
 
 The `ytls_encrypt_data()` function encrypts the given clear data in `gbuf` and triggers the `on_encrypted_data_cb` callback with the encrypted result.
 
@@ -266,7 +266,7 @@ The encrypted data is delivered asynchronously via the `on_encrypted_data_cb` ca
 ---
 
 (ytls_flush)=
-## [`ytls_flush()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L285)
+## [`ytls_flush()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L285)
 
 `ytls_flush()` flushes both clear and encrypted data in the secure connection.
 
@@ -295,7 +295,7 @@ This function ensures that any pending clear or encrypted data is processed and 
 ---
 
 (ytls_free_secure_filter)=
-## [`ytls_free_secure_filter()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L212)
+## [`ytls_free_secure_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L212)
 
 The `ytls_free_secure_filter()` function releases the resources associated with a secure filter created by [`ytls_new_secure_filter()`](<#ytls_new_secure_filter>).
 
@@ -324,7 +324,7 @@ Ensure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing the s
 ---
 
 (ytls_get_cert_info)=
-## [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L151)
+## [`ytls_get_cert_info()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L151)
 
 Introspects the server certificate currently loaded in the TLS context.
 Used by the `view-cert` command on TLS listeners and by the yuno-level
@@ -370,7 +370,7 @@ start at all.
 ---
 
 (ytls_get_last_error)=
-## [`ytls_get_last_error()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L258)
+## [`ytls_get_last_error()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L258)
 
 Retrieves the last error message associated with the given secure socket `sskt` in the TLS context `ytls`.
 
@@ -399,7 +399,7 @@ The returned error message is managed internally and should not be freed by the 
 ---
 
 (ytls_get_system_ca_bundle)=
-## [`ytls_get_system_ca_bundle()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L47)
+## [`ytls_get_system_ca_bundle()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L47)
 
 Returns the path of the first OS CA-certificate bundle found on the host, probing
 the well-known locations across distros (Debian/Ubuntu/Alpine, RHEL/Rocky/Alma/
@@ -428,7 +428,7 @@ verification.
 ---
 
 (ytls_init)=
-## [`ytls_init()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L68)
+## [`ytls_init()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L68)
 
 `ytls_init()` initializes a TLS context using the specified configuration and mode (server or client).
 
@@ -459,7 +459,7 @@ The `jn_config` parameter should include necessary TLS settings such as certific
 ---
 
 (ytls_new_secure_filter)=
-## [`ytls_new_secure_filter()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L176)
+## [`ytls_new_secure_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L176)
 
 `ytls_new_secure_filter()` creates a new secure filter for handling encrypted communication using a TLS context.
 
@@ -502,7 +502,7 @@ The filter is returned "cold": no handshake is started automatically. Call [`ytl
 ---
 
 (ytls_set_peer_name)=
-## [`ytls_set_peer_name()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L276)
+## [`ytls_set_peer_name()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L276)
 
 Records the connection's peer and local socket names on the secure socket `sskt`
 so the backend's default-on TLS diagnostics (e.g. a rejected handshake) are
@@ -540,7 +540,7 @@ transport (`c_tcp`) calls it right after creating the secure filter.
 ---
 
 (ytls_set_trace)=
-## [`ytls_set_trace()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L267)
+## [`ytls_set_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L267)
 
 Enables or disables tracing for the given secure socket `sskt` in the TLS context `ytls`.
 
@@ -571,7 +571,7 @@ Tracing provides verbose output for debugging purposes. It should be used with c
 ---
 
 (ytls_shutdown)=
-## [`ytls_shutdown()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L203)
+## [`ytls_shutdown()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L203)
 
 The `ytls_shutdown()` function terminates a secure connection associated with the given `hsskt` session within the specified `hytls` context.
 
@@ -600,7 +600,7 @@ After calling `ytls_shutdown()`, the secure session `sskt` should no longer be u
 ---
 
 (ytls_version)=
-## [`ytls_version()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/ytls.c#L167)
+## [`ytls_version()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.c#L167)
 
 Retrieves the version string of the TLS implementation used by `ytls_version()`.
 
@@ -627,7 +627,7 @@ The returned string is managed internally and should not be freed by the caller.
 ---
 
 (openssl_api_tls)=
-## [`openssl_api_tls()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/openssl.c#L1528)
+## [`openssl_api_tls()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/openssl.c#L1528)
 
 Returns the OpenSSL TLS backend dispatch table.
 
@@ -653,7 +653,7 @@ Pointer to the `api_tls_t` structure with OpenSSL-specific implementations.
 ---
 
 (mbed_api_tls)=
-## [`mbed_api_tls()`](https://github.com/artgins/yunetas/blob/7.7.1/kernel/c/ytls/src/tls/mbedtls.c#L1467)
+## [`mbed_api_tls()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/tls/mbedtls.c#L1467)
 
 Returns the mbed-TLS backend dispatch table.
 

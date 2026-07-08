@@ -41,4 +41,4 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 
 - [`tr2keys`](tr2keys.md), [`tr2search`](tr2search.md) — keys-only / content search.
 - [timeranger2 + treedb crash course](../../../yunos/c/yuno_agent/YUNO_TREEDB.md).
-- [`utils/c/tr2list/README.md`](https://github.com/artgins/yunetas/blob/7.7.1/utils/c/tr2list/README.md).
+- [`utils/c/tr2list/README.md`](https://github.com/artgins/yunetas/blob/7.7.2/utils/c/tr2list/README.md).

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 7.7.2
+_C / SDK patch release — agent TTY console lifecycle: `open-console` re-attach
+(the gui_agent Terminal shell now survives a browser refresh instead of leaking
+a PTY per reload), `max_consoles` off-by-one, and clean shutdown with consoles
+open. Pairs with the gui_agent stable per-tab console name + screen restore
+(tracked in the `yunos-js` repo CHANGELOG); `@yuneta/gobj-js` is `7.7.2` on npm._
+
     - **fix(agent/agent22): `open-console` re-attach — a browser refresh of the
       gui_agent Terminal no longer accumulates PTYs until `max_consoles`.**
       Re-opening an EXISTING console from the same channel (the
