@@ -6881,26 +6881,52 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             );
         }
         int ret = add_console_route(gobj, name, jn_console, src, kw);
-        if(ret < 0) {
-            if(ret == -2) {
-                return msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Console already open: '%s'", name),
-                    0,
-                    0,
-                    kw  // owned
-                );
-            } else {
-                return msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Error opening console: '%s'", name),
-                    0,
-                    0,
-                    kw  // owned
-                );
-            }
+        if(ret < 0 && ret != -2) {
+            // -2 is not an error: same channel re-opening its console
+            // (browser refresh), the route metadata was refreshed.
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Error opening console: '%s'", name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+
+        /*
+         *  Re-attach: the live PTY published EV_TTY_OPEN at start only,
+         *  replay it to the requester so its console leaves "Connecting…".
+         */
+        char route_name[NAME_MAX];
+        snprintf(route_name, sizeof(route_name), "%s.%s",
+            gobj_name(gobj_nearest_top_service(src)),
+            gobj_name(src)
+        );
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_route = kw_get_dict(gobj, jn_routes, route_name, 0, KW_REQUIRED);
+        if(jn_route) {
+            // Same shape as C_PTY's EV_TTY_OPEN publish (minus fd/slave_name)
+            json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:i, s:i}",
+                "name", name,
+                "process", kw_get_str(gobj, jn_console, "process", "", KW_REQUIRED),
+                "uuid", node_uuid(),
+                "cwd", gobj_read_str_attr(gobj_console, "cwd"),
+                "rows", (int)gobj_read_integer_attr(gobj_console, "rows"),
+                "cols", (int)gobj_read_integer_attr(gobj_console, "cols")
+            );
+            gobj_send_event(
+                src,
+                EV_TTY_OPEN,
+                msg_iev_build_response(gobj,
+                    0,  // result
+                    0,  // comment
+                    0,  // schema
+                    jn_data,  // owned
+                    json_incref(jn_route)  // owned
+                ),
+                gobj
+            );
         }
     }
 
