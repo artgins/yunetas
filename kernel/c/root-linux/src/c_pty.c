@@ -914,61 +914,6 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     return 0;
 }
 
-/***************************************************************************
- *  Runtime window resize. Update the stored geometry and push it to the
- *  pty master with TIOCSWINSZ, so the kernel raises SIGWINCH in the
- *  child's foreground process group and full-screen programs (vim, less,
- *  htop) reflow. The initial geometry is set at forkpty(); this is the
- *  live-resize path (e.g. a browser terminal whose viewport changed).
- ***************************************************************************/
-PRIVATE int ac_resize_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    int cols = (int)kw_get_int(gobj, kw, "cols", priv->cols, KW_WILD_NUMBER);
-    int rows = (int)kw_get_int(gobj, kw, "rows", priv->rows, KW_WILD_NUMBER);
-
-    if(cols < 1 || cols > 1000 || rows < 1 || rows > 1000) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "resize-tty geometry out of range",
-            "cols",         "%d", cols,
-            "rows",         "%d", rows,
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-
-    priv->cols = cols;
-    priv->rows = rows;
-
-    if(priv->master_fd != -1) {
-        struct winsize size = {
-            (unsigned short)rows,
-            (unsigned short)cols,
-            0,
-            0
-        };
-        if(ioctl(priv->master_fd, TIOCSWINSZ, &size) < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "ioctl(TIOCSWINSZ) FAILED",
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-            KW_DECREF(kw)
-            return -1;
-        }
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
-
 /***********************************************************************
  *                          FSM
  ***********************************************************************/
@@ -1019,7 +964,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_WRITE_TTY,  ac_write_tty,   0},
-        {EV_RESIZE_TTY, ac_resize_tty,  0},
         {0,0,0}
     };
 
@@ -1049,7 +993,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         /* Entradas */
         {EV_WRITE_TTY,  0},
-        {EV_RESIZE_TTY, 0},
 
         {0,0}
     };
