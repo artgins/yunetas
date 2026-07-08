@@ -929,7 +929,7 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "5",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        "Expiration timeout for commands"),
 SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_RD,           "1",            "Use internal (hardcoded) schema (TODO don't set to 0, out schema not working)"),
 
@@ -6798,7 +6798,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+        if(kw_size(priv->list_consoles) >= gobj_read_integer_attr(gobj, "max_consoles")) {
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -6867,26 +6867,52 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             );
         }
         int ret = add_console_route(gobj, name, jn_console, src, kw);
-        if(ret < 0) {
-            if(ret == -2) {
-                return msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Console already open: '%s'", name),
-                    0,
-                    0,
-                    kw  // owned
-                );
-            } else {
-                return msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Error opening console: '%s'", name),
-                    0,
-                    0,
-                    kw  // owned
-                );
-            }
+        if(ret < 0 && ret != -2) {
+            // -2 is not an error: same channel re-opening its console
+            // (browser refresh), the route metadata was refreshed.
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Error opening console: '%s'", name),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+
+        /*
+         *  Re-attach: the live PTY published EV_TTY_OPEN at start only,
+         *  replay it to the requester so its console leaves "Connecting…".
+         */
+        char route_name[NAME_MAX];
+        snprintf(route_name, sizeof(route_name), "%s.%s",
+            gobj_name(gobj_nearest_top_service(src)),
+            gobj_name(src)
+        );
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_route = kw_get_dict(gobj, jn_routes, route_name, 0, KW_REQUIRED);
+        if(jn_route) {
+            // Same shape as C_PTY's EV_TTY_OPEN publish (minus fd/slave_name)
+            json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:i, s:i}",
+                "name", name,
+                "process", kw_get_str(gobj, jn_console, "process", "", KW_REQUIRED),
+                "uuid", node_uuid(),
+                "cwd", gobj_read_str_attr(gobj_console, "cwd"),
+                "rows", (int)gobj_read_integer_attr(gobj_console, "rows"),
+                "cols", (int)gobj_read_integer_attr(gobj_console, "cols")
+            );
+            gobj_send_event(
+                src,
+                EV_TTY_OPEN,
+                msg_iev_build_response(gobj,
+                    0,  // result
+                    0,  // comment
+                    0,  // schema
+                    jn_data,  // owned
+                    json_incref(jn_route)  // owned
+                ),
+                gobj
+            );
         }
     }
 
@@ -7117,6 +7143,17 @@ PRIVATE int add_console_route(
     snprintf(route_name, sizeof(route_name), "%s.%s", route_service, route_child);
 
     if(kw_has_key(jn_routes, route_name)) {
+        /*
+         *  Re-open through the same channel (e.g. a browser refresh behind
+         *  the controlcenter): the stored __md_iev__ belongs to the previous
+         *  requester, refresh it so replies route to the new one.
+         */
+        json_t *jn_route = json_object_get(jn_routes, route_name);
+        json_object_set(
+            jn_route,
+            "__md_iev__",
+            kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED)
+        );
         return -2;
     }
 

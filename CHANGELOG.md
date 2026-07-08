@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+    - **fix(agent/agent22): `open-console` re-attach — a browser refresh of the
+      gui_agent Terminal no longer accumulates PTYs until `max_consoles`.**
+      Re-opening an EXISTING console from the same channel (the
+      controlcenter↔agent route, which stays up across browser refreshes, so
+      the agent never sees the client disconnect) answered `-1 "Console
+      already open"` and each refresh had to fork a new console. Now it is a
+      re-attach: the stored route `__md_iev__` is refreshed so the tty stream
+      routes to the NEW requester (not the dead one), and `EV_TTY_OPEN` is
+      replayed to the requester with the same kw shape C_PTY publishes at
+      start (name/process/uuid/cwd/rows/cols) so the client leaves
+      "Connecting…" — the shell session survives the refresh. Also fixed the
+      `max_consoles` off-by-one (`>` → `>=`: the limit admitted max+1
+      consoles). Pairs with the gui_agent stable per-tab console name
+      (yunos-js); both `c_agent.c` and `c_agent22.c`.
+
 ## 7.7.1
 _C / SDK patch release — control-plane / auth-BFF hardening and correctness
 fixes, plus an mbedTLS backend bump. JavaScript framework changes are tracked in
