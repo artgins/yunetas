@@ -46,8 +46,9 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 - **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**: the
   declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack.
   **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
-  as a `file:` dependency (`@yuneta/gobj-ui` → `../../../yunetas/kernel/js/gobj-ui`,
-  exactly like `@yuneta/gobj-js`); wattyzer imports it by package specifier
+  and the in-repo yunos **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`** as
+  a `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`, exactly
+  like `@yuneta/gobj-js`); they import it by package specifier
   (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map `"./src/*"`; the
   source lives under `src/` mirroring v1, with `index.js` and the vite plugin at
   the package root). **All new gobj-ui work lands on `main`/v2**: edit
@@ -56,10 +57,12 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 - **`v1` branch** (tag `1.0.1`, npm dist-tag `legacy`) — the **frozen** legacy
   GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
   charts/maps). `v1` is **maintenance-only** — do not land feature work here.
-  estadodelaire, hidraulia and the in-repo `yunos/js/gui_treedb` consume it from
-  the **npm registry** as `@yuneta/gobj-ui@^1.0.1` (the **published** package,
-  **not** this local checkout). The local `kernel/js/gobj-ui` checkout is **no
-  longer `v1`** — do not point a `file:` dependency at it for a v1 consumer.
+  estadodelaire and hidraulia consume it from the **npm registry** as
+  `@yuneta/gobj-ui@^1.0.1` (the **published** package, **not** this local
+  checkout). The local `kernel/js/gobj-ui` checkout is **no longer `v1`** — do
+  not point a `file:` dependency at it for a v1 consumer. (The in-repo
+  `yunos/js/gui_treedb` was migrated to **v2** and consumes this local checkout
+  by `file:`, like gui_agent and wattyzer — it is **not** a v1/npm consumer.)
 
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
