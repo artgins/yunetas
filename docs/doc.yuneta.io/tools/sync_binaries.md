@@ -98,5 +98,7 @@ tools/agent/sync_binaries.py --yunos-dir /path/to/yunos   # override the build d
 
 ## See also
 
+- [Deploying yunos step by step](../deploying-yunos.md) — the scenario-driven
+  deploy guide (this script is its push engine for binaries).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
 - [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.7.2/tools/README.md).

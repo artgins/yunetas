@@ -32,6 +32,9 @@ project:
 
     - title: The `yunetas` CLI
       file: yunetas-cli.md
+      children:
+        - title: Deploying yunos step by step
+          file: deploying-yunos.md
 
     - title: Philosophy
       file: philosophy/index.md

@@ -195,6 +195,13 @@ Each one is published as a chapter under **Operating Yuneta** in
 `/yuno-lifecycle`, `/debugging`, `/ipc`, `/realms`, `/scaffolding`,
 `/yuno-auth`, `/gobj`, `/yuno-treedb`).
 
+**Deploying/updating yunos on a node?** Read
+[`docs/doc.yuneta.io/deploying-yunos.md`](docs/doc.yuneta.io/deploying-yunos.md)
+(published at `/deploying-yunos`) — the scenario-driven guide (hot-patch,
+version bump, config-only, new yuno, rollback) tying together the `yunetas`
+CLI, `sync_binaries.py` and `sync_configs.py`. Start there, not in
+`c_agent.c`.
+
 ## System Prerequisites
 
 See [`docs/doc.yuneta.io/installation.md`](docs/doc.yuneta.io/installation.md) for

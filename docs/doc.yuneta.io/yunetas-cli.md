@@ -90,6 +90,11 @@ Deploy is **two steps: push the artifacts, then promote them.** The deploy
 subcommands wrap the agent helpers under
 [`tools/agent/`](tools.md) and talk to the local agent over `ycommand`.
 
+> 📘 **New to deploying?** Read
+> [Deploying yunos step by step](deploying-yunos.md) first — a scenario-driven
+> guide (hot-patch, version bump, config-only, new yuno, rollback) with the
+> exact commands for each case. This section is the command reference.
+
 ```bash
 # 1. Push binaries AND configs together (recommended)
 yunetas sync -n               # = sync-binaries + sync-configs, dry-run

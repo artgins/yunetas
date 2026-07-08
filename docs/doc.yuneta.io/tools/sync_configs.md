@@ -114,6 +114,8 @@ sync_configs.py -u ws://127.0.0.1:1991         # target a specific agent
 
 ## See also
 
+- [Deploying yunos step by step](../deploying-yunos.md) — the scenario-driven
+  deploy guide (this script is its push engine for configs).
 - [`sync_binaries.py`](sync_binaries.md) — the binary-side sibling.
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
 - [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.7.2/tools/README.md).
