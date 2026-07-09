@@ -13,6 +13,17 @@ Before proposing or applying any change:
 
 "Obvious" or "small" changes have caused regressions. Speed does not compensate for breaking invariants.
 
+### Restore, don't redesign
+
+Dead branches, `if(0)` fences and TODO stubs that trace back to the pre-v7
+codebase are usually designs validated by years of production use — the wiring
+was cut during the v7 port, not the design. The default question is *"what
+wiring is missing to restore the original behaviour?"*, never *"how do I
+redesign this?"*. Treat "this looks odd" as a flag to investigate harder;
+redesign only after citing the concrete scenario the original design breaks.
+(This applies to prod-hardened legacy designs, not to new/experimental code
+such as the gobj-ui v2 declarative shell.)
+
 ### `kernel/js/gobj-js/`, `kernel/js/gobj-ui/` and `yunos/js/` are git submodules
 
 The C kernel and the runtime gclasses are consolidated: treat them as described
@@ -94,6 +105,13 @@ Operational notes:
 - To ship a new **v1** release for estadodelaire/hidraulia: from a **v1**
   checkout of the standalone repo, `npm run build` + `npm publish`, then bump
   their `@yuneta/gobj-ui` `^1.x` range. (This local submodule stays on `main`.)
+- gobj-ui installs its own copies of shared third-party libs (i18next,
+  @antv/g6, maplibre-gl, tabulator-tables, tom-select, uplot,
+  vanilla-jsoneditor). Any consumer that also depends on one of them must add
+  `resolve.dedupe` for the full list in its `vite.config.js` (mirror
+  wattyzer's, the reference v2 consumer) — otherwise components importing a
+  module-level singleton (e.g. i18next's `t`) bind an uninitialized second
+  copy and render blank.
 - Preserve backwards compatibility for existing consumers (estadodelaire +
   hidraulia on published v1, wattyzer on local v2) and update the repo's
   `README.md` when the contract changes.
@@ -155,6 +173,109 @@ When reviewing or writing code, search for and fix:
 
 Verbose by design. Visibility wins.
 
+## ⚠️ CRITICAL: No silent errors
+
+**Every error path must leave a trace** — either `gobj_log_error(...)` at the
+failure point, or the annotation `// Error already logged` when the failing
+helper already logged. Applies to every failure exit: `return -1/NULL/FALSE`,
+`continue`/`break`/`goto` after a failed validation, swallowed truncation,
+void-function early returns, `default:` on an unexpected enum. Never "fix" a
+compiler warning (`-Wformat-truncation`, `-Wunused-result`) with a silent
+early-out.
+
+**Why:** the log is the only window into runtime failures; a silent error path
+defeats the framework's observability.
+
+Corollaries:
+
+- **Never add a no-op FSM action to swallow *"Event NOT DEFINED in state"*.**
+  The error is deliberately loud — it flags a badly built FSM or a sender
+  emitting in the wrong situation. Trace who sends the event in that state and
+  fix that path.
+- **Never debug a running yuno with `fprintf(stderr, …)`** or ad-hoc `/tmp` log
+  files. Use the trace machinery (`set-global-trace` / `set-gclass-trace`,
+  `gobj_trace_msg/json/dump`) — it has scoping, standard JSON format and
+  cross-yuno correlation. If no existing category fits, add a per-gclass trace
+  level (16 slots) rather than bypassing the framework. Playbook:
+  [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md). Pair every trace enable
+  with its disable in the same session.
+- **Protocol decoder severity** (`c_prot_*`, `c_websocket`, mqtt, …): a failure
+  caused by a malformed/malicious **peer packet** ⇒ `gobj_log_warning` with its
+  assigned category (`MSGSET_PROTOCOL`, `MSGSET_MQTT`, …), **no**
+  `LOG_OPT_TRACE_STACK`, plus a length-capped dump of the offending bytes. A
+  broken **internal invariant** ⇒ `gobj_log_error` with stack trace. Ask:
+  "could a remote peer trigger this with bad bytes?" → warning; "our own
+  contract is broken" → error.
+
+## C coding rules
+
+- **Paths:** assemble filesystem paths with `build_path(bf, sizeof(bf), seg1,
+  ..., NULL)` (`kernel/c/gobj-c/src/helpers.h`), never `snprintf("%s/%s")`.
+  `build_path` strips duplicate `/`, always null-terminates and logs on
+  overflow. Applies to new/modified code; don't refactor pre-existing calls
+  unprompted.
+- **Buffer sizes:** use the `<limits.h>` system constants — `NAME_MAX`
+  (filenames), `PATH_MAX` (full paths), `HOST_NAME_MAX`, `LOGIN_NAME_MAX`,
+  `PIPE_BUF` — never hand-picked numbers. The constant documents the contract;
+  `char buf[64]` lies about it.
+- **Naming:** name functions by intent — verb + object + direction
+  (`get_token_from_idp`, `send_token_to_browser`) — not by framework role; the
+  framework keys (`mt_*`, `ac_*`, `exec_action`) already label the role. Prefer
+  generic domain words over vendor names (`idp`, not `keycloak`). If a
+  function's honest name is uninformative, the function is probably wrong —
+  remove it, don't rename it.
+- **Comments:** asymmetric by location. File headers may carry ample prose
+  (gclass role, FSM, design decisions). Inside function bodies default to *no
+  comment* — one short line only for a genuinely non-obvious why (hidden
+  constraint, workaround, invariant). Never narrate what the next line does.
+- **Section titles** in scripts (bash, Python) use the established 3-line
+  comment block (`#` / `#   Title` / `#`); never invent one-liner formats
+  (`#---`, `#===`) — they are invisible when scanning.
+- **Copyright:** on non-trivial edits bump the ArtGins year as a **range**
+  (`Copyright (c) 2024-2026, ArtGins.`), keeping the original year. Brand-new
+  files use a single year. `Niyamaka` copyrights are historical — never change
+  them.
+- **Persistent attrs:** always name what you save —
+  `gobj_save_persistent_attrs(gobj, "attr_name")` (string / list / dict of
+  names). The bare call saves every `SDF_PERSIST` attr, which is wasteful and
+  can clobber attrs the caller didn't touch. Same API shape in C and JS.
+- **Command responses:** every non-empty `jn_comment` passed to
+  `build_command_response()` in a `cmd_*` handler starts with the yuno
+  identity: `json_sprintf("%s: ...", gobj_yuno_role_plus_name(), ...)`. Keep it
+  on one line if the whole expression fits in 80 bytes, else break with the
+  format string first. Skip when `jn_comment == 0` or when the message already
+  names a specific target gobj.
+- **`SDF_RSTATS` attrs backed by a priv field need `mt_reading`** in the
+  GMETHODS — `priv->counter++` alone leaves the attr at zero forever (typed
+  readers consult `mt_reading` first; the stored attr is never written). Keep
+  attr name and priv field name identical.
+- **Commands callable via `ycommand command-yuno`** hit two parser quirks:
+  (1) `id=` is reserved by `command-yuno` as the yuno filter — name inner
+  parameters `<thing>_id` (keep `id` as a legacy alias read as fallback in the
+  handler); (2) `SDF_REQUIRED` + `DTP_JSON`/`DTP_INTEGER` parameters are
+  forwarded from kw **without** type coercion — drop `SDF_REQUIRED` and
+  validate in the handler, or defensively accept the string form
+  (`anystring2json`).
+- **`gobj_log_last_message()`** is a process-global 256-byte buffer written
+  only by `priority <= LOG_ERR` logs. Prefer explicit `json_sprintf` messages
+  in `cmd_*` failure paths; never rely on it across function boundaries. A
+  kernel function that fails via `gobj_log_info` should call
+  `gobj_log_set_last_message()` itself if callers need the cause.
+
+### C API footguns
+
+- **`jwt_checker_verify2()` returns claims even on FAILED verification**
+  (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —
+  never treat a non-NULL payload as "verified" (that accepts forged tokens),
+  and always `json_decref` the returned payload regardless of outcome.
+  Canonical consumer: `c_authz.c`.
+- **`kw["gbuffer"]` is auto-decref'd** by gobj's serializer table when the kw
+  is decref'd. Reading the pointer with `extract=FALSE` and then calling
+  `GBUFFER_DECREF` before `KW_DECREF` is a double-free (*"BAD gbuf_decref()"*).
+  Decref manually only after `extract=TRUE` (ownership transferred) or when
+  the gbuffer never entered a kw. Match `c_prot_raw` / `c_prot_tcp4h` in new
+  protocol gclasses.
+
 ## ⚠️ Documentation language: English only
 
 **Every text artifact committed to this repo must be in English**, regardless of the
@@ -171,6 +292,32 @@ Only artifacts that get committed must be in English.
 When editing a doc with Spanish content, translate it directly when the user asks
 for any cleanup of that file; otherwise propose the translation first.
 
+### Documentation conventions
+
+- **Reviewing or debugging a yuno/gclass = improve its doc page in the same
+  pass.** The verified mental model just built (config attrs, commands,
+  persistence, failure semantics, trace levels) is exactly what its page under
+  `docs/doc.yuneta.io/` should capture — many pages are stubs.
+- **Topology diagrams are left-to-right following data flow** (sources →
+  gateways → DBs → consumers; agent/utilities as a bottom band), realms as
+  horizontal background bands, `role^name` node labels. No top-down layouts.
+
+### Documentation site (doc.yuneta.io)
+
+The site is built with **mystmd** (MyST / Jupyter Book 2), deployed via
+`docs/doc.yuneta.io/deploy.sh`. Tooling quirks:
+
+- `myst build --html` does not exit — it boots a dev server. Validate edits
+  non-interactively with
+  `timeout 30 myst build --html 2>&1 | grep -iE 'warning|error|⚠|fail'`, then
+  `pkill -f "myst build" || true`. MyST warning lines start with `⚠`, not with
+  the word "warning" — include `⚠` in any grep of build logs.
+- After any **bulk** edit of `docs/doc.yuneta.io/**.md` (e.g. a release-link
+  repin), run `rm -rf _build/site _build/html` before `deploy.sh` — myst reuses
+  a stale AST cache and ships old content (keep `_build/templates`, the theme
+  cache). Verify with a grep of `_build/html` for the old pattern (also catches
+  the `build/*.md` source-copy artifacts).
+
 ## Onboarding docs (read these before touching code)
 
 If you are a Claude instance landing in this repo for the first time, read
@@ -179,7 +326,7 @@ spelunking through `c_agent.c` and `gobj.c`. The README is an index.
 
 | # | Doc                                                                     | Covers                                                            |
 |---|-------------------------------------------------------------------------|-------------------------------------------------------------------|
-| 0 | [`yunos/c/yuno_agent/README.md`](yunos/c/yuno_agent/README.md)          | Index of the eight below.                                         |
+| 0 | [`yunos/c/yuno_agent/README.md`](yunos/c/yuno_agent/README.md)          | Index of the chapters below.                                      |
 | 1 | [`ENTRY_POINT.md`](yunos/c/yuno_agent/ENTRY_POINT.md)                   | What `main()` does. `yuneta_entry_point` + `ydaemon.c` watcher (the autonomous-survival kernel). `/var/crash/core.%e`. |
 | 2 | [`YUNO_LIFECYCLE.md`](yunos/c/yuno_agent/YUNO_LIFECYCLE.md)             | How the agent manages yunos (create/run/kill/update/delete).      |
 | 3 | [`DEBUGGING.md`](yunos/c/yuno_agent/DEBUGGING.md)                       | Trace levels, log infrastructure, logcenter, SPA dev panel.       |
@@ -200,12 +347,18 @@ Each one is published as a chapter under **Operating Yuneta** in
 (published at `/deploying-yunos`) — the scenario-driven guide (hot-patch,
 version bump, config-only, new yuno, rollback) tying together the `yunetas`
 CLI, `sync_binaries.py` and `sync_configs.py`. Start there, not in
-`c_agent.c`.
+`c_agent.c`. Keep that guide updated when deploy flows change.
 
 ## System Prerequisites
 
 See [`docs/doc.yuneta.io/installation.md`](docs/doc.yuneta.io/installation.md) for
 the full apt dependency list and one-time environment setup.
+
+Avoid **snap-packaged CLI tools** for anything the build or docs need (typst,
+pandoc, formatters): snap confinement only grants `$HOME`, so they cannot read
+`/yuneta/...` (symptom: *"input file not found"* for a file that exists, with
+`which <tool>` → `/snap/bin/...`). Install via apt or a static binary in
+`/usr/local/bin` (which shadows `/snap/bin` in `PATH`).
 
 ## Quick Start
 
@@ -248,6 +401,17 @@ ctest -R test_c_timer --output-on-failure --test-dir build   # run a single test
 ./ctest-loop.sh                                              # run ctest in a loop until first failure
 ```
 
+**Build via the `yunetas` CLI, not per-module make.** For any kernel/lib change
+that must reach consumers, and for ANY version bump or release deploy, do a
+CLEAN rebuild: `yunetas clean && yunetas build`. Incremental builds have left
+stale binaries in `outputs/yunos/` — always verify the staged binary
+(`outputs/yunos/<role> --print-role`) before deploying it.
+
+`ctest --test-dir build` only **runs** tests, it never rebuilds them — the
+unified root `build/` tree is built by `yunetas test` (or `cmake --build
+build`), not by `yunetas build`. A raw ctest after per-module builds executes
+stale binaries.
+
 ### External projects (registered in the CLI)
 
 Projects (wattyzer, estadodelaire, …) can be registered so the `yunetas`
@@ -267,6 +431,9 @@ yunetas upgrade-yunos [--no-snap|--snap-name N|-y|-n]  # shoot-snap -> find-new-
 ```
 
 ### Building a single module
+
+For a quick single-module compile sanity check only — never the way to produce
+deployable binaries (see the CLI rule above):
 
 ```bash
 cd kernel/c/gobj-c/build && make install
@@ -291,6 +458,10 @@ the only workflow in `.github/` is `release-packages.yml` (builds the AMD64
 
 - First time after cloning.
 - Any time `.config` changes (compiler, build type, enabled modules).
+- After toggling the TLS backend in `.config`, also wipe `CMakeCache.txt` +
+  `CMakeFiles/` in the affected `tests/c/*/build/` dirs — their cached
+  `MBEDTLS_LIBS`/`OPENSSL_LIBS` go stale and test links fail with undefined
+  TLS symbols.
 
 `yunetas init` recreates `outputs/`, regenerates `yuneta_version.h` and
 `yuneta_config.h`, and runs `cmake` in each module's `build/`.
@@ -307,6 +478,12 @@ Generate via `menuconfig`. Key knobs:
 - Debug: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`.
 - Modules: `CONFIG_MODULE_CONSOLE`, `CONFIG_MODULE_MQTT`, `CONFIG_MODULE_POSTGRES`, `CONFIG_MODULE_TEST`.
 
+Changing a flag in `kernel/c/linux-ext-libs/configure-libs.sh` that alters
+installed paths, artifact names or exported symbols must land in the **same
+commit** as the migration of every consumer (includes +
+`target_link_libraries`). Grep all consumers first, list them as companion
+changes, and verify with `nm`/`strings` on rebuilt binaries.
+
 ### Fully Static Binaries (`CONFIG_FULLY_STATIC`)
 
 Produces fully static glibc binaries (GCC or Clang) that run on any Linux of the
@@ -316,6 +493,14 @@ favour of native SMTPS on top of `ytls` / `c_tcp`).
 
 `configure-libs.sh` already passes the OpenSSL flags needed for clean static
 builds (`no-dso`, `no-sock`).
+
+**Static linking is per-target opt-in:** every yuno/util `CMakeLists.txt`
+needs BOTH blocks — (1) the linker flags after `include(project.cmake)`
+(`CMAKE_EXE_LINKER_FLAGS "-static ..."`, `CMAKE_FIND_LIBRARY_SUFFIXES ".a"`,
+`BUILD_SHARED_LIBS OFF`) and (2) `LINK_SEARCH_START_STATIC` /
+`LINK_SEARCH_END_STATIC TRUE` after `add_yuno_executable`. With only the
+second, the link succeeds but glibc stays dynamic. Verify:
+`ldd outputs/yunos/<name>` → *"not a dynamic executable"*.
 
 **Size vs speed trade-off (AMD64, RelWithDebInfo, static):**
 - mbedTLS produces binaries ~3× smaller than OpenSSL (~10 MB vs ~30 MB).
@@ -347,6 +532,45 @@ Every component is a **GObject** (`gobj`), instance of a **GClass**. GClasses de
 
 GObjects form a hierarchical tree — a **Yuno** (deployable process). Communication
 happens exclusively via events carrying JSON payloads (`json_t *kw`).
+
+### GObject design rules
+
+- **Fix the cause at its layer.** A high-level gclass must not compensate for a
+  lower layer: reconnection/backoff belongs to the transport (`c_tcp`) and the
+  session gclass, never to the application on top. Don't scatter `C_TIMER`s to
+  "kick" the layer below, and never mask a crash with a defensive NULL check —
+  find why the pointer is NULL. A semantic guard
+  (`if(!gobj_is_playing(gobj))`) is fine; a pointer-existence test papering
+  over the cause is not.
+- **Explicit lifecycle — Yuneta is not a JVM.** Prefer, in order: (1) static
+  child gobjs whose create/start/stop/destroy pair with the parent's
+  lifecycle; (2) self-destroy at a clear end-of-work point
+  (`if(gobj_is_volatil(gobj)) gobj_destroy(gobj)`); (3) last resort, a
+  gclass-local deferred destroy via `set_timeout0(timer, 0)`.
+- **No polling.** A timer re-issuing the same query is a discarded pattern in
+  Yuneta — remove it when found. Alternatives, in order: on-demand refresh
+  from a user action, or have the producer **publish an event** the consumer
+  subscribes to. Deliberate, user-approved exceptions are commented as such in
+  the code — don't "fix" those.
+- **Never synchronously stop the publisher's tree from a subscriber callback.**
+  `gobj_publish_event` dispatches synchronously — the callback runs inside the
+  publisher's stack, and `gobj_stop_tree` there corrupts mid-iteration state.
+  Defer: set a `dying` flag + a short timeout and stop from the timer action.
+  Applies to C and JS alike.
+- **Main services start their work in `mt_play`, not `mt_create`/`mt_start`.**
+  `mt_create` creates children; `mt_play` opens queues and starts what
+  connects. This is why `run-yuno play=0` leaves a yuno with
+  `running=true, playing=false` until `play-yuno`.
+- **Inter-yuno communication happens only between named SERVICES** with public
+  events/commands. A routed view, a pure child, or any unnamed gobj can never
+  be the `src` or destination of an inter-yuno message — answers route back
+  via `gobj_find_service(src_service)`. Symptom of a violation: *"gobj service
+  not found"* — fix the sender, don't silence the log.
+- **Declarative JSON is sugar over a runtime API.** A JSON config that
+  describes objects to build must call a runtime API at startup, and that API
+  stays available at runtime. If a feature needs to mutate a config-described
+  structure and "there's no API, it's static" — implement the missing API;
+  don't hack around the static config.
 
 ### Multi-Language Implementations
 
@@ -393,9 +617,27 @@ stress/c/*            ← stress test programs
 | `tools/cmake/` | CMake toolchain files |
 | `packages/deb`, `packages/rpm` | Debian/RPM packaging (used by `release-packages.yml`) |
 | `scripts/` | Utility scripts (added to `PATH` by `yunetas-env.sh`) |
-| `docs/doc.yuneta.io/` | Sphinx documentation site |
+| `docs/doc.yuneta.io/` | MyST (mystmd) documentation site |
 | `outputs/` | Compiled libs, headers, yuno binaries (created by `yunetas init`) |
 | `outputs_ext/` | Built external libraries |
+
+**`tools/` ships in the install packages; `scripts/` is repo-only.**
+Node-usable / operator-facing utilities go under `tools/` (grouped by
+subsystem, e.g. `tools/agent/`); repo-dev helpers stay in `scripts/`. Test:
+"must this run on a bare installed node?" — yes → `tools/`.
+
+### Module notes
+
+- **HTTP parsing:** llhttp is vendored (`kernel/c/gobj-c/src/llhttp*`;
+  http-parser was dropped as unmaintained) and bridged to the gobj event model
+  by `kernel/c/root-linux/src/ghttp_parser.c` (used by `c_prot_http_cl` /
+  `c_prot_http_sr`). The wrapper has caused repeated bugs — when investigating
+  an HTTP parsing issue, suspect `ghttp_parser` first, not llhttp upstream.
+- **MQTT:** `C_PROT_MQTT2` (`c_prot_mqtt2.c`) is the complete implementation
+  and the only target for protocol-level work; `C_PROT_MQTT` is **deprecated**,
+  kept only until the remaining gates migrate. Neither implements
+  publish/subscribe ACL (open design item, see `TODO.md`) — don't assume
+  topic-level permissions exist.
 
 ## ⚠️ GClass templates and skeletons
 
@@ -416,12 +658,9 @@ the structure exactly — count blank lines if in doubt.
 | Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
 | Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
 
-The **JS GUI yuno** scaffold (Vite + declarative shell from
-the vendored gobj-ui) was moved out of this repo on 2026-05-21
-when the new shell stack left `kernel/js/gobj-ui` (v8.0).  Its
-canonical home is now `wattyzer/templates/js_gui/` (a private
-repo).  Use the wattyzer copy when starting a new declarative-
-shell GUI yuno.
+The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) lives in
+`wattyzer/templates/js_gui/` (a private repo) since 2026-05-21. Use that copy
+when starting a new declarative-shell GUI yuno.
 
 **Every banner from the skeleton must be present, even when its section is
 empty.** Don't add extra banners outside the skeleton set. Don't reorder
@@ -431,6 +670,17 @@ the skeleton order.
 
 `c_yuno.c` and `c_agent.c` are canonical large-gclass examples; `c_timer.c` is
 the minimal example.
+
+### GClass public interface
+
+A gclass `.h` exposes exactly two things: `GOBJ_DECLARE_GCLASS(C_FOO);` and
+`PUBLIC int register_c_foo(void);`. Any other interaction goes through the five
+public mechanisms: attributes (`SDATA` + `gobj_read/write_*_attr`), commands
+(`SDATACM` + `gobj_command`, ycommand-discoverable), events (`gobj_send_event`
+/ `gobj_publish_event`), local methods (`gobj_local_method`), and statistics
+(`SDF_STATS/RSTATS/PSTATS`, or `mt_stats` for hot paths). Adding raw `PUBLIC`
+C functions to a gclass header is a layering violation — treat existing ones
+as defects.
 
 ### GClass subscription model (CHILD vs SERVICE)
 
@@ -491,6 +741,27 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
 (`EV_WINDOW_*`), `c_yuno.c` / `c_esp_yuno.c` (`EV_TIMEOUT_PERIODIC`),
 `c_agent.c` / `c_agent22.c` (`EV_PLAY_YUNO_ACK`/`EV_PAUSE_YUNO_ACK`).
 
+## JS framework and GUI rules
+
+### gobj-js gotchas
+
+- `createElement2(["tag", attrs, children])`: the 2nd slot MUST be an attrs
+  object; text/children go in slot 3 (`["p", {}, "msg"]`,
+  `["ul", {}, [li1, li2]]`).
+- `gobj_create_default_service()` does NOT register in `__jn_services__` —
+  `gobj_find_service()` returns null for it; capture the return value instead.
+- `pure_child` gobjs are not auto-started by `c_yuno.mt_play` — call
+  `gobj_start(child)` explicitly.
+- `c_ievent_cli` contract (C and JS): a **deliberate** `gobj_stop` /
+  `gobj_stop_tree` must still deliver the transport close to the FSM so
+  `EV_ON_CLOSE` reaches subscribers when a session was open. Guard the handler
+  with `gobj_is_destroying(gobj)`; never detach `onclose` to silence a late
+  event.
+- SPA teardown order: `set_remote_log_functions(null)` FIRST, before dropping
+  the websocket or destroying the shell, in every teardown path (logout,
+  open-error, restore-failed) — otherwise every teardown log recurses through
+  the dead socket into *"too much recursion"*.
+
 ### JS GUI DOM: logical class names on important blocks
 
 **Mandatory in every JS GUI (gobj-ui and the `yunos/js/*` yunos alike).** When
@@ -517,6 +788,27 @@ rules in `gui_agent/src/app.css`).
 Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
 `CONSOLE_*` family).
 
+### JS GUI conventions
+
+- **No transitions/animations.** Menus, popovers, tooltips and state changes
+  appear instantly — no fade/slide/glide. If a third-party lib injects
+  transition CSS, override it (`transition: none !important`). Don't add
+  decorative animation unless explicitly requested.
+- **Buttons in rows: icon required; icon-only on mobile.** Every button in a
+  row that gets narrow on mobile carries an icon; on mobile hide the text
+  label (`<span class="is-hidden-mobile">Label</span>`). Always set `title` +
+  `aria-label` (mobile users see only the icon).
+- **Bulma helpers carry `!important`** (`.is-flex`, `.is-hidden`): a bare
+  inline `style.display = 'none'` loses to them. Toggle `is-hidden`, or use
+  `style.setProperty('display', 'none', 'important')` /
+  `removeProperty('display')`. jsdom tests don't load Bulma CSS and can't
+  catch this — verify display toggles against the real stylesheet.
+- **`yui_icons.css` (gobj-ui) is a small CSS-mask set, not FontAwesome** — an
+  undefined `yi-*` class renders as a solid black square. Grep the real set
+  before using an icon
+  (`grep -oE '^\.yi-[a-z0-9-]+::before' src/yui_icons.css`); a missing glyph
+  is added as a deliberate mask rule, never referenced on hope.
+
 ### Writing tests against the gobj framework
 
 - **`gobj_end()` must run BEFORE any `get_cur_system_memory()` check.**
@@ -539,6 +831,20 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   once per emission, in order. If a phase runs twice, every recurring log line
   must appear twice.
 
+- **`set_expected_results()` / any `json_pack` that `test_json` will DECREF
+  must run inside `register_yuno_and_more`**, not in `main()` before
+  `yuneta_entry_point` — jansson is routed through `gbmem_*` only after the
+  entry point calls `json_set_alloc_funcs`. Earlier allocations are
+  libc-backed and die at cleanup (`dl_delete: DIFFERENT dl_list_t`,
+  `free(): invalid pointer`). Canonical: `tests/c/c_task_authenticate/`.
+
+- **No `static json_t *` caches in library helpers** — anything alive past
+  `gobj_end()` is reported as a leak under `CONFIG_DEBUG_TRACK_MEMORY` and
+  fails ctest. Parse/build per call for rare helpers; for hot paths hand the
+  cache lifetime to the caller via incref/decref (see `topic_cols_desc` in
+  `tr_treedb.c`). Trust ctest over a standalone run — ctest captures the
+  `print_track_mem` errors.
+
 ## Event Loop & Async I/O
 
 `yev_loop` drives everything via **Linux io_uring** (not epoll). GClasses attach
@@ -557,6 +863,11 @@ per CPU core, with inter-yuno messaging.
 
 Graph memory database using timeranger2 for persistence. Nodes belong to
 **topics** and link via **hook/fkey** relationships.
+
+**Every treedb is a graph**: topics = nodes, hook→fkey columns = links
+(a self-referent hook = a tree). Docs, schema references and SPA views lead
+with the graph; column tables are the per-node detail. Derive graph diagrams
+from the schema source of truth, never hand-draw them.
 
 ### Key Concepts
 
@@ -586,6 +897,12 @@ Graph memory database using timeranger2 for persistence. Nodes belong to
   saves the **child** → child's g_rowid increments. Parent NOT saved.
 - **Key rule:** link/unlink saves ONLY the child (the one with the fkey),
   NEVER the parent (the one with the hook).
+- **Changing a topic's cols requires bumping its `topic_version`** (and
+  `schema_version` for structural changes) — otherwise the persisted
+  `topic_cols.json` masks the new in-memory schema and validation fires stale
+  errors. When reproducing locally, wipe the treedb `store/` first or the fix
+  won't take. Details:
+  [`YUNO_TREEDB.md`](yunos/c/yuno_agent/YUNO_TREEDB.md).
 
 ### Hook Mappings Example (schema_sample)
 
@@ -625,6 +942,17 @@ ycommand -c 'update-binary id=X content64=$$(X)'         # upload new binary (sa
 ycommand -c 'run-yuno'                                   # start all enabled yunos
 ```
 
+### Verifying flows against a running system
+
+Verify message flows against the **backend**, not a SPA (the SPA only
+visualizes). Loop: mutate treedb from the CLI
+(`command-yuno … service=<treedb_svc> command=update-node …` — treedb replaces
+object fields wholesale, resend the full sub-object), inject stimulus over a
+persistent connection, and assert on the timeranger2 topic with
+`tr2list <store>/<treedb>/<topic> -l3 [--follow]`. Inspect live nodes via
+commands (`get-node`, …), never by editing the append-only store on disk — the
+running yuno caches treedb in memory and out-of-band writes corrupt the log.
+
 ## Debugging a running yuno
 
 ### 1. Activate traces
@@ -645,12 +973,53 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 Global levels include `machine` (FSM events), `connections`, `traffic`. GClass
 levels are class-specific (e.g. `C_TCP` has `tls`, `traffic`, `connect`).
 
+Every yuno `main.c` carries a **commented-out block of trace toggles**
+(`gobj_set_gclass_trace(...)`, `gobj_set_global_trace(...)` for the common
+levels) after the `arguments.verbose` setup, so tracing is one uncomment away.
+Keep/add it when touching a `main.c`; it is not dead code. Canonical:
+`utils/c/ycommand/src/main.c`.
+
 ### 2. Monitor logs
 
 ```bash
 ls -lt /yuneta/realms/<realm>/<yuno>/logs/                                # find active log
 tail -f /yuneta/realms/<realm>/<yuno>/logs/<N>.log | grep -a "keyword"    # follow + filter
 ```
+
+### Inspecting configuration
+
+**A yuno's effective config is a merge**: `fixed_config` + `variable_config`
+compiled into its `main.c`, deep-merged with the external JSON files (the
+overrides layer). Services, `public_services` and gclass trees live only in
+`main.c` and never appear in the external JSON. Verify any claim about a
+running yuno with
+`ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-config'`,
+never from the external JSON alone.
+
+Two related gotchas:
+
+- The agent's own configs (`/yuneta/agent/yuneta_agent{,22}.json`) are created
+  only by the deb/rpm packagers from `packages/templates/*.json.sample`
+  (conffiles — never overwritten on upgrade), and are merged on top of the
+  agent's `main.c` defaults the same way.
+- A `crypto` JSON attr supplied in a yuno/gate config **replaces** the gclass
+  default wholesale (attr-level, no merge). Since TLS clients verify by
+  default, any crypto override must repeat the verifying keys
+  (`ssl_use_system_ca`, `ssl_verify_mode`, …) or the client silently loses
+  them.
+
+### Memory bugs
+
+Debug memory bugs (bad decref, leaks, refcounts) **locally first** when
+reproducible — faster cycle, `CONFIG_DEBUG_TRACK_MEMORY` is on, low blast
+radius. The stack-trace block printed after a `gobj_log_error` carries line
+numbers from the binary *as built* — map frames by **function symbol**, not
+line number. Promote to remote nodes only after the local cycle is clean.
+
+After deploying a modified yuno, **cycle it orderly at least once**
+(`kill-yuno` + `run-yuno`): the gbmem audit only fires on clean shutdown
+(`deactivate-snap` SIGKILLs and skips it). A leak logs *"system memory not
+free"* at the end of the yuno's log; a clean shutdown emits nothing.
 
 ### 3. Deploy an updated binary
 
@@ -723,6 +1092,35 @@ or a `yunetas sync-binaries` push) still come first. Use it after the new
 binaries are installed; the raw `ycommand` sequence above is the manual
 equivalent.
 
+#### Deploy conventions
+
+- **Describe steps by what the agent does**, with the command in parens:
+  `kill-yuno` is an **orderly shutdown** (drain + deregister), not a SIGKILL —
+  "build → orderly shutdown (kill-yuno) → upload binary (update-binary) →
+  verify (list-binaries) → start (run-yuno)".
+- **Scope redeploys to actual consumers.** A change in a shared kernel lib
+  does not mean bouncing every yuno that links it — identify which running
+  yunos actually use the changed feature and propose that narrow set; a
+  node-wide bounce of live services has real cost.
+- **Security defaults cut over hard fail-closed** — no warn-then-enforce or
+  migration windows; outdated peers are allowed to break loudly. On a noisy
+  deploy, **snap-rollback first** (`shoot-snap`/`activate-snap`), analyze
+  offline, redeploy.
+- **Binary and config deploys travel together:** run `sync-configs` right
+  after `sync-binaries` — new runtime + stale config has caused a real
+  incident.
+- **Batch configs** (`yunos/batches/<host>/<yuno>.json`): every edit bumps
+  `__version__` and rewrites `__description__` as **that version's changelog
+  entry** (what it changes + rollback caveat) — operators read it in
+  `list-configs`; rollback is config-row reassignment, not file reverts.
+- **The agent itself is a standalone daemon, not a managed yuno** —
+  `kill-yuno` / `update-binary` / `run-yuno` do nothing to it. Deploy it with
+  `yuneta_agent --config-file=<its json> --stop` then `--start` (it
+  re-daemonizes on the new binary). SIGTERM is ignored by design. Every node
+  runs `yuneta_agent` + `yuneta_agent22` (minimal escape hatch) as deliberate
+  redundancy — each can upgrade the other; **never stop or upgrade both at
+  once**.
+
 ### 4. Deactivate traces when done
 
 Same commands with `set=0`. Response should be `[]` or only the permanently
@@ -732,6 +1130,33 @@ configured ones.
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=<GClass> set=0 level=<level>'
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace level=<level> set=0'
 ```
+
+## Release checklist
+
+- **Tags have no `v` prefix.** Before creating any tag, run
+  `git tag -l | grep <version>` (catches both prefixed and unprefixed forms);
+  if anything matches, stop and ask — duplicate `7.x.y`/`v7.x.y` tags pointing
+  at different commits is a serious error.
+- **Pre-tag audit** (also on any "save" / "save and quit" request), checked
+  against `git log <last-tag>..HEAD`:
+  1. `CHANGELOG.md ## Unreleased` lists every non-docs/test change.
+  2. READMEs of touched modules reflect behavior changes (simple isolated bug
+     fixes are exempt; BREAKING changes never are).
+  3. `docs/doc.yuneta.io/` mirrors them.
+  4. `TODO.md` is pruned of items the commits resolved.
+  5. READMEs/docs scanned for stale content (old versions, removed features,
+     renamed APIs).
+  Surface gaps as a punch list before committing/tagging.
+- **Every release includes the live docs:** repin `blob/<old>/` / `tree/<old>/`
+  deep links to the new tag across `docs/doc.yuneta.io/**` and
+  `yunos/c/yuno_agent/*.md` (URL segment only — leave "since X" prose alone);
+  clear the myst cache (a repin is a bulk edit); run
+  `docs/doc.yuneta.io/deploy.sh` and curl-verify the live site. The release is
+  not done until the live site reflects it.
+- **GitHub release body from the CHANGELOG:** strip the 4-space bullet indent
+  from the `## vX.Y.Z` section first (otherwise GitHub renders it as one code
+  block). When backfilling an older release, restore
+  `gh release edit <newest-tag> --latest` afterwards.
 
 ## Environment Variables
 
