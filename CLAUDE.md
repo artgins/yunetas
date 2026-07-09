@@ -776,8 +776,10 @@ browser Inspector:
   `CONSOLE_INPUT`, `CONSOLE_EXEC`, …
 
 **Casing: `UPPER_SNAKE`, exactly like the gclass names** — `CONSOLE_COMMENT`,
-never `console-comment`. Keep the existing Bulma/utility classes; **prepend**
-the logical name(s).
+never `console-comment`. CSS/styling classes stay lowercase (`view-card`,
+`is-size-7`), so in a `class` attribute the case alone tells the two
+namespaces apart: **uppercase = logical block name, lowercase = styling**.
+Keep the existing Bulma/utility classes; **prepend** the logical name(s).
 
 **Logical names are independent of whatever CSS class names each app uses.**
 They form their own namespace: they identify blocks, they don't style them,
