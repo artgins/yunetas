@@ -491,6 +491,32 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
 (`EV_WINDOW_*`), `c_yuno.c` / `c_esp_yuno.c` (`EV_TIMEOUT_PERIODIC`),
 `c_agent.c` / `c_agent22.c` (`EV_PLAY_YUNO_ACK`/`EV_PAUSE_YUNO_ACK`).
 
+### JS GUI DOM: logical class names on important blocks
+
+**Mandatory in every JS GUI (gobj-ui and the `yunos/js/*` yunos alike).** When
+a gclass builds DOM, tag its elements so the tree is self-describing in the
+browser Inspector:
+
+- **Root of the view:** the `GCLASS_NAME` class **plus** a logical card name,
+  e.g. `class="C_AGENT_CONSOLE CONSOLE_CARD view-card"`.
+- **Every meaningful child** (status line, response panel, input row, input,
+  button, list…) gets a logical class, **prefixed by the view/feature name**:
+  `CONSOLE_STATUS`, `CONSOLE_COMMENT`, `CONSOLE_RESPONSE`, `CONSOLE_INPUT_ROW`,
+  `CONSOLE_INPUT`, `CONSOLE_EXEC`, …
+
+**Casing: `UPPER_SNAKE`, exactly like the gclass names** — `CONSOLE_COMMENT`,
+never `console-comment`. Keep the existing Bulma/utility classes; **prepend**
+the logical name(s).
+
+**Why:** a bare `<pre class="is-size-7 mb-2">` is unidentifiable in devtools —
+you can't tell it's "the comment line". `CONSOLE_COMMENT` makes the DOM
+self-describing. These are primarily debug aids, but they **may** double as
+real CSS hooks — styling them is fine when useful (e.g. the `.CONSOLE_INPUT_ROW`
+rules in `gui_agent/src/app.css`).
+
+Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
+`CONSOLE_*` family).
+
 ### Writing tests against the gobj framework
 
 - **`gobj_end()` must run BEFORE any `get_cur_system_memory()` check.**
