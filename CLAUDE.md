@@ -779,6 +779,13 @@ browser Inspector:
 never `console-comment`. Keep the existing Bulma/utility classes; **prepend**
 the logical name(s).
 
+**Logical names are independent of whatever CSS class names each app uses.**
+They form their own namespace: they identify blocks, they don't style them,
+and they are tied to no CSS framework or app stylesheet (Bulma today, anything
+else tomorrow). Each app keeps its own styling classes alongside them —
+restyling or swapping the CSS layer never renames a logical class, and adding
+a logical class never requires a CSS rule.
+
 **Why:** a bare `<pre class="is-size-7 mb-2">` is unidentifiable in devtools —
 you can't tell it's "the comment line". `CONSOLE_COMMENT` makes the DOM
 self-describing. These are primarily debug aids, but they **may** double as
