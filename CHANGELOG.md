@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **feat(c_tranger): restore the record-read commands `open-list`,
+      `get-list-data` and `close-list`** — v7-port stubs ("Pending to review")
+      rewired to the current timeranger2 iterator/list API, keeping the v6
+      contract: `open-list` accepts the full match_cond parameter set
+      (`key`, `rkey`, `from/to_rowid` incl. negative-from-end, `from/to_t(m)`,
+      `fields`, `only_md`, `backward`, user-flag masks). With `return_data=1`
+      it is a ONE-SHOT snapshot read — loads the matching records per key with
+      short-lived iterators and auto-closes (a remote client, e.g. a SPA, may
+      never send `close-list`); without it the list stays open (registry in
+      the gclass, closed at destroy), collecting history + realtime appends in
+      its `data` (readable via `get-list-data`) and publishing appends as
+      `EV_TRANGER_RECORD_ADDED`. `only_md` records are synthesized md-only
+      dicts (the current loader hands a NULL content record). Bool/int params
+      are read with `KW_WILD_NUMBER` (command-yuno/-agent forward strings).
+      `add-record` stays stubbed (write path). Consumed by gui_treedb's new
+      tranger records browser (yunos-js repo).
+
 ## 7.7.2
 _C / SDK patch release — agent TTY console lifecycle: `open-console` re-attach
 (the gui_agent Terminal shell now survives a browser refresh instead of leaking

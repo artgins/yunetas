@@ -24,10 +24,11 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 
 
  *          Copyright (c) 2020 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <regex.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -51,15 +52,15 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-//PRIVATE int load_record_callback(
-//    json_t *tranger,
-//    json_t *topic,
-//    const char *key,
-//    json_t *list, // iterator or rt_list/rt_disk id, don't own
-//    json_int_t rowid,   // global rowid of key
-//    md2_record_t *md_record,
-//    json_t *jn_record  // must be owned
-//);
+PRIVATE int load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // global rowid of key
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record   // must be owned
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -196,9 +197,9 @@ SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_to
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 
-// TODO these commands are not implemented
-SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list"),
+SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
+// TODO add-record (write path) is not implemented
 SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
 SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
 SDATA_END()
@@ -282,6 +283,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     json_t *tranger;
+    json_t *lists;      // open lists registry: list_id -> integer pointer of the list handle
 
 } PRIVATE_DATA;
 
@@ -334,6 +336,8 @@ PRIVATE void mt_create(hgobj gobj)
     );
     gobj_write_pointer_attr(gobj, "tranger", priv->tranger);
 
+    priv->lists = json_object();
+
     /*
      *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
@@ -346,6 +350,22 @@ PRIVATE void mt_create(hgobj gobj)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Close the lists still open (a remote client may never send
+     *  close-list) BEFORE shutting down the tranger they belong to.
+     */
+    if(priv->lists) {
+        const char *list_id; json_t *jn_ptr; void *tmp;
+        json_object_foreach_safe(priv->lists, tmp, list_id, jn_ptr) {
+            json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+            if(list && priv->tranger) {
+                tranger2_close_list(priv->tranger, list);
+            }
+            json_object_del(priv->lists, list_id);
+        }
+        JSON_DECREF(priv->lists)
+    }
 
     EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
     priv->tranger = 0;
@@ -799,184 +819,273 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "TODO pending to review",
-        NULL
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+    /*  KW_WILD_NUMBER: booleans/integers arrive as strings when the command
+     *  is forwarded (command-yuno/command-agent skip type coercion).  */
+    BOOL return_data = kw_get_bool(gobj, kw, "return_data", 0, KW_WILD_NUMBER);
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+
+    if(empty_string(list_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What list_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(kw_has_key(priv->lists, list_id)) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("List is already open: '%s'", list_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    BOOL  backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
+    BOOL  only_md = kw_get_bool(gobj, kw, "only_md", 0, KW_WILD_NUMBER);
+    int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, KW_WILD_NUMBER);
+    int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, KW_WILD_NUMBER);
+    uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, KW_WILD_NUMBER);
+    uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, KW_WILD_NUMBER);
+    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, KW_WILD_NUMBER);
+    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, KW_WILD_NUMBER);
+    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
+    const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
+    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
+    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
+    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
+    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
+    const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
+
+    json_t *match_cond = json_pack("{s:b, s:b}",
+        "backward", backward,
+        "only_md", only_md
     );
+    if(from_rowid) {
+        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    }
+    if(to_rowid) {
+        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    }
+    if(user_flag) {
+        json_object_set_new(match_cond, "user_flag", json_integer(user_flag));
+    }
+    if(not_user_flag) {
+        json_object_set_new(match_cond, "not_user_flag", json_integer(not_user_flag));
+    }
+    if(user_flag_mask_set) {
+        json_object_set_new(match_cond, "user_flag_mask_set", json_integer(user_flag_mask_set));
+    }
+    if(user_flag_mask_notset) {
+        json_object_set_new(match_cond, "user_flag_mask_notset", json_integer(user_flag_mask_notset));
+    }
+    if(key) {
+        json_object_set_new(match_cond, "key", json_string(key));
+    }
+    if(rkey) {
+        json_object_set_new(match_cond, "rkey", json_string(rkey));
+    }
+    if(from_t) {
+        json_object_set_new(match_cond, "from_t", json_string(from_t));
+    }
+    if(to_t) {
+        json_object_set_new(match_cond, "to_t", json_string(to_t));
+    }
+    if(from_tm) {
+        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
+    }
+    if(to_tm) {
+        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
+    }
+    if(!empty_string(fields)) {
+        json_object_set_new(
+            match_cond,
+            "fields",
+            json_string(fields)
+        );
+    }
+
+    if(return_data) {
+        /*
+         *  One-shot snapshot read: load the matching records per key with
+         *  short-lived iterators, closed before returning — a remote client
+         *  (e.g. a SPA) may never send close-list.
+         */
+        json_t *jn_data = json_array();
+        json_t *jn_keys;
+        if(!empty_string(key)) {
+            jn_keys = json_pack("[s]", key);
+        } else {
+            jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+            if(!empty_string(rkey)) {
+                regex_t re;
+                if(regcomp(&re, rkey, REG_EXTENDED|REG_NOSUB)!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "regcomp() FAILED",
+                        "rkey",         "%s", rkey,
+                        NULL
+                    );
+                    JSON_DECREF(jn_keys)
+                    JSON_DECREF(jn_data)
+                    JSON_DECREF(match_cond)
+                    return msg_iev_build_response(
+                        gobj,
+                        -1,
+                        json_sprintf("Bad regular expression in rkey: '%s'", rkey),
+                        0,
+                        0,
+                        kw  // owned
+                    );
+                }
+                int idx = (int)json_array_size(jn_keys);
+                while(--idx >= 0) {
+                    const char *key_ = json_string_value(json_array_get(jn_keys, idx));
+                    if(regexec(&re, key_?key_:"", 0, NULL, 0)!=0) {
+                        json_array_remove(jn_keys, idx);
+                    }
+                }
+                regfree(&re);
+            }
+        }
+
+        int idx; json_t *jn_key;
+        json_array_foreach(jn_keys, idx, jn_key) {
+            const char *key_ = json_string_value(jn_key);
+            json_t *iterator = tranger2_open_iterator(
+                priv->tranger,
+                topic_name,
+                key_,
+                json_incref(match_cond),    // owned
+                load_record_callback,       // collects into extra's `data`
+                "",         // iterator id (defaults to the key)
+                list_id,    // creator
+                NULL,       // data (the callback collects, applying fields/only_md)
+                json_pack("{s:O}", "data", jn_data) // extra, owned
+            );
+            if(!iterator) {
+                // Error already logged
+                continue;
+            }
+            tranger2_close_iterator(priv->tranger, iterator);
+        }
+        JSON_DECREF(jn_keys)
+        JSON_DECREF(match_cond)
+
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("List loaded: '%s', %d records", list_id, (int)json_array_size(jn_data)),
+            0,
+            jn_data,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Stateful list: collects the loaded records and the realtime appends
+     *  in its `data` until close-list; appends are also published as
+     *  EV_TRANGER_RECORD_ADDED (see load_record_callback).
+     */
+    if(!empty_string(rkey)) {
+        /*  The realtime paths (rt_mem/rt_disk) do not honour rkey.  */
+        JSON_DECREF(match_cond)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("rkey is only supported with return_data=1"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
+    );
+    json_t *extra = json_pack("{s:s, s:o, s:I}",
+        "id", list_id,
+        "data", json_array(),
+        "gobj", (json_int_t)(uintptr_t)gobj
+    );
+    json_t *list = tranger2_open_list(
+        priv->tranger,
+        topic_name,
+        match_cond,     // owned
+        extra,          // owned
+        list_id,        // rt_id
+        !gobj_read_bool_attr(gobj, "master"),   // non-master follows appends via disk
+        gobj_name(gobj) // creator
+    );
+    if(!list) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_set_new(priv->lists, list_id, json_integer((json_int_t)(uintptr_t)list));
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("Pending to review"),
+        0,
+        json_sprintf("List opened: '%s'", list_id),
         0,
         0,
         kw  // owned
     );
-
-
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    /*----------------------------------------*
-//     *  Check AUTHZS
-//     *----------------------------------------*/
-//    const char *permission = "read";
-//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -403,
-//            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//
-//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-//    BOOL return_data = kw_get_bool(gobj, kw, "return_data", 0, 0);
-//
-//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//
-//    if(empty_string(list_id)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What list_id?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    if(empty_string(topic_name)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What topic_name?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//    json_t *topic = tranger2_topic(priv->tranger, topic_name);
-//    if(!topic) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("Topic not found: '%s'", topic_name),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-//    if(list) {
-//        return msg_iev_build_response(
-//            gobj,
-//            0,
-//            json_sprintf("List is already open: '%s'", list_id),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    BOOL  backward = kw_get_bool(gobj, kw, "backward", 0, 0);
-//    BOOL  only_md = kw_get_bool(gobj, kw, "only_md", 0, 0);
-//    int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, 0);
-//    int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, 0);
-//    uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, 0);
-//    uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, 0);
-//    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
-//    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
-//    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-//    const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
-//    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
-//    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
-//    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
-//    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
-//    const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
-//
-//    json_t *match_cond = json_pack("{s:b, s:b}",
-//        "backward", backward,
-//        "only_md", only_md
-//    );
-//    if(from_rowid) {
-//        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
-//    }
-//    if(to_rowid) {
-//        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
-//    }
-//    if(user_flag) {
-//        json_object_set_new(match_cond, "user_flag", json_integer(user_flag));
-//    }
-//    if(not_user_flag) {
-//        json_object_set_new(match_cond, "not_user_flag", json_integer(not_user_flag));
-//    }
-//    if(user_flag_mask_set) {
-//        json_object_set_new(match_cond, "user_flag_mask_set", json_integer(user_flag_mask_set));
-//    }
-//    if(user_flag_mask_notset) {
-//        json_object_set_new(match_cond, "user_flag_mask_notset", json_integer(user_flag_mask_notset));
-//    }
-//    if(key) {
-//        json_object_set_new(match_cond, "key", json_string(key));
-//    }
-//    if(rkey) {
-//        json_object_set_new(match_cond, "rkey", json_string(rkey));
-//    }
-//    if(from_t) {
-//        json_object_set_new(match_cond, "from_t", json_string(from_t));
-//    }
-//    if(to_t) {
-//        json_object_set_new(match_cond, "to_t", json_string(to_t));
-//    }
-//    if(from_tm) {
-//        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
-//    }
-//    if(to_tm) {
-//        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
-//    }
-//    if(!empty_string(fields)) {
-//        json_object_set_new(
-//            match_cond,
-//            "fields",
-//            json_string(fields)
-//        );
-//    }
-//
-////    json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:I}",
-////        "id", list_id,
-////        "topic_name", topic_name,
-////        "match_cond", match_cond,
-////        "load_record_callback", (json_int_t)(uintptr_t)load_record_callback,
-////        "gobj", (json_int_t)(uintptr_t)gobj
-////    );
-////
-////    list = tranger_open_list(priv->tranger, jn_list);
-//int x;
-//    list = tranger2_open_iterator( // No será open_list?
-//        priv->tranger,
-//        topic_name,
-//        key,
-//        match_cond,  // owned
-//        load_record_callback, // called on LOADING and APPENDING
-//        list_id,    // iterator id, optional, if empty will be the key
-//        NULL,   // creator TODO
-//        NULL,       // data
-//        NULL        // options
-//
-//    );
-//    return msg_iev_build_response(
-//        gobj,
-//        list?0:-1,
-//        list?json_sprintf("List opened: '%s'", list_id):json_string(gobj_log_last_message()),
-//        0,
-//        return_data?json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)):0,
-//        kw  // owned
-//    );
 }
 
 /***************************************************************************
@@ -984,86 +1093,60 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "TODO pending to review",
-        NULL
-    );
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+
+    if(empty_string(list_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What list_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_ptr = json_object_get(priv->lists, list_id);
+    if(!jn_ptr) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("List not found: '%s'", list_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_object_del(priv->lists, list_id);
+
+    int result = tranger2_close_list(priv->tranger, list);
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("Pending to review"),
+        result,
+        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
     );
-
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    /*----------------------------------------*
-//     *  Check AUTHZS
-//     *----------------------------------------*/
-//    const char *permission = "read";
-//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -403,
-//            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-//
-//    if(empty_string(list_id)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What list_id?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//
-//    if(empty_string(topic_name)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What topic_name?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-//    if(!list) {
-//        return msg_iev_build_response(
-//            gobj,
-//            0,
-//            json_sprintf("List not found: '%s'", list_id),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    int result = tranger2_close_iterator(priv->tranger, list);
-//
-//    return msg_iev_build_response(
-//        gobj,
-//        result,
-//        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
-//        0,
-//        0,
-//        kw  // owned
-//    );
 }
 
 /***************************************************************************
@@ -1174,84 +1257,57 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "TODO pending to review",
-        NULL
-    );
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+
+    if(empty_string(list_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What list_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_ptr = json_object_get(priv->lists, list_id);
+    if(!jn_ptr) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("List not found: '%s'", list_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("Pending to review"),
         0,
         0,
+        0,
+        json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
         kw  // owned
     );
-
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    /*----------------------------------------*
-//     *  Check AUTHZS
-//     *----------------------------------------*/
-//    const char *permission = "read";
-//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -403,
-//            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-//
-//    if(empty_string(list_id)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What list_id?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//
-//    if(empty_string(topic_name)) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("What topic_name?"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-//    if(!list) {
-//        return msg_iev_build_response(
-//            gobj,
-//            0,
-//            json_sprintf("List not found: '%s'", list_id),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    return msg_iev_build_response(
-//        gobj,
-//        0,
-//        0,
-//        0,
-//        json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
-//        kw  // owned
-//    );
 }
 
 
@@ -1290,63 +1346,70 @@ PRIVATE json_t *get_topic(hgobj gobj, const char *lmethod, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *
+ *  Collect each record into the list's shared `data` array (set in the
+ *  `extra` of cmd_open_list, merged by timeranger2 into the iterators and
+ *  the rt list). Records appended in realtime (not loaded from disk) are
+ *  also published as EV_TRANGER_RECORD_ADDED.
  ***************************************************************************/
-//PRIVATE int load_record_callback(
-//    json_t *tranger,
-//    json_t *topic,
-//    const char *key,
-//    json_t *list, // iterator or rt_list/rt_disk id, don't own
-//    json_int_t rowid,   // global rowid of key
-//    md2_record_t *md_record,
-//    json_t *jn_record  // must be owned
-//)
-//{
-//    hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-//    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
-//    BOOL has_fields = kw_has_key(match_cond, "fields");
-//
-//    json_t *list_data = kw_get_list(gobj, list, "data", 0, KW_REQUIRED);
-//
-//    const char ** keys = 0;
-//    if(has_fields) {
-//        const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
-//        keys = split2(fields, ", ", 0);
-//    }
-//    if(keys) {
-//        json_t *jn_record_with_fields = kw_clone_by_path(
-//            gobj,
-//            jn_record,   // owned
-//            keys
-//        );
-//        jn_record = jn_record_with_fields;
-//        json_array_append(
-//            list_data,
-//            jn_record
-//        );
-//        split_free2(keys);
-//    } else {
-//        json_array_append(
-//            list_data,
-//            jn_record
-//        );
-//    }
-//
-//    system_flag2_t system_flag = get_system_flag(md_record);
-//    if(!(system_flag & sf_loading_from_disk)) {
-//        json_t *jn_data = json_array();
-//
-//        json_array_append(jn_data, jn_record);
-//
-//        hgobj gobj_to = (hgobj)(size_t)kw_get_int(gobj, list, "gobj", 0, KW_REQUIRED);
-//        gobj_publish_event(gobj_to, EV_TRANGER_RECORD_ADDED, jn_data);
-//    }
-//
-//    JSON_DECREF(jn_record)
-//
-//    gobj_info_msg(gobj, "QUEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
-//    return 0; // HACK lest timeranger to add record to list.data TODO review
-//}
+PRIVATE int load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // global rowid of key
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record   // must be owned
+)
+{
+    hgobj gobj = (hgobj)(uintptr_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
+    json_t *list_data = kw_get_list(gobj, list, "data", 0, KW_REQUIRED);
+    if(!list_data) {
+        // Error already logged
+        JSON_DECREF(jn_record)
+        return -1;
+    }
+
+    if(!jn_record) {
+        /*  only_md load: the content is not read from disk — synthesize a
+         *  md-only record so the list still reflects the matched rows.  */
+        jn_record = json_pack("{s:s, s:{s:I, s:I, s:I, s:i, s:i}}",
+            "key", key?key:"",
+            "__md_tranger__",
+                "rowid", (json_int_t)md_record_ex->rowid,
+                "t", (json_int_t)md_record_ex->__t__,
+                "tm", (json_int_t)md_record_ex->__tm__,
+                "system_flag", (int)md_record_ex->system_flag,
+                "user_flag", (int)md_record_ex->user_flag
+        );
+    }
+
+    const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
+    if(!empty_string(fields)) {
+        const char **field_keys = split2(fields, ", ", 0);
+        jn_record = kw_clone_by_path(
+            gobj,
+            jn_record,   // owned
+            field_keys
+        );
+        split_free2(field_keys);
+    }
+    json_array_append(list_data, jn_record);
+
+    if(!(md_record_ex->system_flag & sf_loading_from_disk)) {
+        json_t *jn_data = json_pack("{s:s, s:s, s:I, s:O}",
+            "topic_name", tranger2_topic_name(topic),
+            "key", key?key:"",
+            "rowid", rowid,
+            "record", jn_record
+        );
+        gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_data);
+    }
+
+    JSON_DECREF(jn_record)
+
+    return 0;
+}
 
 
 
