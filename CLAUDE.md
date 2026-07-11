@@ -55,7 +55,8 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
 - **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**: the
-  declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack.
+  declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the legacy stack
+  `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
   and the in-repo yunos **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`** as
   a `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`, exactly
