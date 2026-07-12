@@ -195,19 +195,6 @@ static const json_desc_t topic_json_desc[] = {
 {"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
 {"xpermission" ,        "int",  "02770",    ""}, // Use in creation, default 02770;
 {"rpermission",         "int",  "0660",     ""}, // Use in creation, default 0660;
-
-// TODO add these
-//"topic_name",
-//"pkey",
-//"tkey",
-//"system_flag",
-//"cols",
-//"directory",
-//"__last_rowid__",
-//"topic_idx_fd",
-//"fd_opened_files",
-//"file_opened_files",
-//"lists",
 {0}
 };
 
@@ -753,34 +740,54 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
 );
 
 /*
-    Open list, load records in memory
+    Open a list: load the matching records from disk (calling load_record_callback
+    on each), and, when the requested range is open-ended, keep the list live by
+    also opening a realtime feed on top. It is the high-level wrapper over
+    tranger2_open_iterator() + tranger2_open_rt_mem()/tranger2_open_rt_disk().
 
-    match_cond of second level:
-        key                 (str) key (if not exists then rkey is used)
-        rkey                (str) regular expression of key (empty "" is equivalent to ".*"
-                            WARNING: loading from disk keys matched in rkey)
-                                   but loading realtime of all keys
+    WARNING: this loads every matching record into memory up front, which can delay
+    application start-up on large topics. Close the returned handle with
+    tranger2_close_list() (routes to the right closer by "list_type").
 
-        load_record_callback (tranger2_load_record_callback_t) // called on LOADING and APPENDING
+    match_cond (second level, consumed by this function):
+        key                 (str) exact key to load; if absent, rkey is used
+        rkey                (str) regular expression over keys ("" == ".*")
+                            WARNING: the DISK load only visits keys matching rkey,
+                            but the REALTIME feed is opened for ALL keys (rkey is
+                            not applied to the realtime side).
+        to_rowid            (int) upper bound of the range; see "realtime" below
+        load_record_callback (tranger2_load_record_callback_t) REQUIRED
+                            passed inside match_cond, not as a C argument.
+                            Called on both LOADING (disk) and APPENDING (realtime).
 
-    For the first level see:
+    For the first-level match_cond (backward, from/to_rowid|t|tm, user_flag, ...) see:
 
-        `Iterator match_cond` in timeranger2.h
+        `Iterator match_cond` in this header.
 
-    HACK Return of callback:
-        0 do nothing (callback will create their own list, or not),
-        -1 break the load
+    Realtime vs no_rt:
+        - If to_rowid == 0 (open-ended range) a realtime feed is opened:
+            rt_by_disk == TRUE  -> realtime by disk (tranger2_open_rt_disk)
+            rt_by_disk == FALSE -> realtime by memory (tranger2_open_rt_mem,
+                                   only valid on the master that writes the topic)
+          Returns the realtime handle (list_type "rt_mem" or "rt_disk").
+        - Otherwise (to_rowid != 0) no realtime is opened: the load is one-shot and
+          the function returns `extra` tagged {"list_type": "no_rt"}. In this case
+          `extra` is REQUIRED (a NULL extra is an error).
 
-    Return realtime (rt_mem or rt_disk)  or no_rt
+    Return of load_record_callback:
+        0   do nothing (the callback may build its own list, or not)
+        -1  break the load
 
+    Return: the realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
+    Both `match_cond` and `extra` are owned (consumed) by this call.
 */
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond, // owned
-    json_t *extra,      // owned, will be added to the returned rt
+    json_t *extra,      // owned; added to the returned rt, or IS the returned handle when no_rt
     const char *rt_id,
-    BOOL rt_by_disk,
+    BOOL rt_by_disk,    // TRUE: realtime by disk; FALSE: realtime by memory (master only)
     const char *creator
 );
 

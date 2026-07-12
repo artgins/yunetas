@@ -7892,26 +7892,39 @@ PRIVATE json_t *read_record_content(
 
 /***************************************************************************
  *
-    Open list, load records in memory
+    Open a list: load the matching records from disk (calling load_record_callback
+    on each), and, when the requested range is open-ended, keep the list live by
+    also opening a realtime feed on top. High-level wrapper over
+    tranger2_open_iterator() + tranger2_open_rt_mem()/tranger2_open_rt_disk().
 
-    match_cond of second level:
-        id                  (str) id
-        key                 (str) key (if not exists then rkey is used)
-        rkey                (str) regular expression of key (empty "" is equivalent to ".*"
-                            WARNING: loading from disk keys matched in rkey)
-                                   but loading realtime of all keys
+    WARNING: loads every matching record into memory up front (delays start-up on
+    large topics). Close the returned handle with tranger2_close_list().
 
-        load_record_callback (tranger2_load_record_callback_t ), // called on LOADING and APPENDING
+    match_cond (second level, consumed here):
+        key                 (str) exact key to load; if absent, rkey is used
+        rkey                (str) regular expression over keys ("" == ".*")
+                            WARNING: the DISK load only visits keys matching rkey,
+                            but the REALTIME feed is opened for ALL keys.
+        to_rowid            (int) upper bound of the range; see "realtime" below
+        load_record_callback (tranger2_load_record_callback_t) REQUIRED
+                            passed inside match_cond, not as a C argument.
+                            Called on both LOADING (disk) and APPENDING (realtime).
 
-    For the first level see:
+    For the first-level match_cond see `Iterator match_cond` in timeranger2.h
 
-        `Iterator match_cond` in timeranger2.h
+    Realtime vs no_rt:
+        - to_rowid == 0 (open-ended): open a realtime feed and return its handle.
+            rt_by_disk TRUE  -> rt_disk
+            rt_by_disk FALSE -> rt_mem (master only)
+        - to_rowid != 0: one-shot load, no realtime; return `extra` tagged
+          {"list_type": "no_rt"} (extra is REQUIRED in this case).
 
-    HACK Return of callback:
-        0 do nothing (callback will create their own list, or not),
+    Return of load_record_callback:
+        0 do nothing (the callback may build its own list, or not),
         -1 break the load
 
-    Return realtime (rt_mem or rt_disk)  or no_rt
+    Return: realtime handle (rt_mem / rt_disk) or the no_rt `extra`, NULL on error.
+    Both match_cond and extra are owned (consumed).
 
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
