@@ -1459,7 +1459,7 @@ json_t *tranger2_open_list(json_t *tranger, const char *topic_name,
     BOOL rt_by_disk, const char *creator);
 int     tranger2_close_list(json_t *tranger, json_t *list);
 int     tranger2_close_all_lists(json_t *tranger, const char *topic_name,
-    const char *rt_id, const char *creator);
+    const char *creator, const char *rt_id);
 
 // Key-delete notification (in-process + cross-process via inotify)
 typedef int (*tranger2_key_deleted_callback_t)(json_t *tranger, json_t *topic,

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): three defects found while documenting the public API.**
+      (1) `tranger2_topic_key_size()` with an empty `key` passed `gobj` where a
+      `json_t *tranger` is expected, so the whole-topic fallback silently
+      returned 0; now it returns the real total. (2) `tranger2_close_all_lists()`
+      was declared `(…, rt_id, creator)` in the header but the implementation and
+      both callers use `(…, creator, rt_id)`; the header (and the `kernel/c`
+      README signature) are corrected to match — a caller trusting the old header
+      filtered by the wrong field (prototype names only, no ABI change).
+      (3) `tranger2_get_iterator_by_id()` / `_get_rt_mem_by_id()` /
+      `_get_rt_disk_by_id()` tested `empty_string(creator) && empty_string(creator)`
+      (the second operand was meant to be the stored `creator_`); an empty
+      query-creator now matches only creatorless entries (both-empty) instead of
+      any creator. Also: the whole `timeranger2.h` public API was re-documented
+      (ownership, return semantics, NULL/error paths, master-only, disk-vs-memory)
+      and the doc.yuneta.io timeranger2 API page synced.
+
     - **feat(c_tranger): restore the record-read commands `open-list`,
       `get-list-data` and `close-list`** — v7-port stubs ("Pending to review")
       rewired to the current timeranger2 iterator/list API, keeping the v6
