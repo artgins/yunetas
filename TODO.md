@@ -191,4 +191,9 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
 
 Node-side mitigation (independent of the above): the default
 `fs.inotify.max_user_instances = 128` is too low for a node running ~12 yunos
-with rt_disk followers — raise it (e.g. 1024) in `/etc/sysctl.d/`.
+with rt_disk followers. **DONE** — the deb/rpm packagers now provision
+`99-yuneta-core.conf` with `max_user_instances = 4096`,
+`max_user_watches = 524288`, `max_queued_events = 65536`. Observe live usage
+with `ycommand -c 'info-inotify'` (limits + this yuno's instances/watches).
+Note this only mitigates; it does not fix #1/#2, which still leak/multiply
+instances under real use.

@@ -9,9 +9,12 @@
       sync. `fs_watcher` now logs it `critical` with `LOG_OPT_ABORT`: the yuno
       aborts and ydaemon relaunches it, and the clean reload re-establishes
       every feed correctly — the proven recovery path, chosen over a
-      hard-to-test in-place resync. The deb/rpm packagers raise
-      `fs.inotify.max_queued_events` to 65536 as a defensive cushion above the
-      16384 kernel default, so the abort/relaunch stays rare.
+      hard-to-test in-place resync. The deb/rpm packagers also raise the
+      inotify sysctl provisioning in `99-yuneta-core.conf`:
+      `fs.inotify.max_user_instances` 1024 → 4096,
+      `fs.inotify.max_user_watches` → 524288, and
+      `fs.inotify.max_queued_events` → 65536 (a defensive cushion above the
+      16384 kernel default), so the abort/relaunch stays rare.
 
     - **feat(c_yuno): `info-inotify` command** — reports the system inotify
       limits (`/proc/sys/fs/inotify/*`) and this yuno's own usage (instances +

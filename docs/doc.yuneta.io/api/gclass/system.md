@@ -34,6 +34,7 @@ system-wide commands.
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
 | `info-cpus` / `info-ifs` / `info-os` | System information. |
+| `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |
 | `list-allowed-ips` / `add-allowed-ip` | IP access control. |
 | `truncate-log-file` | Truncate the log file. |
 | `view-log-counters` | Show log event counters. |

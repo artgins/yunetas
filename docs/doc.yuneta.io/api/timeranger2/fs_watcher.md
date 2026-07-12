@@ -99,3 +99,17 @@ Returns `0` on success, or a negative error code on failure.
 Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_event_t` instance is destroyed and should not be used again.
 
 ---
+
+## Queue overflow (`IN_Q_OVERFLOW`)
+
+Each watcher owns one inotify instance with a bounded kernel event queue
+(`fs.inotify.max_queued_events`). Under a burst the kernel can drop events and
+signal a single `IN_Q_OVERFLOW`; from that point the watcher can no longer
+guarantee it saw every change.
+
+`fs_watcher` treats this as unrecoverable in place: it logs `critical` with
+`LOG_OPT_ABORT`, so the yuno aborts and `ydaemon` relaunches it. The clean
+reload re-establishes every watch and feed from disk — the proven recovery
+path, chosen over a hard-to-test in-place resync. This is rare in practice
+because the deb/rpm packagers size `fs.inotify.max_queued_events` (65536) well
+above the kernel default; raise it further if overflow-driven restarts recur.
