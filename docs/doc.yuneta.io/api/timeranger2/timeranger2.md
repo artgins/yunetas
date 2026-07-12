@@ -70,7 +70,11 @@ on-disk changes. See the **fs_watcher** page in the sidebar.
 (tranger2_append_record)=
 ## [`tranger2_append_record()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L2343)
 
-Appends a new record to a topic in the TimeRanger database. The function assigns a timestamp if `__t__` is zero and returns the metadata of the newly created record.
+Appends a new record to a topic in the TimeRanger database. **Master-only.** If
+`__t__` is zero a timestamp is assigned (milliseconds when the topic is `sf_t_ms`,
+else seconds). The new record's metadata is returned through the required
+`md_record_ex` **out-parameter** — the return value is a status code, not the
+metadata. `jn_record` is owned (consumed, even on error).
 
 ```C
 int tranger2_append_record(
@@ -144,16 +148,25 @@ If `overwrite_backup` is true and the backup exists, `tranger_backup_deleting_ca
 (tranger2_close_all_lists)=
 ## [`tranger2_close_all_lists()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L8106)
 
-Closes all iterators, disk lists, or memory lists associated with a given `creator` in the specified `topic_name`. If `rt_id` is provided, only lists matching the `rt_id` are closed.
+Closes the iterators, `rt_mem` and `rt_disk` lists of a topic that belong to a
+given `creator`. An empty `creator` closes **all** of them; a non-empty `creator`
+with an empty `rt_id` closes all of that creator's; with both set it narrows to a
+single `rt_id`.
 
 ```C
 int tranger2_close_all_lists(
     json_t *tranger,
     const char *topic_name,
-    const char *rt_id,      // if empty, remove all lists of creator
-    const char *creator     // if empty, remove all
+    const char *creator,    // if empty, remove all
+    const char *rt_id       // if empty, remove all lists of creator
 );
 ```
+
+:::{note}
+The parameter order is `(creator, rt_id)` — matching the implementation and every
+caller. Earlier headers listed them swapped as `(rt_id, creator)`; a caller that
+trusted that order filtered by the wrong field.
+:::
 
 **Parameters**
 
@@ -161,16 +174,19 @@ int tranger2_close_all_lists(
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic whose lists should be closed. |
-| `rt_id` | `const char *` | Realtime list identifier. If empty, all lists of the `creator` are removed. |
 | `creator` | `const char *` | Creator identifier. If empty, all lists are removed. |
+| `rt_id` | `const char *` | Realtime list identifier. If empty, all lists of the `creator` are removed. |
 
 **Returns**
 
-Returns `0` on success, or a negative value on failure.
+Returns `0` on success, or a negative value on failure. No-op (`0`) if the topic
+is not opened.
 
 **Notes**
 
-This function ensures that all iterators and lists associated with a specific `creator` are properly closed, preventing resource leaks. If both `rt_id` and `creator` are empty, all lists in the `topic_name` are closed.
+This closes the iterators, `rt_mem` and `rt_disk` lists associated with a specific
+`creator`, preventing resource leaks. If `creator` is empty, every list of the
+topic is closed regardless of `rt_id`.
 
 ---
 
@@ -623,6 +639,8 @@ Returns a pointer to the iterator JSON object if found; otherwise, returns NULL.
 **Notes**
 
 This function does not produce any error messages if the iterator is not found.
+The `creator` filters the match: pass the same creator used at open; an empty
+`creator` matches only entries that were themselves opened without a creator.
 
 ---
 
@@ -656,6 +674,8 @@ Returns a JSON object representing the real-time disk instance if found; otherwi
 **Notes**
 
 This function does not produce any error messages if the real-time disk is not found.
+The `creator` filters the match: pass the same creator used at open; an empty
+`creator` matches only entries that were themselves opened without a creator.
 
 ---
 
@@ -689,6 +709,8 @@ Returns a pointer to the real-time memory instance as a `json_t *` if found, oth
 **Notes**
 
 This function does not produce any internal logging or error messages if the requested real-time memory instance is not found.
+The `creator` filters the match: pass the same creator used at open; an empty
+`creator` matches only entries that were themselves opened without a creator.
 
 ---
 
@@ -757,7 +779,8 @@ This function provides the total count of records available in the given iterato
 (tranger2_list_keys)=
 ## [`tranger2_list_keys()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L1197)
 
-Returns a list of keys from the specified topic in the TimeRanger database. The function allows filtering keys using a regular expression.
+Returns a JSON array with the key names of a topic, read from its in-memory
+`cache`.
 
 ```C
 json_t *tranger2_list_keys(
@@ -772,15 +795,16 @@ json_t *tranger2_list_keys(
 |---|---|---|
 | `tranger` | `json_t *` | A pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | The name of the topic from which to retrieve the keys. |
-| `rkey` | `const char *` | A regular expression pattern to filter the keys. If NULL, all keys are returned. |
 
 **Returns**
 
-A JSON array containing the list of keys. The caller owns the returned JSON object and must free it when no longer needed.
+A JSON array of key-name strings. The caller owns the returned array and must free
+it when no longer needed. Never NULL — a missing topic yields an **empty array**.
 
 **Notes**
 
-If the topic does not exist or an error occurs, the function may return NULL.
+The keys come from the topic's in-memory `cache`, not a disk scan. Slow for
+thousands of keys (allocates one string per key).
 
 ---
 
@@ -816,7 +840,8 @@ This function was previously known as `tranger_list_topic_desc()`.
 (tranger2_list_topics)=
 ## [`tranger2_list_topics()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L1135)
 
-Returns a list of topic names from the `tranger` database.
+Returns a JSON array with the names of the topics currently **opened in memory**
+(the `tranger["topics"]` registry) — not a disk scan.
 
 ```C
 json_t *tranger2_list_topics(
@@ -832,11 +857,15 @@ json_t *tranger2_list_topics(
 
 **Returns**
 
-A JSON array containing the names of all topics in the `tranger` database. The caller owns the returned JSON object and must free it when no longer needed.
+A JSON array with the names of the currently-opened topics. The caller owns the
+returned array and must free it. Never NULL — an empty array when no topic is
+opened.
 
 **Notes**
 
-This function retrieves all topic names, regardless of whether they are currently open or not.
+This lists only topics already opened in memory. To list every topic present on
+disk — including ones not yet opened — use
+[`tranger2_list_topic_names()`](#tranger2_list_topic_names).
 
 ---
 
@@ -1532,7 +1561,9 @@ The returned JSON object must be properly decremented using `json_decref()` to a
 (tranger2_topic_key_size)=
 ## [`tranger2_topic_key_size()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L1247)
 
-Retrieves the number of records associated with a specific key in a given topic within the TimeRanger database.
+Retrieves the number of records associated with a specific key in a given topic
+within the TimeRanger database. If `key` is empty, the **whole-topic** size is
+returned instead.
 
 ```C
 uint64_t tranger2_topic_key_size(
@@ -1548,15 +1579,17 @@ uint64_t tranger2_topic_key_size(
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic containing the key. |
-| `key` | `const char *` | The key whose record count is to be retrieved. |
+| `key` | `const char *` | The key whose record count is to be retrieved. If empty, the whole-topic size is returned (sum over every key). |
 
 **Returns**
 
-Returns the number of records associated with the specified `key` in the given `topic_name`.
+Returns the number of records associated with the specified `key`, or the
+whole-topic total when `key` is empty.
 
 **Notes**
 
-If the topic or key does not exist, the function may return zero.
+Counts come from the in-memory cache. A missing topic returns `0`. When `key` is
+empty the call delegates to [`tranger2_topic_size()`](#tranger2_topic_size).
 
 ---
 
@@ -1643,7 +1676,11 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-This function modifies the column definitions of an existing topic. Ensure that the topic exists before calling [`tranger2_write_topic_cols()`](<#tranger2_write_topic_cols>).
+**Master-only.** Replaces the topic's columns **wholesale** — both the in-memory
+`topic["cols"]` and the on-disk `topic_cols.json` (not a merge). A columns change
+must bump the topic's `topic_version` (and `schema_version` for structural
+changes), otherwise the persisted `topic_cols.json` masks the new schema on the
+next reload.
 
 ---
 
@@ -1674,7 +1711,9 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-This function modifies the variable metadata of a topic, which may include user-defined flags or other dynamic properties.
+**Master-only.** Merges `jn_topic_var` into the existing `topic_var.json` (update,
+not replace) and persists it; the in-memory topic is updated too, except the
+immutable descriptor fields.
 
 ---
 
