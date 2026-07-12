@@ -7898,7 +7898,7 @@ PRIVATE json_t *read_record_content(
         id                  (str) id
         key                 (str) key (if not exists then rkey is used)
         rkey                (str) regular expression of key (empty "" is equivalent to ".*"
-                            WARNING: loading form disk keys matched in rkey)
+                            WARNING: loading from disk keys matched in rkey)
                                    but loading realtime of all keys
 
         load_record_callback (tranger2_load_record_callback_t ), // called on LOADING and APPENDING

@@ -758,7 +758,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     match_cond of second level:
         key                 (str) key (if not exists then rkey is used)
         rkey                (str) regular expression of key (empty "" is equivalent to ".*"
-                            WARNING: loading form disk keys matched in rkey)
+                            WARNING: loading from disk keys matched in rkey)
                                    but loading realtime of all keys
 
         load_record_callback (tranger2_load_record_callback_t) // called on LOADING and APPENDING
