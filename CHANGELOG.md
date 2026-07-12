@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **feat(c_tranger): `open-iterator` accepts metadata match conditions.**
+      Beyond `key` + `backward`, the command now forwards the record-metadata
+      conditions honored by `tranger2_match_metadata` into the iterator's
+      match_cond, so they pre-filter the page index and the reported
+      `total_rows` / pagination reflect the filtered set: `from_t`/`to_t`
+      (t, epoch seconds), `from_tm`/`to_tm` (tm, epoch ms),
+      `from_rowid`/`to_rowid` (1-based; negative = from end) and the user_flag
+      conditions (`user_flag`, `not_user_flag`, `user_flag_mask_set`,
+      `user_flag_mask_notset`). Each is optional — `0`/empty means unset. Only
+      keys actually supplied are added to match_cond. Record-FIELD filters
+      (e.g. `voltage > 200`) are deliberately NOT plumbed here: they are not
+      indexable at the metadata level, so they stay client-side in the SPA.
+      `open-rt` is unchanged — the realtime feed filters only by `key` (its
+      stored match_cond is not consulted on append), so no non-functional
+      params were added there. Enables gui_treedb's Rows-card request options
+      (yunos-js).
+
     - **fix(timeranger2): fail loud on inotify `IN_Q_OVERFLOW`.** Under a burst
       the kernel drops inotify events and emits a single `IN_Q_OVERFLOW`
       (`wd == -1`); until now `fs_watcher` ignored it, so a dropped

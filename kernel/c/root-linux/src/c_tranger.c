@@ -29,6 +29,13 @@ command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic
 command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
 command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
 
+open-iterator also accepts metadata match conditions that pre-filter the index
+(0/empty = unset): from_t/to_t, from_tm/to_tm, from_rowid/to_rowid and the
+user_flag conditions (user_flag, not_user_flag, user_flag_mask_set,
+user_flag_mask_notset). total_rows/pagination then reflect the filtered set:
+
+command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1 from_rowid=100 to_rowid=200
+
 Realtime feed (streams new appends as EV_TRANGER_RECORD_ADDED to subscribers):
 
 command-yuno id=1911 service=tranger command=open-rt rt_id=rt1 topic_name=pp key=1
@@ -220,6 +227,16 @@ SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of itera
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to iterate (required)"),
 SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "Iterate backward"),
+SDATAPM (DTP_INTEGER,   "from_t",               0,          0,      "match_cond: from time (t, epoch seconds; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "to_t",                 0,          0,      "match_cond: to time (t, epoch seconds; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "from_tm",              0,          0,      "match_cond: from msg time (tm, epoch ms; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "to_tm",                0,          0,      "match_cond: to msg time (tm, epoch ms; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond: first rowid (1-based; negative=from end; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond: last rowid (negative=from end; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "user_flag",            0,          0,      "match_cond: exact user_flag"),
+SDATAPM (DTP_INTEGER,   "not_user_flag",        0,          0,      "match_cond: exclude records with this user_flag"),
+SDATAPM (DTP_INTEGER,   "user_flag_mask_set",   0,          0,      "match_cond: user_flag bits that must be set"),
+SDATAPM (DTP_INTEGER,   "user_flag_mask_notset",0,          0,      "match_cond: user_flag bits that must be clear"),
 SDATA_END()
 };
 
@@ -1569,7 +1586,29 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*
+     *  Base match_cond + the optional metadata conditions actually
+     *  supplied (0/empty = unset). Every key here is honored by
+     *  tranger2_match_metadata when the page index is built, so the
+     *  iterator's total_rows and pagination already reflect them.
+     *  (Record-field filters are NOT indexable this way — those stay
+     *  client-side in the SPA.)
+     */
     json_t *match_cond = json_pack("{s:b}", "backward", backward);
+    static const char *cond_keys[] = {
+        "from_t", "to_t", "from_tm", "to_tm",
+        "from_rowid", "to_rowid",
+        "user_flag", "not_user_flag",
+        "user_flag_mask_set", "user_flag_mask_notset",
+        NULL
+    };
+    for(int i = 0; cond_keys[i] != NULL; i++) {
+        json_int_t v = (json_int_t)kw_get_int(gobj, kw, cond_keys[i], 0, KW_WILD_NUMBER);
+        if(v != 0) {
+            json_object_set_new(match_cond, cond_keys[i], json_integer(v));
+        }
+    }
+
     json_t *iterator = tranger2_open_iterator(
         priv->tranger,
         topic_name,
