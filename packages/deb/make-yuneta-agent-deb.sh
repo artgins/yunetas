@@ -346,7 +346,6 @@ fs.nr_open  = 4000000
 # inotify instance; the 128 default is too low for a node running many yunos.
 fs.inotify.max_user_instances = 4096
 fs.inotify.max_user_watches = 524288
-fs.inotify.max_queued_events = 16384
 
 EOF
 chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
