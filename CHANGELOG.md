@@ -2,22 +2,16 @@
 
 ## Unreleased
 
-    - **feat(timeranger2): recover the realtime feed from inotify
-      `IN_Q_OVERFLOW`.** Under a burst the kernel drops inotify events and
-      emits a single `IN_Q_OVERFLOW` (`wd == -1`); until now `fs_watcher`
-      ignored it, so a dropped `FS_FILE_CREATED`/`FS_SUBDIR_*` left an rt-disk
-      follower silently out of sync. `fs_watcher` now detects the overflow,
-      re-reconciles its own watch topology (prunes vanished dirs, re-adds
-      watches idempotently) and delivers a new `FS_OVERFLOW_TYPE` event so the
-      consumer can resync its durable state: the master re-reconciles open mem
-      rt's against `disks/<rt_id>/` (open missing, close vanished —
-      `find_rt_disk_cb` is now idempotent), and the client re-scans every key
-      dir for pending `.md2` hard links (durable markers; already-read ones
-      were unlinked, so the rescan recovers exactly the dropped notifications
-      and double-delivers nothing). `c_fs` logs the overflow (guarded so the
-      new sequential enum value does not fall into its bitwise type checks).
-      The deb/rpm packagers also raise `fs.inotify.max_queued_events` to 65536
-      as a defensive cushion above the 16384 kernel default.
+    - **fix(timeranger2): fail loud on inotify `IN_Q_OVERFLOW`.** Under a burst
+      the kernel drops inotify events and emits a single `IN_Q_OVERFLOW`
+      (`wd == -1`); until now `fs_watcher` ignored it, so a dropped
+      `FS_FILE_CREATED`/`FS_SUBDIR_*` left an rt-disk follower silently out of
+      sync. `fs_watcher` now logs it `critical` with `LOG_OPT_ABORT`: the yuno
+      aborts and ydaemon relaunches it, and the clean reload re-establishes
+      every feed correctly — the proven recovery path, chosen over a
+      hard-to-test in-place resync. The deb/rpm packagers raise
+      `fs.inotify.max_queued_events` to 65536 as a defensive cushion above the
+      16384 kernel default, so the abort/relaunch stays rare.
 
     - **feat(c_yuno): `info-inotify` command** — reports the system inotify
       limits (`/proc/sys/fs/inotify/*`) and this yuno's own usage (instances +

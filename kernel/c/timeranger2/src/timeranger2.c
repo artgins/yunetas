@@ -319,17 +319,6 @@ PRIVATE int scan_disks_key_for_new_file(
     json_t *tranger,
     char *path
 );
-PRIVATE int master_resync_after_overflow(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *disks_path
-);
-PRIVATE int client_rescan_all_keys_after_overflow(
-    hgobj gobj,
-    json_t *tranger,
-    const char *root
-);
 
 /***************************************************************
  *              Data
@@ -4320,11 +4309,6 @@ PRIVATE BOOL find_rt_disk_cb(
         return TRUE; // continue
     }
 
-    if(tranger2_get_rt_mem_by_id(tranger, topic_name, rt_id, "")) {
-        // Already open (e.g. IN_Q_OVERFLOW resync re-walk); keep idempotent
-        return TRUE; // continue
-    }
-
     json_t *rt = tranger2_open_rt_mem(
         tranger,
         topic_name,
@@ -4387,7 +4371,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         master_fs_callback,
         gobj,
         tranger,    // user_data
-        topic       // user_data2 — needed by the FS_OVERFLOW_TYPE resync
+        (void *)1           // user_data2
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -4400,65 +4384,6 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
     }
     fs_start_watcher_event(fs_event);
     return fs_event;
-}
-
-/***************************************************************************
- *  MASTER: recover from an inotify IN_Q_OVERFLOW on the /disks watcher.
- *
- *  fs_watcher has already re-synced the kernel watches; here we reconcile
- *  the open mem rt's against the durable on-disk state (disks/<rt_id>/):
- *      - open any client rt disk present on disk but not yet open,
- *      - close any open master-update rt whose disk dir has vanished.
- ***************************************************************************/
-PRIVATE int master_resync_after_overflow(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *disks_path
-)
-{
-    /*
-     *  (1) Open the missing ones. find_rt_disk_cb skips already-open rt_ids,
-     *      so re-walking is idempotent.
-     */
-    find_rt_disk(tranger, disks_path);
-
-    /*
-     *  (2) Close the vanished ones.
-     */
-    if(!topic) {
-        return 0;
-    }
-    const char *topic_name = tranger2_topic_name(topic);
-    json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
-
-    json_t *jn_close = json_array();    // collect rt_ids first, don't mutate while iterating
-    int idx;
-    json_t *list;
-    json_array_foreach(lists, idx, list) {
-        if(!json_is_true(json_object_get(list, "master_to_update_client"))) {
-            continue;
-        }
-        const char *disk_path = json_string_value(json_object_get(list, "disk_path"));
-        if(!empty_string(disk_path) && !is_directory(disk_path)) {
-            const char *rt_id = json_string_value(json_object_get(list, "id"));
-            json_array_append_new(jn_close, json_string(rt_id));
-        }
-    }
-
-    size_t i;
-    json_t *jn_rt_id;
-    json_array_foreach(jn_close, i, jn_rt_id) {
-        json_t *rt = tranger2_get_rt_mem_by_id(
-            tranger, topic_name, json_string_value(jn_rt_id), ""
-        );
-        if(rt) {
-            tranger2_close_rt_mem(tranger, rt);
-        }
-    }
-    json_decref(jn_close);
-
-    return 0;
 }
 
 /***************************************************************************
@@ -4623,14 +4548,6 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                 "msg",          "%s", "FS_FILE_RENAME_TYPE master fs_event NOT processed",
                 NULL
             );
-            break;
-        case FS_OVERFLOW_TYPE:
-            {
-                json_t *topic = fs_event->user_data2;
-                master_resync_after_overflow(
-                    gobj, tranger, topic, (const char *)fs_event->directory
-                );
-            }
             break;
     }
 
@@ -4988,12 +4905,6 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 NULL
             );
             break;
-
-        case FS_OVERFLOW_TYPE:
-            client_rescan_all_keys_after_overflow(
-                gobj, tranger, (const char *)fs_event->directory
-            );
-            break;
     }
 
     return 0;
@@ -5028,50 +4939,6 @@ PRIVATE int scan_disks_key_for_new_file(
 
     dir_array_free(&da);
 
-    return 0;
-}
-
-/***************************************************************************
- *  CLIENT: walk callback — scan one key dir for pending .md2 hard links.
- ***************************************************************************/
-PRIVATE BOOL client_overflow_scan_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
-{
-    json_t *tranger = user_data;
-    scan_disks_key_for_new_file(gobj, tranger, fullpath);
-    return TRUE; // to continue
-}
-
-/***************************************************************************
- *  CLIENT: recover from an inotify IN_Q_OVERFLOW on a /disks/<rt_id> watcher.
- *
- *  fs_watcher has already re-synced the kernel watches; here we re-scan every
- *  key dir under the watched root for pending .md2 hard links. Those are
- *  durable markers: already-read ones were unlinked, so this is idempotent
- *  and recovers exactly the record notifications dropped by the overflow.
- ***************************************************************************/
-PRIVATE int client_rescan_all_keys_after_overflow(
-    hgobj gobj,
-    json_t *tranger,
-    const char *root
-)
-{
-    walk_dir_tree(
-        gobj,
-        root,
-        0,
-        WD_RECURSIVE|WD_MATCH_DIRECTORY,
-        client_overflow_scan_cb,
-        tranger
-    );
     return 0;
 }
 
