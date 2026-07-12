@@ -159,3 +159,36 @@ decisions (Rosa):
   - Unrelated/already handled: `string2json`/`gbuf2json` records carry no gobj
     context by design (kernel helpers); the invalid-UTF-8-breaks-logcenter
     problem is fixed separately (glogger UTF-8 escaping).
+
+## C_TRANGER: realtime feed (Live cards) — inotify scalability + leak
+
+Context: `open-rt`/`close-rt` + `EV_TRANGER_RECORD_ADDED` (public) power
+gui_treedb's Live records card. On a **non-master (reader)** C_TRANGER —
+e.g. `db_history_wz`, `master:false` — each `open-rt` opens a
+`tranger2_open_rt_disk` feed = **one inotify instance**. Two problems surface
+under real use (found 2026-07-12 on e.com, where the node sat at 128/128
+`fs.inotify.max_user_instances`, its default):
+
+- **#1 — Share one rt_disk feed per topic across Live cards.** Today each Live
+  card opens its own per-key feed → N cards = N inotify instances on a reader
+  backend. Open a single `rt_disk` feed per topic (`key=""`, all keys),
+  refcounted, and let each subscriber filter by key on its
+  `EV_TRANGER_RECORD_ADDED` subscription (subscriptions cost no inotify). Caps
+  usage at **1 inotify per followed topic** regardless of card count. Small,
+  high-value change.
+
+- **#2 — Tie the feed to the ievent session (root-cause of the leak).** A
+  SPA that reloads/closes the tab (F5) never sends `close-rt`, so the backend
+  feed — and its inotify instance — leaks until the yuno restarts (worse than
+  the iterator/file-handle leak already noted, because inotify is a scarce
+  per-user kernel resource). Cleanest fix: **arm/close the rt feed from the
+  subscription hooks** (`mt_subscription_added` / `mt_subscription_deleted`)
+  instead of standalone `open-rt`/`close-rt` commands — then the feed's
+  lifetime rides the subscription, which `C_IEVENT_SRV` already drops when the
+  channel closes. (General alternative: have `C_IEVENT_SRV` close a session's
+  command-created iterators/feeds on channel close — also fixes the Phase-1
+  iterator leak.)
+
+Node-side mitigation (independent of the above): the default
+`fs.inotify.max_user_instances = 128` is too low for a node running ~12 yunos
+with rt_disk followers — raise it (e.g. 1024) in `/etc/sysctl.d/`.
