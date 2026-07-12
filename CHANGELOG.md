@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+    - **feat(c_tranger): realtime feed commands `open-rt` / `close-rt`, and
+      `EV_TRANGER_RECORD_ADDED` is now `EVF_PUBLIC_EVENT`.** `open-rt {rt_id,
+      topic_name, key}` opens a realtime-only feed on a topic key — NO history
+      load, no data retention — that streams each NEW append to subscribers as
+      `EV_TRANGER_RECORD_ADDED {topic_name, key, rowid, record}` (the record
+      carries a `__md_tranger__` with the same field names `get-page` emits, so
+      live and paged rows render identically). rt-by-memory on the master
+      (fires on `tranger2_append_record`), rt-by-disk on a reader (inotify).
+      `close-rt {rt_id}` closes it (via `tranger2_close_list`, which dispatches
+      by list_type). Feeds live in a per-gclass registry closed at `mt_destroy`
+      if a client never sends `close-rt`. Making the event `EVF_PUBLIC_EVENT`
+      is what lets a remote subscriber (a browser SPA) subscribe over the
+      ievent gate (`c_ievent_srv` requires the flag). The regression test
+      (`tests/c/c_tranger/`) subscribes a probe and asserts a fresh append
+      publishes exactly once, a cross-key append does not reach the feed, no
+      publish after `close-rt`, and a left-open feed is leak-free at destroy.
+      Enables gui_treedb's Live records card (yunos-js).
+
     - **fix(timeranger2): three defects found while documenting the public API.**
       (1) `tranger2_topic_key_size()` with an empty `key` passed `gobj` where a
       `json_t *tranger` is expected, so the whole-topic fallback silently

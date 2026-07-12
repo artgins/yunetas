@@ -30,6 +30,7 @@ on time-series topics.
 | `list-keys` | List a topic's keys with their record counts (`[{key, records}]`). |
 | `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. |
 | `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`from_rowid` 1-based, `limit`, optional `backward`). |
+| `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load); new appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. |
 | `add-record` | Append a record. |
 | `print-tranger` | Dump tranger state. |
 | `desc` | Describe topic schema. |

@@ -29,6 +29,11 @@ command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic
 command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
 command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
 
+Realtime feed (streams new appends as EV_TRANGER_RECORD_ADDED to subscribers):
+
+command-yuno id=1911 service=tranger command=open-rt rt_id=rt1 topic_name=pp key=1
+command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
+
 
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -68,6 +73,15 @@ PRIVATE int load_record_callback(
     md2_record_ex_t *md_record_ex,
     json_t *jn_record   // must be owned
 );
+PRIVATE int publish_rt_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // rt_mem/rt_disk, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record   // must be owned
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -89,6 +103,8 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -222,6 +238,20 @@ SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of itera
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_open_rt[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "rt_id",                0,          0,      "Id of the realtime feed"),
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
+SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to follow (empty = all keys)"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_close_rt[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "rt_id",                0,          0,      "Id of the realtime feed"),
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
@@ -248,6 +278,9 @@ SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys
 SDATACM2 (DTP_SCHEMA,   "open-iterator",    SDF_AUTHZ_X,    0,      pm_open_iterator,   cmd_open_iterator,  "Open a stateful per-key iterator (index only, no upfront load) for cursor pagination; close with close-iterator"),
 SDATACM2 (DTP_SCHEMA,   "get-page",         SDF_AUTHZ_X,    0,      pm_get_page,        cmd_get_page,       "Get a page of records from an open iterator: data is {total_rows, pages, data}"),
 SDATACM2 (DTP_SCHEMA,   "close-iterator",   SDF_AUTHZ_X,    0,      pm_close_iterator,  cmd_close_iterator, "Close an iterator opened with open-iterator"),
+
+SDATACM2 (DTP_SCHEMA,   "open-rt",          SDF_AUTHZ_X,    0,      pm_open_rt,         cmd_open_rt,        "Open a realtime feed on a topic key (no history load); new appends are published as EV_TRANGER_RECORD_ADDED. Close with close-rt"),
+SDATACM2 (DTP_SCHEMA,   "close-rt",         SDF_AUTHZ_X,    0,      pm_close_rt,        cmd_close_rt,       "Close a realtime feed opened with open-rt"),
 SDATA_END()
 };
 
@@ -331,6 +364,7 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger;
     json_t *lists;      // open lists registry: list_id -> integer pointer of the list handle
     json_t *iterators;  // open iterators registry: iterator_id -> integer pointer of the iterator handle
+    json_t *rts;        // open realtime feeds registry: rt_id -> integer pointer of the rt handle
 
 } PRIVATE_DATA;
 
@@ -385,6 +419,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->lists = json_object();
     priv->iterators = json_object();
+    priv->rts = json_object();
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -429,6 +464,22 @@ PRIVATE void mt_destroy(hgobj gobj)
             json_object_del(priv->iterators, iterator_id);
         }
         JSON_DECREF(priv->iterators)
+    }
+
+    /*
+     *  Close the realtime feeds still open (a remote client may never send
+     *  close-rt) BEFORE shutting down the tranger they belong to.
+     */
+    if(priv->rts) {
+        const char *rt_id; json_t *jn_ptr; void *tmp;
+        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_ptr) {
+            json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+            if(rt && priv->tranger) {
+                tranger2_close_list(priv->tranger, rt);
+            }
+            json_object_del(priv->rts, rt_id);
+        }
+        JSON_DECREF(priv->rts)
     }
 
     EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
@@ -1695,6 +1746,187 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
     );
 }
 
+/***************************************************************************
+ *  Open a realtime feed on a topic key (no history load): each NEW append
+ *  is streamed to subscribers as EV_TRANGER_RECORD_ADDED. rt-by-memory on
+ *  the master (fires on tranger2_append_record), rt-by-disk on a reader
+ *  (fires on the inotify watcher). Registered until close-rt or mt_destroy.
+ ***************************************************************************/
+PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *rt_id = kw_get_str(gobj, kw, "rt_id", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *key = kw_get_str(gobj, kw, "key", "", 0);
+
+    if(empty_string(rt_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What rt_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(kw_has_key(priv->rts, rt_id)) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("Realtime feed is already open: '%s'", rt_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  master writes -> rt by memory (fires on append);
+     *  non-master reads -> rt by disk (fires on the master's disk mirror).
+     */
+    json_t *rt;
+    if(gobj_read_bool_attr(gobj, "master")) {
+        rt = tranger2_open_rt_mem(
+            priv->tranger,
+            topic_name,
+            key,                // empty = all keys, else only this key
+            json_object(),      // match_cond, owned
+            publish_rt_callback,
+            rt_id,
+            gobj_name(gobj),    // creator
+            NULL                // extra
+        );
+    } else {
+        rt = tranger2_open_rt_disk(
+            priv->tranger,
+            topic_name,
+            key,                // empty = all keys, else only this key
+            json_object(),      // match_cond, owned
+            publish_rt_callback,
+            rt_id,              // rt_id REQUIRED for rt_disk
+            gobj_name(gobj),    // creator
+            NULL                // extra
+        );
+    }
+    if(!rt) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_set_new(priv->rts, rt_id, json_integer((json_int_t)(uintptr_t)rt));
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Realtime feed opened: '%s'", rt_id),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Close a realtime feed opened with open-rt.
+ ***************************************************************************/
+PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *rt_id = kw_get_str(gobj, kw, "rt_id", "", 0);
+    if(empty_string(rt_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What rt_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *jn_ptr = json_object_get(priv->rts, rt_id);
+    if(!jn_ptr) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("Realtime feed not found: '%s'", rt_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_object_del(priv->rts, rt_id);
+
+    /*  tranger2_close_list dispatches by list_type (rt_mem / rt_disk).  */
+    int result = tranger2_close_list(priv->tranger, rt);
+
+    return msg_iev_build_response(
+        gobj,
+        result,
+        result>=0?json_sprintf("Realtime feed closed: '%s'", rt_id):json_string(gobj_log_last_message()),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
 
 
 
@@ -1790,6 +2022,55 @@ PRIVATE int load_record_callback(
         );
         gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_data);
     }
+
+    JSON_DECREF(jn_record)
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Realtime-only callback (open-rt): stream each NEW append as
+ *  EV_TRANGER_RECORD_ADDED, WITHOUT retaining it anywhere (the feed loads
+ *  no history and keeps no data list — the subscriber gets the pushes).
+ *  Stamps a __md_tranger__ with the same field names get-page emits so the
+ *  consumer renders live and paged records identically.
+ ***************************************************************************/
+PRIVATE int publish_rt_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // rt_mem/rt_disk, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record   // must be owned
+)
+{
+    hgobj gobj = (hgobj)(uintptr_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    if(!jn_record) {
+        /*  content not available for this append — nothing to stream  */
+        return 0;
+    }
+
+    if(json_is_object(jn_record)) {
+        json_t *__md_tranger__ = json_pack("{s:I, s:I, s:I, s:I, s:i, s:i}",
+            "g_rowid", (json_int_t)rowid,
+            "i_rowid", (json_int_t)md_record_ex->rowid,
+            "t", (json_int_t)md_record_ex->__t__,
+            "tm", (json_int_t)md_record_ex->__tm__,
+            "system_flag", (int)md_record_ex->system_flag,
+            "user_flag", (int)md_record_ex->user_flag
+        );
+        json_object_set_new(jn_record, "__md_tranger__", __md_tranger__);
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:I, s:O}",
+        "topic_name", tranger2_topic_name(topic),
+        "key", key?key:"",
+        "rowid", rowid,
+        "record", jn_record
+    );
+    gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_data);
 
     JSON_DECREF(jn_record)
 
@@ -1973,7 +2254,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TRANGER_ADD_RECORD,         0},
         {0, 0}
     };

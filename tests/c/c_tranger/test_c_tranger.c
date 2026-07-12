@@ -123,6 +123,63 @@ PRIVATE int append_key(json_t *tranger, const char *key, int n)
     return 0;
 }
 
+/*  Append one record to `key` with an explicit time (used to trigger the
+ *  realtime feed with a fresh append after the fixture is loaded).  */
+PRIVATE int append_one(json_t *tranger, const char *key, uint64_t t)
+{
+    json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+        "id", key,
+        "tm", (json_int_t)t,
+        "content", "live"
+    );
+    md2_record_ex_t md = {0};
+    return tranger2_append_record(tranger, TOPIC_NAME, t, 0, &md, jn_record);
+}
+
+/***************************************************************
+ *  Probe gclass: counts EV_TRANGER_RECORD_ADDED so the test can assert
+ *  the realtime feed actually publishes on a new append.
+ ***************************************************************/
+PRIVATE int g_rt_count = 0;
+
+GOBJ_DEFINE_GCLASS(C_RTPROBE);
+
+PRIVATE int ac_rt_added(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    g_rt_count++;
+    KW_DECREF(kw)
+    return 0;
+}
+
+PRIVATE sdata_desc_t rtprobe_attrs[] = {
+SDATA_END()
+};
+
+/*  File-scope: gclass_create keeps a POINTER to the GMETHODS, so it must
+ *  outlive register_rtprobe() (a local would dangle and crash gobj_create).  */
+PRIVATE const GMETHODS rtprobe_gmt = {0};
+
+PRIVATE int register_rtprobe(void)
+{
+    ev_action_t st_idle[] = {
+        {EV_TRANGER_RECORD_ADDED, ac_rt_added, 0},
+        {0, 0, 0}
+    };
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+    event_type_t event_types[] = {
+        {EV_TRANGER_RECORD_ADDED, EVF_PUBLIC_EVENT},
+        {0, 0}
+    };
+    hgclass gc = gclass_create(
+        C_RTPROBE, event_types, states, &rtprobe_gmt,
+        0, rtprobe_attrs, 0, 0, 0, 0, 0
+    );
+    return gc ? 0 : -1;
+}
+
 /***************************************************************************
  *              Test
  *  HACK: return -1 to fail, 0 to ok
@@ -142,8 +199,8 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      Create the C_TRANGER gobj as master yuno
      *-------------------------------------------------*/
-    if(register_c_tranger() != 0) {
-        printf("%s: FAIL (register_c_tranger)\n", APP);
+    if(register_c_tranger() != 0 || register_rtprobe() != 0) {
+        printf("%s: FAIL (register gclasses)\n", APP);
         return -1;
     }
     hgobj yuno = gobj_create_yuno(
@@ -159,6 +216,14 @@ PRIVATE int do_test(void)
         printf("%s: FAIL (gobj_create_yuno)\n", APP);
         return -1;
     }
+
+    /*  A probe subscribed to the tranger's realtime record event.  */
+    hgobj probe = gobj_create("rtprobe", C_RTPROBE, 0, yuno);
+    if(!probe) {
+        printf("%s: FAIL (probe create)\n", APP);
+        return -1;
+    }
+    gobj_subscribe_event(yuno, EV_TRANGER_RECORD_ADDED, 0, probe);
 
     /*-------------------------------------------------*
      *      Fill the topic through the gobj's tranger
@@ -337,6 +402,73 @@ PRIVATE int do_test(void)
     check_int("open-iterator B total_rows", kw_get_int(0, data, "total_rows", -1, 0), KEY_B_ROWS);
     JSON_DECREF(r)
     /*  left open on purpose: mt_destroy must close it without leaking  */
+
+    /*-------------------------------------------------*
+     *      Realtime feed: open-rt, append, expect a publish
+     *-------------------------------------------------*/
+    g_rt_count = 0;
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtA",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  a fresh append on key A must fire the rt_mem feed -> publish  */
+    append_one(tranger, KEY_A, BASE_T + 1000);
+    check_int("rt publish on append", g_rt_count, 1);
+
+    /*  an append on a DIFFERENT key must not reach this key's feed  */
+    append_one(tranger, KEY_B, BASE_T + 1001);
+    check_int("rt no cross-key publish", g_rt_count, 1);
+
+    /*-------------------------------------------------*
+     *      open-rt dup -> already open (0)
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtA",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt dup result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      close-rt -> after it, appends no longer publish
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "rtA"), yuno);
+    check_int("close-rt result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    g_rt_count = 0;
+    append_one(tranger, KEY_A, BASE_T + 1002);
+    check_int("no publish after close-rt", g_rt_count, 0);
+
+    /*-------------------------------------------------*
+     *      Negatives: open-rt without rt_id; close-rt unknown
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("open-rt no-id result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "nope"), yuno);
+    check_int("close-rt unknown result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  leave one rt open on purpose: mt_destroy must close it, no leak  */
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtLeak",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_B
+        ), yuno);
+    JSON_DECREF(r)
 
     return global_result;
 }
