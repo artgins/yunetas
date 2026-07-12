@@ -3906,6 +3906,9 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
         );
         return 0;
     }
+    if(!creator) {
+        creator = "";
+    }
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(topic) {
@@ -4216,6 +4219,9 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
             NULL
         );
         return 0;
+    }
+    if(!creator) {
+        creator = "";
     }
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(topic) {
@@ -6308,6 +6314,9 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
         );
         return 0;
     }
+    if(!creator) {
+        creator = "";
+    }
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     json_t *iterators = json_object_get(topic, "iterators");
@@ -6318,7 +6327,7 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
             const char *creator_ = json_string_value(
                 json_object_get(iterator, "creator")
             );
-            if(empty_string(creator) && empty_string(creator)) {
+            if(empty_string(creator) && empty_string(creator_)) {
                 return iterator;
             }
             if(strcmp(creator, creator_)==0) {

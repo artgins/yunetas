@@ -738,6 +738,8 @@ PUBLIC int tranger2_close_iterator(
     Get an open iterator by its id (optionally filtered by creator). Returns the
     iterator — NOT YOURS (borrowed, owned by the topic). NULL if none matches or
     `id` is empty. Stays silent on a miss (only the empty-id case is logged).
+    A NULL or empty `creator` matches only creatorless iterators; to reach one
+    registered with a creator, pass that same creator.
 */
 PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
     json_t *tranger,
@@ -804,7 +806,8 @@ PUBLIC int tranger2_close_rt_mem(
 /*
     Get an open rt_mem feed by its id (optionally filtered by creator). Returns the
     handle — NOT YOURS (borrowed). NULL if none matches or `id` is empty (only the
-    empty-id case is logged).
+    empty-id case is logged). A NULL or empty `creator` matches only creatorless
+    feeds; to reach one registered with a creator, pass that same creator.
 */
 PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     json_t *tranger,
@@ -846,7 +849,8 @@ PUBLIC int tranger2_close_rt_disk(
 /*
     Get an open rt_disk feed by its id (optionally filtered by creator). Returns
     the handle — NOT YOURS (borrowed). NULL if none matches or `id` is empty (only
-    the empty-id case is logged).
+    the empty-id case is logged). A NULL or empty `creator` matches only creatorless
+    feeds; to reach one registered with a creator, pass that same creator.
 */
 PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     json_t *tranger,

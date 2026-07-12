@@ -630,7 +630,7 @@ json_t *tranger2_get_iterator_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the iterator. |
 | `iterator_id` | `const char *` | Unique identifier of the iterator to retrieve. |
-| `creator` | `const char *` | Identifier of the entity that created the iterator. |
+| `creator` | `const char *` | Identifier of the entity that created the iterator. NULL or empty matches only creatorless iterators; to reach one registered with a creator, pass that same creator. |
 
 **Returns**
 
@@ -665,7 +665,7 @@ json_t *tranger2_get_rt_disk_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the real-time disk. |
 | `rt_id` | `const char *` | Identifier of the real-time disk to retrieve. |
-| `creator` | `const char *` | Creator identifier used to filter the real-time disk instances. |
+| `creator` | `const char *` | Creator identifier used to filter the real-time disk instances. NULL or empty matches only creatorless feeds; to reach one registered with a creator, pass that same creator. |
 
 **Returns**
 
@@ -700,7 +700,7 @@ json_t *tranger2_get_rt_mem_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the real-time memory instance. |
 | `rt_id` | `const char *` | Identifier of the real-time memory instance to retrieve. |
-| `creator` | `const char *` | Creator identifier used to filter the real-time memory instance. |
+| `creator` | `const char *` | Creator identifier used to filter the real-time memory instance. NULL or empty matches only creatorless feeds; to reach one registered with a creator, pass that same creator. |
 
 **Returns**
 

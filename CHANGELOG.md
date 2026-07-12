@@ -14,7 +14,10 @@
       `_get_rt_disk_by_id()` tested `empty_string(creator) && empty_string(creator)`
       (the second operand was meant to be the stored `creator_`); an empty
       query-creator now matches only creatorless entries (both-empty) instead of
-      any creator. Also: the whole `timeranger2.h` public API was re-documented
+      any creator. The three functions also normalize a NULL query-creator to
+      `""` (like `tranger2_open_rt_mem()` does), so a NULL `creator` can no
+      longer reach `strcmp(NULL, …)` when the entry has a creator.
+      Also: the whole `timeranger2.h` public API was re-documented
       (ownership, return semantics, NULL/error paths, master-only, disk-vs-memory)
       and the doc.yuneta.io timeranger2 API page synced.
 
