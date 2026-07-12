@@ -38,6 +38,29 @@
       `add-record` stays stubbed (write path). Consumed by gui_treedb's new
       tranger records browser (yunos-js repo).
 
+    - **feat(c_tranger): cursor-pagination command surface — `list-keys`,
+      `open-iterator`, `get-page`, `close-iterator`.** Exposes the timeranger2
+      per-key iterator primitives (`tranger2_open_iterator` +
+      `tranger2_iterator_get_page`) as commands so a remote client can page
+      through a key's records with a real cursor instead of re-reading a
+      growing snapshot. `open-iterator` builds the key's row index only (no
+      upfront record load, no realtime feed — `load_record_callback` NULL) and
+      returns `{iterator_id, total_rows}`; `get-page from_rowid=<1-based>
+      limit=<n> [backward=1]` returns `{total_rows, pages, data}`, reading
+      records lazily; `close-iterator` closes and deregisters. Open iterators
+      live in a per-gclass registry (mirror of the open-lists one) and are
+      closed at `mt_destroy` if a client never sends `close-iterator` (a leaked
+      iterator would retain file handles). `list-keys` returns a topic's keys
+      with their record counts (`[{key, records}]`) — the input for a
+      two-level keys→records browser. All check `read`/`list` authz; ints/bools
+      read with `KW_WILD_NUMBER`; the parameter is named `iterator_id` (not
+      `id`) to dodge the command-yuno `id=` collision. New regression test
+      `tests/c/c_tranger/` drives the four commands through `gobj_command`
+      (forward paging, out-of-range, dup-open, close-then-404, missing key /
+      topic, and a deliberately-left-open iterator proving the destroy-time
+      cleanup is leak-free). To be consumed by gui_treedb's two-level tranger
+      records browser (yunos-js repo, Phase 2).
+
 ## 7.7.2
 _C / SDK patch release — agent TTY console lifecycle: `open-console` re-attach
 (the gui_agent Terminal shell now survives a browser refresh instead of leaking

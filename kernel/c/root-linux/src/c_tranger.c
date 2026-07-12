@@ -22,6 +22,13 @@ command-yuno id=1911 service=tranger command=get-list-data list_id=pepe
 command-yuno id=1911 service=tranger command=add-record topic_name=pp record='{"id":"1","tm":0}'
 command-yuno id=1911 service=tranger command=close-list list_id=pepe
 
+Cursor pagination (open-iterator/get-page/close-iterator) and key listing:
+
+command-yuno id=1911 service=tranger command=list-keys topic_name=pp
+command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1
+command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
+command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
+
 
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -78,6 +85,10 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -181,6 +192,36 @@ SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_list_keys[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_open_iterator[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of iterator (optional, defaults to key)"),
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
+SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to iterate (required)"),
+SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "Iterate backward"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_get_page[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of iterator"),
+SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "First rowid of the page (based 1)"),
+SDATAPM (DTP_INTEGER,   "limit",                0,          0,      "Page size (nº of records)"),
+SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "Page backward"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_close_iterator[] = {
+/*-PM----type-----------name--------------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of iterator"),
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
@@ -202,6 +243,11 @@ SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_lis
 // TODO add-record (write path) is not implemented
 SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
 SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
+
+SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys,       cmd_list_keys,      "List the keys of a topic with their record counts"),
+SDATACM2 (DTP_SCHEMA,   "open-iterator",    SDF_AUTHZ_X,    0,      pm_open_iterator,   cmd_open_iterator,  "Open a stateful per-key iterator (index only, no upfront load) for cursor pagination; close with close-iterator"),
+SDATACM2 (DTP_SCHEMA,   "get-page",         SDF_AUTHZ_X,    0,      pm_get_page,        cmd_get_page,       "Get a page of records from an open iterator: data is {total_rows, pages, data}"),
+SDATACM2 (DTP_SCHEMA,   "close-iterator",   SDF_AUTHZ_X,    0,      pm_close_iterator,  cmd_close_iterator, "Close an iterator opened with open-iterator"),
 SDATA_END()
 };
 
@@ -284,6 +330,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     json_t *tranger;
     json_t *lists;      // open lists registry: list_id -> integer pointer of the list handle
+    json_t *iterators;  // open iterators registry: iterator_id -> integer pointer of the iterator handle
 
 } PRIVATE_DATA;
 
@@ -337,6 +384,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_pointer_attr(gobj, "tranger", priv->tranger);
 
     priv->lists = json_object();
+    priv->iterators = json_object();
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -365,6 +413,22 @@ PRIVATE void mt_destroy(hgobj gobj)
             json_object_del(priv->lists, list_id);
         }
         JSON_DECREF(priv->lists)
+    }
+
+    /*
+     *  Close the iterators still open (a remote client may never send
+     *  close-iterator) BEFORE shutting down the tranger they belong to.
+     */
+    if(priv->iterators) {
+        const char *iterator_id; json_t *jn_ptr; void *tmp;
+        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_ptr) {
+            json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+            if(iterator && priv->tranger) {
+                tranger2_close_iterator(priv->tranger, iterator);
+            }
+            json_object_del(priv->iterators, iterator_id);
+        }
+        JSON_DECREF(priv->iterators)
     }
 
     EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
@@ -1306,6 +1370,327 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  List the keys of a topic with their record counts.
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+    json_t *jn_data = json_array();
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        uint64_t size = tranger2_topic_key_size(priv->tranger, topic_name, key);
+        json_array_append_new(jn_data, json_pack("{s:s, s:I}",
+            "key", key?key:"",
+            "records", (json_int_t)size
+        ));
+    }
+    JSON_DECREF(jn_keys)
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Open a stateful per-key iterator for cursor pagination. It builds only
+ *  the key's row index (no upfront record load, no realtime feed); the
+ *  records are read lazily by get-page. Registered until close-iterator or
+ *  mt_destroy.
+ ***************************************************************************/
+PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *key = kw_get_str(gobj, kw, "key", "", 0);
+    const char *iterator_id = kw_get_str(gobj, kw, "iterator_id", "", 0);
+    /*  KW_WILD_NUMBER: booleans arrive as strings when forwarded.  */
+    BOOL backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
+
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What key?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(iterator_id)) {
+        iterator_id = key;
+    }
+    if(kw_has_key(priv->iterators, iterator_id)) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("Iterator is already open: '%s'", iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *match_cond = json_pack("{s:b}", "backward", backward);
+    json_t *iterator = tranger2_open_iterator(
+        priv->tranger,
+        topic_name,
+        key,
+        match_cond,         // owned
+        NULL,               // no load_record_callback: index only, get-page reads lazily
+        iterator_id,
+        gobj_name(gobj),    // creator
+        NULL,               // data
+        NULL                // extra
+    );
+    if(!iterator) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_set_new(priv->iterators, iterator_id, json_integer((json_int_t)(uintptr_t)iterator));
+
+    json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Iterator opened: '%s'", iterator_id),
+        0,
+        json_pack("{s:s, s:I}",
+            "iterator_id", iterator_id,
+            "total_rows", total_rows
+        ),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Get a page of records from an open iterator. Returns
+ *  {total_rows, pages, data} as computed by tranger2_iterator_get_page().
+ ***************************************************************************/
+PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *iterator_id = kw_get_str(gobj, kw, "iterator_id", "", 0);
+    if(empty_string(iterator_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What iterator_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *jn_ptr = json_object_get(priv->iterators, iterator_id);
+    if(!jn_ptr) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Iterator not found: '%s'", iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+
+    json_int_t from_rowid = (json_int_t)kw_get_int(gobj, kw, "from_rowid", 1, KW_WILD_NUMBER);
+    json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 100, KW_WILD_NUMBER);
+    BOOL backward = kw_get_bool(gobj, kw, "backward", 0, KW_WILD_NUMBER);
+
+    json_t *page = tranger2_iterator_get_page(
+        priv->tranger,
+        iterator,
+        from_rowid,
+        (size_t)(limit>0?limit:0),
+        backward
+    );
+    if(!page) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        page,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Close an iterator opened with open-iterator.
+ ***************************************************************************/
+PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *iterator_id = kw_get_str(gobj, kw, "iterator_id", "", 0);
+    if(empty_string(iterator_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What iterator_id?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *jn_ptr = json_object_get(priv->iterators, iterator_id);
+    if(!jn_ptr) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("Iterator not found: '%s'", iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_object_del(priv->iterators, iterator_id);
+
+    int result = tranger2_close_iterator(priv->tranger, iterator);
+
+    return msg_iev_build_response(
+        gobj,
+        result,
+        result>=0?json_sprintf("Iterator closed: '%s'", iterator_id):json_string(gobj_log_last_message()),
+        0,
+        0,
         kw  // owned
     );
 }

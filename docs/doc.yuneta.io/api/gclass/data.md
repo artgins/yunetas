@@ -25,9 +25,12 @@ on time-series topics.
 | `create-topic` | Create a new topic. |
 | `open-topic` | Open an existing topic. |
 | `delete-topic` | Delete a topic. |
-| `open-list` / `close-list` | Open or close a record list. |
+| `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). |
+| `get-list-data` | Retrieve an open list's data. |
+| `list-keys` | List a topic's keys with their record counts (`[{key, records}]`). |
+| `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. |
+| `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`from_rowid` 1-based, `limit`, optional `backward`). |
 | `add-record` | Append a record. |
-| `get-list-data` | Retrieve list data. |
 | `print-tranger` | Dump tranger state. |
 | `desc` | Describe topic schema. |
 
