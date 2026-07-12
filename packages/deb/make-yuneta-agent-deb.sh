@@ -347,6 +347,11 @@ fs.nr_open  = 4000000
 fs.inotify.max_user_instances = 4096
 fs.inotify.max_user_watches = 524288
 
+# Defensive cushion above the 16384 kernel default: fs_watcher resyncs on
+# IN_Q_OVERFLOW, but a bigger per-instance queue makes the overflow (and the
+# full-tree rescan it triggers) less likely under CREATE/DELETE bursts.
+fs.inotify.max_queued_events = 65536
+
 EOF
 chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
 

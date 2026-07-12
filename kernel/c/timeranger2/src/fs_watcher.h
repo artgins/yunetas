@@ -29,6 +29,9 @@ typedef enum  {
     FS_FILE_DELETED_TYPE,           // use directory / filename
     FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
     FS_FILE_RENAME_TYPE,            // use directory / filename TODO to check,copied from libuv
+    FS_OVERFLOW_TYPE,               // inotify IN_Q_OVERFLOW: watches already re-synced
+                                    // by fs_watcher; the consumer MUST resync its own
+                                    // durable state. directory = watched root, filename = ""
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;

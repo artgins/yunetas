@@ -252,6 +252,24 @@ PRIVATE BOOL locate_subdirs_cb(
  ***************************************************************************/
 PRIVATE int fs_event_callback(fs_event_t *fs_event)
 {
+    if(fs_event->fs_type == FS_OVERFLOW_TYPE) {
+        /*
+         *  inotify queue overflowed; fs_watcher already re-synced the watches.
+         *  This generic watcher keeps no per-file state to rebuild, but a
+         *  consumer that needs completeness should treat this as "rescan".
+         *  Guard here so the sequential enum value does not fall into the
+         *  bitwise checks below.
+         */
+        gobj_log_warning(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MONITORING,
+            "msg",          "%s", "inotify IN_Q_OVERFLOW, watches re-synced",
+            "path",         "%s", (const char *)fs_event->directory,
+            NULL
+        );
+        return 0;
+    }
+
     json_t *kw = json_pack("{s:s, s:s}",
         "path", fs_event->directory,
         "filename", fs_event->filename

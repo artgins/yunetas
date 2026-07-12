@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+    - **feat(timeranger2): recover the realtime feed from inotify
+      `IN_Q_OVERFLOW`.** Under a burst the kernel drops inotify events and
+      emits a single `IN_Q_OVERFLOW` (`wd == -1`); until now `fs_watcher`
+      ignored it, so a dropped `FS_FILE_CREATED`/`FS_SUBDIR_*` left an rt-disk
+      follower silently out of sync. `fs_watcher` now detects the overflow,
+      re-reconciles its own watch topology (prunes vanished dirs, re-adds
+      watches idempotently) and delivers a new `FS_OVERFLOW_TYPE` event so the
+      consumer can resync its durable state: the master re-reconciles open mem
+      rt's against `disks/<rt_id>/` (open missing, close vanished —
+      `find_rt_disk_cb` is now idempotent), and the client re-scans every key
+      dir for pending `.md2` hard links (durable markers; already-read ones
+      were unlinked, so the rescan recovers exactly the dropped notifications
+      and double-delivers nothing). `c_fs` logs the overflow (guarded so the
+      new sequential enum value does not fall into its bitwise type checks).
+      The deb/rpm packagers also raise `fs.inotify.max_queued_events` to 65536
+      as a defensive cushion above the 16384 kernel default.
+
+    - **feat(c_yuno): `info-inotify` command** — reports the system inotify
+      limits (`/proc/sys/fs/inotify/*`) and this yuno's own usage (instances +
+      watches, via `/proc/self/fd` + `fdinfo`), alongside `info-cpus` /
+      `info-ifs` / `info-os`. The `/proc/self/fd` probing lives in
+      `helpers.c` as `get_inotify_self_usage()`.
+
     - **feat(c_tranger): realtime feed commands `open-rt` / `close-rt`, and
       `EV_TRANGER_RECORD_ADDED` is now `EVF_PUBLIC_EVENT`.** `open-rt {rt_id,
       topic_name, key}` opens a realtime-only feed on a topic key — NO history

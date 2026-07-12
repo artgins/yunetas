@@ -42,6 +42,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
+PRIVATE void resync_after_overflow(fs_event_t *fs_event);
 
 /***************************************************************************
  *  Data
@@ -456,6 +457,22 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
      *      HACK don't use IN_MODIFY in intense writing, cause IN_Q_OVERFLOW and lost events.
      */
 
+    if(event->mask & (IN_Q_OVERFLOW)) {
+        /*
+         *  The kernel dropped an unknown set of events (event->wd == -1).
+         *  Re-sync our own watch topology, then let the consumer resync its
+         *  durable state via a FS_OVERFLOW_TYPE notification.
+         */
+        resync_after_overflow(fs_event);
+
+        fs_event->fs_type = FS_OVERFLOW_TYPE;
+        fs_event->directory = (volatile char *)fs_event->path;
+        fs_event->filename = "";
+
+        fs_event->callback(fs_event);
+        return;
+    }
+
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
         path=get_path(fs_event, event->wd);
@@ -696,4 +713,53 @@ PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
         search_by_paths_cb,
         fs_event
     );
+}
+
+/***************************************************************************
+ *  inotify IN_Q_OVERFLOW recovery.
+ *
+ *  On overflow the kernel dropped an unknown set of events. Re-reconcile our
+ *  own watch topology so future events are not missed:
+ *      - prune watches whose directory no longer exists (the kernel already
+ *        auto-removed the watch; its IN_IGNORED may have been dropped too),
+ *      - re-add watches over the (possibly grown) tree — inotify_add_watch on
+ *        an already-watched path returns the same wd, so this is idempotent.
+ *
+ *  Recovering the CONSUMER's own state (missed records, rt disks, ...) is not
+ *  something this generic watcher can do; the caller is notified separately
+ *  with a FS_OVERFLOW_TYPE event to run its durable-state resync.
+ ***************************************************************************/
+PRIVATE void resync_after_overflow(fs_event_t *fs_event)
+{
+    hgobj gobj = fs_event->gobj;
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", "inotify IN_Q_OVERFLOW, resyncing watches",
+        "path",         "%s", fs_event->path,
+        NULL
+    );
+
+    /*
+     *  Prune watches whose directory no longer exists.
+     */
+    const char *s_wd;
+    json_t *jn_path;
+    void *tmp;
+    json_object_foreach_safe(fs_event->jn_tracked_paths, tmp, s_wd, jn_path) {
+        const char *dir = json_string_value(jn_path);
+        if(!is_directory(dir)) {
+            json_object_del(fs_event->jn_tracked_paths, s_wd);
+        }
+    }
+
+    /*
+     *  Re-establish watches over the (possibly grown) tree.
+     */
+    if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
+        add_watch_recursive(fs_event, fs_event->path);
+    } else {
+        add_watch(fs_event, fs_event->path);
+    }
 }

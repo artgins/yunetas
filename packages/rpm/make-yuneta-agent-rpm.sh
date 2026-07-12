@@ -313,6 +313,11 @@ fs.nr_open  = 4000000
 fs.inotify.max_user_instances = 4096
 fs.inotify.max_user_watches = 524288
 
+# Defensive cushion above the 16384 kernel default: fs_watcher resyncs on
+# IN_Q_OVERFLOW, but a bigger per-instance queue makes the overflow (and the
+# full-tree rescan it triggers) less likely under CREATE/DELETE bursts.
+fs.inotify.max_queued_events = 65536
+
 # Yuneta's event loop (yev_loop) is io_uring-based. RHEL/Rocky/Alma 9 ship
 # kernel.io_uring_disabled=2 (fully disabled, a hardening default), which
 # makes every yuno abort at startup. Re-enable it for all processes.
