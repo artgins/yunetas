@@ -344,7 +344,9 @@ fs.nr_open  = 4000000
 
 # Each tranger2 rt_disk follower (a non-master reader of a topic) uses one
 # inotify instance; the 128 default is too low for a node running many yunos.
-fs.inotify.max_user_instances = 1024
+fs.inotify.max_user_instances = 4096
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_queued_events = 16384
 
 EOF
 chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
