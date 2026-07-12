@@ -1108,6 +1108,7 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 
 PUBLIC int check_open_fds(void); // return # opened fd's
 PUBLIC int print_open_fds(const char *fmt, ...);
+PUBLIC int get_inotify_self_usage(int *instances, int *watches); // this process; 0 ok, -1 error
 PUBLIC int is_yuneta_user(const char *username);
 
 #include <pwd.h>

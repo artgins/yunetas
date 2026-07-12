@@ -5,7 +5,7 @@
  *          Low level esp-idf
  *
  *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins
+ *          Copyright (c) 2024-2026, ArtGins
  *          All Rights Reserved.
  ****************************************************************************/
 #include <time.h>
@@ -29,6 +29,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <fcntl.h>
 
 #include <sched.h>
 #include <sys/mman.h>
@@ -143,6 +144,7 @@ PRIVATE json_t* cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_inotify(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_list_allowed_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -353,6 +355,7 @@ SDATACM (DTP_SCHEMA,    "print-role",               0,      0,          cmd_prin
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
+SDATACM2(DTP_SCHEMA,    "info-inotify",             SDF_AUTHZ_X, 0,      0,          cmd_info_inotify,           "Info of inotify limits and this yuno's usage"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
 SDATACM2(DTP_SCHEMA,    "reload-certs",             SDF_AUTHZ_X, 0,      0,          cmd_reload_certs,           "Reload TLS certificates on all TLS listeners (TCP/UDP) of this yuno. Active connections are preserved."),
 SDATACM2(DTP_SCHEMA,    "cert-expiry-status",       SDF_AUTHZ_X, 0,      0,          cmd_cert_expiry_status,     "Report TLS cert metadata (subject, notAfter, days_remaining) for every TLS listener of this yuno."),
@@ -3762,6 +3765,77 @@ PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
+        0,
+        jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Read a single integer from a /proc/sys sysctl file.
+ *  Returns the value, or -1 if the file cannot be read.
+ ***************************************************************************/
+PRIVATE long read_sysctl_long(const char *path)
+{
+    int fd = open(path, O_RDONLY|O_CLOEXEC);
+    if(fd < 0) {
+        return -1;
+    }
+    char buf[64] = {0};
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if(n <= 0) {
+        return -1;
+    }
+    buf[n] = 0;
+    return strtol(buf, NULL, 10);
+}
+
+/***************************************************************************
+ *  inotify limits + this yuno's own usage.
+ *
+ *  There is no kernel API to query the per-UID instance/watch counters
+ *  (they only surface as EMFILE on exhaustion), so we report:
+ *      - the system limits under /proc/sys/fs/inotify/
+ *      - this process's own usage (get_inotify_self_usage).
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_inotify(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = json_object();
+
+    json_object_set_new(jn_data, "max_user_instances",
+        json_integer(read_sysctl_long("/proc/sys/fs/inotify/max_user_instances")));
+    json_object_set_new(jn_data, "max_user_watches",
+        json_integer(read_sysctl_long("/proc/sys/fs/inotify/max_user_watches")));
+    json_object_set_new(jn_data, "max_queued_events",
+        json_integer(read_sysctl_long("/proc/sys/fs/inotify/max_queued_events")));
+
+    int self_instances = 0;
+    int self_watches = 0;
+    if(get_inotify_self_usage(&self_instances, &self_watches) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "get_inotify_self_usage() FAILED",
+            NULL
+        );
+    }
+
+    json_t *jn_self = json_object();
+    json_object_set_new(jn_self, "instances", json_integer(self_instances));
+    json_object_set_new(jn_self, "watches", json_integer(self_watches));
+    json_object_set_new(jn_data, "self", jn_self);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf("%s: inotify instances=%d watches=%d (max_user_instances=%ld)",
+            gobj_yuno_role_plus_name(),
+            self_instances,
+            self_watches,
+            read_sysctl_long("/proc/sys/fs/inotify/max_user_instances")
+        ),
         0,
         jn_data
     );

@@ -7016,6 +7016,85 @@ PUBLIC int print_open_fds(const char *fmt, ...)
 }
 
 /***************************************************************************
+ *  Count the active inotify watches held by one inotify instance,
+ *  reading /proc/self/fdinfo/<fd> and counting "inotify wd:" lines.
+ ***************************************************************************/
+PRIVATE int count_inotify_watches(const char *fd_name)
+{
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), "/proc/self/fdinfo", fd_name, NULL);
+
+    FILE *file = fopen(path, "r");
+    if(!file) {
+        return 0;
+    }
+    int watches = 0;
+    char line[256];
+    while(fgets(line, sizeof(line), file)) {
+        if(strncmp(line, "inotify wd:", 11) == 0) {
+            watches++;
+        }
+    }
+    fclose(file);
+    return watches;
+}
+
+/***************************************************************************
+ *  This process's own inotify usage: number of inotify instances (fds
+ *  linking to "anon_inode:inotify" under /proc/self/fd) and the total
+ *  number of watches across them.
+ *
+ *  There is no kernel API for the per-UID counters (they only surface as
+ *  EMFILE on exhaustion), so this reports THIS process only.
+ *
+ *  Returns 0 on success, -1 if /proc/self/fd cannot be read.
+ ***************************************************************************/
+PUBLIC int get_inotify_self_usage(int *instances, int *watches)
+{
+    if(instances) {
+        *instances = 0;
+    }
+    if(watches) {
+        *watches = 0;
+    }
+#ifdef __linux__
+    DIR *dir = opendir("/proc/self/fd");
+    if(!dir) {
+        return -1;
+    }
+
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
+        char link_path[PATH_MAX];
+        build_path(link_path, sizeof(link_path), "/proc/self/fd", entry->d_name, NULL);
+
+        char target[64] = {0};
+        ssize_t len = readlink(link_path, target, sizeof(target) - 1);
+        if(len <= 0) {
+            continue;
+        }
+        target[len] = 0;
+        if(strcmp(target, "anon_inode:inotify") == 0) {
+            if(instances) {
+                (*instances)++;
+            }
+            if(watches) {
+                *watches += count_inotify_watches(entry->d_name);
+            }
+        }
+    }
+    closedir(dir);
+
+    return 0;
+#else
+    return -1;
+#endif
+}
+
+/***************************************************************************
  * Static NSS replacements for CONFIG_FULLY_STATIC builds.
  * Read /etc/passwd and /etc/group directly — no dlopen/NSS needed.
  ***************************************************************************/
