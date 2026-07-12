@@ -1256,7 +1256,7 @@ PUBLIC uint64_t tranger2_topic_key_size(
         return 0;
     }
     if(empty_string(key)) {
-        return tranger2_topic_size(gobj, topic_name);
+        return tranger2_topic_size(tranger, topic_name);
 
     } else {
         return get_topic_key_rows(gobj, topic, key);
@@ -3917,7 +3917,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
                 const char *creator_ = json_string_value(
                     json_object_get(list, "creator")
                 );
-                if(empty_string(creator) && empty_string(creator)) {
+                if(empty_string(creator) && empty_string(creator_)) {
                     return list;
                 }
                 if(strcmp(creator, creator_)==0) {
@@ -4227,7 +4227,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
                 const char *creator_ = json_string_value(
                     json_object_get(disk, "creator")
                 );
-                if(empty_string(creator) && empty_string(creator)) {
+                if(empty_string(creator) && empty_string(creator_)) {
                     return disk;
                 }
                 if(strcmp(creator, creator_)==0) {

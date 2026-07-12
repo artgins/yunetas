@@ -198,6 +198,22 @@ static const json_desc_t topic_json_desc[] = {
 {0}
 };
 
+/*
+   Startup a TimeRanger2 database and return its in-memory handle.
+   Builds `directory` from `path` (+`database`), then loads (or, if master,
+   creates) the on-disk `__timeranger2__.json` metadata.
+
+   `jn_tranger` is owned (consumed here, even on error); see tranger2_json_desc
+   for its fields (`path` required; if `database` is empty it is taken from the
+   last path segment).
+
+   HACK master fallback: if `master` is requested but the exclusive lock fails,
+   the handle silently downgrades to non-master (`"master": false`).
+
+   Return: the tranger handle — it is YOURS, release it with tranger2_shutdown().
+   NULL on error (empty path/database, metadata file missing on a non-master, or
+   the metadata file cannot be opened).
+*/
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
     json_t *jn_tranger, // owned, See tranger2_json_desc for parameters
@@ -205,14 +221,17 @@ PUBLIC json_t *tranger2_startup(
 );
 
 /*
-   Close TimeRanger database
-   Close topics and file's fd
+   Close a TimeRanger database: close every opened topic and every opened file
+   descriptor, and mark the handle `__closed__`. Memory is deliberately RETAINED
+   (not freed) so pending yev_loop events can still drain; tranger2_shutdown()
+   frees it. `tranger` is borrowed. Always returns 0.
 */
 PUBLIC int tranger2_stop(json_t *tranger);
 
 /*
-   Shutdown TimeRanger database
-   Free memory
+   Shutdown a TimeRanger database: run tranger2_stop() first if it was not already
+   stopped (safe to call after an explicit stop), then FREE the handle.
+   `tranger` is owned (consumed/decref'd here). Always returns 0.
 */
 PUBLIC int tranger2_shutdown(json_t *tranger);
 
@@ -223,16 +242,28 @@ PUBLIC int tranger2_shutdown(json_t *tranger);
 PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
 /*
-   Create topic if not exist. Alias create table.
+   Create a topic if it does not exist (alias: create table), then open and
+   return it.
 
-       HACK IDEMPOTENT function
+       HACK IDEMPOTENT: if the topic already exists it is just opened; the
+       creation branch is skipped.
 
-   if key type is not specified, then it will be:
-        if pkey defined:
-            sf_string_key
-        else
-            sf_int_key;
+   Creation is MASTER-ONLY: on a non-master, if the topic directory is absent the
+   call fails. On the master it writes topic_desc.json / topic_cols.json /
+   topic_var.json plus the keys/ and disks/ subdirs. If `jn_var`'s topic_version
+   is greater than the on-disk one, topic_cols.json / topic_var.json are removed
+   and regenerated.
 
+   Key type: if `system_flag` carries no key-type bit it defaults to
+        sf_string_key   if pkey is defined
+        sf_int_key      otherwise
+
+   `jn_topic_ext`, `jn_cols` and `jn_var` are all owned (consumed here, even on
+   every error path).
+
+   Return: the topic — NOT YOURS (it lives inside tranger["topics"]). NULL on
+   error (empty topic_name, directory missing on a non-master, empty pkey, or no
+   resolvable key type).
 */
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
@@ -246,8 +277,14 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
 );
 
 /*
-   Open topic
-   HACK IDEMPOTENT function, always return the same json_t topic
+   Open a topic from disk into memory: load its desc/var/cols, build the in-memory
+   key cache, register it under tranger["topics"], and (master + yev_loop) start
+   the inotify watcher on its disks/ directory.
+   HACK IDEMPOTENT: if already opened, the SAME json_t topic is returned without
+   reloading.
+   `verbose` TRUE logs an error when the topic directory does not exist.
+   Return: the topic — NOT YOURS (owned by tranger["topics"]). NULL on empty name
+   or a non-existent topic directory.
 */
 PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
@@ -256,9 +293,12 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
 );
 
 /*
-   Get topic by his topic_name.
-   Topic is opened if it's not opened.
-   HACK topic can exist in disk, but it's not opened until tranger_open_topic()
+   Get an opened topic by its topic_name, lazily opening it (with verbose=FALSE)
+   if not yet in memory.
+   HACK a topic can exist on disk but is not opened until tranger2_open_topic().
+   Return: the topic — NOT YOURS. NULL if it cannot be opened, and in that case
+   an ERROR is logged (callers that expect a possible miss, e.g. delete_topic,
+   probe with access() first to avoid the log).
 */
 PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
@@ -266,7 +306,9 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 );
 
 /*
-   Return in bf the path of topic
+   Write "<tranger directory>/<topic_name>" into the caller buffer `bf`.
+   Pure string build: it does NOT validate that the topic exists on disk or in
+   memory. Always returns 0.
 */
 PUBLIC int tranger2_topic_path(
     char *bf,
@@ -276,21 +318,30 @@ PUBLIC int tranger2_topic_path(
 );
 
 /*
-   Return a list of topic names
+   Return an array of the names (strings) of the topics currently OPENED in memory
+   (from tranger["topics"]) — not a disk scan. Compare tranger2_list_topic_names(),
+   which scans the database directory on disk.
+   Return is yours; never NULL (empty array when no topic is opened).
 */
 PUBLIC json_t *tranger2_list_topics( // return is yours
     json_t *tranger
 );
 
 /*
-   Return a list of topic names found in the tranger database directory on disk
+   Return an array of names (strings) of every subdirectory found in the tranger
+   database directory on disk — each subdir is treated as a topic. Disk scan on
+   every call (no caching); any subdirectory counts (not validated as a real
+   topic); order is filesystem-dependent.
+   Return is yours; never NULL (empty array if the directory cannot be opened).
 */
 PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in disk, not in memory
     json_t *tranger
 );
 
 /*
-   Return list of keys of the topic
+   Return an array of the key names (strings) of a topic, read from its in-memory
+   `cache`. Return is yours; never NULL — a missing topic yields an EMPTY array.
+   Slow for thousands of keys (O(n), allocates a string per key).
 */
 PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousands of keys!
     json_t *tranger,
@@ -298,7 +349,10 @@ PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousa
 );
 
 /*
-   Get topic size (number of records of all keys)
+   Get the topic size (total record count across all keys), summed from the
+   in-memory cache counters (not a live disk count). Returns 0 if the topic is
+   not found (ambiguous with a genuinely empty topic). Slow for thousands of keys
+   (iterates every key).
 */
 PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
     json_t *tranger,
@@ -306,7 +360,9 @@ PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
 );
 
 /*
-   Get key size (number of records of key)
+   Get the record count of one `key` of a topic (from the in-memory cache
+   counter). If `key` is empty it falls back to tranger2_topic_size() (the whole
+   topic). Returns 0 if the topic is not found.
 */
 PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,
@@ -315,14 +371,19 @@ PUBLIC uint64_t tranger2_topic_key_size(
 );
 
 /*
-   Return topic name of topic.
+   Return the topic_name string stored in a topic object. Takes the TOPIC object
+   (not tranger + name). The returned pointer is borrowed (owned by the topic
+   json; valid while the topic lives) — do not free it. "" if absent.
 */
 PUBLIC const char *tranger2_topic_name(
     json_t *topic
 );
 
 /*
-   Close record topic.
+   Close an OPENED topic: close its fds, stop the master disk watcher, drop all
+   its lists/iterators, and remove it from tranger["topics"] (frees the topic
+   memory). Affects memory only — does NOT touch disk. Returns -1 (with an error
+   log) if the topic was never opened, else 0.
 */
 PUBLIC int tranger2_close_topic(
     json_t *tranger,
@@ -330,7 +391,11 @@ PUBLIC int tranger2_close_topic(
 );
 
 /*
-   Delete topic. Alias delete table.
+   Delete a topic (alias: delete table): close it in memory, then rmrdir its
+   directory tree from disk — irrecoverable.
+   Returns 0 as a no-op if the directory does not exist (supports pre-creation
+   cleanup). Returns -1 if the topic cannot be opened or is a system_topic
+   (system topics are refused). Otherwise returns the rmrdir() result.
 */
 PUBLIC int tranger2_delete_topic(
     json_t *tranger,
@@ -362,7 +427,11 @@ PUBLIC json_t *tranger2_backup_topic(
 );
 
 /*
-   Write topic var
+   Write topic vars. MASTER-ONLY. MERGES `jn_topic_var` into the existing
+   topic_var.json (update, not replace) and persists it; the in-memory topic is
+   updated too, except the immutable desc fields. `jn_topic_var` is owned
+   (consumed, even on error). Returns 0, or -1 if it is NULL/not a dict or the
+   handle is not master.
 */
 PUBLIC int tranger2_write_topic_var(
     json_t *tranger,
@@ -371,7 +440,12 @@ PUBLIC int tranger2_write_topic_var(
 );
 
 /*
-   Write topic cols
+   Write topic cols. MASTER-ONLY. REPLACES the topic's cols WHOLESALE — both the
+   in-memory topic["cols"] and topic_cols.json (not a merge). `jn_cols` (a dict or
+   a list) is owned (consumed, even on error). Returns 0, or -1 if it is NULL/not
+   dict|list or the handle is not master.
+   NOTE: a cols change must bump the topic's topic_version (and schema_version for
+   structural changes) or the persisted topic_cols.json masks the new schema.
 */
 PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
@@ -379,25 +453,43 @@ PUBLIC int tranger2_write_topic_cols(
     json_t *jn_cols  // owned
 );
 
+/*
+   Return a fresh descriptor dict of a topic: {topic_name, pkey, tkey,
+   system_flag, topic_version, cols} where `cols` is the columns as a LIST.
+   Return MUST be decref'd. NULL if the topic cannot be opened (error logged).
+*/
 PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 );
 
+/*
+   Return a topic's columns as a LIST (array). Return MUST be decref'd. NULL if
+   the topic cannot be opened. (old tranger_list_topic_desc())
+*/
 PUBLIC json_t *tranger2_list_topic_desc_cols( // Return MUST be decref, old tranger_list_topic_desc()
     json_t *tranger,
     const char *topic_name
 );
 
+/*
+   Return a topic's columns as a DICT keyed by column id. Return MUST be decref'd.
+   NULL if the topic cannot be opened. (old tranger_dict_topic_desc())
+*/
 PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old tranger_dict_topic_desc()
     json_t *tranger,
     const char *topic_name
 );
 
 /*
-    Append a new item to record.
-    The 'pkey' and 'tkey' are getting according to the topic schema.
-    Return the new record's metadata.
+    Append a new record to a topic. The primary key (`pkey`) and time key (`tkey`)
+    are extracted from `jn_record` per the topic schema. MASTER-ONLY.
+    If `__t__` is 0 the time is set to now (milliseconds if the topic is sf_t_ms,
+    else seconds). The new record's metadata is returned through the required
+    `md_record_ex` out-param (NOT the return value). `jn_record` is owned
+    (consumed, even on error).
+    Return: 0 on success, -1 on error (record NULL, not master, topic not found,
+    missing/oversized pkey, or an unsafe key that would escape keys/).
 */
 PUBLIC int tranger2_append_record(
     json_t *tranger,
@@ -633,7 +725,9 @@ PUBLIC json_t *tranger2_open_iterator(
 );
 
 /*
-    Close iterator
+    Close an iterator: close any rt_mem/rt_disk feed attached to it, then remove
+    it from the topic's iterators list. Returns -1 (error logged) if `iterator`
+    is NULL or not found in the topic, else 0.
 */
 PUBLIC int tranger2_close_iterator(
     json_t *tranger,
@@ -641,7 +735,9 @@ PUBLIC int tranger2_close_iterator(
 );
 
 /*
-    Get iterator by his id
+    Get an open iterator by its id (optionally filtered by creator). Returns the
+    iterator — NOT YOURS (borrowed, owned by the topic). NULL if none matches or
+    `id` is empty. Stays silent on a miss (only the empty-id case is logged).
 */
 PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
     json_t *tranger,
@@ -651,7 +747,8 @@ PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
 );
 
 /*
-    Get Iterator size (nº of rows)
+    Get the iterator size: the total number of rows, summed across its segments.
+    0 if the iterator has no segments.
 */
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
@@ -674,8 +771,15 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
 
 /*
-    Open realtime by mem, valid when the yuno is the master writing,
-    realtime messages from append_message()
+    Open a realtime-by-memory feed — valid on the MASTER that writes the topic;
+    `load_record_callback` fires on each append (from tranger2_append_record()).
+    `key` empty means all keys, else only that key. `load_record_callback` is
+    REQUIRED. `list_id` is optional (defaults to the handle pointer). `match_cond`
+    and `extra` are owned (consumed, even on error); `extra`'s fields are merged
+    into the handle without overwriting the reserved ones.
+    Return: the rt_mem handle — NOT YOURS (owned by the topic; close with
+    tranger2_close_rt_mem()). NULL if the topic is missing, the callback is NULL,
+    or a feed with the same id already exists.
 */
 PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
@@ -689,7 +793,8 @@ PUBLIC json_t *tranger2_open_rt_mem(
 );
 
 /*
-    Close realtime mem
+    Close a realtime-by-memory feed and remove it from the topic. Returns -1 if
+    `mem` is NULL, else 0.
 */
 PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
@@ -697,7 +802,9 @@ PUBLIC int tranger2_close_rt_mem(
 );
 
 /*
-    Get mem by his id
+    Get an open rt_mem feed by its id (optionally filtered by creator). Returns the
+    handle — NOT YOURS (borrowed). NULL if none matches or `id` is empty (only the
+    empty-id case is logged).
 */
 PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     json_t *tranger,
@@ -707,8 +814,14 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
 );
 
 /*
-    Open realtime by disk, valid when the yuno is the master writing or not-master reading,
-    realtime messages from events of disk
+    Open a realtime-by-disk feed — valid on the master writing OR a non-master
+    reading; `load_record_callback` fires on disk-change events. `key` empty means
+    all keys, else only that key. `load_record_callback` is REQUIRED and `rt_id`
+    is REQUIRED (unlike rt_mem). `match_cond` and `extra` are owned (consumed, even
+    on error). Creates the realtime disk directory and its inotify monitor.
+    Return: the rt_disk handle — NOT YOURS (owned by the topic; close with
+    tranger2_close_rt_disk()). NULL if the topic is missing, the callback is NULL,
+    `rt_id` is empty, or a feed with the same id already exists.
 */
 PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
@@ -722,7 +835,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
 );
 
 /*
-    Close realtime disk
+    Close a realtime-by-disk feed: stop its inotify monitor and remove it from the
+    topic. Returns -1 if `disk` is NULL, else 0.
 */
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
@@ -730,7 +844,9 @@ PUBLIC int tranger2_close_rt_disk(
 );
 
 /*
-    Get disk by his id
+    Get an open rt_disk feed by its id (optionally filtered by creator). Returns
+    the handle — NOT YOURS (borrowed). NULL if none matches or `id` is empty (only
+    the empty-id case is logged).
 */
 PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     json_t *tranger,
@@ -792,7 +908,9 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
 );
 
 /*
-    Close list (rt_mem or rt_disk or no_rt)
+    Close a list opened with tranger2_open_list(), dispatching by its "list_type":
+    rt_mem -> tranger2_close_rt_mem, rt_disk -> tranger2_close_rt_disk, no_rt ->
+    just decref the handle. Returns -1 (error logged) on an unknown list_type.
 */
 PUBLIC int tranger2_close_list(
     json_t *tranger,
@@ -800,18 +918,28 @@ PUBLIC int tranger2_close_list(
 );
 
 /*
-    Close all, iterators, disk or mem lists belongs to creator
+    Close the iterators, rt_mem and rt_disk lists of a topic that belong to
+    `creator`. An empty `creator` removes ALL of them; a non-empty `creator` with
+    an empty `rt_id` removes all of that creator's; both set narrows to one id.
+    No-op (returns 0) if the topic is not opened.
+    (Parameter order is (creator, rt_id) — matches the implementation and all
+    callers; the previous header listed them swapped.)
 */
 PUBLIC int tranger2_close_all_lists(
     json_t *tranger,
     const char *topic_name,
-    const char *rt_id,      // if empty, remove all lists of creator
-    const char *creator     // if empty, remove all
+    const char *creator,    // if empty, remove all
+    const char *rt_id       // if empty, remove all lists of creator
 );
 
 /*
- *  Read content, useful when you load only md and want recover the content
- *  Load the (JSON) message pointed by metadata (md_record_ex)
+ *  Read a record's content: load the JSON message pointed to by `md_record_ex`
+ *  (offset/size/__t__), for the case where only the metadata was loaded. Takes
+ *  the TOPIC object (not tranger + name). The returned record has its
+ *  "__md_tranger__" metadata attached; return is yours (decref it). NULL if
+ *  topic/key/md_record_ex are missing or the payload cannot be read.
+ *  NOTE: this returns the row even if its sf_deleted_instance tombstone is set —
+ *  the skip only applies to iteration (see tranger2_delete_instance).
  */
 PUBLIC json_t *tranger2_read_record_content( // return is yours
     json_t *tranger,
@@ -821,10 +949,13 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
 );
 
 /*
- *  print_md0_record: Print rowid, t, tm, key
- *  print_md1_record: Print rowid, uflag, sflag, t, tm, key
- *  print_md2_record: print rowid, offset, size, t, path
- *  print_record_filename: Print path
+ *  Format record metadata into caller buffer `bf` (bfsize):
+ *    print_md0_record:      rowid, t, tm, key
+ *    print_md1_record:      rowid, uflag, sflag, t, tm, key
+ *    print_md2_record:      rowid, offset, size, t, path
+ *    print_record_filename: the data-file path
+ *  `print_local_time` selects local vs UTC for the t/tm timestamps
+ *  (md0/md1 only; md2 and print_record_filename ignore it).
  */
 PUBLIC void tranger2_print_md0_record(
     char *bf,
@@ -862,6 +993,10 @@ PUBLIC void tranger2_print_record_filename(
     BOOL print_local_time
 );
 
+/*
+   Set the tranger trace_level (stored on the handle; controls internal FS/dump
+   tracing).
+*/
 PUBLIC void tranger2_set_trace_level(
     json_t *tranger,
     int trace_level
