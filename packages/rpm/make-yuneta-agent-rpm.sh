@@ -308,6 +308,10 @@ kernel.core_pattern = /var/crash/core.%e
 fs.file-max = 4000000
 fs.nr_open  = 4000000
 
+# Each tranger2 rt_disk follower (a non-master reader of a topic) uses one
+# inotify instance; the 128 default is too low for a node running many yunos.
+fs.inotify.max_user_instances = 1024
+
 # Yuneta's event loop (yev_loop) is io_uring-based. RHEL/Rocky/Alma 9 ship
 # kernel.io_uring_disabled=2 (fully disabled, a hardening default), which
 # makes every yuno abort at startup. Re-enable it for all processes.
