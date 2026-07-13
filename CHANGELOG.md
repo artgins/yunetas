@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): the cache totals of a key stored a timestamp with the
+      metadata flags baked into it.** In an on-disk `md2_record_t` the 16 high
+      bits of `__t__` carry the `user_flag` and those of `__tm__` the
+      `system_flag`. The disk-load path masks them off; the APPEND path did not,
+      and fed the raw record to `update_cache_cell()` — so on the master, a key's
+      cached `fr_t`/`to_t`/`fr_tm`/`to_tm` were poisoned by the flag bits (a `tm`
+      of 946684800 was cached as 17593132729216). This was not cosmetic:
+      `get_segments()` chooses which `.md2` files to read by comparing against
+      those very ranges, so **file selection by time was wrong for any record
+      carrying a non-zero user_flag or system_flag** (treedb tagged records,
+      queue pending flags). `update_cache_cell()` now reads the times through the
+      `get_time_t()` / `get_time_tm()` accessors. `test_topic_pkey_integer`'s foto
+      had the defect baked in — it held BOTH forms of the same value (polluted in
+      the in-memory cache, clean after a reload) and has been repointed.
+
+    - **feat(timeranger2): a filtered paging iterator now honors its
+      `match_cond` per RECORD (row index).** `get_segments()` can only reason
+      about whole files, and `tranger2_iterator_get_page()` ignored the
+      iterator's conditions entirely (it built its own `match_cond` with just
+      `from_rowid`/`to_rowid` and reported the FULL key row count), so the
+      time / rowid / user_flag conditions of `open-iterator` were only applied at
+      file granularity: a 4-record key filtered down to 2 still reported 4 and
+      its page returned all 4. An iterator that filters now builds its row
+      **index** when it opens (`tranger2_match_metadata` over each record's
+      32-byte metadata, no content read): `tranger2_iterator_size()`, `pages` and
+      the pages themselves count only matching records, and `get_page`'s
+      `from_rowid` is a position among THOSE rows. An unfiltered iterator builds
+      no index — its open stays O(1) on the key size and its positions remain the
+      global rowids. A dead row (`tranger2_delete_instance`) never enters the
+      index, so a filtered iterator's count no longer over-reports it.
+
+    - **feat(c_tranger): `list-keys` reports each key's time span, and `topics
+      expanded=1` its topic descs.** `list-keys` now returns `fr_t`/`to_t` and
+      `fr_tm`/`to_tm` alongside `records`, so a client can bound a time picker to
+      what the key actually holds without reading a record;
+      `topics expanded=1` returns a desc per topic (`topic_name`, `system_flag`,
+      `pkey`, `tkey`) — `system_flag` is the only thing that says whether the
+      topic's `t`/`tm` are seconds or milliseconds. Both are additive: the
+      default `topics` answer (an array of names) is unchanged. New public
+      `tranger2_topic_key_range()`.
+
     - **fix(timeranger2): `get-page` reported "0 pages" for an out-of-range page.**
       `pages` is a property of the KEY and the requested page size, not of the
       particular answer: a page past the end has no data, but the key still has

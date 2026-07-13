@@ -29,12 +29,25 @@ command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic
 command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
 command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
 
+list-keys returns, per key, its record count AND its time span taken from the
+topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}. A client can
+therefore bound a time picker to what the key actually holds, without reading
+one single record.
+
 open-iterator also accepts metadata match conditions that pre-filter the index
 (0/empty = unset): from_t/to_t, from_tm/to_tm, from_rowid/to_rowid and the
 user_flag conditions (user_flag, not_user_flag, user_flag_mask_set,
 user_flag_mask_notset). total_rows/pagination then reflect the filtered set:
 
 command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1 from_rowid=100 to_rowid=200
+command-yuno id=1911 service=tranger command=open-iterator iterator_id=it2 topic_name=pp key=1 from_t=1731601280 to_tm=1731698630
+
+`t` is the PERSISTENCE time (when the record was appended) and `tm` the MESSAGE
+time (when the event it carries happened): they are two independent axes, and
+the two ranges combine. Both are expressed in the TOPIC's own unit: seconds, or
+milliseconds when the topic sets sf_t_ms / sf_tm_ms. `topics expanded=1` returns
+each topic's system_flag, pkey and tkey, so a client can tell which unit it must
+use before asking for anything else.
 
 Realtime feed (streams new appends as EV_TRANGER_RECORD_ADDED to subscribers):
 
@@ -143,6 +156,12 @@ SDATAPM (DTP_INTEGER,   "max_refcount",   0,              0,          "Maximum r
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_topics[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_BOOLEAN,   "expanded",     0,              0,          "Return a dict per topic (topic_name, system_flag, pkey, tkey) instead of just its name"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t pm_desc[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
@@ -229,10 +248,10 @@ SDATAPM (DTP_STRING,    "iterator_id",          0,          0,      "Id of itera
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "Key to iterate (required)"),
 SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "Iterate backward"),
-SDATAPM (DTP_INTEGER,   "from_t",               0,          0,      "match_cond: from time (t, epoch seconds; 0=unbounded)"),
-SDATAPM (DTP_INTEGER,   "to_t",                 0,          0,      "match_cond: to time (t, epoch seconds; 0=unbounded)"),
-SDATAPM (DTP_INTEGER,   "from_tm",              0,          0,      "match_cond: from msg time (tm, epoch ms; 0=unbounded)"),
-SDATAPM (DTP_INTEGER,   "to_tm",                0,          0,      "match_cond: to msg time (tm, epoch ms; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "from_t",               0,          0,      "match_cond: from persistence time (t, topic unit; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "to_t",                 0,          0,      "match_cond: to persistence time (t, topic unit; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "from_tm",              0,          0,      "match_cond: from message time (tm, topic unit; 0=unbounded)"),
+SDATAPM (DTP_INTEGER,   "to_tm",                0,          0,      "match_cond: to message time (tm, topic unit; 0=unbounded)"),
 SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond: first rowid (1-based; negative=from end; 0=unbounded)"),
 SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond: last rowid (negative=from end; 0=unbounded)"),
 SDATAPM (DTP_INTEGER,   "user_flag",            0,          0,      "match_cond: exact user_flag"),
@@ -281,7 +300,7 @@ SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs, 
 /*-CMD2---type----------name----------------flag------------alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "print-tranger",    SDF_AUTHZ_X,    0,      pm_print_tranger,   cmd_print_tranger,  "Print tranger"),
 SDATACM2 (DTP_SCHEMA,   "check-json",       0,              0,      pm_check_json,      cmd_check_json, "Check json refcounts"),
-SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      0,                  cmd_topics,         "List topics"),
+SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      pm_topics,          cmd_topics,         "List topics: names, or with expanded=1 a dict per topic (system_flag tells the time unit of t/tm)"),
 SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
 SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
@@ -293,7 +312,7 @@ SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_lis
 SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
 SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
 
-SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys,       cmd_list_keys,      "List the keys of a topic with their record counts"),
+SDATACM2 (DTP_SCHEMA,   "list-keys",        SDF_AUTHZ_X,    0,      pm_list_keys,       cmd_list_keys,      "List the keys of a topic with their record counts and their time span (fr_t/to_t, fr_tm/to_tm)"),
 SDATACM2 (DTP_SCHEMA,   "open-iterator",    SDF_AUTHZ_X,    0,      pm_open_iterator,   cmd_open_iterator,  "Open a stateful per-key iterator (index only, no upfront load) for cursor pagination; close with close-iterator"),
 SDATACM2 (DTP_SCHEMA,   "get-page",         SDF_AUTHZ_X,    0,      pm_get_page,        cmd_get_page,       "Get a page of records from an open iterator: data is {total_rows, pages, data}"),
 SDATACM2 (DTP_SCHEMA,   "close-iterator",   SDF_AUTHZ_X,    0,      pm_close_iterator,  cmd_close_iterator, "Close an iterator opened with open-iterator"),
@@ -872,6 +891,8 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
+    BOOL expanded = kw_get_bool(gobj, kw, "expanded", 0, KW_WILD_NUMBER);
+
     json_t *topics = kw_get_dict(gobj, priv->tranger, "topics", 0, KW_REQUIRED);
     json_t *topic_list = json_array();
 
@@ -880,7 +901,21 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         if(!json_is_object(topic)) {
             continue;
         }
-        json_array_append_new(topic_list, json_string(topic_name));
+        if(!expanded) {
+            json_array_append_new(topic_list, json_string(topic_name));
+            continue;
+        }
+
+        /*
+         *  Expanded: the topic desc (topic_name, pkey, tkey, system_flag,
+         *  topic_version). Above all system_flag, which says whether t/tm
+         *  are seconds or milliseconds (sf_t_ms / sf_tm_ms).
+         */
+        json_t *desc = tranger2_topic_desc(priv->tranger, topic_name);
+        if(!desc) {
+            continue;   // Error already logged
+        }
+        json_array_append_new(topic_list, desc);
     }
 
     return msg_iev_build_response(gobj,
@@ -1495,10 +1530,29 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = json_string_value(jn_key);
         uint64_t size = tranger2_topic_key_size(priv->tranger, topic_name, key);
-        json_array_append_new(jn_data, json_pack("{s:s, s:I}",
+        json_t *jn_row = json_pack("{s:s, s:I}",
             "key", key?key:"",
             "records", (json_int_t)size
-        ));
+        );
+
+        /*
+         *  The key's time span, straight from the cache totals: it lets a
+         *  client bound a time picker to what the key really holds without
+         *  reading a single record. Both axes (t: persistence, tm: message)
+         *  in the topic's own unit.
+         */
+        json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
+        static const char *range_keys[] = {"fr_t", "to_t", "fr_tm", "to_tm", NULL};
+        for(int i = 0; range_keys[i] != NULL; i++) {
+            json_int_t v = 0;   // 0 = span unknown (key with no cache totals yet)
+            if(range) {
+                v = (json_int_t)kw_get_int(gobj, range, range_keys[i], 0, 0);
+            }
+            json_object_set_new(jn_row, range_keys[i], json_integer(v));
+        }
+        JSON_DECREF(range)
+
+        json_array_append_new(jn_data, jn_row);
     }
     JSON_DECREF(jn_keys)
 
@@ -1590,10 +1644,11 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     /*
      *  Base match_cond + the optional metadata conditions actually
-     *  supplied (0/empty = unset). Every key here is honored by
-     *  tranger2_match_metadata when the page index is built, so the
-     *  iterator's total_rows and pagination already reflect them.
-     *  (Record-field filters are NOT indexable this way — those stay
+     *  supplied (0/empty = unset). Every key here is honored per RECORD:
+     *  a filtered iterator builds its row index at open, so total_rows,
+     *  `pages` and the pages themselves count only matching records, and
+     *  get-page's from_rowid is a position among them (not a global rowid).
+     *  (Record-FIELD filters are not indexable this way — those stay
      *  client-side in the SPA.)
      */
     json_t *match_cond = json_pack("{s:b}", "backward", backward);

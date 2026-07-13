@@ -3,7 +3,10 @@
  *
  *  Regression coverage for tranger2_delete_instance:
  *      - do_test_history_skip:  history iterator skips dead rows (cold reload too).
- *      - do_test_paged_skip:    iterator_get_page skips dead rows, total_rows over-reports (contract).
+ *      - do_test_paged_skip:    iterator_get_page skips dead rows; a FILTERED
+ *                               iterator (one with a match_cond) indexes only
+ *                               the live rows, so total_rows agrees with what
+ *                               the pages return.
  *      - do_test_zero_payload:  __size__ bytes at __offset__ are zeroed when opt-in.
  *      - do_test_idempotent:    second delete of the same instance is a no-op (0, no log error).
  *      - do_test_non_master:    non-master callers are refused with a logged error.
@@ -339,7 +342,7 @@ PRIVATE int do_test_paged_skip(void)
      *  Open iterator and page
      *-------------------------------------*/
     set_expected_results(
-        "paged: get_page skips dead row, total_rows over-reports",
+        "paged: get_page skips dead row, total_rows counts the live ones",
         NULL, NULL, NULL, 1
     );
 
@@ -367,8 +370,15 @@ PRIVATE int do_test_paged_skip(void)
             On_Red BWhite, Color_Off, data_len);
         result += -1;
     }
-    if(total_rows != 3) {
-        printf("%sERROR%s --> paged: expected total_rows=3 (slot count), got %lld\n",
+    /*
+     *  `from_rowid` is a condition, so this iterator is FILTERED and builds
+     *  its row index: the index holds only rows that survive the metadata
+     *  match, and a deleted instance never enters it. total_rows therefore
+     *  counts the rows the pages actually return (2), instead of the old
+     *  slot count (3) that promised a record the page then skipped.
+     */
+    if(total_rows != 2) {
+        printf("%sERROR%s --> paged: expected total_rows=2 (live rows), got %lld\n",
             On_Red BWhite, Color_Off, (long long)total_rows);
         result += -1;
     }

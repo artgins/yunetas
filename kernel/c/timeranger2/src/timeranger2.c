@@ -215,6 +215,17 @@ PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key
 PRIVATE json_t *get_cache_files(json_t *topic, const char *key);
 PRIVATE json_t *get_cache_total(json_t *topic, const char *key);
 
+PRIVATE BOOL match_cond_selects_records(json_t *match_cond);
+PRIVATE json_t *build_iterator_index(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *segments,
+    json_t *match_cond
+);
+PRIVATE json_t *segment_of_rowid(json_t *segments, json_int_t rowid);
+
 PRIVATE json_t *get_segments(
     hgobj gobj,
     json_t *tranger,
@@ -1261,6 +1272,28 @@ PUBLIC uint64_t tranger2_topic_key_size(
     } else {
         return get_topic_key_rows(gobj, topic, key);
     }
+}
+
+/***************************************************************************
+   Get the time span of a key: a copy of its cache totals
+   {fr_t, to_t, fr_tm, to_tm, rows}, in the topic's own time unit.
+ ***************************************************************************/
+PUBLIC json_t *tranger2_topic_key_range( // return is yours
+    json_t *tranger,
+    const char *topic_name,
+    const char *key
+)
+{
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        return NULL;    // Error already logged
+    }
+    json_t *cache_total = get_cache_total(topic, key);
+    if(!cache_total) {
+        return NULL;    // Unknown key: silent, it's a legitimate question
+    }
+
+    return json_deep_copy(cache_total);
 }
 
 /***************************************************************************
@@ -5554,18 +5587,31 @@ PRIVATE json_t *update_cache_cell(
         rows -= rows_;
     }
 
-    if(md_record->__t__ < file_from_t) {
-        file_from_t = md_record->__t__;
+    /*
+     *  WARNING the times MUST be read through the accessors: in a
+     *  md2_record_t the 16 high bits of __t__ carry the user_flag and those
+     *  of __tm__ the system_flag (see USER_FLAG_MASK). The disk path arrives
+     *  here already masked (load_first_and_last_record_md), the append path
+     *  does NOT — taking the raw field stored a time with the flags baked in
+     *  (a record with any user_flag or system_flag bit set poisoned the
+     *  cache range, and every range check against it — get_segments' file
+     *  selection included — went wrong).
+     */
+    uint64_t record_t = get_time_t(md_record);
+    uint64_t record_tm = get_time_tm(md_record);
+
+    if(record_t < file_from_t) {
+        file_from_t = record_t;
     }
-    if(md_record->__t__ > file_to_t) {
-        file_to_t = md_record->__t__;
+    if(record_t > file_to_t) {
+        file_to_t = record_t;
     }
 
-    if(md_record->__tm__ < file_from_tm) {
-        file_from_tm = md_record->__tm__;
+    if(record_tm < file_from_tm) {
+        file_from_tm = record_tm;
     }
-    if(md_record->__tm__ > file_to_tm) {
-        file_to_tm = md_record->__tm__;
+    if(record_tm > file_to_tm) {
+        file_to_tm = record_tm;
     }
 
     json_object_set_new(file_cache, "fr_t", json_integer((json_int_t)file_from_t));
@@ -6221,6 +6267,30 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
             }
         }
+    } else if(match_cond_selects_records(match_cond)) {
+        /*-------------------------------------------------------------------*
+         *  PAGING, FILTERED (no callback, no data: the caller will pull
+         *  pages with tranger2_iterator_get_page()).
+         *
+         *  The loading path above matches every record against match_cond as
+         *  it walks; the paging path cannot, so it needs the row index built
+         *  upfront — otherwise its conditions would only be honored at file
+         *  granularity and total_rows/pages would count records the pages
+         *  never return.
+         *-------------------------------------------------------------------*/
+        json_t *index = build_iterator_index(
+            gobj, tranger, topic, key, segments, match_cond
+        );
+        if(!index) {
+            // Error already logged
+            json_array_append_new(
+                kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
+                iterator
+            );
+            tranger2_close_iterator(tranger, iterator);
+            return NULL;
+        }
+        json_object_set_new(iterator, "index", index);
     }
 
     json_array_append_new(
@@ -6343,12 +6413,134 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
 }
 
 /***************************************************************************
+ *  TRUE if match_cond carries a condition that selects RECORDS, not just
+ *  files. get_segments() can only reason about whole files (it compares the
+ *  cache ranges of each .md2 file), so any of these needs a per-record pass
+ *  to be honored exactly.
+ ***************************************************************************/
+PRIVATE BOOL match_cond_selects_records(json_t *match_cond)
+{
+    static const char *cond_keys[] = {
+        "from_rowid", "to_rowid",
+        "from_t", "to_t",
+        "from_tm", "to_tm",
+        "user_flag", "not_user_flag",
+        "user_flag_mask_set", "user_flag_mask_notset",
+        NULL
+    };
+    for(int i = 0; cond_keys[i] != NULL; i++) {
+        if(json_integer_value(json_object_get(match_cond, cond_keys[i])) != 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Build the row INDEX of a paging iterator: the ordered list of the global
+ *  rowids that actually match match_cond.
+ *
+ *  Without it a paged iterator can only filter by FILE: get_segments() drops
+ *  the .md2 files whose cached range cannot intersect the conditions, but
+ *  every record of a surviving file is still "in", and the row count is the
+ *  file's. The index is what makes total_rows, the page count and the page
+ *  contents exact — it applies tranger2_match_metadata() to each record's
+ *  metadata (32 bytes, no record content is read).
+ *
+ *  Only built for iterators that filter (see match_cond_selects_records): an
+ *  unfiltered iterator indexes nothing, keeps its zero-cost open, and its
+ *  page positions ARE the global rowids.
+ *
+ *  Return is owned by the caller. NULL (error already logged) if the metadata
+ *  cannot be read.
+ ***************************************************************************/
+PRIVATE json_t *build_iterator_index(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *segments,
+    json_t *match_cond
+)
+{
+    /*
+     *  Walk FORWARD, always: the segments are in ascending order in both
+     *  directions of get_segments(), and `backward` in match_cond would
+     *  invert the meaning of match_metadata's early-exit flag. Direction is
+     *  a property of the PAGE READ, not of the index.
+     */
+    json_t *forward_cond = json_deep_copy(match_cond);
+    json_object_set_new(forward_cond, "backward", json_false());
+
+    json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+    json_t *index = json_array();
+    md2_record_ex_t md_record_ex;
+    BOOL end = FALSE;
+
+    int idx; json_t *segment;
+    json_array_foreach(segments, idx, segment) {
+        json_int_t first_row = json_integer_value(json_object_get(segment, "first_row"));
+        json_int_t last_row = json_integer_value(json_object_get(segment, "last_row"));
+
+        for(json_int_t rowid = first_row; rowid <= last_row; rowid++) {
+            if(get_md_by_rowid(gobj, tranger, topic, key, segment, rowid, &md_record_ex) < 0) {
+                // Error already logged
+                JSON_DECREF(forward_cond)
+                JSON_DECREF(index)
+                return NULL;
+            }
+            if(is_deleted_instance(&md_record_ex)) {
+                continue;
+            }
+            if(tranger2_match_metadata(forward_cond, total_rows, rowid, &md_record_ex, &end)) {
+                json_array_append_new(index, json_integer(rowid));
+            }
+            if(end) {
+                break;
+            }
+        }
+        if(end) {
+            break;
+        }
+    }
+
+    JSON_DECREF(forward_cond)
+    return index;
+}
+
+/***************************************************************************
+ *  The segment holding a global rowid. NULL (silent) if no segment does —
+ *  the caller decides how loud that is.
+ ***************************************************************************/
+PRIVATE json_t *segment_of_rowid(json_t *segments, json_int_t rowid)
+{
+    int idx; json_t *segment;
+    json_array_foreach(segments, idx, segment) {
+        json_int_t first_row = json_integer_value(json_object_get(segment, "first_row"));
+        json_int_t last_row = json_integer_value(json_object_get(segment, "last_row"));
+        if(rowid >= first_row && rowid <= last_row) {
+            return segment;
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Get Iterator size (nº of rows)
+ *
+ *  A FILTERED iterator answers with its index: the exact number of records
+ *  matching match_cond. An unfiltered one sums its segments, which is the
+ *  same thing when nothing is filtered out.
  ***************************************************************************/
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 )
 {
+    json_t *index = json_object_get(iterator, "index");
+    if(index) {
+        return json_array_size(index);
+    }
+
     size_t rows = 0;
     json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
@@ -6395,6 +6587,68 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED)
     );
     const char *key = json_string_value(json_object_get(iterator, "key"));
+    json_t *segments = json_object_get(iterator, "segments");
+
+    /*
+     *  A FILTERED iterator pages over its INDEX: `from_rowid` is then a
+     *  position among the MATCHING records (1-based), not a global rowid, and
+     *  total_rows/pages count only those. An unfiltered iterator has no index
+     *  and keeps the original meaning (positions ARE global rowids) — nothing
+     *  is filtered out, so the two coincide.
+     */
+    json_t *index = json_object_get(iterator, "index");
+    if(index) {
+        json_int_t indexed_rows = (json_int_t)json_array_size(index);
+        json_int_t indexed_pages = (limit > 0)? (indexed_rows / (json_int_t)limit) : 0;
+        if(limit > 0 && (indexed_rows % (json_int_t)limit) != 0) {
+            indexed_pages++;
+        }
+
+        json_t *data = json_array();
+        if(from_rowid > 0 && from_rowid <= indexed_rows && limit > 0) {
+            md2_record_ex_t md_record_ex;
+            for(size_t i = 0; i < limit; i++) {
+                json_int_t pos = backward
+                    ? (indexed_rows - (from_rowid - 1) - 1 - (json_int_t)i)
+                    : (from_rowid - 1 + (json_int_t)i);
+                if(pos < 0 || pos >= indexed_rows) {
+                    break;
+                }
+                json_int_t rowid = json_integer_value(json_array_get(index, pos));
+                json_t *segment = segment_of_rowid(segments, rowid);
+                if(!segment) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "indexed rowid without segment",
+                        "key",          "%s", key,
+                        "rowid",        "%ld", (long)rowid,
+                        NULL
+                    );
+                    break;
+                }
+                if(get_md_by_rowid(
+                    gobj, tranger, topic, key, segment, rowid, &md_record_ex
+                )<0) {
+                    break;      // Error already logged
+                }
+                const char *file_id = json_string_value(json_object_get(segment, "id"));
+                json_t *record = read_record_content(
+                    tranger, topic, key, file_id, &md_record_ex
+                );
+                if(record) {
+                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex, rowid));
+                    json_array_append_new(data, record);
+                }
+            }
+        }
+
+        return json_pack("{s:I, s:I, s:o}",
+            "total_rows", indexed_rows,
+            "pages", indexed_pages,
+            "data", data
+        );
+    }
 
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
 
@@ -6423,7 +6677,6 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
     json_object_set_new(match_cond, "backward", json_boolean(backward));
 
-    json_t *segments = json_object_get(iterator, "segments");
     json_int_t rowid = 0;
     json_t *cache_total = get_cache_total(topic, key);
     json_int_t cur_segment = first_segment_row(

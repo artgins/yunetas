@@ -236,6 +236,39 @@ json_t *tranger2_open_rt_disk(…);   // non-master realtime (watches hardlinks)
 [`tranger2_open_rt_disk`](#tranger2_open_rt_disk) is the workhorse for **cross-yuno** reads —
 see §4.5.
 
+### 2.6b The two time axes (`t` and `tm`)
+
+Every record carries **two** timestamps, and they are independent:
+
+| Axis | Meaning | Where it comes from |
+|------|---------|---------------------|
+| `t`  | **Persistence** time — when the record was appended | the `__t__` argument of `tranger2_append_record` (now, if 0) |
+| `tm` | **Message** time — when the event it carries happened | the record's **tkey** field (usually `tm`), set by the producer |
+
+They diverge whenever data is backfilled or a device uploads a buffer late.
+Both are in the **topic's** unit: seconds, or **milliseconds** when the topic
+sets `sf_t_ms` / `sf_tm_ms` (read `system_flag` from the topic desc — over the
+wire, `topics expanded=1`).
+
+An iterator's `match_cond` takes a range on each axis (`from_t`/`to_t`,
+`from_tm`/`to_tm`) plus `from_rowid`/`to_rowid` and the `user_flag` conditions,
+and **ANDs** them. Every condition is honored **per record**: a filtered paging
+iterator builds its row **index** when it opens, so `tranger2_iterator_size()`,
+`pages` and the pages themselves count only matching records — and
+`get_page`'s `from_rowid` is then a position among the *matching* rows, not a
+global rowid. An unfiltered iterator builds no index (its open stays cheap
+regardless of key size) and its positions are the global rowids.
+
+`list-keys` reports, per key, `records` plus the key's span on both axes
+(`fr_t`/`to_t`, `fr_tm`/`to_tm`), read from the topic's in-memory cache totals —
+so a client can bound a time picker to what the key actually holds without
+reading a single record.
+
+> **Note (in the md2 record, times carry flags).** On disk the 16 high bits of
+> `__t__` hold the `user_flag` and those of `__tm__` the `system_flag`. Always
+> read them through `get_time_t()` / `get_time_tm()`; taking the raw field
+> yields a timestamp with the flags baked in.
+
 ### 2.7 Master / non-master
 
 [`tranger2_startup`](#tranger2_startup) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive

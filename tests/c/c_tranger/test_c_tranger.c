@@ -4,8 +4,12 @@
  *  Regression coverage for the C_TRANGER cursor-pagination command surface
  *  added on top of the timeranger2 iterator primitives:
  *
- *      - list-keys      -> keys of a topic with their record counts
- *      - open-iterator  -> stateful per-key iterator (index only)
+ *      - topics         -> names, or (expanded=1) a desc per topic
+ *      - list-keys      -> keys of a topic with their record counts + the
+ *                          time span of each key on BOTH axes
+ *      - open-iterator  -> stateful per-key iterator (index only), including
+ *                          the t (persistence) and tm (message) match
+ *                          conditions, which are independent and combine
  *      - get-page       -> {total_rows, pages, data} page of records
  *      - close-iterator -> close + deregister
  *
@@ -33,6 +37,14 @@
 #define KEY_A_ROWS  5
 #define KEY_B       "B"
 #define KEY_B_ROWS  3
+
+/*  key "C" gets 4 records whose two timestamps DIVERGE: t (persistence) at
+ *  BASE_T+j, tm (message time, the record's tkey field) TM_SKEW seconds
+ *  later. A backfill looks like this — and it is the only fixture that can
+ *  tell a from_t filter from a from_tm one.  */
+#define KEY_C       "C"
+#define KEY_C_ROWS  4
+#define TM_SKEW     1000
 
 /***************************************************************
  *              Data
@@ -72,14 +84,33 @@ PRIVATE json_int_t record_rowid(json_t *record)
     return json_integer_value(json_object_get(md, "g_rowid"));
 }
 
-/*  Look up one key's record count in the list-keys data array. -1 if absent. */
-PRIVATE json_int_t find_key_records(json_t *jn_data, const char *key)
+/*  Look up one field of one key's row in the list-keys data array (records,
+ *  fr_t, to_t, fr_tm, to_tm). -1 if the key is absent.  */
+PRIVATE json_int_t find_key_field(json_t *jn_data, const char *key, const char *field)
 {
     int idx; json_t *entry;
     json_array_foreach(jn_data, idx, entry) {
         const char *k = json_string_value(json_object_get(entry, "key"));
         if(k && strcmp(k, key)==0) {
-            return json_integer_value(json_object_get(entry, "records"));
+            return json_integer_value(json_object_get(entry, field));
+        }
+    }
+    return -1;
+}
+
+PRIVATE json_int_t find_key_records(json_t *jn_data, const char *key)
+{
+    return find_key_field(jn_data, key, "records");
+}
+
+/*  The system_flag a topic reports in `topics expanded=1`. -1 if absent.  */
+PRIVATE json_int_t find_topic_system_flag(json_t *jn_data, const char *topic_name)
+{
+    int idx; json_t *entry;
+    json_array_foreach(jn_data, idx, entry) {
+        const char *name = json_string_value(json_object_get(entry, "topic_name"));
+        if(name && strcmp(name, topic_name)==0) {
+            return json_integer_value(json_object_get(entry, "system_flag"));
         }
     }
     return -1;
@@ -114,6 +145,25 @@ PRIVATE int append_key(json_t *tranger, const char *key, int n)
             "id", key,
             "tm", (json_int_t)(BASE_T + j),
             "content", "payload"
+        );
+        md2_record_ex_t md = {0};
+        if(tranger2_append_record(tranger, TOPIC_NAME, BASE_T + j, 0, &md, jn_record) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/*  Append `n` records whose t and tm diverge: t = BASE_T+j (the append time
+ *  passed to timeranger2) and tm = BASE_T+TM_SKEW+j (the tkey field of the
+ *  record itself).  */
+PRIVATE int append_key_skewed(json_t *tranger, const char *key, int n)
+{
+    for(int j=0; j<n; j++) {
+        json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+            "id", key,
+            "tm", (json_int_t)(BASE_T + TM_SKEW + j),
+            "content", "backfill"
         );
         md2_record_ex_t md = {0};
         if(tranger2_append_record(tranger, TOPIC_NAME, BASE_T + j, 0, &md, jn_record) < 0) {
@@ -238,7 +288,8 @@ PRIVATE int do_test(void)
         return -1;
     }
     if(append_key(tranger, KEY_A, KEY_A_ROWS) < 0 ||
-       append_key(tranger, KEY_B, KEY_B_ROWS) < 0) {
+       append_key(tranger, KEY_B, KEY_B_ROWS) < 0 ||
+       append_key_skewed(tranger, KEY_C, KEY_C_ROWS) < 0) {
         printf("%s: FAIL (append)\n", APP);
         return -1;
     }
@@ -247,15 +298,141 @@ PRIVATE int do_test(void)
     json_t *data;
 
     /*-------------------------------------------------*
-     *      list-keys: both keys with their counts
+     *      topics: names by default
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "topics", json_pack("{}"), yuno);
+    check_int("topics result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("topics count", json_array_size(data), 1);
+    check_str("topics name", json_string_value(json_array_get(data, 0)), TOPIC_NAME);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      topics expanded=1: a desc per topic. system_flag is what tells
+     *      a client whether t/tm are seconds or milliseconds.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "topics", json_pack("{s:b}", "expanded", 1), yuno);
+    check_int("topics expanded result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("topics expanded count", json_array_size(data), 1);
+    check_int("topics expanded system_flag",
+        find_topic_system_flag(data, TOPIC_NAME), sf_string_key);
+    check_str("topics expanded tkey",
+        kw_get_str(0, json_array_get(data, 0), "tkey", "", 0), "tm");
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      list-keys: the keys with their counts
      *-------------------------------------------------*/
     r = gobj_command(yuno, "list-keys",
         json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
     check_int("list-keys result", kw_get_int(0, r, "result", -999, 0), 0);
     data = kw_get_list(0, r, "data", 0, 0);
-    check_int("list-keys count", json_array_size(data), 2);
+    check_int("list-keys count", json_array_size(data), 3);
     check_int("list-keys A records", find_key_records(data, KEY_A), KEY_A_ROWS);
     check_int("list-keys B records", find_key_records(data, KEY_B), KEY_B_ROWS);
+    check_int("list-keys C records", find_key_records(data, KEY_C), KEY_C_ROWS);
+
+    /*  ...and the time span of each key, both axes. Key A was appended with
+     *  t == tm; key C is the skewed one, and its two spans must differ by
+     *  exactly TM_SKEW — that is the span a client bounds its pickers to.  */
+    check_int("list-keys A fr_t",  find_key_field(data, KEY_A, "fr_t"),  BASE_T);
+    check_int("list-keys A to_t",  find_key_field(data, KEY_A, "to_t"),  BASE_T + KEY_A_ROWS - 1);
+    check_int("list-keys A fr_tm", find_key_field(data, KEY_A, "fr_tm"), BASE_T);
+    check_int("list-keys A to_tm", find_key_field(data, KEY_A, "to_tm"), BASE_T + KEY_A_ROWS - 1);
+
+    check_int("list-keys C fr_t",  find_key_field(data, KEY_C, "fr_t"),  BASE_T);
+    check_int("list-keys C to_t",  find_key_field(data, KEY_C, "to_t"),  BASE_T + KEY_C_ROWS - 1);
+    check_int("list-keys C fr_tm", find_key_field(data, KEY_C, "fr_tm"), BASE_T + TM_SKEW);
+    check_int("list-keys C to_tm", find_key_field(data, KEY_C, "to_tm"),
+        BASE_T + TM_SKEW + KEY_C_ROWS - 1);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      open-iterator on key C filtered by tm: the last 2 records
+     *      (tm >= BASE_T+TM_SKEW+2). total_rows reflects the filter.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:I}",
+            "iterator_id", "itC_tm",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_C,
+            "from_tm", (json_int_t)(BASE_T + TM_SKEW + 2)
+        ), yuno);
+    check_int("open-iterator C from_tm result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("open-iterator C from_tm total_rows",
+        kw_get_int(0, data, "total_rows", -1, 0), KEY_C_ROWS - 2);
+    JSON_DECREF(r)
+
+    /*  ...and get-page returns exactly those records: the page is a window
+     *  over the MATCHING rows, so from_rowid=1 is the first match (global
+     *  rowid 3), never the first record of the key.  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itC_tm",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page C from_tm result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("get-page C from_tm total_rows",
+        kw_get_int(0, data, "total_rows", -1, 0), KEY_C_ROWS - 2);
+    check_int("get-page C from_tm pages", kw_get_int(0, data, "pages", -1, 0), 1);
+    {
+        json_t *page = kw_get_list(0, data, "data", 0, 0);
+        check_int("get-page C from_tm len", json_array_size(page), KEY_C_ROWS - 2);
+        check_int("get-page C from_tm rowid[0]", record_rowid(json_array_get(page, 0)), 3);
+        check_int("get-page C from_tm rowid[1]", record_rowid(json_array_get(page, 1)), 4);
+    }
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itC_tm"), yuno);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      The SAME bound on the t axis matches NOTHING (key C's t never
+     *      reaches BASE_T+TM_SKEW): t and tm are two independent axes, and
+     *      the iterator does not confuse them.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:I}",
+            "iterator_id", "itC_t",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_C,
+            "from_t", (json_int_t)(BASE_T + TM_SKEW + 2)
+        ), yuno);
+    check_int("open-iterator C from_t result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("open-iterator C from_t total_rows",
+        kw_get_int(0, data, "total_rows", -1, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itC_t"), yuno);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      Both axes at once: the iterator ANDs them. t bounds the first 3
+     *      records, tm bounds the last 3 -> their intersection is 2.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s, s:I, s:I}",
+            "iterator_id", "itC_both",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_C,
+            "to_t", (json_int_t)(BASE_T + 2),
+            "from_tm", (json_int_t)(BASE_T + TM_SKEW + 1)
+        ), yuno);
+    check_int("open-iterator C both result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_dict(0, r, "data", 0, 0);
+    check_int("open-iterator C both total_rows",
+        kw_get_int(0, data, "total_rows", -1, 0), 2);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itC_both"), yuno);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*

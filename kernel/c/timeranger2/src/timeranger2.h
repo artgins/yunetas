@@ -371,6 +371,22 @@ PUBLIC uint64_t tranger2_topic_key_size(
 );
 
 /*
+   Get the time span of one `key` of a topic, from the in-memory cache totals
+   (maintained on load and on every append):
+
+        {"fr_t": t, "to_t": t, "fr_tm": tm, "to_tm": tm, "rows": n}
+
+   `t`/`tm` are in the topic's own unit: seconds, or milliseconds when the topic
+   sets sf_t_ms / sf_tm_ms (see `system_flag` in the topic desc).
+   Return is yours. NULL (silent) if the topic or the key is unknown.
+*/
+PUBLIC json_t *tranger2_topic_key_range( // return is yours
+    json_t *tranger,
+    const char *topic_name,
+    const char *key
+);
+
+/*
    Return the topic_name string stored in a topic object. Takes the TOPIC object
    (not tranger + name). The returned pointer is borrowed (owned by the topic
    json; valid while the topic lives) — do not free it. "" if absent.
@@ -696,9 +712,9 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
 
         from_rowid  // if to_rowid && to_t && to_tm is 0 then there is realtime
         to_rowid
-        from_t
+        from_t      // t:  PERSISTENCE time (when the record was appended)
         to_t
-        from_tm
+        from_tm     // tm: MESSAGE time (the record's tkey field)
         to_tm
 
         user_flag
@@ -706,6 +722,24 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
         user_flag_mask_set
         user_flag_mask_notset
 
+    `t` and `tm` are two INDEPENDENT axes and their ranges combine (AND). Both
+    are expressed in the TOPIC's own unit: seconds, or milliseconds when the
+    topic sets sf_t_ms / sf_tm_ms.
+
+    Every condition above is honored per RECORD, in both modes of the iterator:
+      - LOADING (a load_record_callback and/or `data`): each record is matched
+        as the history is walked.
+      - PAGING (neither): a filtered iterator builds its row INDEX at open, so
+        tranger2_iterator_size() and tranger2_iterator_get_page() count and
+        return exactly the matching records. In that case get_page's
+        `from_rowid` is a position among the MATCHING records (1-based), not a
+        global rowid; an UNFILTERED iterator builds no index (open stays
+        O(1) on the key size) and its positions are the global rowids.
+
+    WARNING an unfiltered iterator counts its rows from the segment totals, so
+    a deleted instance (tranger2_delete_instance) still adds to its total_rows
+    while its pages skip it. A filtered one never indexes a dead row, so its
+    count and its pages agree.
 */
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
@@ -749,15 +783,19 @@ PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
 );
 
 /*
-    Get the iterator size: the total number of rows, summed across its segments.
-    0 if the iterator has no segments.
+    Get the iterator size: the number of rows it will return.
+    A FILTERED iterator answers with its index (the records matching
+    match_cond); an unfiltered one sums its segments. 0 if it has neither.
 */
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 );
 
 /*
-    Get a page of records from iterator
+    Get a page of records from iterator.
+    `from_rowid` (1-based) is a position among the rows the iterator RETURNS:
+    a global rowid when it is unfiltered, a position among the matching
+    records when it filters (see `Iterator match_cond` above).
     Return
         total_rows:     iterator size (nº of rows)
         pages:          number of pages with the required limit
