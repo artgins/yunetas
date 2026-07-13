@@ -724,6 +724,28 @@ The pointer is valid for the lifetime of the loaded tranger. After a
 you keep references across stops, the framework won't notice — your
 crash will.
 
+### 4.13 Link events are OFF by default — and turning them on REMOVES an event
+
+`C_NODE` publishes `EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UNLINKED`
+only when its `with_link_events` attr is set (`SDF_RD`, default
+**false**). Two things bite here:
+
+- **It is an either/or, not additive.** With the flag ON, a link/unlink
+  publishes the link event and **stops** publishing the
+  backward-compatible `EV_TREEDB_NODE_UPDATED` of the **parent**. So
+  enabling it on a treedb that also serves an older consumer changes
+  what that consumer receives. Check every subscriber before flipping it.
+- **The compat event names the wrong node for edge tracking.** An edge
+  *is* a fkey of the **child** (§4.2, link-saves-child), but the compat
+  path announces the **parent** — whose fkeys did not change. A consumer
+  that derives edges from fkeys therefore sees "a node was updated" and
+  correctly concludes there is nothing to redraw, so its graph shows
+  **stale edges**. That is the whole reason the dedicated link events
+  exist; their kw is the relationship, not a node:
+  `{hook_name, parent_topic_name, child_topic_name, parent_id, child_id,
+  treedb_name}` — note there is **no `topic_name`**, so a per-topic
+  subscription filter matches nothing (filter by `treedb_name`).
+
 ---
 
 ## 5. Recipes

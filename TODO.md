@@ -6,6 +6,31 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
+## gui_treedb: leftovers from the 2026-07-13 audit
+
+The four gclasses whose runtime lived outside the automaton are done
+(`C_TRANGER_VIEW`, `C_TREEDB_CONFIG`, `C_TREEDB_LOGIN`; `C_TREEDB_LINKS` was
+already fine). What the audit left open:
+
+- **Raw `setTimeout` used as an FSM timer.** `c_treedb_links.js` (the 15 s scan
+  timeout, whose callback publishes events and mutates state — the gclass has no
+  `C_TIMER` child at all) and `c_treedb_view.js` (the deferred rebind, which
+  destroys gobjs and swaps DOM). Both should be a `C_TIMER` pure child +
+  `EV_TIMEOUT` / a dedicated event, so the deferral shows up in the trace.
+- **`c_treedb_picker.js` bypasses the shell router**: `window.location.hash =
+  "#/settings"` hardcodes hash routing while `use_hash` is an attr. It should
+  send an event whose action calls `yui_shell_navigate`.
+- **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
+  commands). Highest operator value, in order: **snapshots** (`snaps`,
+  `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
+  version, browse it read-only, roll back: all there, zero UI); **backup /
+  restore** (`export-db` / `import-db`, a base64 payload maps straight to a
+  browser download / file input); server-side `filter` + `size` on `nodes` (the
+  topics view pulls the WHOLE topic and filters client-side); `backward` on
+  `open-iterator` (newest-first paging); and the relationship inspector
+  (`parents` / `children` / `links`, plus `jtree`, whose ready-made tree with
+  `__path__` we ignore in favour of a flat `nodes` list).
+
 ## c_tranger: reclaim iterators of a session that never subscribes
 
 `mt_subscription_deleted` now closes the realtime feeds and iterators a
