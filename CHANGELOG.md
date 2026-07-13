@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): `get-page` reported "0 pages" for an out-of-range page.**
+      `pages` is a property of the KEY and the requested page size, not of the
+      particular answer: a page past the end has no data, but the key still has
+      its pages. Returning 0 told the client "there is nothing at all" and
+      collapsed its pager to a single page — a remote-paginated table then
+      refused to move ("Next page would be greater than maximum page of 1") and
+      its Last button landed on an empty table. Both empty branches
+      (out-of-range `from_rowid`, no first segment) now report the real page
+      count.
+
     - **fix(c_tranger): realtime feeds leaked, and every leaked feed duplicated
       records for EVERY subscriber.** `publish_rt_callback()` runs once per OPEN
       FEED, and each run published `EV_TRANGER_RECORD_ADDED` to the whole
