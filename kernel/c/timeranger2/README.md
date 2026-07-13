@@ -12,13 +12,47 @@
 tranger2_startup(...) / tranger2_shutdown(...)
 tranger2_open_topic(...) / tranger2_close_topic(...)
 tranger2_append_record(...)
-tranger2_iterator_open(...) / tranger2_iterator_next(...) / _close(...)
+tranger2_open_iterator(...) / tranger2_iterator_get_page(...) / tranger2_close_iterator(...)
+tranger2_topic_key_size(...) / tranger2_topic_key_range(...)
 ```
 
 Every call to `tranger2_append_record()` writes one record to disk,
 increments the per-key `g_rowid` (monotonic, never resets) and
 `i_rowid` (row in the md2 file). TreeDB relies on this for its
 link/unlink semantics — see `CLAUDE.md` for the full rules.
+
+## Two time axes: `t` and `tm`
+
+Every record carries **two** timestamps, and they are independent:
+
+| Axis | Meaning | Source |
+|------|---------|--------|
+| `t`  | **Persistence** time — when the record was appended | the `__t__` argument of `tranger2_append_record()` (now, if 0) |
+| `tm` | **Message** time — when the event it carries happened | the record's **tkey** field (usually `tm`), set by the producer |
+
+They diverge whenever data is backfilled or a device uploads a buffered batch
+late. Both are in the **topic's** unit: seconds, or **milliseconds** when the
+topic sets `sf_t_ms` / `sf_tm_ms`.
+
+An iterator's `match_cond` takes a range on each axis (`from_t`/`to_t`,
+`from_tm`/`to_tm`) plus `from_rowid`/`to_rowid` and the `user_flag` conditions,
+and **ANDs** them. Every condition is honored **per record**: a filtered paging
+iterator builds its row index when it opens, so `tranger2_iterator_size()`,
+`pages` and the pages themselves count only matching records (and `get_page`'s
+`from_rowid` is then a position among the matching rows, not a global rowid). An
+unfiltered iterator builds no index — its open stays cheap regardless of key
+size. `tranger2_topic_key_range()` reports a key's span on both axes without
+reading a record.
+
+> **In the md2 record, the times carry flags.** On disk the 16 high bits of
+> `__t__` hold the `user_flag` and those of `__tm__` the `system_flag`; only the
+> low 44 bits are the time. Always read them through `get_time_t()` /
+> `get_time_tm()` — the raw field yields a timestamp with the flags baked in.
+
+> **A topic OWNS the handles opened on it** (iterators, `rt_mem`, `rt_disk`):
+> `tranger2_close_topic()` closes them all and frees the topic. Anyone caching a
+> handle must check `tranger2_topic_is_open()` first — it is freed memory once
+> its topic is gone.
 
 See [`yunos/c/yuno_agent/TREEDB.md`](../../../yunos/c/yuno_agent/TREEDB.md)
 for the full timeranger2 + treedb walkthrough (mental model, on-disk

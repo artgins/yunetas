@@ -21,19 +21,37 @@ on time-series topics.
 
 | Command | Description |
 |---------|-------------|
-| `topics` | List all topics. |
+| `topics` | List all topics: their names, or with `expanded=1` a desc each (`{topic_name, system_flag, pkey, tkey, topic_version}`). `system_flag` is what tells whether the topic's `t`/`tm` are seconds or **milliseconds** (`sf_t_ms` / `sf_tm_ms`). |
 | `create-topic` | Create a new topic. |
 | `open-topic` | Open an existing topic. |
 | `delete-topic` | Delete a topic. |
 | `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). |
 | `get-list-data` | Retrieve an open list's data. |
-| `list-keys` | List a topic's keys with their record counts (`[{key, records}]`). |
-| `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. |
-| `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`from_rowid` 1-based, `limit`, optional `backward`). |
+| `list-keys` | List a topic's keys with their record counts **and their time span on both axes**: `[{key, records, fr_t, to_t, fr_tm, to_tm}]`. Lets a client bound a time picker to what the key really holds without reading a record. |
+| `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. Takes the match conditions below; a filtered iterator indexes the matching rows at open, so `total_rows` and the pages count only those. |
+| `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`limit`, optional `backward`). `from_rowid` is 1-based and, on a **filtered** iterator, is a position among the MATCHING rows (a global rowid only when the iterator does not filter). |
 | `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load); new appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. |
 | `add-record` | Append a record. |
 | `print-tranger` | Dump tranger state. |
 | `desc` | Describe topic schema. |
+
+**`open-iterator` match conditions** (all optional; `0`/empty = unset):
+`from_t`/`to_t`, `from_tm`/`to_tm`, `from_rowid`/`to_rowid`, `backward`, and the
+user_flag conditions (`user_flag`, `not_user_flag`, `user_flag_mask_set`,
+`user_flag_mask_notset`). They are ANDed, and every one is honored **per
+record**.
+
+A tranger record carries **two independent timestamps**, and a browser of raw
+records needs both:
+
+| Axis | Meaning |
+|------|---------|
+| `t`  | **Persistence** time — when the record was appended to the topic. |
+| `tm` | **Message** time — when the event it carries actually happened (the record's `tkey` field, set by the producer). |
+
+They diverge whenever data is backfilled or a device uploads a buffered batch
+late. Both are expressed in the **topic's** unit — seconds, unless its
+`system_flag` sets `sf_t_ms` / `sf_tm_ms` (ask `topics expanded=1`).
 
 ---
 

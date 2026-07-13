@@ -43,6 +43,10 @@ duplicate records), but it needs a session-death hook that does not depend on a
 subscription: the natural candidate is for the command's `src` channel to notify
 the service on close.
 
+A leaked **filtered** iterator now costs more than an empty handle: it holds its
+row index (one rowid per matching record), so a leaked card over a wide time
+range pins a proportional array until `mt_stop`. Same fix, higher stakes.
+
 ## Auth: OIDC migration follow-ups
 
 - **Real-IdP smoke tests beyond Keycloak.** Auth0 / Cognito / Authentik are not

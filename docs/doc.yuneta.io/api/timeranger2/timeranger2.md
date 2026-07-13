@@ -735,7 +735,7 @@ json_t *tranger2_iterator_get_page(
 |---|---|---|
 | `tranger` | `json_t *` | A pointer to the TimeRanger database instance. |
 | `iterator` | `json_t *` | A pointer to the iterator from which records will be retrieved. |
-| `from_rowid` | `json_int_t` | The starting row ID for retrieving records, based on a 1-based index. |
+| `from_rowid` | `json_int_t` | The starting position of the page, 1-based. See the note below: it is a position among the rows the iterator RETURNS, which is a global rowid only when the iterator does not filter. |
 | `limit` | `size_t` | The maximum number of records to retrieve in the page. |
 | `backward` | `BOOL` | If `TRUE`, records are retrieved in reverse order; otherwise, they are retrieved in forward order. |
 
@@ -746,6 +746,12 @@ A JSON object containing the retrieved records, total row count, and pagination 
 **Notes**
 
 This function is useful for paginating through records in an iterator. The `from_rowid` parameter determines the starting point, and the `limit` parameter controls the number of records retrieved per page.
+
+A **filtered** iterator (one opened with any `match_cond` condition) pages over
+its row **index**, so `total_rows`, `pages` and the page contents count only the
+records that MATCH — and `from_rowid` is a position among those, not a global
+rowid. An **unfiltered** iterator has no index, and its positions are the global
+rowids. See [`tranger2_open_iterator()`](#tranger2_open_iterator).
 
 ---
 
@@ -768,11 +774,20 @@ size_t tranger2_iterator_size(
 
 **Returns**
 
-The number of records in the iterator.
+The number of records the iterator will return.
 
 **Notes**
 
-This function provides the total count of records available in the given iterator.
+A **filtered** iterator answers with its index: the exact number of records
+matching its `match_cond`. An **unfiltered** one sums its segments — the same
+thing when nothing is filtered out.
+
+:::{warning}
+An unfiltered iterator counts its rows from the segment totals, so a record
+deleted with [`tranger2_delete_instance()`](#tranger2_delete_instance) still adds
+to its size while its pages skip it. A filtered iterator never indexes a dead
+row, so its count and its pages agree.
+:::
 
 ---
 
@@ -909,6 +924,42 @@ Returns a JSON object representing the iterator. The caller is responsible for m
 **Notes**
 
 The iterator supports real-time data loading and filtering based on various conditions. Use [`tranger2_close_iterator()`](<#tranger2_close_iterator>) to release resources when done.
+
+**`match_cond` — the conditions an iterator honors**
+
+```
+backward
+only_md                 (don't load jn_record on calling callbacks)
+
+from_rowid / to_rowid
+from_t   / to_t         t:  PERSISTENCE time (when the record was appended)
+from_tm  / to_tm        tm: MESSAGE time (the record's tkey field)
+
+user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
+```
+
+`t` and `tm` are two **independent** axes and their ranges combine (AND). Both
+are expressed in the **topic's** own unit: seconds, or milliseconds when the
+topic sets `sf_t_ms` / `sf_tm_ms`.
+
+Every condition is honored **per record**, in both modes of the iterator:
+
+- **LOADING** (a `load_record_callback` and/or `data`): each record is matched as
+  the history is walked.
+- **PAGING** (neither): a filtered iterator builds its row **index** when it
+  opens, so [`tranger2_iterator_size()`](#tranger2_iterator_size) and
+  [`tranger2_iterator_get_page()`](#tranger2_iterator_get_page) count and return
+  exactly the matching records, and `get_page`'s `from_rowid` is a position among
+  THOSE rows. An **unfiltered** iterator builds no index — its open stays cheap
+  regardless of the key size, and its positions are the global rowids.
+
+:::{note}
+A topic **owns** the iterators opened on it:
+[`tranger2_close_topic()`](#tranger2_close_topic) closes them all and frees the
+topic. Anyone caching an iterator handle must check the topic is still open
+(see [`tranger2_topic_is_open()`](#tranger2_topic_is_open)) — the handle is dead
+memory once it is not.
+:::
 
 ---
 
@@ -1590,6 +1641,85 @@ whole-topic total when `key` is empty.
 
 Counts come from the in-memory cache. A missing topic returns `0`. When `key` is
 empty the call delegates to [`tranger2_topic_size()`](#tranger2_topic_size).
+
+---
+
+(tranger2_topic_key_range)=
+## [`tranger2_topic_key_range()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L1266)
+
+Returns the **time span** of one key of a topic, on both axes, read from the
+in-memory cache totals (maintained on load and on every append) — so a client can
+bound a time picker to what the key actually holds without reading a single
+record.
+
+```C
+json_t *tranger2_topic_key_range( // return is yours
+    json_t *tranger,
+    const char *topic_name,
+    const char *key
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | Name of the topic containing the key. |
+| `key` | `const char *` | The key whose span is to be retrieved. |
+
+**Returns**
+
+A JSON object, **yours** to decref:
+
+```json
+{"fr_t": t, "to_t": t, "fr_tm": tm, "to_tm": tm, "rows": n}
+```
+
+`NULL` (silent) if the topic or the key is unknown.
+
+**Notes**
+
+`t` (persistence) and `tm` (message time) are independent, so the two spans
+differ whenever data was backfilled. Both are in the topic's own unit: seconds,
+or milliseconds when the topic sets `sf_t_ms` / `sf_tm_ms` (read `system_flag`
+from the topic desc).
+
+---
+
+(tranger2_topic_is_open)=
+## [`tranger2_topic_is_open()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/timeranger2/src/timeranger2.c#L1290)
+
+`TRUE` if the topic is currently open in this tranger. Silent — a closed topic is
+a legitimate answer, not an error.
+
+```C
+BOOL tranger2_topic_is_open(
+    json_t *tranger,
+    const char *topic_name
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | Name of the topic to check. |
+
+**Returns**
+
+`TRUE` if the topic is open, `FALSE` otherwise.
+
+**Notes**
+
+:::{warning}
+A topic **owns** the iterators, `rt_mem` and `rt_disk` handles opened on it:
+[`tranger2_close_topic()`](#tranger2_close_topic) closes them all
+(`tranger2_close_all_lists`) and frees the topic. Anyone caching such a handle
+must call this **before touching it** — the handle is freed memory once its topic
+is gone, and dereferencing it is a use-after-free.
+:::
 
 ---
 
