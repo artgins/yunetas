@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+    - **feat(c_tranger): `list-keys` filters, sorts and pages the keys IN THE
+      SERVER.** It answered every key of the topic, always: a client that wanted
+      the keys of one device was handed a hundred thousand of them and filtered
+      what it had been given — and a browser that only shows 15 at a time was
+      transferring, holding and sorting the whole index on its main thread.
+      New parameters: `rkey` (a PCRE2 regex the key must match), `order`
+      (`key`|`records`) + `desc`, and `from`/`limit`.
+
+      Backwards compatible by shape: with no `limit` the answer is the plain
+      list it has always been, so every existing client keeps working. Asking
+      for a PAGE gets the same envelope `get-page` uses —
+      `{total_rows, pages, data}` — so a client pages KEYS exactly as it pages
+      records, and `total_rows` counts the MATCHING set, not the page. Sorting
+      has to happen here for the same reason: a client holding 15 of 100.000
+      keys cannot order what it was not given.
+
+      PCRE2 and not POSIX `regcomp()`: every yuno already links `libpcre2-8`
+      (`tools/cmake/project.cmake`) and gobj-c already speaks it
+      (`json_replace_vars.c`), and this is the one place in the read path that
+      runs the same pattern against up to a hundred thousand subjects — the case
+      its JIT exists for. The pattern is compiled and JIT-compiled once, outside
+      the loop.
+
+      Cost is paid where it belongs: the record COUNT of a key is a cache lookup,
+      so it is taken for the whole matching set (that is what lets `order=records`
+      sort by it and `total_rows` be exact), while the key's TIME SPAN copies the
+      cache totals into a fresh dict and is therefore built only for the keys
+      that actually travel. A bad `rkey` and an unknown `order` are refused with
+      an error, never answered as "nothing matched".
+
+      Note while auditing this: `open-list`'s `rkey` parameter is accepted by the
+      command parser and then **silently ignored** — timeranger2's only
+      implementation of it (`find_keys_in_disk`) is commented out. It has always
+      been a no-op; `list-keys` above is the first live `rkey` in the read path.
+
     - **fix(c_tranger): use-after-free closing a handle whose topic was closed
       (SIGSEGV on shutdown).** A topic OWNS the iterators / rt_mem / rt_disk
       handles opened on it: `tranger2_close_topic()` closes them all

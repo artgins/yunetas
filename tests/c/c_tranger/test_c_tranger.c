@@ -67,6 +67,17 @@ PRIVATE void check_int(const char *name, json_int_t got, json_int_t expected)
     }
 }
 
+PRIVATE void check_bool(const char *name, BOOL got, BOOL expected)
+{
+    if((got?1:0) != (expected?1:0)) {
+        printf("FAIL %-40s got %s expected %s\n",
+            name, got?"TRUE":"FALSE", expected?"TRUE":"FALSE");
+        global_result += -1;
+    } else {
+        printf("ok   %-40s (%s)\n", name, got?"TRUE":"FALSE");
+    }
+}
+
 PRIVATE void check_str(const char *name, const char *got, const char *expected)
 {
     if(!got || strcmp(got, expected)!=0) {
@@ -385,6 +396,113 @@ PRIVATE int do_test(void)
     check_int("list-keys C fr_tm", find_key_field(data, KEY_C, "fr_tm"), BASE_T + TM_SKEW);
     check_int("list-keys C to_tm", find_key_field(data, KEY_C, "to_tm"),
         BASE_T + TM_SKEW + KEY_C_ROWS - 1);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      list-keys rkey: filter the keys in the SERVER.
+     *
+     *      Without it a topic with a hundred thousand keys is answered in
+     *      full and the client filters what it was handed.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "^B$"), yuno);
+    check_int("list-keys rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("list-keys rkey count", json_array_size(data), 1);
+    check_int("list-keys rkey B records", find_key_records(data, KEY_B), KEY_B_ROWS);
+    check_int("list-keys rkey A absent", find_key_records(data, KEY_A), -1);
+    JSON_DECREF(r)
+
+    /*  A regex matching several keys, and one matching none.  */
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "A|C"), yuno);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("list-keys rkey A|C count", json_array_size(data), 2);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "^nope$"), yuno);
+    check_int("list-keys rkey no match result", kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("list-keys rkey no match count",
+        json_array_size(kw_get_list(0, r, "data", 0, 0)), 0);
+    JSON_DECREF(r)
+
+    /*  A malformed regex is a client error, not an empty answer: it must be
+     *  told apart from "no key matched".  */
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "rkey", "a[b"), yuno);
+    check_bool("list-keys bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      list-keys paging + order.
+     *
+     *      With `limit` the answer is the same envelope get-page uses
+     *      ({total_rows, pages, data}), so a client pages KEYS exactly as it
+     *      pages records — and total_rows counts the MATCHING set, not the
+     *      page. Sorting has to happen server-side: a client holding 2 of 3
+     *      keys cannot order what it was not given.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s, s:I, s:I}",
+            "topic_name", TOPIC_NAME,
+            "order", "records",
+            "from", (json_int_t)1,
+            "limit", (json_int_t)2
+        ), yuno);
+    check_int("list-keys page result", kw_get_int(0, r, "result", -999, 0), 0);
+    json_t *page = kw_get_dict(0, r, "data", 0, 0);
+    check_int("list-keys page total_rows", kw_get_int(0, page, "total_rows", -1, 0), 3);
+    check_int("list-keys page pages", kw_get_int(0, page, "pages", -1, 0), 2);
+    data = kw_get_list(0, page, "data", 0, 0);
+    check_int("list-keys page size", json_array_size(data), 2);
+    /*  order=records ascending: B(3), C(4), A(5) -> the page is B, C  */
+    check_str("list-keys page[0] by records",
+        kw_get_str(0, json_array_get(data, 0), "key", "", 0), KEY_B);
+    check_str("list-keys page[1] by records",
+        kw_get_str(0, json_array_get(data, 1), "key", "", 0), KEY_C);
+    /*  the page still carries the time span of each key it returns  */
+    check_int("list-keys page keeps the span",
+        find_key_field(data, KEY_B, "fr_t"), BASE_T);
+    JSON_DECREF(r)
+
+    /*  The second page: the remainder, and desc order flips the sort.  */
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s, s:b, s:I, s:I}",
+            "topic_name", TOPIC_NAME,
+            "order", "records",
+            "desc", 1,
+            "from", (json_int_t)1,
+            "limit", (json_int_t)2
+        ), yuno);
+    data = kw_get_list(0, kw_get_dict(0, r, "data", 0, 0), "data", 0, 0);
+    /*  desc: A(5), C(4), B(3) -> the page is A, C  */
+    check_str("list-keys desc page[0]",
+        kw_get_str(0, json_array_get(data, 0), "key", "", 0), KEY_A);
+    check_str("list-keys desc page[1]",
+        kw_get_str(0, json_array_get(data, 1), "key", "", 0), KEY_C);
+    JSON_DECREF(r)
+
+    /*  `from` past the end is an empty page, not an error.  */
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:I, s:I}",
+            "topic_name", TOPIC_NAME,
+            "from", (json_int_t)10,
+            "limit", (json_int_t)2
+        ), yuno);
+    check_int("list-keys page past the end result",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    page = kw_get_dict(0, r, "data", 0, 0);
+    check_int("list-keys page past the end total",
+        kw_get_int(0, page, "total_rows", -1, 0), 3);
+    check_int("list-keys page past the end size",
+        json_array_size(kw_get_list(0, page, "data", 0, 0)), 0);
+    JSON_DECREF(r)
+
+    /*  An unknown order is refused, not silently ignored.  */
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME, "order", "colour"), yuno);
+    check_bool("list-keys bad order fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*

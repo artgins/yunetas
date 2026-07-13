@@ -62,6 +62,10 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
 #include <string.h>
 #include <regex.h>
 
+#define PCRE2_STATIC
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
@@ -239,6 +243,11 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_list_keys[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
+SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "Regex (PCRE2) the key must match (empty = every key)"),
+SDATAPM (DTP_STRING,    "order",                0,          0,      "Sort the matching keys: 'key' (default) or 'records'"),
+SDATAPM (DTP_BOOLEAN,   "desc",                 0,          0,      "Sort descending"),
+SDATAPM (DTP_INTEGER,   "from",                 0,          0,      "First matching key of the page (1-based; needs limit)"),
+SDATAPM (DTP_INTEGER,   "limit",                0,          0,      "Page size. 0 (default) = every matching key, answered as a plain list (as before); >0 answers a page: {total_rows, pages, data}"),
 SDATA_END()
 };
 
@@ -1546,6 +1555,51 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /***************************************************************************
  *  List the keys of a topic with their record counts.
  ***************************************************************************/
+/***************************************************************************
+ *  Sort a [{key, records}] list in place, by key or by record count.
+ *
+ *  Insertion sort on the json array: jansson has no array sort, and the list
+ *  is the keys of ONE topic — a size a client is going to page through by
+ *  hand. Sorting HERE is what lets the page be the right page: a client that
+ *  only receives 50 of 100.000 keys cannot sort them itself.
+ ***************************************************************************/
+PRIVATE void sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
+{
+    size_t size = json_array_size(jn_list);
+
+    for(size_t i = 1; i < size; i++) {
+        json_t *jn_a = json_incref(json_array_get(jn_list, i));
+        size_t j = i;
+
+        while(j > 0) {
+            json_t *jn_b = json_array_get(jn_list, j-1);
+
+            int cmp;
+            if(by_records) {
+                json_int_t ra = json_integer_value(json_object_get(jn_a, "records"));
+                json_int_t rb = json_integer_value(json_object_get(jn_b, "records"));
+                cmp = (ra < rb) ? -1 : ((ra > rb) ? 1 : 0);
+            } else {
+                const char *ka = json_string_value(json_object_get(jn_a, "key"));
+                const char *kb = json_string_value(json_object_get(jn_b, "key"));
+                cmp = strcmp(ka?ka:"", kb?kb:"");
+            }
+            if(desc) {
+                cmp = -cmp;
+            }
+            if(cmp >= 0) {
+                break;
+            }
+
+            json_array_set(jn_list, j, jn_b);
+            j--;
+        }
+
+        json_array_set(jn_list, j, jn_a);
+        JSON_DECREF(jn_a)
+    }
+}
+
 PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1588,16 +1642,146 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
+    const char *rkey = kw_get_str(gobj, kw, "rkey", "", 0);
+    const char *order = kw_get_str(gobj, kw, "order", "", 0);
+    BOOL desc = kw_get_bool(gobj, kw, "desc", 0, KW_WILD_NUMBER);
+    json_int_t from = (json_int_t)kw_get_int(gobj, kw, "from", 0, KW_WILD_NUMBER);
+    json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 0, KW_WILD_NUMBER);
+
+    if(!empty_string(order) && strcmp(order, "key")!=0 && strcmp(order, "records")!=0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Unknown order: '%s' (key|records)", order),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(from < 1) {
+        from = 1;
+    }
+    if(limit < 0) {
+        limit = 0;
+    }
+
+    /*
+     *  A topic can hold a hundred thousand keys, and until now the answer was
+     *  ALWAYS every one of them: a client that only wanted the keys of one
+     *  device had to be handed the lot and filter them itself. `rkey` filters
+     *  HERE.
+     *
+     *  PCRE2 and not POSIX regcomp(): every yuno already links libpcre2-8
+     *  (tools/cmake/project.cmake) and gobj-c already speaks it
+     *  (json_replace_vars.c), and this is the one place in the read path that
+     *  runs the SAME pattern against up to a hundred thousand subjects — the
+     *  case its JIT exists for. The pattern is compiled and JIT-compiled ONCE,
+     *  outside the loop. (A JIT that is not there is not an error: pcre2_match
+     *  falls back to the interpreter on its own.)
+     */
+    pcre2_code *re = NULL;
+    pcre2_match_data *match_data = NULL;
+    if(!empty_string(rkey)) {
+        int errornumber = 0;
+        PCRE2_SIZE erroroffset = 0;
+        re = pcre2_compile(
+            (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0,
+            &errornumber, &erroroffset, NULL
+        );
+        if(!re) {
+            PCRE2_UCHAR err[256];
+            pcre2_get_error_message(errornumber, err, sizeof(err));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Bad rkey regex",
+                "rkey",         "%s", rkey,
+                "offset",       "%d", (int)erroroffset,
+                "error",        "%s", (char *)err,
+                NULL
+            );
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Bad rkey regex '%s' at %d: %s",
+                    rkey, (int)erroroffset, (char *)err),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
+
+        match_data = pcre2_match_data_create_from_pattern(re, NULL);
+        if(!match_data) {
+            pcre2_code_free(re);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+                NULL
+            );
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("No memory for the rkey matcher"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
+    /*
+     *  Every MATCHING key with its record count. The count is a cache lookup,
+     *  so it is cheap enough to do for the whole matching set — which is what
+     *  lets `order=records` sort by it and `total_rows` be exact. The key's
+     *  time span is NOT: it copies the cache totals into a fresh dict, so it
+     *  is built only for the keys that actually travel (the page).
+     */
     json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
-    json_t *jn_data = json_array();
+    json_t *jn_matched = json_array();
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = json_string_value(jn_key);
-        uint64_t size = tranger2_topic_key_size(priv->tranger, topic_name, key);
-        json_t *jn_row = json_pack("{s:s, s:I}",
-            "key", key?key:"",
-            "records", (json_int_t)size
-        );
+        if(!key) {
+            key = "";
+        }
+        if(re) {
+            int m = pcre2_match(
+                re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL
+            );
+            if(m < 0) {
+                continue;   // PCRE2_ERROR_NOMATCH (and any match error): not this key
+            }
+        }
+        json_array_append_new(jn_matched, json_pack("{s:s, s:I}",
+            "key", key,
+            "records", (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key)
+        ));
+    }
+    JSON_DECREF(jn_keys)
+    if(re) {
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(re);
+    }
+
+    if(!empty_string(order)) {
+        sort_keys(jn_matched, strcmp(order, "records")==0, desc);
+    } else if(desc) {
+        sort_keys(jn_matched, FALSE, TRUE);
+    }
+
+    json_int_t total_rows = (json_int_t)json_array_size(jn_matched);
+    json_int_t first = limit > 0 ? from : 1;
+    json_int_t last = limit > 0 ? (from + limit - 1) : total_rows;
+
+    json_t *jn_data = json_array();
+    for(json_int_t i = first; i <= last && i <= total_rows; i++) {
+        json_t *jn_row = json_incref(json_array_get(jn_matched, (size_t)(i-1)));
+        if(!jn_row) {
+            continue;   // Cannot happen (i is bounded by total_rows), be safe
+        }
 
         /*
          *  The key's time span, straight from the cache totals: it lets a
@@ -1605,27 +1789,47 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
          *  reading a single record. Both axes (t: persistence, tm: message)
          *  in the topic's own unit.
          */
+        const char *key = kw_get_str(gobj, jn_row, "key", "", 0);
         json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
         static const char *range_keys[] = {"fr_t", "to_t", "fr_tm", "to_tm", NULL};
-        for(int i = 0; range_keys[i] != NULL; i++) {
+        for(int i2 = 0; range_keys[i2] != NULL; i2++) {
             json_int_t v = 0;   // 0 = span unknown (key with no cache totals yet)
             if(range) {
-                v = (json_int_t)kw_get_int(gobj, range, range_keys[i], 0, 0);
+                v = (json_int_t)kw_get_int(gobj, range, range_keys[i2], 0, 0);
             }
-            json_object_set_new(jn_row, range_keys[i], json_integer(v));
+            json_object_set_new(jn_row, range_keys[i2], json_integer(v));
         }
         JSON_DECREF(range)
 
         json_array_append_new(jn_data, jn_row);
     }
-    JSON_DECREF(jn_keys)
+    JSON_DECREF(jn_matched)
+
+    /*
+     *  With no `limit` the answer is the plain list it has always been — every
+     *  client written before this keeps working. Asking for a PAGE gets the
+     *  same envelope get-page uses, so a client pages keys exactly as it pages
+     *  records.
+     */
+    json_t *jn_result = jn_data;
+    if(limit > 0) {
+        json_int_t pages = (total_rows + limit - 1) / limit;
+        if(pages < 1) {
+            pages = 1;
+        }
+        jn_result = json_pack("{s:I, s:I, s:o}",
+            "total_rows", total_rows,
+            "pages", pages,
+            "data", jn_data
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
         0,
         0,
         0,
-        jn_data,
+        jn_result,
         kw  // owned
     );
 }
