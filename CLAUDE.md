@@ -536,6 +536,18 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
 
 ### GObject design rules
 
+- **The OS boundary is where events are born: EVERY asynchronous notification
+  from the system becomes a Yuneta event.** That is the whole point of the
+  framework — the FSM is the only place where things happen, so the runtime can
+  be audited (the `machine` trace *is* the execution log). In C this is already
+  the contract: `yev_loop` turns every io_uring completion (fd readable/
+  writable, timer, signal) into an event delivered to a gobj. **The rule is
+  general, and the browser is just another operating system**: a DOM click, an
+  `onmessage`, a `setTimeout`, a `resize`, a resolved promise are OS
+  notifications and must enter the machine as events (`gobj_send_event`), not
+  run application logic inside the callback. The callback's only job is to
+  translate the OS notification into an event; anything that bypasses that path
+  is invisible to the trace and, by construction, undebuggable.
 - **Fix the cause at its layer.** A high-level gclass must not compensate for a
   lower layer: reconnection/backoff belongs to the transport (`c_tcp`) and the
   session gclass, never to the application on top. Don't scatter `C_TIMER`s to
@@ -800,8 +812,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
 
 ### JS GUI conventions
 
-- **EVERY action goes through the FSM — a button click IS an action.** A DOM
-  handler's only job is to **send an event** (`gobj_send_event(gobj,
+- **EVERY action goes through the FSM — a button click IS an action.** This is
+  the GUI face of the general rule above (*the OS boundary is where events are
+  born*): in a browser the DOM **is** the operating system, so its callbacks —
+  click, `onmessage`, `setTimeout`, `resize`, a resolved promise — are OS
+  notifications and must be turned into Yuneta events. A DOM handler's only job
+  is to **send an event** (`gobj_send_event(gobj,
   "EV_OPEN_CARD", {...}, gobj)`); the work belongs in the FSM action. Same for
   anything the view decides to do on its own (re-arm on reconnect, refresh,
   close). A view whose whole life happens in `ST_IDLE`, with DOM callbacks
