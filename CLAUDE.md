@@ -828,8 +828,17 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   silently no-ops a button), so an action arriving in the wrong state fails
   LOUDLY and names its sender. Cards/items do **not** need to be child gobjs —
   keeping them in the same gclass is fine; what matters is that every action
-  crosses the automaton. Canonical anti-example: `C_TRANGER_VIEW` (see
-  `TODO.md`).
+  crosses the automaton. Canonical example: `C_TRANGER_VIEW`
+  (`yunos/js/gui_treedb`) — `ST_DISCONNECTED` → `ST_LOADING_TOPICS` →
+  `ST_TOPIC_SELECTED`, with every click/`on_close`/dialog-confirm sent as an
+  event. Widget plumbing that is not an action stays a plain call (Tabulator's
+  `ajaxRequestFunc` must RETURN a Promise — it is a data source, not an event).
+- **A `kw` must be plain JSON — never put a gobj, a widget or a DOM node in
+  it.** The machine trace dumps the kw (`trace_json(kw)`), and those objects
+  are circular: serializing one throws, so the first thing to break is the
+  trace the FSM exists to feed. Pass an IDENTITY instead (`{key, mode}`, an
+  id) and resolve it to the object inside the action — it also makes the trace
+  line readable.
 - **No transitions/animations.** Menus, popovers, tooltips and state changes
   appear instantly — no fade/slide/glide. If a third-party lib injects
   transition CSS, override it (`transition: none !important`). Don't add

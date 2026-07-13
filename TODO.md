@@ -6,31 +6,6 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## gui_treedb: every action in C_TRANGER_VIEW must cross the FSM
-
-The Tranger browser works, but its runtime is **not auditable** — the whole view
-lives in `ST_IDLE`: button clicks call functions directly, and so do the things
-the view does on its own (arm an iterator, refresh, close, re-arm on reconnect).
-Nothing reaches the `machine` trace, so the bugs found on 2026-07-13 (dead
-iterator after a reconnect, leaked realtime feeds duplicating records, an answer
-that never landed) had to be chased through WebSocket traffic and screenshots
-instead of the automaton. That is the framework asset we are throwing away; see
-the JS GUI conventions in `CLAUDE.md`.
-
-Redesign (deferred, not started):
-
-- **A click is an action**: every DOM handler does nothing but
-  `gobj_send_event(gobj, "EV_…", kw, gobj)` — `EV_OPEN_CARD`, `EV_CLOSE_CARD`,
-  `EV_REFRESH_CARD`, `EV_OPEN_KEYS`, `EV_REARM`, … The work moves into the FSM
-  actions, so every step shows up in the trace.
-- **States**: `ST_DISCONNECTED` → `ST_LOADING_TOPICS` → `ST_TOPIC_SELECTED`, so
-  "no topic yet" is a state instead of an `if(!priv.cur_topic) return` that
-  turns the Keys button into a silent no-op — and an event arriving in the wrong
-  state is a loud error naming the wrong sender.
-- Cards stay **inside the same gclass** (they need not be child gobjs); what
-  changes is that opening / refreshing / closing / re-arming them are events,
-  not calls.
-
 ## c_tranger: reclaim iterators of a session that never subscribes
 
 `mt_subscription_deleted` now closes the realtime feeds and iterators a
