@@ -6397,10 +6397,22 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+
+    /*
+     *  `pages` is a property of the KEY and the requested page size, not of
+     *  this particular answer: an out-of-range page has no data, but the key
+     *  still has its pages. Reporting 0 here told the client "there is
+     *  nothing at all" and collapsed its pager to a single page.
+     */
+    json_int_t pages = (limit > 0)? (total_rows / (json_int_t)limit) : 0;
+    if(limit > 0 && (total_rows % (json_int_t)limit) != 0) {
+        pages++;
+    }
+
     if(from_rowid <= 0 || from_rowid > total_rows || limit <= 0) {
         return json_pack("{s:I, s:I, s:[]}",
             "total_rows", total_rows,
-            "pages", (json_int_t)0,
+            "pages", pages,
             "data"
         );
     }
@@ -6425,7 +6437,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         JSON_DECREF(match_cond)
         return json_pack("{s:I, s:I, s:[]}",
             "total_rows", total_rows,
-            "pages", (json_int_t)0,
+            "pages", pages,
             "data"
         );
     }
@@ -6504,10 +6516,6 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
     }
 
-    json_int_t pages = total_rows / (json_int_t)limit;
-    if((total_rows%limit)!=0) {
-        pages++;
-    }
     JSON_DECREF(match_cond)
     return json_pack("{s:I, s:I, s:o}",
         "total_rows", total_rows,
