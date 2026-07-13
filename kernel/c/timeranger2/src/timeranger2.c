@@ -5042,15 +5042,52 @@ PRIVATE int update_key_by_hard_link(
         );
     }
     if(unlink(path)<0) { // WARNING it's a bit slow!
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "unlink() FAILED",
-            "path",         "%s", path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+        if(errno == ENOENT) {
+            /*
+             *  Not an error: the notification was ALREADY consumed by the other
+             *  path. A brand-new key reaches us twice, by construction:
+             *
+             *    - fs_watcher, on the IN_CREATE of the key directory, adds the
+             *      watch on it FIRST and calls us AFTER (fs_watcher.c). In the
+             *      window between the two, the master (another process) hard-
+             *      links the .md2 inside — so the file gets its OWN IN_CREATE
+             *      (FS_FILE_CREATED_TYPE -> here) *and* is found by the
+             *      directory scan (scan_disks_key_for_new_file -> here).
+             *
+             *  Whichever runs second finds the file gone. That is the hazard
+             *  the inotify(7) note quoted at FS_SUBDIR_CREATED_TYPE warns about,
+             *  and the scan exists precisely to cover it — it just cannot know
+             *  which files the watch will also report. Logging it as an ERROR
+             *  put one in the log of every follower on every new key (an hourly
+             *  bucket = an hourly error) for something that is working exactly
+             *  as designed.
+             *
+             *  The read below still runs: it is idempotent (it publishes only
+             *  the rows the cache does not have yet), so consuming twice costs
+             *  a re-read and nothing else — while SKIPPING it would lose the
+             *  records if the other path had unlinked and then failed.
+             */
+            if(gobj_global_trace_level() & TRACE_FS) {
+                gobj_log_debug(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                    "msg",              "%s", "CLIENT: hard link already consumed",
+                    "msg2",             "%s", "💾🔶 CLIENT: hard link already consumed",
+                    "path",             "%s", path,
+                    NULL
+                );
+            }
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "unlink() FAILED",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
     }
 
     char *md2 = pop_last_segment(path);

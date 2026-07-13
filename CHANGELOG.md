@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): a brand-new key made every rt_disk follower log an
+      `unlink() FAILED`.** On staging, `agregador_wz` logged one *"unlink()
+      FAILED, errno 2 (No such file or directory)"* per new key — an hourly
+      bucket meant an hourly ERROR in the log, and monitors alerting on nothing.
+
+      A follower is notified of new records by a hard link the master drops in
+      `<topic>/disks/<rt_id>/<key>/<file>.md2`; the follower unlinks it (consuming
+      the notification) and reads what is new. A brand-new key reaches it
+      **twice**, by construction: `fs_watcher`, on the `IN_CREATE` of the key
+      directory, adds the watch on it **first** and calls back **after**
+      (`fs_watcher.c`), so in the window between the two the master hard-links the
+      `.md2` inside — and the file then gets its OWN `IN_CREATE`
+      (`FS_FILE_CREATED_TYPE`) *and* is found by the directory scan
+      (`scan_disks_key_for_new_file`). Both paths lead to
+      `update_key_by_hard_link()`; whichever runs second finds the file already
+      gone. It is exactly the hazard the inotify(7) note quoted in that handler
+      warns about — the scan exists to cover it, but nothing deduplicated what
+      the watch would also report.
+
+      `ENOENT` is therefore not an error: it is the notification having been
+      consumed already. It is traced (`fs`) instead of logged as an error; any
+      other errno still is one. The read still runs — it is idempotent (it
+      publishes only the rows the cache does not have yet), so consuming twice
+      costs a re-read and nothing else, while skipping it would lose the records
+      if the other path had unlinked and then failed.
+
     - **feat(c_tranger): `list-keys` filters, sorts and pages the keys IN THE
       SERVER.** It answered every key of the topic, always: a client that wanted
       the keys of one device was handed a hundred thousand of them and filtered
