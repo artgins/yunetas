@@ -800,6 +800,20 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
 
 ### JS GUI conventions
 
+- **The runtime must be auditable: state lives in the FSM, not in `priv`.** A
+  view whose whole life happens in `ST_IDLE` — DOM callbacks calling functions
+  directly, per-item state parked in a `priv` array — throws away Yuneta's main
+  debugging asset: the `machine` trace shows nothing, so a failure can only be
+  chased through WebSocket traffic and screenshots. Model the lifecycle as
+  **states** and drive every operation as an **event** the gobj sends to itself
+  (`gobj_send_event`), so each step appears in the trace and an operation
+  arriving in the wrong state fails loudly instead of silently.
+- **Anything with its own lifecycle and its own server-side state is a CHILD
+  GOBJ, not an entry in an array.** A per-item object that owns a remote
+  resource (an iterator, a realtime feed, a subscription) belongs in its own
+  gclass with its own FSM, so create/start/stop/destroy pair up, the resource is
+  released with the gobj, and the whole thing is visible in the gobj tree at
+  runtime. Canonical anti-example: `C_TRANGER_VIEW`'s cards (see `TODO.md`).
 - **No transitions/animations.** Menus, popovers, tooltips and state changes
   appear instantly — no fade/slide/glide. If a third-party lib injects
   transition CSS, override it (`transition: none !important`). Don't add
