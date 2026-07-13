@@ -1297,6 +1297,23 @@ PUBLIC json_t *tranger2_topic_key_range( // return is yours
 }
 
 /***************************************************************************
+   TRUE if the topic is open in this tranger. Silent: a closed topic is a
+   legitimate answer here, not an error.
+ ***************************************************************************/
+PUBLIC BOOL tranger2_topic_is_open(
+    json_t *tranger,
+    const char *topic_name
+)
+{
+    if(!tranger || empty_string(topic_name)) {
+        return FALSE;
+    }
+    json_t *topics = json_object_get(tranger, "topics");
+
+    return json_object_get(topics, topic_name)? TRUE:FALSE;
+}
+
+/***************************************************************************
    Return topic name of topic.
  ***************************************************************************/
 PUBLIC const char *tranger2_topic_name(

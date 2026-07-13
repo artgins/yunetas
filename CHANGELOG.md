@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+    - **fix(c_tranger): use-after-free closing a handle whose topic was closed
+      (SIGSEGV on shutdown).** A topic OWNS the iterators / rt_mem / rt_disk
+      handles opened on it: `tranger2_close_topic()` closes them all
+      (`tranger2_close_all_lists`) and frees the topic. C_TRANGER registered
+      what a remote client opened as a RAW POINTER, so once anything closed a
+      topic — the app closing a treedb at shutdown, a `delete-topic` at runtime
+      — its registry pointed at freed memory, and the next close dereferenced
+      it. In production this crashed a yuno with SIGSEGV on EVERY shutdown that
+      had a Rows card open: close-treedb frees the topics, then C_TRANGER's
+      `mt_destroy` walked its registry calling `tranger2_close_iterator()` on
+      iterators that no longer existed (jansson reading a dead hashtable). The
+      daemon then relaunched the yuno, so its binary was never idle and
+      `update-binary` failed with `copyfile() FAILED` — an un-updatable yuno was
+      the visible symptom. The registry now stores the topic name beside the
+      pointer and every use goes through a guard (new
+      `tranger2_topic_is_open()`): topic gone ⇒ the handle was freed with it ⇒
+      drop the entry, never touch it. Regression test: open an iterator + a feed,
+      close the topic under them, then command and tear down — it SIGSEGVs
+      without the guard.
+
     - **fix(timeranger2): the cache totals of a key stored a timestamp with the
       metadata flags baked into it.** In an on-disk `md2_record_t` the 16 high
       bits of `__t__` carry the `user_flag` and those of `__tm__` the

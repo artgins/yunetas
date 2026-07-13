@@ -466,6 +466,53 @@ PRIVATE void mt_create(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Register a handle opened for a remote client (list / iterator / rt).
+ *
+ *  We keep the POINTER, but never the pointer alone: a topic OWNS the
+ *  iterators, rt_mem and rt_disk handles opened on it, and
+ *  tranger2_close_topic() closes them all and frees the topic — behind our
+ *  back, since anyone can close a topic (the app closing a treedb at
+ *  shutdown, a delete-topic at runtime). The topic_name stored beside the
+ *  pointer is what lets live_handle() tell a live handle from freed memory.
+ ***************************************************************************/
+PRIVATE void register_handle(
+    json_t *registry,
+    const char *id,
+    const char *topic_name,
+    json_t *handle
+)
+{
+    json_object_set_new(registry, id, json_pack("{s:s, s:I}",
+        "topic_name", topic_name?topic_name:"",
+        "ptr", (json_int_t)(uintptr_t)handle
+    ));
+}
+
+/***************************************************************************
+ *  The handle registered under `id`, or NULL when the tranger already freed
+ *  it (its topic was closed) — in which case there is nothing left to close
+ *  and the caller must simply drop the entry. Dereferencing the cached
+ *  pointer in that state is a use-after-free: it crashed a yuno on shutdown
+ *  (close-treedb frees the topics, then C_TRANGER's mt_destroy walked its
+ *  registry closing iterators that no longer existed).
+ ***************************************************************************/
+PRIVATE json_t *live_handle(hgobj gobj, json_t *registry, const char *id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *entry = json_object_get(registry, id);
+    if(!entry || !priv->tranger) {
+        return NULL;
+    }
+    const char *topic_name = kw_get_str(gobj, entry, "topic_name", "", 0);
+    if(!tranger2_topic_is_open(priv->tranger, topic_name)) {
+        return NULL;
+    }
+
+    return (json_t *)(uintptr_t)kw_get_int(gobj, entry, "ptr", 0, 0);
+}
+
+/***************************************************************************
  *      Framework Method destroy
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
@@ -473,14 +520,16 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Close the lists still open (a remote client may never send
-     *  close-list) BEFORE shutting down the tranger they belong to.
+     *  Close what a remote client left open (it may never send close-list /
+     *  close-iterator / close-rt) BEFORE shutting down the tranger they
+     *  belong to. A handle whose topic is already closed was freed with it:
+     *  live_handle() returns NULL and the entry is just dropped.
      */
     if(priv->lists) {
-        const char *list_id; json_t *jn_ptr; void *tmp;
-        json_object_foreach_safe(priv->lists, tmp, list_id, jn_ptr) {
-            json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
-            if(list && priv->tranger) {
+        const char *list_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->lists, tmp, list_id, jn_entry) {
+            json_t *list = live_handle(gobj, priv->lists, list_id);
+            if(list) {
                 tranger2_close_list(priv->tranger, list);
             }
             json_object_del(priv->lists, list_id);
@@ -488,15 +537,11 @@ PRIVATE void mt_destroy(hgobj gobj)
         JSON_DECREF(priv->lists)
     }
 
-    /*
-     *  Close the iterators still open (a remote client may never send
-     *  close-iterator) BEFORE shutting down the tranger they belong to.
-     */
     if(priv->iterators) {
-        const char *iterator_id; json_t *jn_ptr; void *tmp;
-        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_ptr) {
-            json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
-            if(iterator && priv->tranger) {
+        const char *iterator_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
+            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+            if(iterator) {
                 tranger2_close_iterator(priv->tranger, iterator);
             }
             json_object_del(priv->iterators, iterator_id);
@@ -504,15 +549,11 @@ PRIVATE void mt_destroy(hgobj gobj)
         JSON_DECREF(priv->iterators)
     }
 
-    /*
-     *  Close the realtime feeds still open (a remote client may never send
-     *  close-rt) BEFORE shutting down the tranger they belong to.
-     */
     if(priv->rts) {
-        const char *rt_id; json_t *jn_ptr; void *tmp;
-        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_ptr) {
-            json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
-            if(rt && priv->tranger) {
+        const char *rt_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_entry) {
+            json_t *rt = live_handle(gobj, priv->rts, rt_id);
+            if(rt) {
                 tranger2_close_list(priv->tranger, rt);
             }
             json_object_del(priv->rts, rt_id);
@@ -1245,7 +1286,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             kw  // owned
         );
     }
-    json_object_set_new(priv->lists, list_id, json_integer((json_int_t)(uintptr_t)list));
+    register_handle(priv->lists, list_id, topic_name, list);
 
     return msg_iev_build_response(
         gobj,
@@ -1303,8 +1344,20 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             kw  // owned
         );
     }
-    json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_t *list = live_handle(gobj, priv->lists, list_id);
     json_object_del(priv->lists, list_id);
+    if(!list) {
+        /*  Its topic was closed: the tranger closed the list with it.  */
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: list was already closed with its topic: '%s'",
+                gobj_yuno_role_plus_name(), list_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     int result = tranger2_close_list(priv->tranger, list);
 
@@ -1467,7 +1520,18 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    json_t *list = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_t *list = live_handle(gobj, priv->lists, list_id);
+    if(!list) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: list was already closed with its topic: '%s'",
+                gobj_yuno_role_plus_name(), list_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
@@ -1689,7 +1753,7 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    json_object_set_new(priv->iterators, iterator_id, json_integer((json_int_t)(uintptr_t)iterator));
+    register_handle(priv->iterators, iterator_id, topic_name, iterator);
 
     json_int_t total_rows = (json_int_t)tranger2_iterator_size(iterator);
 
@@ -1751,7 +1815,18 @@ PRIVATE json_t *cmd_get_page(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
+    if(!iterator) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: iterator was already closed with its topic: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_int_t from_rowid = (json_int_t)kw_get_int(gobj, kw, "from_rowid", 1, KW_WILD_NUMBER);
     json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 100, KW_WILD_NUMBER);
@@ -1829,8 +1904,20 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
-    json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
     json_object_del(priv->iterators, iterator_id);
+    if(!iterator) {
+        /*  Its topic was closed: the tranger closed the iterator with it.  */
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: iterator was already closed with its topic: '%s'",
+                gobj_yuno_role_plus_name(), iterator_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     int result = tranger2_close_iterator(priv->tranger, iterator);
 
@@ -1966,7 +2053,7 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_object_set_new(priv->rts, rt_id, json_integer((json_int_t)(uintptr_t)rt));
+    register_handle(priv->rts, rt_id, topic_name, rt);
 
     return msg_iev_build_response(
         gobj,
@@ -2022,8 +2109,20 @@ PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+    json_t *rt = live_handle(gobj, priv->rts, rt_id);
     json_object_del(priv->rts, rt_id);
+    if(!rt) {
+        /*  Its topic was closed: the tranger closed the feed with it.  */
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: realtime feed was already closed with its topic: '%s'",
+                gobj_yuno_role_plus_name(), rt_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*  tranger2_close_list dispatches by list_type (rt_mem / rt_disk).  */
     int result = tranger2_close_list(priv->tranger, rt);
@@ -2233,10 +2332,12 @@ PRIVATE int mt_subscription_deleted(
     }
 
     if(priv->rts) {
-        const char *rt_id; json_t *jn_ptr; void *tmp;
-        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_ptr) {
-            json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+        const char *rt_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_entry) {
+            json_t *rt = live_handle(gobj, priv->rts, rt_id);
             if(!rt) {
+                /*  Closed with its topic: nothing to close, drop the entry.  */
+                json_object_del(priv->rts, rt_id);
                 continue;
             }
             hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, rt, "src_gobj", 0, 0);
@@ -2257,10 +2358,12 @@ PRIVATE int mt_subscription_deleted(
     }
 
     if(priv->iterators) {
-        const char *iterator_id; json_t *jn_ptr; void *tmp;
-        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_ptr) {
-            json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+        const char *iterator_id; json_t *jn_entry; void *tmp;
+        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_entry) {
+            json_t *iterator = live_handle(gobj, priv->iterators, iterator_id);
             if(!iterator) {
+                /*  Closed with its topic: nothing to close, drop the entry.  */
+                json_object_del(priv->iterators, iterator_id);
                 continue;
             }
             hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, iterator, "src_gobj", 0, 0);

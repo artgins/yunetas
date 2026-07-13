@@ -25,11 +25,13 @@
 #include <limits.h>
 
 #include <yunetas.h>
+#include <testing.h>
 
 #define APP         "test_c_tranger"
 
 #define DATABASE    "tr_c_tranger_cmd"
 #define TOPIC_NAME  "topic_cmd"
+#define TOPIC_NAME2 "topic_cmd2"    // closed under its open handles (UAF regression)
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -167,6 +169,43 @@ PRIVATE int append_key_skewed(json_t *tranger, const char *key, int n)
         );
         md2_record_ex_t md = {0};
         if(tranger2_append_record(tranger, TOPIC_NAME, BASE_T + j, 0, &md, jn_record) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/*  A SECOND topic, closed later under its open handles (the use-after-free
+ *  regression at the end of the test).  */
+PRIVATE int create_topic2(json_t *tranger)
+{
+    json_t *topic = tranger2_create_topic(
+        tranger,
+        TOPIC_NAME2,
+        "id",   // pkey
+        "tm",   // tkey
+        NULL,
+        sf_string_key,
+        json_pack("{s:s, s:I, s:s}",
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+    return topic? 0 : -1;
+}
+
+PRIVATE int append_key2(json_t *tranger, const char *key, int n)
+{
+    for(int j=0; j<n; j++) {
+        json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+            "id", key,
+            "tm", (json_int_t)(BASE_T + j),
+            "content", "payload"
+        );
+        md2_record_ex_t md = {0};
+        if(tranger2_append_record(tranger, TOPIC_NAME2, BASE_T + j, 0, &md, jn_record) < 0) {
             return -1;
         }
     }
@@ -647,6 +686,92 @@ PRIVATE int do_test(void)
         ), yuno);
     JSON_DECREF(r)
 
+    /*-------------------------------------------------*
+     *      A CLOSED TOPIC takes its handles with it.
+     *
+     *  A topic OWNS the iterators / rt feeds opened on it: closing the topic
+     *  closes and FREES them all. C_TRANGER registers what a remote client
+     *  opened, and used to keep the raw pointer — so after a close-topic its
+     *  registry pointed at freed memory, and the next close (at the latest,
+     *  its own mt_destroy) was a use-after-free. It crashed a yuno with
+     *  SIGSEGV on every shutdown that had a Rows card open (close-treedb
+     *  frees the topics, THEN the C_TRANGER gobj is destroyed).
+     *
+     *  Open a fresh pair on a second topic, close the topic under them, and
+     *  ask C_TRANGER to close them: it must answer that they are already
+     *  gone instead of dereferencing dead memory. mt_destroy then sweeps the
+     *  registry of the FIRST topic (iterator "B" + rtLeak, still open), so
+     *  both paths run in one test.
+     *-------------------------------------------------*/
+    if(create_topic2(tranger) < 0) {
+        printf("%s: FAIL (create_topic2)\n", APP);
+        return -1;
+    }
+    if(append_key2(tranger, KEY_A, KEY_A_ROWS) < 0) {
+        printf("%s: FAIL (append topic2)\n", APP);
+        return -1;
+    }
+
+    r = gobj_command(yuno, "open-iterator",
+        json_pack("{s:s, s:s, s:s}",
+            "iterator_id", "itDead",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-iterator on topic2", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtDead",
+            "topic_name", TOPIC_NAME2,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt on topic2", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  The topic goes away UNDER the open handles (this is what
+     *  close-treedb does to a treedb's topics at shutdown).  */
+    if(tranger2_close_topic(tranger, TOPIC_NAME2) < 0) {
+        printf("%s: FAIL (close_topic2)\n", APP);
+        global_result += -1;
+    }
+
+    /*  From here on, touching one of those handles must be SILENT: the guard
+     *  sees the topic is gone and drops the entry. Without it, the code
+     *  dereferences freed memory — which does not reliably crash (the block
+     *  may still read back fine), but it ALWAYS goes through the tranger and
+     *  logs ("Cannot open topic", "iterators not found"). So assert on the
+     *  logs: zero errors is the invariant, and it fails without the fix.  */
+    set_expected_results(
+        "handles of a closed topic are dropped, not dereferenced",
+        NULL,   // no errors expected
+        NULL, NULL, 1
+    );
+
+    /*  Reaching into the registry now must NOT touch the freed handles.  */
+    r = gobj_command(yuno, "get-page",
+        json_pack("{s:s, s:i, s:i}",
+            "iterator_id", "itDead",
+            "from_rowid", 1,
+            "limit", 10
+        ), yuno);
+    check_int("get-page on a dead topic", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "close-iterator",
+        json_pack("{s:s}", "iterator_id", "itDead"), yuno);
+    check_int("close-iterator on a dead topic", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    global_result += test_json(NULL);
+
+    /*  `rtDead` is left REGISTERED on the closed topic on purpose: it is the
+     *  crash as it happened in production — mt_destroy sweeping a registry
+     *  entry whose handle the tranger already freed. It must drop the entry
+     *  without touching it (gobj_end() runs it, and the leak check that
+     *  follows would catch a handle left behind).  */
+
     return global_result;
 }
 
@@ -675,6 +800,17 @@ int main(int argc, char *argv[])
         NULL                // global_authentication_parser
     );
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+
+    /*  Captures ERROR logs so a phase can assert it emitted NONE (see the
+     *  closed-topic phase: touching a freed handle always goes through the
+     *  tranger and logs an error, so silence is the proof it was not touched).
+     *  Errors only: this test's yuno IS the C_TRANGER, so it has no
+     *  `yuno_role_plus_name` attr and every command response that names the
+     *  yuno emits a harmless warning no real yuno emits.  */
+    gobj_log_register_handler(
+        "testing", 0, capture_log_write, 0
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
 
     int result = do_test();
 

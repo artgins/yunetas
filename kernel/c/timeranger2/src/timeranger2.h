@@ -387,6 +387,20 @@ PUBLIC json_t *tranger2_topic_key_range( // return is yours
 );
 
 /*
+   TRUE if the topic is currently OPEN in this tranger. Silent (a closed topic
+   is a legitimate answer, not an error).
+
+   WARNING a topic OWNS the iterators, rt_mem and rt_disk handles opened on it:
+   tranger2_close_topic() closes them all (tranger2_close_all_lists) and frees
+   the topic. Anyone caching such a handle must therefore check the topic is
+   still open before touching it — the handle is dead memory once it is not.
+*/
+PUBLIC BOOL tranger2_topic_is_open(
+    json_t *tranger,
+    const char *topic_name
+);
+
+/*
    Return the topic_name string stored in a topic object. Takes the TOPIC object
    (not tranger + name). The returned pointer is borrowed (owned by the topic
    json; valid while the topic lives) — do not free it. "" if absent.
