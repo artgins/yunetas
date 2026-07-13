@@ -32,10 +32,36 @@
       that actually travel. A bad `rkey` and an unknown `order` are refused with
       an error, never answered as "nothing matched".
 
-      Note while auditing this: `open-list`'s `rkey` parameter is accepted by the
-      command parser and then **silently ignored** — timeranger2's only
-      implementation of it (`find_keys_in_disk`) is commented out. It has always
-      been a no-op; `list-keys` above is the first live `rkey` in the read path.
+    - **feat(timeranger2): `rkey` governs a keyless list — the disk load AND the
+      realtime feed.** A list opened with no `key` is the whole topic; `rkey`
+      narrows it to the keys matching a regex. It was documented and half true:
+      the one-shot read (`open-list return_data=1`) filtered the keys, but a LIVE
+      list **refused** `rkey` outright (*"rkey is only supported with
+      return_data=1"*) — and rightly so, because `tranger2_open_list()` visited
+      every key on load and the realtime feeds (`rt_mem` / `rt_disk`) knew
+      nothing about it. A list filtered on load and unfiltered on append is worse
+      than no filter at all: the caller cannot tell it is being lied to.
+
+      `rkey` is now honoured in both halves, so a live list can finally be opened
+      on a SUBSET of a topic's keys. The three dispatch sites that decided who
+      gets an appended record (mem feed, disk feed, and the non-master path) went
+      through one `list_wants_key()`, so the two halves cannot drift apart again.
+      The compiled pattern lives IN the list (a pointer in its json, like its
+      `load_record_callback`) and dies with it: it is consulted once per appended
+      record, so compiling it per record would cost more than the load it saves.
+      PCRE2 + JIT, and `c_tranger`'s one-shot path was moved off POSIX
+      `regcomp()` onto it as well — one flavour of regex per parameter, or the
+      same `rkey` would mean two different things depending on which half of
+      `open-list` ran it.
+
+      A malformed `rkey` REFUSES the list (and the feed), rather than degrading
+      to "every key": that would push the caller exactly the records it asked not
+      to receive.
+
+      (An earlier note in this section claimed `open-list`'s `rkey` was *silently
+      ignored*. That was wrong, and worth correcting: it was honoured in the
+      one-shot read and explicitly refused in the live one. The dead code is
+      timeranger2's commented-out `find_keys_in_disk`.)
 
     - **fix(c_tranger): use-after-free closing a handle whose topic was closed
       (SIGSEGV on shutdown).** A topic OWNS the iterators / rt_mem / rt_disk

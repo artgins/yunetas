@@ -20,6 +20,10 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+#define PCRE2_STATIC
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+
 #include <testing.h>
 #include <gobj.h>
 #include "fs_watcher.h"
@@ -211,6 +215,11 @@ PRIVATE json_int_t update_totals_of_key_cache2(
 );
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
+
+PRIVATE void *rkey_compile(hgobj gobj, const char *rkey);
+PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond);
+PRIVATE void rkey_disarm(json_t *list);
+PRIVATE BOOL list_wants_key(json_t *list, const char *key);
 
 PRIVATE json_t *get_cache_files(json_t *topic, const char *key);
 PRIVATE json_t *get_cache_total(json_t *topic, const char *key);
@@ -2796,8 +2805,7 @@ PUBLIC int tranger2_append_record(
     int idx;
     json_t *list;
     json_array_foreach(lists, idx, list) {
-        const char *key_ = json_string_value(json_object_get(list, "key"));
-        if(empty_string(key_) || strcmp(key_, key_value)==0) {
+        if(list_wants_key(list, key_value)) {
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)json_integer_value(
                     json_object_get(list, "load_record_callback")
@@ -3843,6 +3851,17 @@ PUBLIC json_t *tranger2_open_rt_mem(
     json_object_update_missing_new(mem, extra);
 
     /*
+     *  A KEYLESS feed receives every key of the topic — unless its match_cond
+     *  carries an `rkey`, which narrows it to the keys that match. A malformed
+     *  rkey refuses the open: degrading it to "every key" would push the client
+     *  exactly the records it asked not to receive.
+     */
+    if(rkey_arm(gobj, mem, key, json_object_get(mem, "match_cond"))<0) {
+        JSON_DECREF(mem)    // Error already logged
+        return NULL;
+    }
+
+    /*
      *  Add the mem to the topic
      */
     json_array_append_new(
@@ -3915,6 +3934,8 @@ PUBLIC int tranger2_close_rt_mem(
         );
         return -1;
     }
+
+    rkey_disarm(mem);   /*  its compiled rkey dies with it  */
 
     int idx = json_array_find_idx(lists, mem);
     if(idx >=0 && idx < json_array_size(lists)) {
@@ -4085,6 +4106,14 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_object_set_new(disk, "list_type", json_string("rt_disk"));
 
     /*
+     *  Same contract as rt_mem: keyless + rkey = only the keys that match it.
+     */
+    if(rkey_arm(gobj, disk, key, json_object_get(disk, "match_cond"))<0) {
+        JSON_DECREF(disk)   // Error already logged
+        return NULL;
+    }
+
+    /*
      *  Add the list to the topic
      */
     json_array_append_new(
@@ -4173,6 +4202,8 @@ PUBLIC int tranger2_close_rt_disk(
             NULL
         );
     }
+
+    rkey_disarm(disk);  /*  its compiled rkey dies with it  */
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
@@ -5211,8 +5242,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
          *----------------------------*/
         int idx; json_t *disk;
         json_array_foreach(disks, idx, disk) {
-            const char *key_ = json_string_value(json_object_get(disk, "key"));
-            if(empty_string(key_) || strcmp(key_, key)==0) {
+            if(list_wants_key(disk, key)) {
                 tranger2_load_record_callback_t load_record_callback =
                     (tranger2_load_record_callback_t)(size_t)json_integer_value(
                         json_object_get(disk, "load_record_callback")
@@ -5237,8 +5267,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
             json_t *lists = json_object_get(topic, "lists");
             json_t *list;
             json_array_foreach(lists, idx, list) {
-                const char *key_ = json_string_value(json_object_get(list, "key"));
-                if(empty_string(key_) || strcmp(key_, key)==0) {
+                if(list_wants_key(list, key)) {
                     tranger2_load_record_callback_t load_record_callback =
                         (tranger2_load_record_callback_t)(size_t)json_integer_value(
                             json_object_get(list, "load_record_callback")
@@ -7691,6 +7720,134 @@ PRIVATE json_int_t next_segment_row(
 //}
 
 /***************************************************************************
+ *  rkey: the regex a KEYLESS list matches the topic's keys against.
+ *
+ *  A list opened on one `key` receives that key and nothing else. A list
+ *  opened with NO key receives every key of the topic — and `rkey` is what
+ *  narrows that: "every key that matches this regex".
+ *
+ *  The compiled pattern lives IN the list (as a pointer stored in its json,
+ *  the same way its load_record_callback does), because it is consulted once
+ *  per appended record, on the hot path: compiling it per record would make
+ *  a filter cost more than the load it saves. PCRE2 with JIT, like the rest
+ *  of the framework (gobj-c's json_replace_vars, c_tranger's list-keys).
+ ***************************************************************************/
+PRIVATE void *rkey_compile(hgobj gobj, const char *rkey)
+{
+    int errornumber = 0;
+    PCRE2_SIZE erroroffset = 0;
+
+    pcre2_code *re = pcre2_compile(
+        (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, NULL
+    );
+    if(!re) {
+        PCRE2_UCHAR err[256];
+        pcre2_get_error_message(errornumber, err, sizeof(err));
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad rkey regex",
+            "rkey",         "%s", rkey,
+            "offset",       "%d", (int)erroroffset,
+            "error",        "%s", (char *)err,
+            NULL
+        );
+        return NULL;
+    }
+    pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
+    return re;
+}
+
+/***************************************************************************
+ *  Arm a list with its rkey (from its match_cond), or leave it unarmed.
+ *
+ *  Returns 0 when the list is usable: no rkey, or an rkey that COMPILED.
+ *  A malformed rkey returns -1 and the caller must refuse to open the list:
+ *  degrading it to "every key" would hand the client records it explicitly
+ *  asked not to receive, which is worse than failing.
+ ***************************************************************************/
+PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond)
+{
+    const char *rkey = kw_get_str(gobj, match_cond, "rkey", "", 0);
+    if(!empty_string(key) || empty_string(rkey)) {
+        return 0;   // a keyed list ignores rkey; no rkey is "every key"
+    }
+
+    pcre2_code *re = rkey_compile(gobj, rkey);
+    if(!re) {
+        return -1;      // Error already logged
+    }
+    pcre2_match_data *md = pcre2_match_data_create_from_pattern(re, NULL);
+    if(!md) {
+        pcre2_code_free(re);
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+            NULL
+        );
+        return -1;
+    }
+
+    json_object_set_new(list, "rkey_re", json_integer((json_int_t)(uintptr_t)re));
+    json_object_set_new(list, "rkey_md", json_integer((json_int_t)(uintptr_t)md));
+    return 0;
+}
+
+PRIVATE void rkey_disarm(json_t *list)
+{
+    pcre2_code *re = (pcre2_code *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_re")
+    );
+    pcre2_match_data *md = (pcre2_match_data *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_md")
+    );
+    if(md) {
+        pcre2_match_data_free(md);
+        json_object_del(list, "rkey_md");
+    }
+    if(re) {
+        pcre2_code_free(re);
+        json_object_del(list, "rkey_re");
+    }
+}
+
+/***************************************************************************
+ *  Does this list want the records of `key`?
+ *
+ *  A keyed list: only its key. A keyless list: every key, unless it armed an
+ *  rkey, in which case only the keys that match it. The ONE place that
+ *  decides, so the disk load, the memory feed and the disk feed cannot drift
+ *  apart — a list whose initial load was filtered and whose realtime was not
+ *  is the worst of both worlds.
+ ***************************************************************************/
+PRIVATE BOOL list_wants_key(json_t *list, const char *key)
+{
+    const char *key_ = json_string_value(json_object_get(list, "key"));
+    if(!empty_string(key_)) {
+        return strcmp(key_, key?key:"")==0;
+    }
+
+    pcre2_code *re = (pcre2_code *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_re")
+    );
+    if(!re) {
+        return TRUE;    // keyless and no rkey: every key of the topic
+    }
+    pcre2_match_data *md = (pcre2_match_data *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_md")
+    );
+    if(!md) {
+        return TRUE;    // armed without its match data: cannot happen (rkey_arm)
+    }
+
+    int ret = pcre2_match(
+        re, (PCRE2_SPTR)(key?key:""), PCRE2_ZERO_TERMINATED, 0, 0, md, NULL
+    );
+    return ret >= 0;
+}
+
+/***************************************************************************
  *  Get key rows (topic key size)
  ***************************************************************************/
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
@@ -8189,9 +8346,15 @@ PRIVATE json_t *read_record_content(
 
     match_cond (second level, consumed here):
         key                 (str) exact key to load; if absent, rkey is used
-        rkey                (str) regular expression over keys ("" == ".*")
-                            WARNING: the DISK load only visits keys matching rkey,
-                            but the REALTIME feed is opened for ALL keys.
+        rkey                (str) regex (PCRE2) over the keys ("" == every key).
+                            It governs BOTH halves of the list — the disk load
+                            and the realtime feed — because a list whose initial
+                            load is filtered and whose live records are not is
+                            worse than no filter at all: the caller cannot even
+                            tell that it is being lied to.
+                            A malformed rkey REFUSES the list (returns NULL);
+                            degrading it to "every key" would push the caller
+                            exactly the records it asked not to receive.
         to_rowid            (int) upper bound of the range; see "realtime" below
         load_record_callback (tranger2_load_record_callback_t) REQUIRED
                             passed inside match_cond, not as a C argument.
@@ -8278,6 +8441,40 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         tranger2_close_iterator(tranger, ll);
 
     } else {
+        /*
+         *  No key: the list is the WHOLE topic — every key of it, unless `rkey`
+         *  narrows it to the keys that match. This is where rkey was documented
+         *  and never applied: the load visited every key and the caller was
+         *  handed records of keys it had explicitly filtered out.
+         *
+         *  A malformed rkey refuses the list. Loading everything instead would
+         *  be the same lie in a louder voice.
+         */
+        const char *rkey = kw_get_str(gobj, match_cond, "rkey", "", 0);
+        pcre2_code *re = NULL;
+        pcre2_match_data *md = NULL;
+        if(!empty_string(rkey)) {
+            re = rkey_compile(gobj, rkey);
+            if(!re) {
+                JSON_DECREF(match_cond)     // Error already logged
+                JSON_DECREF(extra)
+                return NULL;
+            }
+            md = pcre2_match_data_create_from_pattern(re, NULL);
+            if(!md) {
+                pcre2_code_free(re);
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY,
+                    "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+                    NULL
+                );
+                JSON_DECREF(match_cond)
+                JSON_DECREF(extra)
+                return NULL;
+            }
+        }
+
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
         if(json_array_size(jn_keys)>0) {
             /*
@@ -8286,6 +8483,17 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             int idx; json_t *jn_key;
             json_array_foreach(jn_keys, idx, jn_key) {
                 const char *key_ = json_string_value(jn_key);
+                if(!key_) {
+                    key_ = "";
+                }
+                if(re) {
+                    int m = pcre2_match(
+                        re, (PCRE2_SPTR)key_, PCRE2_ZERO_TERMINATED, 0, 0, md, NULL
+                    );
+                    if(m < 0) {
+                        continue;   // this key is not in the list
+                    }
+                }
 
                 json_t *ll = tranger2_open_iterator(
                     tranger,
@@ -8303,6 +8511,11 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             }
         }
         json_decref(jn_keys);
+
+        if(re) {
+            pcre2_match_data_free(md);
+            pcre2_code_free(re);
+        }
     }
 
     /*-------------------------------*

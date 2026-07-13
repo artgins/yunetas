@@ -60,7 +60,6 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
-#include <regex.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -216,7 +215,7 @@ SDATAPM (DTP_STRING,    "from_t",               0,          0,      "match_cond:
 SDATAPM (DTP_STRING,    "to_t",                 0,          0,      "match_cond:"),
 SDATAPM (DTP_STRING,    "fields",               0,          0,      "match_cond: Only this fields"),
 SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regular expression of key"),
-SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
+SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regex (PCRE2) over the keys; only for a KEYLESS list. Governs both the disk load AND the realtime feed"),
 SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "match_cond:"),
 SDATAPM (DTP_BOOLEAN,   "only_md",              0,          0,      "match_cond: don't load jn_record on loading disk"),
 SDATAPM (DTP_INTEGER,   "user_flag",            0,          0,      "match_cond:"),
@@ -1183,13 +1182,28 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         } else {
             jn_keys = tranger2_list_keys(priv->tranger, topic_name);
             if(!empty_string(rkey)) {
-                regex_t re;
-                if(regcomp(&re, rkey, REG_EXTENDED|REG_NOSUB)!=0) {
-                    gobj_log_error(gobj, 0,
+                /*
+                 *  PCRE2, the same engine timeranger2 now matches rkey with
+                 *  (and list-keys above): one flavour of regex per parameter,
+                 *  or the same rkey would mean two different things depending
+                 *  on which half of open-list ran it.
+                 */
+                int errornumber = 0;
+                PCRE2_SIZE erroroffset = 0;
+                pcre2_code *re = pcre2_compile(
+                    (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0,
+                    &errornumber, &erroroffset, NULL
+                );
+                if(!re) {
+                    PCRE2_UCHAR err[256];
+                    pcre2_get_error_message(errornumber, err, sizeof(err));
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "regcomp() FAILED",
+                        "msg",          "%s", "Bad rkey regex",
                         "rkey",         "%s", rkey,
+                        "offset",       "%d", (int)erroroffset,
+                        "error",        "%s", (char *)err,
                         NULL
                     );
                     JSON_DECREF(jn_keys)
@@ -1198,20 +1212,50 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     return msg_iev_build_response(
                         gobj,
                         -1,
-                        json_sprintf("Bad regular expression in rkey: '%s'", rkey),
+                        json_sprintf("Bad rkey regex '%s' at %d: %s",
+                            rkey, (int)erroroffset, (char *)err),
                         0,
                         0,
                         kw  // owned
                     );
                 }
+                pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
+
+                pcre2_match_data *md = pcre2_match_data_create_from_pattern(re, NULL);
+                if(!md) {
+                    pcre2_code_free(re);
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MEMORY,
+                        "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+                        NULL
+                    );
+                    JSON_DECREF(jn_keys)
+                    JSON_DECREF(jn_data)
+                    JSON_DECREF(match_cond)
+                    return msg_iev_build_response(
+                        gobj,
+                        -1,
+                        json_sprintf("No memory for the rkey matcher"),
+                        0,
+                        0,
+                        kw  // owned
+                    );
+                }
+
                 int idx = (int)json_array_size(jn_keys);
                 while(--idx >= 0) {
                     const char *key_ = json_string_value(json_array_get(jn_keys, idx));
-                    if(regexec(&re, key_?key_:"", 0, NULL, 0)!=0) {
+                    int m = pcre2_match(
+                        re, (PCRE2_SPTR)(key_?key_:""), PCRE2_ZERO_TERMINATED,
+                        0, 0, md, NULL
+                    );
+                    if(m < 0) {
                         json_array_remove(jn_keys, idx);
                     }
                 }
-                regfree(&re);
+                pcre2_match_data_free(md);
+                pcre2_code_free(re);
             }
         }
 
@@ -1253,19 +1297,13 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  in its `data` until close-list; appends are also published as
      *  EV_TRANGER_RECORD_ADDED (see load_record_callback).
      */
-    if(!empty_string(rkey)) {
-        /*  The realtime paths (rt_mem/rt_disk) do not honour rkey.  */
-        JSON_DECREF(match_cond)
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("rkey is only supported with return_data=1"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
+    /*
+     *  `rkey` used to be refused here: the realtime paths did not honour it, so
+     *  a live list would have loaded the matching keys from disk and then fed
+     *  the caller the appends of EVERY key. timeranger2 applies it to both
+     *  halves now (the disk load and rt_mem/rt_disk alike), so a live list can
+     *  finally be opened on a SUBSET of the topic's keys.
+     */
     json_object_set_new(
         match_cond,
         "load_record_callback",

@@ -783,6 +783,56 @@ PRIVATE int do_test(void)
     check_int("no publish after close-rt", g_rt_count, 0);
 
     /*-------------------------------------------------*
+     *      open-list with rkey: a LIVE list on a SUBSET of the keys.
+     *
+     *      This is the one that used to be a lie. rkey was honoured by the
+     *      one-shot read (return_data=1) and REFUSED by the live list,
+     *      because the realtime feed did not know about it: a list filtered
+     *      on load and unfiltered on append would have fed the caller the
+     *      records of every key it had asked to exclude.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s}",
+            "list_id", "lstA",
+            "topic_name", TOPIC_NAME,
+            "rkey", "^A$"
+        ), yuno);
+    check_int("open-list rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  The DISK half: only key A's records were loaded.  */
+    r = gobj_command(yuno, "get-list-data",
+        json_pack("{s:s}", "list_id", "lstA"), yuno);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("open-list rkey loaded only A", json_array_size(data), KEY_A_ROWS + 2);
+    JSON_DECREF(r)
+
+    /*  The REALTIME half, which is the whole point: an append on A reaches the
+     *  list, and an append on a key the rkey excludes does NOT.  */
+    g_rt_count = 0;
+    append_one(tranger, KEY_A, BASE_T + 2000);
+    check_int("open-list rkey live publish on A", g_rt_count, 1);
+
+    append_one(tranger, KEY_B, BASE_T + 2001);
+    check_int("open-list rkey no live publish on B", g_rt_count, 1);
+
+    r = gobj_command(yuno, "close-list",
+        json_pack("{s:s}", "list_id", "lstA"), yuno);
+    check_int("close-list rkey result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    /*  A malformed rkey REFUSES the list: degrading it to "every key" would
+     *  push the caller exactly the records it asked not to receive.  */
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s}",
+            "list_id", "lstBad",
+            "topic_name", TOPIC_NAME,
+            "rkey", "a[b"
+        ), yuno);
+    check_bool("open-list bad rkey fails", kw_get_int(0, r, "result", 0, 0) < 0, TRUE);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
      *      Negatives: open-rt without rt_id; close-rt unknown
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-rt",
