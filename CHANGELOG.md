@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+    - **fix(c_tranger): realtime feeds leaked, and every leaked feed duplicated
+      records for EVERY subscriber.** `publish_rt_callback()` runs once per OPEN
+      FEED, and each run published `EV_TRANGER_RECORD_ADDED` to the whole
+      channel. Feeds were only ever released by an explicit `close-rt` (or at
+      `mt_stop`), so a remote client that died without one — browser reload,
+      closed tab, dropped websocket — left its feed alive forever. Every
+      surviving feed then re-published each append, so N leaked feeds meant N
+      copies of the same record delivered to all subscribers, not only to the
+      session that leaked them (observed in gui_treedb: the same `rowid`
+      repeated ~20 times in a Live card).
+      Two fixes: (1) the payload now carries the `rt_id` of the feed that
+      produced it, so a record can be routed to the subscriber that OPENED that
+      feed instead of broadcast (a foreign feed can no longer duplicate anyone's
+      rows); (2) `mt_subscription_deleted` closes the feeds **and iterators**
+      opened by a subscriber once its last subscription is gone — the owner is
+      stamped into the rt/iterator as `src_gobj` at `open-rt` / `open-iterator`.
+      Consumers of the event get one new field (`rt_id`) and are otherwise
+      unaffected; a consumer that does not filter on it keeps working.
+      An iterator opened by a session that never subscribes (Rows-only browsing)
+      is still only reclaimed at `mt_stop` — see `TODO.md`.
+
     - **feat(c_tranger): `open-iterator` accepts metadata match conditions.**
       Beyond `key` + `backward`, the command now forwards the record-metadata
       conditions honored by `tranger2_match_metadata` into the iterator's

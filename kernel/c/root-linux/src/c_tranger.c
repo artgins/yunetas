@@ -113,6 +113,8 @@ PRIVATE json_t *cmd_close_iterator(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
+PRIVATE int mt_subscription_deleted(hgobj gobj, json_t *subs);
+
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
@@ -1618,7 +1620,9 @@ PRIVATE json_t *cmd_open_iterator(hgobj gobj, const char *cmd, json_t *kw, hgobj
         iterator_id,
         gobj_name(gobj),    // creator
         NULL,               // data
-        NULL                // extra
+        json_pack("{s:I}",  // extra, owned: the OWNER, see cmd_open_rt
+            "src_gobj", (json_int_t)(uintptr_t)src
+        )
     );
     if(!iterator) {
         return msg_iev_build_response(
@@ -1860,6 +1864,15 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  master writes -> rt by memory (fires on append);
      *  non-master reads -> rt by disk (fires on the master's disk mirror).
      */
+    /*
+     *  Stamp the OWNER (the gobj that asked for the feed) into the rt.
+     *  A remote client that dies without close-rt (browser reload, dropped
+     *  websocket) would otherwise leave its feed open forever, and each
+     *  surviving feed re-publishes every append: N zombie feeds = N copies
+     *  of the same record for everybody. mt_subscription_deleted() closes
+     *  the feeds of a subscriber that is gone. The pointer is only ever
+     *  COMPARED, never dereferenced.
+     */
     json_t *rt;
     if(gobj_read_bool_attr(gobj, "master")) {
         rt = tranger2_open_rt_mem(
@@ -1870,7 +1883,9 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             publish_rt_callback,
             rt_id,
             gobj_name(gobj),    // creator
-            NULL                // extra
+            json_pack("{s:I}",  // extra, owned
+                "src_gobj", (json_int_t)(uintptr_t)src
+            )
         );
     } else {
         rt = tranger2_open_rt_disk(
@@ -1881,7 +1896,9 @@ PRIVATE json_t *cmd_open_rt(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             publish_rt_callback,
             rt_id,              // rt_id REQUIRED for rt_disk
             gobj_name(gobj),    // creator
-            NULL                // extra
+            json_pack("{s:I}",  // extra, owned
+                "src_gobj", (json_int_t)(uintptr_t)src
+            )
         );
     }
     if(!rt) {
@@ -2103,15 +2120,110 @@ PRIVATE int publish_rt_callback(
         json_object_set_new(jn_record, "__md_tranger__", __md_tranger__);
     }
 
-    json_t *jn_data = json_pack("{s:s, s:s, s:I, s:O}",
+    /*
+     *  The `rt_id` ADDRESSES the record: this callback runs once per OPEN
+     *  FEED, so without it two feeds on the same key publish the same append
+     *  twice and every subscriber sees a duplicate. A subscriber filters on
+     *  its own rt_id (__filter__), so it only ever gets the records of the
+     *  feed IT opened.
+     */
+    const char *rt_id = json_string_value(json_object_get(list, "id"));
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:I, s:O}",
         "topic_name", tranger2_topic_name(topic),
         "key", key?key:"",
+        "rt_id", rt_id?rt_id:"",
         "rowid", rowid,
         "record", jn_record
     );
     gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_data);
 
     JSON_DECREF(jn_record)
+
+    return 0;
+}
+
+/***************************************************************************
+ *  A subscriber is gone (its session/channel died, or it unsubscribed):
+ *  close the realtime feeds and iterators IT opened. A remote client that
+ *  dies without close-rt / close-iterator (browser reload, dropped
+ *  websocket) used to leave them open forever — and a surviving feed keeps
+ *  re-publishing every append, so N zombie feeds meant N copies of the same
+ *  record for EVERY subscriber, not just for the one that leaked them.
+ *
+ *  The owner was stamped into the rt/iterator as `src_gobj` (see
+ *  cmd_open_rt / cmd_open_iterator). The pointer is only COMPARED here.
+ ***************************************************************************/
+PRIVATE int mt_subscription_deleted(
+    hgobj gobj,
+    json_t *subs    // NOT owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj subscriber = (hgobj)(uintptr_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+    if(!subscriber || !priv->tranger) {
+        return 0;
+    }
+
+    /*  The subscriber may still hold other subscriptions to this service
+     *  (a tab with several live views closing one of them): only reap when
+     *  its LAST subscription goes. gobj calls us BEFORE removing `subs`,
+     *  so the one being deleted is still in the list — hence > 1.  */
+    json_t *subscribings = gobj_find_subscribings(subscriber, 0, 0, gobj);
+    size_t remaining = json_array_size(subscribings);
+    JSON_DECREF(subscribings)
+    if(remaining > 1) {
+        return 0;
+    }
+
+    if(priv->rts) {
+        const char *rt_id; json_t *jn_ptr; void *tmp;
+        json_object_foreach_safe(priv->rts, tmp, rt_id, jn_ptr) {
+            json_t *rt = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+            if(!rt) {
+                continue;
+            }
+            hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, rt, "src_gobj", 0, 0);
+            if(owner != subscriber) {
+                continue;
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Closing realtime feed of a gone subscriber",
+                "rt_id",        "%s", rt_id,
+                "subscriber",   "%s", gobj_short_name(subscriber),
+                NULL
+            );
+            tranger2_close_list(priv->tranger, rt);
+            json_object_del(priv->rts, rt_id);
+        }
+    }
+
+    if(priv->iterators) {
+        const char *iterator_id; json_t *jn_ptr; void *tmp;
+        json_object_foreach_safe(priv->iterators, tmp, iterator_id, jn_ptr) {
+            json_t *iterator = (json_t *)(uintptr_t)json_integer_value(jn_ptr);
+            if(!iterator) {
+                continue;
+            }
+            hgobj owner = (hgobj)(uintptr_t)kw_get_int(gobj, iterator, "src_gobj", 0, 0);
+            if(owner != subscriber) {
+                continue;
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Closing iterator of a gone subscriber",
+                "iterator_id",  "%s", iterator_id,
+                "subscriber",   "%s", gobj_short_name(subscriber),
+                NULL
+            );
+            tranger2_close_iterator(priv->tranger, iterator);
+            json_object_del(priv->iterators, iterator_id);
+        }
+    }
 
     return 0;
 }
@@ -2238,6 +2350,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_subscription_deleted = mt_subscription_deleted,
 };
 
 /*---------------------------------------------*

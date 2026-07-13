@@ -6,6 +6,18 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
+## c_tranger: reclaim iterators of a session that never subscribes
+
+`mt_subscription_deleted` now closes the realtime feeds and iterators a
+subscriber leaked when its last subscription goes (see the `open-rt` duplicate
+fix in `CHANGELOG.md`). But a client that only PAGES (`open-iterator` +
+`get-page`, no `open-rt`) never subscribes to anything, so its iterators are
+still reclaimed only at `mt_stop` — gui_treedb browsing Rows cards without a
+Live card leaks one iterator per card per dead session. Memory only (no
+duplicate records), but it needs a session-death hook that does not depend on a
+subscription: the natural candidate is for the command's `src` channel to notify
+the service on close.
+
 ## Auth: OIDC migration follow-ups
 
 - **Real-IdP smoke tests beyond Keycloak.** Auth0 / Cognito / Authentik are not
