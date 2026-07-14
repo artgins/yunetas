@@ -60,6 +60,7 @@ command-yuno id=1911 service=tranger command=close-rt rt_id=rt1
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <stdlib.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -1596,46 +1597,54 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /***************************************************************************
  *  Sort a [{key, records}] list in place, by key or by record count.
  *
- *  Insertion sort on the json array: jansson has no array sort, and the list
- *  is the keys of ONE topic — a size a client is going to page through by
- *  hand. Sorting HERE is what lets the page be the right page: a client that
- *  only receives 50 of 100.000 keys cannot sort them itself.
+ *  Sorting HERE is what lets the page be the right page: a client that only
+ *  receives 50 of 100.000 keys cannot sort what it was not given. And that
+ *  same cardinality is why this is qsort over a plain pointer array, not an
+ *  insertion sort over the json array: the sort runs INSIDE the event loop,
+ *  and O(n²) with a jansson refcount round-trip per swap stalls the yuno
+ *  for the very topics this command was paginated for. Ties on the record
+ *  count break by key, so equal counts page deterministically.
  ***************************************************************************/
+PRIVATE int cmp_rows_by_key(const void *a, const void *b)
+{
+    const char *ka = json_string_value(json_object_get(*(json_t * const *)a, "key"));
+    const char *kb = json_string_value(json_object_get(*(json_t * const *)b, "key"));
+    return strcmp(ka?ka:"", kb?kb:"");
+}
+
+PRIVATE int cmp_rows_by_records(const void *a, const void *b)
+{
+    json_int_t ra = json_integer_value(json_object_get(*(json_t * const *)a, "records"));
+    json_int_t rb = json_integer_value(json_object_get(*(json_t * const *)b, "records"));
+    if(ra != rb) {
+        return (ra < rb)? -1 : 1;
+    }
+    return cmp_rows_by_key(a, b);
+}
+
 PRIVATE void sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
 {
     size_t size = json_array_size(jn_list);
-
-    for(size_t i = 1; i < size; i++) {
-        json_t *jn_a = json_incref(json_array_get(jn_list, i));
-        size_t j = i;
-
-        while(j > 0) {
-            json_t *jn_b = json_array_get(jn_list, j-1);
-
-            int cmp;
-            if(by_records) {
-                json_int_t ra = json_integer_value(json_object_get(jn_a, "records"));
-                json_int_t rb = json_integer_value(json_object_get(jn_b, "records"));
-                cmp = (ra < rb) ? -1 : ((ra > rb) ? 1 : 0);
-            } else {
-                const char *ka = json_string_value(json_object_get(jn_a, "key"));
-                const char *kb = json_string_value(json_object_get(jn_b, "key"));
-                cmp = strcmp(ka?ka:"", kb?kb:"");
-            }
-            if(desc) {
-                cmp = -cmp;
-            }
-            if(cmp >= 0) {
-                break;
-            }
-
-            json_array_set(jn_list, j, jn_b);
-            j--;
-        }
-
-        json_array_set(jn_list, j, jn_a);
-        JSON_DECREF(jn_a)
+    if(size < 2) {
+        return;
     }
+
+    json_t **rows = gbmem_malloc(size * sizeof(json_t *));
+    if(!rows) {
+        return;     // Error already logged
+    }
+    for(size_t i = 0; i < size; i++) {
+        rows[i] = json_incref(json_array_get(jn_list, i));
+    }
+
+    qsort(rows, size, sizeof(json_t *), by_records? cmp_rows_by_records : cmp_rows_by_key);
+
+    json_array_clear(jn_list);
+    for(size_t i = 0; i < size; i++) {
+        json_t *row = desc? rows[size - 1 - i] : rows[i];
+        json_array_append_new(jn_list, row);    // transfers the incref above
+    }
+    gbmem_free(rows);
 }
 
 PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
