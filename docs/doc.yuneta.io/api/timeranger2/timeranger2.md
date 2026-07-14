@@ -953,6 +953,13 @@ Every condition is honored **per record**, in both modes of the iterator:
   THOSE rows. An **unfiltered** iterator builds no index — its open stays cheap
   regardless of the key size, and its positions are the global rowids.
 
+:::{warning}
+The index is a **snapshot** taken at open: records appended after a filtered
+iterator opens never enter its `total_rows` or its pages, while an unfiltered
+iterator recounts the key on every call and keeps growing. Reopen the iterator
+(or pair it with a realtime feed) to see new appends.
+:::
+
 :::{note}
 A topic **owns** the iterators opened on it:
 [`tranger2_close_topic()`](#tranger2_close_topic) closes them all and frees the

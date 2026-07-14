@@ -4,7 +4,7 @@
  *      Time Ranger 2, a serie-time key-value database over flat files
  *
  *      Copyright (c) 2017-2024 Niyamaka.
- *      Copyright (c) 2024, ArtGins.
+ *      Copyright (c) 2024-2026, ArtGins.
  *      All Rights Reserved.
  *
  *  Disk layout:
@@ -754,6 +754,11 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     a deleted instance (tranger2_delete_instance) still adds to its total_rows
     while its pages skip it. A filtered one never indexes a dead row, so its
     count and its pages agree.
+
+    WARNING the index is a SNAPSHOT taken at open: records appended after a
+    FILTERED iterator opens never enter its total_rows or its pages, while an
+    unfiltered iterator recounts the key on every call and keeps growing.
+    Reopen the iterator (or pair it with a realtime feed) to see new appends.
 */
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
