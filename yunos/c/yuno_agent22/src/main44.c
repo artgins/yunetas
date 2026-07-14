@@ -4,7 +4,7 @@
  *          A third backdoor for yuneta agents being controlled by controlcenter
  *
  *          Copyright (c) 2022 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

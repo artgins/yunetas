@@ -14,7 +14,7 @@
  *            POST /auth/refresh   — Refresh access_token via httpOnly cookie
  *            POST /auth/logout    — Revoke tokens and clear cookies
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

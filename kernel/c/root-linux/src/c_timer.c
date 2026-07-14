@@ -7,7 +7,7 @@
  *
  *          Don't use gobj_start()/gobj_stop(), USE set_timeout..(), clear_timeout()
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

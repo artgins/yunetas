@@ -7,7 +7,7 @@
         Bytes/sec  : 177.5 Millions
 
  *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>

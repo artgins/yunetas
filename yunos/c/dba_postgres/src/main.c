@@ -7,7 +7,7 @@
  *          Postgres DBA
  *
  *          Copyright (c) 2021 by Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

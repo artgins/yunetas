@@ -3,7 +3,7 @@
  *          GClass of WEBSOCKET protocol.
  *
  *          Copyright (c) 2013-2014 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

@@ -3,7 +3,7 @@
  *          Watch file system events yev-mixin.
  *
  *          Copyright (c) 2014 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <unistd.h>

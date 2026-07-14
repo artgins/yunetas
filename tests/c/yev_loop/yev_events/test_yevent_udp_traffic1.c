@@ -12,7 +12,7 @@
  *          The server echo the message
  *          The client matchs the received message with the sent.
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #define APP "test_yevent_udp_traffic1"

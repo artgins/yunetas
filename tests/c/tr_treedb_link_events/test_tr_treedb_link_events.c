@@ -4,7 +4,7 @@
  *          Low-level tests for EV_TREEDB_NODE_LINKED / EV_TREEDB_NODE_UNLINKED
  *          Tests the tr_treedb.c callback mechanism directly.
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdlib.h>

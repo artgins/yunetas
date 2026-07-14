@@ -11,7 +11,7 @@
  *            4. /etc/hosts lookup
  *            5. DNS query (UDP, nameservers from /etc/resolv.conf)
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

@@ -3,7 +3,7 @@
  *
  *          Mbed-TLS specific code for the TLS/SSL layer
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  *
 Flow of encrypted & unencrypted bytes

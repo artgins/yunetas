@@ -4,7 +4,7 @@
  *          NSS-free replacement for getaddrinfo(3) and freeaddrinfo(3)
  *          used in CONFIG_FULLY_STATIC builds to avoid glibc NSS/dlopen.
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yuneta_config.h>  /* must precede CONFIG_FULLY_STATIC guard */

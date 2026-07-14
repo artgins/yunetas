@@ -23,7 +23,7 @@ rowid   tm
 19      2421996459    'Nieta'
 
  *          Copyright (c) 2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <limits.h>

@@ -5,7 +5,7 @@
  *          Mixin uv-gobj
  *
  *          Copyright (c) 2014-2021 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

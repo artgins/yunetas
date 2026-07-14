@@ -17,7 +17,7 @@
  *          callback_periodic
  *              - On got timer #3: (when stopped) -> yev_loop_stop() !!
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

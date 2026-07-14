@@ -4,7 +4,7 @@
  *          OpenSSL-specific code for the TLS/SSL layer
  *
  *          Copyright (c) 2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  *
 

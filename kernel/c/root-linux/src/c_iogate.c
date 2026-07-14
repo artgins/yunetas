@@ -2,7 +2,7 @@
  *          C_IOGATE.C
  *          Iogate GClass.
  *          Copyright (c) 2016 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>

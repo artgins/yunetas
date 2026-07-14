@@ -3,7 +3,7 @@
  *
  *          Create a periodic time of 1 second, and at the 3 second callback then stop timer
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

@@ -3,7 +3,7 @@
  *              Run a executable
  *
  *              Copyright (c) 2015 Niyamaka.
- *              Copyright (c) 2025, ArtGins.
+ *              Copyright (c) 2025-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <signal.h>

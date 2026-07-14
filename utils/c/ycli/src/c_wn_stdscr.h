@@ -17,7 +17,7 @@
  *              - publishes the message EV_SCREEN_SIZE_CHANGE
  *
  *          Copyright (c) 2015-2016 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

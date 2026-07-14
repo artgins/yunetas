@@ -5,7 +5,7 @@
  *          Yuneta Agent22, a second remote entry point for controlcenter
  *
  *          Copyright (c) 2022 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <time.h>

@@ -5,7 +5,7 @@
  *          Raw protocol, no insert/deletion of headers
  *
  *          Copyright (c) 2017 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

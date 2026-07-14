@@ -5,7 +5,7 @@
  *      empty match_cond (all records)  with callback
  *  - Open an iterator matching by tm
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

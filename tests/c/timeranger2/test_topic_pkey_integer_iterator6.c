@@ -41,7 +41,7 @@
  *          CLIENT3 (count: 180000): 4.771083 seconds, 37727 op/sec
  *          CLIENT4 (count: 180000): 4.771046 seconds, 37727 op/sec
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

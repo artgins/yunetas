@@ -3,7 +3,7 @@
  *
  *          GClass to test EV_TREEDB_NODE_LINKED/UNLINKED at the c_node level
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

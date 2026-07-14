@@ -5,7 +5,7 @@
  *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
  *
  *          Copyright (c) 2014-2018 Niyamaka.
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #ifdef __linux__

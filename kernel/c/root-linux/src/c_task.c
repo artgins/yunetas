@@ -71,7 +71,7 @@
  *          HACK if gobj is volatil then will self auto-destroy on stop
  *
  *          Copyright (c) 2021 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

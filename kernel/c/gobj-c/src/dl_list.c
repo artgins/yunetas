@@ -5,7 +5,7 @@
  *              Independent functions of any C library.
  *
  *              Copyright (c) 1994-2023 Niyamaka.
- *              Copyright (c) 2024, ArtGins.
+ *              Copyright (c) 2024-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include "glogger.h"

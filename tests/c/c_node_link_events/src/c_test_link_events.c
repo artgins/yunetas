@@ -7,7 +7,7 @@
  *          link/unlink operations publish EV_TREEDB_NODE_LINKED and
  *          EV_TREEDB_NODE_UNLINKED events through the GObj event system.
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

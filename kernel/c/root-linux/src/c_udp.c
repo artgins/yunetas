@@ -7,7 +7,7 @@
  *          GClass of UDP level 0 uv-mixin
  *
  *          Copyright (c) 2020 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

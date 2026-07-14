@@ -8,7 +8,7 @@
  *          Copyright (c) 2016 Shuanglei Tao <tsl0922@gmail.com>
  *
  *          Copyright (c) 2021 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

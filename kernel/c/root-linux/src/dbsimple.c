@@ -4,7 +4,7 @@
  *          Simple DB file for persistent attributes
  *
  *          Copyright (c) 2015 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>

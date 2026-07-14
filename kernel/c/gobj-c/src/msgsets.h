@@ -4,7 +4,7 @@
  *              Message sets for glogger
  *
  *              Copyright (c) 1996-2015 Niyamaka.
- *              Copyright (c) 2025, ArtGins.
+ *              Copyright (c) 2025-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once

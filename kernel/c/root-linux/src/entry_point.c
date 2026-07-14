@@ -4,7 +4,7 @@
  *          Entry point for yunos (yuneta daemons).
  *
  *          Copyright (c) 2014-2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>

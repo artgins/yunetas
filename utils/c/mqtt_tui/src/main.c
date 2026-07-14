@@ -4,7 +4,7 @@
  *
  *          Mqtt TUI (Terminal User Interface)
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>

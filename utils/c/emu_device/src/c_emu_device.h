@@ -5,7 +5,7 @@
  *          Emulator of device gates
  *
  *          Copyright (c) 2018 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

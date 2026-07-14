@@ -6,7 +6,7 @@
  *          Simulate a remote service like a local gobj.
  *
  *          Copyright (c) 2016-2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

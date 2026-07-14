@@ -3,7 +3,7 @@
  *
  *          Global Events of Kernel
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

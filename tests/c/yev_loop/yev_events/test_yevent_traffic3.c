@@ -14,7 +14,7 @@
  *
  *          The server close the clisrv socket on 2th message
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #define APP "test_yevent_traffic3"

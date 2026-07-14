@@ -3,7 +3,7 @@
  *
  *          Global Events of Console
   *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include "g_ev_console.h"
