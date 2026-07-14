@@ -1604,6 +1604,11 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  and O(n²) with a jansson refcount round-trip per swap stalls the yuno
  *  for the very topics this command was paginated for. Ties on the record
  *  count break by key, so equal counts page deterministically.
+ *
+ *  Returns -1 if it could NOT sort. The caller must then refuse the command:
+ *  an unsorted list paged as if it were sorted is a WRONG page (`from`/`limit`
+ *  cut it at positions that mean nothing), and a client has no way to tell —
+ *  it asked for order, and the answer says it got it.
  ***************************************************************************/
 PRIVATE int cmp_rows_by_key(const void *a, const void *b)
 {
@@ -1622,16 +1627,16 @@ PRIVATE int cmp_rows_by_records(const void *a, const void *b)
     return cmp_rows_by_key(a, b);
 }
 
-PRIVATE void sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
+PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
 {
     size_t size = json_array_size(jn_list);
     if(size < 2) {
-        return;
+        return 0;
     }
 
     json_t **rows = gbmem_malloc(size * sizeof(json_t *));
     if(!rows) {
-        return;     // Error already logged
+        return -1;     // Error already logged
     }
     for(size_t i = 0; i < size; i++) {
         rows[i] = json_incref(json_array_get(jn_list, i));
@@ -1645,6 +1650,8 @@ PRIVATE void sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
         json_array_append_new(jn_list, row);    // transfers the incref above
     }
     gbmem_free(rows);
+
+    return 0;
 }
 
 PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -1813,10 +1820,25 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         pcre2_code_free(re);
     }
 
+    int sorted = 0;
     if(!empty_string(order)) {
-        sort_keys(jn_matched, strcmp(order, "records")==0, desc);
+        sorted = sort_keys(jn_matched, strcmp(order, "records")==0, desc);
     } else if(desc) {
-        sort_keys(jn_matched, FALSE, TRUE);
+        sorted = sort_keys(jn_matched, FALSE, TRUE);
+    }
+    if(sorted < 0) {
+        JSON_DECREF(jn_matched)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot sort the keys of topic '%s', no memory",
+                gobj_yuno_role_plus_name(),
+                topic_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
     json_int_t total_rows = (json_int_t)json_array_size(jn_matched);

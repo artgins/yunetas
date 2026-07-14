@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+    - **fix(c_tranger): `list-keys` answered an UNSORTED page as if it were
+      sorted.** When the sort could not allocate its row array it gave up and
+      returned, and the command went on to page the untouched list and answer
+      OK: `from`/`limit` then cut it at positions that mean nothing, and the
+      client — which had asked for `order` — had no way to tell. The sort now
+      says whether it sorted, and the command is refused with the reason.
+
     - **fix(timeranger2): the first record of every new md2 file reached NO
       realtime disk feed** — a Live card left open across midnight silently
       dropped one record a day, per key. A feed's `published` watermark counts
