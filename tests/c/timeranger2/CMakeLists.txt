@@ -62,6 +62,7 @@ set(SRCS
     test_topic_pkey_integer_iterator6
     test_delete_instance
     test_delete_key_propagation
+    test_rt_disk_multi_feed
     test_pkey_path_traversal
     test_testing
 )

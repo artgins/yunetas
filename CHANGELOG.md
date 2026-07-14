@@ -16,10 +16,22 @@
       key, because the shared key cache advances with the FIRST wake-up and a
       feed served by a later one would otherwise find "nothing new" and lose the
       record; the in-process rt_mem lists of a follower keep being fed from that
-      shared cache, so they still see each record exactly once. Covered by
-      `tests/c/c_tranger` (a keyed feed and a keyless feed over the same key, one
-      publish each); verified against the live backend by counting the WebSocket
-      frames of a browser with both cards open.
+      shared cache, so they still see each record exactly once.
+
+      The watermark of every feed of the key is SEEDED at the batch start on
+      the batch's first wake-up, while that start is still known: a feed with
+      no watermark yet (one that just opened) cannot recover it from the
+      already-advanced cache, and unseeded it permanently lost the first
+      records after opening — they reached the sibling Live card and never
+      that one (on a brand-new key, whose batch starts at rowid 1, BOTH feeds
+      lost the first record; presence in `published` is what says "seeded",
+      since the legitimate seed there is 0). Covered by `tests/c/c_tranger`
+      (a keyed feed and a keyless feed over the same key, one publish each,
+      rt_mem on the master) and by `tests/c/timeranger2/test_rt_disk_multi_feed`
+      (the rt_disk fan-out itself: master + in-process follower, three feeds,
+      first-append-after-open and brand-new-key cases); verified against the
+      live backend by counting the WebSocket frames of a browser with both
+      cards open.
 
     - **fix(timeranger2): a brand-new key made every rt_disk follower log an
       `unlink() FAILED`.** On staging, `agregador_wz` logged one *"unlink()

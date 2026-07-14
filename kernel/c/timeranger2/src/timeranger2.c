@@ -5293,18 +5293,43 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         }
     }
 
+    /*
+     *  Seed the watermark of EVERY feed that wants this key and has none yet —
+     *  at from_rowid-1, the batch start, while it is still known. The shared
+     *  cache advances when THIS (first) wake-up returns, so a feed whose
+     *  directory fires later in the same batch cannot recover the start from
+     *  the cache: unseeded, it computed "nothing new" and permanently lost the
+     *  first records after it opened (they reached the sibling card and never
+     *  this one). Presence in `published` is what says "seeded" — the value
+     *  can legitimately be 0 (a batch starting at rowid 1: a brand-new key).
+     */
+    if(1) {
+        int idx; json_t *disk;
+        json_array_foreach(disks, idx, disk) {
+            if(!list_wants_key(disk, key)) {
+                continue;
+            }
+            json_t *published = json_object_get(disk, "published");
+            if(!published) {
+                published = json_object();
+                json_object_set_new(disk, "published", published);
+            }
+            if(!json_object_get(published, key)) {
+                json_object_set_new(published, key, json_integer(from_rowid - 1));
+            }
+        }
+    }
+
     json_int_t from_disk_rowid = from_rowid;
     if(fired_disk) {
         json_t *published = json_object_get(fired_disk, "published");
-        if(!published) {
-            published = json_object();
-            json_object_set_new(fired_disk, "published", published);
+        json_t *jn_last = published? json_object_get(published, key) : NULL;
+        if(jn_last) {
+            from_disk_rowid = json_integer_value(jn_last) + 1;
         }
-        json_int_t last = json_integer_value(json_object_get(published, key));
-        if(last > 0) {
-            from_disk_rowid = last + 1;
+        if(published) {
+            json_object_set_new(published, key, json_integer(to_rowid));
         }
-        json_object_set_new(published, key, json_integer(to_rowid));
     }
 
     /*
