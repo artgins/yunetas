@@ -317,7 +317,8 @@ PRIVATE json_int_t update_new_records_from_disk(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    char *filename
+    char *filename,
+    const char *rt_id
 );
 PRIVATE json_int_t publish_new_rt_disk_records(
     hgobj gobj,
@@ -325,7 +326,8 @@ PRIVATE json_int_t publish_new_rt_disk_records(
     json_t *topic,
     const char *key,
     json_t *old_file_cache,
-    json_t *new_file_cache
+    json_t *new_file_cache,
+    const char *rt_id
 );
 
 PRIVATE int update_key_by_hard_link(
@@ -5113,12 +5115,18 @@ PRIVATE int update_key_by_hard_link(
 
     json_t *topic = tranger2_topic(tranger, topic_name);
 
+    /*
+     *  The `rt_id` in the path is not decoration: the master hard-links the
+     *  md2 into the directory of EVERY feed that wants the key, so this
+     *  notification belongs to ONE feed — the one whose directory fired.
+     */
     update_new_records_from_disk(
         gobj,
         tranger,
         topic,
         key,
-        md2
+        md2,
+        rt_id
     );
 
     return 0;
@@ -5161,7 +5169,8 @@ PRIVATE json_int_t update_new_records_from_disk(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    char *filename
+    char *filename,
+    const char *rt_id   // the feed whose /disks/<rt_id>/ directory fired
 )
 {
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
@@ -5190,7 +5199,8 @@ PRIVATE json_int_t update_new_records_from_disk(
         topic,
         key,
         cur_cache_cell,
-        new_cache_cell
+        new_cache_cell,
+        rt_id
     );
 
     /*
@@ -5224,7 +5234,8 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     json_t *topic,
     const char *key,
     json_t *old_cache_cell,
-    json_t *new_cache_cell
+    json_t *new_cache_cell,
+    const char *rt_id   // the feed whose /disks/<rt_id>/ directory fired
 )
 {
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -5240,7 +5251,70 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
 
     const char *file_id = json_string_value(json_object_get(new_cache_cell, "id"));
 
-    for(json_int_t rowid=from_rowid; rowid<=to_rowid; rowid++) {
+    /*
+     *  ONE feed owns this notification.
+     *
+     *  The master hard-links the new md2 into the directory of EVERY feed that
+     *  wants the key (master_to_update_client_load_record_callback), so an
+     *  append on a key watched by N feeds wakes us N times — once per feed.
+     *  Publishing to every feed on each of those wake-ups gave each feed N
+     *  copies of every record (N x N publishes): with a per-key Live card and a
+     *  whole-topic Live card open on the same key, the rows came out DOUBLED in
+     *  BOTH cards. Serve the feed whose directory fired, and nobody else.
+     *
+     *  Its watermark is its own, too: the shared key cache advances with the
+     *  FIRST wake-up, so a feed served by a later one would find "nothing new"
+     *  and lose the record. `published` remembers, per key, the last rowid this
+     *  feed was given.
+     */
+    json_t *fired_disk = NULL;
+    if(!empty_string(rt_id)) {
+        int idx; json_t *disk;
+        json_array_foreach(disks, idx, disk) {
+            const char *disk_id = json_string_value(json_object_get(disk, "id"));
+            if(disk_id && strcmp(disk_id, rt_id)==0) {
+                fired_disk = disk;
+                break;
+            }
+        }
+        if(!fired_disk) {
+            /*  Its feed is gone (closed while its hard link was in flight):
+             *  the records are still new to the tranger, so the cache and the
+             *  in-process mem lists below must still see them.  */
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "rt disk feed of the fired directory is gone",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
+                "rt_id",        "%s", rt_id,
+                NULL
+            );
+        }
+    }
+
+    json_int_t from_disk_rowid = from_rowid;
+    if(fired_disk) {
+        json_t *published = json_object_get(fired_disk, "published");
+        if(!published) {
+            published = json_object();
+            json_object_set_new(fired_disk, "published", published);
+        }
+        json_int_t last = json_integer_value(json_object_get(published, key));
+        if(last > 0) {
+            from_disk_rowid = last + 1;
+        }
+        json_object_set_new(published, key, json_integer(to_rowid));
+    }
+
+    /*
+     *  Read once, serve two audiences: the feed that fired (from ITS watermark)
+     *  and, on a follower, the in-process rt_mem lists (from the shared cache,
+     *  so they see each record once no matter how many disk feeds are open).
+     */
+    json_int_t first_rowid = (from_disk_rowid < from_rowid)? from_disk_rowid : from_rowid;
+
+    for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
         if(read_md(
             gobj,
@@ -5275,32 +5349,34 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         }
 
         /*----------------------------*
-         *      FEED the lists
+         *      FEED the feed that fired
          *----------------------------*/
-        int idx; json_t *disk;
-        json_array_foreach(disks, idx, disk) {
-            if(list_wants_key(disk, key)) {
-                tranger2_load_record_callback_t load_record_callback =
-                    (tranger2_load_record_callback_t)(size_t)json_integer_value(
-                        json_object_get(disk, "load_record_callback")
-                    );
+        int idx;
+        if(fired_disk && rowid >= from_disk_rowid && list_wants_key(fired_disk, key)) {
+            tranger2_load_record_callback_t load_record_callback =
+                (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                    json_object_get(fired_disk, "load_record_callback")
+                );
 
-                if(load_record_callback) {
-                    // Inform to the user list: record realtime from disk
-                    load_record_callback(
-                        tranger,
-                        topic,
-                        key,
-                        disk,
-                        rowid,
-                        &md_record_ex,
-                        json_incref(record)
-                    );
-                }
+            if(load_record_callback) {
+                // Inform to the user list: record realtime from disk
+                load_record_callback(
+                    tranger,
+                    topic,
+                    key,
+                    fired_disk,
+                    rowid,
+                    &md_record_ex,
+                    json_incref(record)
+                );
             }
         }
 
-        if(!master) {
+        /*----------------------------*
+         *      FEED the in-process mem lists (a follower reads from disk):
+         *      once per record, whatever the number of disk feeds open.
+         *----------------------------*/
+        if(!master && rowid >= from_rowid) {
             json_t *lists = json_object_get(topic, "lists");
             json_t *list;
             json_array_foreach(lists, idx, list) {

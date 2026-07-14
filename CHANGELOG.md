@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): a realtime DISK feed re-broadcast every other feed's
+      wake-up, so N feeds on a key meant N copies of every record for each of
+      them.** With a per-key Live card and a whole-topic Live card open on the
+      same key (gui_treedb), every row appeared DUPLICATED in both. The master
+      hard-links each new md2 into the directory of EVERY feed that wants the key
+      (`master_to_update_client_load_record_callback`), so a follower is woken
+      once per feed — but `publish_new_rt_disk_records()` then fanned the new
+      records out to EVERY feed of that key, turning N wake-ups into N x N
+      publishes. The wake-up now serves the feed whose `/disks/<rt_id>/`
+      directory fired, and nobody else: the `rt_id` was already parsed off the
+      path and thrown away. Each feed carries its own `published` watermark per
+      key, because the shared key cache advances with the FIRST wake-up and a
+      feed served by a later one would otherwise find "nothing new" and lose the
+      record; the in-process rt_mem lists of a follower keep being fed from that
+      shared cache, so they still see each record exactly once. Covered by
+      `tests/c/c_tranger` (a keyed feed and a keyless feed over the same key, one
+      publish each); verified against the live backend by counting the WebSocket
+      frames of a browser with both cards open.
+
     - **fix(timeranger2): a brand-new key made every rt_disk follower log an
       `unlink() FAILED`.** On staging, `agregador_wz` logged one *"unlink()
       FAILED, errno 2 (No such file or directory)"* per new key — an hourly

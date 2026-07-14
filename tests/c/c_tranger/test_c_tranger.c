@@ -242,11 +242,24 @@ PRIVATE int append_one(json_t *tranger, const char *key, uint64_t t)
  ***************************************************************/
 PRIVATE int g_rt_count = 0;
 
+/*  Per-feed tally: a record must reach each open feed EXACTLY once, and the
+ *  `rt_id` of the publish is what says which feed produced it.  */
+PRIVATE int g_rt_keyed = 0;     /*  publishes carrying rt_id "rtKEYED"   */
+PRIVATE int g_rt_all = 0;       /*  publishes carrying rt_id "rtALL"     */
+
 GOBJ_DEFINE_GCLASS(C_RTPROBE);
 
 PRIVATE int ac_rt_added(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     g_rt_count++;
+
+    const char *rt_id = kw_get_str(gobj, kw, "rt_id", "", 0);
+    if(strcmp(rt_id, "rtKEYED")==0) {
+        g_rt_keyed++;
+    } else if(strcmp(rt_id, "rtALL")==0) {
+        g_rt_all++;
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -782,6 +795,7 @@ PRIVATE int do_test(void)
     append_one(tranger, KEY_A, BASE_T + 1002);
     check_int("no publish after close-rt", g_rt_count, 0);
 
+
     /*-------------------------------------------------*
      *      open-list with rkey: a LIVE list on a SUBSET of the keys.
      *
@@ -939,6 +953,57 @@ PRIVATE int do_test(void)
      *  entry whose handle the tranger already freed. It must drop the entry
      *  without touching it (gobj_end() runs it, and the leak check that
      *  follows would catch a handle left behind).  */
+
+    /*-------------------------------------------------*
+     *      TWO feeds over the SAME key: one opened on the key, one on the
+     *      WHOLE topic (empty key). An append on that key belongs to both,
+     *      and each of them must receive it EXACTLY ONCE.
+     *
+     *      This is what a browser does with a per-key Live card and a
+     *      "Live topic" card open at the same time; the rows appeared
+     *      DUPLICATED in both.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtKEYED",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_A
+        ), yuno);
+    check_int("open-rt keyed result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "open-rt",
+        json_pack("{s:s, s:s, s:s}",
+            "rt_id", "rtALL",
+            "topic_name", TOPIC_NAME,
+            "key", ""           /*  empty = every key of the topic  */
+        ), yuno);
+    check_int("open-rt keyless result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    g_rt_count = 0;
+    g_rt_keyed = 0;
+    g_rt_all = 0;
+    append_one(tranger, KEY_A, BASE_T + 1003);
+    check_int("shared key: keyed feed gets it once",   g_rt_keyed, 1);
+    check_int("shared key: keyless feed gets it once", g_rt_all,   1);
+
+    /*  a key only the KEYLESS feed wants: it must arrive once, to it alone  */
+    g_rt_count = 0;
+    g_rt_keyed = 0;
+    g_rt_all = 0;
+    append_one(tranger, KEY_B, BASE_T + 1004);
+    check_int("other key: keyless feed gets it once", g_rt_all,   1);
+    check_int("other key: keyed feed untouched",      g_rt_keyed, 0);
+
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "rtKEYED"), yuno);
+    check_int("close-rt keyed result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-rt",
+        json_pack("{s:s}", "rt_id", "rtALL"), yuno);
+    check_int("close-rt keyless result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
 
     return global_result;
 }
