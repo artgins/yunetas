@@ -41,8 +41,10 @@ iterator builds its row index when it opens, so `tranger2_iterator_size()`,
 `pages` and the pages themselves count only matching records (and `get_page`'s
 `from_rowid` is then a position among the matching rows, not a global rowid). An
 unfiltered iterator builds no index — its open stays cheap regardless of key
-size. `tranger2_topic_key_range()` reports a key's span on both axes without
-reading a record.
+size. The index is a **snapshot** taken at open: records appended after a
+filtered iterator opens never enter its count or its pages, while an unfiltered
+one recounts the key on every call. `tranger2_topic_key_range()` reports a
+key's span on both axes without reading a record.
 
 > **In the md2 record, the times carry flags.** On disk the 16 high bits of
 > `__t__` hold the `user_flag` and those of `__tm__` the `system_flag`; only the
