@@ -4,7 +4,7 @@
  *          Time Ranger 2, a series time-key-value database over flat files
  *
  *          Copyright (c) 2017-2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <stdio.h>
@@ -7879,9 +7879,16 @@ PRIVATE void *rkey_compile(hgobj gobj, const char *rkey)
         (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, NULL
     );
     if(!re) {
+        /*
+         *  Warning, not error: the pattern is CALLER input (it reaches here
+         *  straight from a remote client via c_tranger's open-list), and a
+         *  malformed peer parameter is not a broken internal invariant.
+         *  gobj_log_set_last_message() feeds the refusal the caller answers
+         *  with (see cmd_open_list).
+         */
         PCRE2_UCHAR err[256];
         pcre2_get_error_message(errornumber, err, sizeof(err));
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Bad rkey regex",
@@ -7889,6 +7896,9 @@ PRIVATE void *rkey_compile(hgobj gobj, const char *rkey)
             "offset",       "%d", (int)erroroffset,
             "error",        "%s", (char *)err,
             NULL
+        );
+        gobj_log_set_last_message("Bad rkey regex '%s' at %d: %s",
+            rkey, (int)erroroffset, (char *)err
         );
         return NULL;
     }
