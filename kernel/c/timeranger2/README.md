@@ -114,6 +114,26 @@ Pre-2026-05-26 followers that polled their cache on a timer can drop
 the timer. See `tests/c/timeranger2/test_delete_key_propagation.c`
 for the regression coverage.
 
+The deletion also drops the key from the **watermark** of every `rt_disk` feed
+(below): a feed that outlives many keys must not carry a mark for each one, and
+a key re-created afterwards must not inherit the dead one's.
+
+### What a realtime feed hands its callback
+
+The rowid a feed delivers is the key's **global `g_rowid`** — the one that
+never resets — not the row's position in the `.md2` file it happens to live in
+(that one is `i_rowid`, and it restarts at 1 with every new file). A consumer
+may therefore dedupe or page by it across a file rotation.
+
+That distinction is also the feed's own bookkeeping: each `rt_disk` feed keeps
+a watermark of the last row it was given **per key AND per file**, because the
+shared key cache advances with the first wake-up of a batch and a feed served
+by a later one would otherwise find "nothing new". A watermark that forgot
+which file it counted in became a ceiling over the next one, and the first
+record of every new file reached no feed at all (fixed 2026-07-14;
+`tests/c/timeranger2/test_rt_disk_multi_feed.c` covers the rotation, the
+several-feeds-per-key fan-out and the re-created key).
+
 ## Filesystem watcher
 
 `src/fs_watcher.c` implements an inotify-based watcher (`fs_event_t`) used by `root-linux/C_FS` and by the stores themselves to react to on-disk changes.

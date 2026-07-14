@@ -1048,6 +1048,17 @@ Returns a JSON object representing the real-time disk iterator. The caller does 
 
 This function is used when monitoring real-time changes in a topic via disk events. The iterator remains active until explicitly closed using [`tranger2_close_rt_disk()`](<#tranger2_close_rt_disk>).
 
+The rowid the callback receives is the key's **global `g_rowid`** — the one that
+never resets — not the row's position inside the `.md2` file it lives in (that
+one is `i_rowid`, and it restarts at 1 with every new file). A consumer may
+therefore dedupe or page by it across a file rotation.
+
+Several feeds may be open on the same key (a per-key one and a whole-topic one,
+say). Each is served exactly once per record: the feed keeps a watermark of the
+last row it was given, per key and per file, and the master hard-links each new
+`.md2` into the directory of every feed that wants the key. A feed's watermark
+dies with its key, so a key re-created later does not inherit it.
+
 ---
 
 (tranger2_open_rt_mem)=
