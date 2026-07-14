@@ -847,6 +847,23 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
+     *      Command-LINE parameter form: `open-list ... return_data=1` with
+     *      every parameter inline, the way ycommand sends it. A kw dict is
+     *      merged into the parsed kw_cmd afterwards (update_missing), so it
+     *      cannot catch a parameter missing from pm_open_list — this can:
+     *      the parser refuses any inline key not in the table ("command has
+     *      no option '...'"). return_data was once dropped from the table by
+     *      an edit that replaced the wrong line, and only this form broke.
+     *-------------------------------------------------*/
+    r = gobj_command(yuno,
+        "open-list list_id=lstInline topic_name=" TOPIC_NAME " key=" KEY_A " return_data=1",
+        json_object(), yuno);
+    check_int("open-list inline return_data result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("open-list inline return_data rows", json_array_size(data), KEY_A_ROWS + 3);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
      *      Negatives: open-rt without rt_id; close-rt unknown
      *-------------------------------------------------*/
     r = gobj_command(yuno, "open-rt",
