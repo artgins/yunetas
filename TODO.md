@@ -218,6 +218,14 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   usage at **1 inotify per followed topic** regardless of card count. Small,
   high-value change.
 
+  Note (2026-07-14): a Live card now subscribes filtering on **its own feed's
+  `rt_id`**, not on the key — with SEVERAL feeds alive, a `{topic, key}` filter
+  matches every publish of that key and the cards double each other's rows.
+  Under this design there is only ONE feed, so its publishes all carry the same
+  `rt_id` and the subscribers MUST go back to filtering by key: whoever
+  implements it has to flip `live_filter()` in `c_tranger_view.js` in the same
+  change, or the cards go silent.
+
 - **#2 — Tie the feed to the ievent session (root-cause of the leak).** A
   SPA that reloads/closes the tab (F5) never sends `close-rt`, so the backend
   feed — and its inotify instance — leaks until the yuno restarts (worse than
