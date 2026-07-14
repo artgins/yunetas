@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): the first record of every new md2 file reached NO
+      realtime disk feed** — a Live card left open across midnight silently
+      dropped one record a day, per key. A feed's `published` watermark counts
+      rows IN A FILE (`read_md()` seeks `(rowid-1)` records into `<file_id>.md2`,
+      and the batch bounds come from that file's cache cell), but the topic
+      ROTATES its file (`filename_mask`, by default one a day). The mark was
+      stored per key alone, so at the rotation yesterday's mark — say row 226651
+      — met a file whose rowids restart at 1 and became a ceiling instead of a
+      watermark: `from_disk_rowid` sat above `to_rowid` and the batch was served
+      to nobody. It self-healed on the next append (the mark is overwritten with
+      the new file's row count), which is exactly why it read as "a record went
+      missing" and not as a broken feed. The mark now carries the file it counts
+      in: a mark of another file is no mark, and the feed is re-seeded at the
+      new file's start.
+
+      With it, the rowid a disk feed is GIVEN is now the GLOBAL rowid of the key
+      (the file's base plus the position in it) — what the callback's contract
+      promises (*"global rowid of key"*) and what the master's rt_mem path
+      already delivered (`update_new_record_from_mem()` returns `g_rowid`). The
+      follower's disk path was handing out the file-relative one, so `g_rowid`
+      in the published `__md_tranger__` was wrong after the first rotation and a
+      consumer that dedupes by it (the Live cards' key counter) took the new
+      file's records for records it already had. Covered by
+      `tests/c/timeranger2/test_rt_disk_multi_feed` (a rotation phase: the first
+      append of the new file reaches each feed exactly once, with the key's
+      global rowid).
+
     - **fix(timeranger2): a realtime DISK feed re-broadcast every other feed's
       wake-up, so N feeds on a key meant N copies of every record for each of
       them.** With a per-key Live card and a whole-topic Live card open on the

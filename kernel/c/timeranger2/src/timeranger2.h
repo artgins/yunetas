@@ -674,6 +674,10 @@ typedef int (*tranger2_load_record_callback_t)(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+                        // WARNING absolute = the key's GLOBAL rowid, files included: a topic
+                        // rotates its md2 (filename_mask) and the position INSIDE the new file
+                        // restarts at 1, so a consumer deduping/paging by this must be given
+                        // the global one (it is what md2json() stores as g_rowid)
     md2_record_ex_t *md_record_ex,
     json_t *jn_record  // must be JSON owned
 );

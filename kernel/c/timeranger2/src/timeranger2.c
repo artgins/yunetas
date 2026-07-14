@@ -5252,6 +5252,26 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     const char *file_id = json_string_value(json_object_get(new_cache_cell, "id"));
 
     /*
+     *  Rowids here are RELATIVE TO THE FILE (read_md seeks (rowid-1) records
+     *  into <file_id>.md2), and a topic rotates its file (filename_mask, by
+     *  default one a day). The key's GLOBAL rowid — what the callback's
+     *  contract promises and what the master's rt_mem path already delivers
+     *  (update_new_record_from_mem returns g_rowid) — is that position plus
+     *  the rows of every file BEFORE this one.
+     */
+    json_int_t file_base = 0;
+    if(1) {
+        json_t *cache_files = get_cache_files(topic, key);
+        int idx; json_t *cell;
+        json_array_foreach(cache_files, idx, cell) {
+            if(cell == old_cache_cell) {
+                break;      /*  this file: its rows are the ones we are indexing  */
+            }
+            file_base += json_integer_value(json_object_get(cell, "rows"));
+        }
+    }
+
+    /*
      *  ONE feed owns this notification.
      *
      *  The master hard-links the new md2 into the directory of EVERY feed that
@@ -5300,8 +5320,16 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      *  directory fires later in the same batch cannot recover the start from
      *  the cache: unseeded, it computed "nothing new" and permanently lost the
      *  first records after it opened (they reached the sibling card and never
-     *  this one). Presence in `published` is what says "seeded" — the value
-     *  can legitimately be 0 (a batch starting at rowid 1: a brand-new key).
+     *  this one).
+     *
+     *  The mark carries the FILE it counts in: its rowid is relative to that
+     *  file, and the topic rotates (a new md2 restarts at rowid 1). A mark
+     *  left over from the previous file is not a watermark, it is a ceiling —
+     *  it hid every record of the new file below yesterday's row count, so
+     *  the first append after a rotation reached NO feed at all. A mark of
+     *  another file is therefore no mark: reseed it. Presence (of a mark of
+     *  THIS file) is what says "seeded" — its rowid can legitimately be 0
+     *  (a batch starting at rowid 1: a brand-new key, or a fresh file).
      */
     if(1) {
         int idx; json_t *disk;
@@ -5314,8 +5342,14 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                 published = json_object();
                 json_object_set_new(disk, "published", published);
             }
-            if(!json_object_get(published, key)) {
-                json_object_set_new(published, key, json_integer(from_rowid - 1));
+            json_t *mark = json_object_get(published, key);
+            const char *mark_file = mark?
+                json_string_value(json_object_get(mark, "file")):NULL;
+            if(!mark_file || strcmp(mark_file, file_id?file_id:"")!=0) {
+                json_object_set_new(published, key, json_pack("{s:s, s:I}",
+                    "file", file_id?file_id:"",
+                    "rowid", (json_int_t)(from_rowid - 1)
+                ));
             }
         }
     }
@@ -5323,12 +5357,10 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     json_int_t from_disk_rowid = from_rowid;
     if(fired_disk) {
         json_t *published = json_object_get(fired_disk, "published");
-        json_t *jn_last = published? json_object_get(published, key) : NULL;
-        if(jn_last) {
-            from_disk_rowid = json_integer_value(jn_last) + 1;
-        }
-        if(published) {
-            json_object_set_new(published, key, json_integer(to_rowid));
+        json_t *mark = published? json_object_get(published, key) : NULL;
+        if(mark) {
+            from_disk_rowid = json_integer_value(json_object_get(mark, "rowid")) + 1;
+            json_object_set_new(mark, "rowid", json_integer(to_rowid));
         }
     }
 
@@ -5356,6 +5388,16 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         if(is_deleted_instance(&md_record_ex)) {
             continue;
         }
+
+        /*
+         *  What the consumer is given is the GLOBAL rowid of the key (the
+         *  master's rt_mem path hands it g_rowid): a file-relative one
+         *  restarts at 1 with every rotation, and a consumer that dedupes or
+         *  pages by it (the SPA's Live cards do) sees the new file's records
+         *  as records it already had.
+         */
+        json_int_t g_rowid = file_base + rowid;
+
         json_t *record = read_record_content(
             tranger,
             topic,
@@ -5365,7 +5407,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         );
 
         if(record) {
-            json_t *__md_tranger__ = md2json(&md_record_ex, rowid);
+            json_t *__md_tranger__ = md2json(&md_record_ex, g_rowid);
             json_object_set_new(
                 record,
                 "__md_tranger__",
@@ -5390,7 +5432,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                     topic,
                     key,
                     fired_disk,
-                    rowid,
+                    g_rowid,
                     &md_record_ex,
                     json_incref(record)
                 );
@@ -5418,7 +5460,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                             topic,
                             key,
                             list,
-                            rowid,
+                            g_rowid,
                             &md_record_ex,
                             json_incref(record)
                         );

@@ -22,6 +22,13 @@
  *        append, and the pre-fix fan-out used to deliver N copies).
  *        A brand-new key (its batch starts at rowid 1, so the seeded
  *        watermark is legitimately 0) is covered with a third feed.
+ *        The FILE ROTATION closes it: the watermark counts in ONE file, and a
+ *        topic rotates (a new md2 restarts its rowids at 1). A mark left over
+ *        from the previous file is a ceiling, not a watermark — it hid every
+ *        record of the new file below yesterday's row count, so the first
+ *        append after a rotation (every midnight, for a Live card left open)
+ *        reached NO feed at all. What a feed is given is the GLOBAL rowid of
+ *        the key, the file's base included.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -55,6 +62,7 @@ PRIVATE yev_loop_h yev_loop;
 PRIVATE int count_keyed_a = 0;      /*  feed "rtA"   (key=KEY_A)    */
 PRIVATE int count_keyed_b = 0;      /*  feed "rtB"   (key=KEY_B)    */
 PRIVATE int count_keyless = 0;      /*  feed "rtALL" (every key)    */
+PRIVATE json_int_t last_rowid_a = 0;    /*  the rowid rtA was last given  */
 
 PRIVATE int my_record_callback(
     json_t *tranger,
@@ -69,6 +77,7 @@ PRIVATE int my_record_callback(
     const char *id = json_string_value(json_object_get(list, "id"));
     if(id && strcmp(id, "rtA")==0) {
         count_keyed_a++;
+        last_rowid_a = rowid;
     } else if(id && strcmp(id, "rtB")==0) {
         count_keyed_b++;
     } else if(id && strcmp(id, "rtALL")==0) {
@@ -283,6 +292,48 @@ PRIVATE int do_test(void)
     if(count_keyed_a != 0) {
         printf("%sERROR%s --> new key: keyed A got %d, expected 0\n",
             On_Red BWhite, Color_Off, count_keyed_a);
+        result += -1;
+    }
+
+    /*
+     *  FILE ROTATION: the next day is a new md2, whose rowids restart at 1.
+     *  The feed's watermark counts IN a file — a mark left from the previous
+     *  one is a ceiling, not a watermark: it hid every record of the new file
+     *  below yesterday's row count, and the first append after a rotation
+     *  (every midnight, for a Live card left open) reached NO feed at all.
+     */
+    reset_counts();
+    if(append_one(tm, 1, BASE_T + 86400)<0) {
+        result += -1;
+    }
+    drain(1, 0, 1);
+    if(count_keyed_a != 1 || count_keyless != 1) {
+        printf("%sERROR%s --> first append of a NEW file: keyed=%d keyless=%d, expected 1/1\n",
+            On_Red BWhite, Color_Off, count_keyed_a, count_keyless);
+        result += -1;
+    }
+    /*
+     *  And the rowid it comes with is the GLOBAL rowid of the key (the 4th
+     *  record of KEY_A), not the 1st row of the new file: a consumer that
+     *  dedupes or pages by it (the SPA's Live cards) must not see the new
+     *  file as records it already had.
+     */
+    if(last_rowid_a != 4) {
+        printf("%sERROR%s --> first append of a NEW file: rowid=%d, expected 4 (global)\n",
+            On_Red BWhite, Color_Off, (int)last_rowid_a);
+        result += -1;
+    }
+
+    /*  And the one after it, on the same new file, still exactly once.  */
+    reset_counts();
+    if(append_one(tm, 1, BASE_T + 86401)<0) {
+        result += -1;
+    }
+    drain(1, 0, 1);
+    if(count_keyed_a != 1 || count_keyless != 1 || last_rowid_a != 5) {
+        printf("%sERROR%s --> second append of a NEW file: keyed=%d keyless=%d rowid=%d, "
+            "expected 1/1/5\n",
+            On_Red BWhite, Color_Off, count_keyed_a, count_keyless, (int)last_rowid_a);
         result += -1;
     }
 
