@@ -839,6 +839,27 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   trace the FSM exists to feed. Pass an IDENTITY instead (`{key, mode}`, an
   id) and resolve it to the object inside the action — it also makes the trace
   line readable.
+- **Every text goes through i18n — and must be able to CHANGE language.**
+  Passing a string through `t()` once is NOT enough: `refresh_language()` only
+  re-translates a node that **carries its key**, so anything composed at render
+  time stays in the old language for the life of the view. Text needs
+  `i18n`/`data-i18n`; a `title`/`aria-label` needs `data-i18n-title` /
+  `data-i18n-aria-label`; a composed string (`` `${key} · ${t(mode)}` ``) must be
+  split so the translatable halves carry their own key (`createElement2` **trims**
+  text nodes — space a separator with CSS). What a WIDGET draws (a Tabulator
+  header, its paginator, a formatter) is reachable by no attribute: the view
+  subscribes to the shell's **`EV_LANGUAGE_CHANGED`** (published by
+  `yui_shell_language_changed`, which the app calls after switching its i18next)
+  and re-renders **in the action** — never from a raw
+  `i18next.on("languageChanged")` listener. Tabulator's own chrome goes through
+  `yui_tabulator_lang(t)` / `yui_tabulator_relocalize(table, t)` (gobj-ui).
+  **A missing key is invisible**: i18next answers an unknown key with the key
+  ITSELF, so it renders in lower-case English and never changes language (that is
+  how 46 strings of the treedb editor shipped untranslated); a **duplicate** key
+  in a locale file is silent too (an object literal keeps the last one). Both are
+  caught by `scripts/validate-locales.mjs` — copy it into any new SPA; it also
+  scans the gobj-ui modules the app mounts, because **the library translates
+  through the APP's i18next**. Details: gobj-ui's README ("Conventions → i18n").
 - **No transitions/animations.** Menus, popovers, tooltips and state changes
   appear instantly — no fade/slide/glide. If a third-party lib injects
   transition CSS, override it (`transition: none !important`). Don't add
