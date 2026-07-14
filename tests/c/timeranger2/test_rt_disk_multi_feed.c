@@ -337,6 +337,35 @@ PRIVATE int do_test(void)
         result += -1;
     }
 
+    /*
+     *  A key DELETED and re-created: its watermark dies with it. A mark left
+     *  behind by the corpse is a ceiling over the reborn key (whose rowids
+     *  restart at 1 in the very same file), so its records would be served to
+     *  nobody — and a keyless feed on a topic that cycles its keys would keep
+     *  a mark for every key that ever existed.
+     */
+    set_expected_results("multi_feed: deleted key is re-created", NULL, NULL, NULL, 1);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_B)<0) {
+        result += -1;
+    }
+    for(int i = 0; i < 20; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+
+    reset_counts();
+    /*  Back in the FIRST day's file — the one the dead key's mark counted in:
+     *  a rotation would reseed the mark by itself and prove nothing.  */
+    if(append_one(tm, 2, BASE_T + 4)<0) {
+        result += -1;
+    }
+    drain(0, 1, 1);
+    if(count_keyed_b != 1 || count_keyless != 1) {
+        printf("%sERROR%s --> re-created key: keyedB=%d keyless=%d, expected 1/1\n",
+            On_Red BWhite, Color_Off, count_keyed_b, count_keyless);
+        result += -1;
+    }
+    result += test_json(NULL);
+
     tranger2_close_rt_disk(tf, rt_a);
     tranger2_close_rt_disk(tf, rt_b);
     tranger2_close_rt_disk(tf, rt_all);

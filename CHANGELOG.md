@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): a deleted key left its watermark behind in every disk
+      feed.** `published` holds one mark per key, and nothing dropped it when
+      the key died: a keyless feed on a topic that cycles its keys (an hourly
+      bucket) kept a mark for every key that ever existed, for as long as it
+      lived. Worse, a key RE-CREATED in the same file inherited the corpse's
+      mark — and a mark above the reborn key's rowids is a ceiling, not a
+      watermark, so its records were served to nobody. The mark now dies with
+      the key, on both delete paths (the master's `tranger2_delete_key()` and
+      the follower's `FS_SUBDIR_DELETED` branch, which share
+      `fire_key_deleted_locally()`). Covered by
+      `tests/c/timeranger2/test_rt_disk_multi_feed` (a key deleted and
+      re-created in the file its mark counted in).
+
     - **fix(c_tranger): `list-keys` answered an UNSORTED page as if it were
       sorted.** When the sort could not allocate its row array it gave up and
       returned, and the command went on to page the untouched list and answer

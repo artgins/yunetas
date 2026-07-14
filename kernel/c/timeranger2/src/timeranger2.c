@@ -2851,6 +2851,27 @@ PRIVATE void fire_key_deleted_locally(
     BOOL fs_followers
 )
 {
+    /*
+     *  The key is gone: drop its watermark from every disk feed, whatever the
+     *  band this call is fanning out to. Two reasons, and the second is a bug:
+     *
+     *   - `published` holds one mark PER KEY, and a keyless feed takes every
+     *     key of the topic. On a topic that cycles its keys (an hourly bucket)
+     *     the mark set would grow for as long as the feed lives, with a mark
+     *     for every key that ever existed.
+     *   - a key RE-CREATED in the same file would inherit the dead key's mark,
+     *     and a mark above the new key's rowids is a ceiling, not a watermark:
+     *     the records of the reborn key would be served to nobody.
+     */
+    json_t *disks_ = json_object_get(topic, "disks");
+    int idx_; json_t *disk_;
+    json_array_foreach(disks_, idx_, disk_) {
+        json_t *published = json_object_get(disk_, "published");
+        if(published) {
+            json_object_del(published, deleted_key);
+        }
+    }
+
     const char *bands[] = { "lists", "iterators", "disks", NULL };
     for(int b = 0; bands[b]; b++) {
         json_t *band = json_object_get(topic, bands[b]);
