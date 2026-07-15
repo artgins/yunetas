@@ -30,6 +30,13 @@
  *        reached NO feed at all. What a feed is given is the GLOBAL rowid of
  *        the key, the file's base included.
  *
+ *      - only_md: a feed opened with only_md wants a record's METADATA but not
+ *        its body. Two feeds cover it — an rt_disk (follower) and an rt_mem
+ *        (master) — and each append must hand them NULL jn_record, while the
+ *        non-only_md feeds still receive the body. The realtime feed honors
+ *        only_md like the historical iterator; before the fix it always read
+ *        and delivered the content (an extra disk read per record on rt_disk).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -63,6 +70,10 @@ PRIVATE int count_keyed_a = 0;      /*  feed "rtA"   (key=KEY_A)    */
 PRIVATE int count_keyed_b = 0;      /*  feed "rtB"   (key=KEY_B)    */
 PRIVATE int count_keyless = 0;      /*  feed "rtALL" (every key)    */
 PRIVATE json_int_t last_rowid_a = 0;    /*  the rowid rtA was last given  */
+PRIVATE int count_md_disk = 0;      /*  feed "rtMD"     (rt_disk only_md, key=KEY_A) */
+PRIVATE int count_md_mem = 0;       /*  feed "rtMEM_MD" (rt_mem  only_md, key=KEY_A) */
+PRIVATE int only_md_body_leak = 0;  /*  an only_md feed got a non-NULL body: BUG    */
+PRIVATE int full_body_missing = 0;  /*  a non-only_md feed got a NULL body: BUG     */
 
 PRIVATE int my_record_callback(
     json_t *tranger,
@@ -78,10 +89,29 @@ PRIVATE int my_record_callback(
     if(id && strcmp(id, "rtA")==0) {
         count_keyed_a++;
         last_rowid_a = rowid;
+        if(record == NULL) {
+            full_body_missing++;
+        }
     } else if(id && strcmp(id, "rtB")==0) {
         count_keyed_b++;
+        if(record == NULL) {
+            full_body_missing++;
+        }
     } else if(id && strcmp(id, "rtALL")==0) {
         count_keyless++;
+        if(record == NULL) {
+            full_body_missing++;
+        }
+    } else if(id && strcmp(id, "rtMD")==0) {
+        count_md_disk++;
+        if(record != NULL) {
+            only_md_body_leak++;
+        }
+    } else if(id && strcmp(id, "rtMEM_MD")==0) {
+        count_md_mem++;
+        if(record != NULL) {
+            only_md_body_leak++;
+        }
     }
     JSON_DECREF(record)
     return 0;
@@ -231,7 +261,16 @@ PRIVATE int do_test(void)
     json_t *rt_all = tranger2_open_rt_disk(
         tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL
     );
-    if(!rt_a || !rt_b || !rt_all) {
+    /*  only_md feeds on KEY_A: an rt_disk (follower) and an rt_mem (master)  */
+    json_t *rt_md = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, KEY_A, json_pack("{s:b}", "only_md", 1),
+        my_record_callback, "rtMD", "", NULL
+    );
+    json_t *rt_mem_md = tranger2_open_rt_mem(
+        tm, TOPIC_NAME, KEY_A, json_pack("{s:b}", "only_md", 1),
+        my_record_callback, "rtMEM_MD", "", NULL
+    );
+    if(!rt_a || !rt_b || !rt_all || !rt_md || !rt_mem_md) {
         result += -1;
     }
     for(int i = 0; i < 10; i++) {
@@ -366,9 +405,50 @@ PRIVATE int do_test(void)
     }
     result += test_json(NULL);
 
+    /*
+     *  only_md contract: an rt_disk feed (rtMD, follower) and an rt_mem feed
+     *  (rtMEM_MD, master) opened with only_md must be handed a record's
+     *  METADATA but never its body — the realtime feed honors only_md like the
+     *  historical iterator. The non-only_md feeds above must still get the body
+     *  (asserted, cumulatively, via full_body_missing).
+     */
+    set_expected_results("multi_feed: only_md feeds get metadata, not body",
+        NULL, NULL, NULL, 1);
+    reset_counts();
+    count_md_disk = 0;
+    count_md_mem = 0;
+    only_md_body_leak = 0;
+    if(append_one(tm, 1, BASE_T + 86402)<0) {   /*  another KEY_A append  */
+        result += -1;
+    }
+    drain(1, 0, 1);
+    if(only_md_body_leak != 0) {
+        printf("%sERROR%s --> only_md feed received a BODY (%d times), must be metadata-only\n",
+            On_Red BWhite, Color_Off, only_md_body_leak);
+        result += -1;
+    }
+    if(count_md_mem != 1) {     /*  master rt_mem fires synchronously on append  */
+        printf("%sERROR%s --> rt_mem only_md feed count=%d, expected 1\n",
+            On_Red BWhite, Color_Off, count_md_mem);
+        result += -1;
+    }
+    if(count_md_disk < 1) {     /*  follower rt_disk delivered the record (md-only)  */
+        printf("%sERROR%s --> rt_disk only_md feed got no record\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(full_body_missing != 0) {
+        printf("%sERROR%s --> a non-only_md feed received a NULL body (%d), must get the body\n",
+            On_Red BWhite, Color_Off, full_body_missing);
+        result += -1;
+    }
+    result += test_json(NULL);
+
     tranger2_close_rt_disk(tf, rt_a);
     tranger2_close_rt_disk(tf, rt_b);
     tranger2_close_rt_disk(tf, rt_all);
+    tranger2_close_rt_disk(tf, rt_md);
+    tranger2_close_rt_mem(tm, rt_mem_md);
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
     }

@@ -726,7 +726,9 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     Iterator match_cond:
 
         backward
-        only_md     (don't load jn_record on calling callbacks)
+        only_md     (don't load jn_record on calling callbacks; honored by the
+                     historical load AND the realtime feeds — rt_mem and rt_disk
+                     hand the callback NULL jn_record, saving the disk read)
 
         from_rowid  // if to_rowid && to_t && to_tm is 0 then there is realtime
         to_rowid

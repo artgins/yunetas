@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): the realtime feeds ignored `only_md`, always reading
+      and delivering the record body.** A feed opened with `only_md` wants a
+      record's metadata but not its content — the historical iterator honors it,
+      but both realtime paths (the master append fan-out to rt_mem lists, and
+      `publish_new_rt_disk_records` on a follower) always called
+      `read_record_content()` and handed the callback the full body. On rt_disk
+      that was an extra disk read per live record, and within a single `only_md`
+      list historical rows arrived md-only while live rows carried full content.
+      They now honor `only_md`: the only_md feeds get NULL `jn_record`, and the
+      rt_disk read is skipped when no audience of the key needs the body. No
+      consumer relied on the old behavior (c_tranger already synthesizes an
+      md-only record for a NULL `jn_record`; tr_queue and the mqtt broker use
+      `only_md` only for one-shot historical dumps). Covered by
+      `tests/c/timeranger2/test_rt_disk_multi_feed` (an rt_disk and an rt_mem
+      `only_md` feed asserted to receive metadata, never a body).
+
     - **fix(treedb): `treedb_create_node()` could return a dangling pointer.**
       When the primary already existed (`save_id` false) and every listed pkey2
       had no `indexy` (a schema/index inconsistency), the node landed in no

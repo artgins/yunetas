@@ -2397,6 +2397,20 @@ PRIVATE json_t *md2json(
 }
 
 /***************************************************************************
+ *  A feed (rt_mem list or rt_disk) opened with only_md wants a record's
+ *  metadata but not its body — the realtime paths honor it like the
+ *  historical iterator (tranger2_open_iterator) already does.
+ ***************************************************************************/
+PRIVATE BOOL feed_wants_only_md(json_t *feed)
+{
+    json_t *match_cond = json_object_get(feed, "match_cond");
+    if(!match_cond) {
+        return FALSE;
+    }
+    return json_boolean_value(json_object_get(match_cond, "only_md"))? TRUE : FALSE;
+}
+
+/***************************************************************************
     Append a new item to record.
     The 'pkey' and 'tkey' are getting according to the topic schema.
     Return the new record's metadata.
@@ -2830,7 +2844,7 @@ PUBLIC int tranger2_append_record(
                     list,
                     g_rowid,
                     md_record_ex,
-                    json_incref(record)
+                    feed_wants_only_md(list)? NULL : json_incref(record)
                 );
             }
         }
@@ -5404,6 +5418,25 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      */
     json_int_t first_rowid = (from_disk_rowid < from_rowid)? from_disk_rowid : from_rowid;
 
+    /*
+     *  A feed opened with only_md wants the metadata but not the body: skip the
+     *  per-record disk read when no audience of this key needs the content, and
+     *  hand NULL to the only_md feeds below. The historical iterator already
+     *  honors only_md; the realtime feed must too.
+     */
+    BOOL fired_only_md = fired_disk? feed_wants_only_md(fired_disk) : FALSE;
+    BOOL need_body = (fired_disk && !fired_only_md)? TRUE : FALSE;
+    if(!master && !need_body) {
+        json_t *scan_lists = json_object_get(topic, "lists");
+        int i; json_t *l;
+        json_array_foreach(scan_lists, i, l) {
+            if(list_wants_key(l, key) && !feed_wants_only_md(l)) {
+                need_body = TRUE;
+                break;
+            }
+        }
+    }
+
     for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
         if(read_md(
@@ -5431,21 +5464,23 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
          */
         json_int_t g_rowid = file_base + rowid;
 
-        json_t *record = read_record_content(
-            tranger,
-            topic,
-            key,
-            file_id,
-            &md_record_ex
-        );
-
-        if(record) {
-            json_t *__md_tranger__ = md2json(&md_record_ex, g_rowid);
-            json_object_set_new(
-                record,
-                "__md_tranger__",
-                __md_tranger__  // owned
+        json_t *record = NULL;
+        if(need_body) {
+            record = read_record_content(
+                tranger,
+                topic,
+                key,
+                file_id,
+                &md_record_ex
             );
+            if(record) {
+                json_t *__md_tranger__ = md2json(&md_record_ex, g_rowid);
+                json_object_set_new(
+                    record,
+                    "__md_tranger__",
+                    __md_tranger__  // owned
+                );
+            }
         }
 
         /*----------------------------*
@@ -5467,7 +5502,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                     fired_disk,
                     g_rowid,
                     &md_record_ex,
-                    json_incref(record)
+                    fired_only_md? NULL : json_incref(record)
                 );
             }
         }
@@ -5495,7 +5530,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                             list,
                             g_rowid,
                             &md_record_ex,
-                            json_incref(record)
+                            feed_wants_only_md(list)? NULL : json_incref(record)
                         );
                     }
                 }
