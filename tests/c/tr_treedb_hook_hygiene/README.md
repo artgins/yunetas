@@ -29,6 +29,12 @@ stores only the config id, not the version — the asymmetry the fixes handle.
    the middle child; the re-check then found a leftover link and aborted the
    delete, leaving a half-unlinked graph.
 
+4. **Failed open leaks no descriptor** (`test_failed_open_no_desc_leak`).
+   Opening a schema with no `topics` list is rejected, and the shared
+   `topic_cols_desc` the open path incref/creates before validation is released
+   on the error path — the end-of-test memory check would otherwise report it as
+   leaked. Before the fix the early error return skipped that decref.
+
 ## Run
 
 ```bash

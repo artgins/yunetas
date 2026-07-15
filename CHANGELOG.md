@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+    - **fix(treedb): a failed treedb/msg2db open leaked the shared column
+      descriptor.** `treedb_open_db()` / `msg2db_open_db()` incref-or-create the
+      module-global `topic_cols_desc` before validating the schema, but the two
+      early error returns ("No topics found", "TreeDB ALREADY opened") skipped
+      the matching decref — and a failed open is never paired with a
+      `close_db()`, so the descriptor stayed alive to `gobj_end()` (a leak under
+      `CONFIG_DEBUG_TRACK_MEMORY`, failing ctest). Both paths now undo the
+      incref/create with the same refcount-guarded decref `close_db` uses (plain
+      `json_decref` while another open still holds it — the double-open case —
+      else `JSON_DECREF` to free and null the global). Covered by
+      `tests/c/tr_treedb_hook_hygiene` (a no-topics open + the end-of-test memory
+      check).
+
+    - **fix(timeranger2): a corrupt md2 file was detected, logged, then read
+      anyway.** `load_first_and_last_record_md()` logged "md2 file corrupted" on
+      a negative or misaligned `lseek(SEEK_END)` but did not return, falling into
+      `if(offset >= sizeof(md2_record_t))` — where the signed `offset` is promoted
+      to unsigned, so a negative (lseek-error) offset passed the guard and a
+      truncated (misaligned) file was read one record short, both feeding a bogus
+      "last record" into the key cache. It now closes the fd and returns -1 at the
+      corruption point, so the caller aborts instead of caching garbage.
+
     - **fix(treedb): force-deleting a node with an array hook skipped every
       other child and then aborted.** The down-link teardown in
       `treedb_delete_node(force=1)` iterated the parent's hook array while

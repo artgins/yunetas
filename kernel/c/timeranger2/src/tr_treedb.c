@@ -643,6 +643,12 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name",  "%s", treedb_name,
             NULL
         );
+        // HACK undo the incref/create above (no close_db pairs a failed open)
+        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+            json_decref(topic_cols_desc);
+        } else {
+            JSON_DECREF(topic_cols_desc);
+        }
         JSON_DECREF(jn_schema)
         return 0;
     }
@@ -659,6 +665,12 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name",  "%s", treedb_name,
             NULL
         );
+        // HACK undo the incref/create above (no close_db pairs a failed open)
+        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+            json_decref(topic_cols_desc);
+        } else {
+            JSON_DECREF(topic_cols_desc);
+        }
         JSON_DECREF(jn_schema_topics)
         JSON_DECREF(jn_schema)
         return 0;

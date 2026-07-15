@@ -4,7 +4,7 @@
  *          Regression coverage for the treedb hook fixes on a versioned
  *          (pkey2) parent with a hook.
  *
- *          Three quirks:
+ *          Four quirks:
  *
  *            1. Duplicate hook entries. Linking the same child id twice used
  *               to append it twice to the parent hook (and twice to the child
@@ -23,6 +23,11 @@
  *               each child from it in place, so the index-based loop stepped
  *               over the shifted tail and left a child linked, aborting the
  *               delete. The teardown now snapshots the child refs first.
+ *
+ *            4. A FAILED open leaked the shared topic_cols_desc. The open path
+ *               increfs/creates that module-global before validating the
+ *               schema; an early error return skipped the matching decref, so
+ *               it was still alive at gobj_end. Undone on the error path now.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -371,6 +376,42 @@ PRIVATE int test_force_delete_unlinks_all_array_children(
 }
 
 /***************************************************************************
+ *  Quirk 4: a FAILED open must not leak the shared topic_cols_desc. The
+ *  open path increfs/creates that module-global before validating the
+ *  schema; an early error return ("No topics found") used to skip the
+ *  matching decref, so the descriptor was still alive at gobj_end (a leak
+ *  under CONFIG_DEBUG_TRACK_MEMORY). The end-of-test memory check is the
+ *  real assertion here.
+ ***************************************************************************/
+PRIVATE int test_failed_open_no_desc_leak(
+    json_t *tranger
+)
+{
+    int result = 0;
+    time_measure_t time_measure;
+
+    const char *test = "failed open: no-topics schema rejected, no desc leak";
+    set_expected_results(test,
+        json_pack("[{s:s}]", "msg", "No topics found"),
+        NULL, NULL, 0);
+    MT_START_TIME(time_measure)
+
+    /*  A schema with no 'topics' list: open must fail after the desc incref  */
+    json_t *jn_schema = json_pack("{s:s}", "id", "bad_schema");
+    if(treedb_open_db(tranger, "treedb_bad", jn_schema, 0) != NULL) {
+        printf("%s  FAIL: open of a no-topics schema should return NULL%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -445,6 +486,7 @@ PRIVATE int do_test(void)
     result += test_idempotent_link_dedup(tranger, treedb_name);
     result += test_clean_unlinks_nonprimary_version(tranger, treedb_name);
     result += test_force_delete_unlinks_all_array_children(tranger, treedb_name);
+    result += test_failed_open_no_desc_leak(tranger);
 
     /*------------------------------------*
      *  Shutdown

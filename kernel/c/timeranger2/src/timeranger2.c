@@ -6003,6 +6003,8 @@ PRIVATE json_int_t load_first_and_last_record_md(
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        close(fd);
+        return -1;
     }
 
     if(offset >= sizeof(md2_record_t)) {

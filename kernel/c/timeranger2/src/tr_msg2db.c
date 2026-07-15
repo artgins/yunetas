@@ -239,6 +239,12 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
+        // HACK undo the incref/create above (no close_db pairs a failed open)
+        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+            json_decref(topic_cols_desc);
+        } else {
+            JSON_DECREF(topic_cols_desc);
+        }
         JSON_DECREF(jn_schema)
         return 0;
     }
@@ -255,6 +261,12 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
+        // HACK undo the incref/create above (no close_db pairs a failed open)
+        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+            json_decref(topic_cols_desc);
+        } else {
+            JSON_DECREF(topic_cols_desc);
+        }
         JSON_DECREF(jn_schema)
         return 0;
     }
