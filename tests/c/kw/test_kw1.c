@@ -617,6 +617,83 @@ static int test_json_unflatten_dict(void)
 }
 
 /***************************************************************************
+ *  kw_collapse() must accept a top-level ARRAY (not only a dict): the
+ *  `print-tranger path=<array>` lazy-drill depends on it. A dict element
+ *  whose sub-dict exceeds dicts_limit collapses to a __collapsed__ stub
+ *  whose path is `index`key`, and that path must round-trip through
+ *  kw_find_path on the ORIGINAL (arrays indexed by atoi).
+ ***************************************************************************/
+static int test_kw_collapse_toplevel_array(void)
+{
+    int result = 0;
+
+    json_t *original = json_pack("[{s:i, s:{s:i, s:i, s:i}}]",
+        "small", 1,
+        "big",
+            "a", 1,
+            "b", 2,
+            "c", 3
+    );
+
+    json_t *collapsed = kw_collapse(0, original, 0, 2);  // lists: no cap, dicts: 2
+
+    json_t *expected = json_pack("[{s:i, s:{s:{s:s, s:I}}}]",
+        "small", 1,
+        "big",
+            "__collapsed__",
+                "path", "0`big",
+                "size", (json_int_t)3
+    );
+
+    if(!collapsed || !json_equal(collapsed, expected)) {
+        result += -1;
+        printf("FAIL kw_collapse top-level array shape\n");
+    }
+
+    /* the emitted path must resolve on the ORIGINAL (drill round-trip) */
+    json_t *found = kw_find_path(0, original, "0`big", FALSE);
+    if(!found || json_object_size(found) != 3) {
+        result += -1;
+        printf("FAIL kw_collapse array path round-trip\n");
+    }
+
+    JSON_DECREF(original)
+    JSON_DECREF(collapsed)
+    JSON_DECREF(expected)
+    return result;
+}
+
+/***************************************************************************
+ *  kw_collapse() on a primitive (neither dict nor array) must reject it,
+ *  returning NULL and logging — not crash, not return a half-built tree.
+ ***************************************************************************/
+static int test_kw_collapse_primitive_rejected(void)
+{
+    int result = 0;
+
+    set_expected_results(
+        "kw_collapse_primitive_rejected",
+        json_pack("[{s:s}]",
+            "msg", "kw_collapse() kw must be a dictionary or array"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        1       // verbose
+    );
+
+    json_t *prim = json_string("x");
+    json_t *out = kw_collapse(0, prim, 0, 0);
+    if(out != NULL) {
+        result += -1;   // a primitive has nothing to collapse
+    }
+    JSON_DECREF(prim)
+    JSON_DECREF(out)    // NULL-safe
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
@@ -636,6 +713,8 @@ PRIVATE int do_test(void)
     result += test_reg_f002_find_record_not_found();
     result += test_reg_f003_kw_find_path_depth();
     result += test_reg_f004_kwid_compare_records_depth();
+    result += test_kw_collapse_toplevel_array();
+    result += test_kw_collapse_primitive_rejected();
 
     /*-------------------------------*
      *      Shutdown timeranger
