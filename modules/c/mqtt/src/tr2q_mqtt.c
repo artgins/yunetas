@@ -528,14 +528,20 @@ PUBLIC q2_msg_t *tr2q_append(
     uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
 
     md2_record_ex_t md_record;
-    tranger2_append_record(
+    if(tranger2_append_record(
         trq->tranger,
         trq->topic_name,
         t,                              // __t__
         user_flag | TR2Q_MSG_PENDING,   // __flag__
         &md_record,
         json_incref(kw) // owned
-    );
+    )<0) {
+        // Error already logged; md_record is not filled, do not enqueue garbage.
+        // gbuf was KW_EXTRACT'd out of kw (ownership ours), so free it manually.
+        GBUFFER_DECREF(gbuf)
+        KW_DECREF(kw)
+        return NULL;
+    }
 
     json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
 

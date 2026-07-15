@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+    - **fix(mqtt): `tr2q_append()` enqueued a garbage entry when the append
+      failed** (the broker session queue). Like `trq_append2` it ignored
+      `tranger2_append_record()`'s return, building a `q2_msg_t` from an
+      uninitialized `md_record` (bogus `rowid`) that later readers would trust;
+      and because it had already `KW_EXTRACT`'d the gbuffer out of `kw`, the
+      failure path also leaked that gbuffer. It now frees the extracted gbuffer,
+      decrefs `kw`, and returns NULL on a failed append.
+
     - **fix(timeranger2): `tranger2_append_record()` reported success after a
       file-open failure.** Both write stages are gated by `if(fd >= 0)` with no
       else, so when `get_topic_wr_fd()` failed for the content or the md2 file
