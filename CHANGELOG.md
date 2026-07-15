@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+    - **fix(treedb): `treedb_create_node()` could return a dangling pointer.**
+      When the primary already existed (`save_id` false) and every listed pkey2
+      had no `indexy` (a schema/index inconsistency), the node landed in no
+      index, yet the final `json_decref` dropped its only ref and the freed
+      pointer was returned. It now frees the node and returns NULL when it
+      reached no index.
+
+    - **fix(timeranger2): two fs_watcher edge cases.** (1) the inotify read
+      buffer leaked when `yev_create_read_event()` failed (which only happens
+      before it takes ownership of the gbuffer). (2) after a concurrent
+      watch-descriptor removal `get_path()` returns NULL, and every event branch
+      except IN_DELETE built a `"(null)/..."` path or handed the callback a NULL
+      directory; the stale event is now skipped once, up front.
+
+    - **fix(tr2migrate): a failed record append was counted as migrated.** The
+      migration callback ignored `tranger2_append_record()`'s return and bumped
+      its counters before appending, so a failed append still counted toward the
+      migrated totals. It now counts only after a successful append.
+
     - **fix(mqtt): `tr2q_append()` enqueued a garbage entry when the append
       failed** (the broker session queue). Like `trq_append2` it ignored
       `tranger2_append_record()`'s return, building a `q2_msg_t` from an

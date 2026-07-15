@@ -192,6 +192,9 @@ PUBLIC fs_event_t *fs_create_watcher_event(
         gbuf
     );
     if(!fs_event->yev_event) {
+        // yev_create_read_event only fails before it takes ownership of gbuf,
+        // so the buffer is still ours to free here.
+        GBUFFER_DECREF(gbuf)
         fs_destroy_watcher_event(fs_event);
         return NULL;
     }
@@ -510,6 +513,11 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     }
 
     path = get_path(fs_event, event->wd);
+    if(path == NULL) {
+        // Error already logged by get_path (a concurrent wd-removal race):
+        // the event is stale, there is nothing to resolve it against.
+        return;
+    }
     char *filename = event->len? event->name:"";
 
     if(event->mask & (IN_ISDIR)) {

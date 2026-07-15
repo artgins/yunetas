@@ -406,17 +406,20 @@ PRIVATE int load_record_callback1(
 {
     md2_record_ex_t md2_record_ex;
 
-    topic_records++;
-    total_counter++;
-
-    tranger2_append_record(
+    if(tranger2_append_record(
         tranger2,
         tranger_topic_name(topic),
         md_record->__t__,
         md_record->__user_flag__,
         &md2_record_ex, // required
         jn_record       // owned
-    );
+    )<0) {
+        // Error already logged; the record was NOT migrated, don't count it
+        return 0;
+    }
+
+    topic_records++;
+    total_counter++;
 
     return 0;
 }

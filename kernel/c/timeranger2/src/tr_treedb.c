@@ -4839,6 +4839,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         0
     );
 
+    /*
+     *  A create must land the node in at least one index; if none takes it
+     *  (every listed pkey2 has no indexy — a schema/index inconsistency,
+     *  logged below), free the node and return NULL, not a dangling pointer.
+     */
+    BOOL indexed = FALSE;
+
     /*-------------------------------*
      *  Create node in memory: id
      *-------------------------------*/
@@ -4848,6 +4855,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             id,
             node // incref
         );
+        indexed = TRUE;
 
         /*----------------------------------*
          *  Call Callback
@@ -4911,6 +4919,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 pkey2_value,
                 node // incref
             );
+            indexed = TRUE;
 
             /*----------------------------------*
              *  Call Callback
@@ -4942,6 +4951,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*
      *  Here: save_id or save_pkey2 are true, the node is in the tree, return only one copy
      */
+    if(!indexed) {
+        // Reached no index (inconsistency already logged); free the creation
+        // ref instead of returning a pointer we are about to drop to zero.
+        JSON_DECREF(pkey2_list)
+        JSON_DECREF(kw)
+        JSON_DECREF(node)
+        return NULL;
+    }
     json_decref(node);
 
     JSON_DECREF(pkey2_list)
