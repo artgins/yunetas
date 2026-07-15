@@ -929,7 +929,9 @@ The iterator supports real-time data loading and filtering based on various cond
 
 ```
 backward
-only_md                 (don't load jn_record on calling callbacks)
+only_md                 (don't load jn_record on calling callbacks; honored by
+                        the historical load AND the realtime rt_mem/rt_disk
+                        feeds, which hand the callback NULL jn_record)
 
 from_rowid / to_rowid
 from_t   / to_t         t:  PERSISTENCE time (when the record was appended)

@@ -134,6 +134,13 @@ record of every new file reached no feed at all (fixed 2026-07-14;
 `tests/c/timeranger2/test_rt_disk_multi_feed.c` covers the rotation, the
 several-feeds-per-key fan-out and the re-created key).
 
+A feed opened with `only_md` receives the record's **metadata but not its
+body**: its callback is handed a `NULL` `jn_record`, exactly like the historical
+iterator. The realtime feeds honor `only_md` too (both the master `rt_mem`
+fan-out and the follower `rt_disk` path), and `rt_disk` skips the per-record
+disk read when no audience of the key needs the body (fixed 2026-07-15; the
+`only_md` feeds in `test_rt_disk_multi_feed.c` cover it).
+
 ## Filesystem watcher
 
 `src/fs_watcher.c` implements an inotify-based watcher (`fs_event_t`) used by `root-linux/C_FS` and by the stores themselves to react to on-disk changes.
