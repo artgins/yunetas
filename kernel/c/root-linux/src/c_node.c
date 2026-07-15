@@ -3510,13 +3510,13 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     /*
-     *  kw_collapse() requires a dict; drilling into an array path returns 0.
-     *  Surface it as an error instead of a silent null response.
+     *  kw_collapse() handles dict and array; a primitive at `path` returns 0
+     *  (nothing to expand). Surface it instead of a silent null response.
      */
     if(!value) {
         return msg_iev_build_response(gobj,
             -1,
-            json_sprintf("%s: cannot collapse tranger at path '%s' (array paths are not drillable yet)",
+            json_sprintf("%s: cannot collapse tranger at path '%s'",
                 gobj_yuno_role_plus_name(), path),
             0,
             0,

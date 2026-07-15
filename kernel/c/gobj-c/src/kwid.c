@@ -2949,6 +2949,50 @@ PRIVATE json_t *collapse(
 
     return new_kw;
 }
+/***************************************************************************
+ *  Collapse a top-level ARRAY, mirroring the array-value branch of
+ *  collapse() (object elements are recursed, arrays/primitives copied
+ *  shallow) so drilling into an array `path` returns its elements — each
+ *  collapsed one level — instead of failing. Element paths are the numeric
+ *  index appended to `path`, which kw_find_path resolves back (arrays are
+ *  indexed by atoi), so the drill round-trips.
+ ***************************************************************************/
+PRIVATE json_t *collapse_array(
+    hgobj gobj,
+    json_t *kw,         // not owned
+    char *path,
+    int collapse_lists_limit,
+    int collapse_dicts_limit
+)
+{
+    json_t *new_list = json_array();
+    int idx; json_t *v;
+    json_array_foreach(kw, idx, v) {
+        char s_idx[40];
+        snprintf(s_idx, sizeof(s_idx), "%d", idx);
+        char *new_path = GBMEM_MALLOC(strlen(path)+strlen(s_idx)+2);
+        strcpy(new_path, path);
+        if(strlen(new_path)>0) {
+            strcat(new_path, delimiter);
+        }
+        strcat(new_path, s_idx);
+
+        if(json_is_object(v)) {
+            json_array_append_new(
+                new_list,
+                collapse(gobj, v, new_path, collapse_lists_limit, collapse_dicts_limit)
+            );
+        } else if(json_is_array(v)) {
+            json_array_append(new_list, v);
+        } else {
+            json_array_append(new_list, v);
+        }
+        GBMEM_FREE(new_path);
+    }
+
+    return new_list;
+}
+
 PUBLIC json_t *kw_collapse(
     hgobj gobj,
     json_t *kw,         // not owned
@@ -2956,18 +3000,23 @@ PUBLIC json_t *kw_collapse(
     int collapse_dicts_limit
 )
 {
-    if(!json_is_object(kw)) {
+    if(!json_is_object(kw) && !json_is_array(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "kw_collapse() kw must be a dictionary",
+            "msg",          "%s", "kw_collapse() kw must be a dictionary or array",
             NULL
         );
         return 0;
     }
     char *path = GBMEM_MALLOC(1);
     *path = 0;
-    json_t *new_kw = collapse(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit);
+    json_t *new_kw;
+    if(json_is_array(kw)) {
+        new_kw = collapse_array(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit);
+    } else {
+        new_kw = collapse(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit);
+    }
     GBMEM_FREE(path)
 
     return new_kw;
