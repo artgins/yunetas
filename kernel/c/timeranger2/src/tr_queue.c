@@ -402,14 +402,18 @@ PUBLIC q_msg_t *trq_append2(
     }
 
     md2_record_ex_t md_record;
-    tranger2_append_record(
+    if(tranger2_append_record(
         trq->tranger,
         trq->topic_name,
         t,                              // __t__
         user_flag | TRQ_MSG_PENDING,    // __flag__
         &md_record,
         json_incref(kw) // owned
-    );
+    )<0) {
+        // Error already logged; md_record is not filled, do not enqueue garbage
+        JSON_DECREF(kw)
+        return 0;
+    }
 
     q_msg_t *msg = new_msg(
         trq,

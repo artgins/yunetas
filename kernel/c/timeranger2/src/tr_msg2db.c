@@ -454,7 +454,12 @@ PUBLIC int msg2db_close_db(
     }
 
     JSON_DECREF(msg2db)
-    JSON_DECREF(topic_cols_desc)
+    // HACK incref/decref by each msg2db_open_db/msg2db_close_db
+    if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+        json_decref(topic_cols_desc);
+    } else {
+        JSON_DECREF(topic_cols_desc);
+    }
     return 0;
 }
 

@@ -2696,6 +2696,10 @@ PUBLIC int tranger2_append_record(
         }
 
         jsonp_free(srecord);
+    } else {
+        // Error already logged by get_topic_wr_fd
+        JSON_DECREF(record)
+        return -1;
     }
 
     // TEST performance 170000
@@ -2774,6 +2778,10 @@ PUBLIC int tranger2_append_record(
                 );
             }
         }
+    } else {
+        // Error already logged by get_topic_wr_fd
+        JSON_DECREF(record)
+        return -1;
     }
 
     // TEST performance with sf_save_md_in_record 98000

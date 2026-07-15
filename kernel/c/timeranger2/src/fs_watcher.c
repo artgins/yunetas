@@ -619,6 +619,18 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
     hgobj gobj = fs_event->gobj;
 
+    /*
+     *  path may alias the entry we are about to delete from jn_tracked_paths
+     *  (the IN_DELETE_SELF caller passes get_path()'s borrowed string), so copy
+     *  it first — the trace and the inotify_rm_watch error log below must not
+     *  read it after json_object_del() frees the backing string.
+     */
+    char path_[PATH_MAX];
+    path_[0] = 0;
+    if(path) {
+        snprintf(path_, sizeof(path_), "%s", path);
+    }
+
     char s_wd[64];
     snprintf(s_wd, sizeof(s_wd), "%d", wd);
     if(json_object_del(fs_event->jn_tracked_paths, s_wd)<0) {
@@ -638,7 +650,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "msgset",           "%s", MSGSET_YEV_LOOP,
             "msg",              "%s", "remove watch",
             "msg2",             "%s", "💾🔶 remove watch",
-            "path",             "%s", path,
+            "path",             "%s", path_,
             "wd",               "%d", wd,
             "fs_flag",          "%d", fs_event->fs_flag,
             "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
@@ -653,7 +665,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "inotify_rm_watch() FAILED",
-                "path" ,        "%s", path,
+                "path" ,        "%s", path_,
                 "serrno" ,      "%s", strerror(errno),
                 NULL
             );

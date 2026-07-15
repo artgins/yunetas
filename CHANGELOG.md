@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+    - **fix(timeranger2): `tranger2_append_record()` reported success after a
+      file-open failure.** Both write stages are gated by `if(fd >= 0)` with no
+      else, so when `get_topic_wr_fd()` failed for the content or the md2 file
+      the function fell through and returned 0 (success) — persisting an index
+      row with a bogus offset/size (content open failed), or content bytes with
+      no index row and `g_rowid` 0 fed to the realtime feeds (md2 open failed).
+      It now returns -1 at either failure, like the sibling lseek/write errors.
+
+    - **fix(timeranger2): use-after-free in `fs_watcher` `remove_watch()` under
+      `TRACE_FS`.** `path` (the `IN_DELETE_SELF` caller passes `get_path()`'s
+      borrowed string, aliasing an entry of `jn_tracked_paths`) was read by the
+      trace and by the `inotify_rm_watch` error log AFTER `json_object_del()`
+      freed the backing string. It is now snapshotted before the delete.
+
+    - **fix(tr_queue): `trq_append2()` enqueued a garbage entry when the append
+      failed.** It ignored `tranger2_append_record()`'s return, so on failure it
+      built a `q_msg_t` from an uninitialized `md_record` (bogus `rowid`/`__t__`)
+      that later readers would trust. It now decrefs `kw` and returns NULL on a
+      failed append, matching `tr_msg`/`tr_msg2db`.
+
+    - **fix(tr_msg2db): `msg2db_close_db()` could leak the shared descriptor
+      with concurrent msg2dbs.** It released `topic_cols_desc` with an
+      unconditional `JSON_DECREF` (which nulls the global), so closing one of two
+      open msg2dbs nulled the global while the other still held a ref — leaked on
+      the second close. It now uses the same refcount-guarded decref as
+      `treedb_close_db`.
+
     - **fix(treedb): a failed treedb/msg2db open leaked the shared column
       descriptor.** `treedb_open_db()` / `msg2db_open_db()` incref-or-create the
       module-global `topic_cols_desc` before validating the schema, but the two
