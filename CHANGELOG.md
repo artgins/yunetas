@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **feat(treedb): C_NODE gains a `print-tranger` command.** Mirrors
+      C_TRANGER's: it dumps the tranger the treedb lives on as bounded,
+      `kw_collapse()`-truncated JSON, and accepts `path=` to lazily drill into
+      one subtree (arrays indexed by numeric position, so the path round-trips
+      through `kw_find_path`). This is what the gui_treedb "Raw JSON" viewer
+      calls to inspect a treedb's raw tranger; a primitive path returns an
+      explicit error rather than a silent null.
+
+    - **feat(gobj-c): `kw_collapse()` now accepts a top-level array.** Drilling
+      `print-tranger path=<array>` used to fail because `kw_collapse()` required
+      a dict at the requested path; it now collapses a top-level array too (new
+      `collapse_array`, mirroring the array-value branch of `collapse()` —
+      object elements recursed, arrays/primitives copied shallow, element paths =
+      numeric index). Dict output is byte-for-byte unchanged, and only
+      `print-tranger` calls it. Covered by `tests/c/kw/test_kw1` (top-level-array
+      collapse shape + `kw_find_path` round-trip + primitive-rejected).
+
     - **fix(timeranger2): the realtime feeds ignored `only_md`, always reading
       and delivering the record body.** A feed opened with `only_md` wants a
       record's metadata but not its content — the historical iterator honors it,
