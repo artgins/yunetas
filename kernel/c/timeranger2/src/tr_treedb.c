@@ -1899,7 +1899,7 @@ PUBLIC int parse_schema(
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
         ret += parse_schema_cols(
-            topic_cols_desc,
+            cols_desc,
             kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
     }
@@ -5350,10 +5350,21 @@ PUBLIC int treedb_delete_node(
                     hook,
                     node
                 );
+                /*
+                 *  For an array hook, _list_children returns the parent's own
+                 *  hook array and _unlink_nodes removes the child from it in
+                 *  place; iterating that array directly shifts it under the
+                 *  loop and skips children. Snapshot the child refs first.
+                 */
+                json_t *children_snapshot = json_array();
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
+                    json_array_append(children_snapshot, child);
+                }
+                json_array_foreach(children_snapshot, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child, TRUE);
                 }
+                JSON_DECREF(children_snapshot)
                 JSON_DECREF(children)
             }
             JSON_DECREF(jn_hooks)

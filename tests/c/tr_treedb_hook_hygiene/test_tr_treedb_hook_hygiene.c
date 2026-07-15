@@ -1,21 +1,28 @@
 /****************************************************************************
  *          test_tr_treedb_hook_hygiene.c
  *
- *          Regression coverage for the versioned-parent reverse-hook fixes
- *          (commit "fix(treedb): version-aware reverse-hook unlink +
- *          idempotent link dedup").
+ *          Regression coverage for the treedb hook fixes on a versioned
+ *          (pkey2) parent with a hook.
  *
- *          Two quirks, both around a versioned (pkey2) parent with a hook:
+ *          Three quirks:
  *
  *            1. Duplicate hook entries. Linking the same child id twice used
  *               to append it twice to the parent hook (and twice to the child
  *               fkey). Link is now idempotent and warns on the skipped dup.
+ *               (commit "fix(treedb): version-aware reverse-hook unlink +
+ *               idempotent link dedup").
  *
  *            2. Unlink targeted only the primary parent version. A child's
  *               fkey ref carries the parent id but not the version, so cleaning
  *               a child hooked on a NON-primary config version used to unlink
  *               the primary (where the child isn't), leaving a stale entry on
  *               the real version. Clean now locates the holding version.
+ *
+ *            3. Force-delete skipped children of an array hook. The teardown
+ *               iterated the parent hook array while _unlink_nodes() removed
+ *               each child from it in place, so the index-based loop stepped
+ *               over the shifted tail and left a child linked, aborting the
+ *               delete. The teardown now snapshots the child refs first.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -271,6 +278,99 @@ PRIVATE int test_clean_unlinks_nonprimary_version(
 }
 
 /***************************************************************************
+ *  Quirk 3: force-deleting a parent whose ARRAY hook holds several children
+ *  used to iterate that hook array while _unlink_nodes removed from it in
+ *  place, so the index-based loop skipped every other child. The re-check
+ *  then found a leftover down link and ABORTED the delete, leaving a
+ *  half-unlinked graph. Force-delete must now clear EVERY child and remove
+ *  the node.
+ ***************************************************************************/
+PRIVATE int test_force_delete_unlinks_all_array_children(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    time_measure_t time_measure;
+    const char *child_ids[] = {"y-C1", "y-C2", "y-C3"};
+
+    /*------------------------------------*
+     *  Seed: config cfg-C (v1) + three
+     *  yunos, all linked to it. The hook
+     *  array holds three children.
+     *------------------------------------*/
+    {
+        const char *test = "force-delete: seed config + three linked children";
+        set_expected_results(test, NULL, NULL, NULL, 0);
+        MT_START_TIME(time_measure)
+
+        treedb_create_node(tranger, treedb_name, "configs",
+            json_pack("{s:s, s:s}", "id", "cfg-C", "version", "v1"));
+        treedb_create_node(tranger, treedb_name, "yunos", json_pack("{s:s}", "id", "y-C1"));
+        treedb_create_node(tranger, treedb_name, "yunos", json_pack("{s:s}", "id", "y-C2"));
+        treedb_create_node(tranger, treedb_name, "yunos", json_pack("{s:s}", "id", "y-C3"));
+
+        json_t *cfg = treedb_get_node(tranger, treedb_name, "configs", "cfg-C");
+        for(int i=0; i<3; i++) {
+            json_t *yuno = treedb_get_node(tranger, treedb_name, "yunos", child_ids[i]);
+            if(treedb_link_nodes(tranger, HOOK_NAME, cfg, yuno) != 0) {
+                printf("%s  FAIL: link of %s returned non-zero%s\n",
+                    On_Red BWhite, child_ids[i], Color_Off);
+                result += -1;
+            }
+        }
+        if(array_field_size(cfg, HOOK_NAME) != 3) {
+            printf("%s  FAIL: parent hook size != 3 after linking (got %d)%s\n",
+                On_Red BWhite, array_field_size(cfg, HOOK_NAME), Color_Off);
+            result += -1;
+        }
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL);
+    }
+
+    /*------------------------------------*
+     *  Force-delete the parent: must
+     *  succeed, unlink ALL three children
+     *  and remove the node. Before the fix
+     *  this aborted, leaving y-C2 linked.
+     *------------------------------------*/
+    {
+        const char *test = "force-delete: parent gone, every child unlinked";
+        set_expected_results(test, NULL, NULL, NULL, 0);
+        MT_START_TIME(time_measure)
+
+        json_t *cfg = treedb_get_node(tranger, treedb_name, "configs", "cfg-C");
+        if(treedb_delete_node(tranger, cfg, json_pack("{s:b}", "force", 1)) != 0) {
+            printf("%s  FAIL: force-delete returned non-zero%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+
+        if(treedb_get_node(tranger, treedb_name, "configs", "cfg-C") != NULL) {
+            printf("%s  FAIL: parent still present after force-delete%s\n",
+                On_Red BWhite, Color_Off);
+            result += -1;
+        }
+
+        for(int i=0; i<3; i++) {
+            json_t *yuno = treedb_get_node(tranger, treedb_name, "yunos", child_ids[i]);
+            if(array_field_size(yuno, CONFIG_FKEY) != 0) {
+                printf("%s  FAIL: child %s still linked after force-delete (fkey size %d)%s\n",
+                    On_Red BWhite, child_ids[i], array_field_size(yuno, CONFIG_FKEY), Color_Off);
+                result += -1;
+            }
+        }
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL);
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -344,6 +444,7 @@ PRIVATE int do_test(void)
      *------------------------------------*/
     result += test_idempotent_link_dedup(tranger, treedb_name);
     result += test_clean_unlinks_nonprimary_version(tranger, treedb_name);
+    result += test_force_delete_unlinks_all_array_children(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

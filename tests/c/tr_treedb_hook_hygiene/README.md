@@ -1,8 +1,8 @@
 # test_tr_treedb_hook_hygiene
 
-Regression coverage for the versioned-parent reverse-hook fixes in
-`tr_treedb.c` (commit *"fix(treedb): version-aware reverse-hook unlink +
-idempotent link dedup"*).
+Regression coverage for the treedb hook fixes in `tr_treedb.c` on a versioned
+(pkey2) parent with a hook — reverse-hook unlink + idempotent link dedup, and
+force-delete of a multi-child array hook.
 
 The schema (`schema_sample.c`) models the agent's `configs`→`yunos` graph: a
 **versioned** parent topic `configs` (pkey2 `version`) with a `yunos` hook, and
@@ -20,6 +20,14 @@ stores only the config id, not the version — the asymmetry the fixes handle.
    A child hooked on the **non-primary** config version is cleaned: the entry is
    removed from the version that actually held it (not the primary), the child
    fkey is cleared, and no *"Child data not found"* error is logged.
+
+3. **Force-delete unlinks every array-hook child**
+   (`test_force_delete_unlinks_all_array_children`). Force-deleting a `configs`
+   node that hooks three `yunos` children unlinks **all** of them and removes
+   the node. Before the fix the teardown iterated the hook array while
+   `_unlink_nodes()` removed from it in place, so the index-based loop skipped
+   the middle child; the re-check then found a leftover link and aborted the
+   delete, leaving a half-unlinked graph.
 
 ## Run
 

@@ -185,7 +185,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
     const char *key,
     char *filename  // md2 filename with extension, WARNING modified, .md2 removed
 );
-PRIVATE uint64_t load_first_and_last_record_md(
+PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
@@ -5201,6 +5201,10 @@ PRIVATE json_int_t update_new_records_from_disk(
         key,
         filename  // warning .md2 removed
     );
+    if(!new_cache_cell) {
+        // Error already logged
+        return -1;
+    }
 
     char *file_id = filename; // Now it has not .md2
 
@@ -5783,6 +5787,10 @@ PRIVATE json_t *load_key_cache_from_disk(
             key,
             filename    // warning .md2 removed
         );
+        if(!cache_cell) {
+            // Error already logged
+            continue;
+        }
         json_array_append_new(cache_files, cache_cell);
     }
 
@@ -5886,7 +5894,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
     md2_record_t md_first_record = {0};
     md2_record_t md_last_record = {0};
 
-    uint64_t file_rows = load_first_and_last_record_md(
+    json_int_t file_rows = load_first_and_last_record_md(
         gobj,
         topic_directory,
         key,
@@ -5916,7 +5924,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE uint64_t load_first_and_last_record_md(
+PRIVATE json_int_t load_first_and_last_record_md(
     hgobj gobj,
     const char *topic_directory,
     const char *key,
@@ -5925,7 +5933,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     md2_record_t *md_last_record
 )
 {
-    uint64_t file_rows = 0;
+    json_int_t file_rows = 0;
 
     /*----------------------------------*
      *  Open the .md2 file of the key

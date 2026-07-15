@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+    - **fix(treedb): force-deleting a node with an array hook skipped every
+      other child and then aborted.** The down-link teardown in
+      `treedb_delete_node(force=1)` iterated the parent's hook array while
+      `_unlink_nodes()` removed each child from that SAME array in place, so the
+      index-based loop stepped over the shifted tail: with three children it
+      unlinked the 1st and 3rd, left the 2nd, and the re-check then found a
+      leftover down link and refused the delete — leaving a half-unlinked graph
+      persisted on disk (the cleared children were already saved) while
+      reporting failure. The teardown now snapshots the child refs before
+      unlinking. Covered by `tests/c/tr_treedb_hook_hygiene` (force-delete of a
+      config with three linked yunos).
+
+    - **fix(treedb): `parse_schema()` validated every schema against an EMPTY
+      descriptor.** It built a local column descriptor but passed the
+      module-global `topic_cols_desc` to `parse_schema_cols()` — and that global
+      is NULL until the first `treedb_open_db()`. `parse_schema()` is the
+      validate-before-open helper the gclasses call at `mt_start`, i.e. before
+      any treedb is open, so `json_array_foreach(NULL, ...)` ran zero checks and
+      ANY malformed schema passed unvalidated. It now validates against the
+      descriptor it builds.
+
+    - **fix(timeranger2): an md2 open failure poisoned the key's cache with a
+      ~1.8e19 row count.** `load_first_and_last_record_md()` returns -1 on a
+      failed `open()`, but its type was `uint64_t`, so the caller's
+      `if(file_rows < 0)` never fired: -1 became `UINT64_MAX` and the cache cell
+      was built with that as its row count. A follower reloading a key whose
+      `.md2` was unlinked mid-append (`tranger2_delete_key` racing an append)
+      then ran `publish_new_rt_disk_records` with `to_rowid = UINT64_MAX`, a
+      near-unbounded read loop. The function is now `json_int_t`, the guard
+      fires, and both callers bail (or skip the file) on NULL.
+
     - **fix(timeranger2): a deleted key left its watermark behind in every disk
       feed.** `published` holds one mark per key, and nothing dropped it when
       the key died: a keyless feed on a topic that cycles its keys (an hourly
