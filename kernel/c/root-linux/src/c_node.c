@@ -93,6 +93,7 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -255,6 +256,15 @@ PRIVATE const char *a_delete[] = {"delete-record", 0};
 PRIVATE const char *a_schemas[] = {"schemas","list-schemas", 0};
 PRIVATE const char *a_schema[] = {"schema", 0};
 
+PRIVATE sdata_desc_t pm_print_tranger[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_BOOLEAN,   "expanded",     0,              0,          "No expanded (default) return [[size]]"),
+SDATAPM (DTP_INTEGER,   "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
+SDATAPM (DTP_INTEGER,   "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
+SDATAPM (DTP_STRING,    "path",         0,              0,          "Drill into a subpath (kw_find_path style, `-delimited) to lazily expand it"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-------json_fn---------description--*/
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
@@ -283,6 +293,7 @@ SDATACM2 (DTP_SCHEMA,   "activate-snap",SDF_AUTHZ_X,    0,  pm_activate_snap,cmd
 SDATACM2 (DTP_SCHEMA,   "deactivate-snap",SDF_AUTHZ_X,  0,  0,              cmd_deactivate_snap,"De-Activate snap"),
 SDATACM2 (DTP_SCHEMA,   "import-db",    SDF_AUTHZ_X,    0,  pm_import_db,   cmd_import_db, "Import db"),
 SDATACM2 (DTP_SCHEMA,   "export-db",    SDF_AUTHZ_X,    0,  pm_export_db,   cmd_export_db, "Export db"),
+SDATACM2 (DTP_SCHEMA,   "print-tranger",SDF_AUTHZ_X,    0,  pm_print_tranger,cmd_print_tranger,"Print internal tranger json (pass path= to lazily drill into a subtree)"),
 SDATACM2 (DTP_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_node_pkey2s,    "List node's pkey2"),
 SDATACM2 (DTP_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
 SDATACM2 (DTP_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
@@ -3453,6 +3464,71 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
                 empty_string(last_msg)?"(see log)":last_msg),
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Dump the node's internal tranger json, kw_collapse()-truncated so the
+ *  response stays bounded on huge treedbs. Pass `path` (kw_find_path style,
+ *  `-delimited, arrays by numeric index) to lazily drill into one subtree —
+ *  the contract C_YUI_JSON's EV_EXPAND_PATH relies on. Mirrors C_TRANGER's
+ *  print-tranger; here priv->tranger is the tranger the treedb lives on.
+ ***************************************************************************/
+PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL expanded = kw_get_bool(gobj, kw, "expanded", 0, KW_WILD_NUMBER);
+    int lists_limit = (int)kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
+    int dicts_limit = (int)kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
+    const char *path = kw_get_str(gobj, kw, "path", "", 0);
+
+    json_t *value = priv->tranger;
+
+    if(!empty_string(path)) {
+        value = kw_find_path(gobj, value, path, FALSE);
+        if(!value) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: path not found: '%s'", gobj_yuno_role_plus_name(), path),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
+    if(expanded) {
+        if(!lists_limit && !dicts_limit) {
+            value = json_incref(value); // All, no collapse
+        } else {
+            value = kw_collapse(gobj, value, lists_limit, dicts_limit);
+        }
+    } else {
+        value = kw_collapse(gobj, value, 0, 0);
+    }
+
+    /*
+     *  kw_collapse() requires a dict; drilling into an array path returns 0.
+     *  Surface it as an error instead of a silent null response.
+     */
+    if(!value) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot collapse tranger at path '%s' (array paths are not drillable yet)",
+                gobj_yuno_role_plus_name(), path),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        0,
+        value,
         kw  // owned
     );
 }
