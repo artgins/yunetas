@@ -162,6 +162,14 @@
       client — which had asked for `order` — had no way to tell. The sort now
       says whether it sorted, and the command is refused with the reason.
 
+    - **perf(c_tranger): `list-keys` sorts with `qsort`, not an insertion
+      sort.** The ordered variant inserted each key by linear scan — O(n²)
+      with a jansson refcount round-trip per swap, inside the event loop;
+      `order=records` over a topic with enough keys to need `list-keys` at
+      all could stall the yuno for seconds. Ties on the record count now
+      break by key, so equal counts page deterministically (`qsort` is not
+      stable).
+
     - **fix(timeranger2): the first record of every new md2 file reached NO
       realtime disk feed** — a Live card left open across midnight silently
       dropped one record a day, per key. A feed's `published` watermark counts
