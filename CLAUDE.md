@@ -864,10 +864,22 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   appear instantly — no fade/slide/glide. If a third-party lib injects
   transition CSS, override it (`transition: none !important`). Don't add
   decorative animation unless explicitly requested.
-- **Buttons in rows: icon required; icon-only on mobile.** Every button in a
-  row that gets narrow on mobile carries an icon; on mobile hide the text
-  label (`<span class="is-hidden-mobile">Label</span>`). Always set `title` +
-  `aria-label` (mobile users see only the icon).
+- **Buttons in rows: icon required; label optional, icon-only when it doesn't
+  fit.** Every button in a row that gets narrow on mobile carries an icon.
+  **Keep the text label** when the labelled row still fits at the narrowest
+  supported width (~360px) **in the longest supported locale** — a bare icon is
+  always less legible, and two bare icons side by side read as the same
+  control. Drop to icon-only (`<span class="is-hidden-mobile">Label</span>`)
+  only when it would not fit. **Decide this once, at design time, against the
+  longest locale — never measure at runtime:** the width depends on the
+  language (`raw json` vs `JSON crudo`), so a measured rule shows text in
+  English and icons in Spanish in the same toolbar, and flips shape on
+  `EV_LANGUAGE_CHANGED`. Always set `title` + `aria-label` (they carry the
+  icon-only case, and screen readers need them either way), and verify against
+  the real stylesheet — jsdom does not load Bulma, so it cannot catch this.
+  Canonical pair: `C_YUI_TREEDB_TOPICS`'s toolbar never holds more than two
+  buttons, so its labels stay on mobile (a deliberate, commented exception);
+  `C_YUI_TREEDB_GRAPH`'s has many more and keeps `is-hidden-mobile`.
 - **Bulma helpers carry `!important`** (`.is-flex`, `.is-hidden`): a bare
   inline `style.display = 'none'` loses to them. Toggle `is-hidden`, or use
   `style.setProperty('display', 'none', 'important')` /
