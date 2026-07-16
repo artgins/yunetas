@@ -90,6 +90,10 @@ project:
         - file: guide/guide_tls.md
         - file: guide/guide_cert_management.md
         - file: guide/guide_oauth2_pkce_bff.md
+        - title: JS GUI — the declarative shell
+          file: ../../kernel/js/gobj-ui/SHELL.md
+        - title: JS GUI — routing & navigation
+          file: ../../kernel/js/gobj-ui/ROUTING.md
 
     - title: API Reference
       file: api/index.md
