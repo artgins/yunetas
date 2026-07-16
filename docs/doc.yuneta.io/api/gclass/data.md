@@ -25,14 +25,14 @@ on time-series topics.
 | `create-topic` | Create a new topic. |
 | `open-topic` | Open an existing topic. |
 | `delete-topic` | Delete a topic. |
-| `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). |
+| `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). A **keyless** list accepts `rkey` (PCRE2 regex over the keys), and it governs both the disk load **and** the realtime feed. |
 | `get-list-data` | Retrieve an open list's data. |
-| `list-keys` | List a topic's keys with their record counts **and their time span on both axes**: `[{key, records, fr_t, to_t, fr_tm, to_tm}]`. Lets a client bound a time picker to what the key really holds without reading a record. |
+| `list-keys` | List a topic's keys with their record counts **and their time span on both axes**: `[{key, records, fr_t, to_t, fr_tm, to_tm}]`. Lets a client bound a time picker to what the key really holds without reading a record. Filters, sorts and pages **in the server**: `rkey` (PCRE2 regex), `order=key\|records` + `desc`, and `from`/`limit` (with `limit>0` the answer is a page `{total_rows, pages, data}`; `limit=0` keeps the plain full list). |
 | `open-iterator` / `close-iterator` | Open/close a stateful per-key iterator (row index only, no upfront load) for cursor pagination. Takes the match conditions below; a filtered iterator indexes the matching rows at open, so `total_rows` and the pages count only those. |
 | `get-page` | Get a page `{total_rows, pages, data}` from an open iterator (`limit`, optional `backward`). `from_rowid` is 1-based and, on a **filtered** iterator, is a position among the MATCHING rows (a global rowid only when the iterator does not filter). |
 | `open-rt` / `close-rt` | Open/close a realtime feed on a topic key (no history load); new appends are published as `EV_TRANGER_RECORD_ADDED` to subscribers. |
 | `add-record` | Append a record. |
-| `print-tranger` | Dump tranger state. |
+| `print-tranger` | Dump tranger state as bounded JSON (`expanded`, `lists_limit`/`dicts_limit`; unexpanded containers answer as `[[size]]`). |
 | `desc` | Describe topic schema. |
 
 **`open-iterator` match conditions** (all optional; `0`/empty = unset):
@@ -99,15 +99,18 @@ tree nodes with linking, snapshots, and import/export.
 | Command | Description |
 |---------|-------------|
 | `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. |
-| `get-node` / `list-nodes` | Retrieve nodes. |
+| `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
+| `instances` | List node instances. |
 | `link-nodes` / `unlink-nodes` | Manage parent-child relationships. |
 | `parents` / `children` | Navigate the graph. |
 | `hooks` / `links` | Inspect hook and fkey relationships. |
 | `jtree` | Get a node's full subtree as JSON. |
 | `shoot-snap` / `activate-snap` / `deactivate-snap` | Snapshot management. |
-| `list-snaps` / `snap-content` | Inspect snapshots. |
+| `snaps` / `snap-content` | Inspect snapshots. |
 | `import-db` / `export-db` | Bulk import/export. |
-| `desc` | Describe topic schema. |
+| `treedbs` / `topics` | List the treedbs of the tranger / the topics of a treedb. |
+| `desc` / `descs` | Describe one topic's schema / every topic's. |
+| `print-tranger` | Dump the tranger the treedb lives on as bounded JSON (`kw_collapse()`-truncated: unexpanded containers answer as `[[size]]`; `lists_limit`/`dicts_limit` bound the expansion). Pass `path=` (backtick-delimited, `kw_find_path` style, arrays by numeric index) to lazily drill into one subtree — this is what feeds the gui_treedb "Raw JSON" viewer. |
 
 ---
 
