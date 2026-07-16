@@ -54,9 +54,11 @@ submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**: the
-  declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the legacy stack
-  `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `4.0.0`) — **active
+  development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
+  legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
+  Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
+  carries five BREAKING contract changes and requires gobj-js `>= 7.8.0`.
   **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
   and the in-repo yunos **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`** as
   a `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`, exactly
@@ -79,8 +81,8 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.7.2`; the gobj-js package is at
-`7.7.2` on npm) and **published to npm**.
+versioned to track `YUNETA_VERSION` (SDK `7.8.0`; the gobj-js package is at
+`7.8.0` on npm) and **published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
@@ -1265,7 +1267,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.7.2) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.8.0) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

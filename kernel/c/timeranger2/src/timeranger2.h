@@ -934,10 +934,11 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
 
     match_cond (second level, consumed by this function):
         key                 (str) exact key to load; if absent, rkey is used
-        rkey                (str) regular expression over keys ("" == ".*")
-                            WARNING: the DISK load only visits keys matching rkey,
-                            but the REALTIME feed is opened for ALL keys (rkey is
-                            not applied to the realtime side).
+        rkey                (str) PCRE2 regular expression over keys ("" == ".*")
+                            Honoured by BOTH halves of the list: the DISK load
+                            only visits keys matching rkey, and the REALTIME feed
+                            only dispatches appends of keys matching it. The
+                            compiled pattern lives in the list and dies with it.
         to_rowid            (int) upper bound of the range; see "realtime" below
         load_record_callback (tranger2_load_record_callback_t) REQUIRED
                             passed inside match_cond, not as a C argument.

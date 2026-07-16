@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 7.8.0
+
+A feature release built around the **C_TRANGER / C_NODE read surface** — the
+command set a GUI needs to browse a timeranger2/treedb without pulling whole
+topics into the browser: server-side key filtering/sorting/paging
+(`list-keys`), cursor pagination (`open-iterator` / `get-page`), realtime feeds
+(`open-rt` / `close-rt`), the restored record-read commands, and
+`print-tranger`'s bounded, drillable raw-JSON dump. Alongside it, a
+timeranger2 audit pass that fixed several ways a failed append could be
+reported as success.
+
+No BREAKING changes: the one signature correction is a header/implementation
+mismatch (prototype names only, no ABI change), and the one event-payload
+change is additive.
+
+Ships with `@yuneta/gobj-js` **7.8.0** and `@yuneta/gobj-ui` **4.0.0** (a
+MAJOR — five BREAKING contract changes; see its CHANGELOG before upgrading a
+v2 SPA).
+
     - **feat(treedb): C_NODE gains a `print-tranger` command.** Mirrors
       C_TRANGER's: it dumps the tranger the treedb lives on as bounded,
       `kw_collapse()`-truncated JSON, and accepts `path=` to lazily drill into
@@ -308,7 +327,12 @@
 
       A malformed `rkey` REFUSES the list (and the feed), rather than degrading
       to "every key": that would push the caller exactly the records it asked not
-      to receive.
+      to receive. The refusal is logged as a **warning**, not an error with a
+      stack trace: an `rkey` arrives from a remote peer (a SPA opening a live
+      list), so a bad pattern is peer input, not a broken internal invariant —
+      the decoder-severity policy. `gobj_log_set_last_message()` carries the
+      regex's compile error (pattern + offset) into the refusal the caller gets
+      back, so the SPA can show WHY the pattern was rejected.
 
       (An earlier note in this section claimed `open-list`'s `rkey` was *silently
       ignored*. That was wrong, and worth correcting: it was honoured in the

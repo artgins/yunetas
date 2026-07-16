@@ -531,6 +531,9 @@ PUBLIC int kw_walk(
             path:
             size:
         }
+    `kw` can be a dict or a top-level array; anything else is refused with NULL.
+    A top-level array collapses its object elements one level, and their paths
+    are the numeric index, which kw_find_path() resolves back.
     WARNING _limit must be > 0 to collapse
 **rst**/
 PUBLIC json_t *kw_collapse(

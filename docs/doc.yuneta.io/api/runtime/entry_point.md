@@ -9,7 +9,7 @@ Functions for initializing and launching a yuno application.
 ---
 
 (yuneta_setup)=
-## [`yuneta_setup()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/entry_point.c#L230)
+## [`yuneta_setup()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/entry_point.c#L230)
 
 Configures the yuneta runtime: persistent-attribute handlers,
 command / stats parsers, authentication / authorization callbacks,
@@ -52,7 +52,7 @@ int yuneta_setup(
 ---
 
 (yuneta_entry_point)=
-## [`yuneta_entry_point()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/entry_point.c#L286)
+## [`yuneta_entry_point()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/entry_point.c#L286)
 
 Main entry point for a yuno application. Parses command-line arguments,
 loads configuration, sets up the environment, creates the yuno GObj tree,
@@ -96,7 +96,7 @@ Process exit code.
 ---
 
 (set_auto_kill_time)=
-## [`set_auto_kill_time()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/entry_point.c#L923)
+## [`set_auto_kill_time()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/entry_point.c#L923)
 
 For testing: kills the yuno after a specified number of seconds.
 Only effective when the yuno is **not** running as a daemon.
@@ -118,7 +118,7 @@ This function does not return a value.
 ---
 
 (yuneta_json_config)=
-## [`yuneta_json_config()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/entry_point.c#L931)
+## [`yuneta_json_config()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/entry_point.c#L931)
 
 Returns the currently loaded JSON configuration object.
 
@@ -140,7 +140,7 @@ by the caller — do not modify or free it.
 ---
 
 (run_services)=
-## [`run_services()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/manage_services.c#L36)
+## [`run_services()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/manage_services.c#L36)
 
 Starts and plays services and the yuno in priority order.
 Calls `gobj_start()` on the yuno, starts autostart services,
@@ -164,7 +164,7 @@ This function does not return a value.
 ---
 
 (stop_services)=
-## [`stop_services()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/manage_services.c#L62)
+## [`stop_services()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/manage_services.c#L62)
 
 Pauses and stops services and the yuno in reverse priority order
 (priority 9 down to 0).
@@ -186,7 +186,7 @@ This function does not return a value.
 ---
 
 (yuno_shutdown)=
-## [`yuno_shutdown()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/manage_services.c#L92)
+## [`yuno_shutdown()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/manage_services.c#L92)
 
 Shuts down the yuno by marking it as shutting down and stopping the
 event loop.
@@ -213,7 +213,7 @@ This function does not return a value.
 ---
 
 (yunetas_register_c_core)=
-## [`yunetas_register_c_core()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/yunetas_register.c#L49)
+## [`yunetas_register_c_core()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/yunetas_register.c#L49)
 
 Registers all built-in runtime GClasses in one call. This is the
 centralized registration point invoked during yuno startup.

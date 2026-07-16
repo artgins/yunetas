@@ -4,11 +4,11 @@ Fine-grained trace levels per GClass and per gobj instance. Tracing is free when
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_add_trace_filter)=
-## [`gobj_add_trace_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11518)
+## [`gobj_add_trace_filter()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11518)
 
 Adds a trace filter to a given gclass, allowing selective tracing based on attribute values.
 
@@ -39,7 +39,7 @@ This function allows filtering trace messages based on specific attribute values
 ---
 
 (gobj_get_deep_tracing)=
-## [`gobj_get_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11370)
+## [`gobj_get_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11370)
 
 Retrieves the current deep tracing level, which determines the verbosity of trace logging.
 
@@ -64,7 +64,7 @@ This function is useful for debugging and monitoring purposes, allowing develope
 ---
 
 (gobj_get_gclass_trace_level)=
-## [`gobj_get_gclass_trace_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10834)
+## [`gobj_get_gclass_trace_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10834)
 
 Retrieves the trace levels set for the specified `hgclass`.
 
@@ -91,7 +91,7 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 ---
 
 (gobj_get_gclass_trace_level_list)=
-## [`gobj_get_gclass_trace_level_list()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10901)
+## [`gobj_get_gclass_trace_level_list()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10901)
 
 Retrieves a list of trace levels set for a given `gclass`. If `gclass` is NULL, it returns the trace levels for all registered `gclass` instances.
 
@@ -118,7 +118,7 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 ---
 
 (gobj_get_gclass_trace_no_level)=
-## [`gobj_get_gclass_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10849)
+## [`gobj_get_gclass_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10849)
 
 Retrieves the trace levels that are explicitly disabled for a given gclass.
 
@@ -145,7 +145,7 @@ This function returns a list of trace levels that have been explicitly disabled 
 ---
 
 (gobj_get_gclass_trace_no_level_list)=
-## [`gobj_get_gclass_trace_no_level_list()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10956)
+## [`gobj_get_gclass_trace_no_level_list()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10956)
 
 Retrieves a list of gclasses with their respective trace levels that are explicitly disabled.
 
@@ -172,7 +172,7 @@ If `gclass_` is NULL, the function iterates over all registered gclasses and ret
 ---
 
 (gobj_get_global_trace_level)=
-## [`gobj_get_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10820)
+## [`gobj_get_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10820)
 
 Retrieves the current global trace levels as a JSON array of strings.
 
@@ -197,7 +197,7 @@ The returned JSON object must be managed properly to avoid memory leaks. Use `js
 ---
 
 (gobj_get_gobj_trace_level)=
-## [`gobj_get_gobj_trace_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10864)
+## [`gobj_get_gobj_trace_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10864)
 
 Retrieves the trace levels set for the specified `hgobj`. The function returns a JSON array containing the active trace levels.
 
@@ -224,7 +224,7 @@ If `gobj` is `NULL`, the function returns the global trace levels.
 ---
 
 (gobj_get_gobj_trace_level_tree)=
-## [`gobj_get_gobj_trace_level_tree()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11034)
+## [`gobj_get_gobj_trace_level_tree()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11034)
 
 Retrieves the trace levels set for a given gobj and its entire child tree.
 
@@ -251,7 +251,7 @@ This function iterates over the entire child tree of the given gobj and collects
 ---
 
 (gobj_get_gobj_trace_no_level)=
-## [`gobj_get_gobj_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10887)
+## [`gobj_get_gobj_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10887)
 
 Retrieves the trace levels that are explicitly disabled for the given `gobj`.
 
@@ -278,7 +278,7 @@ This function returns a list of trace levels that have been explicitly disabled 
 ---
 
 (gobj_get_gobj_trace_no_level_tree)=
-## [`gobj_get_gobj_trace_no_level_tree()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11068)
+## [`gobj_get_gobj_trace_no_level_tree()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11068)
 
 Retrieves a hierarchical list of trace levels that are explicitly disabled for a given gobj and its child tree.
 
@@ -305,7 +305,7 @@ This function traverses the entire gobj tree and collects trace levels that have
 ---
 
 (gobj_get_trace_filter)=
-## [`gobj_get_trace_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11634)
+## [`gobj_get_trace_filter()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11634)
 
 Retrieves the trace filter configuration for a given `hgclass`.
 
@@ -332,7 +332,7 @@ The function returns the trace filter settings applied to the specified `hgclass
 ---
 
 (gobj_load_trace_filter)=
-## [`gobj_load_trace_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11506)
+## [`gobj_load_trace_filter()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11506)
 
 Loads a trace filter into the specified `hgclass`, replacing any existing filter.
 
@@ -361,7 +361,7 @@ This function replaces any existing trace filter in the specified `hgclass`.
 ---
 
 (gobj_remove_trace_filter)=
-## [`gobj_remove_trace_filter()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11572)
+## [`gobj_remove_trace_filter()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11572)
 
 Removes a trace filter from the specified `hgclass`. If `attr` is empty, all filters are removed. If `value` is empty, all values for the given attribute are removed.
 
@@ -392,7 +392,7 @@ If the last value of an attribute is removed, the attribute itself is also remov
 ---
 
 (gobj_repr_gclass_trace_levels)=
-## [`gobj_repr_gclass_trace_levels()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10748)
+## [`gobj_repr_gclass_trace_levels()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10748)
 
 Returns a JSON array containing trace level information for all registered GClasses or a specific GClass if a name is provided.
 
@@ -419,7 +419,7 @@ If `gclass_name` is NULL, the function iterates over all registered GClasses and
 ---
 
 (gobj_repr_global_trace_levels)=
-## [`gobj_repr_global_trace_levels()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10717)
+## [`gobj_repr_global_trace_levels()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10717)
 
 Returns a JSON array containing the global trace levels and their descriptions.
 
@@ -444,7 +444,7 @@ This function provides a list of predefined global trace levels used for debuggi
 ---
 
 (gobj_set_deep_tracing)=
-## [`gobj_set_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11364)
+## [`gobj_set_deep_tracing()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11364)
 
 Sets the deep tracing level for all gobjs, controlling the verbosity of trace logs.
 
@@ -469,7 +469,7 @@ This function is useful for debugging and monitoring gobj behavior at different 
 ---
 
 (gobj_set_gclass_no_trace)=
-## [`gobj_set_gclass_no_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11643)
+## [`gobj_set_gclass_no_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11643)
 
 Sets or resets the no-trace level for a given `hgclass`.
 
@@ -500,7 +500,7 @@ If `level` is empty, all trace levels are affected. If `gclass` is `NULL`, an er
 ---
 
 (gobj_set_gclass_trace)=
-## [`gobj_set_gclass_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11311)
+## [`gobj_set_gclass_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11311)
 
 Sets or resets the trace level for a given `hgclass`. If `level` is `NULL`, all trace levels are set or reset. If `level` is an empty string, only user-defined trace levels are affected.
 
@@ -531,7 +531,7 @@ If `gclass` is `NULL`, the function modifies the global trace level instead.
 ---
 
 (gobj_set_global_no_trace)=
-## [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11422)
+## [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11422)
 
 Sets or resets the global no-trace level for debugging and logging control.
 
@@ -560,7 +560,7 @@ This function modifies the global trace level settings, affecting all objects in
 ---
 
 (gobj_set_global_trace)=
-## [`gobj_set_global_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11378)
+## [`gobj_set_global_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11378)
 
 Sets or resets the global trace level for debugging and logging purposes.
 
@@ -589,7 +589,7 @@ If `level` is empty, all global trace levels are affected. The function ensures 
 ---
 
 (gobj_set_gobj_no_trace)=
-## [`gobj_set_gobj_no_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11772)
+## [`gobj_set_gobj_no_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11772)
 
 Sets or resets the no-trace level for a given `gobj`. This function modifies the trace level settings to exclude specific trace levels from being logged.
 
@@ -620,7 +620,7 @@ This function prevents specific trace levels from being logged for the given `go
 ---
 
 (gobj_set_gobj_trace)=
-## [`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11282)
+## [`gobj_set_gobj_trace()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11282)
 
 Sets or resets the trace level for a given `hgobj`. If `gobj` is `NULL`, it modifies the global trace level instead. Calls [`mt_trace_on()`](#mt_trace_on) or [`mt_trace_off()`](#mt_trace_off) if applicable.
 
@@ -653,7 +653,7 @@ If `gobj` is not `NULL`, this function invokes [`mt_trace_on()`](#mt_trace_on) o
 ---
 
 (gobj_trace_level)=
-## [`gobj_trace_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11098)
+## [`gobj_trace_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11098)
 
 Returns the trace level bitmask for the given `hgobj`.
 
@@ -680,7 +680,7 @@ If `gobj` is `NULL`, the function returns the global trace level bitmask.
 ---
 
 (gobj_trace_level_list)=
-## [`gobj_trace_level_list()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L10797)
+## [`gobj_trace_level_list()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L10797)
 
 Returns a JSON object containing the trace levels available for a given `hgclass`.
 
@@ -707,7 +707,7 @@ The returned JSON object must be decremented when no longer needed.
 ---
 
 (gobj_trace_no_level)=
-## [`gobj_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11141)
+## [`gobj_trace_no_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11141)
 
 Retrieves the trace level mask that is explicitly disabled for the given `hgobj`.
 
@@ -734,7 +734,7 @@ The function combines the global disabled trace levels with those specific to th
 ---
 
 (tab)=
-## [`tab()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11758)
+## [`tab()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11758)
 
 Generates an indentation string based on the current depth level of nested function calls.
 
@@ -792,7 +792,7 @@ This function is used for debugging and tracing execution flow. It formats and l
 ---
 
 (gobj_global_trace_level)=
-## [`gobj_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11079)
+## [`gobj_global_trace_level()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11079)
 
 Returns the current global trace level bitmask, considering the deep trace setting.
 
@@ -817,7 +817,7 @@ When deep tracing is active (level >= 2), this function returns `0xFFFFFFFF` to 
 ---
 
 (gobj_global_trace_level2)=
-## [`gobj_global_trace_level2()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11090)
+## [`gobj_global_trace_level2()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11090)
 
 Returns the current global trace level bitmask without considering deep trace.
 
@@ -842,7 +842,7 @@ Unlike [`gobj_global_trace_level()`](#gobj_global_trace_level), this function al
 ---
 
 (gobj_set_global_no_trace2)=
-## [`gobj_set_global_no_trace2()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11486)
+## [`gobj_set_global_no_trace2()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11486)
 
 Sets or resets specific bits in the global no-trace level bitmask.
 
@@ -871,7 +871,7 @@ This is the numeric bitmask variant of [`gobj_set_global_no_trace()`](#gobj_set_
 ---
 
 (gobj_set_global_trace2)=
-## [`gobj_set_global_trace2()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11466)
+## [`gobj_set_global_trace2()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11466)
 
 Sets or resets specific bits in the global trace level bitmask.
 
@@ -900,7 +900,7 @@ This is the numeric bitmask variant of [`gobj_set_global_trace()`](#gobj_set_glo
 ---
 
 (gobj_is_level_tracing)=
-## [`gobj_is_level_tracing()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11786)
+## [`gobj_is_level_tracing()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11786)
 
 Determines whether a specific trace level is enabled for a given gobj.
 
@@ -929,7 +929,7 @@ The function combines the global trace level, the gclass trace level, and the pe
 ---
 
 (gobj_is_level_not_tracing)=
-## [`gobj_is_level_not_tracing()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11805)
+## [`gobj_is_level_not_tracing()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11805)
 
 Determines whether a specific trace level is explicitly disabled for a given gobj.
 
@@ -958,7 +958,7 @@ This checks the no-trace masks at global, gclass, and per-instance levels. A lev
 ---
 
 (gobj_set_trace_machine_format)=
-## [`gobj_set_trace_machine_format()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L11748)
+## [`gobj_set_trace_machine_format()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L11748)
 
 Sets the output format for trace_machine messages.
 

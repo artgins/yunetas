@@ -65,7 +65,7 @@ The same path in text:
 ### 2.1 Events are declared with `event_type_t`
 
 A gclass lists every event it can produce or receive in an `event_type_t`
-array. Declared at [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h):
+array. Declared at [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h):
 
 ```c
 typedef struct event_type_s {
@@ -74,7 +74,7 @@ typedef struct event_type_s {
 } event_type_t;
 ```
 
-Flags at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h):
+Flags at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h):
 
 | Flag                    | Meaning                                                            |
 |-------------------------|--------------------------------------------------------------------|
@@ -86,7 +86,7 @@ Flags at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-
 | `EVF_AUTHZ_SUBSCRIBE`   | Requires `__subscribe_event__` authorisation to subscribe.         |
 | `EVF_KW_WRITING`        | The action is allowed to modify `kw` in place (not just consume).  |
 
-Example, the minimal gclass [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer.c) declaration (paraphrased):
+Example, the minimal gclass [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer.c) declaration (paraphrased):
 
 ```c
 event_type_t event_types[] = {
@@ -102,7 +102,7 @@ suppressor.
 
 ### 2.2 States and the event→action table
 
-Per-state transitions are declared with `ev_action_t` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)):
+Per-state transitions are declared with `ev_action_t` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)):
 
 ```c
 typedef struct {
@@ -113,10 +113,10 @@ typedef struct {
 ```
 
 A state is a named array of these rows, terminated by `{0,0,0}`. A gclass
-is a named array of states (`states_t`, [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)), terminated by
+is a named array of states (`states_t`, [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)), terminated by
 `{0,0}`.
 
-Minimal example from [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer.c):
+Minimal example from [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer.c):
 
 ```c
 ev_action_t st_idle[] = {
@@ -135,7 +135,7 @@ Every event-carrying API in Yuneta follows the same rule: **the callee
 consumes one reference to `kw`**. If the caller still needs `kw`, it must
 [`json_incref()`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_incref) first.
 
-Macros at [`kwid.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/kwid.h):
+Macros at [`kwid.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.h):
 
 ```c
 #define KW_DECREF(ptr) if(ptr) { kw_decref(ptr); (ptr) = 0; }
@@ -147,7 +147,7 @@ the end, or hand `kw` to another consuming API (e.g. `gobj_publish_event`,
 `gobj_send_event`, [`msg_iev_build_response`](#msg_iev_build_response)). Failure to consume = leak.
 Double consumption = use-after-free.
 
-The framework itself calls `KW_DECREF(kw)` at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c) when there's no
+The framework itself calls `KW_DECREF(kw)` at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c) when there's no
 action declared, so a missing action does not leak.
 
 ---
@@ -156,11 +156,11 @@ action declared, so a missing action does not leak.
 
 ### 3.1 `gobj_send_event(dst, event, kw, src)` — direct dispatch
 
-The workhorse. Entry at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c). Path:
+The workhorse. Entry at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c). Path:
 
 1. Find `dst->current_state`.
 2. Look up `event` in the state's `ev_action_list`
-   ([`_find_event_action`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L883)).
+   ([`_find_event_action`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L883)).
 3. If not found:
    - If the gclass has `mt_inject_event`, delegate to it.
    - Else log `"Event NOT DEFINED in state"` and return -1.
@@ -168,7 +168,7 @@ The workhorse. Entry at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgin
 
 ### 3.2 The "IMPORTANT HACK": state changes *before* the action
 
-Quoting verbatim from [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c):
+Quoting verbatim from [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c):
 
 ```c
 /*
@@ -202,12 +202,12 @@ the action.
 
 ### 3.3 `gobj_publish_event(publisher, event, kw)` — broadcast
 
-Entry at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c). Loops over `publisher->dl_subscriptions` and calls
+Entry at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c). Loops over `publisher->dl_subscriptions` and calls
 `gobj_send_event(subscriber, event, kw2publish, publisher)` for each, after
 applying per-subscription filters (`__filter__`, `__local__`, `__global__`,
 see §3.5).
 
-If there are no subscribers, [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c) logs
+If there are no subscribers, [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c) logs
 *"Publish event WITHOUT subscribers"* at `LOG_WARNING` — unless the
 `event_type_t` declared `EVF_NO_WARN_SUBS`. This is the canonical "I tried
 to publish to nobody" warning; if you're seeing it spuriously, the fix is
@@ -217,14 +217,14 @@ flavour (SERVICE vs CHILD) and that its subscriber chain is correct.
 
 ### 3.4 `gobj_subscribe_event` / `gobj_unsubscribe_event`
 
-Signatures at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h):
+Signatures at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h):
 
 ```c
 json_t *gobj_subscribe_event(publisher, event, kw, subscriber);
 int     gobj_unsubscribe_event(publisher, event, kw, subscriber);
 ```
 
-Storage at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c):
+Storage at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c):
 
 - In the **publisher**: `dl_subscriptions` — list of who subscribes to me.
 - In the **subscriber**: `dl_subscribings` — list of whom I subscribe to.
@@ -243,7 +243,7 @@ configuration dict accepting these keys:
 | `__local__`               | Keys to delete from the published kw before delivery              |
 | `__filter__`              | Publish only if the published kw matches this selector            |
 
-Unknown keys at the top level produce a warning ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c)).
+Unknown keys at the top level produce a warning ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c)).
 
 ### 3.5 CHILD vs SERVICE patterns
 
@@ -301,8 +301,8 @@ real bugs.
 
 | End                | File                                              | Role                                                     |
 |--------------------|---------------------------------------------------|----------------------------------------------------------|
-| [`C_IEVENT_SRV`](#gclass-c-ievent-srv)     | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)          | Listens; receives connections from clients.              |
-| [`C_IEVENT_CLI`](#gclass-c-ievent-cli)     | [`kernel/c/root-linux/src/c_ievent_cli.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_cli.c)          | Initiates; connects to a remote `C_IEVENT_SRV`.          |
+| [`C_IEVENT_SRV`](#gclass-c-ievent-srv)     | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)          | Listens; receives connections from clients.              |
+| [`C_IEVENT_CLI`](#gclass-c-ievent-cli)     | [`kernel/c/root-linux/src/c_ievent_cli.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_cli.c)          | Initiates; connects to a remote `C_IEVENT_SRV`.          |
 
 Both sit on top of a WebSocket gclass ([`C_WEBSOCKET`](#gclass-c-websocket)), which sits on top
 of TCP ([`C_TCP`](#gclass-c-tcp) or [`C_TCP_S`](#gclass-c-tcp-s)):
@@ -335,7 +335,7 @@ wire format" header in the WS payload — each frame is a JSON object with
 
 ### 4.2 The wire frame
 
-Serialised in [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c):
+Serialised in [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c):
 
 ```c
 json_pack("{s:s, s:o}",
@@ -345,7 +345,7 @@ json_pack("{s:s, s:o}",
 ```
 
 Result is dumped with `JSON_COMPACT` and placed in a WS frame. The receiver
-does [`gbuf2json`](#gbuf2json) + [`kw_deserialize`](#kw_deserialize) ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)).
+does [`gbuf2json`](#gbuf2json) + [`kw_deserialize`](#kw_deserialize) ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)).
 
 Concretely, a command call on the wire looks roughly like:
 
@@ -362,7 +362,7 @@ Concretely, a command call on the wire looks roughly like:
 
 ### 4.3 The `__md_iev__` metadata block
 
-Documented in [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h). Top-level
+Documented in [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h). Top-level
 shape:
 
 ```
@@ -382,30 +382,30 @@ __md_iev__
 Other top-level keys in `kw` outside `__md_iev__`:
 
 - `__md_yuno__` — set by the responder via [`msg_iev_set_back_metadata()`](#msg_iev_set_back_metadata)
-  ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)). Survives the round-trip.
-- `__temp__` — **stripped at the yuno boundary** ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)).
+  ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)). Survives the round-trip.
+- `__temp__` — **stripped at the yuno boundary** ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)).
   Use it freely for transport-local bookkeeping.
 - `__top_side__`, `__bottom_side__` — see §6.5.
 
 The stack is pushed on outbound, popped+reversed on the response, so the
 client gets back the same structure it sent (with response data added).
-Push/pop helpers: `msg_iev_push_stack` ([`msg_ievent.c:327`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c#L327)),
-`msg_iev_get_stack`, [`msg_iev_pop_stack`](#msg_iev_pop_stack) ([`msg_ievent.c:419`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c#L419)).
+Push/pop helpers: `msg_iev_push_stack` ([`msg_ievent.c:327`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c#L327)),
+`msg_iev_get_stack`, [`msg_iev_pop_stack`](#msg_iev_pop_stack) ([`msg_ievent.c:419`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c#L419)).
 
-`IEVENT_STACK_ID = "ievent_gate_stack"` constant at [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h).
+`IEVENT_STACK_ID = "ievent_gate_stack"` constant at [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h).
 
 ### 4.4 Identity card handshake
 
 When `C_IEVENT_CLI` opens its WS connection, it sends `EV_IDENTITY_CARD`
-(declared at [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h), defined at [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)) carrying:
+(declared at [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h), defined at [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)) carrying:
 
 - `src_yuno`, `src_role`, `src_service` — who I am
 - `dst_yuno`, `dst_role`, `dst_service` — who I want to talk to
 - `jwt` — optional bearer for auth (also accepted from Cookie if empty,
-  [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c))
+  [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c))
 - `user`, `host`, `pid`, `watcher_pid` — caller metadata
 
-The server validates ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)):
+The server validates ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)):
 
 1. Role match.
 2. Optional yuno-name match.
@@ -414,8 +414,8 @@ The server validates ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob
 
 On success: stores `client_yuno_role`, `client_yuno_name`,
 `client_yuno_service`, `authenticated` in its own attrs
-([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)) and replies with `EV_IDENTITY_CARD_ACK`. The
-client unblocks from `ST_WAIT_IDENTITY_CARD_ACK` ([`c_ievent_cli.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_cli.h)).
+([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)) and replies with `EV_IDENTITY_CARD_ACK`. The
+client unblocks from `ST_WAIT_IDENTITY_CARD_ACK` ([`c_ievent_cli.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_cli.h)).
 
 Authentication also returns a `services_roles` dict — one entry per service
 the user holds a role in (the primary `dst_service` plus any `required_services`
@@ -441,14 +441,14 @@ either way.
 
 ### 4.5 Routing inside the receiver
 
-`ac_on_message` in [`c_ievent_srv.c:933`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c#L933):
+`ac_on_message` in [`c_ievent_srv.c:933`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c#L933):
 
-1. [`iev_create_from_gbuffer`](#iev_create_from_gbuffer) ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
+1. [`iev_create_from_gbuffer`](#iev_create_from_gbuffer) ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
    frame.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
-   `dst_role`, `dst_service` ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)).
+   `dst_role`, `dst_service` ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)).
 3. Validate the role/name.
-4. [`gobj_find_service(iev_dst_service)`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L5076)
+4. [`gobj_find_service(iev_dst_service)`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L5076)
    — case-insensitive lookup. Special names:
    - `__default_service__` → the yuno's `gobj_default_service()`.
    - `__yuno__` and `__root__` → both resolve to the top-level yuno gobj
@@ -464,7 +464,7 @@ either way.
    realm/service/permission, so it reaches `__yuno__` and any sibling service;
    that is not a cross-service escalation. What a command may actually DO is
    still governed by the additional default-off per-command authz gate, see
-   [`YUNO_AUTH.md`](https://github.com/artgins/yunetas/blob/7.7.2/yunos/c/yuno_agent/YUNO_AUTH.md) §4.5.
+   [`YUNO_AUTH.md`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/YUNO_AUTH.md) §4.5.
 
    A refused message never strands the channel: `reject_unrouted_iev()` answers
    `command` / `stats` with a negative `EV_MT_*_ANSWER` (re-arming the read) and
@@ -524,7 +524,7 @@ A yuno is a **hierarchical tree of gobjs**; some of them are **services**
 If you don't name one, it goes to the default. This is the single rule that
 trips up newcomers, so state it explicitly:
 
-[`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L5076)
+[`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L5076)
 resolves the destination service name (case-insensitive). Two names are
 special:
 
@@ -545,7 +545,7 @@ ycommand -S authz -c 'roles'        # → the `authz` service  (-S/--yuno_servic
 ```
 
 **Through the agent** — two C_AGENT dispatch commands
-([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.7.2/yunos/c/yuno_agent/src/c_agent.c)
+([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)
 `command-agent` / `command-yuno`):
 
 ```bash
@@ -566,12 +566,12 @@ for a direct connection. Default everywhere is `__default_service__`.
 
 A gclass exposes commands by declaring them in a `command_table` of
 `SDATACM` / `SDATACM2` rows. Each row: name, parameter schema, permission
-schema, handler function, description. See [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.7.2/yunos/c/yuno_agent/src/c_agent.c) for a real
+schema, handler function, description. See [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c) for a real
 example, and the agent's own `YUNO_LIFECYCLE.md` for the table semantics.
 
 ### 5.2 `gobj_command` — the public entry point
 
-Signature at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h):
+Signature at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h):
 
 ```c
 PUBLIC json_t *gobj_command(hgobj gobj, const char *command, json_t *kw, hgobj src);
@@ -594,13 +594,13 @@ the caller passed an async pattern, the response arrives as a callback.)
 | `EV_MT_COMMAND_ANSWER` | Wire event for the response                         |
 | `EV_ON_COMMAND`      | Local event a service publishes when its command result is ready (mostly for async commands) |
 
-Constants in [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h) / [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c). Don't conflate them:
+Constants in [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h) / [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c). Don't conflate them:
 `SDATACM` is a static declaration, `EV_MT_*` are runtime events that ride
 the wire.
 
 ### 5.4 `msg_iev_build_response`
 
-Defined at [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c). Every command handler returns one of these
+Defined at [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c). Every command handler returns one of these
 to keep the response shape uniform:
 
 ```c
@@ -623,7 +623,7 @@ convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
 
 Same shape as commands but for "give me a stats dict" calls. Wire events
-are `EV_MT_STATS` / `EV_MT_STATS_ANSWER` ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)). Use
+are `EV_MT_STATS` / `EV_MT_STATS_ANSWER` ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)). Use
 commands for actions, stats for observation.
 
 ---
@@ -657,7 +657,7 @@ upward; the service handles it.
 
 ### 6.2 Transport layer essentials
 
-`C_TCP` and `C_TCP_S` in [`kernel/c/root-linux/src/c_tcp.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp.c), [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp_s.c).
+`C_TCP` and `C_TCP_S` in [`kernel/c/root-linux/src/c_tcp.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp.c), [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c).
 Headline events:
 
 | Event                  | Direction | Meaning                                                |
@@ -670,15 +670,15 @@ Headline events:
 | `EV_DROP`              | in        | Close the connection                                   |
 
 States typical of `C_TCP`: `STOPPED`, `DISCONNECTED`, `WAIT_CONNECTED`,
-`CONNECTED`, `WAIT_HANDSHAKE` (if TLS), `IDLE`. See [`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp.c).
+`CONNECTED`, `WAIT_HANDSHAKE` (if TLS), `IDLE`. See [`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp.c).
 
 `C_TCP_S` accepts and spawns a clisrv-mode `C_TCP` per connection. The
 filter for what gclass tree to instantiate above each clisrv is held in
-the `child_tree_filter` attribute ([`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp_s.c)).
+the `child_tree_filter` attribute ([`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c)).
 
 ### 6.3 HTTP server example: [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) → `C_TCP_S`
 
-[`c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_prot_http_sr.c): builds a `ghttp_parser` (a wrapper around
+[`c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_prot_http_sr.c): builds a `ghttp_parser` (a wrapper around
 **llhttp** — note that yuneta swapped out the older `http_parser` library;
 see memory note `project_llhttp_integration`). Output event:
 `EV_ON_MESSAGE` with parsed headers, method, URL, body in `kw`.
@@ -687,9 +687,9 @@ Service gclass subscribes to that and dispatches by URL or method.
 
 ### 6.4 WebSocket: `C_WEBSOCKET` → `C_PROT_HTTP_SR` → `C_TCP_S`
 
-`C_WEBSOCKET` ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_websocket.c)) handles the HTTP Upgrade handshake then
+`C_WEBSOCKET` ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_websocket.c)) handles the HTTP Upgrade handshake then
 parses [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455) frames. Output `EV_ON_MESSAGE` carries either the text or
-binary payload. The `iamServer` attribute ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_websocket.c))
+binary payload. The `iamServer` attribute ([`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_websocket.c))
 distinguishes server-mode from client-mode parsing of masked vs unmasked
 frames.
 
@@ -711,7 +711,7 @@ markers in the `kw`, not the same as the gobj-tree convention.
 
 `kernel/c/ytls/` is a runtime-selectable abstraction over OpenSSL and
 mbedTLS. `C_TCP_S` passes its `ytls` pointer down to each accepted clisrv
-([`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp_s.c)):
+([`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c)):
 
 ```c
 gobj_write_pointer_attr(clisrv, "ytls",    priv->ytls);
@@ -719,14 +719,14 @@ gobj_write_bool_attr   (clisrv, "use_ssl", priv->use_ssl);
 ```
 
 In `C_TCP` itself, if `use_ssl=TRUE`, on `EV_CONNECTED` the gobj wraps the
-socket via [`ytls_new_secure_filter()`](#ytls_new_secure_filter) ([`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp.c)), and from then
+socket via [`ytls_new_secure_filter()`](#ytls_new_secure_filter) ([`c_tcp.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp.c)), and from then
 on `EV_RX_DATA` carries decrypted plaintext while outbound bytes are
 encrypted before hitting the wire. The protocol gclass above is unaware
 TLS exists.
 
 ### 6.7 `public_services` vs `required_services`
 
-In each yuno's config ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_yuno.c)):
+In each yuno's config ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c)):
 
 - **`public_services`**: array of service names this yuno exposes to
   outside clients. Anything listed here is reachable via `gobj_find_service`
@@ -745,7 +745,7 @@ exposure.
 ## 7. The SPA case
 
 A browser SPA is just another `C_IEVENT_CLI` — only that the runtime is
-JavaScript ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/js/gobj-js/src/c_ievent_cli.js)) instead of C, and the
+JavaScript ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/js/gobj-js/src/c_ievent_cli.js)) instead of C, and the
 transport is the browser's native WebSocket. From the yuno's point of
 view it's indistinguishable from another yuno.
 
@@ -754,7 +754,7 @@ view it's indistinguishable from another yuno.
 The SPA sends `EV_IDENTITY_CARD` over the WS just like a C client. The
 `jwt` field is typically read from the browser session ([Keycloak](https://www.keycloak.org/) token,
 see auth memory notes). The server's identity card validation is the
-same code path as for C clients ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)).
+same code path as for C clients ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)).
 
 ### 7.2 What a SPA can do
 
@@ -772,7 +772,7 @@ Anything a C client can. Concretely:
 See `DEBUGGING.md` §8 — the SPA's developer panel uses exactly this
 mechanism to display the wire-level ievent traffic in real time. The
 teardown order gotcha (`set_remote_log_functions(null)` BEFORE
-[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.7.2/modules/c/mqtt/src/c_prot_mqtt.c#L1580)) is documented there.
+[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.8.0/modules/c/mqtt/src/c_prot_mqtt.c#L1580)) is documented there.
 
 ---
 
@@ -825,24 +825,24 @@ event), use `KW_INCREF` or `json_incref` first.
 
 Useful for in-process scratch data inside `kw`. Useless for anything you
 need on the far side of an ievent — that gets discarded by
-[`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c). If you need persistent metadata across hops,
+[`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c). If you need persistent metadata across hops,
 put it under `__md_iev__` or use the stack.
 
 ### 8.7 `msg_iev_build_webix` is the same as `msg_iev_build_response`
 
-The old name lingers in comments ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)) and possibly in
+The old name lingers in comments ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)) and possibly in
 some test fixtures. They are aliases; use the new name in new code.
 
 ### 8.8 `__default_service__` resolution is case-insensitive
 
-`gobj_find_service` lowercases ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L5076)). `"My_Service"` and
+`gobj_find_service` lowercases ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L5076)). `"My_Service"` and
 `"my_service"` are the same service. Don't rely on case to disambiguate.
 
 ### 8.9 SPAs see only `public_services`
 
 A common confusion: "I added the command but the SPA can't call it." Check
 the yuno config — the service must be listed in `public_services`
-([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_yuno.c)).
+([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c)).
 
 ---
 
@@ -969,30 +969,30 @@ listen for `EV_MT_COMMAND_ANSWER`.
 
 | What                                          | Where                                                                  |
 |-----------------------------------------------|------------------------------------------------------------------------|
-| Event type declarations                       | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)                                   |
-| `EVF_*` event flags                           | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)                                   |
-| Minimal gclass example                        | [`kernel/c/root-linux/src/c_timer.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer.c)                                    |
-| `gobj_send_event` dispatcher                  | [`kernel/c/gobj-c/src/gobj.c:7441`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L7441)                                 |
-| State-before-action ("IMPORTANT HACK")        | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c)                                 |
-| `gobj_publish_event`                          | [`kernel/c/gobj-c/src/gobj.c:8877`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L8877)                                 |
-| `gobj_subscribe_event` config keys            | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)                                 |
-| Subscription storage                          | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c)                        |
-| `mt_inject_event` hook                        | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h), [`gobj.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c)                        |
-| `KW_DECREF` / `KW_INCREF`                     | [`kernel/c/gobj-c/src/kwid.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/kwid.h)                                    |
+| Event type declarations                       | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)                                   |
+| `EVF_*` event flags                           | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)                                   |
+| Minimal gclass example                        | [`kernel/c/root-linux/src/c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer.c)                                    |
+| `gobj_send_event` dispatcher                  | [`kernel/c/gobj-c/src/gobj.c:7441`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L7441)                                 |
+| State-before-action ("IMPORTANT HACK")        | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c)                                 |
+| `gobj_publish_event`                          | [`kernel/c/gobj-c/src/gobj.c:8877`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L8877)                                 |
+| `gobj_subscribe_event` config keys            | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)                                 |
+| Subscription storage                          | [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c)                        |
+| `mt_inject_event` hook                        | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h), [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c)                        |
+| `KW_DECREF` / `KW_INCREF`                     | [`kernel/c/gobj-c/src/kwid.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.h)                                    |
 | `C_IEVENT_SRV` / `C_IEVENT_CLI`               | `kernel/c/root-linux/src/c_ievent_srv.{c,h}`, `c_ievent_cli.{c,h}`     |
-| `__md_iev__` structure                        | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h)                           |
-| `IEVENT_STACK_ID`                             | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.h)                              |
-| Stack push/pop                                | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)                         |
-| Wire frame pack/unpack                        | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c)                         |
-| `msg_iev_build_response`                      | [`kernel/c/root-linux/src/msg_ievent.c:541`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/msg_ievent.c#L541)                             |
-| Identity card validation                      | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)                       |
-| Service routing                               | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_ievent_srv.c)                      |
-| `gobj_find_service` + special names           | [`kernel/c/gobj-c/src/gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.c#L5076)                                 |
-| `gobj_command` / `gobj_stats` public API      | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/gobj-c/src/gobj.h)                                 |
-| HTTP server protocol                          | [`kernel/c/root-linux/src/c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_prot_http_sr.c)                             |
-| WebSocket protocol                            | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_websocket.c)                                |
-| TCP transport (states + TLS hookup)           | [`kernel/c/root-linux/src/c_tcp.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp.c)                       |
-| TCP server (`child_tree_filter`)              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_tcp_s.c)                        |
-| TLS abstraction                               | [`kernel/c/ytls/src/ytls.h`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/ytls/src/ytls.h)                                      |
-| `public_services` / `required_services`       | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_yuno.c)                             |
-| JS-side `C_IEVENT_CLI`                        | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/js/gobj-js/src/c_ievent_cli.js)                                |
+| `__md_iev__` structure                        | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h)                           |
+| `IEVENT_STACK_ID`                             | [`kernel/c/root-linux/src/msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.h)                              |
+| Stack push/pop                                | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)                         |
+| Wire frame pack/unpack                        | [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c)                         |
+| `msg_iev_build_response`                      | [`kernel/c/root-linux/src/msg_ievent.c:541`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/msg_ievent.c#L541)                             |
+| Identity card validation                      | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)                       |
+| Service routing                               | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_ievent_srv.c)                      |
+| `gobj_find_service` + special names           | [`kernel/c/gobj-c/src/gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L5076)                                 |
+| `gobj_command` / `gobj_stats` public API      | [`kernel/c/gobj-c/src/gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)                                 |
+| HTTP server protocol                          | [`kernel/c/root-linux/src/c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_prot_http_sr.c)                             |
+| WebSocket protocol                            | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_websocket.c)                                |
+| TCP transport (states + TLS hookup)           | [`kernel/c/root-linux/src/c_tcp.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp.c)                       |
+| TCP server (`child_tree_filter`)              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c)                        |
+| TLS abstraction                               | [`kernel/c/ytls/src/ytls.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/ytls/src/ytls.h)                                      |
+| `public_services` / `required_services`       | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c)                             |
+| JS-side `C_IEVENT_CLI`                        | [`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/js/gobj-js/src/c_ievent_cli.js)                                |

@@ -109,7 +109,7 @@ need the lower-level control.
 ---
 
 (register_c_timer0)=
-## [`register_c_timer0()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer0.c#L309)
+## [`register_c_timer0()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer0.c#L309)
 
 Registers the `C_TIMER0` GClass.
 
@@ -130,7 +130,7 @@ int register_c_timer0(void);
 ---
 
 (set_timeout0)=
-## [`set_timeout0()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer0.c#L327)
+## [`set_timeout0()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer0.c#L327)
 
 Arms a **one-shot** low-level timer.
 
@@ -152,7 +152,7 @@ This function does not return a value.
 ---
 
 (set_timeout_periodic0)=
-## [`set_timeout_periodic0()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer0.c#L371)
+## [`set_timeout_periodic0()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer0.c#L371)
 
 Arms a **periodic** low-level timer.
 
@@ -174,7 +174,7 @@ This function does not return a value.
 ---
 
 (clear_timeout0)=
-## [`clear_timeout0()`](https://github.com/artgins/yunetas/blob/7.7.2/kernel/c/root-linux/src/c_timer0.c#L415)
+## [`clear_timeout0()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_timer0.c#L415)
 
 Disarms and stops the low-level timer.
 

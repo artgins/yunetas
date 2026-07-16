@@ -17,9 +17,6 @@ already fine). What the audit left open:
   `C_TIMER` child at all) and `c_treedb_view.js` (the deferred rebind, which
   destroys gobjs and swaps DOM). Both should be a `C_TIMER` pure child +
   `EV_TIMEOUT` / a dedicated event, so the deferral shows up in the trace.
-- **`c_treedb_picker.js` bypasses the shell router**: `window.location.hash =
-  "#/settings"` hardcodes hash routing while `use_hash` is an attr. It should
-  send an event whose action calls `yui_shell_navigate`.
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
   commands). Highest operator value, in order: **snapshots** (`snaps`,
   `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
@@ -164,42 +161,21 @@ decisions (Rosa):
   "already exists" guard). Consolidated project — read in depth, preserve the
   `create=1` semantics, before touching.
 
-## Observability: source-IP attribution in decoder logs — DONE (2026-06-21)
+## Observability: source-IP attribution in decoder logs — remaining pass
 
-- **`peername` added to the protocol/decoder error logs.** Protocol/decoder
-  gclasses logged ERROR/WARNING events (malformed payload, unsupported HTTP
-  method, missing param, bad framing/CRC, …) **without the source IP**, because
-  `peername` is set on the bottom `C_TCP` at accept/connect (`c_tcp.c:483`,
-  `SDF_VOLATIL`) and the upper layers never copied it into their own logs. The
-  canonical read pattern (already in `c_websocket.c` / `c_prot_mqtt2.c`) is now
-  applied at each remote-data parse-error log:
-  ```c
-  const char *peername = "";
-  if(gobj_has_bottom_attr(gobj, "peername")) {
-      peername = gobj_read_str_attr(gobj, "peername");
-  }
-  ```
-  read once in the cold error branch (or once per function for the dense GPS
-  decoders) and emitted as `"peername", "%s", peername`.
-  - **Kernel (yunetas):** `c_prot_tcp4h.c` (head-too-long, protocol-error
-    disconnect, protocol timeouts) and `ghttp_parser.c` (the invalid-UTF-8
-    header-value store error; the main "non-HTTP data received" violation
-    already carried peername). `c_prot_http_sr.c` and `c_channel.c` had only
-    registration / internal "no bottom" logs — not remote-attributable, left
-    untouched.
-  - **Hidraulia (private):** `C_DECODER_HTTP` (gate_auraair, 5 logs),
-    `C_DECODER_MQTT` (gate_mqtts), `C_DECODER_CAUDAL`, `C_DECODER_ENCHUFE`.
-  - **Estadodelaire (private):** `C_DECODER_MQTT`, `C_DECODER_HTTP`,
-    `C_DECODER_ENCHUFE`, and the raw-TCP GPS decoders `C_DECODER_GPS_ERM` (17),
-    `C_DECODER_GPS_JT808` (8), `C_DECODER_GPS_TELTONIKA2` (66).
-  - **Deferred (next pass, intentionally skipped):** outbound clients where
-    peername is the remote *server*, low attribution value — `c_prot_http_cl.c`
-    and wattyzer `C_GATE_PVPC`; and the `c_prot_mqtt2.c` gap-fill (214 logs,
-    already the most-instrumented). `C_PROT_MQTT` (`modules/c/mqtt`, deprecated
-    but kept in Hidraulia production) stays out of scope — do not migrate it.
-  - Unrelated/already handled: `string2json`/`gbuf2json` records carry no gobj
-    context by design (kernel helpers); the invalid-UTF-8-breaks-logcenter
-    problem is fixed separately (glogger UTF-8 escaping).
+The `peername` roll-out across the protocol/decoder error logs shipped
+2026-06-21 (kernel + hidraulia + estadodelaire); its record is `CHANGELOG.md`
+and git history. What was intentionally skipped and is still open:
+
+- **Outbound clients**, where `peername` is the remote *server* and attribution
+  value is low — `c_prot_http_cl.c` and wattyzer `C_GATE_PVPC`.
+- **The `c_prot_mqtt2.c` gap-fill** (214 logs, already the most-instrumented
+  gclass).
+- **Out of scope, do not migrate:** `C_PROT_MQTT` (`modules/c/mqtt`) is
+  deprecated but still in Hidraulia production.
+
+The canonical read pattern is the one in `c_websocket.c` / `c_prot_mqtt2.c`:
+read `peername` off the bottom gobj once, in the cold error branch.
 
 ## C_TRANGER: realtime feed (Live cards) — inotify scalability + leak
 
@@ -226,23 +202,18 @@ under real use (found 2026-07-12 on e.com, where the node sat at 128/128
   implements it has to flip `live_filter()` in `c_tranger_view.js` in the same
   change, or the cards go silent.
 
-- **#2 — Tie the feed to the ievent session (root-cause of the leak).** A
-  SPA that reloads/closes the tab (F5) never sends `close-rt`, so the backend
-  feed — and its inotify instance — leaks until the yuno restarts (worse than
-  the iterator/file-handle leak already noted, because inotify is a scarce
-  per-user kernel resource). Cleanest fix: **arm/close the rt feed from the
-  subscription hooks** (`mt_subscription_added` / `mt_subscription_deleted`)
-  instead of standalone `open-rt`/`close-rt` commands — then the feed's
-  lifetime rides the subscription, which `C_IEVENT_SRV` already drops when the
-  channel closes. (General alternative: have `C_IEVENT_SRV` close a session's
-  command-created iterators/feeds on channel close — also fixes the Phase-1
-  iterator leak.)
+**#2 — Tie the feed to the ievent session — SHIPPED**, so the F5-leak is gone:
+`mt_subscription_deleted` reaps the realtime feeds *and* the iterators of a
+subscriber whose LAST subscription goes, keyed on the `src_gobj` stamped at
+`open-rt` / `open-iterator`. What remains of that thread is the paging-only
+session, which never subscribes to anything — see the `c_tranger` section
+above.
 
-Node-side mitigation (independent of the above): the default
-`fs.inotify.max_user_instances = 128` is too low for a node running ~12 yunos
-with rt_disk followers. **DONE** — the deb/rpm packagers now provision
-`99-yuneta-core.conf` with `max_user_instances = 4096`,
-`max_user_watches = 524288`, `max_queued_events = 65536`. Observe live usage
-with `ycommand -c 'info-inotify'` (limits + this yuno's instances/watches).
-Note this only mitigates; it does not fix #1/#2, which still leak/multiply
-instances under real use.
+Node-side mitigation (already provisioned, independent of the above): the deb/rpm
+packagers ship `99-yuneta-core.conf` raising the default
+`fs.inotify.max_user_instances` of 128 — too low for a node running ~12 yunos
+with rt_disk followers — to 4096 (`max_user_watches = 524288`,
+`max_queued_events = 65536`). Observe live usage with
+`ycommand -c 'info-inotify'` (limits + this yuno's instances/watches). It only
+raises the ceiling: **#1 still multiplies instances per Live card**, which is
+what the remaining work above fixes.

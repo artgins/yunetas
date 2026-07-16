@@ -32,4 +32,4 @@ topic directory — `msg2db_list` resolves the database and topic from it when
 
 - [`list_queue_msgs2`](list_queue_msgs2.md) — msg2db **queue** listing.
 - [`treedb_list`](treedb_list.md) — sibling tool for **TreeDB** graph databases.
-- [`utils/c/msg2db_list/README.md`](https://github.com/artgins/yunetas/blob/7.7.2/utils/c/msg2db_list/README.md).
+- [`utils/c/msg2db_list/README.md`](https://github.com/artgins/yunetas/blob/7.8.0/utils/c/msg2db_list/README.md).
