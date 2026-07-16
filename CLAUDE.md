@@ -308,11 +308,23 @@ for any cleanup of that file; otherwise propose the translation first.
 The site is built with **mystmd** (MyST / Jupyter Book 2), deployed via
 `docs/doc.yuneta.io/deploy.sh`. Tooling quirks:
 
-- `myst build --html` does not exit — it boots a dev server. Validate edits
-  non-interactively with
-  `timeout 30 myst build --html 2>&1 | grep -iE 'warning|error|⚠|fail'`, then
-  `pkill -f "myst build" || true`. MyST warning lines start with `⚠`, not with
-  the word "warning" — include `⚠` in any grep of build logs.
+- `myst build --html` does not exit — it boots a dev server, and it writes no
+  `_build/html`: it is a **validation** step (`deploy.sh` does the real build).
+  Validate edits non-interactively with
+  `timeout 30 myst build --html 2>&1 | grep -iE 'warning|error|⚠|fail'`.
+  MyST warning lines start with `⚠`, not with the word "warning" — include `⚠`
+  in any grep of build logs.
+  **`timeout` is the whole cleanup**: it terminates the server (exit 124) and
+  leaves no straggler (verified — `pgrep -x node` back to its prior count).
+  **Do NOT chain `pkill -f "myst build"` after it**, as this file used to say:
+  `pkill -f` matches full command **lines**, and the line running the build
+  contains that literal, so the pkill matches its own shell and kills it — the
+  command dies with no output (exit 144) and the grep result is lost. The
+  `[m]yst` bracket trick does NOT save it either: the bracket only stops the
+  *pattern* from matching itself, while the `timeout 30 myst build …` earlier
+  in the same line still matches. If a straggler ever does survive, kill it
+  from a **separate** call, or copy `deploy.sh`'s approach (snapshot
+  `pgrep -x node` before/after, kill only the new PIDs).
 - After any **bulk** edit of `docs/doc.yuneta.io/**.md` (e.g. a release-link
   repin), run `rm -rf _build/site _build/html` before `deploy.sh` — myst reuses
   a stale AST cache and ships old content (keep `_build/templates`, the theme
