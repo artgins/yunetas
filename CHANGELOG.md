@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **fix(task): forwarding a kw with a gbuffer to an lmethod double-freed the
+      gbuffer ("BAD gbuf_decref()").** `C_TASK`'s `ac_on_message()` handed the kw
+      to the job's lmethod with `json_incref(kw)`. A kw carrying a serialized
+      binary field has its own symmetric pair — `kw_incref()`/`kw_decref()` —
+      because `kw_decref()` drops the binary on *every* call, not only on the
+      last one. `json_incref()` bumps the JSON refcount but not the gbuffer's,
+      so the two `KW_DECREF()`s that follow (the lmethod's and the action's own)
+      decref the gbuffer twice against a single incref: it is freed early, and
+      the publisher's final `KW_DECREF()` then reads a freed header. Now uses
+      `kw_incref()`, like `c_iogate`/`c_qiogate` do when forwarding.
+      Only reachable when the kw actually carries a gbuffer, which for the HTTP
+      task path means a non-`application/json` response body (`ghttp_parser`
+      parses JSON into `kw["body"]` and keeps the gbuffer instead) — in
+      practice, an error page from a reverse proxy. Seen in production as 75
+      "BAD gbuf_decref()" matching 75 OIDC discovery failures 1:1, while
+      Keycloak was still booting and nginx answered 502 + text/html.
+
     - **fix(prot_tcp4h): parsing a buffer whose frame dropped the connection
       raised "Event NOT DEFINED in state".** `ac_process_payload_data()` ends by
       re-sending `EV_RX_DATA` to *itself* to parse whatever is left in the

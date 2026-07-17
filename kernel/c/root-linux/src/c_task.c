@@ -597,10 +597,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec RESULT %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
+    /*
+     *  kw_incref(), not json_incref(): the lmethod will KW_DECREF() this kw,
+     *  and kw_decref() drops the serialized binary fields (gbuffer) on EVERY
+     *  call, not just the last one. A json_incref() here would leave the
+     *  gbuffer with one incref less than its decrefs: double free.
+     */
     int ret = (int)(size_t)gobj_local_method(
         priv->gobj_jobs,
         action,
-        json_incref(kw),
+        kw_incref(kw),
         gobj
     );
 
