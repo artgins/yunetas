@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## 7.8.1
+
+A bugfix release. Most of it came out of watching a node come back from a cold
+machine reboot with its IdP (Keycloak) still booting — the state where half of
+these paths run for the first time. Two crashes and several noisy-but-harmless
+log storms were fixed, plus one refcount contract that had been quietly wrong.
+
+- **Two crashes on the login path**: `controlcenter` dereferenced a
+  not-yet-open treedb for any login arriving before it played, and `prot_tcp4h`
+  re-sent `EV_RX_DATA` to itself after a synchronous publish had already dropped
+  the connection. `authz`'s login publish became a veto point so a service can
+  refuse a user it cannot yet register (see YUNO_AUTH.md §4.9).
+- **A gbuffer double-free**: a kw carrying a serialized gbuffer must be
+  refcounted with `kw_incref`/`kw_decref`, never the `json_*` pair — `c_task`'s
+  lmethod forward and `c_iogate`'s broadcast both got it wrong. The rule is now
+  in CLAUDE.md and the tree was swept.
+- **The agent launched a slow-to-open yuno twice at boot** (and `run-yuno` could
+  too), which a controlcenter lost to its treedb lock. It now marks a launch
+  until the yuno registers, expiring the mark on a monotonic timer.
+- **Log-noise fixes** for the IdP-down window: the bad-json cascade on ievent
+  ports collapsed to one capped warning, and `auth_bff` stopped logging two
+  stack traces per request when a 5xx body isn't the RFC-6749 JSON envelope.
+
+No BREAKING changes. Ships with the same `@yuneta/gobj-js` **7.8.0** and
+`@yuneta/gobj-ui` **4.0.0** as 7.8.0 — this release is C-only.
+
     - **fix(auth_bff): a 5xx from the IdP with a non-JSON body logged two errors
       per request.** `send_token_to_browser()` read `error` / `error_description`
       off the response body to map the RFC-6749 error envelope, but that envelope

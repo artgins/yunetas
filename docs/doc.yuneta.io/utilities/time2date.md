@@ -22,4 +22,4 @@ ISO-8601 strings and `yday`.
 ## See also
 
 - [`time2range`](time2range.md) — period start/end boundaries.
-- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.8.0/utils/c/time2date/README.md).
+- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.8.1/utils/c/time2date/README.md).
