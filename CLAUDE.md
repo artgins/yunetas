@@ -221,6 +221,15 @@ Corollaries:
   (filenames), `PATH_MAX` (full paths), `HOST_NAME_MAX`, `LOGIN_NAME_MAX`,
   `PIPE_BUF` — never hand-picked numbers. The constant documents the contract;
   `char buf[64]` lies about it.
+- **Timeouts:** time them with the helpers — `start_sectimer` / `test_sectimer`
+  and `start_msectimer` / `test_msectimer` (`kernel/c/gobj-c/src/helpers.h`) —
+  never with hand-rolled `time()` / `clock_gettime()` arithmetic. Timeouts are a
+  subsystem that has to stay under control, and low-level constructs hide them:
+  `start_msectimer(priv->timeout_x)` + `test_msectimer(v)` names the timer at
+  both ends and greps, while a subtraction of two `time_t`s buried in an `if`
+  is invisible to anyone reviewing what times out where. The helpers also run on
+  `CLOCK_MONOTONIC`, so a timer survives an NTP step — and the wall clock jumps
+  exactly when it hurts most, at boot.
 - **Naming:** name functions by intent — verb + object + direction
   (`get_token_from_idp`, `send_token_to_browser`) — not by framework role; the
   framework keys (`mt_*`, `ac_*`, `exec_action`) already label the role. Prefer
