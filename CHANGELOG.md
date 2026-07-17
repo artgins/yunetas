@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **fix(prot_tcp4h): parsing a buffer whose frame dropped the connection
+      raised "Event NOT DEFINED in state".** `ac_process_payload_data()` ends by
+      re-sending `EV_RX_DATA` to *itself* to parse whatever is left in the
+      buffer. Just above, `frame_completed()` publishes `EV_ON_MESSAGE`
+      synchronously — and a subscriber may drop the whole chain from inside that
+      publish (an authz NAK, or a peer sending bad json). The FSM is then in
+      `ST_DISCONNECTED`, where `EV_RX_DATA` is not defined, so the self-send
+      logged an ERROR plus a full stack trace for every such connection.
+      `frame_completed()` already knew about this cascade — it guards its own
+      `start_wait_frame_header()` with the same state check — but it returns 0
+      regardless, so the caller had no way to tell it was already dead. The
+      leftover self-send is now skipped once we are `ST_DISCONNECTED`: nobody
+      upstream wants the rest of the buffer. The sibling self-send in
+      `ac_process_frame_header()` needs no guard — it follows a plain
+      `gobj_change_state()` with no publish in between, so the connection cannot
+      have died under it.
+
     - **fix(ievent): one garbage packet no longer costs four ERROR entries and
       two stack traces.** A peer sending non-JSON to an ievent port (a port
       scanner is enough) walked a cascade of logs that all described the same

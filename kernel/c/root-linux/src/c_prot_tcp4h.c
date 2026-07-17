@@ -726,6 +726,17 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
     }
 
     if(gbuffer_leftbytes(gbuf)) {
+        /*
+         *  frame_completed() published EV_ON_MESSAGE synchronously, and a
+         *  subscriber may have dropped the chain from inside that publish
+         *  (e.g. an authz NAK, or a peer sending bad json). We would then be in
+         *  ST_DISCONNECTED and this self-send would raise "Event NOT DEFINED in
+         *  state": nobody upstream wants the rest of the buffer anymore.
+         */
+        if(gobj_current_state(gobj) == ST_DISCONNECTED) {
+            KW_DECREF(kw)
+            return 0;
+        }
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
 
