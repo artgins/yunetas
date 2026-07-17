@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+    - **fix(ievent): one garbage packet no longer costs four ERROR entries and
+      two stack traces.** A peer sending non-JSON to an ievent port (a port
+      scanner is enough) walked a cascade of logs that all described the same
+      event: `gbuf2json()` logged "json_load_callback() FAILED" with a full
+      stack trace, `iev_create_from_gbuffer()` logged "gbuf2json() FAILED",
+      `ac_on_message()` logged "iev_create_from_gbuffer() FAILED", and none of
+      them named the peer. All three were `gobj_log_error` — errors are for our
+      own broken invariants, and a stranger sending junk is not one.
+      `C_IEVENT_SRV`/`C_IEVENT_CLI` now ask for the parse silently
+      (`verbose = 0`, which `iev_create_from_gbuffer()` newly honors for its own
+      log too) and emit a single `gobj_log_warning` under `MSGSET_PROTOCOL`,
+      carrying `peername`/`sockname` and a dump of the offending bytes capped at
+      `MAX_LOG_DUMP_SIZE` (256), mirroring `c_prot_tcp4h`. The dump reads from
+      the gbuffer head, so it survives the parser having consumed the data and
+      leaves the read pointer alone. Behaviour is unchanged: the connection is
+      still dropped. Callers passing a non-zero `verbose` keep the old logs.
+
     - **feat(authz): a subscriber of `EV_AUTHZ_USER_LOGIN` can now refuse a
       login.** `mt_authenticate()` published the event fire-and-forget and threw
       away the result, so a subscriber unable to accept the user had no way to

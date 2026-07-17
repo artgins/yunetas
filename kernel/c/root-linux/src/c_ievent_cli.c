@@ -26,6 +26,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define MAX_LOG_DUMP_SIZE (256)     // Cap the data dump added to logs, for very large packets
 
 /***************************************************************
  *              Prototypes
@@ -906,13 +907,20 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, TRUE);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 0);
     if(!iev_kw) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "iev_create_from_gbuffer() FAILED",
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Bad json",
+            "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+            "sockname",     "%s", gobj_has_bottom_attr(gobj, "sockname")?gobj_read_str_attr(gobj, "sockname"):"",
             NULL
+        );
+        gobj_trace_dump(gobj,
+            gbuffer_head_pointer(gbuf),
+            MIN(gbuffer_totalbytes(gbuf), MAX_LOG_DUMP_SIZE),
+            "Bad json"
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(kw)

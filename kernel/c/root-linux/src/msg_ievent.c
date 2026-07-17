@@ -163,12 +163,18 @@ PUBLIC json_t *iev_create_from_gbuffer(
     }
     json_t *jn_msg = gbuf2json(gbuf, verbose); // gbuf stolen: decref and data consumed
     if(!jn_msg) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "gbuf2json() FAILED",
-            NULL
-        );
+        /*
+         *  With verbose 0 the caller logs the cause: a peer sending bad json is
+         *  its business, not an internal invariant of ours.
+         */
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON,
+                "msg",          "%s", "gbuf2json() FAILED",
+                NULL
+            );
+        }
         return NULL;
     }
 

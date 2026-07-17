@@ -1177,8 +1177,7 @@ PUBLIC json_t *gbuf2json(
                 NULL
             );
             if(verbose > 1) {
-                gbuffer_reset_rd(gbuf);
-                gobj_trace_dump_gbuf(
+                gobj_trace_dump_full_gbuf(
                     0,
                     gbuf,
                     "Bad json format"
