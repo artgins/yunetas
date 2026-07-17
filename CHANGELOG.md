@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+    - **feat(authz): a subscriber of `EV_AUTHZ_USER_LOGIN` can now refuse a
+      login.** `mt_authenticate()` published the event fire-and-forget and threw
+      away the result, so a subscriber unable to accept the user had no way to
+      say so — the login succeeded regardless, and the user was left
+      authenticated but unregistered downstream. It now checks
+      `gobj_publish_event()`'s return and answers `result: -1` ("Some subscriber
+      refusing user") when it comes back negative. Contract note for out-of-tree
+      gclasses: an action handling this event that returns a negative value now
+      denies the login; every in-tree subscriber (`c_controlcenter`, `c_agent`,
+      `c_mqtt_broker`) returns 0 and is unaffected. Two caveats worth knowing:
+      the checked value is the *sum* of the subscriber returns, and a subscriber
+      holding `__own_event__` short-circuits before the accumulation, so its
+      refusal is not seen. The auth failure paths also log `peername`/`sockname`
+      now.
+
+    - **fix(controlcenter): a login arriving before the service played crashed
+      against a NULL treedb.** `C_CONTROLCENTER` subscribes to the authz service
+      in `mt_start` but only opens `treedb_controlcenter` in `mt_play`, so every
+      login landing in that window called `gobj_get_node()` / `gobj_create_node()`
+      with a NULL gobj and logged "hgobj NULL or DESTROYED" with a stack trace —
+      loud at startup, when many agents reconnect at once. `ac_user_login` and
+      `ac_user_new` now check the treedb is open and refuse the login until the
+      service reaches `mt_play` (fail-closed, riding the authz contract above),
+      so a user never gets in without its controlcenter record.
+
 ## 7.8.0
 
 A feature release built around the **C_TRANGER / C_NODE read surface** — the

@@ -1452,6 +1452,24 @@ PRIVATE int ac_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
 //     json_t *services_roles_ = kw_get_dict(gobj, kw, "services_roles", 0, KW_REQUIRED);
 
+    /*------------------------------------------------*
+     *  Auth service is autostart and autoplay
+     *  Users can be login before playing this gobj
+     *  and therefore with treedb not opened
+     *  Avoid error "hgobj NULL or DESTROYED"
+     *------------------------------------------------*/
+    if(!priv->gobj_treedb_controlcenter) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SERVICE,
+            "msg",          "%s", "Treedb Controlcenter not ready",
+            "username",     "%s", username,
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
+    }
+
     /*--------------------------------*
      *  Get user
      *  Create it if not exist
@@ -1521,6 +1539,24 @@ PRIVATE int ac_user_new(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         time(&t);
         BOOL enabled_new_users = gobj_read_bool_attr(gobj, "enabled_new_users");
         if(enabled_new_users) {
+            /*------------------------------------------------*
+             *  Auth service is autostart and autoplay
+             *  Users can be login before playing this gobj
+             *  and therefore with treedb not opened
+             *  Avoid error "hgobj NULL or DESTROYED"
+             *------------------------------------------------*/
+            if(!priv->gobj_treedb_controlcenter) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SERVICE,
+                    "msg",          "%s", "Treedb Controlcenter not ready",
+                    "username",     "%s", username,
+                    NULL
+                );
+                KW_DECREF(kw);
+                return -1;
+            }
+
             json_t *jn_user = json_pack("{s:s, s:b, s:I}",
                 "id", username,
                 "enabled", enabled_new_users,

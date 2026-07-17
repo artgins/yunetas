@@ -10,6 +10,7 @@
  *              see in the jwt.h the functions marked with ArtGins
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <unistd.h>
@@ -1225,6 +1226,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "msg",          "%s", "User does not exist",
             "username",     "%s", username,
             "service",      "%s", dst_service,
+            "peername",     "%s", peername,
+            "sockname",     "%s", sockname,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1262,6 +1265,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "comment",          "%s", comment,
             "username",         "%s", username,
             "service",          "%s", dst_service,
+            "peername",         "%s", peername,
+            "sockname",         "%s", sockname,
             "services_roles",   "%j", services_roles?services_roles:json_null(),
             NULL
         );
@@ -1286,6 +1291,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "msg",          "%s", "User disabled",
             "username",     "%s", username,
             "service",      "%s", dst_service,
+            "peername",         "%s", peername,
+            "sockname",         "%s", sockname,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1374,6 +1381,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "max_sessions", "%d", max_sessions,
                 "username",     "%s", username,
                 "service",      "%s", dst_service,
+                "peername",     "%s", peername,
+                "sockname",     "%s", sockname,
                 "session",      "%j", session,
                 NULL
             );
@@ -1434,6 +1443,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         NULL
     );
 
+    /*
+     *  WARNING build the response BEFORE publishing: the publish steals the
+     *  only reference of user/session/services_roles/jwt_payload.
+     */
     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O, s:b}",
         "result", 0,
         "comment", "User authenticated",
@@ -1450,7 +1463,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*--------------------------------*
      *      Publish
      *--------------------------------*/
-    gobj_publish_event(
+    int ret = gobj_publish_event(
         gobj,
         EV_AUTHZ_USER_LOGIN,
         json_pack("{s:s, s:s, s:o, s:o, s:o, s:o}",
@@ -1462,6 +1475,28 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "jwt_payload", jwt_payload
         )
     );
+    if(ret < 0) {
+        /*
+         *  Some subscriber refusing user
+         */
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH,
+            "msg",              "%s", "Some subscriber refusing user",
+            "username",         "%s", username,
+            "service",          "%s", dst_service,
+            "peername",         "%s", peername,
+            "sockname",         "%s", sockname,
+            NULL
+        );
+        JSON_DECREF(jn_resp)
+        jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            "result", -1,
+            "comment", "Some subscriber refusing user",
+            "username", username,
+            "dst_service", dst_service
+        );
+    }
 
     KW_DECREF(kw)
     return jn_resp;
