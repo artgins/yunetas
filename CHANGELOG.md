@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+    - **chore(gobj-c): `load_persistent_json()`'s cannot-open critical now
+      carries a stack trace.** It names the file but not who was opening it,
+      which is exactly what you need when two processes race for the same
+      exclusive lock.
+
     - **fix(agent): a yuno slow to open was launched twice at boot.** The boot
       runs in two sweeps — `run_util_yunos()` for the `yuno_tag=util` yunos,
       then `run_enabled_yunos()` for everything else, `timerStBoot` later — and
