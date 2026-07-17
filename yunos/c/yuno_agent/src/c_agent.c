@@ -999,6 +999,15 @@ typedef struct _PRIVATE_DATA {
 
     json_t *no_play_launches; // set of launch_id (string key) launched with run-yuno play=0
 
+    /*
+     *  Set of yuno id (string key) already launched by run_yuno() and not yet
+     *  registered by its EV_ON_OPEN. The boot sweeps guard on `yuno_running`,
+     *  which only turns TRUE in ac_on_open(): without this, a yuno slower than
+     *  timerStBoot to open (one loading a treedb) is launched a second time by
+     *  run_enabled_yunos() while its first instance is still coming up.
+     */
+    json_t *launching_yunos;
+
     hgobj resource;
     hgobj timer;
     hrotatory_h audit_file;
@@ -1162,6 +1171,11 @@ PRIVATE void mt_create(hgobj gobj)
      *-----------------------------*/
     priv->no_play_launches = json_object();
 
+    /*-----------------------------*
+     *      Launched, not open yet
+     *-----------------------------*/
+    priv->launching_yunos = json_object();
+
     /*
      *  SERVICE subscription model
      */
@@ -1203,6 +1217,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->list_consoles);
     JSON_DECREF(priv->no_play_launches);
+    JSON_DECREF(priv->launching_yunos);
     JSON_DECREF(priv->cert_sync_state);
 
     if(priv->audit_file) {
@@ -8405,6 +8420,8 @@ PRIVATE int run_yuno(
     hgobj src
 )
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  Launch id
      */
@@ -8471,6 +8488,12 @@ PRIVATE int run_yuno(
             "ret",          "%d", ret,
             NULL
         );
+    } else {
+        /*
+         *  Launched: mark it until its EV_ON_OPEN clears the mark, so the boot
+         *  sweeps don't launch it again while it is still coming up.
+         */
+        json_object_set_new(priv->launching_yunos, yuno_id, json_true());
     }
 
     int fd = newfile(script_path, yuneta_xpermission(), TRUE);
@@ -8927,7 +8950,7 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-            if(!running) {
+            if(!running && !kw_has_key(priv->launching_yunos, kw_get_str(gobj, yuno, "id", "", 0))) {
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -8985,7 +9008,7 @@ PRIVATE int run_util_yunos(hgobj gobj)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-            if(!running) {
+            if(!running && !kw_has_key(priv->launching_yunos, kw_get_str(gobj, yuno, "id", "", 0))) {
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -11109,6 +11132,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(iter_yunos);
         return -1;
     }
+
+    /*
+     *  It's open: yuno_running below is now the authoritative mark.
+     */
+    json_object_del(priv->launching_yunos, yuno_id);
 
     json_object_set_new(yuno, "yuno_startdate", json_string(yuno_startdate));
     json_object_set_new(yuno, "yuno_running", json_true());

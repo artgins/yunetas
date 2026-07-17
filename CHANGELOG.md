@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+    - **fix(agent): a yuno slow to open was launched twice at boot.** The boot
+      runs in two sweeps — `run_util_yunos()` for the `yuno_tag=util` yunos,
+      then `run_enabled_yunos()` for everything else, `timerStBoot` later — and
+      both skip a yuno only when its `yuno_running` is TRUE. That flag is set in
+      `ac_on_open()`, i.e. when the yuno registers back, so a yuno that takes
+      longer than `timerStBoot` to open is still marked not-running when the
+      second sweep arrives and gets launched a second time. `run_yuno()` now
+      marks the yuno as launching and both sweeps honor the mark, which
+      `ac_on_open()` clears. This only ever bit at machine boot: on a warm
+      `yshutdown` + `restart-yuneta` every yuno registers well inside the
+      window. Seen on a controlcenter (a `util` yuno that loads a treedb, unlike
+      logcenter/emailsender): the second instance died on timeranger2's
+      exclusive `__timeranger2__.json` lock, logging a CRITICAL. That lock is
+      what kept two masters off the same store — a `util` yuno without a tranger
+      would simply have run twice, with nothing to log.
+
     - **fix(task): forwarding a kw with a gbuffer to an lmethod double-freed the
       gbuffer ("BAD gbuf_decref()").** `C_TASK`'s `ac_on_message()` handed the kw
       to the job's lmethod with `json_incref(kw)`. A kw carrying a serialized
