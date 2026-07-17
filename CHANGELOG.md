@@ -15,7 +15,14 @@
       longer than `timerStBoot` to open is still marked not-running when the
       second sweep arrives and gets launched a second time. `run_yuno()` now
       marks the yuno as launching and both sweeps honor the mark, which
-      `ac_on_open()` clears. This only ever bit at machine boot: on a warm
+      `ac_on_open()` clears. The `run-yuno` **command** honors it too: it
+      guarded on the same `yuno_running`, so an operator launching a yuno that
+      was still coming up got a second instance the same way. The mark carries
+      its launch time and expires after `timeout_expiration` (30s, the window
+      the command counters already give a yuno to connect back): a yuno that
+      dies before opening never clears its mark and the agent doesn't watch
+      pids, so without the expiry a failed launch would block `run-yuno` for
+      that yuno until the agent restarted. This only ever bit at machine boot: on a warm
       `yshutdown` + `restart-yuneta` every yuno registers well inside the
       window. Seen on a controlcenter (a `util` yuno that loads a treedb, unlike
       logcenter/emailsender): the second instance died on timeranger2's

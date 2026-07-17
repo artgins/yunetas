@@ -385,9 +385,15 @@ What the agent contributes on top:
    both sweeps skip a marked yuno, `ac_on_open()` clearing the mark. Without
    that, anything slower than `timerStBoot` to open (a yuno loading a treedb,
    on the cold machine a real boot gives you) was launched a second time. The
-   agent must not retry a yuno that died before opening either: an abnormal
-   death is the watcher's job, and a clean `exit 0` is the yuno deciding to
-   stay down.
+   `run-yuno` command honors the same mark, so an operator can't land a second
+   instance on a yuno that is still coming up either. The agent must not retry
+   a yuno that died before opening: an abnormal death is the watcher's job, and
+   a clean `exit 0` is the yuno deciding to stay down.
+
+   The mark carries its launch time and **expires after `timeout_expiration`**
+   (30s). A yuno that dies before opening never clears its mark, and the agent
+   watches no pids: without the expiry, one failed launch would block `run-yuno`
+   for that yuno until the agent restarted.
 
 Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
 (sysctl + PAM limits configured by the `.deb`, see

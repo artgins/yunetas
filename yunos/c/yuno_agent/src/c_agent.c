@@ -84,6 +84,7 @@ PRIVATE int run_yuno(
     json_t *yuno,
     hgobj src
 );
+PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
 PRIVATE int kill_yuno(
     hgobj gobj,
     json_t *yuno
@@ -5161,9 +5162,13 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
          */
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         BOOL yuno_running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-        if(!disabled && !yuno_running) {
-
-            const char *id = SDATA_GET_ID(yuno);
+        const char *id = SDATA_GET_ID(yuno);
+        /*
+         *  Skip a yuno already launched and not open yet, like the boot sweeps
+         *  do: yuno_running only turns TRUE in ac_on_open(), so a run-yuno
+         *  landing in that window would launch a second instance.
+         */
+        if(!disabled && !yuno_running && !is_launching(gobj, id)) {
             int r = run_yuno(gobj, yuno, src);
             if(r==0) {
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:s, s:s, s:I}}",
@@ -8412,6 +8417,37 @@ PRIVATE void sort_yunos_by_start_priority(hgobj gobj, json_t *iter, BOOL ascendi
 }
 
 /***************************************************************************
+ *  TRUE if the yuno was already launched and has not registered yet.
+ *
+ *  `yuno_running` only turns TRUE in ac_on_open(), so between run_yuno() and
+ *  that handshake a yuno looks stopped and gets launched again. run_yuno()
+ *  marks it and ac_on_open() drops the mark.
+ *
+ *  The mark expires after `timeout_expiration` because a yuno that dies before
+ *  opening never clears it and the agent doesn't watch pids: a stale mark would
+ *  otherwise block run-yuno for that yuno until the agent restarts. Same window
+ *  the command counters already give a yuno to connect back.
+ ***************************************************************************/
+PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_launched_at = json_object_get(priv->launching_yunos, yuno_id);
+    if(!jn_launched_at) {
+        return FALSE;
+    }
+
+    time_t now;
+    time(&now);
+    if((json_int_t)now - json_integer_value(jn_launched_at) >= priv->timeout_expiration/1000) {
+        json_object_del(priv->launching_yunos, yuno_id);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int run_yuno(
@@ -8490,10 +8526,15 @@ PRIVATE int run_yuno(
         );
     } else {
         /*
-         *  Launched: mark it until its EV_ON_OPEN clears the mark, so the boot
-         *  sweeps don't launch it again while it is still coming up.
+         *  Launched: mark it with the launch time until its EV_ON_OPEN clears
+         *  the mark, so nobody launches it again while it is still coming up.
+         *  See is_launching().
          */
-        json_object_set_new(priv->launching_yunos, yuno_id, json_true());
+        time_t launched_at;
+        time(&launched_at);
+        json_object_set_new(
+            priv->launching_yunos, yuno_id, json_integer((json_int_t)launched_at)
+        );
     }
 
     int fd = newfile(script_path, yuneta_xpermission(), TRUE);
@@ -8950,7 +8991,7 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-            if(!running && !kw_has_key(priv->launching_yunos, kw_get_str(gobj, yuno, "id", "", 0))) {
+            if(!running && !is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -9008,7 +9049,7 @@ PRIVATE int run_util_yunos(hgobj gobj)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         if(!disabled) {
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
-            if(!running && !kw_has_key(priv->launching_yunos, kw_get_str(gobj, yuno, "id", "", 0))) {
+            if(!running && !is_launching(gobj, kw_get_str(gobj, yuno, "id", "", 0))) {
                 run_yuno(gobj, yuno, 0);
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero

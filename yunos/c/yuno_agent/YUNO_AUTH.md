@@ -538,6 +538,46 @@ exist") — the JWT validates fine but the user→service mapping returns
 empty. Both spellings reach [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_authz.c) but the deprecated one
 generally lags behind in coverage. Always prefer `authz.authz_service`.
 
+### 4.9 Output events: a subscriber can refuse a login
+
+`C_AUTHZ` publishes three events. They are how a service learns about the
+users reaching it, and they are the **only** hook it gets on the login path:
+
+| Event                  | Published from                    | Payload                                                        |
+|------------------------|-----------------------------------|----------------------------------------------------------------|
+| `EV_AUTHZ_USER_NEW`    | `mt_authenticate()`, unknown user | `username`, `dst_service`                                       |
+| `EV_AUTHZ_USER_LOGIN`  | `mt_authenticate()`, authenticated| `username`, `dst_service`, `user`, `session`, `services_roles`, `jwt_payload` |
+| `EV_AUTHZ_USER_LOGOUT` | the session's `EV_ON_CLOSE`       | `username`, `user`, `session`                                   |
+
+**`EV_AUTHZ_USER_LOGIN` is not a notification — it is a veto point.**
+`mt_authenticate()` checks what `gobj_publish_event()` returns, and answers
+`result: -1` ("Some subscriber refusing user") when it comes back negative. A
+subscriber that cannot accept the user therefore **denies the login**; the
+identity card is NAK'd and the peer is dropped. The publish used to be
+fire-and-forget with the return discarded, so a service with no way to register
+the user had no way to say so and the user got in anyway (see the CHANGELOG for
+the release that changed it).
+
+Consequences worth knowing before you write an action for this event:
+
+- **Returning a negative value from your action denies the login.** Every
+  in-tree subscriber (`c_controlcenter`, `c_agent`, `c_mqtt_broker`) returns 0.
+  An out-of-tree gclass that returns negative for unrelated reasons will start
+  locking users out.
+- **The checked value is the *sum* of the subscriber returns**, not "any
+  negative". With several subscribers, a `-1` and a `+1` cancel out.
+- **A subscriber holding `__own_event__` short-circuits** the accumulation
+  ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.c#L9204) breaks before `ret += ret_`), so its refusal is never seen.
+- **Refusing is safe for the peer.** `c_ievent_cli` drops the transport on the
+  NAK and `c_tcp` reconnects with its backoff, so a refused agent simply comes
+  back. That is what makes "refuse until I can register the user" a valid
+  answer rather than an outage.
+
+The canonical refuser is `c_controlcenter`'s `ac_user_login()`: its
+`treedb_controlcenter` only opens in `mt_play()`, while the `authz` service is
+`autoplay: true` and authenticates from boot, so every login landing in that
+window is refused rather than let through unregistered.
+
 ---
 
 ## 5. `C_AUTHZ` commands (user / role CRUD)
