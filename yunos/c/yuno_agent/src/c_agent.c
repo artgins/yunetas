@@ -8423,23 +8423,21 @@ PRIVATE void sort_yunos_by_start_priority(hgobj gobj, json_t *iter, BOOL ascendi
  *  that handshake a yuno looks stopped and gets launched again. run_yuno()
  *  marks it and ac_on_open() drops the mark.
  *
- *  The mark expires after `timeout_expiration` because a yuno that dies before
- *  opening never clears it and the agent doesn't watch pids: a stale mark would
- *  otherwise block run-yuno for that yuno until the agent restarts. Same window
- *  the command counters already give a yuno to connect back.
+ *  The mark holds a `timeout_expiration` msectimer because a yuno that dies
+ *  before opening never clears it and the agent doesn't watch pids: a stale
+ *  mark would otherwise block run-yuno for that yuno until the agent restarts.
+ *  Same window the command counters already give a yuno to connect back.
  ***************************************************************************/
 PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_launched_at = json_object_get(priv->launching_yunos, yuno_id);
-    if(!jn_launched_at) {
+    json_t *jn_timer = json_object_get(priv->launching_yunos, yuno_id);
+    if(!jn_timer) {
         return FALSE;
     }
 
-    time_t now;
-    time(&now);
-    if((json_int_t)now - json_integer_value(jn_launched_at) >= priv->timeout_expiration/1000) {
+    if(test_msectimer((uint64_t)json_integer_value(jn_timer))) {
         json_object_del(priv->launching_yunos, yuno_id);
         return FALSE;
     }
@@ -8526,14 +8524,13 @@ PRIVATE int run_yuno(
         );
     } else {
         /*
-         *  Launched: mark it with the launch time until its EV_ON_OPEN clears
-         *  the mark, so nobody launches it again while it is still coming up.
-         *  See is_launching().
+         *  Launched: mark it until its EV_ON_OPEN clears the mark, so nobody
+         *  launches it again while it is still coming up. See is_launching().
          */
-        time_t launched_at;
-        time(&launched_at);
         json_object_set_new(
-            priv->launching_yunos, yuno_id, json_integer((json_int_t)launched_at)
+            priv->launching_yunos,
+            yuno_id,
+            json_integer((json_int_t)start_msectimer(priv->timeout_expiration))
         );
     }
 
