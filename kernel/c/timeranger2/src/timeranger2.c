@@ -418,6 +418,22 @@ PUBLIC json_t *tranger2_startup(
 
     int fd = -1;
     if(file_exists(directory, "__timeranger2__.json")) {
+        /*
+         *  Pass on_critical_error here, NOT LOG_NONE — this is the single-master
+         *  guard, and the level and the exit are the SAME knob. When a store is
+         *  already locked, this exclusive probe fails and logs a CRITICAL; with
+         *  the default on_critical_error == 2 (LOG_OPT_EXIT_ZERO) that CRITICAL
+         *  calls exit(0) *inside the log*, before the non-master fallback below
+         *  is even reached. exit(0) is deliberate: the watcher does not relaunch
+         *  a clean exit, so a second instance that loses the lock stays down and
+         *  exactly one master owns the store. Silencing this probe (LOG_NONE
+         *  drops both the log and the EXIT_ZERO bit) would let that second
+         *  instance fall through and run as a rogue non-master. The fallback is
+         *  reached only for stores configured on_critical_error == 0 (read-only
+         *  replicas that are meant to run non-master); test_tranger_startup
+         *  drives it with LOG_OPT_TRACE_STACK so it can exercise that path
+         *  without exiting.
+         */
         json_t *jn_disk_tranger = load_persistent_json(
             gobj,
             directory,
