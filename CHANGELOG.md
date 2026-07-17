@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+    - **fix(auth_bff): a 5xx from the IdP with a non-JSON body logged two errors
+      per request.** `send_token_to_browser()` read `error` / `error_description`
+      off the response body to map the RFC-6749 error envelope, but that envelope
+      only exists when the IdP itself answered. When the IdP is **down**, the 5xx
+      body is a reverse proxy's HTML 502 or empty, so `kw_get_dict(kw, "body")`
+      returns NULL and the two `kw_get_str()` calls path into NULL —
+      `kw_find_path()` logs *"kw must be list or dict"* with a stack trace, twice
+      per failed request (seen as 10 of those against 5 `👤BFF server error`).
+      The envelope is now read only when the body really is a dict; otherwise
+      `idp_err`/`idp_desc` stay `""` and the generic `auth_unexpected_error` (502)
+      mapping applies, which is the correct outcome for an IdP outage. The 5xx
+      `👤BFF server error` itself is legitimate and unchanged — the operator does
+      want to know the IdP is down.
+
     - **fix(iogate): broadcasting to two or more channels double-freed the
       gbuffer.** `send_all()` handed each child `json_incref(kw)` while every
       child `KW_DECREF()`s it, and `kw_decref()` drops the serialized binary

@@ -1245,9 +1245,19 @@ PRIVATE json_t *send_token_to_browser(
         const char *browser_code   = "auth_unexpected_error";
         const char *browser_msg    = "Unexpected authentication error";
 
+        /*
+         *  The RFC-6749 error envelope { error, error_description } is only
+         *  present when the IdP itself answered. On a genuine server error the
+         *  body is often not that JSON at all — a reverse proxy's HTML 502 when
+         *  the IdP is down, or an empty body — so kw_get_dict() returns NULL.
+         *  Only path into it when it really is a dict; idp_err/idp_desc stay ""
+         *  otherwise and the generic auth_unexpected_error mapping applies.
+         */
         json_t *jn_err_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-        const char *idp_err  = kw_get_str(gobj, jn_err_body, "error",             "", 0);
-        const char *idp_desc = kw_get_str(gobj, jn_err_body, "error_description", "", 0);
+        const char *idp_err  = jn_err_body ?
+            kw_get_str(gobj, jn_err_body, "error", "", 0) : "";
+        const char *idp_desc = jn_err_body ?
+            kw_get_str(gobj, jn_err_body, "error_description", "", 0) : "";
 
         if(strcmp(idp_err, "invalid_grant") == 0 &&
                 (status == 400 || status == 401)) {
