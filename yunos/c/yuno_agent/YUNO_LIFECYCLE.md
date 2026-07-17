@@ -379,6 +379,16 @@ What the agent contributes on top:
    watcher (e.g. the agent itself was killed and brought back; any yunos
    whose own watchers happened to die too).
 
+   **The agent launches a yuno once, and there its responsibility ends.**
+   `running` comes from `ac_on_open()`, so between the two sweeps a yuno is
+   launched but not yet registered — `run_yuno()` marks it as launching and
+   both sweeps skip a marked yuno, `ac_on_open()` clearing the mark. Without
+   that, anything slower than `timerStBoot` to open (a yuno loading a treedb,
+   on the cold machine a real boot gives you) was launched a second time. The
+   agent must not retry a yuno that died before opening either: an abnormal
+   death is the watcher's job, and a clean `exit 0` is the yuno deciding to
+   stay down.
+
 Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
 (sysctl + PAM limits configured by the `.deb`, see
 [`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-crash-forensics) §8).
