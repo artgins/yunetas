@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+    - **fix(iogate): broadcasting to two or more channels double-freed the
+      gbuffer.** `send_all()` handed each child `json_incref(kw)` while every
+      child `KW_DECREF()`s it, and `kw_decref()` drops the serialized binary
+      fields on every call. So the gbuffer took one decref per child plus
+      `send_all()`'s own, against the single `kw_incref()` of the caller: the
+      arithmetic only worked out with exactly one open channel, and from the
+      second on it was a double free (*"BAD gbuf_decref()"*). Now `kw_incref()`.
+      `send_one_rotate()` was never affected — it hands its own reference to a
+      single channel. Same defect as the `c_task` one below; the rule ("a kw is
+      refcounted with `kw_incref`/`kw_decref`, and events always carry a kw") is
+      now in CLAUDE.md's API footguns. The remaining `json_incref(kw)` event
+      sends in `root-linux` and `utils` (timer, ievent_cli, yuno, authz, ota,
+      the three CLIs) are corrected too: none of their kws carries a gbuffer
+      today, so they were latent, not live.
+
     - **chore(gobj-c): `load_persistent_json()`'s cannot-open critical now
       carries a stack trace.** It names the file but not who was opening it,
       which is exactly what you need when two processes race for the same

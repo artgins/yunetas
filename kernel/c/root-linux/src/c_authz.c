@@ -1917,7 +1917,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_set_new(kw, "credentials", credentials);
     }
 
-    if(gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src) < 0) {
+    if(gobj_send_event(gobj, EV_ADD_USER, kw_incref(kw), src) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2047,7 +2047,7 @@ PRIVATE json_t *cmd_update_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_object_set_new(kw, "credentials", credentials);
     }
 
-    if(gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src) < 0) {
+    if(gobj_send_event(gobj, EV_ADD_USER, kw_incref(kw), src) < 0) {
         return msg_iev_build_response(
             gobj,
             -1,

@@ -502,7 +502,7 @@ PRIVATE int get_binary_file(
                 gobj_short_name(priv->gobj_http_cli_ota)
             );
         }
-        gobj_send_event(priv->gobj_http_cli_ota, EV_SEND_MESSAGE, json_incref(query), gobj);
+        gobj_send_event(priv->gobj_http_cli_ota, EV_SEND_MESSAGE, kw_incref(query), gobj);
     }
     json_decref(query);
     return 0;

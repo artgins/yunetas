@@ -1510,7 +1510,7 @@ PRIVATE int ac_mqtt_unsuback(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     json_t *kw_input_command = json_object();
-    gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
+    gobj_send_event(src, EV_GETTEXT, kw_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
     if(empty_string(command)) {

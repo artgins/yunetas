@@ -5554,7 +5554,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     // Let others uses the periodic timer, WARNING: avoid a lot of C_TIMER's, bad performance!
-    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, json_incref(kw));
+    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, kw_incref(kw));
 
     JSON_DECREF(kw)
     return 0;

@@ -866,7 +866,14 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     }
                 }
 
-                int ret = gobj_send_event(child, event, json_incref(kw), gobj); // reuse kw
+                /*
+                 *  kw_incref(), not json_incref(): each child KW_DECREF()s the
+                 *  kw, and kw_decref() drops the serialized binary fields
+                 *  (gbuffer) on EVERY call. With a json_incref() the gbuffer
+                 *  would take one decref per child against no incref at all:
+                 *  from the second open channel on, a double free.
+                 */
+                int ret = gobj_send_event(child, event, kw_incref(kw), gobj); // reuse kw
                 if(ret == 0) {
                     some++;
                     priv->txMsgs++;

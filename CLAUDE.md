@@ -287,6 +287,19 @@ Corollaries:
   Decref manually only after `extract=TRUE` (ownership transferred) or when
   the gbuffer never entered a kw. Match `c_prot_raw` / `c_prot_tcp4h` in new
   protocol gclasses.
+- **A kw is refcounted with `kw_incref`/`kw_decref`, never with
+  `json_incref`/`json_decref`.** Events always travel with a kw, so this covers
+  every `gobj_send_event` / `gobj_publish_event` you hand an extra reference to.
+  The pair is not a synonym of the json one: `kw_decref()` drops the serialized
+  binary fields (the gbuffer) on **every** call, not just the last, and
+  `kw_incref()` is what balances that. A `json_incref(kw)` therefore bumps the
+  json refcount while leaving the gbuffer's untouched, and every `KW_DECREF`
+  downstream decrefs a gbuffer that was never increfed — a double free
+  (*"BAD gbuf_decref()"*). It bites only once the kw actually carries a gbuffer,
+  so the wrong call sits there looking fine for years: write `kw_incref` even
+  when today's kw is plain JSON. Two real bugs from this: `c_task`'s lmethod
+  forward, and `c_iogate`'s `send_all()` (fine with one open channel, double
+  free from the second on).
 
 ## ⚠️ Documentation language: English only
 

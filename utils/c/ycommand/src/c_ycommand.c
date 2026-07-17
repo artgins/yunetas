@@ -2671,7 +2671,7 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     json_t *kw_input_command = json_object();
     if(src != gobj) {
-        gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
+        gobj_send_event(src, EV_GETTEXT, kw_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
     } else {
         // Non-interactive: text is passed directly in kw
         json_object_set_new(kw_input_command, "text",

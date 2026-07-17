@@ -168,7 +168,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 priv->t_flush = 0;
             }
 
-            gobj_publish_event(gobj, ev, json_incref(kw));
+            gobj_publish_event(gobj, ev, kw_incref(kw));
 
             if(!priv->periodic && priv->t_flush == 0) {
                 if(gobj_is_running(gobj)) {

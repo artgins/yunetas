@@ -865,7 +865,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(result < 0) {
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
-        gobj_publish_event(gobj, EV_ON_ID_NAK, json_incref(kw));
+        gobj_publish_event(gobj, EV_ON_ID_NAK, kw_incref(kw));
 
     } else {
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
