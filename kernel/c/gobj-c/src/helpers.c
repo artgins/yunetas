@@ -1506,7 +1506,7 @@ PUBLIC json_t *load_persistent_json(
     }
     if(fd<0) {
         if(!(silence && on_critical_error == LOG_NONE)) {
-            gobj_log_critical(gobj, on_critical_error,
+            gobj_log_critical(gobj, on_critical_error|LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", exclusive? "Cannot open an exclusive json file":"Cannot open a json file",
