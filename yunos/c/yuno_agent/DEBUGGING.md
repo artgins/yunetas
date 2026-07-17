@@ -190,7 +190,7 @@ is in fact `command-yuno` to whatever yuno is registered as default.
 
 ### Persistence
 
-- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c#L2060))
+- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_yuno.c#L2063))
   writes them to the yuno's `trace_levels` attribute, and they are
   re-applied on the next start.
 - **Gclass and gobj traces** are **live-only**. They die with the process.
@@ -456,7 +456,7 @@ the local log file, plus the ievent message bodies.
 - C side: nothing special — inter-events flow as usual through `C_IEVENT_SRV`
   → `C_WEBSOCKET`.
 - JS side: `C_IEVENT_CLI` ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/js/gobj-js/src/c_ievent_cli.js)) parses
-  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/js/gobj-js/src/c_ievent_cli.js#L1127) and, if
+  incoming inter-events in [`ac_on_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/js/gobj-js/src/c_ievent_cli.js#L1187) and, if
   configured, invokes `trace_ievent_callback(prefix, iev_msg, direction, size)`.
 - The SPA installs that callback by writing the attribute:
   `gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic)`

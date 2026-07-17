@@ -628,7 +628,7 @@ This function does not perform normalization of `tm_wday` or `tm_yday`, and it a
 ---
 
 (get_days_range)=
-## [`get_days_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7588)
+## [`get_days_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7667)
 
 Calculates a time range spanning multiple days.
 
@@ -659,7 +659,7 @@ Day boundaries are computed in the specified timezone so that the range aligns t
 ---
 
 (get_hours_range)=
-## [`get_hours_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7556)
+## [`get_hours_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7635)
 
 Calculates a time range spanning multiple hours.
 
@@ -690,7 +690,7 @@ Hour boundaries are computed in the specified timezone so that the range aligns 
 ---
 
 (get_months_range)=
-## [`get_months_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7664)
+## [`get_months_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7743)
 
 Calculates a time range spanning multiple months.
 
@@ -721,7 +721,7 @@ Month boundaries are computed in the specified timezone so that the range aligns
 ---
 
 (get_weeks_range)=
-## [`get_weeks_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7619)
+## [`get_weeks_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7698)
 
 Calculates a time range spanning multiple weeks, starting from Monday.
 
@@ -752,7 +752,7 @@ Week boundaries are computed in the specified timezone with weeks starting on Mo
 ---
 
 (get_years_range)=
-## [`get_years_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7695)
+## [`get_years_range()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7774)
 
 Calculates a time range spanning multiple years, starting from January 1st.
 

@@ -309,7 +309,7 @@ Two granularities, both implemented in v7 as of 2026-05-26.
   Optional `zero_payload` overwrites the matching `__size__` bytes in
   the data `.json` for sensitive-data wipes. Read paths
   ([`tranger2_open_iterator`](#tranger2_open_iterator) history, [`tranger2_iterator_get_page`](#tranger2_iterator_get_page),
-  [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/timeranger2.c#L5097)) skip dead rows. Master-only,
+  [`publish_new_rt_disk_records`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/timeranger2.c#L5278)) skip dead rows. Master-only,
   idempotent. Slot ids do NOT renumber — `iterator_size` /
   `total_rows` keep counting slots, not live rows.
   **Treedb is NOT a consumer**: [`treedb_delete_instance()`](#treedb_delete_instance) is
@@ -328,7 +328,7 @@ the deleted key. Two paths:
   [`rmrdir`](#rmrdir)s `topic/disks/<rt_id>/<key>/` BEFORE the live
   `keys/<key>/` so the follower's [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) watcher catches it as
   `FS_SUBDIR_DELETED_TYPE`, which fires the follower's
-  `key_deleted_callback`. [`fire_key_deleted_locally()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/timeranger2.c#L2786) is split by
+  `key_deleted_callback`. [`fire_key_deleted_locally()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/timeranger2.c#L2868) is split by
   transport (`fs_followers` flag): the master in-process call
   serves non-watcher subscribers, the inotify branch serves the
   fs-watcher followers — each subscriber fires exactly once. No new
@@ -592,7 +592,7 @@ Memory
 `feedback_cross_yuno_via_store_not_command`:
 in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
 queries from the SPA go through `db_history_wz` reading B+ yunos'
-stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6127) does not
+stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6141) does not
 work** for B+ yunos because they don't publish their service via
 `__top_side__` — the store path is the right one.
 

@@ -545,42 +545,42 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Enforcing access control policies.
 
 (mt_create_node)=
-- [`mt_create_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L733)
+- [`mt_create_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L744)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_update_node)=
-- [`mt_update_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L817)
+- [`mt_update_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L828)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_delete_node)=
-- [`mt_delete_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L942)
+- [`mt_delete_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L953)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_link_nodes)=
-- [`mt_link_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1076)
+- [`mt_link_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1087)
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_unlink_nodes)=
-- [`mt_unlink_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1200):
+- [`mt_unlink_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1211):
    - Purpose: Methods for managing nodes in TreeDB.
    - Example: Adding, updating, deleting, or linking nodes.
 
 (mt_topic_desc)=
-- [`mt_topic_desc`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L563):
+- [`mt_topic_desc`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L574):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
 (mt_topic_links)=
-- [`mt_topic_links`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L612):
+- [`mt_topic_links`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L623):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
 (mt_topic_hooks)=
-- [`mt_topic_hooks`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L672):
+- [`mt_topic_hooks`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L683):
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
@@ -590,17 +590,17 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
    - Example: Describing topics or retrieving metadata.
 
 (mt_shoot_snap)=
-- [`mt_shoot_snap`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1849):
+- [`mt_shoot_snap`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1860):
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
 (mt_activate_snap)=
-- [`mt_activate_snap`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1872):
+- [`mt_activate_snap`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1883):
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
 (mt_list_snaps)=
-- [`mt_list_snaps`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1893):
+- [`mt_list_snaps`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1904):
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
@@ -721,7 +721,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 - [`gobj_treedbs()`](#gobj_treedbs):
     - `mt_treedbs`: Lists the TreeDBs associated with the GObject.
 - [`gobj_treedb_topics()`](#gobj_treedb_topics):
-    - [`mt_treedb_topics`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L544): Lists the topics within a TreeDB.
+    - [`mt_treedb_topics`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L555): Lists the topics within a TreeDB.
 - [`gobj_topic_desc()`](#gobj_topic_desc):
     - `mt_topic_desc`: Describes a topic in the TreeDB.
 - [`gobj_topic_links()`](#gobj_topic_links):
@@ -735,19 +735,19 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 - [`gobj_delete_node()`](#gobj_delete_node):
     - `mt_delete_node`: Deletes a node from the TreeDB.
 - [`gobj_get_node()`](#gobj_get_node):
-    - [`mt_get_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1324): Retrieves a specific node.
+    - [`mt_get_node`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1335): Retrieves a specific node.
 - [`gobj_list_nodes()`](#gobj_list_nodes):
-    - [`mt_list_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1374): Lists all nodes in a topic.
+    - [`mt_list_nodes`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1385): Lists all nodes in a topic.
 - [`gobj_list_instances()`](#gobj_list_instances):
-    - [`mt_list_instances`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1459): Lists instances of nodes.
+    - [`mt_list_instances`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1470): Lists instances of nodes.
 - [`gobj_node_parents()`](#gobj_node_parents):
-    - [`mt_node_parents`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1525): Lists the parent nodes of a specific node.
+    - [`mt_node_parents`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1536): Lists the parent nodes of a specific node.
 - [`gobj_node_children()`](#gobj_node_children):
-    - [`mt_node_children`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1612): Lists the child nodes of a specific node.
+    - [`mt_node_children`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1623): Lists the child nodes of a specific node.
 - [`gobj_topic_jtree()`](#gobj_topic_jtree):
-    - [`mt_topic_jtree`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1706): Retrieves the JSON representation of a topic's tree structure.
+    - [`mt_topic_jtree`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1717): Retrieves the JSON representation of a topic's tree structure.
 - [`gobj_node_tree()`](#gobj_node_tree):
-    - [`mt_node_tree`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1778): Retrieves the tree structure of nodes.
+    - [`mt_node_tree`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_node.c#L1789): Retrieves the tree structure of nodes.
 
 ---
 

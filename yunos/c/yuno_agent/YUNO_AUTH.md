@@ -567,7 +567,7 @@ Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yune
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
 only when the broker yuno sets `enable_command_authz` (§4.5); off by default.
 
-Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6247) ([`c_agent.c:6247`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6247), registered as
+Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6261) ([`c_agent.c:6261`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6261), registered as
 `authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
 authz data to all running yunos.
 
@@ -656,8 +656,8 @@ The `sudo -n` requires NOPASSWD in sudoers — a wide grant; see §8.10.
 ### 6.4 The reload broadcast
 
 [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c): when the post-snapshot diff says "changed",
-[`cert_sync_broadcast_reload()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9450) sends `command=reload-certs service=__yuno__`
-to every running yuno via [`cmd_command_yuno()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6127), plus the local agent.
+[`cert_sync_broadcast_reload()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9501) sends `command=reload-certs service=__yuno__`
+to every running yuno via [`cmd_command_yuno()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6141), plus the local agent.
 
 Yunos without TLS listeners ignore the event. Yunos with TLS handle it
 at [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c) — re-read the cert paths configured in their
@@ -666,8 +666,8 @@ existing connections alone.
 
 ### 6.5 `cert-sync-now` and `cert-sync-status`
 
-[`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6986) ([`c_agent.c:6986`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6986)) forces a tick immediately.
-[`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7009) ([`c_agent.c:7009`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7009)) returns the full state:
+[`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7026) ([`c_agent.c:7026`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7026)) forces a tick immediately.
+[`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7049) ([`c_agent.c:7049`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7049)) returns the full state:
 `enabled`, `interval_sec`, `store_dir`, `copy_cmd`, `last_check`,
 `last_action`, `last_result`, `failures`, plus a
 `deploy_hook_last_run` timestamp read from
@@ -1005,7 +1005,7 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 | Command authz regression test                     | [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.8.0/tests/c/command_authz/test_command_authz.c) |
 | `EVF_AUTHZ_*` flags                               | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/gobj.h)                                                       |
 | Agent's cert_sync attrs                           | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)                             |
-| [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9468) (diff + broadcast)               | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
+| [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9519) (diff + broadcast)               | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
 | `cert_sync_broadcast_reload`                      | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
 | `cert-sync-now` / `cert-sync-status` commands     | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
 | `reload-certs` handler in TCP server              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/c_tcp_s.c)                            |

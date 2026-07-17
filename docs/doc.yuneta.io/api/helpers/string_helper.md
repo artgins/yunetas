@@ -916,7 +916,7 @@ The function modifies the input string in place. If `s` is NULL, it is returned 
 ---
 
 (path_basename)=
-## [`path_basename()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7364)
+## [`path_basename()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7443)
 
 Extracts the filename component from a file path.
 
@@ -943,7 +943,7 @@ The returned pointer points into the original `path` string; no new memory is al
 ---
 
 (replace_cli_vars)=
-## [`replace_cli_vars()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7450)
+## [`replace_cli_vars()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7529)
 
 Replaces CLI variable placeholders in a command string with base64-encoded values.
 

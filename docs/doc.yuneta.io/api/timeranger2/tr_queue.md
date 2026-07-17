@@ -8,7 +8,7 @@ Source code:
 - [`tr_queue.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c)
 
 (trq_answer)=
-## [`trq_answer()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L578)
+## [`trq_answer()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L582)
 
 `trq_answer()` extracts and returns a new JSON object containing only the metadata from the given message.
 
@@ -37,7 +37,7 @@ The function is specifically designed to extract the `__MD_TRQ__` metadata field
 ---
 
 (trq_check_backup)=
-## [`trq_check_backup()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L605)
+## [`trq_check_backup()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L609)
 
 `trq_check_backup()` performs a backup operation on the queue if necessary.
 
@@ -64,7 +64,7 @@ This function ensures that the queue's backup mechanism is triggered when requir
 ---
 
 (trq_check_pending_rowid)=
-## [`trq_check_pending_rowid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L443)
+## [`trq_check_pending_rowid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L447)
 
 `trq_check_pending_rowid()` checks the pending status of a message identified by its `rowid` in the queue.
 
@@ -122,7 +122,7 @@ Ensure that [`trq_close()`](<#trq_close>) is called before shutting down the und
 ---
 
 (trq_get_by_rowid)=
-## [`trq_get_by_rowid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L427)
+## [`trq_get_by_rowid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L431)
 
 `trq_get_by_rowid()` retrieves a message from the queue iterator using its row ID.
 
@@ -151,7 +151,7 @@ The returned message remains owned by the queue and should not be freed manually
 ---
 
 (trq_get_metadata)=
-## [`trq_get_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L563)
+## [`trq_get_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L567)
 
 Retrieves the metadata associated with a given JSON object. The returned JSON object is not owned by the caller.
 
@@ -236,7 +236,7 @@ Use [`trq_load_all()`](<#trq_load_all>) to retrieve messages efficiently within 
 ---
 
 (trq_msg_json)=
-## [`trq_msg_json()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L513)
+## [`trq_msg_json()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L517)
 
 `trq_msg_json()` retrieves the JSON representation of a queue message. The returned JSON object is not owned by the caller and must not be modified or freed.
 
@@ -298,7 +298,7 @@ Ensure that [`tranger2_startup()`](<#tranger2_startup>) is called before invokin
 ---
 
 (trq_set_hard_flag)=
-## [`trq_set_hard_flag()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L477)
+## [`trq_set_hard_flag()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L481)
 
 `trq_set_hard_flag()` marks a message with a hard flag, allowing it to be recovered in the next queue open if the flag is used in [`trq_load()`](<#trq_load>).
 
@@ -329,7 +329,7 @@ A message must be flagged after being appended to the queue if it needs to be re
 ---
 
 (trq_set_metadata)=
-## [`trq_set_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L548)
+## [`trq_set_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L552)
 
 `trq_set_metadata()` sets a metadata key-value pair in the given JSON object.
 
@@ -360,7 +360,7 @@ The caller must ensure that `kw` is a valid JSON object before calling [`trq_set
 ---
 
 (trq_set_soft_mark)=
-## [`trq_set_soft_mark()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L493)
+## [`trq_set_soft_mark()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L497)
 
 `trq_set_soft_mark()` sets or clears a soft mark on a given queue message.
 
@@ -391,7 +391,7 @@ Soft marks are used for temporary message state tracking and do not persist acro
 ---
 
 (trq_unload_msg)=
-## [`trq_unload_msg()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L466)
+## [`trq_unload_msg()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_queue.c#L470)
 
 The `trq_unload_msg()` function unloads a message from the queue iterator, removing it from memory.
 

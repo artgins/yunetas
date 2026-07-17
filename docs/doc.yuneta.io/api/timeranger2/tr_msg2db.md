@@ -43,7 +43,7 @@ Ensure that `bf` has sufficient space (`bfsize`) to store the generated path to 
 ---
 
 (msg2db_append_message)=
-## [`msg2db_append_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L996)
+## [`msg2db_append_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L1013)
 
 `msg2db_append_message()` appends a new message to the specified topic in the given message database.
 
@@ -79,7 +79,7 @@ Ensure that [`msg2db_open_db()`](<#msg2db_open_db>) has been called before using
 ---
 
 (msg2db_close_db)=
-## [`msg2db_close_db()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L406)
+## [`msg2db_close_db()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L418)
 
 `msg2db_close_db()` closes an open message database identified by `msg2db_name`, ensuring that all resources associated with it are properly released.
 
@@ -108,7 +108,7 @@ Ensure that [`msg2db_close_db()`](<#msg2db_close_db>) is called after all operat
 ---
 
 (msg2db_get_message)=
-## [`msg2db_get_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L1251)
+## [`msg2db_get_message()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L1268)
 
 `msg2db_get_message()` retrieves a message from the specified database and topic using the given primary and secondary keys.
 
@@ -145,7 +145,7 @@ The function relies on the structure and indexing of the database, which must be
 ---
 
 (msg2db_list_messages)=
-## [`msg2db_list_messages()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L1170)
+## [`msg2db_list_messages()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/tr_msg2db.c#L1187)
 
 `msg2db_list_messages()` retrieves a list of messages from the specified database and topic, filtered by the given criteria. It supports optional filtering and a custom matching function.
 

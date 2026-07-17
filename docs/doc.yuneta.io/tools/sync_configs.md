@@ -26,7 +26,7 @@ A config in the agent is keyed by `(id, version)`:
   `gate_auraair.4502`, …).
 - **`version`** is *not* a parameter: the agent reads it from the `__version__`
   field **inside the file content**. `__description__` is read the same way.
-  (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L3781) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L3941) in
+  (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L3795) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L3955) in
   [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c).)
 
 So for every `*.json` in the directory (skipping `_*.json` batch/deploy helpers

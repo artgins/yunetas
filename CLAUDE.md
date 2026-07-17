@@ -1243,12 +1243,19 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   5. READMEs/docs scanned for stale content (old versions, removed features,
      renamed APIs).
   Surface gaps as a punch list before committing/tagging.
-- **Every release includes the live docs:** repin `blob/<old>/` / `tree/<old>/`
-  deep links to the new tag across `docs/doc.yuneta.io/**` and
-  `yunos/c/yuno_agent/*.md` (URL segment only — leave "since X" prose alone);
-  clear the myst cache (a repin is a bulk edit); run
-  `docs/doc.yuneta.io/deploy.sh` and curl-verify the live site. The release is
-  not done until the live site reflects it.
+- **Every release includes the live docs:** repin the `blob/<old>/` /
+  `tree/<old>/` deep links across `docs/doc.yuneta.io/**` and
+  `yunos/c/yuno_agent/*.md` with
+  **`python3 scripts/check_doc_line_refs.py --repin=<NEW_TAG>`** — never a hand
+  `sed` over the URL segment. The tag swap is the easy half: the script also
+  **recomputes every `#L<line>` symbol anchor to the symbol's current def
+  line**, and those drift silently whenever code is inserted above a documented
+  function (at 7.8.0 a `sed`-only repin left **210 anchors** across 20 files
+  pointing at the wrong line — the tag looked right, so nothing flagged it).
+  Run it with no flag first as a guard (exits non-zero if a ref points past
+  EOF), and leave "since X" prose alone. Then clear the myst cache (a repin is
+  a bulk edit); run `docs/doc.yuneta.io/deploy.sh` and curl-verify the live
+  site. The release is not done until the live site reflects it.
 - **GitHub release body from the CHANGELOG:** strip the 4-space bullet indent
   from the `## vX.Y.Z` section first (otherwise GitHub renders it as one code
   block). When backfilling an older release, restore

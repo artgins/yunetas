@@ -13,7 +13,7 @@ to by default.
 | File                                                | What it is                                               |
 |-----------------------------------------------------|----------------------------------------------------------|
 | [`src/c_agent.c`](src/c_agent.c)                    | The agent gclass (commands, FSM, child yuno spawning)    |
-| [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L11801), `GOBJ_DECLARE_GCLASS`) |
+| [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L11852), `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
 | [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | **Minute 0: what every yuno's `main()` actually does.** [`yuneta_entry_point()`](#yuneta_entry_point) step-by-step (argp, gbmem-setup + json allocator switch, config merge, log handlers, gclass registration), [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/root-linux/src/ydaemon.c) double-fork supervisor (the watcher that makes a yuno survive without an agent), signals inside the child, how `kill-yuno` interacts with the watcher, `/var/crash/core.%e` forensics wired by the `.deb`. |

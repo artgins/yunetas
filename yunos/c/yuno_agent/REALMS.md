@@ -113,7 +113,7 @@ on a realm is `bind_ip`** (see §5).
 
 ## 4. On-disk layout
 
-Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7452) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c):
+Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L7503) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c):
 
 ```
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
@@ -226,7 +226,7 @@ range_ports = "[[11100,11199]]"   ← default range
 last_port   = 0
 ```
 
-Allocation in [`get_new_service_port()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9156) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c) reads the
+Allocation in [`get_new_service_port()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L9207) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c) reads the
 agent's `range_ports`, advances `last_port` globally, and hands out the
 next port. **All realms on the host share the same pool.** Two realms
 asking for an automatic port get adjacent ports from the same range,

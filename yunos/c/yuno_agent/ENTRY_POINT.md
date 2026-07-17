@@ -265,7 +265,7 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
   watcher has already spawned a new yuno child with a new pid.
 - If you `kill -9` the agent itself, every yuno on the box keeps running.
   Each one still has its watcher. Restarting the agent re-discovers them
-  via `getpgid(pid) >= 0` checks plus the boot-time [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L8842).
+  via `getpgid(pid) >= 0` checks plus the boot-time [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L8893).
 
 ### 4.5 `--stop` / [`daemon_shutdown()`](#daemon_shutdown)
 

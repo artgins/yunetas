@@ -95,7 +95,7 @@ cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
    read `/etc/letsencrypt/live/`.
 2. Snapshot `size+mtime` of every `*.crt` under `cert_sync_store_dir`
    before and after the copy.
-3. If any file changed, invoke [`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6127) internally to
+3. If any file changed, invoke [`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.8.0/yunos/c/yuno_agent/src/c_agent.c#L6141) internally to
    broadcast `reload-certs` to every running yuno — plus `gobj_command(gobj_yuno(), "reload-certs", ...)`
    on the agent itself.
 4. Update the read-only stats attrs:

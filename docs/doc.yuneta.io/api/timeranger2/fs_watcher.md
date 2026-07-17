@@ -47,7 +47,7 @@ The created watcher event must be started using [`fs_start_watcher_event()`](<#f
 ---
 
 (fs_start_watcher_event)=
-## [`fs_start_watcher_event()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/fs_watcher.c#L212)
+## [`fs_start_watcher_event()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/fs_watcher.c#L215)
 
 `fs_start_watcher_event()` starts monitoring the specified file system event, enabling notifications for file and directory changes.
 
@@ -74,7 +74,7 @@ Once started, the event will trigger the associated callback when file system ch
 ---
 
 (fs_stop_watcher_event)=
-## [`fs_stop_watcher_event()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/fs_watcher.c#L225)
+## [`fs_stop_watcher_event()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/timeranger2/src/fs_watcher.c#L228)
 
 `fs_stop_watcher_event()` stops the given file system watcher event and destroys the associated `fs_event_t` instance.
 

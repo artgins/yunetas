@@ -171,7 +171,7 @@ The amount of free RAM in kilobytes.
 ---
 
 (get_name_from_nn_table)=
-## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7535)
+## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7614)
 
 Looks up a name string in a number-to-name lookup table by matching a numeric value.
 
@@ -196,7 +196,7 @@ A pointer to the name string corresponding to the given number, or NULL if not f
 ---
 
 (get_number_from_nn_table)=
-## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7514)
+## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7593)
 
 Looks up a numeric value in a number-to-name lookup table by matching a name string.
 
@@ -221,7 +221,7 @@ The numeric value corresponding to the given name, or -1 if not found.
 ---
 
 (get_yunetas_base)=
-## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7376)
+## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7455)
 
 Resolves the Yunetas base directory path. The environment variable `YUNETAS_BASE` takes priority, followed by standard paths.
 
@@ -242,7 +242,7 @@ A pointer to a static string containing the Yunetas base directory path.
 ---
 
 (is_yuneta_user)=
-## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7308)
+## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7387)
 
 Checks whether a given username belongs to the "yuneta" group or is exactly the "yuneta" user.
 
@@ -290,7 +290,7 @@ The number of open file descriptors found and logged.
 ---
 
 (source2base64_for_yunetas)=
-## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7409)
+## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7488)
 
 Converts a file to base64-encoded format, finding the file in either the current path or relative to the Yunetas base directory.
 
@@ -338,7 +338,7 @@ The total RAM in kilobytes.
 ---
 
 (yuneta_getgrnam)=
-## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7282)
+## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7361)
 
 Portable wrapper around `getgrnam()` that looks up group information by name. Uses static implementations when `CONFIG_FULLY_STATIC` is defined.
 
@@ -361,7 +361,7 @@ A pointer to a `struct group`, or NULL if the group is not found.
 ---
 
 (yuneta_getgrouplist)=
-## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7291)
+## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7370)
 
 Portable wrapper around `getgrouplist()` that retrieves all groups a user belongs to.
 
@@ -390,7 +390,7 @@ The number of groups on success. Returns -1 if the array is too small.
 ---
 
 (yuneta_getpwnam)=
-## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7273)
+## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7352)
 
 Portable wrapper around `getpwnam()` that looks up user information by username.
 
@@ -413,7 +413,7 @@ A pointer to a `struct passwd`, or NULL if the username is not found.
 ---
 
 (yuneta_getpwuid)=
-## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7264)
+## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/helpers.c#L7343)
 
 Portable wrapper around `getpwuid()` that looks up user information by user ID.
 

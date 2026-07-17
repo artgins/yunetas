@@ -142,7 +142,7 @@ This function does not perform a deep copy. The returned JSON object contains re
 ---
 
 (kw_collapse)=
-## [`kw_collapse()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L2952)
+## [`kw_collapse()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L2996)
 
 `kw_collapse()` returns a new JSON object where arrays or dictionaries exceeding specified size limits are collapsed into a placeholder structure indicating their path and size.
 
@@ -385,7 +385,7 @@ Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialize
 ---
 
 (kw_filter_metadata)=
-## [`kw_filter_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3279)
+## [`kw_filter_metadata()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3328)
 
 The function `kw_filter_metadata()` returns a duplicate of the given JSON object or array, removing all metadata keys that begin with '__'.
 
@@ -414,7 +414,7 @@ Metadata keys are identified as those beginning with '__'. If `kw` is not an obj
 ---
 
 (kw_filter_private)=
-## [`kw_filter_private()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3253)
+## [`kw_filter_private()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3302)
 
 The function `kw_filter_private()` returns a duplicate of the given JSON object or array, removing all private keys that begin with a single underscore (`_`).
 
@@ -884,7 +884,7 @@ The function only works with JSON objects. If `kw` is not a dictionary, it retur
 ---
 
 (kw_has_word)=
-## [`kw_has_word()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3619)
+## [`kw_has_word()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3668)
 
 Checks if a given `word` exists within the JSON object `kw`. The word can be found in a string, list, or dictionary. Supports recursive search and verbosity options.
 
@@ -1273,7 +1273,7 @@ This function is useful for validating JSON records in databases or structured d
 ---
 
 (kwid_get_ids)=
-## [`kwid_get_ids()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3500)
+## [`kwid_get_ids()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3549)
 
 Extracts and returns a new JSON list containing all unique IDs from the given JSON object, list, or string representation of IDs.
 
@@ -1300,7 +1300,7 @@ The function supports extracting IDs from various JSON structures, including obj
 ---
 
 (kwid_match_id)=
-## [`kwid_match_id()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3686)
+## [`kwid_match_id()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3735)
 
 Checks if the given `id` exists within the JSON structure `ids`, which can be a string, list, or dictionary. The function returns `TRUE` if the `id` is found, otherwise `FALSE`.
 
@@ -1334,7 +1334,7 @@ The function supports different JSON structures:
 ---
 
 (kwid_match_nid)=
-## [`kwid_match_nid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3747)
+## [`kwid_match_nid()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3796)
 
 Checks if the given `id` with a limited size exists in the JSON list, dictionary, or string `ids`. The comparison is performed up to `max_id_size` characters.
 
@@ -1367,7 +1367,7 @@ If `ids` is an empty object or array, the function returns `TRUE`. The function 
 ---
 
 (kwjr_get)=
-## [`kwjr_get()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3329)
+## [`kwjr_get()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3378)
 
 Retrieve the first record from a JSON list or dictionary that matches the given `id`. If the record is not found and `KW_CREATE` is set, a new record is created using `json_desc`. The function supports extracting the record from the list or dictionary if `KW_EXTRACT` is set.
 
@@ -1406,7 +1406,7 @@ If `kw` is a dictionary, the function searches for a key matching `id`. If `kw` 
 ---
 
 (json_flatten_dict)=
-## [`json_flatten_dict()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3875)
+## [`json_flatten_dict()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3924)
 
 Flattens a nested JSON object into a single-level dictionary with backtick-delimited path keys.
 
@@ -1433,7 +1433,7 @@ Use [`json_unflatten_dict()`](#json_unflatten_dict) to reconstruct the original 
 ---
 
 (json_unflatten_dict)=
-## [`json_unflatten_dict()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L4006)
+## [`json_unflatten_dict()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L4055)
 
 Reconstructs a nested JSON structure from a flattened dictionary.
 
@@ -1522,7 +1522,7 @@ Binary fields registered via [`kw_add_binary_type()`](#kw_add_binary_type) are c
 ---
 
 (kw_size)=
-## [`kw_size()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3304)
+## [`kw_size()`](https://github.com/artgins/yunetas/blob/7.8.0/kernel/c/gobj-c/src/kwid.c#L3353)
 
 Returns the size of a JSON object or array.
 
