@@ -300,6 +300,13 @@ Corollaries:
   when today's kw is plain JSON. Two real bugs from this: `c_task`'s lmethod
   forward, and `c_iogate`'s `send_all()` (fine with one open channel, double
   free from the second on).
+  **Fix the pair, never one half.** `json_incref(kw)` + `JSON_DECREF(kw)` in the
+  same function is two errors that cancel out; correcting only the incref turns
+  a wrong-but-balanced ledger into a gbuffer **leak**, and correcting only the
+  decref turns it into a double free. When you touch one side, check the other
+  in the same function — including where the kw is handed off owned
+  (`msg_iev_build_response()` releases it with `KW_DECREF`, so a `cmd_*` that
+  ends there is already balanced).
 
 ## ⚠️ Documentation language: English only
 

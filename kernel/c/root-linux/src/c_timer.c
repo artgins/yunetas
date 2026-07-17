@@ -178,7 +178,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
