@@ -59,6 +59,7 @@ Cancel CQE: res = 0    (success)
 #include <errno.h>
 #include <time.h>
 #include <sys/timerfd.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
@@ -180,6 +181,31 @@ retry:
         .flags = params_test.flags | IORING_SETUP_CLAMP
     };
     /*
+     *  ENOMEM here is nearly always RLIMIT_MEMLOCK, not a shortage of RAM:
+     *  the rings are pinned pages and the budget is charged per USER, shared
+     *  by every yuno running as the same account. A yuno asking for 32768
+     *  entries pins ~3.1 MB, so the common 8 MB default admits only two of
+     *  them and the rest abort at startup on a node with gigabytes free.
+     *  Report the limit and the ring footprint below: without them the log
+     *  reads as a memory leak and sends the reader hunting in the wrong place.
+     */
+    struct rlimit rl_memlock;
+    char memlock_limit[32];
+    if(getrlimit(RLIMIT_MEMLOCK, &rl_memlock) < 0) {
+        snprintf(memlock_limit, sizeof(memlock_limit), "unknown");
+    } else if(rl_memlock.rlim_cur == RLIM_INFINITY) {
+        snprintf(memlock_limit, sizeof(memlock_limit), "unlimited");
+    } else {
+        snprintf(memlock_limit, sizeof(memlock_limit), "%lu bytes",
+            (unsigned long)rl_memlock.rlim_cur
+        );
+    }
+    unsigned long ring_bytes =
+        (unsigned long)entries * sizeof(struct io_uring_sqe) +
+        (unsigned long)entries * 2 * sizeof(struct io_uring_cqe) +
+        (unsigned long)entries * sizeof(uint32_t);
+
+    /*
      *  Retry on transient ENOMEM/EAGAIN before aborting. io_uring rings
      *  consume pinned kernel memory (RLIMIT_MEMLOCK / vm.max_user_locks);
      *  a synchronised restart of many yunos (e.g. an agent deactivate-snap
@@ -189,6 +215,10 @@ retry:
      *  /var/crash for no operational reason: the ydaemon watcher relaunches,
      *  the 2nd or 3rd attempt succeeds, but every failed attempt aborts
      *  with SIGABRT. Exponential backoff caps the wait at ~3 s total.
+     *
+     *  This absorbs a BURST, never a ceiling: if memlock is simply too low
+     *  for the configured io_uring_entries, all five attempts fail and the
+     *  abort below fires with the diagnostics gathered above.
      *
      *  Non-transient errors (EINVAL, ENOSYS, EPERM, …) skip the retry and
      *  fall through to the original abort path — those are real config /
@@ -206,10 +236,12 @@ retry:
         gobj_log_warning(yuno, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "io_uring_queue_init_params() transient pressure, retrying",
+            "msg",          "%s", "io_uring_queue_init_params() pinned-memory pressure, retrying",
             "attempt",      "%d", retry + 1,
             "delay_ms",     "%d", retry_delay_ms,
             "entries",      "%d", entries,
+            "ring_bytes",   "%lu", ring_bytes,
+            "memlock",      "%s", memlock_limit,
             "errno",        "%d", -err,
             "serrno",       "%s", strerror(-err),
             NULL
@@ -223,10 +255,21 @@ retry:
     }
     if (err < 0) {
         GBMEM_FREE(yev_loop)
+        const char *hint = "";
+        if(err == -ENOMEM) {
+            hint = "RLIMIT_MEMLOCK exhausted (check 'ulimit -l'): it is charged "
+                "per user and shared by every yuno. Raise memlock in "
+                "/etc/security/limits.d/99-yuneta-core.conf, or lower the yuno's "
+                "'io_uring_entries' attr";
+        }
         gobj_log_critical(yuno, LOG_OPT_ABORT,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "Linux io_uring_queue_init_params() FAILED, cannot run yunetas",
+            "entries",      "%d", entries,
+            "ring_bytes",   "%lu", ring_bytes,
+            "memlock",      "%s", memlock_limit,
+            "hint",         "%s", hint,
             "errno",        "%d", -err,
             "serrno",       "%s", strerror(-err),
             NULL

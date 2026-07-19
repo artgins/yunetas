@@ -301,11 +301,14 @@ cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 export YUNETA_DIR=/yuneta
 export PATH="/yuneta/bin:/usr/sbin:/sbin:/home/yuneta/.local/bin:$PATH"
 
-# Raise core dump and open-files limits for interactive shells
-# (Init/service scripts also raise limits before launching daemons)
+# Raise core dump, open-files and locked-memory limits for interactive shells
+# (Init/service scripts also raise limits before launching daemons).
+# memlock is needed by any yuno started from a shell, ycommand included: its
+# yev_loop pins io_uring ring memory against RLIMIT_MEMLOCK.
 ulimit -c unlimited 2>/dev/null || true
 ulimit -n unlimited 2>/dev/null || true
 ulimit -Hn unlimited 2>/dev/null || true
+ulimit -l unlimited 2>/dev/null || true
 
 # Handy aliases, plus the yuno binaries and agent tools on PATH.
 # /yuneta/development/yunetas is the single SDK base on every node: full
@@ -366,6 +369,16 @@ yuneta  soft    core    unlimited
 yuneta  hard    core    unlimited
 yuneta  soft    nofile  unlimited
 yuneta  hard    nofile  unlimited
+
+# memlock: io_uring rings are pinned memory charged against RLIMIT_MEMLOCK,
+# and the budget is per USER, shared by every yuno running as yuneta.
+# A yuno with io_uring_entries=32768 pins ~3.2 MB (SQEs 32768*64 + CQEs
+# 65536*16 + SQ array), so the usual 8 MB default only admits two of them:
+# the third yuno onwards dies at startup with ENOMEM in yev_loop_create(),
+# and the ydaemon watcher relaunches it forever. Seen on a fresh node with
+# 7 GB of free RAM — it is a limit, never a shortage of memory.
+yuneta  soft    memlock unlimited
+yuneta  hard    memlock unlimited
 EOF
 chmod 0644 "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf"
 
@@ -404,6 +417,10 @@ fi
 _set_limits() {
     # Core dumps
     ulimit -c unlimited || true
+    # io_uring rings are pinned memory shared per user (see the memlock note in
+    # /etc/security/limits.d/99-yuneta-core.conf). pam_limits does not reach
+    # every boot path that starts this script, so raise it here as well.
+    ulimit -l unlimited 2>/dev/null || true
     # Try to raise the hard limit, then set the soft limit
     TARGET=200000
     HARD="$(ulimit -Hn 2>/dev/null || echo 0)"

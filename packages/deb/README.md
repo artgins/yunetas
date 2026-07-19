@@ -280,11 +280,23 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 |------|------|----------|-------|
 | `yuneta` | soft/hard | core | unlimited |
 | `yuneta` | soft/hard | nofile | unlimited |
+| `yuneta` | soft/hard | memlock | unlimited |
+
+`memlock` is not optional. io_uring rings are pinned memory charged against
+`RLIMIT_MEMLOCK`, and the budget is **per user**, shared by every yuno running
+as `yuneta`. A yuno with `io_uring_entries=32768` pins ~3.1 MB (SQEs
+`32768*64` + CQEs `65536*16` + SQ array), so the usual 8 MB default admits only
+two of them: from the third yuno on, `yev_loop_create()` fails with `ENOMEM`,
+the yuno aborts at startup and the ydaemon watcher relaunches it indefinitely.
+The symptom is a node with gigabytes of free RAM whose yunos die of "out of
+memory" — it is a limit, never a shortage.
 
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 
 - Adds `/yuneta/bin` and `/yuneta/agent` to `PATH`
-- Sets `ulimit -c unlimited` and `ulimit -n unlimited`
+- Sets `ulimit -c unlimited`, `ulimit -n unlimited` and `ulimit -l unlimited`
+  (the last one so a yuno launched straight from a shell — `ycommand` included —
+  gets the same pinned-memory budget as the ones started by the agent)
 - Defines aliases: `y` (cd to yunetas), `salidas` / `outputs` (cd to outputs), `logs` (cd to logs)
 
 ### Sudoers (`/etc/sudoers.d/90-yuneta`)

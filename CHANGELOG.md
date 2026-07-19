@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **`memlock` added to the packaged resource limits** (`.deb` and `.rpm`).
+  io_uring rings are pinned memory charged against `RLIMIT_MEMLOCK`, and the
+  budget is **per user**, shared by every yuno running as `yuneta`. A yuno with
+  `io_uring_entries=32768` pins ~3.1 MB, so the usual 8 MB default admitted only
+  two of them: from the third on, `yev_loop_create()` failed with `ENOMEM`, the
+  yuno aborted at startup and the ydaemon watcher relaunched it indefinitely.
+  Freshly installed nodes with gigabytes of free RAM could not bring up their
+  full yuno set. The limits drop-in, the init script and `profile.d` now all
+  raise it.
+- **`yev_loop_create()` names the culprit on `ENOMEM`**: the warning and the
+  critical now carry the ring's estimated footprint (`ring_bytes`) and the
+  effective `memlock` limit, and the critical adds a hint pointing at
+  `ulimit -l` and `io_uring_entries`. The warning no longer calls the condition
+  *"transient pressure"* — a fixed ceiling is not transient, and the wording
+  sent readers looking for a memory leak.
+
 ## 7.8.1
 
 A bugfix release. Most of it came out of watching a node come back from a cold
