@@ -399,6 +399,30 @@ fs.nr_open  = 4000000
   at, and disks would fill up otherwise. Copy the core out before
   triggering the next crash if you need both.
 
+:::{warning}
+**`core_pattern` is contested, and losing it is silent.** A crash handler
+installed by the distro takes it over at boot — `apport` on Ubuntu,
+`abrt-addon-ccpp` on RHEL/Rocky — replacing the path with a pipe to itself.
+Both discard cores from binaries that did not come from a distro package, so
+yuno cores simply stop existing, with nothing logged anywhere.
+
+`sysctl --system` at install time is not enough: `systemd-sysctl.service` runs
+*before* those handlers, so the setting holds until the next reboot and then
+disappears. Since 7.8.3 the `.deb` ships
+`yuneta-core-pattern.service` (`After=apport.service`) to take it back after
+the handler has had its turn.
+
+Always verify on the machine, not in the config file:
+
+```bash
+cat /proc/sys/kernel/core_pattern      # must be /var/crash/core.%e
+```
+
+If it starts with `|`, a handler owns it and you have no yuno cores. On
+RHEL/Rocky the equivalent is `abrt-ccpp.service`; the packaged unit does not
+cover it yet.
+:::
+
 ### 8.2 PAM limits
 
 `/etc/security/limits.d/99-yuneta-core.conf`:

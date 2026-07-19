@@ -1,5 +1,24 @@
 # **Changelog**
 
+## Unreleased
+
+- **`core_pattern` is taken back from `apport`** (`.deb`). On Ubuntu,
+  `apport.service` starts *after* `systemd-sysctl.service` and overwrites
+  `/proc/sys/kernel/core_pattern` with a pipe to itself, so the value from
+  `/etc/sysctl.d/99-yuneta-core.conf` survived the install (the post-install
+  runs `sysctl --system`) and was lost at the next boot. Since apport discards
+  cores from binaries that did not come from a distro package, yuno cores then
+  stopped existing with nothing logged — found on a node reading
+  `|/usr/share/apport/apport …` while the Rocky node next to it still had
+  `/var/crash/core.%e`. The package now ships
+  `yuneta-core-pattern.service` (`After=apport.service`, ordering-only so it is
+  harmless on Debian) which re-applies the file, and the post-install warns via
+  `logger` if `core_pattern` still is not ours.
+  Same shape as the `/var/crash` fix in 7.8.2: a one-shot setting losing to a
+  later actor, so re-assert instead of fighting. **The RHEL/Rocky equivalent
+  (`abrt-addon-ccpp`) is not covered yet** — it is not installed on our nodes,
+  but it would do exactly the same thing.
+
 ## 7.8.2
 
 A release about a failure that could not be seen. A node came up with a

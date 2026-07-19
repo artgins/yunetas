@@ -124,6 +124,13 @@ The `postinst` script runs automatically after file extraction and performs thes
   holds only until that package's next transaction — after which cores stop
   being written with no diagnostic.
 
+- Installs and enables `yuneta-core-pattern.service`, which re-applies
+  `kernel.core_pattern` **after** `apport.service`. On Ubuntu apport takes that
+  sysctl over at every boot and discards cores of non-distro binaries, so
+  without this the yunos silently stop producing core dumps after the first
+  reboot. Verify with `cat /proc/sys/kernel/core_pattern` — a value starting
+  with `|` means a crash handler owns it.
+
 #### 2.5. Kernel Parameter Tuning
 - Applies `/etc/sysctl.d/99-yuneta-core.conf` via `sysctl --system`
 

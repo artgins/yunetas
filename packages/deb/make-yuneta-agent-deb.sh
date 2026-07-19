@@ -325,6 +325,37 @@ alias ll='ls -la'
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
+# --- core_pattern, re-asserted after apport has had its turn ---
+#
+# On Ubuntu, apport.service starts AFTER systemd-sysctl.service and writes
+# /proc/sys/kernel/core_pattern with its own pipe, so the value from
+# /etc/sysctl.d/99-yuneta-core.conf survives the install (postinst runs
+# `sysctl --system`) and is lost at the next boot. Since apport discards cores
+# of binaries that did not come from a distro package, yuno cores then vanish
+# with no diagnostic — the same shape as the /var/crash tug-of-war below: a
+# one-shot setting losing to a later actor.
+#
+# Re-assert rather than fight: apport keeps reporting crashes for everything
+# else, we just take core_pattern back afterwards. Ordering-only dependencies,
+# so this is harmless on Debian, where apport does not exist.
+mkdir -p "${WORKDIR}/lib/systemd/system"
+cat > "${WORKDIR}/lib/systemd/system/yuneta-core-pattern.service" <<'EOF'
+[Unit]
+Description=Yuneta: re-apply kernel.core_pattern after apport
+Documentation=https://doc.yuneta.io/entry-point
+After=systemd-sysctl.service apport.service
+ConditionPathExists=/etc/sysctl.d/99-yuneta-core.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/sysctl -p /etc/sysctl.d/99-yuneta-core.conf
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "${WORKDIR}/lib/systemd/system/yuneta-core-pattern.service"
+
 # --- Core dump directory ownership, re-asserted at every boot ---
 #
 # /var/crash is not necessarily ours alone (on RHEL/Rocky kdump's kexec-tools
@@ -692,6 +723,9 @@ if command -v invoke-rc.d >/dev/null 2>&1; then
     invoke-rc.d yuneta_agent stop || true
 else
     /etc/init.d/yuneta_agent stop || true
+fi
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now yuneta-core-pattern.service >/dev/null 2>&1 || true
 fi
 if [ -x /usr/sbin/update-rc.d ]; then
     /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
@@ -1314,6 +1348,17 @@ fi
 # Re-assert it now, and let systemd-tmpfiles do it again on every boot.
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
     systemd-tmpfiles --create /usr/lib/tmpfiles.d/yuneta-crash.conf >/dev/null 2>&1 || true
+fi
+
+# core_pattern: apport grabs it back at every boot (see the unit's own header).
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable yuneta-core-pattern.service >/dev/null 2>&1 || true
+    systemctl start yuneta-core-pattern.service >/dev/null 2>&1 || true
+    if [ "$(cat /proc/sys/kernel/core_pattern 2>/dev/null)" != "/var/crash/core.%e" ]; then
+        logger -t yuneta_agent_deb \
+            "WARNING: kernel.core_pattern is not /var/crash/core.%e — yuno core dumps will not land there"
+    fi
 fi
 
 # Apply kernel settings and reload systemd units
