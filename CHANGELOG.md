@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+
+- **`gdb` is now a hard dependency of the agent package** (`Depends:` in the
+  `.deb`, `Requires:` in the `.rpm`). A Yuneta node is expected to produce core
+  dumps in `/var/crash` (7.8.2/7.8.3 went to some length to make sure it does),
+  and a core is useless on a node with no debugger: analysing one meant copying
+  a multi-hundred-MB file off the node, or installing `gdb` by hand at exactly
+  the moment something is already broken. It is a dependency rather than a
+  recommendation because `--no-install-recommends` is common on server installs,
+  which is precisely where the crash will happen.
+
 ## 7.8.3
 
 A packaging release, and a lesson about who else wants your kernel knobs.

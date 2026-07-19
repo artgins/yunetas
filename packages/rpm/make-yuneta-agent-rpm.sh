@@ -1084,7 +1084,7 @@ URL:            https://yuneta.io
 BuildArch:      ${ARCHITECTURE}
 AutoReqProv:    no
 
-Requires:       shadow-utils, rsync, rsyslog, chkconfig, initscripts, sudo
+Requires:       shadow-utils, rsync, rsyslog, chkconfig, initscripts, sudo, gdb
 Requires:       glibc-langpack-en, glibc-langpack-es
 Recommends:     vim-enhanced, tree, pipx, fail2ban, net-tools, mlocate, curl, telnet
 
