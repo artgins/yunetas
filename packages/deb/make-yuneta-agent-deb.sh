@@ -1350,15 +1350,43 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
     systemd-tmpfiles --create /usr/lib/tmpfiles.d/yuneta-crash.conf >/dev/null 2>&1 || true
 fi
 
-# core_pattern: apport grabs it back at every boot (see the unit's own header).
+# --- apport: turn it off, it has no mission on a Yuneta node ---
+#
+# apport is Ubuntu's crash TELEMETRY client: it captures crashes, turns them
+# into deduplicated reports and ships them to errors.ubuntu.com so Canonical
+# can find bugs in the packages Ubuntu ships. Its beneficiary is the
+# distribution, not this machine. It grabs kernel.core_pattern to do that, and
+# it deliberately DISCARDS crashes of binaries outside its packaging allowlist
+# (/bin /boot /etc /initrd /lib /sbin /opt /usr /var) — /yuneta is not on it,
+# so every yuno core is dropped, silently, with no report and no file.
+#
+# On a dedicated Yuneta node that trade is all cost: there is no desktop, no
+# one to approve an upload, and its telemetry helps nobody here. Ubuntu Server
+# images usually ship it disabled for the same reason.
+if [ -f /etc/default/apport ]; then
+    sed -i 's/^enabled=1/enabled=0/' /etc/default/apport || true
+fi
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now apport.service >/dev/null 2>&1 || true
+fi
+
+# WARNING: order matters. `apport --stop` does NOT restore our value — it writes
+# the bare word "core", which makes the kernel drop cores into the crashing
+# process's CWD. So our sysctl has to be re-applied AFTER apport is stopped,
+# never before.
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
+    # Kept as a backstop: an apport upgrade can re-enable itself, and this is
+    # the third setting today that a later actor silently took over.
     systemctl enable yuneta-core-pattern.service >/dev/null 2>&1 || true
     systemctl start yuneta-core-pattern.service >/dev/null 2>&1 || true
-    if [ "$(cat /proc/sys/kernel/core_pattern 2>/dev/null)" != "/var/crash/core.%e" ]; then
-        logger -t yuneta_agent_deb \
-            "WARNING: kernel.core_pattern is not /var/crash/core.%e — yuno core dumps will not land there"
-    fi
+else
+    sysctl -p /etc/sysctl.d/99-yuneta-core.conf >/dev/null 2>&1 || true
+fi
+
+if [ "$(cat /proc/sys/kernel/core_pattern 2>/dev/null)" != "/var/crash/core.%e" ]; then
+    logger -t yuneta_agent_deb \
+        "WARNING: kernel.core_pattern is not /var/crash/core.%e — yuno core dumps will not land there"
 fi
 
 # Apply kernel settings and reload systemd units

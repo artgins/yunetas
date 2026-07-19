@@ -408,9 +408,24 @@ yuno cores simply stop existing, with nothing logged anywhere.
 
 `sysctl --system` at install time is not enough: `systemd-sysctl.service` runs
 *before* those handlers, so the setting holds until the next reboot and then
-disappears. Since 7.8.3 the `.deb` ships
-`yuneta-core-pattern.service` (`After=apport.service`) to take it back after
-the handler has had its turn.
+disappears.
+
+Since 7.8.3 the `.deb` **disables apport** outright — these are appliance
+nodes, and apport's mission (shipping deduplicated crash reports to
+`errors.ubuntu.com` so Canonical can find bugs in *Ubuntu's own* packages) has
+no beneficiary here, while its allowlist guarantees it throws our cores away.
+`yuneta-core-pattern.service` (`After=apport.service`) stays as a backstop in
+case an apport upgrade re-enables itself.
+
+Beware the order if you ever do this by hand: `apport --stop` does **not**
+restore your value, it writes the bare word `core`, which makes the kernel drop
+dumps into the crashing process's working directory. Re-apply the sysctl
+*after* stopping apport.
+
+Not every competitor wins, incidentally: `systemd-coredump` claims
+`core_pattern` through `/usr/lib/sysctl.d/50-coredump.conf`, and since
+`systemd-sysctl` applies files in lexicographic order with the last one
+winning, our `99-yuneta-core.conf` beats it for free.
 
 Always verify on the machine, not in the config file:
 

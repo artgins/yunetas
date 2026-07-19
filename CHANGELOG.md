@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **`core_pattern` is taken back from `apport`** (`.deb`). On Ubuntu,
+- **`apport` is disabled on `.deb` nodes, and `core_pattern` taken back**. On Ubuntu,
   `apport.service` starts *after* `systemd-sysctl.service` and overwrites
   `/proc/sys/kernel/core_pattern` with a pipe to itself, so the value from
   `/etc/sysctl.d/99-yuneta-core.conf` survived the install (the post-install
@@ -12,8 +12,18 @@
   `|/usr/share/apport/apport …` while the Rocky node next to it still had
   `/var/crash/core.%e`. The package now ships
   `yuneta-core-pattern.service` (`After=apport.service`, ordering-only so it is
-  harmless on Debian) which re-applies the file, and the post-install warns via
-  `logger` if `core_pattern` still is not ours.
+  harmless where apport does not exist) which re-applies the file, and the
+  post-install warns via `logger` if `core_pattern` still is not ours — a
+  generic check, so it also catches `systemd-coredump` or RHEL's `abrt`.
+  The post-install now also **turns apport off** (`enabled=0` +
+  `systemctl disable --now`): apport is Ubuntu's crash *telemetry* client,
+  shipping deduplicated reports to `errors.ubuntu.com` for Canonical's benefit,
+  and it deliberately discards crashes of binaries outside its packaging
+  allowlist — `/yuneta` is not on it. On a dedicated appliance node that trade
+  is all cost. **Order matters and is load-bearing**: `apport --stop` does not
+  restore our value, it writes the bare word `core`, which drops dumps into the
+  crashing process's CWD — so the sysctl is re-applied *after* apport is
+  stopped, never before.
   Same shape as the `/var/crash` fix in 7.8.2: a one-shot setting losing to a
   later actor, so re-assert instead of fighting. **The RHEL/Rocky equivalent
   (`abrt-addon-ccpp`) is not covered yet** — it is not installed on our nodes,

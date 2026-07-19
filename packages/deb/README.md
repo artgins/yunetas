@@ -124,8 +124,16 @@ The `postinst` script runs automatically after file extraction and performs thes
   holds only until that package's next transaction — after which cores stop
   being written with no diagnostic.
 
+- **Disables `apport`** (`enabled=0` in `/etc/default/apport` +
+  `systemctl disable --now`). It is Ubuntu's crash-telemetry client: it exists
+  to ship deduplicated reports to `errors.ubuntu.com`, and it discards crashes
+  of binaries outside its packaging allowlist (`/yuneta` is not on it), so on a
+  Yuneta node it only costs us core dumps. Note `apport --stop` leaves
+  `core_pattern` as the bare word `core` (dumps land in the crashing process's
+  CWD), so the installer re-applies the sysctl **after** stopping it.
 - Installs and enables `yuneta-core-pattern.service`, which re-applies
-  `kernel.core_pattern` **after** `apport.service`. On Ubuntu apport takes that
+  `kernel.core_pattern` **after** `apport.service` — a backstop in case an
+  apport upgrade re-enables itself. On Ubuntu apport takes that
   sysctl over at every boot and discards cores of non-distro binaries, so
   without this the yunos silently stop producing core dumps after the first
   reboot. Verify with `cat /proc/sys/kernel/core_pattern` — a value starting
