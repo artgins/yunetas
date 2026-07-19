@@ -41,6 +41,12 @@
  ***************************************************************************/
 #define PREFIX_TEST_APP "test_" /* BUG The apps with this prefix don't get the limit of 15 bytes in APP_NAME */
 
+/*
+ *  A global trace table holds at most 16 levels, so no invocation can
+ *  usefully repeat --global-trace more times than that.
+ */
+#define MAX_CLI_GLOBAL_TRACES 16
+
 #define KW_GET(__name__, __default__, __func__) \
     __name__ = __func__(0, kw, #__name__, __default__, 0);
 
@@ -106,6 +112,8 @@ struct arguments {
     const char *config_json_file;
     const char *parameter_config;
     int verbose_log;
+    const char *global_traces[MAX_CLI_GLOBAL_TRACES];
+    int global_traces_count;
 };
 
 /***************************************************************************
@@ -139,7 +147,8 @@ PRIVATE struct argp_option options[] = {
 {"print-role",              'r',    0,      0,  "Print the basic yuno's information", 0},
 {"version",                 'v',    0,      0,  "Print yuno version", 0},
 {"yuneta-version",          'V',    0,      0,  "Print yuneta version", 0},
-{"verbose-log",             'l',    "LEVEL",0,  "Verbose log level", 0},
+{"verbose-log",             'l',    "LEVEL",0,  "Log handler options bitmask for stdout (NOT trace levels, see --global-trace)", 0},
+{"global-trace",            'g',    "LEVEL",0,  "Enable a global trace level from start up. Repeatable, or comma-separated. Use 'list' to print the available levels", 0},
 {0}
 };
 
@@ -192,6 +201,15 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 'l':
         if(arg) {
             arguments->verbose_log = atoi(arg);
+        }
+        break;
+    case 'g':
+        if(arg) {
+            if(arguments->global_traces_count >= MAX_CLI_GLOBAL_TRACES) {
+                printf("Too many --global-trace options, max %d\n", MAX_CLI_GLOBAL_TRACES);
+                exit(-1);
+            }
+            arguments->global_traces[arguments->global_traces_count++] = arg;
         }
         break;
 
@@ -720,6 +738,45 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 
     if(register_yuno_and_more) {
         result += register_yuno_and_more();
+    }
+
+    /*------------------------------------------------------------*
+     *  Global traces asked on the command line.
+     *
+     *  Applied here, after every gclass is registered and after
+     *  register_yuno_and_more() has had its say, so the yuno's own
+     *  gobj_set_gclass_no_trace() calls keep silencing what they
+     *  silence, and so the traces are already live when the first
+     *  service starts.  C_YUNO's set_user_gclass_traces() only adds
+     *  levels, so the config and these compose.
+     *------------------------------------------------------------*/
+    for(int i = 0; i < arguments.global_traces_count; i++) {
+        int list_size = 0;
+        const char **levels = split2(arguments.global_traces[i], ",", &list_size);
+        for(int j = 0; j < list_size; j++) {
+            if(strcmp(levels[j], "list") == 0) {
+                json_t *jn_levels = gobj_repr_global_trace_levels();
+                json_t *jn_internals = json_array_get(jn_levels, 0);
+                json_t *jn_trace_levels = json_object_get(jn_internals, "trace_levels");
+                printf("Available global trace levels:\n");
+                const char *name;
+                json_t *jn_description;
+                json_object_foreach(jn_trace_levels, name, jn_description) {
+                    printf("    %-18s %s\n", name, json_string_value(jn_description));
+                }
+                json_decref(jn_levels);
+                split_free2(levels);
+                exit(0);
+            }
+            if(gobj_set_global_trace(levels[j], TRUE) < 0) {
+                // Error already logged
+                printf("Unknown global trace level '%s', "
+                    "use --global-trace=list to see them\n", levels[j]);
+                split_free2(levels);
+                exit(-1);
+            }
+        }
+        split_free2(levels);
     }
 
     /*------------------------------------------------*

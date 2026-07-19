@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **`--global-trace=LEVEL` enables global traces from the command line.**
+  Repeatable and comma-separated (`--global-trace=machine,create_delete`), with
+  `--global-trace=list` printing the available levels. Levels are applied right
+  after every gclass is registered, so they are already live when the first
+  service starts — which is the whole point: until now a yuno that failed
+  *before* it could reach the agent could not be traced at all, because
+  `set-global-trace` travels over the very control channel that is missing. The
+  fallback was `kill -10 <pid>` (SIGUSR1 cycling the global mask), which cannot
+  catch anything that happens during start up. Unknown levels are rejected with
+  a pointer to `list` rather than being ignored.
+  `--verbose-log` is **not** a trace switch — it only overrides the stdout log
+  handler's field bitmask — and its help text now says so.
 - **`memlock` added to the packaged resource limits** (`.deb` and `.rpm`).
   io_uring rings are pinned memory charged against `RLIMIT_MEMLOCK`, and the
   budget is **per user**, shared by every yuno running as `yuneta`. A yuno with
