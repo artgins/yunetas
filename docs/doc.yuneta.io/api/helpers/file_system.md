@@ -4,11 +4,11 @@ File and path utilities: existence checks, permissions, mkdir/rmdir, copy/move, 
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c)
 
 (file_exists)=
-## [`file_exists()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L290)
+## [`file_exists()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L290)
 
 The `file_exists()` function checks if a given file exists within a specified directory and is a regular file.
 
@@ -37,7 +37,7 @@ This function constructs the full file path by combining `directory` and `filena
 ---
 
 (file_permission)=
-## [`file_permission()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L278)
+## [`file_permission()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L278)
 
 The `file_permission()` function retrieves the permission mode of a specified file path.
 
@@ -62,7 +62,7 @@ This function internally uses `stat()` to obtain the file's mode and extracts th
 ---
 
 (file_remove)=
-## [`file_remove()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L320)
+## [`file_remove()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L320)
 
 `file_remove()` deletes a specified file from a given directory if it exists and is a regular file.
 
@@ -91,7 +91,7 @@ This function checks if the file exists and is a regular file before attempting 
 ---
 
 (file_size)=
-## [`file_size()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L263)
+## [`file_size()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L263)
 
 `file_size()` returns the size of a file in bytes, given its path.
 
@@ -116,7 +116,7 @@ This function uses `stat()` to retrieve file information. If `stat()` fails, the
 ---
 
 (filesize)=
-## [`filesize()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L175)
+## [`filesize()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L175)
 
 `filesize()` returns the size of a file in bytes by using the `stat()` system call.
 
@@ -141,7 +141,7 @@ This function relies on `stat()`, which may fail if the file does not exist or i
 ---
 
 (filesize2)=
-## [`filesize2()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L189)
+## [`filesize2()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L189)
 
 `filesize2()` returns the size of an open file descriptor in bytes.
 
@@ -166,7 +166,7 @@ This function uses `fstat()` to retrieve the file size.
 ---
 
 (is_directory)=
-## [`is_directory()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L250)
+## [`is_directory()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L250)
 
 The `is_directory()` function checks whether the given path corresponds to a directory by using the `stat()` system call.
 
@@ -191,7 +191,7 @@ This function relies on `stat()` to determine the file type. If `stat()` fails, 
 ---
 
 (is_regular_file)=
-## [`is_regular_file()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L237)
+## [`is_regular_file()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L237)
 
 The `is_regular_file()` function checks if the given path corresponds to a regular file.
 
@@ -216,7 +216,7 @@ Returns `TRUE` if the path corresponds to a regular file, otherwise returns `FAL
 ---
 
 (lock_file)=
-## [`lock_file()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L203)
+## [`lock_file()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L203)
 
 The `lock_file()` function applies an advisory write lock to the specified file descriptor using the `fcntl` system call.
 
@@ -241,7 +241,7 @@ This function uses `fcntl` with `F_SETLKW` to apply a blocking write lock. Ensur
 ---
 
 (mkrdir)=
-## [`mkrdir()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L334)
+## [`mkrdir()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L334)
 
 `mkrdir()` creates a directory and all its parent directories if they do not exist, similar to the `mkdir -p` command.
 
@@ -270,7 +270,7 @@ If a directory in the path already exists, it is not modified. The function ensu
 ---
 
 (newdir)=
-## [`newdir()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L119)
+## [`newdir()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L119)
 
 `newdir()` creates a new directory with the specified permissions, ensuring that the umask is set to zero for controlled permission handling.
 
@@ -299,7 +299,7 @@ This function ensures that the umask is cleared before creating the directory to
 ---
 
 (newfile)=
-## [`newfile()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L135)
+## [`newfile()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L135)
 
 `newfile()` creates a new file with the specified permissions, optionally overwriting an existing file.
 
@@ -330,7 +330,7 @@ This function sets `umask(0)` to ensure the specified permissions are applied.
 ---
 
 (open_exclusive)=
-## [`open_exclusive()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L157)
+## [`open_exclusive()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L157)
 
 `open_exclusive()` opens a file with exclusive access, ensuring that no other process can lock it simultaneously.
 
@@ -361,7 +361,7 @@ This function applies an exclusive lock (`LOCK_EX | LOCK_NB`) to the file, ensur
 ---
 
 (rmrcontentdir)=
-## [`rmrcontentdir()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L502)
+## [`rmrcontentdir()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L502)
 
 The function `rmrcontentdir` recursively removes the contents of a directory without deleting the directory itself.
 
@@ -386,7 +386,7 @@ This function does not remove the root directory itself, only its contents. It s
 ---
 
 (rmrdir)=
-## [`rmrdir()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L422)
+## [`rmrdir()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L422)
 
 `rmrdir()` recursively removes a directory and all its contents, including subdirectories and files.
 
@@ -413,7 +413,7 @@ This function removes all files and subdirectories within the specified director
 ---
 
 (subdir_exists)=
-## [`subdir_exists()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L305)
+## [`subdir_exists()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L305)
 
 Checks if a given subdirectory exists within a specified directory.
 
@@ -442,7 +442,7 @@ This function constructs the full path of the subdirectory and verifies its exis
 ---
 
 (unlock_file)=
-## [`unlock_file()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L220)
+## [`unlock_file()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L220)
 
 The `unlock_file()` function releases an advisory lock on a file descriptor using the `fcntl` system call.
 
@@ -467,7 +467,7 @@ This function is typically used in conjunction with [`lock_file()`](#lock_file) 
 ---
 
 (copyfile)=
-## [`copyfile()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L6609)
+## [`copyfile()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L6609)
 
 Copies a file from source to destination using kernel-space operations for efficiency.
 
@@ -496,7 +496,7 @@ Returns `0` on success, or `-1` on error.
 ---
 
 (read_process_cmdline)=
-## [`read_process_cmdline()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L6563)
+## [`read_process_cmdline()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L6563)
 
 Reads the command-line arguments of a process into a buffer.
 
@@ -527,7 +527,7 @@ On Linux, this function reads from `/proc/[pid]/cmdline`.
 ---
 
 (set_cloexec)=
-## [`set_cloexec()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L6703)
+## [`set_cloexec()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L6703)
 
 Sets the `FD_CLOEXEC` flag on a file descriptor to prevent inheritance by child processes.
 
@@ -550,7 +550,7 @@ Returns `0` on success, or `-1` on error.
 ---
 
 (set_nonblocking)=
-## [`set_nonblocking()`](https://github.com/artgins/yunetas/blob/7.8.1/kernel/c/gobj-c/src/helpers.c#L6670)
+## [`set_nonblocking()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/helpers.c#L6670)
 
 Sets a file descriptor to non-blocking mode.
 

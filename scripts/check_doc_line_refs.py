@@ -281,7 +281,8 @@ def doc_files():
             yield p
 
 
-GH_BLOB = "https://github.com/artgins/yunetas/blob"
+GH_ROOT = "https://github.com/artgins/yunetas"
+GH_BLOB = GH_ROOT + "/blob"
 # The ref in a blob URL (`/blob/<ref>/...`). A PINNED ref is an immutable
 # release tag (`7.5.1`, `7.6`); anything else (`main`, `master`, a branch) moves
 # under the link and is flagged by the audit. Re-pin with `--repin=<tag>`.
@@ -887,9 +888,15 @@ def link_files_doc(doc, basename_index, tag):
 # left as-is) so a human can fix the stale reference. Idempotent: re-running
 # with the same tag rewrites nothing and recomputes anchors to the same lines.
 # ----------------------------------------------------------------------------
+# Both /blob/ (files) and /tree/ (directories) are pinned to a release tag and
+# must be re-pinned together. Only /blob/ links carry #L anchors; a /tree/ link
+# is a plain tag swap, but leaving it behind strands the doc on the old release
+# — which is exactly what happened to YUNO_TREEDB.md at 7.8.2.
+GH_KIND = r"(?P<kind>blob|tree)"
 GH_LINK = re.compile(
     r"\[(?P<txt>`[^`]+`|[^\]]+)\]\("
-    r"(?P<url>" + re.escape(GH_BLOB) + r"/(?P<tag>[^/]+)/(?P<rel>[^)#]+)"
+    r"(?P<url>" + re.escape(GH_ROOT) + r"/" + GH_KIND +
+    r"/(?P<tag>[^/]+)/(?P<rel>[^)#]+)"
     r"(?:#L(?P<l1>\d+)(?:-L(?P<l2>\d+))?)?)\)"
 )
 SYMBOL_TEXT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -934,6 +941,7 @@ def repin_line(line, newtag, missing):
     for m in links:
         out.append(line[pos:m.start()])
         txt, tag, rel = m.group("txt"), m.group("tag"), m.group("rel")
+        kind = m.group("kind")   # blob or tree — a /tree/ link must stay /tree/
         l1, l2 = m.group("l1"), m.group("l2")
         new_txt, new_l1 = txt, None
         if l1 and not l2:
@@ -965,7 +973,7 @@ def repin_line(line, newtag, missing):
             anchor = ""
         if tag != newtag:
             n_tag += 1
-        out.append(f"[{new_txt}]({GH_BLOB}/{newtag}/{rel}{anchor})")
+        out.append(f"[{new_txt}]({GH_ROOT}/{kind}/{newtag}/{rel}{anchor})")
         pos = m.end()
     out.append(line[pos:])
     return "".join(out), n_tag, n_anchor, n_drift
