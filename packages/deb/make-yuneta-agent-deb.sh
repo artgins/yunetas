@@ -338,8 +338,12 @@ chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 # Re-assert rather than fight: apport keeps reporting crashes for everything
 # else, we just take core_pattern back afterwards. Ordering-only dependencies,
 # so this is harmless on Debian, where apport does not exist.
-mkdir -p "${WORKDIR}/lib/systemd/system"
-cat > "${WORKDIR}/lib/systemd/system/yuneta-core-pattern.service" <<'EOF'
+# /usr/lib, not /lib: Ubuntu and Debian are merged-usr (/lib -> usr/lib), and
+# this is where the unit actually lands — verified on the node, where systemd
+# resolved the enable symlink to /usr/lib/systemd/system/. Shipping to /lib
+# would work through the symlink but is the deprecated path.
+mkdir -p "${WORKDIR}/usr/lib/systemd/system"
+cat > "${WORKDIR}/usr/lib/systemd/system/yuneta-core-pattern.service" <<'EOF'
 [Unit]
 Description=Yuneta: re-apply kernel.core_pattern after apport
 Documentation=https://doc.yuneta.io/entry-point
@@ -354,7 +358,7 @@ ExecStart=/sbin/sysctl -p /etc/sysctl.d/99-yuneta-core.conf
 [Install]
 WantedBy=multi-user.target
 EOF
-chmod 0644 "${WORKDIR}/lib/systemd/system/yuneta-core-pattern.service"
+chmod 0644 "${WORKDIR}/usr/lib/systemd/system/yuneta-core-pattern.service"
 
 # --- Core dump directory ownership, re-asserted at every boot ---
 #
