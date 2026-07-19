@@ -406,6 +406,28 @@ def find_sentinels(node, path=""):
     return found
 
 
+def leaf_values(node, path=""):
+    """
+    {path: value} for every leaf, built by the SAME walk as find_sentinels().
+
+    Deliberately not a "resolve this dotted path" helper: yuneta configs use
+    flat dotted key names ("Emailsender.password" as a single key inside
+    "global"), so splitting a path on '.' and descending would look for a
+    nested object that does not exist and report a perfectly good value as
+    missing. Sharing the walk keeps the two in step whatever the key shape.
+    """
+    out = {}
+    if isinstance(node, dict):
+        for key, value in node.items():
+            out.update(leaf_values(value, "%s.%s" % (path, key) if path else key))
+    elif isinstance(node, list):
+        for i, value in enumerate(node):
+            out.update(leaf_values(value, "%s[%d]" % (path, i)))
+    else:
+        out[path] = node
+    return out
+
+
 def apply_secret_overlays(local, secrets_dir, workdir):
     """
     Merge ``<secrets_dir>/<id>.json`` over each config that needs it and
@@ -434,6 +456,13 @@ def apply_secret_overlays(local, secrets_dir, workdir):
         overlay_path = os.path.join(secrets_dir, "%s.json" % cid)
         content = lc["content"]
 
+        # Which paths the committed config declares as credentials. Captured
+        # BEFORE the merge, because afterwards the sentinel is gone and an
+        # overlay that supplied "" would be indistinguishable from a config
+        # that never wanted a secret -- shipping the empty password this whole
+        # mechanism exists to prevent.
+        declared = find_sentinels(content)
+
         if os.path.isfile(overlay_path):
             try:
                 overlay = load_jsonc(overlay_path)
@@ -451,6 +480,15 @@ def apply_secret_overlays(local, secrets_dir, workdir):
             problems.append(
                 "%s: no value for %s\n      expected in %s"
                 % (cid, ", ".join(missing), overlay_path)
+            )
+            continue
+
+        merged_leaves = leaf_values(content)
+        blank = [p for p in declared if not str(merged_leaves.get(p, "")).strip()]
+        if blank:
+            problems.append(
+                "%s: overlay supplies an EMPTY value for %s\n      in %s"
+                % (cid, ", ".join(blank), overlay_path)
             )
             continue
 
