@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **The build refuses to link prebuilt archives against a different glibc.**
+  The packages ship prebuilt static archives (`outputs/lib`, `outputs_ext/lib`)
+  built by CI on `ubuntu-22.04`, i.e. glibc 2.35. A node that has a compiler and
+  project sources can compile its own yunos against them, and with
+  `CONFIG_FULLY_STATIC` the link then mixes those archives with the **node's**
+  static glibc. That is not portable: the archives reach into glibc internals
+  such as `_dl_x86_cpu_features`, which back the ifunc resolvers selecting the
+  CPU-tuned `memcpy`/`strlen`. A dynamic link fails loudly with an undefined
+  reference; a **static** link resolves silently against a layout that changed
+  between releases, the resolver picks a wrong routine, and the heap is
+  corrupted at run time.
+
+  The failure is brutal to diagnose because it looks like someone else's bug:
+  SIGABRT/SIGSEGV inside `unlink_chunk` / `_int_free_merge_chunk` /
+  `_int_malloc` a couple of seconds after start, no Yuneta error logged first,
+  and a stack trace blaming whatever innocent code happened to free next.
+  Found on an Ubuntu 26.04 node (glibc 2.43) where four yunos crash-looped
+  ~130 times from their very first launch and had never once run.
+
+  `tools/cmake/libc_guard.cmake` now records the building glibc next to the
+  archives (`outputs/lib/yuneta_libc.stamp`, written by the `gobj-c` build and
+  shipped in the package), and every other build compares it against the glibc
+  of the machine doing the linking, failing at **configure** time with the
+  three ways out: build off-node and ship binaries, build the whole SDK from
+  source locally, or install a package built for that distribution. Archives
+  older than the stamp warn instead of failing. Both packagers now refuse to
+  build a package whose payload has no stamp.
+
+  Note this guards glibc only. The compiler is deliberately *not* checked:
+  rebuilding the same sources on the affected node with clang instead of GCC
+  still crashed, so the compiler is not the variable — only the libc is.
+
 - **`gdb` is now a hard dependency of the agent package** (`Depends:` in the
   `.deb`, `Requires:` in the `.rpm`). A Yuneta node is expected to produce core
   dumps in `/var/crash` (7.8.2/7.8.3 went to some length to make sure it does),

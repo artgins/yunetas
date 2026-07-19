@@ -538,6 +538,20 @@ favour of native SMTPS on top of `ytls` / `c_tcp`).
 `configure-libs.sh` already passes the OpenSSL flags needed for clean static
 builds (`no-dso`, `no-sock`).
 
+**The prebuilt archives are tied to the glibc that built them.** Never compile
+fresh objects against `outputs/lib` + `outputs_ext/lib` taken from a package
+built on another distro: the archives reference glibc internals
+(`_dl_x86_cpu_features`, backing the ifunc `memcpy`/`strlen` dispatch) whose
+layout moves between releases. A dynamic link fails loudly; a **static** link
+resolves silently and the binary corrupts the heap at run time — SIGABRT deep
+in `unlink_chunk`/`_int_malloc` seconds after start, no framework error first,
+stack blaming unrelated code. `tools/cmake/libc_guard.cmake` enforces this at
+configure time via `outputs/lib/yuneta_libc.stamp`; if it fires, build off-node
+and ship binaries, or build the whole SDK from source on that machine. Do not
+reach for `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` — it only silences the message.
+The compiler is not the variable and is deliberately unchecked (the same
+sources built with clang on the affected node crashed identically).
+
 **Static linking is per-target opt-in:** every yuno/util `CMakeLists.txt`
 needs BOTH blocks — (1) the linker flags after `include(project.cmake)`
 (`CMAKE_EXE_LINKER_FLAGS "-static ..."`, `CMAKE_FIND_LIBRARY_SUFFIXES ".a"`,

@@ -160,6 +160,21 @@ copy_tree "/yuneta/bin/skeletons"               "${STAGE}/yuneta/bin"
 copy_tree "${YUNETAS_BASE}/outputs_ext"         "${STAGE}/yuneta/development/yunetas"
 copy_tree "${YUNETAS_BASE}/outputs"             "${STAGE}/yuneta/development/yunetas"
 copy_tree "${YUNETAS_BASE}/tools"               "${STAGE}/yuneta/development/yunetas"
+
+#
+#   The glibc stamp must ship: it is what stops a node from compiling its own
+#   yunos against these archives under a different glibc, which links cleanly
+#   and then corrupts the heap at run time. Written by the gobj-c build (see
+#   tools/cmake/libc_guard.cmake); missing means the payload was not built
+#   from a current SDK.
+#
+STAMP="${STAGE}/yuneta/development/yunetas/outputs/lib/yuneta_libc.stamp"
+if [ ! -s "${STAMP}" ]; then
+    echo "[-] Missing glibc stamp: ${STAMP}" >&2
+    echo "    Rebuild the SDK (yunetas clean && yunetas build) before packaging." >&2
+    exit 2
+fi
+echo "[i] Payload archives built against glibc $(cat "${STAMP}")"
 install -D -m 0644 "${YUNETAS_BASE}/.config"    "${STAGE}/yuneta/development/yunetas/.config"
 
 # Strip lab load-generators from the payload: stress_* have no place on a

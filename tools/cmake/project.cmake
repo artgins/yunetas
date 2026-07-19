@@ -61,6 +61,23 @@ endif()
 
 
 #--------------------------------------------------#
+#   glibc coherence guard
+#
+#   The core library records the glibc it was built with; every other build
+#   refuses to link against that record if it does not match this machine.
+#   See tools/cmake/libc_guard.cmake for why a mismatch corrupts the heap.
+#--------------------------------------------------#
+include(${YUNETAS_BASE}/tools/cmake/libc_guard.cmake)
+
+if(NOT ESP_PLATFORM)
+    if(PROJECT_NAME STREQUAL "yunetas-gobj")
+        yuneta_write_libc_stamp()
+    else()
+        yuneta_check_libc_stamp()
+    endif()
+endif()
+
+#--------------------------------------------------#
 #   Wrapp add_yuno_executable
 #--------------------------------------------------#
 function(add_yuno_executable name)
