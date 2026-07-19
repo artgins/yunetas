@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Secret overlays for config deploys** (`sync_configs.py --secrets-dir`, and
+  `yunetas` CLI 0.16.0 wiring it to `~/.yuneta/secrets/<node>/`). A committed
+  config declares a credential with the value `"__SECRET__"`; the value lives
+  only on the deploy machine and is deep-merged in just before the push. The
+  *shape* of the config stays versioned in git — which is what makes it
+  reconstructable — and only the value is withheld. **Fails closed**: a
+  surviving `"__SECRET__"` refuses the push rather than shipping an empty
+  password, which for SMTP means an auth failure or an unauthenticated send.
+
+  Prompted by an SMTP password committed in cleartext in a project repo. It
+  does not fix that one — that is still in git history and needs the credential
+  rotated.
+
+  The merged copies hold real credentials, so they are written 0600 into a 0700
+  temp dir removed in a `finally`, on SIGINT/SIGTERM/SIGHUP, and swept at the
+  start of the next run. That last one is not belt-and-braces: a SIGKILLed run
+  (timeout, OOM) skips every handler, and testing this left exactly such a
+  plaintext copy behind.
+
 - **`yunetas` CLI 0.15.0: a node registry**, so deploying to another machine is
   `--node <name>` instead of a url plus four OAuth2 flags re-derived from a
   config file each time. `register-node` / `list-nodes` / `unregister-node`

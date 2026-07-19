@@ -104,7 +104,10 @@ import json
 import os
 import re
 import shutil
+import signal
+import stat
 import subprocess
+import tempfile
 import sys
 import time
 import urllib.error
@@ -331,6 +334,147 @@ def ycmd_base(ycommand, url, jwt):
 # ----------------------------------------------------------------------------
 #   Discovery
 # ----------------------------------------------------------------------------
+#
+#   Secret overlays
+#
+SECRET_SENTINEL = "__SECRET__"
+SECRET_WORKDIR_PREFIX = "yuneta-cfg-"
+
+
+def sweep_stale_secret_workdirs():
+    """
+    Remove leftover merged-config directories from earlier runs.
+
+    The normal path deletes its workdir in a ``finally``, but that does not run
+    if the process is SIGKILLed (a timeout, an OOM kill, a hard ^C on some
+    shells) — and what survives is a config with a real credential in it. The
+    files are 0600 inside a 0700 directory, so only this user can read them,
+    but "only readable by me, forever" is not where a password should live.
+
+    Sweeping at startup bounds that to "until the next sync" instead. Only
+    directories owned by this uid are touched.
+    """
+    tmp = tempfile.gettempdir()
+    try:
+        names = os.listdir(tmp)
+    except OSError:
+        return
+    for name in names:
+        if not name.startswith(SECRET_WORKDIR_PREFIX):
+            continue
+        path = os.path.join(tmp, name)
+        try:
+            st = os.lstat(path)
+            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+                continue
+            shutil.rmtree(path, ignore_errors=True)
+            print(dim("  (removed stale secret workdir %s)" % path))
+        except OSError:
+            continue
+
+
+def deep_merge(base, overlay):
+    """
+    Recursively overlay `overlay` onto `base`, returning a new dict. Matches
+    how a yuno's effective config is already assembled (fixed_config +
+    variable_config + external JSON), so an overlay is one more layer of
+    something the framework understands, not a new mechanism.
+    """
+    out = dict(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def find_sentinels(node, path=""):
+    """
+    Paths still holding the SECRET_SENTINEL after merging, so a config can be
+    refused instead of shipped with a placeholder where a credential belongs.
+    """
+    found = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            found += find_sentinels(value, "%s.%s" % (path, key) if path else key)
+    elif isinstance(node, list):
+        for i, value in enumerate(node):
+            found += find_sentinels(value, "%s[%d]" % (path, i))
+    elif node == SECRET_SENTINEL:
+        found.append(path)
+    return found
+
+
+def apply_secret_overlays(local, secrets_dir, workdir):
+    """
+    Merge ``<secrets_dir>/<id>.json`` over each config that needs it and
+    repoint the config at the merged copy, written 0600 under `workdir`.
+
+    Secrets stay out of the project repo: the committed config carries
+    ``"field": "__SECRET__"`` to declare that a credential belongs there, and
+    the value lives only on the deploy machine.
+
+    FAILS CLOSED. A config whose sentinel survives the merge is not pushed:
+    shipping an empty SMTP password means either an auth failure or, worse, an
+    unauthenticated send attempt, and silently is the wrong way to find out.
+
+    Rotation note: the overlay does NOT carry a version. Rotating a credential
+    means bumping ``__version__`` in the committed config, which is the
+    existing batches convention (every edit bumps the version and writes what
+    changed in ``__description__``). That keeps the *fact* of the rotation
+    auditable in git while the *value* never touches it.
+
+    Returns the number of configs that had an overlay applied.
+    """
+    applied = 0
+    problems = []
+
+    for cid, lc in sorted(local.items()):
+        overlay_path = os.path.join(secrets_dir, "%s.json" % cid)
+        content = lc["content"]
+
+        if os.path.isfile(overlay_path):
+            try:
+                overlay = load_jsonc(overlay_path)
+            except (OSError, json.JSONDecodeError) as e:
+                problems.append("%s: cannot parse overlay %s (%s)" % (cid, overlay_path, e))
+                continue
+            if not isinstance(overlay, dict):
+                problems.append("%s: overlay %s is not a JSON object" % (cid, overlay_path))
+                continue
+            content = deep_merge(content, overlay)
+            applied += 1
+
+        missing = find_sentinels(content)
+        if missing:
+            problems.append(
+                "%s: no value for %s\n      expected in %s"
+                % (cid, ", ".join(missing), overlay_path)
+            )
+            continue
+
+        if content is not lc["content"]:
+            merged_path = os.path.join(workdir, "%s.json" % cid)
+            # 0600 before any content lands in it.
+            fd = os.open(merged_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump(content, f, indent=4)
+            lc["content"] = content
+            lc["path"] = merged_path
+            lc["version"] = str(content.get("__version__", lc["version"]))
+
+    if problems:
+        print(red("  ! secret overlay unresolved:"))
+        for p in problems:
+            print(red("    - %s" % p))
+        print(yellow("    Create the overlay with ONLY the secret fields, e.g.:"))
+        print(yellow('      {"global": {"smtp_password": "…"}}'))
+        raise SystemExit(2)
+
+    return applied
+
+
 def local_configs(config_dir):
     """
     Return {id: {id, version, description, path, content}} for every config
@@ -685,6 +829,11 @@ def main():
                     help="show what would run, execute nothing.")
     ap.add_argument("--show-uptodate", action="store_true",
                     help="also list configs already in sync and agent-only ones.")
+    ap.add_argument("--secrets-dir", default=None,
+                    help="directory of secret overlays (<config-id>.json), deep-merged "
+                         "over each config before pushing. A committed config declares "
+                         "a credential with the value \"__SECRET__\"; if the overlay "
+                         "does not supply it, the push is REFUSED.")
     ap.add_argument("-r", "--restart", action="store_true",
                     help="after pushing a changed config, also restart the using "
                          "yunos to apply it (default: push only + print a "
@@ -734,6 +883,51 @@ def main():
     if not local:
         print(yellow("\nNo deployable *.json configs found in %s." % config_dir))
         return
+
+    #
+    #   Secret overlays
+    #
+    #   The merged copies hold real credentials, so they live in a 0700
+    #   directory for the length of the run and are removed afterwards --
+    #   including on failure, which is exactly when a stray plaintext copy
+    #   would be easiest to forget.
+    #
+    secrets_workdir = None
+    if args.secrets_dir:
+        if not os.path.isdir(args.secrets_dir):
+            print(red("Error: --secrets-dir '%s' is not a directory." % args.secrets_dir))
+            raise SystemExit(2)
+        sweep_stale_secret_workdirs()
+        secrets_workdir = tempfile.mkdtemp(prefix=SECRET_WORKDIR_PREFIX)
+        os.chmod(secrets_workdir, 0o700)
+
+        # finally: does not run on a signal. Catch the ones we can so an
+        # interrupted sync still takes its plaintext with it.
+        def _on_signal(signum, frame):
+            shutil.rmtree(secrets_workdir, ignore_errors=True)
+            raise SystemExit(128 + signum)
+
+        for _sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            try:
+                signal.signal(_sig, _on_signal)
+            except (OSError, ValueError):
+                pass
+
+    try:
+        if secrets_workdir:
+            applied = apply_secret_overlays(local, args.secrets_dir, secrets_workdir)
+            print(dim("secret overlays applied: %d (from %s)" % (applied, args.secrets_dir)))
+        _sync_body(args, ycommand, jwt, local, agent, instances)
+    finally:
+        if secrets_workdir:
+            shutil.rmtree(secrets_workdir, ignore_errors=True)
+
+
+def _sync_body(args, ycommand, jwt, local, agent, instances):
+    """
+    The compare/confirm/push part, split out so the caller can guarantee the
+    merged-secret workdir is destroyed however this returns.
+    """
 
     rows = classify(local, agent, instances)
     print_table(rows, show_uptodate=args.show_uptodate or args.dry_run)
