@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
@@ -24,7 +25,34 @@
 #include <sys/random.h>     /* getrandom() — unpredictable DNS transaction id */
 
 #include <time.h>           /* clock_gettime(CLOCK_MONOTONIC) — cache expiry */
+#include <syslog.h>         /* the only log this file can reach — see resolv_warn() */
 #include "static_resolv.h"
+
+/*
+ *  Why syslog(3) directly and not print_error()/gobj_log_*():
+ *
+ *  - This file is the libc-only replacement for glibc's resolver, and its
+ *    unit test #includes it and links nothing but libc, so it cannot reach
+ *    into gobj-c (see tests/c/yev_loop/static_resolv/CMakeLists.txt).
+ *  - print_error() malloc()s its message before handing it to syslog(), so it
+ *    is precisely the wrong tool for reporting an allocation failure. This
+ *    formats into a stack buffer and allocates nothing, so it still works
+ *    when there is no memory left to report with.
+ *
+ *  Same destination as print_error(PEF_SYSLOG), fewer ways to fail.
+ */
+static void resolv_warn(int priority, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+static void resolv_warn(int priority, const char *fmt, ...)
+{
+    char msg[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    syslog(priority, "YUNETAS static_resolv: %s", msg);
+}
 
 /***************************************************************
  *              Internal helpers
@@ -53,19 +81,31 @@ static struct addrinfo *make_addrinfo_node(
     const char *canonname)
 {
     struct addrinfo *ai = calloc(1, sizeof(*ai));
-    if(!ai) return NULL;
+    if(!ai) {
+        resolv_warn(LOG_ERR, "out of memory building an addrinfo node");
+        return NULL;
+    }
 
     ai->ai_family   = family;
     ai->ai_socktype = socktype;
     ai->ai_protocol = protocol;
     ai->ai_addrlen  = addrlen;
     ai->ai_addr     = malloc(addrlen);
-    if(!ai->ai_addr) { free(ai); return NULL; }
+    if(!ai->ai_addr) {
+        resolv_warn(LOG_ERR, "out of memory building an addrinfo address");
+        free(ai);
+        return NULL;
+    }
     memcpy(ai->ai_addr, addr, addrlen);
 
     if(canonname) {
         ai->ai_canonname = strdup(canonname);
-        if(!ai->ai_canonname) { free(ai->ai_addr); free(ai); return NULL; }
+        if(!ai->ai_canonname) {
+            resolv_warn(LOG_ERR, "out of memory building an addrinfo canonname");
+            free(ai->ai_addr);
+            free(ai);
+            return NULL;
+        }
     }
     return ai;
 }
@@ -120,6 +160,11 @@ static int append_addrs(
  */
 #define YUNETA_MAX_NS      3
 #define YUNETA_NS_ADDRLEN  46   /* INET6_ADDRSTRLEN */
+
+/* Per-query wait. Paid twice (A + AAAA) for every nameserver that does not
+ * answer, and paid inside the event loop, so it is the whole cost of a dead
+ * entry in /etc/resolv.conf. */
+#define YUNETA_DNS_QUERY_TIMEOUT   3000    /* milliseconds */
 
 /* DNS server port. Overridable at compile time so tests can drive dns_query()
  * against an unprivileged localhost nameserver; production is always 53. */
@@ -451,6 +496,63 @@ static int cache_expired(time_t deadline)
     return ts.tv_sec >= deadline;
 }
 
+static uint64_t monotonic_msec(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+}
+
+/*
+ *  A nameserver that never answers is the expensive failure here, and it is
+ *  silent by nature: resolution still succeeds via the next one in
+ *  /etc/resolv.conf, just seconds later, every single time. Nothing in the
+ *  yuno's own log can show that — this file is below all of it — so say it
+ *  where it can be said, once in a while per nameserver.
+ *
+ *  Rate limited because this runs inside the event loop on every connect:
+ *  a broken nameserver must leave a trail, not a flood.
+ */
+#define YUNETA_DNS_WARN_SLOTS       YUNETA_MAX_NS
+#define YUNETA_DNS_WARN_PERIOD      300     /* seconds between repeats */
+
+typedef struct {
+    char    ns[YUNETA_NS_ADDRLEN];
+    time_t  next_warn;      /* 0 = never warned */
+} dns_warn_slot_t;
+
+static dns_warn_slot_t dns_warn_slots[YUNETA_DNS_WARN_SLOTS];
+
+/*
+ *  TRUE when this nameserver is due a warning (and arms the next one).
+ */
+static int dns_warn_due(const char *ns)
+{
+    dns_warn_slot_t *free_slot = NULL;
+    for(int i = 0; i < YUNETA_DNS_WARN_SLOTS; i++) {
+        dns_warn_slot_t *w = &dns_warn_slots[i];
+        if(!w->next_warn) {
+            if(!free_slot) {
+                free_slot = w;
+            }
+            continue;
+        }
+        if(strcmp(w->ns, ns) == 0) {
+            if(!cache_expired(w->next_warn)) {
+                return 0;
+            }
+            w->next_warn = cache_deadline(YUNETA_DNS_WARN_PERIOD);
+            return 1;
+        }
+    }
+    if(!free_slot) {
+        free_slot = &dns_warn_slots[0];
+    }
+    snprintf(free_slot->ns, sizeof(free_slot->ns), "%s", ns);
+    free_slot->next_warn = cache_deadline(YUNETA_DNS_WARN_PERIOD);
+    return 1;
+}
+
 typedef struct {
     char            host[NI_MAXHOST];
     struct in_addr  a4[YUNETA_DNS_CACHE_ADDRS];
@@ -736,10 +838,17 @@ int yuneta_getaddrinfo(
         int ns_count = 0;
         parse_resolv_conf(nameservers, &ns_count, YUNETA_MAX_NS);
 
+        if(ns_count == 0) {
+            resolv_warn(LOG_ERR,
+                "no usable 'nameserver' line in /etc/resolv.conf, cannot resolve '%s'",
+                node);
+        }
+
         struct in_addr  addrs4[16];
         struct in6_addr addrs6[16];
         int naddrs4 = 0, naddrs6 = 0;
         uint32_t ttl = YUNETA_DNS_CACHE_MAX_TTL;
+        uint64_t t0 = monotonic_msec();
 
         for(int nsi = 0; nsi < ns_count && !naddrs4 && !naddrs6; nsi++) {
             uint8_t qbuf[512];
@@ -753,7 +862,7 @@ int yuneta_getaddrinfo(
                 if(qlen > 0) {
                     int rlen = dns_query(nameservers[nsi],
                                          qbuf, (size_t)qlen,
-                                         rbuf, sizeof(rbuf), 3000);
+                                         rbuf, sizeof(rbuf), YUNETA_DNS_QUERY_TIMEOUT);
                     if(rlen > 0) {
                         int naddrs6_dummy = 0;
                         dns_parse_response(rbuf, (size_t)rlen, qid4,
@@ -771,7 +880,7 @@ int yuneta_getaddrinfo(
                 if(qlen > 0) {
                     int rlen = dns_query(nameservers[nsi],
                                          qbuf, (size_t)qlen,
-                                         rbuf, sizeof(rbuf), 3000);
+                                         rbuf, sizeof(rbuf), YUNETA_DNS_QUERY_TIMEOUT);
                     if(rlen > 0) {
                         int naddrs4_dummy = 0;
                         dns_parse_response(rbuf, (size_t)rlen, qid6,
@@ -780,6 +889,33 @@ int yuneta_getaddrinfo(
                     }
                 }
             }
+
+            /*
+             *  This nameserver gave nothing. Harmless when it is the last
+             *  one and the name simply does not exist; expensive when it is
+             *  the first of several, because then every resolution in the
+             *  process pays its timeouts before reaching one that answers.
+             */
+            if(!naddrs4 && !naddrs6 && nsi + 1 < ns_count && dns_warn_due(nameservers[nsi])) {
+                resolv_warn(LOG_WARNING,
+                    "nameserver %s did not answer for '%s' after %d ms, "
+                    "falling back to %s. Every lookup pays this: check the "
+                    "'nameserver' order in /etc/resolv.conf",
+                    nameservers[nsi], node, YUNETA_DNS_QUERY_TIMEOUT * 2, nameservers[nsi + 1]);
+            }
+        }
+
+        uint64_t elapsed = monotonic_msec() - t0;
+        if(elapsed >= 1000) {
+            /*
+             *  yuneta_getaddrinfo() runs synchronously inside the event loop,
+             *  so this is not just a slow lookup: the whole process was
+             *  stopped for that long. Worth saying out loud with the number.
+             */
+            resolv_warn(LOG_WARNING,
+                "resolving '%s' took %llu ms and blocked the event loop "
+                "(%d nameserver(s) in /etc/resolv.conf)",
+                node, (unsigned long long)elapsed, ns_count);
         }
 
         if(naddrs4 > 0 || naddrs6 > 0) {

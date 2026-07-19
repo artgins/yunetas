@@ -2182,6 +2182,44 @@ PUBLIC yev_event_h yev_create_timer_event(
 }
 
 /***************************************************************************
+ *  getaddrinfo() is synchronous, and the loop calls it while arming a
+ *  connect or a listen. So a slow resolver does not merely delay this one
+ *  socket: it stops the whole process — every gobj, every timer, every
+ *  pending completion — for as long as the name takes to resolve.
+ *
+ *  That failure is invisible by construction. Resolution still succeeds,
+ *  the yuno still comes up, and all that shows downstream is that
+ *  everything was late. Naming it here, with the number, is what turns
+ *  "the yuno is slow" into "resolving X blocked us for N ms".
+ *
+ *  Real symptom (7.8.x): a node whose /etc/resolv.conf listed a
+ *  black-holed nameserver first paid ~6 s per lookup, and a yuno building
+ *  25 channels spent minutes in start up without ever saying why.
+ ***************************************************************************/
+#define SLOW_RESOLUTION_MSEC    1000
+
+PRIVATE void warn_if_slow_resolution(
+    hgobj gobj,
+    const char *funcname,
+    const char *host,
+    uint64_t t0
+)
+{
+    uint64_t elapsed = time_in_milliseconds_monotonic() - t0;
+    if(elapsed < SLOW_RESOLUTION_MSEC) {
+        return;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", funcname,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "getaddrinfo() BLOCKED the event loop",
+        "host",         "%s", host?host:"",
+        "msec",         "%lu", (unsigned long)elapsed,
+        NULL
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in yev_event->fd
@@ -2323,12 +2361,14 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
 
     struct addrinfo *results;
     struct addrinfo *rp;
+    uint64_t t_resolv = time_in_milliseconds_monotonic();
     ret = getaddrinfo(
         dst_host,
         dst_port,
         &hints,
         &results
     );
+    warn_if_slow_resolution(gobj, __FUNCTION__, dst_host, t_resolv);
     if(ret != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -2406,12 +2446,14 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
             }
 
             struct addrinfo *res;
+            uint64_t t_resolv_src = time_in_milliseconds_monotonic();
             ret = getaddrinfo(
                 src_host,
                 src_port,
                 &hints,
                 &res
             );
+            warn_if_slow_resolution(gobj, __FUNCTION__, src_host, t_resolv_src);
             if(ret != 0) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -2640,12 +2682,14 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 
     struct addrinfo *results;
     struct addrinfo *rp;
+    uint64_t t_resolv = time_in_milliseconds_monotonic();
     ret = getaddrinfo(
         host,
         port,
         &hints,
         &results
     );
+    warn_if_slow_resolution(gobj, __FUNCTION__, host, t_resolv);
     if(ret != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

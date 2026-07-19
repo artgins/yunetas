@@ -4889,6 +4889,14 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         const char *name = key;
         hgclass gclass = gclass_find_by_name(name);
         if(!gclass) {
+            /*
+             *  Deliberately NOT logged, against the usual no-silent-errors
+             *  rule. Gclass names are typed by hand into set-gclass-trace,
+             *  misspelling one is the common case rather than the exception,
+             *  and logging every one on each start up buries the log in noise
+             *  nobody acts on. The symptom is visible where it matters: the
+             *  trace does not turn on.
+             */
             continue;
         }
         if(!json_is_array(jn_name)) {
@@ -4930,6 +4938,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
         const char *name = key;
         hgclass gclass = gclass_find_by_name(name);
         if(!gclass) {
+            // Unknown gclass ignored on purpose, see set_user_gclass_traces()
             continue;
         }
         if(!json_is_array(jn_name)) {
@@ -4977,6 +4986,7 @@ PRIVATE int set_user_trace_filter(hgobj gobj)
         const char *name = key;
         hgclass gclass = gclass_find_by_name(name);
         if(!gclass) {
+            // Unknown gclass ignored on purpose, see set_user_gclass_traces()
             continue;
         }
         if(!json_is_object(jn_trace_filter)) {

@@ -1,7 +1,33 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.2
 
+A release about a failure that could not be seen. A node came up with a
+black-holed nameserver first in `/etc/resolv.conf`; every name resolution paid
+~6 s, resolution runs synchronously inside the event loop, and a yuno building
+25 channels spent ~2 min 40 s in start up — long past the agent's handshake
+timeout, so the agent reported it as not running while the process sat there
+alive and listening. Nothing in any log said any of that. The fixes below are
+in the order they were needed: a way to trace start up at all, then the fix,
+then the two warnings that would have made the whole hunt a one-line grep.
+
+- **`getaddrinfo()` reports when it blocks the event loop** (`yev_loop.c`).
+  Resolution is synchronous and the loop calls it while arming a connect, a
+  source bind or a listen, so a slow resolver does not delay one socket — it
+  stops every gobj, timer and pending completion in the process. All three call
+  sites are timed, and over 1 s they emit a `gobj_log_warning` (msgset `OS`)
+  carrying the host and the elapsed `msec`, attributed to the gobj that paid
+  it. This is what makes "the yuno is slow" legible as "resolving X stopped us
+  for 7032 ms".
+- **The static resolver leaves a trail in syslog** (`static_resolv.c`). It sits
+  below the gobj log and cannot reach it, so it now writes to `syslog(3)`
+  directly — a stack buffer and no allocation, unlike `print_error()`, which
+  `malloc`s its message and is therefore the wrong tool for reporting that
+  `malloc` failed. It reports an unresponsive `nameserver` when there is
+  another to fall back to (rate limited to one per nameserver per 5 min, since
+  this runs on every connect), any resolution over 1 s, an empty
+  `/etc/resolv.conf`, and allocation failures that used to return a silent
+  `EAI_MEMORY`.
 - **The static resolver caches its DNS answers** (`static_resolv.c`, so
   `CONFIG_FULLY_STATIC` builds). Every connect used to re-query, so a yuno
   building N channels to the same host paid the full round-trip N times —

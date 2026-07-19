@@ -28,6 +28,28 @@ already fine). What the audit left open:
   (`parents` / `children` / `links`, plus `jtree`, whose ready-made tree with
   `__path__` we ignore in favour of a flat `nodes` list).
 
+## Resolver: name resolution still blocks the event loop
+
+7.8.2 cached DNS answers and made the cost visible (`getaddrinfo() BLOCKED the
+event loop`, plus the syslog trail from `static_resolv.c`). That bounded the
+blast radius of the `central.yunovatios.es` outage — a black-holed first
+`nameserver` costing ~6 s per lookup — but the shape of the problem is intact:
+
+- **`getaddrinfo()` runs synchronously inside the loop** (`yev_loop.c`, three
+  call sites: connect, source bind, listen). Every gobj, timer and pending
+  completion in the process stops for the duration. The cache means one lookup
+  per host per TTL instead of one per connect, but that first lookup still
+  freezes everything. A resolution that cannot block would have to be an async
+  step in the FSM, like any other I/O — which is the framework's own rule.
+- **Nameservers are tried strictly in order, 3 s x2 each**
+  (`YUNETA_DNS_QUERY_TIMEOUT`, A then AAAA). A dead first entry always costs
+  6 s before the second is reached. Options, cheapest first: drop the per-query
+  timeout, remember which nameserver last answered and start there, or query
+  them concurrently and take the first reply.
+
+Neither is urgent while nodes have a working `resolv.conf`; both are what turns
+a misconfigured node from an outage into a log line.
+
 ## c_tranger: reclaim iterators of a session that never subscribes
 
 `mt_subscription_deleted` now closes the realtime feeds and iterators a

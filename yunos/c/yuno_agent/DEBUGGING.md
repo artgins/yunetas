@@ -198,6 +198,64 @@ is in fact `command-yuno` to whatever yuno is registered as default.
 Implication: a forgotten `set-global-trace level=machine set=1` will survive
 a restart and quietly fill your disk. Always pair on/off in the same session.
 
+### 4.1 When the yuno never reaches the agent (`--global-trace`)
+
+Every command above travels over the yuno's control channel to the agent. So
+none of them work for the failure that most needs tracing: a yuno that dies,
+hangs or misbehaves **before** that channel is up. `ycommand` cannot reach it,
+and `list-yunos` will report `running=false` even while the process is alive.
+
+Since 7.8.2 the levels can be armed on the command line instead:
+
+```bash
+# one level, or several — repeatable and comma-separated
+auth_bff --config-file='[...]' --global-trace=machine
+auth_bff --config-file='[...]' --global-trace=machine,create_delete,start_stop
+
+# what levels exist
+auth_bff --global-trace=list
+```
+
+They are applied after every gclass is registered and before the first service
+starts, so they cover start up itself. An unknown level exits pointing at
+`list` rather than being silently ignored.
+
+To reproduce a yuno the agent launches, take its command line from
+`running-bin id=<id>` / `running-keys id=<id>`, or use the ready-made script the
+agent writes at
+`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`, and append the flag.
+
+Two older tricks, and their limits:
+
+- **`kill -10 <pid>`** (SIGUSR1) cycles the global mask
+  `0` → `0x00FF0000` → `0x0FFF0000` → `0xFFFF0000` → `0`. Useful on a process
+  that is already up, useless for anything that happens during start up.
+- **`--verbose-log=N` is not a trace switch.** It only overrides the *stdout*
+  log handler's field bitmask (which fields each line prints). `--verbose-log=3`
+  prints *fewer* fields than the config default of 255, which is why it reads as
+  "it does nothing". Use `--global-trace`.
+
+### 4.2 Two warnings that arrive without being asked for
+
+Some failures below the framework cannot wait to be traced, so they report
+themselves:
+
+- **`getaddrinfo() BLOCKED the event loop`** (`gobj_log_warning`, msgset `OS`,
+  from `yev_loop.c`) — name resolution is synchronous and runs inside the loop,
+  so a slow resolver stops **every** gobj in the process, not just the socket
+  being opened. Emitted with the host and the elapsed `msec` when it exceeds
+  1 s. If you see it, the yuno is not slow: it is stopped.
+- **`YUNETAS static_resolv: …`** in **syslog** (`journalctl`), from the
+  `CONFIG_FULLY_STATIC` resolver, which sits below the gobj log and cannot
+  reach it: an unresponsive `nameserver` in `/etc/resolv.conf` (rate limited to
+  one per nameserver per 5 min), a resolution over 1 s, or an allocation
+  failure.
+
+A dead first `nameserver` costs ~6 s (A + AAAA timeouts) on **every** lookup,
+so a yuno opening many channels can spend minutes in start up. Answers are
+cached since 7.8.2, which bounds it to the first lookup, but the fix is the
+node's `/etc/resolv.conf`.
+
 ---
 
 ## 5. Reading the logs
