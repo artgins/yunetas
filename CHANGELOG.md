@@ -1,5 +1,23 @@
 # **Changelog**
 
+## Unreleased
+
+- **The `.rpm` is now built on Rocky 9, not on the Ubuntu runner.** Both
+  packages came out of a single `ubuntu-22.04` job, on the stated assumption
+  that fully static binaries run on RHEL too, so a separate EL9 build was
+  unnecessary. That is true of the **binaries** and false of the **archives**:
+  each package also ships `outputs/lib` + `outputs_ext/lib` for nodes that
+  compile their own yunos, and those are tied to their building glibc. So the
+  `.rpm` shipped glibc-2.35 archives onto EL9 nodes running glibc 2.34 — the
+  same defect that destroyed an Ubuntu 26.04 node, surviving on Rocky only
+  because the two versions are adjacent. Verified on a live Rocky 9 node: its
+  `libyunetas-gobj.a` reported `GCC: (Ubuntu 11.4.0)`.
+
+  The workflow is now two jobs, each building its package on its own
+  distribution, and each asserts its payload's glibc stamp before packaging —
+  the EL9 job additionally requires the stamp to equal the container's own
+  glibc, so this cannot silently regress.
+
 ## 7.8.4
 
 A release about a lie the build was telling. A node with a compiler could

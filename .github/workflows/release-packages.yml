@@ -1,12 +1,24 @@
 name: Release runtime packages (.deb + .rpm)
 
 # Builds the AMD64 .deb and the x86_64 .rpm when a GitHub Release is
-# published, and uploads both as release assets. The framework is fully
-# static by default (CONFIG_FULLY_STATIC=y via alldefconfig), so the
-# binaries built on this Ubuntu runner also run on RHEL/Rocky — which is
-# why the .rpm can be produced here with rpmbuild instead of a separate
-# EL9 container. Other architectures (armhf, arm32, riscv64, aarch64)
-# can be added once cross-compile or matching runners are wired up.
+# published, and uploads both as release assets.
+#
+# Each package is built ON ITS OWN DISTRIBUTION, in its own job. That is not
+# cosmetic. Besides the static binaries — which really do run anywhere — each
+# package ships the prebuilt archives under outputs/lib and outputs_ext/lib,
+# and those are tied to the glibc that produced them: a node that compiles its
+# own yunos against archives from a different glibc gets a binary that corrupts
+# its heap at run time (the mechanism is in tools/cmake/libc_guard.cmake).
+#
+# Until 7.8.4 both packages came out of the Ubuntu runner, on the assumption
+# that "fully static binaries run on RHEL too" made a separate EL9 build
+# unnecessary. True of the binaries, false of the archives: the .rpm shipped
+# glibc-2.35 archives onto EL9 nodes running glibc 2.34. It happened to work
+# because the two are adjacent, and the guard now refuses that link outright,
+# which is what surfaced it.
+#
+# Other architectures (armhf, arm32, riscv64, aarch64) can be added once
+# cross-compile or matching runners are wired up.
 
 on:
   release:
@@ -22,8 +34,8 @@ permissions:
   contents: write   # needed to upload assets to the release
 
 jobs:
-  amd64:
-    name: AMD64 .deb + x86_64 .rpm
+  deb:
+    name: AMD64 .deb (Ubuntu)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -54,11 +66,7 @@ jobs:
             libpq-dev \
             kconfig-frontends telnet pipx \
             patch gettext fail2ban rsync \
-            build-essential pkg-config ca-certificates linux-libc-dev \
-            rpm
-          # 'rpm' provides rpmbuild, used below to build the .rpm. It runs
-          # fine on Ubuntu; the spec sets AutoReqProv:no and disables the
-          # brp/debuginfo post-processing, so no redhat-rpm-config is needed.
+            build-essential pkg-config ca-certificates linux-libc-dev
 
       - name: Install Python tooling (kconfiglib + yunetas CLI)
         run: |
@@ -96,20 +104,22 @@ jobs:
           yunetas init
           yunetas build
 
+      - name: Report the glibc this payload is tied to
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          # Written by the gobj-c build. The packager refuses a payload
+          # without it, so fail here with a clearer message than "missing file".
+          test -s outputs/lib/yuneta_libc.stamp
+          echo "Payload archives built against glibc $(cat outputs/lib/yuneta_libc.stamp)"
+          getconf GNU_LIBC_VERSION
+
       - name: Build AMD64 .deb
         shell: bash
         run: |
           source yunetas-env.sh
           cd packages/deb
           ./AMD64.sh
-          ls -la dist/
-
-      - name: Build x86_64 .rpm
-        shell: bash
-        run: |
-          source yunetas-env.sh
-          cd packages/rpm
-          ./x86_64.sh
           ls -la dist/
 
       - name: Resolve release tag
@@ -127,11 +137,120 @@ jobs:
             echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload .deb + .rpm to GitHub Release
+      - name: Upload .deb to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          files: |
-            packages/deb/dist/yuneta-agent-*-amd64.deb
-            packages/rpm/dist/yuneta-agent-*.x86_64.rpm
+          files: packages/deb/dist/yuneta-agent-*-amd64.deb
+          fail_on_unmatched_files: true
+
+  rpm:
+    name: x86_64 .rpm (Rocky 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: rockylinux:9
+
+    steps:
+      # Runs before checkout on purpose: actions/checkout needs git present in
+      # the container to fetch submodules (without it, it falls back to a REST
+      # tarball and the submodules never arrive).
+      - name: Install OS build dependencies
+        run: |
+          dnf -y install epel-release
+          dnf config-manager --set-enabled crb 2>/dev/null \
+            || dnf config-manager --set-enabled powertools 2>/dev/null || true
+          # --setopt=strict=0 installs everything that exists and skips only
+          # the unfindable ones; dnf's default is all-or-nothing, so one
+          # missing CRB-only -devel would abort the entire set.
+          dnf -y --setopt=strict=0 install \
+            git make cmake ninja-build \
+            gcc clang gcc-c++ \
+            python3 python3-devel python3-pip python3-setuptools python3-wheel \
+            jansson-devel pcre2-devel liburing-devel \
+            pcre-devel zlib-devel openssl-devel \
+            perl dos2unix wget tar \
+            libpq-devel \
+            patch gettext \
+            pkgconf-pkg-config ca-certificates glibc-devel kernel-headers \
+            glibc-static libstdc++-static libxcrypt-static \
+            rpm-build
+          # glibc-static is what makes CONFIG_FULLY_STATIC linkable at all.
+          test -f /usr/lib64/libc.a
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install Python tooling (kconfiglib + yunetas CLI)
+        run: |
+          # Container runs as root and is throwaway, so a plain pip install
+          # into the system is simpler than pipx and needs no PATH juggling.
+          pip3 install kconfiglib yunetas
+
+      - name: Create writable /yuneta tree
+        run: mkdir -p /yuneta
+
+      - name: Build external libraries
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          cd kernel/c/linux-ext-libs
+          ./extrae.sh
+          ./configure-libs.sh
+
+      - name: Generate default .config (non-interactive menuconfig)
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          alldefconfig
+          test -f .config
+
+      - name: Build yunetas
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          yunetas init
+          yunetas build
+
+      - name: Report the glibc this payload is tied to
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          # The whole point of this job: these archives must carry EL9's glibc,
+          # not the Ubuntu runner's. Assert it rather than trust it.
+          test -s outputs/lib/yuneta_libc.stamp
+          STAMPED=$(cat outputs/lib/yuneta_libc.stamp)
+          HOST=$(getconf GNU_LIBC_VERSION | awk '{print $2}')
+          echo "Payload archives built against glibc ${STAMPED} (container glibc ${HOST})"
+          test "${STAMPED}" = "${HOST}"
+
+      - name: Build x86_64 .rpm
+        shell: bash
+        run: |
+          source yunetas-env.sh
+          cd packages/rpm
+          ./x86_64.sh
+          ls -la dist/
+
+      - name: Resolve release tag
+        id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          if [ "$EVENT_NAME" = "release" ]; then
+            echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload .rpm to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: packages/rpm/dist/yuneta-agent-*.x86_64.rpm
           fail_on_unmatched_files: true
