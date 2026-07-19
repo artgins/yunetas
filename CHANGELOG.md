@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The static resolver caches its DNS answers** (`static_resolv.c`, so
+  `CONFIG_FULLY_STATIC` builds). Every connect used to re-query, so a yuno
+  building N channels to the same host paid the full round-trip N times —
+  invisible while DNS answers in a millisecond, fatal when it does not.
+  A node whose `/etc/resolv.conf` listed a black-holed nameserver *first* cost
+  the A and AAAA timeouts (~6 s) on **every** connect, and `yuneta_getaddrinfo()`
+  runs synchronously inside the event loop, so it blocked the whole process:
+  an `auth_bff` with 25 channels spent ~2 min 40 s in start up, never sent its
+  `agent_client` WebSocket handshake in time, and the agent gave up on it
+  (`1 raised, 0 reached`) while the process sat there alive and listening.
+  With the cache the same yuno starts in ~7 s and the agent reports `yuno up`.
+  Entries are held for the answer's own TTL (now parsed instead of skipped),
+  clamped to 5..300 s; the table is fixed-size and allocation-free; only the
+  DNS step is cached, not numeric literals or `/etc/hosts`; failures are not
+  cached, so a recovered IdP is picked up at once.
+  This mitigates the blast radius, it does not make a broken `resolv.conf`
+  free: the first lookup still pays it.
 - **`--global-trace=LEVEL` enables global traces from the command line.**
   Repeatable and comma-separated (`--global-trace=machine,create_delete`), with
   `--global-trace=list` printing the available levels. Levels are applied right

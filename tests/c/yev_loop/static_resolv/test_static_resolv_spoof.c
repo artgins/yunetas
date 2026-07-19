@@ -137,7 +137,8 @@ static int run_subtest(const uint8_t *query, int qlen, int reply_from_wrong_sour
         /* Legit reply from the queried nameserver must be accepted and parsed. */
         if(n <= 0) _exit(11);
         struct in_addr a4[16]; int n4 = 0, d6 = 0;
-        dns_parse_response(resp, (size_t)n, TEST_ID, a4, &n4, NULL, &d6, 16);
+        uint32_t ttl = 0;
+        dns_parse_response(resp, (size_t)n, TEST_ID, a4, &n4, NULL, &d6, 16, &ttl);
         if(n4 != 1) _exit(12);
         struct in_addr want; inet_pton(AF_INET, EXPECTED_A, &want);
         _exit(a4[0].s_addr == want.s_addr ? 0 : 13);

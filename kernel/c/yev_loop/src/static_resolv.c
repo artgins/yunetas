@@ -23,6 +23,7 @@
 #include <netdb.h>
 #include <sys/random.h>     /* getrandom() — unpredictable DNS transaction id */
 
+#include <time.h>           /* clock_gettime(CLOCK_MONOTONIC) — cache expiry */
 #include "static_resolv.h"
 
 /***************************************************************
@@ -67,6 +68,51 @@ static struct addrinfo *make_addrinfo_node(
         if(!ai->ai_canonname) { free(ai->ai_addr); free(ai); return NULL; }
     }
     return ai;
+}
+
+/*
+ * Render resolved addresses into the result list.
+ *
+ * `tailp` is the address of the caller's tail pointer, so successive calls
+ * keep appending.  Shared by the cache-hit and the fresh-answer paths, so a
+ * cached lookup is indistinguishable from a fresh one.
+ * Returns -1 if a node could not be allocated; the caller owns the cleanup.
+ */
+static int append_addrs(
+    struct addrinfo ***tailp,
+    const struct in_addr *a4, int n4,
+    const struct in6_addr *a6, int n6,
+    uint16_t port, int ai_socktype, int ai_protocol)
+{
+    for(int j = 0; j < n4; j++) {
+        struct sockaddr_in sa = {0};
+        sa.sin_family = AF_INET;
+        sa.sin_addr   = a4[j];
+        sa.sin_port   = htons(port);
+        struct addrinfo *ai = make_addrinfo_node(
+            AF_INET, ai_socktype, ai_protocol,
+            (struct sockaddr *)&sa, sizeof(sa), NULL);
+        if(!ai) {
+            return -1;
+        }
+        **tailp = ai;
+        *tailp = &ai->ai_next;
+    }
+    for(int j = 0; j < n6; j++) {
+        struct sockaddr_in6 sa = {0};
+        sa.sin6_family = AF_INET6;
+        sa.sin6_addr   = a6[j];
+        sa.sin6_port   = htons(port);
+        struct addrinfo *ai = make_addrinfo_node(
+            AF_INET6, ai_socktype, ai_protocol,
+            (struct sockaddr *)&sa, sizeof(sa), NULL);
+        if(!ai) {
+            return -1;
+        }
+        **tailp = ai;
+        *tailp = &ai->ai_next;
+    }
+    return 0;
 }
 
 /*
@@ -267,12 +313,19 @@ static int dns_query(
  * Collects A records into addrs4[] and AAAA records into addrs6[].
  * Returns number of records found, -1 on parse error or ID mismatch.
  */
+/*
+ *  `min_ttl` (optional) collects the smallest TTL seen across the answer
+ *  records that were actually used, which is what the cache may hold the
+ *  result for.  Left untouched when no usable record is found, so the
+ *  caller's initial value decides what "no answer" means.
+ */
 static int dns_parse_response(
     const uint8_t *msg, size_t msglen,
     uint16_t expected_id,
     struct in_addr *addrs4, int *naddrs4,
     struct in6_addr *addrs6, int *naddrs6,
-    int maxaddrs)
+    int maxaddrs,
+    uint32_t *min_ttl)
 {
     if(msglen < 12) return -1;
     /* Validate transaction ID to reject spoofed/stray UDP responses */
@@ -311,7 +364,10 @@ static int dns_parse_response(
 
         uint16_t rtype  = ((uint16_t)msg[off] << 8) | msg[off+1]; off += 2;
         off += 2;   /* class */
-        off += 4;   /* TTL */
+        uint32_t rttl   = ((uint32_t)msg[off]   << 24) |
+                          ((uint32_t)msg[off+1] << 16) |
+                          ((uint32_t)msg[off+2] <<  8) |
+                          ((uint32_t)msg[off+3]);       off += 4;
         uint16_t rdlen  = ((uint16_t)msg[off] << 8) | msg[off+1]; off += 2;
 
         if(rtype == 1 && rdlen == 4 &&
@@ -319,15 +375,168 @@ static int dns_parse_response(
             memcpy(&addrs4[*naddrs4], msg + off, 4);
             (*naddrs4)++;
             found++;
+            if(min_ttl && rttl < *min_ttl) {
+                *min_ttl = rttl;
+            }
         } else if(rtype == 28 && rdlen == 16 &&
                   addrs6 && *naddrs6 < maxaddrs && off + 16 <= msglen) {
             memcpy(&addrs6[*naddrs6], msg + off, 16);
             (*naddrs6)++;
             found++;
+            if(min_ttl && rttl < *min_ttl) {
+                *min_ttl = rttl;
+            }
         }
         off += rdlen;
     }
     return found;
+}
+
+/***************************************************************
+ *              Resolution cache
+ *
+ *  Without it every connect re-queries DNS, and a yuno that builds N
+ *  channels to the same host pays the full round-trip N times.  That is
+ *  invisible while DNS answers in a millisecond and fatal when it does
+ *  not: a dead first `nameserver` in /etc/resolv.conf costs the A and
+ *  AAAA timeouts below (~6 s) on *every* connect, and yuneta_getaddrinfo
+ *  runs synchronously inside the event loop, so it blocks the whole
+ *  process.  One yuno with 25 channels spent ~3 minutes there and never
+ *  reached its agent.
+ *
+ *  Only step 5 (DNS) is cached.  Numeric literals and /etc/hosts are
+ *  already cheap, and caching /etc/hosts would break the expectation
+ *  that editing it takes effect at once.
+ *
+ *  Entries are held for the answer's own TTL, clamped: the floor stops a
+ *  zero/near-zero TTL from restoring the stampede, the ceiling keeps a
+ *  long-TTL record from outliving a real failover for the life of the
+ *  process.  Fixed-size table, no allocation: a resolver cache must not
+ *  be able to grow without bound, and this file's nodes come from libc
+ *  malloc rather than gbmem_*, so keeping the cache allocation-free
+ *  keeps it out of that question entirely.
+ *
+ *  Failures are deliberately NOT cached.  A negative entry would spare
+ *  the timeout while an IdP is down, but it also holds the outage open
+ *  after DNS recovers, and the observed failure mode was a *slow*
+ *  success, not a failure.
+ ***************************************************************/
+#define YUNETA_DNS_CACHE_ENTRIES    32
+#define YUNETA_DNS_CACHE_ADDRS      8
+#define YUNETA_DNS_CACHE_MIN_TTL    5       /* seconds */
+#define YUNETA_DNS_CACHE_MAX_TTL    300     /* seconds */
+
+/*
+ *  Deadlines are kept on CLOCK_MONOTONIC, so an NTP step — which lands
+ *  exactly where it hurts most, at boot — cannot freeze or flush the cache.
+ *
+ *  These mirror start_sectimer()/test_sectimer() from gobj-c's helpers.h,
+ *  which is what the rest of the tree uses for timeouts.  They are repeated
+ *  here on purpose: this file is the libc-only replacement for glibc's
+ *  resolver and its unit test #includes it and links nothing but libc (see
+ *  tests/c/yev_loop/static_resolv/CMakeLists.txt).  Pulling in gobj-c for two
+ *  arithmetic helpers would invert the layering and break that test.
+ */
+static time_t cache_deadline(time_t seconds)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + seconds;
+}
+
+static int cache_expired(time_t deadline)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec >= deadline;
+}
+
+typedef struct {
+    char            host[NI_MAXHOST];
+    struct in_addr  a4[YUNETA_DNS_CACHE_ADDRS];
+    int             n4;
+    struct in6_addr a6[YUNETA_DNS_CACHE_ADDRS];
+    int             n6;
+    time_t          expire;     /* start_sectimer() deadline; 0 = free slot */
+} dns_cache_entry_t;
+
+static dns_cache_entry_t dns_cache[YUNETA_DNS_CACHE_ENTRIES];
+
+/*
+ *  Return the live entry for `host`, or NULL.  Expired slots are freed on
+ *  the way so a long-lived process recycles them without a sweep.
+ */
+static dns_cache_entry_t *dns_cache_get(const char *host)
+{
+    for(int i = 0; i < YUNETA_DNS_CACHE_ENTRIES; i++) {
+        dns_cache_entry_t *e = &dns_cache[i];
+        if(!e->expire) {
+            continue;
+        }
+        if(cache_expired(e->expire)) {
+            e->expire = 0;
+            continue;
+        }
+        if(strcasecmp(e->host, host) == 0) {
+            return e;
+        }
+    }
+    return NULL;
+}
+
+/*
+ *  Store (or refresh) the answer for `host`.  Picks a free slot, else the
+ *  one closest to expiring — with a fixed table something has to go, and
+ *  the soonest-dead entry is the cheapest to lose.
+ */
+static void dns_cache_put(
+    const char *host,
+    const struct in_addr *a4, int n4,
+    const struct in6_addr *a6, int n6,
+    uint32_t ttl)
+{
+    if(n4 <= 0 && n6 <= 0) {
+        return;
+    }
+    if(ttl < YUNETA_DNS_CACHE_MIN_TTL) {
+        ttl = YUNETA_DNS_CACHE_MIN_TTL;
+    }
+    if(ttl > YUNETA_DNS_CACHE_MAX_TTL) {
+        ttl = YUNETA_DNS_CACHE_MAX_TTL;
+    }
+
+    dns_cache_entry_t *victim = NULL;
+    for(int i = 0; i < YUNETA_DNS_CACHE_ENTRIES; i++) {
+        dns_cache_entry_t *e = &dns_cache[i];
+        if(!e->expire || cache_expired(e->expire)) {
+            victim = e;
+            break;
+        }
+        if(strcasecmp(e->host, host) == 0) {
+            victim = e;
+            break;
+        }
+        if(!victim || e->expire < victim->expire) {
+            victim = e;
+        }
+    }
+    if(!victim) {
+        return;
+    }
+
+    memset(victim, 0, sizeof(*victim));
+    snprintf(victim->host, sizeof(victim->host), "%s", host);
+
+    victim->n4 = (n4 > YUNETA_DNS_CACHE_ADDRS)? YUNETA_DNS_CACHE_ADDRS : (n4 > 0? n4 : 0);
+    for(int i = 0; i < victim->n4; i++) {
+        victim->a4[i] = a4[i];
+    }
+    victim->n6 = (n6 > YUNETA_DNS_CACHE_ADDRS)? YUNETA_DNS_CACHE_ADDRS : (n6 > 0? n6 : 0);
+    for(int i = 0; i < victim->n6; i++) {
+        victim->a6[i] = a6[i];
+    }
+
+    victim->expire = cache_deadline((time_t)ttl);
 }
 
 /*
@@ -499,13 +708,40 @@ int yuneta_getaddrinfo(
     }
     if(head) { *res = head; return 0; }
 
-    /* ------ Step 5: DNS query ------ */
+    /* ------ Step 5a: cache ------ */
+    {
+        dns_cache_entry_t *e = dns_cache_get(node);
+        if(e) {
+            int want4 = (ai_family == AF_INET  || ai_family == AF_UNSPEC)? e->n4 : 0;
+            int want6 = (ai_family == AF_INET6 || ai_family == AF_UNSPEC)? e->n6 : 0;
+            if(want4 > 0 || want6 > 0) {
+                if(append_addrs(&tail, e->a4, want4, e->a6, want6,
+                        port, ai_socktype, ai_protocol) < 0) {
+                    yuneta_freeaddrinfo(head);
+                    return EAI_MEMORY;
+                }
+                *res = head;
+                return 0;
+            }
+            /*
+             *  The entry holds the other family only: fall through and query,
+             *  rather than answering EAI_NONAME from a partial cache hit.
+             */
+        }
+    }
+
+    /* ------ Step 5b: DNS query ------ */
     {
         char nameservers[YUNETA_MAX_NS][YUNETA_NS_ADDRLEN];
         int ns_count = 0;
         parse_resolv_conf(nameservers, &ns_count, YUNETA_MAX_NS);
 
-        for(int nsi = 0; nsi < ns_count && !head; nsi++) {
+        struct in_addr  addrs4[16];
+        struct in6_addr addrs6[16];
+        int naddrs4 = 0, naddrs6 = 0;
+        uint32_t ttl = YUNETA_DNS_CACHE_MAX_TTL;
+
+        for(int nsi = 0; nsi < ns_count && !naddrs4 && !naddrs6; nsi++) {
             uint8_t qbuf[512];
             uint8_t rbuf[4096];
 
@@ -519,22 +755,10 @@ int yuneta_getaddrinfo(
                                          qbuf, (size_t)qlen,
                                          rbuf, sizeof(rbuf), 3000);
                     if(rlen > 0) {
-                        struct in_addr addrs4[16];
-                        int naddrs4 = 0, naddrs6_dummy = 0;
+                        int naddrs6_dummy = 0;
                         dns_parse_response(rbuf, (size_t)rlen, qid4,
                                            addrs4, &naddrs4,
-                                           NULL, &naddrs6_dummy, 16);
-                        for(int j = 0; j < naddrs4; j++) {
-                            struct sockaddr_in sa = {0};
-                            sa.sin_family = AF_INET;
-                            sa.sin_addr   = addrs4[j];
-                            sa.sin_port   = htons(port);
-                            struct addrinfo *ai = make_addrinfo_node(
-                                AF_INET, ai_socktype, ai_protocol,
-                                (struct sockaddr *)&sa, sizeof(sa), NULL);
-                            if(!ai) { yuneta_freeaddrinfo(head); return EAI_MEMORY; }
-                            *tail = ai; tail = &ai->ai_next;
-                        }
+                                           NULL, &naddrs6_dummy, 16, &ttl);
                     }
                 }
             }
@@ -549,24 +773,21 @@ int yuneta_getaddrinfo(
                                          qbuf, (size_t)qlen,
                                          rbuf, sizeof(rbuf), 3000);
                     if(rlen > 0) {
-                        struct in6_addr addrs6[16];
-                        int naddrs4_dummy = 0, naddrs6 = 0;
+                        int naddrs4_dummy = 0;
                         dns_parse_response(rbuf, (size_t)rlen, qid6,
                                            NULL, &naddrs4_dummy,
-                                           addrs6, &naddrs6, 16);
-                        for(int j = 0; j < naddrs6; j++) {
-                            struct sockaddr_in6 sa = {0};
-                            sa.sin6_family = AF_INET6;
-                            sa.sin6_addr   = addrs6[j];
-                            sa.sin6_port   = htons(port);
-                            struct addrinfo *ai = make_addrinfo_node(
-                                AF_INET6, ai_socktype, ai_protocol,
-                                (struct sockaddr *)&sa, sizeof(sa), NULL);
-                            if(!ai) { yuneta_freeaddrinfo(head); return EAI_MEMORY; }
-                            *tail = ai; tail = &ai->ai_next;
-                        }
+                                           addrs6, &naddrs6, 16, &ttl);
                     }
                 }
+            }
+        }
+
+        if(naddrs4 > 0 || naddrs6 > 0) {
+            dns_cache_put(node, addrs4, naddrs4, addrs6, naddrs6, ttl);
+            if(append_addrs(&tail, addrs4, naddrs4, addrs6, naddrs6,
+                    port, ai_socktype, ai_protocol) < 0) {
+                yuneta_freeaddrinfo(head);
+                return EAI_MEMORY;
             }
         }
     }
