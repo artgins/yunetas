@@ -93,6 +93,50 @@ int yuneta_entry_point(
 
 Process exit code.
 
+**Command-line options**
+
+Parsed here, so **every yuno accepts them** — the agent, the brokers, your own
+citizen yunos, the test binaries:
+
+| Flag | Effect |
+|---|---|
+| `-S, --start` | Run as a daemon: double fork plus the `ydaemon` watcher that relaunches the yuno on abnormal exit. Without it, the yuno runs in the foreground. |
+| `-K, --stop` | Stop the daemon of the same process name and exit. |
+| `-f, --config-file=FILE` | Load settings from a JSON config file, or from a JSON list of files merged in order. |
+| `-p, --print-config` | Print the final merged configuration and exit. |
+| `-P, --print-verbose-config` | Print the configuration with every default expanded, and exit. |
+| `-r, --print-role` | Print the yuno's identity (role, name, version, tags…) and exit. |
+| `-v, --version` | Print the yuno's version and exit. |
+| `-V, --yuneta-version` | Print the Yuneta runtime version and exit. |
+| `-l, --verbose-log=N` | Override `handler_options` of the **stdout** log handler — the bitmask selecting which *fields* each log line prints. Despite the name this has nothing to do with traces. |
+| `-g, --global-trace=LEVEL` | Enable a global trace level from start up. See below. |
+
+:::{note}
+**`--global-trace` (since 7.8.2)**
+
+```bash
+my_yuno --config-file='[…]' --global-trace=machine
+my_yuno --config-file='[…]' --global-trace=machine,create_delete,start_stop
+my_yuno --global-trace=list        # print the available levels and exit
+```
+
+Repeatable and comma-separated. Levels are applied **after every gclass is
+registered and before the first service starts**, so they cover start up
+itself. An unknown level exits pointing at `list` instead of being silently
+ignored.
+
+This is the only way to trace a yuno that fails *before* it reaches the agent.
+The usual `set-global-trace` command travels over the very control channel that
+a broken yuno never opens, and `kill -10 <pid>` (SIGUSR1, which cycles the
+global trace mask) only helps once the process is already up. Levels set here
+compose with the yuno's `trace_levels` config — `set_user_gclass_traces()` only
+adds — and the yuno's own `gobj_set_gclass_no_trace()` calls still silence what
+they silence.
+
+Deeper treatment, including reading the output:
+[Debugging a yuno](../../../../yunos/c/yuno_agent/DEBUGGING.md).
+:::
+
 ---
 
 (set_auto_kill_time)=

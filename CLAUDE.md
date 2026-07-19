@@ -1098,6 +1098,24 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 Global levels include `machine` (FSM events), `connections`, `traffic`. GClass
 levels are class-specific (e.g. `C_TCP` has `tls`, `traffic`, `connect`).
 
+**When the yuno never reaches the agent**, every command above is useless — they
+travel over the control channel that is precisely what is missing, and
+`list-yunos` will report `running=false` even while the process is alive. Arm
+the traces on the command line instead (7.8.2+, every yuno accepts it):
+
+```bash
+<yuno> --config-file='[...]' --global-trace=machine,create_delete
+<yuno> --global-trace=list        # available levels
+```
+
+Levels apply before the first service starts, so they cover start up itself.
+Rebuild the yuno's command line from `running-bin id=<id>` / `running-keys
+id=<id>`, or use the script the agent leaves at
+`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`.
+`--verbose-log` is **not** a trace switch: it only picks which fields the stdout
+log handler prints. `kill -10 <pid>` cycles the global mask on an already-running
+process, but cannot catch start up.
+
 Every yuno `main.c` carries a **commented-out block of trace toggles**
 (`gobj_set_gclass_trace(...)`, `gobj_set_global_trace(...)` for the common
 levels) after the `arguments.verbose` setup, so tracing is one uncomment away.
