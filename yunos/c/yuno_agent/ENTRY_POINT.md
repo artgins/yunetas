@@ -101,7 +101,8 @@ for a representative call site.
 | `-r, --print-role`       | Print `{role,name,alias,version,date,description,tags,…}` and exit. |
 | `-v, --version`          | Print yuno version and exit.                           |
 | `-V, --yuneta-version`   | Print yuneta runtime version and exit.                 |
-| `-l, --verbose-log=N`    | Override `handler_options` of the `stdout` log handler. |
+| `-l, --verbose-log=N`    | Override `handler_options` of the `stdout` log handler. **Not a trace switch** — it only selects which *fields* each line prints. |
+| `-g, --global-trace=LEVEL` | Enable a global trace level before the first service starts. Repeatable and comma-separated; `list` prints the available levels. The only way to trace start up itself, since `set-global-trace` needs the agent channel that a failing yuno never opens. See [`DEBUGGING.md` §4.1](DEBUGGING.md). |
 
 ### 3.3 Close-and-rewire stdio in daemon mode
 
