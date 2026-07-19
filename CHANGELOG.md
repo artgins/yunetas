@@ -1,6 +1,14 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.4
+
+A release about a lie the build was telling. A node with a compiler could
+compile its own yunos against the archives shipped in the package, the link
+would succeed, and the binary would corrupt its heap the moment it ran. It
+cost a day of chasing a refcount bug that did not exist — the stack traces
+pointed at `kw_decref` and jansson, and both were innocent bystanders. The
+build now refuses that link instead of producing the binary, and the CLI stops
+reporting success when the refusal happens.
 
 - **The build refuses to link prebuilt archives against a different glibc.**
   The packages ship prebuilt static archives (`outputs/lib`, `outputs_ext/lib`)
@@ -42,6 +50,13 @@
   the moment something is already broken. It is a dependency rather than a
   recommendation because `--no-install-recommends` is common on server installs,
   which is precisely where the crash will happen.
+
+- **`yunetas` CLI 0.14.0**: `init` no longer prints `init done` and exits `0`
+  after a cmake it just watched fail. It now reports `init FAILED`, lists the
+  directories, and exits `1`. The glibc guard above fired correctly on a node
+  and the CLI declared success anyway, which is exactly the combination that
+  makes a real error invisible. `build`'s failure path also stops using the
+  bare `exit()` (absent under `python -S`) and exits `1` instead of `255`.
 
 ## 7.8.3
 

@@ -341,7 +341,7 @@ Grants the `yuneta` user passwordless sudo for all commands.
 
 | Type | Packages |
 |------|----------|
-| **Depends** | `adduser`, `lsb-base`, `rsync`, `locales`, `rsyslog`, `init-system-helpers` |
+| **Depends** | `adduser`, `lsb-base`, `rsync`, `locales`, `rsyslog`, `init-system-helpers`, `gdb` |
 | **Recommends** | `curl`, `vim`, `sudo`, `tree`, `pipx`, `fail2ban`, `net-tools`, `locate` |
 | **Suggests** | Full development toolchain (`git`, `cmake`, `gcc`, `clang`, `python3-dev`, crypto/compression libs, etc.) |
 

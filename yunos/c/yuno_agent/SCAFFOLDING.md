@@ -58,7 +58,7 @@ reorder, just merge new code into the existing layout.
 ## 2. CLI usage
 
 The tool is `yuno-skeleton`, installed by the `utils/c/yuno-skeleton/`
-build. Arguments declared at [`yuno_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/yuno_skeleton.c):
+build. Arguments declared at [`yuno_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/yuno_skeleton.c):
 
 | Flag                          | Meaning                                                |
 |-------------------------------|--------------------------------------------------------|
@@ -123,20 +123,20 @@ parses this file at startup to populate the prompts.
 
 ## 4. The templating engine
 
-`make_skeleton.c` + [`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/tmpl_dir.c). Two substitution layers, both using
+`make_skeleton.c` + [`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/tmpl_dir.c). Two substitution layers, both using
 [PCRE2](https://www.pcre.org/) regex.
 
 ### 4.1 Content placeholders: `{{varname}}`
 
-[`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\{\{.+?\}\})`. Every `{{var}}` block in a
+[`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\{\{.+?\}\})`. Every `{{var}}` block in a
 file whose name ends in `_tmpl` is replaced by the matching value from
 `jn_values`. Used inside `main.c_tmpl`, `c_+rootname+.c_tmpl`, etc.
 
 ### 4.2 Filename placeholders: `+varname+`
 
-[`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\+.+?\+)`. Every `+var+` block in a
+[`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\+.+?\+)`. Every `+var+` block in a
 filename or directory name is replaced. The `_tmpl` suffix is stripped
-on output ([`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/tmpl_dir.c)). Example:
+on output ([`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/tmpl_dir.c)). Example:
 
 ```
 template path:   skeletons/gclass_child/c_+rootname+.c_tmpl
@@ -146,7 +146,7 @@ rootname=foo →   ./c_foo.c
 ### 4.3 Derived variables
 
 User-prompted vars come from the catalog. The engine adds derived ones
-automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/make_skeleton.c):
+automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/make_skeleton.c):
 
 | Variable      | Derivation                                                |
 |---------------|-----------------------------------------------------------|
@@ -302,7 +302,7 @@ The banner blocks the templates ship (example from
 ```
 
 Plus the canonical headers for `Attributes`, `PRIVATE DATA`, `Event types`,
-`States`, etc. — see [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_yuno.c) (large reference example) and [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_timer.c)
+`States`, etc. — see [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/c_yuno.c) (large reference example) and [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/c_timer.c)
 (minimal reference example).
 
 Important consequences:
@@ -486,9 +486,9 @@ cmake .. && make
 
 | What                                              | Where                                                                  |
 |---------------------------------------------------|------------------------------------------------------------------------|
-| Tool entry point                                  | [`utils/c/yuno-skeleton/yuno_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/yuno_skeleton.c)                          |
-| Templating engine (variables + dispatch)          | [`utils/c/yuno-skeleton/make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/make_skeleton.c)                        |
-| Directory walker + content rendering              | [`utils/c/yuno-skeleton/tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/yuno-skeleton/tmpl_dir.c)                     |
+| Tool entry point                                  | [`utils/c/yuno-skeleton/yuno_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/yuno_skeleton.c)                          |
+| Templating engine (variables + dispatch)          | [`utils/c/yuno-skeleton/make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/make_skeleton.c)                        |
+| Directory walker + content rendering              | [`utils/c/yuno-skeleton/tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/yuno-skeleton/tmpl_dir.c)                     |
 | Template catalog                                  | `utils/c/yuno-skeleton/skeletons/__skeletons__.json`                   |
 | `yuno_citizen` main template                      | `utils/c/yuno-skeleton/skeletons/yuno_citizen/src/main.c_tmpl`         |
 | `yuno_standalone` main template                   | `utils/c/yuno-skeleton/skeletons/yuno_standalone/src/main.c_tmpl`      |
@@ -496,5 +496,5 @@ cmake .. && make
 | CHILD gclass subscription block                   | `skeletons/gclass_child/c_+rootname+.c_tmpl:83-89`                     |
 | JS gclass template                                | `skeletons/js_gclass/+rootname+.js_tmpl`                               |
 | Banner-rule discussion                            | [`CLAUDE.md`](../../../CLAUDE.md) — "GClass templates and skeletons"   |
-| Canonical large gclass examples                   | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_yuno.c), [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) |
-| Canonical minimal gclass example                  | [`kernel/c/root-linux/src/c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_timer.c)                                    |
+| Canonical large gclass examples                   | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/c_yuno.c), [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.4/yunos/c/yuno_agent/src/c_agent.c) |
+| Canonical minimal gclass example                  | [`kernel/c/root-linux/src/c_timer.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/c_timer.c)                                    |

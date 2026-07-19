@@ -18,4 +18,4 @@ No options — a single directory argument.
 ## See also
 
 - [`inotify`](inotify.md) — the raw layer below this.
-- [`utils/c/fs_watcher/README.md`](https://github.com/artgins/yunetas/blob/7.8.3/utils/c/fs_watcher/README.md).
+- [`utils/c/fs_watcher/README.md`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/fs_watcher/README.md).

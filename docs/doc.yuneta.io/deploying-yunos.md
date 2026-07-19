@@ -7,7 +7,7 @@ three tools that do the work —
 
 | Tool | What it is | Where it lives |
 |------|------------|----------------|
-| [`yunetas`](yunetas-cli.md) | The management/build CLI (`pipx install yunetas`). Front-end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.8.3/utils/python/tui_yunetas) (git submodule, published on PyPI) |
+| [`yunetas`](yunetas-cli.md) | The management/build CLI (`pipx install yunetas`). Front-end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.8.4/utils/python/tui_yunetas) (git submodule, published on PyPI) |
 | [`sync_binaries.py`](tools/sync_binaries.md) | Diffs the built binaries against the agent's installed set and pushes the differences. | [`tools/agent/`](tools.md) (shipped in the `.deb`, available on every node) |
 | [`sync_configs.py`](tools/sync_configs.md) | Diffs a directory of `*.json` yuno configs against the agent's installed set and pushes the differences. | [`tools/agent/`](tools.md) |
 
@@ -73,6 +73,20 @@ does), and that directory is exactly where the agent's `$$(<role>)` upload
 macro reads from. Configs: each project keeps per-node config sets under
 `yunos/batches/<host>/*.json`, where `<host>` is the **realm_id** of the target
 node (its deploy FQDN, e.g. `batches/app.wattyzer.com/`).
+
+**Build where the SDK was built — not on the target node.** Yunos are linked
+fully static, and the prebuilt archives shipped in the `.deb`/`.rpm`
+(`outputs/lib`, `outputs_ext/lib`) are tied to the glibc that produced them.
+A node that happens to have a compiler and your project sources *can* compile
+its own yunos against those archives, and the link succeeds — but it mixes them
+with the **node's** glibc, and the resulting binary corrupts its heap at run
+time: it dies inside `malloc` seconds after start, with no Yuneta error logged
+and a stack trace blaming unrelated code. Since 7.8.4 the build refuses this at
+`cmake` time instead (`glibc mismatch. REFUSING to build.`). If you see that,
+build on the machine where the SDK itself was built and push binaries from
+there — which is what this guide does anyway. Building on a node is only safe
+when that node built the whole SDK from source, or runs a package made for its
+own distribution.
 
 **Safety nets.** Every push tool shows you a classification table and asks
 before touching anything (`-n` dry-runs, `-a` skips the questions);
