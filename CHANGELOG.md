@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`yunetas` CLI 0.15.0: a node registry**, so deploying to another machine is
+  `--node <name>` instead of a url plus four OAuth2 flags re-derived from a
+  config file each time. `register-node` / `list-nodes` / `unregister-node`
+  back it with `~/.yuneta/nodes.json` (0600), and `--node/-N` works on `sync`,
+  `sync-binaries`, `sync-configs` and `upgrade-yunos`. It stores where a node
+  is and which identity you present, **never a credential** — those come from
+  the environment at call time. A node registered with `--ssh` instead of
+  `--url` is reached by forwarding a free local port to its loopback-bound
+  agent, torn down after the command. See the deploy guide.
+
 - **The `.rpm` is now built on Rocky 9, not on the Ubuntu runner.** Both
   packages came out of a single `ubuntu-22.04` job, on the stated assumption
   that fully static binaries run on RHEL too, so a separate EL9 build was

@@ -29,6 +29,23 @@ yunetas sync                  # push it for real
 yunetas upgrade-yunos         # ONLY if a version was bumped: promote + restart
 ```
 
+Those commands target the **local** agent. To deploy to another machine,
+register it once and add `--node`:
+
+```bash
+# Agent reachable from here (wss:// on 1993, OAuth2):
+yunetas register-node prod --url wss://myhost:1993 \
+    --issuer https://auth.example.com/realms/r --client-id myhost --user-id me
+# Or: agent listening only on loopback (the default), reached over SSH:
+yunetas register-node prod --ssh yuneta@myhost
+
+yunetas sync -n --node prod   # same flow, remote target
+```
+
+The registry (`~/.yuneta/nodes.json`) stores **where** a node is and **which
+identity** you present — never a password. Supply the credential at call time
+via `$YUNETA_OAUTH_PASSW` (or `$YUNETA_OAUTH_JWT` to reuse a token).
+
 - **Same-version rebuild (hot-patch)?** `yunetas sync` is enough — it
   kill/restarts the affected yunos itself. Skip `upgrade-yunos`.
 - **Version bump (`APP_VERSION` changed)?** `yunetas sync` then
