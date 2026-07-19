@@ -126,7 +126,11 @@ surprising and un-idiomatic. The kernel tuning is applied live with
    (never overwrites; optional `YUNETA_OWNER=` substitutes `node_owner`).
 4. Sets `LANG=en_US.UTF-8` in `/etc/locale.conf` if unset.
 5. `chown -R yuneta:yuneta /yuneta`; private keys dir `0700`; `/var/crash`
-   `0775 root:yuneta`.
+   `0775 root:yuneta`, then `systemd-tmpfiles --create` on the bundled
+   `/usr/lib/tmpfiles.d/yuneta-crash.conf`. **`/var/crash` is co-owned with
+   `kexec-tools` (kdump)**, which declares it `root:root 0755`, so any later
+   transaction touching that package silently reverts the group and mode and
+   cores stop being written; the tmpfiles drop-in re-asserts it every boot.
 6. `sysctl --system` (applies the tuning **including io_uring**).
 7. Installs bundled `authorized_keys` for `yuneta` (if present).
 8. Enables `rsyslog`.

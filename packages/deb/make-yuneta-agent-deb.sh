@@ -325,6 +325,21 @@ alias ll='ls -la'
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
+# --- Core dump directory ownership, re-asserted at every boot ---
+#
+# /var/crash is not necessarily ours alone (on RHEL/Rocky kdump's kexec-tools
+# owns it too, as root:root 0755), and a one-shot chmod/chown in postinst holds
+# only until the next package touches it — after which cores silently stop
+# being written. systemd-tmpfiles re-applies this on every boot.
+mkdir -p "${WORKDIR}/usr/lib/tmpfiles.d"
+cat > "${WORKDIR}/usr/lib/tmpfiles.d/yuneta-crash.conf" <<'EOF'
+# Yuneta: core dumps land in /var/crash (see kernel.core_pattern in
+# /etc/sysctl.d/99-yuneta-core.conf). Re-assert group write for 'yuneta' here —
+# applied at boot and by `systemd-tmpfiles --create`.
+d /var/crash 0775 root yuneta -
+EOF
+chmod 0644 "${WORKDIR}/usr/lib/tmpfiles.d/yuneta-crash.conf"
+
 # --- Kernel tuning and Core dumps to /var/crash ---
 cat > "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf" <<'EOF'
 # Yuneta: TCP server tuning
@@ -1295,6 +1310,10 @@ fi
 if [ -d /var/crash ]; then
     chmod 0775 /var/crash || true
     chown root:yuneta /var/crash || true
+fi
+# Re-assert it now, and let systemd-tmpfiles do it again on every boot.
+if command -v systemd-tmpfiles >/dev/null 2>&1; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/yuneta-crash.conf >/dev/null 2>&1 || true
 fi
 
 # Apply kernel settings and reload systemd units

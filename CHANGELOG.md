@@ -11,6 +11,15 @@ alive and listening. Nothing in any log said any of that. The fixes below are
 in the order they were needed: a way to trace start up at all, then the fix,
 then the two warnings that would have made the whole hunt a one-line grep.
 
+- **Core dumps survive a `kexec-tools` update** (`.deb` and `.rpm`). `/var/crash`
+  is **co-owned**: on RHEL/Rocky kdump's `kexec-tools` also declares it, as
+  `root:root 0755`. The packages' one-shot `chmod 0775` / `chown root:yuneta` in
+  the post-install therefore held only until the next transaction touching that
+  package, which reverted group and mode — and then cores silently stopped being
+  written, with `rpm -V yuneta-agent` reporting `.....UG.. /var/crash` for anyone
+  who thought to look. A `/usr/lib/tmpfiles.d/yuneta-crash.conf` drop-in now
+  re-asserts it on every boot (and immediately, via `systemd-tmpfiles --create`).
+  `kernel.core_pattern` is unchanged.
 - **`getaddrinfo()` reports when it blocks the event loop** (`yev_loop.c`).
   Resolution is synchronous and the loop calls it while arming a connect, a
   source bind or a listen, so a slow resolver does not delay one socket — it

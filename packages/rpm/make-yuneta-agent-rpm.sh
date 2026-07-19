@@ -296,6 +296,23 @@ alias ll='ls -la'
 EOF
 chmod 0644 "${STAGE}/etc/profile.d/yuneta.sh"
 
+# --- Core dump directory ownership, re-asserted at every boot ---
+#
+# /var/crash is NOT ours alone: on RHEL/Rocky kexec-tools (kdump) also owns it,
+# declared root:root 0755. A one-shot chmod/chown in %post therefore holds only
+# until the next transaction that touches kexec-tools, which silently reverts
+# the group and mode — and then cores stop being written with no diagnostic at
+# all. systemd-tmpfiles re-applies this on every boot, so the setting survives.
+mkdir -p "${STAGE}/usr/lib/tmpfiles.d"
+cat > "${STAGE}/usr/lib/tmpfiles.d/yuneta-crash.conf" <<'EOF'
+# Yuneta: core dumps land in /var/crash (see kernel.core_pattern in
+# /etc/sysctl.d/99-yuneta-core.conf). The directory is shared with kdump, whose
+# package resets it to root:root 0755, so re-assert group write for 'yuneta'
+# here — it is applied at boot and by `systemd-tmpfiles --create`.
+d /var/crash 0775 root yuneta -
+EOF
+chmod 0644 "${STAGE}/usr/lib/tmpfiles.d/yuneta-crash.conf"
+
 # --- Kernel tuning + core dumps + io_uring (RHEL needs it ON) ---
 cat > "${STAGE}/etc/sysctl.d/99-yuneta-core.conf" <<'EOF'
 # Yuneta: TCP server tuning
@@ -1086,6 +1103,7 @@ cp -a %{_staging}/. %{buildroot}/
 %defattr(-,root,root,-)
 /yuneta
 %dir /var/crash
+/usr/lib/tmpfiles.d/yuneta-crash.conf
 %dir /etc/yuneta
 %config(noreplace) /etc/yuneta/webserver
 %config(noreplace) /etc/profile.d/yuneta.sh
@@ -1201,6 +1219,11 @@ fi
 if [ -d /var/crash ]; then
     chmod 0775 /var/crash || true
     chown root:yuneta /var/crash || true
+fi
+# Re-assert it now, and let systemd-tmpfiles do it again on every boot: the
+# directory is shared with kdump, which resets it back to root:root 0755.
+if command -v systemd-tmpfiles >/dev/null 2>&1; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/yuneta-crash.conf >/dev/null 2>&1 || true
 fi
 
 # Apply kernel settings (includes kernel.io_uring_disabled=0 — Yuneta needs it)

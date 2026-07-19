@@ -117,7 +117,12 @@ The `postinst` script runs automatically after file extraction and performs thes
 #### 2.4. Ownership and Permissions
 - Sets `/yuneta/` tree ownership recursively to `yuneta:yuneta`
 - Sets `/yuneta/store/certs/private/` to mode `0700` (only owner can access private keys)
-- Sets `/var/crash/` to mode `0775` with group `yuneta` (for core dumps)
+- Sets `/var/crash/` to mode `0775` with group `yuneta` (for core dumps), and
+  installs `/usr/lib/tmpfiles.d/yuneta-crash.conf` so systemd re-applies it on
+  every boot. `/var/crash` can be co-owned by another package (kdump's
+  `kexec-tools` declares it `root:root 0755`), and a one-shot postinst fix
+  holds only until that package's next transaction — after which cores stop
+  being written with no diagnostic.
 
 #### 2.5. Kernel Parameter Tuning
 - Applies `/etc/sysctl.d/99-yuneta-core.conf` via `sysctl --system`
