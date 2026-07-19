@@ -4,11 +4,11 @@ Default parser for the control-plane `command` verb. Dispatches a textual comman
 
 Source code:
 
-- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.h)
-- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c)
+- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.h)
+- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c)
 
 (command_parser)=
-## [`command_parser()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c#L47)
+## [`command_parser()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c#L47)
 
 `command_parser()` processes a command string, expands its parameters, checks authorization, and executes the corresponding function or event.
 
@@ -44,7 +44,7 @@ If the command does not have a function handler, it is redirected as an event.
 ---
 
 (gobj_build_cmds_doc)=
-## [`gobj_build_cmds_doc()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c#L849)
+## [`gobj_build_cmds_doc()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c#L849)
 
 `gobj_build_cmds_doc()` generates a JSON-formatted documentation of available commands for a given `hgobj`.
 
@@ -73,7 +73,7 @@ If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also inc
 ---
 
 (build_command_response)=
-## [`build_command_response()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c#L904)
+## [`build_command_response()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c#L904)
 
 `build_command_response()` builds a standardized JSON response object for command and stats operations. The response contains four fields: `result`, `comment`, `schema`, and `data`.
 
@@ -108,7 +108,7 @@ All three owned parameters (`jn_comment`, `jn_schema`, `jn_data`) are consumed b
 ---
 
 (command_get_cmd_desc)=
-## [`command_get_cmd_desc()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c#L183)
+## [`command_get_cmd_desc()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c#L183)
 
 `command_get_cmd_desc()` searches a command table for the descriptor matching a given command name. It extracts the first word from the `command` string and looks it up in `command_table`, checking both the primary name and any aliases defined in each descriptor.
 
@@ -137,7 +137,7 @@ Aliases have precedence when the descriptor has no `json_fn` command function se
 ---
 
 (search_command_desc)=
-## [`search_command_desc()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/gobj-c/src/command_parser.c#L663)
+## [`search_command_desc()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/gobj-c/src/command_parser.c#L663)
 
 `search_command_desc()` searches for a command descriptor starting in the given GObj and optionally descending into related GObjs depending on the `level` parameter. It first checks the GObj's own command table, then searches deeper if the command is not found locally.
 

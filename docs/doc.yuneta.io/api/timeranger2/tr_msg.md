@@ -4,11 +4,11 @@ Low-level message store built on top of timeranger2. Used as the common substrat
 
 Source code:
 
-- [`tr_msg.h`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.h)
-- [`tr_msg.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c)
+- [`tr_msg.h`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.h)
+- [`tr_msg.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c)
 
 (trmsg_active_records)=
-## [`trmsg_active_records()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L497)
+## [`trmsg_active_records()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L497)
 
 `trmsg_active_records()` returns a list of cloned active records from the given `list`, applying the optional filter `jn_filter`.
 
@@ -37,7 +37,7 @@ The returned list contains cloned records, making it safe for modification. The 
 ---
 
 (trmsg_add_instance)=
-## [`trmsg_add_instance()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L94)
+## [`trmsg_add_instance()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L94)
 
 `trmsg_add_instance()` adds a new message instance to the specified topic in the TimeRanger database.
 
@@ -70,7 +70,7 @@ The `jn_msg` parameter is owned by [`trmsg_add_instance()`](<#trmsg_add_instance
 ---
 
 (trmsg_close_list)=
-## [`trmsg_close_list()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L348)
+## [`trmsg_close_list()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L348)
 
 `trmsg_close_list()` closes a previously opened list of messages in the TimeRanger system, releasing associated resources.
 
@@ -99,7 +99,7 @@ Ensure that [`trmsg_open_list()`](<#trmsg_open_list>) was called before invoking
 ---
 
 (trmsg_close_topics)=
-## [`trmsg_close_topics()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L73)
+## [`trmsg_close_topics()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L73)
 
 The `trmsg_close_topics()` function closes the specified topics in the given `tranger` instance, ensuring proper resource cleanup.
 
@@ -128,7 +128,7 @@ Ensure that [`trmsg_open_topics()`](<#trmsg_open_topics>) was previously called 
 ---
 
 (trmsg_data_tree)=
-## [`trmsg_data_tree()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L442)
+## [`trmsg_data_tree()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L442)
 
 `trmsg_data_tree()` returns a list of cloned records with instances stored in the `data` hook, formatted for Webix usage.
 
@@ -157,7 +157,7 @@ The returned JSON object must be manually decremented to avoid memory leaks.
 ---
 
 (trmsg_foreach_active_messages)=
-## [`trmsg_foreach_active_messages()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L552)
+## [`trmsg_foreach_active_messages()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L552)
 
 Iterates over all active messages in the given `list`, invoking the specified callback function for each message.
 
@@ -198,7 +198,7 @@ The callback function should return a negative value to break the iteration, 0 t
 ---
 
 (trmsg_foreach_instances_messages)=
-## [`trmsg_foreach_instances_messages()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L591)
+## [`trmsg_foreach_instances_messages()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L591)
 
 Iterates over all instance messages in the given `list`, invoking the specified callback function for each message. The callback receives a cloned instance of each message.
 
@@ -239,7 +239,7 @@ The callback function should return a negative value to break the iteration. The
 ---
 
 (trmsg_foreach_messages)=
-## [`trmsg_foreach_messages()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L637)
+## [`trmsg_foreach_messages()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L637)
 
 `trmsg_foreach_messages()` iterates over all messages in the given `list`, invoking the provided callback function for each message. The callback receives either duplicated or cloned message instances based on the `duplicated` flag.
 
@@ -282,7 +282,7 @@ The callback function receives a reference to the `list`, the message `key`, and
 ---
 
 (trmsg_get_active_md)=
-## [`trmsg_get_active_md()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L403)
+## [`trmsg_get_active_md()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L403)
 
 `trmsg_get_active_md()` retrieves the metadata of the active message associated with the specified key from the given list.
 
@@ -311,7 +311,7 @@ The returned metadata is part of the internal data structure and should not be m
 ---
 
 (trmsg_get_active_message)=
-## [`trmsg_get_active_message()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L385)
+## [`trmsg_get_active_message()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L385)
 
 `trmsg_get_active_message()` retrieves the active message associated with the specified key from the given list.
 
@@ -340,7 +340,7 @@ The returned JSON object should not be modified or freed by the caller. To modif
 ---
 
 (trmsg_get_instances)=
-## [`trmsg_get_instances()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L422)
+## [`trmsg_get_instances()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L422)
 
 `trmsg_get_instances()` retrieves the list of instances associated with a specific message key from the given list.
 
@@ -369,7 +369,7 @@ The returned list corresponds to the `messages[message_key].instances` structure
 ---
 
 (trmsg_get_message)=
-## [`trmsg_get_message()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L370)
+## [`trmsg_get_message()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L370)
 
 Retrieves a message from the given `list` by its `key`. The returned JSON object contains both the `active` message and its `instances`.
 
@@ -398,7 +398,7 @@ The returned JSON object should not be modified or freed by the caller.
 ---
 
 (trmsg_get_messages)=
-## [`trmsg_get_messages()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L359)
+## [`trmsg_get_messages()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L359)
 
 `trmsg_get_messages()` retrieves the dictionary of messages from the specified list.
 
@@ -425,7 +425,7 @@ The returned dictionary should not be modified or freed by the caller.
 ---
 
 (trmsg_open_list)=
-## [`trmsg_open_list()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L282)
+## [`trmsg_open_list()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L282)
 
 `trmsg_open_list()` opens a list of messages from a specified topic in the TimeRanger database, applying optional filtering conditions and extra parameters.
 
@@ -464,7 +464,7 @@ Returns a JSON object representing the opened list. The caller is responsible fo
 ---
 
 (trmsg_open_topics)=
-## [`trmsg_open_topics()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L41)
+## [`trmsg_open_topics()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L41)
 
 `trmsg_open_topics()` initializes and opens topics for message handling using TimeRanger, ensuring that the necessary structures are available for message storage and retrieval.
 
@@ -493,7 +493,7 @@ Ensure that `tranger2_startup()` has been called before invoking [`trmsg_open_to
 ---
 
 (trmsg_record_instances)=
-## [`trmsg_record_instances()`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/timeranger2/src/tr_msg.c#L525)
+## [`trmsg_record_instances()`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/timeranger2/src/tr_msg.c#L525)
 
 `trmsg_record_instances()` retrieves a list of cloned instances associated with a specific message key from the given list.
 

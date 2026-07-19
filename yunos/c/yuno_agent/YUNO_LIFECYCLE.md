@@ -55,7 +55,7 @@ edits create drift with treedb that won't show up until the next start fails.
 
 ### 2.1 The `binaries` topic
 
-Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Composite key:
+Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Composite key:
 
 | Column     | Role                                                    |
 |------------|---------------------------------------------------------|
@@ -70,8 +70,8 @@ Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/b
 Multiple versions per role coexist. The yuno record decides which version is
 used (see §2.3).
 
-**On-disk path**, built by [`yuneta_repos_yuno_dir()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7468) ([c_agent.c:7313](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7313)) and
-[`yuneta_repos_yuno_file()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7497) ([c_agent.c:7342](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7342)):
+**On-disk path**, built by [`yuneta_repos_yuno_dir()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7468) ([c_agent.c:7313](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7313)) and
+[`yuneta_repos_yuno_file()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7497) ([c_agent.c:7342](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7342)):
 
 ```
 <yuneta_root_dir>/repos/<tags>/<role>/<version>/<role>
@@ -81,7 +81,7 @@ The file inside is the executable; the filename is the role again.
 
 ### 2.2 The `configurations` topic
 
-Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Composite key:
+Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Composite key:
 
 | Column      | Role                                                                |
 |-------------|---------------------------------------------------------------------|
@@ -92,14 +92,14 @@ Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/b
 The blob lives in treedb. At start time the agent **materialises** it to a
 `.json` file under the yuno's `bin/` directory and hands that path to the binary
 via `--config-file='[<paths>]'` when it launches the process. Both steps run
-inside [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8451):
+inside [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8451):
 it writes the config through
-[`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8058),
+[`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8058),
 then exec's the binary with the materialised paths.
 
 ### 2.3 The `yunos` topic
 
-Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Per-yuno record. Important
+Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Per-yuno record. Important
 columns:
 
 | Column            | Meaning                                                            |
@@ -123,7 +123,7 @@ columns:
 
 A yuno record without a matching `binaries` row or `configurations` row fails at
 create time, not at start time:
-[`cmd_create_yuno()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L4665)
+[`cmd_create_yuno()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L4665)
 rejects the request as soon as either lookup comes back empty.
 
 `start_priority` / `sched_priority` / `cpu_core` are node placement decisions:
@@ -135,7 +135,7 @@ until set with `update-node`.
 
 ### 2.4 Realm and per-yuno layout
 
-Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7523) ([c_agent.c:7368](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7368)):
+Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7523) ([c_agent.c:7368](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7368)):
 
 ```
 <yuneta_root_dir>/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
@@ -268,14 +268,14 @@ versions to *latest*. Writes the row with `yuno_running=false`,
 
 ### 4.3 Start: `run-yuno`
 
-Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8451):
+Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8451):
 
 1. Select yunos: `disabled=false ∧ running=false`.
-2. Resolve the binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L7663):
+2. Resolve the binary via [`get_yuno_binary()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L7663):
    prefer the active snapshot ([`gobj_list_snaps()`](#gobj_list_snaps)), falling back to a direct
    `(role, role_version)` lookup.
 3. Materialise each `configurations.zcontent` blob to a JSON file under the
-   yuno's `bin/` directory ([`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8058)).
+   yuno's `bin/` directory ([`build_yuno_running_script()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8058)).
 4. Build a launcher shell script that runs the binary with:
    ```
    <binary> --config-file='["bin/1-role_name.json", "bin/2-role_name.json", …]' "$@"
@@ -283,7 +283,7 @@ Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/y
 5. `run_process2(bfbinary, argv)` — `fork`/`exec` via a wrapper.
 6. The yuno opens a channel back to the agent and emits **`EV_ON_OPEN`**
    carrying its `pid` and `watcher_pid` (handler
-   [`ac_on_open()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L11000)).
+   [`ac_on_open()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L11000)).
    Only after this handshake does the agent set `yuno_running` to `true` and
    store `yuno_pid` / `watcher_pid`.
 7. If `must_play=true`, the agent fires `play-yuno` automatically right after
@@ -335,7 +335,7 @@ exiting. The process never stops; only its inputs are gated.
 ### 4.5 Stop: `kill-yuno`
 
 An **orderly shutdown**, not a SIGKILL, performed by
-[`kill_yuno()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8565):
+[`kill_yuno()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8565):
 
 1. Read the `signal2kill` attribute (default `SIGQUIT`).
 2. `kill(yuno_pid, signal2kill)`.
@@ -343,7 +343,7 @@ An **orderly shutdown**, not a SIGKILL, performed by
 4. **No timer-based escalation in code**. The agent trusts the yuno's signal
    handler to actually shut down. If it doesn't, the yuno stays "running"
    from the agent's record forever (see §5).
-5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L11290)
+5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L11290)
    flips `yuno_running=false`, `yuno_playing=false`, `yuno_pid=0`.
 
 ### 4.6 Crash detection and reconciliation
@@ -355,7 +355,7 @@ not poll pids. It does not know "exited normally" from "segfaulted".
 
 **The restart, however, does not depend on the agent.** Every yuno
 started with `--start` runs under a per-yuno watcher process (the
-first-fork survivor in [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/root-linux/src/ydaemon.c)). When the yuno child dies abnormally
+first-fork survivor in [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/ydaemon.c)). When the yuno child dies abnormally
 (any signal other than `SIGKILL`, or any non-zero exit code), the watcher
 sleeps 2s and re-execs the same binary — and it does so **regardless of
 whether the agent is running**. A yuno is an autonomous machine; the
@@ -369,10 +369,10 @@ What the agent contributes on top:
   fresh `run-yuno` is **not** needed; the watcher has already spawned
   a new child with a new pid that will reconnect to the agent on its own
   (it goes through the normal `EV_ON_OPEN` handshake).
-- At agent boot the timer `ac_timeout()` ([c_agent.c:11393](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L11393)) runs:
-    1. [`run_util_yunos()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L9018) ([c_agent.c:9018](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L9018)) — yunos tagged `util`,
+- At agent boot the timer `ac_timeout()` ([c_agent.c:11393](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L11393)) runs:
+    1. [`run_util_yunos()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L9018) ([c_agent.c:9018](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L9018)) — yunos tagged `util`,
        ignoring `disabled`.
-    2. [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8954) ([c_agent.c:8954](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8954)) — every row with
+    2. [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8954) ([c_agent.c:8954](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8954)) — every row with
        `disabled=false ∧ running=false`.
 
    This reconciliation matters only for yunos that **don't** have a live
@@ -424,15 +424,15 @@ Three planes share the word "priority" — keep them apart:
 
 | Plane | Where | What it controls |
 |-------|-------|------------------|
-| OS scheduling | yuno attr `sched_priority` + `cpu_core` ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/root-linux/src/c_yuno.c), [`boost_process_performance`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/root-linux/src/c_yuno.c#L4561)) | `sched_setscheduler` + CPU affinity of the process |
-| Intra-yuno | each service's `priority` 0..9 ([`manage_services.c`](https://github.com/artgins/yunetas/blob/7.8.2/kernel/c/root-linux/src/manage_services.c)) | order services start **within** a yuno |
+| OS scheduling | yuno attr `sched_priority` + `cpu_core` ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_yuno.c), [`boost_process_performance`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/c_yuno.c#L4561)) | `sched_setscheduler` + CPU affinity of the process |
+| Intra-yuno | each service's `priority` 0..9 ([`manage_services.c`](https://github.com/artgins/yunetas/blob/7.8.3/kernel/c/root-linux/src/manage_services.c)) | order services start **within** a yuno |
 | Inter-yuno | agent col `start_priority` 0..9 (this section) | order yunos start **on this node** |
 
-**Launch order.** [`cmd_run_yuno`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L5087) sorts the matched yunos by `start_priority`
-**ascending** before spawning ([`sort_yunos_by_start_priority`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8366), c_agent.c). Lower
+**Launch order.** [`cmd_run_yuno`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L5087) sorts the matched yunos by `start_priority`
+**ascending** before spawning ([`sort_yunos_by_start_priority`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8366), c_agent.c). Lower
 goes first: utilities (logcenter / emailsender / auth_bff) → gates → dba. Use a
 low number for infrastructure a node can't work without. The same ascending sort
-is applied by `run_enabled_yunos`, so a node bounce ([`restart_nodes`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L9430) /
+is applied by `run_enabled_yunos`, so a node bounce ([`restart_nodes`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L9430) /
 `deactivate-snap`) and the at-startup relaunch honour the tiers too. (The force
 SIGKILL pass inside `restart_nodes` is left unordered on purpose: SIGKILL has no
 graceful drain to sequence.)
@@ -447,13 +447,13 @@ carrying the `util` tag — the same set `run_util_yunos` starts first — so
 framework utilities are born at the top tier without operator action. A
 genuinely new yuno otherwise takes the column default (5). No app role names are
 hard-coded in the agent; assign app tiers per node with
-[`tools/agent/set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.8.2/tools/agent/set_start_priorities.py).
+[`tools/agent/set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.8.3/tools/agent/set_start_priorities.py).
 
 **Inherited across version bumps.** A version-bump deploy (`find-new-yunos
-create=1`) does NOT reset placement: [`cmd_find_new_yunos`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L4486) copies
+create=1`) does NOT reset placement: [`cmd_find_new_yunos`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L4486) copies
 `start_priority` / `sched_priority` / `cpu_core` from the prior primary row of
 the same id into the emitted `create-yuno`, so the operator-set tiers survive the
-bump. [`set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.8.2/tools/agent/set_start_priorities.py) is therefore a first-time-only step per node, not
+bump. [`set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.8.3/tools/agent/set_start_priorities.py) is therefore a first-time-only step per node, not
 a per-deploy chore. (Same-version `update-binary` hot-patches keep the existing
 row and were never affected.)
 
@@ -537,7 +537,7 @@ yuno permanently: the watcher classifies SIGKILL on the child as
 and its watcher, or — better — use `kill-yuno force=1` /
 `set-quick-kill`, which sends SIGKILL to both pids and is the only way
 the agent can actually take down an uncooperative yuno
-([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c), and [`ENTRY_POINT.md §7`](ENTRY_POINT.md#entry-point-kill-yuno)).
+([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c), and [`ENTRY_POINT.md §7`](ENTRY_POINT.md#entry-point-kill-yuno)).
 
 ### 5.4 `pause` ≠ `SIGSTOP`, `play` ≠ `SIGCONT`
 
@@ -575,7 +575,7 @@ All examples assume [`ycommand`](#util-ycommand) is talking to the local agent.
 
 > **Bulk reconciliation.** To compare every binary the agent has installed
 > against the freshly built ones in `outputs/yunos` and push the differences in
-> one pass, use [`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.8.2/tools/agent/sync_binaries.py) (drives from the agent's
+> one pass, use [`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.8.3/tools/agent/sync_binaries.py) (drives from the agent's
 > installed set; proposes `install-binary` for version bumps and `update-binary`
 > for same-version rebuilds; `-n` for a dry run). For a same-version rebuild it
 > also runs the per-role hot-patch cycle below (kill → poll → update → restore
@@ -731,7 +731,7 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
   worth flagging before doing it during a busy window on a realm
   with many citizen yunos. (The version-promotion half of the old
   "force volatil" TODO is now handled by
-  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c#L8882); what remains is making the
+  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c#L8882); what remains is making the
   bounce per-role instead of node-wide.)
 
 - **No orderly shutdown.** The SIGKILL means yunos do NOT run their
@@ -812,16 +812,16 @@ name it answers `What snap? give snap_id/id (1..65534) or name`.
 
 | What                                  | Where                                                                 |
 |---------------------------------------|-----------------------------------------------------------------------|
-| Agent gclass                          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                                       |
-| Treedb schema (yunos / binaries / configurations) | [`src/treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                          |
-| Command table                         | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                               |
-| Agent attributes                      | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                               |
-| FSM (`ST_IDLE`, event types)          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                           |
-| Subscription model (SERVICE)          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                             |
-| Per-yuno on-disk path                 | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c) (`build_yuno_private_domain`)                    |
-| Repos binary path                     | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                             |
-| Binary resolution at start            | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c) (`get_yuno_binary`)                         |
-| Launcher script + `--config-file`     | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c)                                             |
-| `EV_ON_OPEN` handshake                | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c) (`ac_on_open`)                                  |
-| `EV_ON_CLOSE` (death detection)       | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c) (`ac_on_close`)                                 |
-| Boot-time reconciliation              | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.2/yunos/c/yuno_agent/src/c_agent.c) (`run_enabled_yunos`, `ac_timeout`)  |
+| Agent gclass                          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                                       |
+| Treedb schema (yunos / binaries / configurations) | [`src/treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                          |
+| Command table                         | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                               |
+| Agent attributes                      | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                               |
+| FSM (`ST_IDLE`, event types)          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                           |
+| Subscription model (SERVICE)          | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                             |
+| Per-yuno on-disk path                 | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) (`build_yuno_private_domain`)                    |
+| Repos binary path                     | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                             |
+| Binary resolution at start            | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) (`get_yuno_binary`)                         |
+| Launcher script + `--config-file`     | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c)                                             |
+| `EV_ON_OPEN` handshake                | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) (`ac_on_open`)                                  |
+| `EV_ON_CLOSE` (death detection)       | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) (`ac_on_close`)                                 |
+| Boot-time reconciliation              | [`src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.8.3/yunos/c/yuno_agent/src/c_agent.c) (`run_enabled_yunos`, `ac_timeout`)  |

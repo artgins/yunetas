@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.3
+
+A packaging release, and a lesson about who else wants your kernel knobs.
+7.8.2 fixed `/var/crash` losing a tug-of-war with kdump; this one fixes
+`core_pattern` losing the same kind of fight to Ubuntu's `apport`. Validated
+end to end on an Ubuntu 26.04 node: a deliberate `SIGSEGV` now leaves a real
+core in `/var/crash`, which it did not before.
+
 
 - **`apport` is disabled on `.deb` nodes, and `core_pattern` taken back**. On Ubuntu,
   `apport.service` starts *after* `systemd-sysctl.service` and overwrites
