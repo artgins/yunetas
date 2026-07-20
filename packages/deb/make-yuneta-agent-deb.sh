@@ -753,8 +753,12 @@ exit 0
 EOF
 chmod 0755 "${WORKDIR}/yuneta/agent/service/remove-yuneta-service.sh"
 
-# --- Certbot via snap installer (ops helper) ---
-cat > "${WORKDIR}/yuneta/bin/install-certbot-snap.sh" <<'EOF'
+# --- Certbot installer (ops helper) ---
+# Same path on both families (`install-certbot.sh`), so operators and install.sh
+# have one name to know; only the mechanism differs (snap here, EPEL dnf on
+# RHEL). `install-certbot-snap.sh` stays as a symlink — it is the name shipped
+# up to 7.8.5 and it appears in operators' notes.
+cat > "${WORKDIR}/yuneta/bin/install-certbot.sh" <<'EOF'
 #!/usr/bin/env bash
 #######################################################################
 # Install certbot from Snap and make it visible at /usr/bin/certbot
@@ -835,7 +839,8 @@ Your .deb already installs a deploy hook at:
 It copies renewed certs to /yuneta/store/certs/, reloads the selected web server, and restarts Yuneta.
 HINT
 EOF
-chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot-snap.sh"
+chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot.sh"
+ln -sf install-certbot.sh "${WORKDIR}/yuneta/bin/install-certbot-snap.sh"
 
 # --- Let's Encrypt: deploy hook to copy + reload ---
 # Each step runs independently: individual failures are logged but do NOT
@@ -1473,11 +1478,11 @@ done
 
 # --- friendly reminder for developers ---
 printf "\n[Yuneta] To install developer dependencies, run:\n" >&2
-printf "    sudo /yuneta/bin/install-yuneta-dev-deps.sh\n\n" >&2
-printf "    sudo /yuneta/bin/install-certbot-snap.sh\n\n" >&2
+printf "    sudo /yuneta/bin/install-yuneta-dev-deps.sh\n" >&2
+printf "    sudo /yuneta/bin/install-certbot.sh\n\n" >&2
 
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh"
-logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
+logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot.sh"
 
 # --- Kernel tuning applied live; reboot recommended, NEVER forced ---
 # The sysctl settings (core dumps, fd limits) were already applied above with

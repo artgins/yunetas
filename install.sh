@@ -190,9 +190,13 @@ curl -fsSL -o "$PKG" "$ASSET_URL"
 
 echo "[i] Installing $(basename "$PKG")"
 if [ "$FAMILY" = "debian" ]; then
-    # dpkg first; apt-get -f resolves any missing deps.
-    if ! dpkg -i "$PKG"; then
-        apt-get install -y -f
+    # apt-get resolves the package's deps from a local file (needs a path with a
+    # '/', which $PKG always has). `dpkg -i` cannot: it leaves the package
+    # unconfigured and prints a wall of dependency errors on every clean install
+    # — `gdb` did exactly that on 7.8.5. The dpkg path stays only as a fallback
+    # for an apt too old to take a file argument.
+    if ! apt-get install -y "$PKG"; then
+        dpkg -i "$PKG" || apt-get install -y -f
     fi
 else
     # dnf resolves the package's deps from the now-enabled repos.
@@ -203,10 +207,11 @@ echo "[✓] Yuneta runtime installed."
 # ----- Certbot (TLS for the bundled web server) -----------------------------
 # Runtime/ops tool — installed on BOTH distros, regardless of --runtime-only,
 # via the bundled distro-correct helper (snap on Debian, EPEL dnf on RHEL).
-if [ "$FAMILY" = "debian" ]; then
+# Both families ship the helper as install-certbot.sh since 7.8.6; the -snap
+# name is the pre-7.8.6 Debian one, kept for a node installing an older release.
+CERTBOT_HELPER="/yuneta/bin/install-certbot.sh"
+if [ ! -x "$CERTBOT_HELPER" ] && [ -x /yuneta/bin/install-certbot-snap.sh ]; then
     CERTBOT_HELPER="/yuneta/bin/install-certbot-snap.sh"
-else
-    CERTBOT_HELPER="/yuneta/bin/install-certbot.sh"
 fi
 echo "[i] Installing certbot..."
 if [ -x "$CERTBOT_HELPER" ]; then

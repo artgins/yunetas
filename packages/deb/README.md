@@ -198,7 +198,7 @@ The `.deb` installs the following tree:
 │       ├── install-yuneta-service.sh
 │       ├── remove-yuneta-service.sh
 │       ├── restart-yuneta
-│       ├── install-certbot-snap.sh
+│       ├── install-certbot.sh
 │       ├── install-yuneta-dev-deps.sh
 │       ├── check-certs-validity.sh
 │       ├── copy-certs.sh
@@ -277,7 +277,7 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 | `install-yuneta-service.sh` | `/yuneta/agent/service/` | Enable and start the SysV init service |
 | `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Stop and remove the SysV runlevel symlinks |
 | `restart-yuneta` | `/yuneta/bin/` | Restart the Yuneta stack (prefers `service`, falls back to `yshutdown` + direct start) |
-| `install-certbot-snap.sh` | `/yuneta/bin/` | Install certbot via snap; symlink to `/usr/bin/certbot` |
+| `install-certbot.sh` | `/yuneta/bin/` | Install certbot via snap; symlink to `/usr/bin/certbot` |
 | `install-yuneta-dev-deps.sh` | `/yuneta/bin/` | Install full build toolchain (gcc, cmake, libs, pipx packages) |
 | `check-certs-validity.sh` | `/yuneta/bin/` | Scan `*.crt` files and show expiry status |
 | `copy-certs.sh` | `/yuneta/store/certs/` | Copy Let's Encrypt certificates from `/etc/letsencrypt/live/` to `/yuneta/store/certs/` |
@@ -378,7 +378,7 @@ Certificates are auto-discovered unless `/yuneta/store/certs/certs.list` exists,
 To set up certbot after installing the .deb:
 
 ```bash
-sudo /yuneta/bin/install-certbot-snap.sh
+sudo /yuneta/bin/install-certbot.sh
 ```
 
 ## Post-Install Checklist
@@ -386,7 +386,7 @@ sudo /yuneta/bin/install-certbot-snap.sh
 After installing the `.deb`, the `postinst` script reminds you to run:
 
 1. `sudo /yuneta/bin/install-yuneta-dev-deps.sh` - Install build toolchain (only needed for development)
-2. `sudo /yuneta/bin/install-certbot-snap.sh` - Install certbot for ACME TLS certificates
+2. `sudo /yuneta/bin/install-certbot.sh` - Install certbot for ACME TLS certificates
 
 ## Versioning
 

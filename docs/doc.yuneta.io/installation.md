@@ -93,6 +93,27 @@ runtime without the source tree and without layout differences.
 Full inventory in
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/7.8.5/packages).
 
+> 🔴 **That sparse SDK only compiles on the glibc the package was built
+> against.** The shipped `outputs/lib/*.a` are static archives that reference
+> glibc internals whose layout moves between releases, so linking fresh objects
+> against them on a node with a *different* glibc produces a binary that
+> corrupts the heap at run time — SIGABRT deep in `_int_malloc` seconds after
+> start, no framework error first, stack blaming unrelated code. The **shipped
+> binaries keep working** (they are self-contained); it is *compiling* that
+> breaks. Check before building anything on a node:
+>
+> ```bash
+> cat /yuneta/development/yunetas/outputs/lib/yuneta_libc.stamp   # what built the package
+> ldd --version | head -1                                          # what the node has
+> ```
+>
+> If they differ, that node is **runtime-only**: build elsewhere and push
+> binaries with `yunetas sync-binaries`. `tools/cmake/libc_guard.cmake` enforces
+> this at configure time; `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
+> message, it does not make the link safe. In practice the AMD64 `.deb` is built
+> on ubuntu-22.04 (glibc 2.35), so **Ubuntu 26.04 nodes are runtime-only**;
+> the EL9 `.rpm` is built natively (glibc 2.34) and matches Rocky 9.
+
 > ℹ️ **Build options of the published `.deb`.** The release asset is
 > compiled with the Kconfig defaults (`alldefconfig`): **GCC**,
 > **RelWithDebInfo**, **fully static** binaries, **OpenSSL** TLS
@@ -122,6 +143,36 @@ Full inventory in
 > see `packages/README.md` for the four arch wrapper scripts
 > ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.8.5/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.8.5/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.8.5/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.8.5/packages/deb/RISCV64.sh)). Requires the
 > SDK already built (next section).
+
+### Verify a fresh install
+
+Five checks, both families. Run them right after the one-liner finishes — they
+catch everything that has actually gone wrong on a new node:
+
+```bash
+# 1. The three processes are up (agent, agent22, bundled web server)
+ps -ef | grep -E 'yuneta_agent|nginx' | grep -v grep
+
+# 2. They come back after a reboot (SysV, enabled — there is no native unit
+#    for agent22/nginx, the init script starts all three)
+systemctl is-enabled yuneta_agent
+
+# 3. The control channel answers (empty list on a fresh node is correct)
+sudo -u yuneta ycommand -c 'list-yunos'
+
+# 4. The CLI runs
+sudo -u yuneta yunetas --help
+
+# 5. Core dumps land where the debugger looks for them
+cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
+```
+
+Add the glibc-stamp check above if the node is meant to **build**.
+
+Two things that look wrong and are not: `systemctl is-active yuneta_agent22`
+and `nginx` report `inactive`/`not-found` (neither has a systemd unit — the
+init script owns them), and on RHEL `certbot-renew.timer` is `enabled` but
+`inactive` until the next boot.
 
 ---
 

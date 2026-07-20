@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **`install.sh` installs the `.deb` with `apt-get`, not `dpkg -i`.** `dpkg`
+  does not resolve dependencies, so every clean install printed a wall of
+  dependency errors and left the package unconfigured until the `apt-get -f`
+  fallback rescued it — `gdb`, new in 7.8.4, made this fire on every node.
+  `apt-get install ./pkg.deb` resolves deps from the file directly; the `dpkg`
+  path stays only as a fallback for an apt too old to take a file argument.
+
+- **The certbot helper is `install-certbot.sh` on both families.** Debian
+  shipped it as `install-certbot-snap.sh`, so operators and `install.sh` had to
+  know which distro they were on to name the same helper. The old name remains
+  as a symlink.
+
+- **Docs: `installation.md` gains the glibc-provenance rule and a
+  verify-a-fresh-install checklist.** The page promised that the sparse SDK
+  lets projects "compile against the published runtime" without saying that
+  this only holds when the node's glibc matches the one the package was built
+  against — a mismatch links silently and corrupts the heap at run time. Since
+  the AMD64 `.deb` is built on ubuntu-22.04 (glibc 2.35), Ubuntu 26.04 nodes
+  are runtime-only.
+
 - **`yunetas` CLI 0.18.0: `--help` is now an extended help.** It printed the
   same one-line-per-command summary that bare `yunetas` already shows, so the
   flag told you nothing you had not just seen. It now documents every command

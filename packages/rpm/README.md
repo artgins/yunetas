@@ -88,7 +88,7 @@ the packaging metadata and the install/remove logic differ:
 | Locales            | `locale-gen` / `update-locale`        | `glibc-langpack-{en,es}` + `/etc/locale.conf` |
 | SysV enable        | `update-rc.d` / `invoke-rc.d`         | `chkconfig` + `service`                       |
 | Conffiles          | `DEBIAN/conffiles`                    | `%config(noreplace)`                          |
-| certbot helper     | `install-certbot-snap.sh` (snap)      | `install-certbot.sh` (EPEL `dnf`)            |
+| certbot helper     | `install-certbot.sh` (snap)      | `install-certbot.sh` (EPEL `dnf`)            |
 | dev-deps helper    | `install-yuneta-dev-deps.sh` (apt)    | same name, `dnf` + EPEL + CRB                 |
 | PAM limits         | `common-session*`                     | `system-auth` / `password-auth` (default-on) |
 
