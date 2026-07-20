@@ -43,7 +43,8 @@ The command above is exercised end-to-end, on a freshly installed OS, on:
 | Distro | Package | Verified |
 |---|---|---|
 | **Rocky Linux 9.8** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.5 · 2026-07-20 |
-| **Ubuntu 26.04** (resolute) | `.deb` (amd64) | 7.8.5 · 2026-07-20 |
+| **Ubuntu 24.04 LTS** (noble) | `.deb` (amd64) | 7.8.6 · 2026-07-20 |
+| **Ubuntu 26.04 LTS** (resolute) | `.deb` (amd64) | 7.8.5 · 2026-07-20 |
 
 Other releases of the same families are expected to work — the script branches
 on `apt` vs `dnf`, not on the version — but they are not exercised.
