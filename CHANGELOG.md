@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`install.sh` no longer makes apt drop its download sandbox.** apt fetches
+  as `_apt` even from a local file and could not traverse the 0700 root-owned
+  `mktemp` directory, so it fell back to an unsandboxed download and said so.
+  Cosmetic, but it was noise introduced by the 7.8.6 move to `apt-get install`.
+
 ## 7.8.6
 
 A release about the first minutes of a node's life. Installing on a clean
