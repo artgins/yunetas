@@ -20,6 +20,18 @@ project:
   github: https://github.com/artgins/yunetas
   license: MIT
 
+  # The toc pulls chapters from outside this directory (../../yunos/...,
+  # ../../kernel/js/...), which widens myst's scope to the repo root — from
+  # there it walks the whole tree looking for content. That reaches the
+  # gitignored external-library build trees, where the OpenSSL tarball leaves
+  # krb5's LaTeX docs; myst tries to parse them and emits a dozen warnings
+  # about LaTeX it does not understand. They are noise, and they bury the real
+  # warnings that validating a docs build is supposed to surface.
+  exclude:
+    - ../../kernel/c/linux-ext-libs/build/**
+    - ../../outputs/**
+    - ../../outputs_ext/**
+
   toc:
     - file: index.md
 
