@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+
+- **`yunetas` CLI 0.18.0: `--help` is now an extended help.** It printed the
+  same one-line-per-command summary that bare `yunetas` already shows, so the
+  flag told you nothing you had not just seen. It now documents every command
+  and option, grouped by job. Bare `yunetas` keeps the compact listing and
+  `yunetas <command> --help` keeps click's rendering.
+
+- **Docs: the CLI page documents the node registry and secret overlays.** Both
+  shipped in 0.15/0.16 and the command map still listed neither.
+
 ## 7.8.5
 
 A release about where things live. The deploy tooling was split across two

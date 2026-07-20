@@ -37,11 +37,14 @@ source yunetas-env.sh
 |------|----------|
 | Build | `init`, `build`, `clean`, `test` |
 | Projects | `register-project`, `unregister-project`, `list-projects` |
+| Deploy targets | `register-node`, `unregister-node`, `list-nodes` |
 | Deploy | `sync`, `sync-binaries`, `sync-configs`, `upgrade-yunos` |
+| Secrets | `list-secrets` |
 | Misc | `venv`, `version` |
 
-Run `yunetas --help`, or `yunetas <command> --help`, for the authoritative flag
-list.
+`yunetas --help` documents every command and option in full (since CLI 0.18.0);
+bare `yunetas` prints just the list, and `yunetas <command> --help` the detail
+of one.
 
 ## Build
 
@@ -161,6 +164,39 @@ For a same-version **hot-patch** (no `APP_VERSION` bump) you can skip
 The wrapped scripts are documented under [Tools](tools.md):
 [`sync_binaries.py`](tools/sync_binaries.md),
 [`sync_configs.py`](tools/sync_configs.md).
+
+## Deploy targets and secrets
+
+A **node** is a registered deploy target, so a remote push is `--node <name>`
+instead of a url plus four OAuth2 flags:
+
+```bash
+yunetas register-node prod --url wss://myhost:1993 \
+    --issuer https://auth.example.com/realms/r --client-id myhost --user-id me
+yunetas register-node prod --ssh yuneta@myhost   # or: tunnel to its local agent
+yunetas list-nodes
+yunetas sync --node prod
+```
+
+The registry (`~/.yuneta/nodes.json`, mode 600) stores **where** a node is and
+**which identity** you present — never a credential. Pass the secret at call
+time via `$YUNETA_OAUTH_PASSW`, `$YUNETA_OAUTH_CLIENT_SECRET` or
+`$YUNETA_OAUTH_JWT`.
+
+A config that needs a credential declares it in the committed file as
+`"__SECRET__"`; the value lives on the deploy machine in
+`~/.yuneta/secrets/<node>/<config-id>.json` and is merged in just before the
+push. A missing **or empty** value refuses the push rather than shipping a
+blank password. Rotating a credential means bumping `__version__` in the
+committed config, which is what makes the rotation visible in git while the
+value never touches it.
+
+```bash
+yunetas list-secrets          # which configs have an overlay, and which fields
+```
+
+There is deliberately no `set-secret`: an argument would land in your shell
+history and in the process table. Write the overlay with an editor, mode 600.
 
 ## Misc
 
