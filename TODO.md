@@ -272,9 +272,22 @@ Options, in rough order of cost:
   reason is that the package ships, documents and maintains a capability the
   guard blocks on every node.
 - **Build the `.deb` on a matrix** (22.04 / 24.04 / 26.04) and publish one per
-  base. Keeps static linking, keeps the sparse SDK working, costs CI time and
-  a release-asset naming scheme. The fallback if on-node compilation is ever
-  needed again.
+  base. Keeps static linking and keeps the sparse SDK working. The fallback if
+  on-node compilation is ever needed again. What it actually costs:
+  - **The external archives must be rebuilt per base too**, not just the SDK
+    ones — and they are the bulk: 19 of the 31 archives and 61 MB of the 71
+    (OpenSSL, mbedTLS, pcre2, ncurses, liburing, jansson). The workflow already
+    builds them from source (`extrae.sh` + `configure-libs.sh`), so this is
+    runner time, not new machinery; jobs run in parallel, so wall-clock stays
+    near the current ~15 min.
+  - **Asset selection becomes real work.** Three `.deb`s instead of one means a
+    naming scheme and an `install.sh` that detects the distro *version*, not
+    just the family (`apt` vs `dnf`, all it does today) — plus a new failure
+    mode when a node's version is not covered.
+  - **Unknown: third-party code under much newer compilers.** 22.04 ships gcc
+    11, 26.04 ships gcc 15. Whether OpenSSL/ncurses/pcre2 build clean four gcc
+    majors forward is untested here; assume it needs work before costing this
+    option.
 - **Ship shared libraries instead of static archives.** glibc versions its
   symbols, so a `.so` built against the oldest supported glibc links and runs
   on every newer one — one artifact, no matrix. It gives up the
