@@ -1,6 +1,25 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.5
+
+A release about where things live. The deploy tooling was split across two
+release channels — the CLI on PyPI, the Python tools inside the packages — and
+the halves drifted until a `pipx upgrade` alone could break a deploy. They are
+one package now. The `.rpm` likewise stops being built on Ubuntu, and configs
+stop carrying credentials into git.
+
+- **The Python deploy tools move into the CLI.** `sync_binaries`,
+  `sync_configs` and `set_start_priorities` ship inside the `yunetas` package
+  as `yunetas.agent_tools.*` (CLI 0.17.0) instead of being read from
+  `tools/agent/` at run time. One tool released through two channels meant the
+  halves drifted: a node found running CLI 0.14.0 against scripts from 7.8.4
+  would have broken on a `pipx install --upgrade yunetas` alone, handing
+  `--secrets-dir` to a script that had never heard of it. The files under
+  `tools/agent/` are now deprecated forwarding shims — operator runbooks
+  reference those paths — and go away in a release or two. The CLI still shells
+  out to `ycommand`, so this removes the version skew, not that dependency.
+  CLI 0.17.1 also fixes the dependency declaration (`typer[all]` names an extra
+  typer no longer provides; `rich` is now declared, since the CLI imports it).
 
 - **Secret overlays for config deploys** (`sync_configs.py --secrets-dir`, and
   `yunetas` CLI 0.16.0 wiring it to `~/.yuneta/secrets/<node>/`). A committed

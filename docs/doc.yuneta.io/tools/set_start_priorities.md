@@ -73,4 +73,4 @@ tools/agent/set_start_priorities.py -u ws://127.0.0.1:1991   # target a specific
 - [`sync_binaries.py`](sync_binaries.md) / [`sync_configs.py`](sync_configs.md) —
   the sibling agent helpers (their `--restart` honours `start_priority` too).
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.8.4/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.8.5/tools/README.md).

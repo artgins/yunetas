@@ -4,11 +4,11 @@ Jansson helpers: load and dump JSON, copy/merge objects, traverse trees, and con
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c)
 
 (anystring2json)=
-## [`anystring2json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2440)
+## [`anystring2json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2440)
 
 Converts a given string into a JSON object, supporting various formats including arrays and objects. Returns NULL if parsing fails.
 
@@ -39,7 +39,7 @@ Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If 
 ---
 
 (bits2gbuffer)=
-## [`bits2gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1897)
+## [`bits2gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1897)
 
 Converts a bitmask into a gbuffer_t structure containing a string representation of the set bits, separated by '|'.
 
@@ -68,7 +68,7 @@ The caller is responsible for managing the memory of the returned `gbuffer_t *` 
 ---
 
 (bits2jn_strlist)=
-## [`bits2jn_strlist()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1878)
+## [`bits2jn_strlist()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1878)
 
 Converts a bitmask into a JSON list of corresponding string representations based on a provided lookup table.
 
@@ -97,7 +97,7 @@ The function iterates through the `strings_table` and checks each bit in `bits`.
 ---
 
 (cmp_two_simple_json)=
-## [`cmp_two_simple_json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2346)
+## [`cmp_two_simple_json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2346)
 
 `cmp_two_simple_json()` compares two JSON values that are either strings, integers, reals, or booleans. It returns a value indicating their relative order.
 
@@ -126,7 +126,7 @@ This function does not compare JSON objects or arrays. It first attempts to comp
 ---
 
 (create_json_record)=
-## [`create_json_record()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1706)
+## [`create_json_record()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1706)
 
 `create_json_record()` initializes a JSON object based on a predefined schema, setting default values for each field.
 
@@ -155,7 +155,7 @@ A newly allocated `json_t *` object containing the initialized JSON structure, o
 ---
 
 (debug_json)=
-## [`debug_json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L5193)
+## [`debug_json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L5193)
 
 Prints a JSON object with its reference counts, providing a structured view of its contents.
 
@@ -186,7 +186,7 @@ This function is useful for debugging JSON structures by displaying their conten
 ---
 
 (get_real_precision)=
-## [`get_real_precision()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2629)
+## [`get_real_precision()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2629)
 
 Retrieves the current precision setting for real number representation in JSON encoding.
 
@@ -211,7 +211,7 @@ This function is useful for checking the precision setting before modifying it w
 ---
 
 (jn2bool)=
-## [`jn2bool()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2321)
+## [`jn2bool()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2321)
 
 The function `jn2bool` converts a JSON value to a boolean representation, interpreting various JSON types accordingly.
 
@@ -236,7 +236,7 @@ This function is useful for safely interpreting JSON values as boolean flags. It
 ---
 
 (jn2integer)=
-## [`jn2integer()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2267)
+## [`jn2integer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2267)
 
 `jn2integer()` converts a JSON value to an integer, handling different JSON types such as strings, booleans, and numbers.
 
@@ -261,7 +261,7 @@ This function supports parsing integers from strings with decimal, octal (prefix
 ---
 
 (jn2real)=
-## [`jn2real()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2244)
+## [`jn2real()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2244)
 
 The function `jn2real` converts a JSON numeric value to a double-precision floating-point number. It supports JSON integers, real numbers, strings representing numbers, and boolean values.
 
@@ -286,7 +286,7 @@ If `jn_var` is a string, it is converted using `atof()`. Boolean values are mapp
 ---
 
 (jn2string)=
-## [`jn2string()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2296)
+## [`jn2string()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2296)
 
 `jn2string()` converts a JSON value into a dynamically allocated string representation, ensuring proper memory management.
 
@@ -311,7 +311,7 @@ If `jn_var` is a string, it returns a duplicate of the string. If it is an integ
 ---
 
 (json2str)=
-## [`json2str()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2638)
+## [`json2str()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2638)
 
 `json2str` converts a JSON object into a formatted string with indentation.
 
@@ -338,7 +338,7 @@ The function uses `JSON_INDENT(4)` for formatting and `JSON_REAL_PRECISION(get_r
 ---
 
 (json2uglystr)=
-## [`json2uglystr()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2651)
+## [`json2uglystr()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2651)
 
 `json2uglystr` converts a JSON object into a compact, non-tabular string representation.
 
@@ -363,7 +363,7 @@ This function uses `JSON_COMPACT` and `JSON_ENCODE_ANY` flags to generate a mini
 ---
 
 (json_check_refcounts)=
-## [`json_check_refcounts()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2687)
+## [`json_check_refcounts()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2687)
 
 Checks the reference counts of a JSON object and its nested elements, ensuring they do not exceed a specified limit.
 
@@ -394,7 +394,7 @@ This function recursively checks all elements in the JSON object, including arra
 ---
 
 (json_config)=
-## [`json_config()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/json_config.c#L333)
+## [`json_config()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/json_config.c#L333)
 
 The `json_config` function merges multiple JSON configuration sources into a single JSON string, allowing for variable substitution and expansion. It processes fixed, variable, file-based, and parameter-based configurations in a structured order.
 
@@ -433,7 +433,7 @@ Returns a dynamically allocated JSON string containing the merged configuration.
 ---
 
 (json_desc_to_schema)=
-## [`json_desc_to_schema()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1846)
+## [`json_desc_to_schema()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1846)
 
 Converts a JSON record descriptor into a topic schema, mapping field definitions to a structured format.
 
@@ -460,7 +460,7 @@ Each field in the schema includes an 'id', 'header', 'type', and 'fillspace' att
 ---
 
 (json_is_identical)=
-## [`json_is_identical()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2420)
+## [`json_is_identical()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2420)
 
 The function `json_is_identical()` compares two JSON objects and returns `TRUE` if they are identical, otherwise `FALSE`.
 
@@ -489,7 +489,7 @@ The function converts both JSON objects to their string representations and comp
 ---
 
 (json_list_str_index)=
-## [`json_list_str_index()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1956)
+## [`json_list_str_index()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1956)
 
 The function `json_list_str_index()` searches for a string in a JSON array and returns its index if found, or -1 if not found.
 
@@ -520,7 +520,7 @@ The function expects `jn_list` to be a JSON array. If `jn_list` is not an array,
 ---
 
 (json_print_refcounts)=
-## [`json_print_refcounts()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2845)
+## [`json_print_refcounts()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2845)
 
 Prints the reference counts of a JSON object and its nested elements recursively.
 
@@ -549,7 +549,7 @@ This function is useful for debugging memory management issues related to JSON r
 ---
 
 (json_str_in_list)=
-## [`json_str_in_list()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2939)
+## [`json_str_in_list()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2939)
 
 Checks if a given string exists within a JSON array of strings.
 
@@ -582,7 +582,7 @@ If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](
 ---
 
 (load_json_from_file)=
-## [`load_json_from_file()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1548)
+## [`load_json_from_file()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1548)
 
 The function `load_json_from_file()` loads a JSON object from a file located in the specified directory. It returns a parsed JSON object if successful, or NULL if the file does not exist or an error occurs.
 
@@ -615,7 +615,7 @@ The function uses `json_loadfd()` to parse the JSON file. If the file does not e
 ---
 
 (load_persistent_json)=
-## [`load_persistent_json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1468)
+## [`load_persistent_json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1468)
 
 The function `load_persistent_json()` loads a JSON object from a file in a specified directory. It supports exclusive access by keeping the file open if requested.
 
@@ -654,7 +654,7 @@ If `exclusive` is `TRUE`, the caller is responsible for closing the file descrip
 ---
 
 (print_json)=
-## [`print_json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L5039)
+## [`print_json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L5039)
 
 Prints a JSON object to stdout with indentation and a label.
 
@@ -683,7 +683,7 @@ Uses `json_dumpf()` to print the JSON object with indentation.
 ---
 
 (save_json_to_file)=
-## [`save_json_to_file()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1596)
+## [`save_json_to_file()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1596)
 
 The function `save_json_to_file()` saves a JSON object to a file, creating the directory if necessary and applying the specified permissions.
 
@@ -726,7 +726,7 @@ The function ensures that the directory exists before saving the file. If `only_
 ---
 
 (set_real_precision)=
-## [`set_real_precision()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2623)
+## [`set_real_precision()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2623)
 
 Sets the precision for real number formatting in JSON encoding and returns the previous precision value.
 
@@ -751,7 +751,7 @@ This function affects the precision of floating-point numbers when converting JS
 ---
 
 (string2json)=
-## [`string2json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2507)
+## [`string2json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2507)
 
 `string2json` converts a legal JSON string into a `json_t` object. The input string must be a valid JSON array (`[]`) or object (`{}`).
 
@@ -780,7 +780,7 @@ Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing 
 ---
 
 (strings2bits)=
-## [`strings2bits()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1929)
+## [`strings2bits()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1929)
 
 Converts a delimited string of names into a bitmask based on a predefined string table.
 
@@ -811,7 +811,7 @@ A 64-bit bitmask where each bit corresponds to a matched string in `strings_tabl
 ---
 
 (anyfile2json)=
-## [`anyfile2json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2478)
+## [`anyfile2json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2478)
 
 Loads a JSON object from a file at the specified path.
 
@@ -863,7 +863,7 @@ Returns 0 on success, or -1 if the JSON object is NULL.
 ---
 
 (is_metadata_key)=
-## [`is_metadata_key()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L5834)
+## [`is_metadata_key()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L5834)
 
 Checks if a key is a metadata key by verifying it has exactly two leading underscores.
 
@@ -886,7 +886,7 @@ Returns TRUE if the key starts with `__`, otherwise returns FALSE.
 ---
 
 (is_private_key)=
-## [`is_private_key()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L5855)
+## [`is_private_key()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L5855)
 
 Checks if a key is a private key by verifying it has exactly one leading underscore.
 
@@ -909,7 +909,7 @@ Returns TRUE if the key starts with a single `_`, otherwise returns FALSE.
 ---
 
 (json_config_string2json)=
-## [`json_config_string2json()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2534)
+## [`json_config_string2json()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2534)
 
 Converts a JSON configuration string into a JSON object, with support for inline comment removal (using `##^` delimiter).
 
@@ -934,7 +934,7 @@ Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fai
 ---
 
 (json_dict_recursive_update)=
-## [`json_dict_recursive_update()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2198)
+## [`json_dict_recursive_update()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2198)
 
 Recursively updates a JSON object with key-value pairs from another object.
 
@@ -961,7 +961,7 @@ Returns 0 on success, or -1 if either parameter is not a JSON object.
 ---
 
 (json_is_range)=
-## [`json_is_range()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2098)
+## [`json_is_range()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2098)
 
 Checks if a JSON array represents a valid integer range (exactly two integers where first <= second).
 
@@ -988,7 +988,7 @@ Returns TRUE if the array contains exactly two integers where the first is less 
 ---
 
 (json_list_find)=
-## [`json_list_find()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2054)
+## [`json_list_find()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2054)
 
 Searches for a JSON value in a JSON array and returns its index.
 
@@ -1013,7 +1013,7 @@ Returns the index of the value in the array if found, or -1 if not found.
 ---
 
 (json_list_int)=
-## [`json_list_int()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L1992)
+## [`json_list_int()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L1992)
 
 Retrieves an integer value from a JSON array at the specified index.
 
@@ -1038,7 +1038,7 @@ Returns the integer value at the specified index, or 0 if the index is out of bo
 ---
 
 (json_list_int_index)=
-## [`json_list_int_index()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2024)
+## [`json_list_int_index()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2024)
 
 Searches for an integer value in a JSON array and returns its index.
 
@@ -1063,7 +1063,7 @@ Returns the index of the integer value in the array if found, or -1 if not found
 ---
 
 (json_list_update)=
-## [`json_list_update()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2073)
+## [`json_list_update()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2073)
 
 Extends a JSON array with values from another array, optionally treating it as a set.
 
@@ -1090,7 +1090,7 @@ Returns 0 on success, or -1 on error.
 ---
 
 (json_listsrange2set)=
-## [`json_listsrange2set()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2158)
+## [`json_listsrange2set()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2158)
 
 Converts a mixed list of integers and integer ranges into a single flattened set of unique integers.
 
@@ -1113,7 +1113,7 @@ Returns a new `json_t *` array containing the flattened set of unique integers, 
 ---
 
 (json_range_list)=
-## [`json_range_list()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2129)
+## [`json_range_list()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2129)
 
 Expands an integer range array into a full JSON array of all integers in that range.
 
@@ -1194,7 +1194,7 @@ Returns a new `json_t *` with all placeholders replaced, or NULL on error.
 ---
 
 (json_size)=
-## [`json_size()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c#L2663)
+## [`json_size()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c#L2663)
 
 Returns the size of a JSON value based on its type.
 

@@ -9,8 +9,8 @@
 In **C**, the library is built on top of the [Jansson library](https://jansson.readthedocs.io/), while in other languages like **JavaScript** and **Python**, it leverages native types (`bool`, `array`, `object` in JS and `list`, `dict` in Python). This design ensures seamless integration with the native JSON structures of each language, enabling consistent behavior and cross-platform portability.
 
 Source code in:
-- [kwid.c](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/kwid.c)
-- [kwid.h](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/kwid.h)
+- [kwid.c](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/kwid.c)
+- [kwid.h](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/kwid.h)
 
 ---
 
@@ -30,7 +30,7 @@ Source code in:
     - Functions like `kw_find_path`, `kw_set_dict_value`, and `kw_delete` allow for fine-grained control over nested JSON structures using path-based syntax.
 
 4. **Database-Like Utilities**:
-    - Provides record-based operations such as [`kwid_find_record_in_list`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/kwid.c#L937), [`kwid_compare_records`](#kwid_compare_records), and [`kwjr_get`](#kwjr_get).
+    - Provides record-based operations such as [`kwid_find_record_in_list`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/kwid.c#L937), [`kwid_compare_records`](#kwid_compare_records), and [`kwjr_get`](#kwjr_get).
     - Enables filtering and matching of JSON data with `kw_clone_by_keys` and `kw_match_simple`.
 
 5. **Customizability**:

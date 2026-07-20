@@ -20,4 +20,4 @@ list_queue_msgs2 PATH [options]
 ## See also
 
 - [`msg2db_list`](msg2db_list.md) — msg2db topic listing.
-- [`utils/c/list_queue_msgs2/README.md`](https://github.com/artgins/yunetas/blob/7.8.4/utils/c/list_queue_msgs2/README.md).
+- [`utils/c/list_queue_msgs2/README.md`](https://github.com/artgins/yunetas/blob/7.8.5/utils/c/list_queue_msgs2/README.md).

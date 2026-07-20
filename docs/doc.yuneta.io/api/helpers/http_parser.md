@@ -4,11 +4,11 @@ Incremental HTTP/1.x parser used by the HTTP gclasses. Feeds bytes from a `gbuff
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c)
 
 (ghttp_parser_create)=
-## [`ghttp_parser_create()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/ghttp_parser.c#L63)
+## [`ghttp_parser_create()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/ghttp_parser.c#L63)
 
 Creates and initializes a new `GHTTP_PARSER` instance for parsing HTTP messages. The parser processes incoming HTTP data and triggers events when headers, body, or complete messages are received.
 
@@ -49,7 +49,7 @@ The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_dest
 ---
 
 (ghttp_parser_destroy)=
-## [`ghttp_parser_destroy()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/ghttp_parser.c#L107)
+## [`ghttp_parser_destroy()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/ghttp_parser.c#L107)
 
 Releases all resources associated with a `GHTTP_PARSER` instance, including allocated memory and internal buffers.
 
@@ -74,7 +74,7 @@ After calling `ghttp_parser_destroy()`, the `parser` pointer should not be used 
 ---
 
 (ghttp_parser_received)=
-## [`ghttp_parser_received()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/ghttp_parser.c#L136)
+## [`ghttp_parser_received()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/ghttp_parser.c#L136)
 
 Parses an HTTP message from the given buffer using the [`ghttp_parser_create()`](#ghttp_parser_create) instance.
 
@@ -105,7 +105,7 @@ Returns the number of bytes successfully parsed. Returns `-1` if an error occurs
 ---
 
 (ghttp_parser_finish)=
-## [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.8.4/kernel/c/root-linux/src/ghttp_parser.c#L198)
+## [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/ghttp_parser.c#L198)
 
 Signals end-of-stream to the underlying llhttp parser (the TCP peer closed the socket). Required to complete HTTP messages whose terminator is the connection close itself — HTTP/1.0 responses without `Content-Length`, and HTTP/1.1 responses with neither `Content-Length` nor `Transfer-Encoding: chunked`. Without this call, `on_message_complete` would never fire for such messages and the subscriber would miss `EV_ON_MESSAGE`.
 

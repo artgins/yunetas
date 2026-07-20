@@ -19,7 +19,7 @@ yunetas version                 # print the installed CLI version
 > framework runtime. The runtime is the `.deb`/`.rpm` (or a source build); the
 > CLI drives that build and talks to the local agent. The two version
 > independently. Source for the CLI lives in
-> [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.8.4/utils/python/tui_yunetas)
+> [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.8.5/utils/python/tui_yunetas)
 > (a git submodule); for development it can be installed editable instead of
 > from PyPI.
 
