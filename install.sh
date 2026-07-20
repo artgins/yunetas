@@ -188,6 +188,13 @@ PKG="${TMP}/$(basename "$ASSET_URL")"
 echo "[i] Downloading $(basename "$PKG")"
 curl -fsSL -o "$PKG" "$ASSET_URL"
 
+# apt fetches as the unprivileged '_apt' user even for a local file. mktemp
+# gives us a 0700 root-owned dir it cannot traverse, so apt drops its sandbox
+# and says so in an N: line. Nothing breaks, but the warning is noise on an
+# otherwise clean install — let '_apt' read the file instead.
+chmod 0755 "$TMP"
+chmod 0644 "$PKG"
+
 echo "[i] Installing $(basename "$PKG")"
 if [ "$FAMILY" = "debian" ]; then
     # apt-get resolves the package's deps from a local file (needs a path with a
