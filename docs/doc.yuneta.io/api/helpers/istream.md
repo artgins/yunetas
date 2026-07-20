@@ -4,11 +4,11 @@ Input-stream reader over a gbuffer: read by delimiter, by fixed length, or by co
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.c)
 
 (istream_clear)=
-## [`istream_clear()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L436)
+## [`istream_clear()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L436)
 
 `istream_clear()` resets both the reading and writing pointers of the given `istream_h` instance, effectively clearing its internal buffer.
 
@@ -35,7 +35,7 @@ This function is equivalent to calling [`istream_reset_rd()`](#istream_reset_rd)
 ---
 
 (istream_consume)=
-## [`istream_consume()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L166)
+## [`istream_consume()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L166)
 
 `istream_consume()` reads data from the provided buffer and appends it to the internal gbuffer of the given `istream_h` instance until a specified delimiter or byte count is reached.
 
@@ -66,7 +66,7 @@ If the `istream` is configured to read until a delimiter, it will check for the 
 ---
 
 (istream_create)=
-## [`istream_create()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L32)
+## [`istream_create()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L32)
 
 `istream_create()` initializes and returns a new input stream (`istream_h`) with a specified buffer size and maximum capacity.
 
@@ -97,7 +97,7 @@ The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_
 ---
 
 (istream_cur_rd_pointer)=
-## [`istream_cur_rd_pointer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L248)
+## [`istream_cur_rd_pointer()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L248)
 
 Returns the current read pointer of the `istream_h` instance, allowing access to the unread portion of the internal buffer.
 
@@ -124,7 +124,7 @@ Ensure that `istream` is properly initialized before calling this function to av
 ---
 
 (istream_destroy)=
-## [`istream_destroy()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L83)
+## [`istream_destroy()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L83)
 
 Releases all resources associated with the given `istream_h` instance, including its internal buffer and allocated memory.
 
@@ -151,7 +151,7 @@ After calling `istream_destroy()`, the `istream_h` handle becomes invalid and sh
 ---
 
 (istream_extract_matched_data)=
-## [`istream_extract_matched_data()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L356)
+## [`istream_extract_matched_data()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L356)
 
 Extracts the matched data from the input stream `istream_h` if the matching condition is met.
 
@@ -180,7 +180,7 @@ If no match is found, the function returns `NULL`. The extracted data is not cop
 ---
 
 (istream_get_gbuffer)=
-## [`istream_get_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L285)
+## [`istream_get_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L285)
 
 Retrieves the internal [`gbuffer_t *`](#gbuffer_t) associated with the given `istream_h *`.
 
@@ -207,7 +207,7 @@ The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and should n
 ---
 
 (istream_is_completed)=
-## [`istream_is_completed()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L445)
+## [`istream_is_completed()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L445)
 
 `istream_is_completed()` checks if the input stream has completed reading the expected data.
 
@@ -234,7 +234,7 @@ Returns `TRUE` if the input stream has completed reading the expected data, othe
 ---
 
 (istream_length)=
-## [`istream_length()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L267)
+## [`istream_length()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L267)
 
 `istream_length()` returns the number of unread bytes in the internal buffer of the given input stream.
 
@@ -261,7 +261,7 @@ Returns the number of unread bytes in the internal buffer of the input stream.
 ---
 
 (istream_new_gbuffer)=
-## [`istream_new_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L323)
+## [`istream_new_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L323)
 
 Creates a new `gbuffer_t` for the given `istream_h` instance, replacing the existing buffer if present.
 
@@ -292,7 +292,7 @@ If a buffer already exists in `istream`, it is decremented and replaced with a n
 ---
 
 (istream_pop_gbuffer)=
-## [`istream_pop_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L303)
+## [`istream_pop_gbuffer()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L303)
 
 Retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) from the given `istream_h *`, returning ownership to the caller.
 
@@ -319,7 +319,7 @@ After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buff
 ---
 
 (istream_read_until_delimiter)=
-## [`istream_read_until_delimiter()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L101)
+## [`istream_read_until_delimiter()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L101)
 
 `istream_read_until_delimiter()` configures an input stream to read data until a specified delimiter is encountered.
 
@@ -352,7 +352,7 @@ If `delimiter_size` is `0`, an error is logged and `-1` is returned.
 ---
 
 (istream_read_until_num_bytes)=
-## [`istream_read_until_num_bytes()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L146)
+## [`istream_read_until_num_bytes()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L146)
 
 Configures the `istream_h` stream to read until a specified number of bytes is accumulated before triggering an event.
 
@@ -383,7 +383,7 @@ Once the specified number of bytes is accumulated, the event is triggered with t
 ---
 
 (istream_reset_rd)=
-## [`istream_reset_rd()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L416)
+## [`istream_reset_rd()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L416)
 
 Resets the reading pointer of the `istream_h` stream, allowing data to be read again from the beginning.
 
@@ -410,7 +410,7 @@ This function ensures that subsequent reads start from the beginning of the buff
 ---
 
 (istream_reset_wr)=
-## [`istream_reset_wr()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/root-linux/src/istream.c#L395)
+## [`istream_reset_wr()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/root-linux/src/istream.c#L395)
 
 Resets the write pointer of the `istream_h` stream, effectively clearing any written data.
 

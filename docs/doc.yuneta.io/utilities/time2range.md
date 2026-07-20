@@ -24,4 +24,4 @@ Prints `Start: … End: …`.
 ## See also
 
 - [`time2date`](time2date.md) — single-timestamp conversion.
-- [`utils/c/time2range/README.md`](https://github.com/artgins/yunetas/blob/7.8.5/utils/c/time2range/README.md).
+- [`utils/c/time2range/README.md`](https://github.com/artgins/yunetas/blob/7.8.6/utils/c/time2range/README.md).

@@ -16,4 +16,4 @@ tr2migrate PATH_TRANGER PATH_TRANGER2 [--verbose <level>]
 
 ## See also
 
-- [`utils/c/tr2migrate/README.md`](https://github.com/artgins/yunetas/blob/7.8.5/utils/c/tr2migrate/README.md).
+- [`utils/c/tr2migrate/README.md`](https://github.com/artgins/yunetas/blob/7.8.6/utils/c/tr2migrate/README.md).

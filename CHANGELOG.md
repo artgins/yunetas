@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 7.8.6
+
+A release about the first minutes of a node's life. Installing on a clean
+Ubuntu printed a wall of dependency errors and rescued itself; the two distro
+families named the same helper differently; and nothing in the docs said that
+the SDK a package drops on a node can only compile there when the glibc
+matches — which, on Ubuntu 26.04, it does not.
+
 - **`install.sh` installs the `.deb` with `apt-get`, not `dpkg -i`.** `dpkg`
   does not resolve dependencies, so every clean install printed a wall of
   dependency errors and left the package unconfigured until the `apt-get -f`

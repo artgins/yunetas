@@ -4,11 +4,11 @@ Rotating file-based log handler with size and age limits. Creates the output dir
 
 Source code:
 
-- [`rotatory.h`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.h)
-- [`rotatory.c`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c)
+- [`rotatory.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.h)
+- [`rotatory.c`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c)
 
 (rotatory_close)=
-## [`rotatory_close()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L280)
+## [`rotatory_close()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L280)
 
 Closes the given `hrotatory_h` instance, flushing and releasing all associated resources.
 
@@ -35,7 +35,7 @@ If `hr` is `NULL` or the rotatory system is not initialized, the function does n
 ---
 
 (rotatory_end)=
-## [`rotatory_end()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L109)
+## [`rotatory_end()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L109)
 
 `rotatory_end()` closes all active rotatory log instances and resets the internal state.
 
@@ -61,7 +61,7 @@ After execution, the internal initialization flag is reset, preventing further o
 ---
 
 (rotatory_flush)=
-## [`rotatory_flush()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L392)
+## [`rotatory_flush()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L392)
 
 `rotatory_flush()` flushes the buffered log data to the corresponding log file. If `hr` is `NULL`, it flushes all active log files.
 
@@ -88,7 +88,7 @@ Flushing ensures that all buffered log data is written to disk, reducing the ris
 ---
 
 (rotatory_fwrite)=
-## [`rotatory_fwrite()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L351)
+## [`rotatory_fwrite()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L351)
 
 `rotatory_fwrite()` writes a formatted log message to the rotatory log file associated with the given handle.
 
@@ -121,7 +121,7 @@ This function formats the log message using `vsnprintf()` and then writes it usi
 ---
 
 (rotatory_open)=
-## [`rotatory_open()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L122)
+## [`rotatory_open()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L122)
 
 `rotatory_open()` initializes and opens a rotatory log file with the specified parameters, creating necessary directories if required.
 
@@ -162,7 +162,7 @@ Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.
 ---
 
 (rotatory_path)=
-## [`rotatory_path()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L652)
+## [`rotatory_path()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L652)
 
 The `rotatory_path()` function retrieves the file path associated with the given rotatory log handle.
 
@@ -189,7 +189,7 @@ The returned pointer is managed internally and should not be modified or freed b
 ---
 
 (rotatory_start_up)=
-## [`rotatory_start_up()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L91)
+## [`rotatory_start_up()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L91)
 
 `rotatory_start_up()` initializes the rotatory logging system, ensuring it is only initialized once and registering cleanup functions.
 
@@ -214,7 +214,7 @@ This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ens
 ---
 
 (rotatory_write)=
-## [`rotatory_write()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L318)
+## [`rotatory_write()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L318)
 
 `rotatory_write()` writes a log message to the rotatory log file with the specified priority level.
 
@@ -250,7 +250,7 @@ Internally calls `_rotatory()` to perform the actual writing.
 ---
 
 (rotatory_subscribe2newfile)=
-## [`rotatory_subscribe2newfile()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L303)
+## [`rotatory_subscribe2newfile()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L303)
 
 Registers a callback that is invoked whenever the rotatory log rotates to a new file.
 
@@ -281,7 +281,7 @@ Only one callback can be registered per rotatory log instance. Calling this func
 ---
 
 (rotatory_truncate)=
-## [`rotatory_truncate()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/rotatory.c#L375)
+## [`rotatory_truncate()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/rotatory.c#L375)
 
 Truncates the log file associated with a rotatory log instance, clearing all its contents. If `hr` is NULL, all rotatory log instances are truncated.
 

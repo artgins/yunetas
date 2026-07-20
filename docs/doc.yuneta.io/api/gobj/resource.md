@@ -4,11 +4,11 @@ Generic resource CRUD API — the same gobj can implement `create_resource` / `l
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_create_resource)=
-## [`gobj_create_resource()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c#L9668)
+## [`gobj_create_resource()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L9668)
 
 The function `gobj_create_resource()` creates a new resource in the specified GObj, using the provided JSON parameters and options.
 
@@ -41,7 +41,7 @@ The function requires that the GObj has the `mt_create_resource` method implemen
 ---
 
 (gobj_delete_resource)=
-## [`gobj_delete_resource()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c#L9752)
+## [`gobj_delete_resource()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L9752)
 
 `gobj_delete_resource()` deletes a resource associated with a given `hgobj`.
 
@@ -77,7 +77,7 @@ The function ensures that `record` and `jn_options` are properly freed before re
 ---
 
 (gobj_get_resource)=
-## [`gobj_get_resource()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c#L9837)
+## [`gobj_get_resource()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L9837)
 
 Retrieves a resource from the specified `hgobj` object, using the given resource name and filter criteria.
 
@@ -110,7 +110,7 @@ If the `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned.
 ---
 
 (gobj_list_resource)=
-## [`gobj_list_resource()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c#L9800)
+## [`gobj_list_resource()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L9800)
 
 `gobj_list_resource()` retrieves a list of resources from the specified `hgobj` object, applying optional filtering and additional options.
 
@@ -143,7 +143,7 @@ If the `gobj` does not implement `mt_list_resource`, an error is logged and `NUL
 ---
 
 (gobj_save_resource)=
-## [`gobj_save_resource()`](https://github.com/artgins/yunetas/blob/7.8.5/kernel/c/gobj-c/src/gobj.c#L9706)
+## [`gobj_save_resource()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L9706)
 
 Saves a resource associated with the given `gobj`. The function updates the specified resource with the provided `record` data and applies any additional options from `jn_options`.
 

@@ -44,4 +44,4 @@ Authentication uses the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand)
 ## See also
 
 - [`ycommand`](ycommand.md) — one-shot commands; [`ybatch`](ybatch.md) — scripted batches.
-- [`utils/c/ytests/README.md`](https://github.com/artgins/yunetas/blob/7.8.5/utils/c/ytests/README.md).
+- [`utils/c/ytests/README.md`](https://github.com/artgins/yunetas/blob/7.8.6/utils/c/ytests/README.md).
