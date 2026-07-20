@@ -266,7 +266,11 @@ Options, in rough order of cost:
 - **Drop the build half of the `.deb`** (leaves `outputs/lib`, headers and
   `.config` out; keeps the runtime binaries). Honest about what the package is,
   and matches how deploys already work — binaries are built on a dev machine
-  and pushed with `yunetas sync-binaries`. **Current preference.**
+  and pushed with `yunetas sync-binaries`. **Current preference.** Note this is
+  *not* a size argument: the archives and headers are ~77 MB of a 1.1 GB tree
+  (the static yunos are 944 MB of it), so the `.deb` would barely shrink. The
+  reason is that the package ships, documents and maintains a capability the
+  guard blocks on every node.
 - **Build the `.deb` on a matrix** (22.04 / 24.04 / 26.04) and publish one per
   base. Keeps static linking, keeps the sparse SDK working, costs CI time and
   a release-asset naming scheme. The fallback if on-node compilation is ever
