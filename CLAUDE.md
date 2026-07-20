@@ -468,7 +468,7 @@ yunetas list-projects / unregister-project <name>
 yunetas init|build|clean                  # SDK + every registered project
 yunetas init|build|clean <name>...        # only those projects (SDK skipped)
 yunetas init|build|clean --sdk-only       # only the SDK
-yunetas sync-binaries [args]              # wrapper over tools/agent/sync_binaries.py
+yunetas sync-binaries [args]              # bundled tool (yunetas.agent_tools.sync_binaries)
 yunetas sync-configs [args]               # auto-match batches/<host>/ to the agent's realm_ids (*list-realms)
 yunetas sync-configs --host <h> [args]    # or target one batches dir explicitly
 yunetas upgrade-yunos [--no-snap|--snap-name N|-y|-n]  # shoot-snap -> find-new-yunos -> deactivate-snap
@@ -690,6 +690,12 @@ stress/c/*            ← stress test programs
 | `docs/doc.yuneta.io/` | MyST (mystmd) documentation site |
 | `outputs/` | Compiled libs, headers, yuno binaries (created by `yunetas init`) |
 | `outputs_ext/` | Built external libraries |
+
+**The Python deploy tools live in the CLI, not in `tools/`** (since CLI
+0.17.0): `sync_binaries`, `sync_configs` and `set_start_priorities` are
+`yunetas.agent_tools.*`. They were one tool on two release channels — a
+`pipx` upgrade could hand a new flag to a script from an older SDK. The files
+under `tools/agent/` are deprecated forwarding shims; do not edit them.
 
 **`tools/` ships in the install packages; `scripts/` is repo-only.**
 Node-usable / operator-facing utilities go under `tools/` (grouped by
