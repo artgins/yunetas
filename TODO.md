@@ -239,3 +239,55 @@ with rt_disk followers — to 4096 (`max_user_watches = 524288`,
 `ycommand -c 'info-inotify'` (limits + this yuno's instances/watches). It only
 raises the ceiling: **#1 still multiplies instances per Live card**, which is
 what the remaining work above fixes.
+
+## Packaging: the sparse SDK in the `.deb` cannot be used by any node
+
+The `.deb` installs a sparse SDK under `/yuneta/development/yunetas`
+(`outputs/`, `outputs_ext/`, `tools/`, `.config` — no sources) so a node can
+compile a project against the published runtime without a source tree. That
+promise does not hold today, and cannot hold for more than one glibc at a time.
+
+The shipped `outputs/lib/*.a` are **static** archives: they reference glibc
+internals (`_dl_x86_cpu_features`, backing the ifunc `memcpy`/`strlen`
+dispatch) whose layout moves between releases. Linking fresh objects against
+them under a different glibc succeeds silently and corrupts the heap at run
+time — SIGABRT inside `_int_malloc` seconds after start, no framework error
+first. `tools/cmake/libc_guard.cmake` stops it at configure time via
+`outputs/lib/yuneta_libc.stamp`.
+
+The `.deb` is built by CI on `ubuntu-22.04` (glibc 2.35). **No node runs
+22.04**, so the guard fires everywhere and the sparse SDK is, in practice,
+dead weight in the package. (The EL9 `.rpm` does not have this problem: it is
+built in a `rockylinux:9` container, glibc 2.34, matching Rocky 9 nodes, which
+can build.)
+
+Options, in rough order of cost:
+
+- **Drop the build half of the `.deb`** (leaves `outputs/lib`, headers and
+  `.config` out; keeps the runtime binaries). Honest about what the package is,
+  and matches how deploys already work — binaries are built on a dev machine
+  and pushed with `yunetas sync-binaries`. **Current preference.**
+- **Build the `.deb` on a matrix** (22.04 / 24.04 / 26.04) and publish one per
+  base. Keeps static linking, keeps the sparse SDK working, costs CI time and
+  a release-asset naming scheme. The fallback if on-node compilation is ever
+  needed again.
+- **Ship shared libraries instead of static archives.** glibc versions its
+  symbols, so a `.so` built against the oldest supported glibc links and runs
+  on every newer one — one artifact, no matrix. It gives up the
+  `CONFIG_FULLY_STATIC` property for the SDK libs, which is a deliberate
+  feature of this project, so it is a real trade, not a free win.
+- **Distribution packaging** (Debian/Fedora build against their own glibc).
+  Correct by construction and the highest cost by far: their policies, their
+  schedule, their review, and a version lag we do not control.
+
+Not a route: **snap / flatpak**. Snap confinement grants only `$HOME`, so a
+snap-delivered toolchain cannot read `/yuneta/...` — this repo already hit that
+with snap-packaged CLI tools (see the note in `CLAUDE.md`), and the agent
+itself writes `/yuneta`, spawns yunos, uses io_uring and dumps cores to
+`/var/crash`, all of which confinement exists to prevent. What *does* work in
+that family is an **OCI image as the build environment** — a container pinned
+to the glibc the archives were built against, i.e. a portable form of the
+matrix option.
+
+Decide in the cold. Nothing here is urgent while every node is ours and no one
+compiles on one.
