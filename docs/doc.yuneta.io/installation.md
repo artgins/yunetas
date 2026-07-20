@@ -27,11 +27,31 @@ There are two ways to install Yunetas, depending on what you want to do:
 (quick-install)=
 ## Quick install
 
-One command, both distro families — Debian/Ubuntu **and** RHEL/Rocky/Alma:
+:::{important}
+**One command installs everything, on both distro families** — Debian/Ubuntu
+**and** RHEL/Rocky/Alma:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
 ```
+:::
+
+### Tested on
+
+The command above is exercised end-to-end, on a freshly installed OS, on:
+
+| Distro | Package | Verified |
+|---|---|---|
+| **Rocky Linux 9.8** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.5 · 2026-07-20 |
+| **Ubuntu 26.04** (resolute) | `.deb` (amd64) | 7.8.5 · 2026-07-20 |
+
+Other releases of the same families are expected to work — the script branches
+on `apt` vs `dnf`, not on the version — but they are not exercised.
+
+The published packages are built on **ubuntu-22.04** (`.deb`, glibc 2.35) and
+in a **rockylinux:9** container (`.rpm`, glibc 2.34). That build base decides
+whether a node can *compile* against the shipped SDK — see the glibc warning
+below. It does not affect running the shipped binaries.
 
 The script does everything in one run, no second step to remember:
 
@@ -110,9 +130,13 @@ Full inventory in
 > If they differ, that node is **runtime-only**: build elsewhere and push
 > binaries with `yunetas sync-binaries`. `tools/cmake/libc_guard.cmake` enforces
 > this at configure time; `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
-> message, it does not make the link safe. In practice the AMD64 `.deb` is built
-> on ubuntu-22.04 (glibc 2.35), so **Ubuntu 26.04 nodes are runtime-only**;
-> the EL9 `.rpm` is built natively (glibc 2.34) and matches Rocky 9.
+> message, it does not make the link safe.
+>
+> In practice: the EL9 `.rpm` is built in a `rockylinux:9` container, so its
+> glibc (2.34) matches Rocky 9 and those nodes **can** build. The AMD64 `.deb`
+> is built on ubuntu-22.04 (glibc 2.35), so any **newer** Ubuntu — 24.04
+> (2.39), 26.04 (2.43) — differs and is **runtime-only**. Build those elsewhere
+> and push binaries.
 
 > ℹ️ **Build options of the published `.deb`.** The release asset is
 > compiled with the Kconfig defaults (`alldefconfig`): **GCC**,
