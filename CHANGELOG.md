@@ -1,11 +1,27 @@
 # **Changelog**
 
-## 7.8.6-2
+## 7.8.6-3
 
 A packaging revision, not a new version of Yuneta: no source under `kernel/`,
 `modules/`, `utils/` or `yunos/` changed, so `YUNETA_VERSION` stays at 7.8.6
 and only the `RELEASE` counter moves. The packages are rebuilt as
-`yuneta-agent-7.8.6-2` and attached to the existing 7.8.6 tag.
+`yuneta-agent-7.8.6-3` and attached to the existing 7.8.6 tag.
+
+Revision 2 was withdrawn without being announced: its `.deb` still came off
+the `ubuntu-22.04` runner, so the archives it ships were stamped glibc 2.35
+while Debian 13 runs 2.41. `libc_guard.cmake` compares the two as an exact
+string, so that package installs and runs but leaves the node unable to build
+anything against the SDK it just dropped there. The number is burned rather
+than reused: two different payloads must never share one version string.
+
+- **The AMD64 `.deb` is built on Debian 13.** It came off an `ubuntu-22.04`
+  runner while the `.rpm` had already moved into a `rockylinux:9` container —
+  the asymmetry that made the whole glibc-provenance rule necessary in the
+  first place. Both jobs are now containers with the same step order. Dropping
+  `libpcre3-dev` was part of it: PCRE1 no longer exists in Debian 13, and
+  nothing links it — the build vendors PCRE2 and openresty wants PCRE2 too, so
+  it only survived because it still existed on Ubuntu. `installation.md` told
+  Debian users to install it, which fails on trixie.
 
 What prompted it: clean installs on Debian 13 and Rocky 9 both finished on a
 green tick while leaving something broken behind them — a node that would stop

@@ -35,50 +35,58 @@ permissions:
 
 jobs:
   deb:
-    name: AMD64 .deb (Ubuntu)
-    runs-on: ubuntu-22.04
+    name: AMD64 .deb (Debian 13)
+    runs-on: ubuntu-latest
     timeout-minutes: 60
+    container:
+      image: debian:13
 
     steps:
+      # Runs before checkout on purpose: actions/checkout needs git present in
+      # the container to fetch submodules (without it, it falls back to a REST
+      # tarball and the submodules never arrive).
+      - name: Install OS build dependencies
+        run: |
+          # modules/c/postgres only #includes <postgresql/libpq-fe.h>
+          # (libpq client header), so libpq-dev alone is enough.
+          # postgresql-server-dev-all is in installation.md but pulls a
+          # postgresql-common that has conflicted with the one a runner image
+          # already carries. Skipping it side-steps the conflict.
+          #
+          # No libpcre3-dev: PCRE1 was removed from Debian 13, and nothing here
+          # links it — the build vendors PCRE2 (kernel/c/linux-ext-libs/build/
+          # pcre2) and openresty wants PCRE2 too. It was dead weight that only
+          # survived because it still existed on Ubuntu.
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git mercurial make cmake ninja-build \
+            gcc clang g++ \
+            python3-dev python3-pip python3-setuptools \
+            python3-tk python3-wheel python3-venv \
+            libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+            zlib1g-dev libssl-dev \
+            perl dos2unix tree curl wget \
+            libpq-dev \
+            kconfig-frontends telnet pipx \
+            patch gettext fail2ban rsync \
+            build-essential pkg-config ca-certificates linux-libc-dev
+
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install OS build dependencies
-        run: |
-          # modules/c/postgres only #includes <postgresql/libpq-fe.h>
-          # (libpq client header), so libpq-dev alone is enough.
-          # postgresql-server-dev-all is in installation.md but pulls
-          # postgresql-common = 238, which conflicts with the
-          # pgdg postgresql-common 290.* the runner image already has
-          # installed. Skipping it side-steps the conflict.
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            git mercurial make cmake ninja-build \
-            gcc clang g++ \
-            python3-dev python3-pip python3-setuptools \
-            python3-tk python3-wheel python3-venv \
-            libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
-            libpcre3-dev zlib1g-dev libssl-dev \
-            perl dos2unix tree curl \
-            libpq-dev \
-            kconfig-frontends telnet pipx \
-            patch gettext fail2ban rsync \
-            build-essential pkg-config ca-certificates linux-libc-dev
-
       - name: Install Python tooling (kconfiglib + yunetas CLI)
         run: |
-          pipx install kconfiglib
-          pipx install yunetas
-          # Make pipx-installed CLIs available in subsequent steps.
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # Container runs as root and is throwaway, so install into the system
+          # (--break-system-packages: Debian 13 marks it externally managed)
+          # and skip the pipx PATH juggling the host runner needed.
+          pip3 install --break-system-packages kconfiglib yunetas
 
       - name: Create writable /yuneta tree
-        run: |
-          sudo mkdir -p /yuneta
-          sudo chown -R "$USER:$USER" /yuneta
+        run: mkdir -p /yuneta
 
       - name: Build external libraries
         shell: bash
@@ -111,8 +119,16 @@ jobs:
           # Written by the gobj-c build. The packager refuses a payload
           # without it, so fail here with a clearer message than "missing file".
           test -s outputs/lib/yuneta_libc.stamp
-          echo "Payload archives built against glibc $(cat outputs/lib/yuneta_libc.stamp)"
-          getconf GNU_LIBC_VERSION
+          # The whole point of building in the debian:13 container: these
+          # archives must carry trixie's glibc, not a host runner's. The guard
+          # in tools/cmake/libc_guard.cmake compares the stamp to the node's
+          # glibc as an exact string, so a payload built anywhere else leaves
+          # Debian 13 nodes unable to compile against the SDK they just
+          # installed. Assert it rather than trust it.
+          STAMPED=$(cat outputs/lib/yuneta_libc.stamp)
+          HOST=$(getconf GNU_LIBC_VERSION | awk '{print $2}')
+          echo "Payload archives built against glibc ${STAMPED} (container glibc ${HOST})"
+          test "${STAMPED}" = "${HOST}"
 
       - name: Build AMD64 .deb
         shell: bash

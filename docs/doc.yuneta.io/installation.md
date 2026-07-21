@@ -241,7 +241,7 @@ sudo apt -y install --no-install-recommends \
   python3-dev python3-pip python3-setuptools \
   python3-tk python3-wheel python3-venv \
   libjansson-dev libpcre2-dev liburing-dev \
-  libpcre3-dev zlib1g-dev libssl-dev \
+  zlib1g-dev libssl-dev \
   perl dos2unix tree curl wget \
   postgresql-server-dev-all libpq-dev \
   kconfig-frontends telnet pipx \
@@ -329,7 +329,6 @@ pipx install kconfiglib
 | `libjansson-dev`                 | `jansson-devel`                         |
 | `libpcre2-dev`                   | `pcre2-devel`                           |
 | `liburing-dev`                   | `liburing-devel` *(CRB)*                |
-| `libpcre3-dev`                   | `pcre-devel`                            |
 | `zlib1g-dev`                     | `zlib-devel`                            |
 | `libssl-dev`                     | `openssl-devel`                         |
 | `postgresql-server-dev-all` / `libpq-dev` | `libpq-devel`                  |
