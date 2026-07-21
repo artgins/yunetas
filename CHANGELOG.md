@@ -1,5 +1,24 @@
 # **Changelog**
 
+## Unreleased
+
+- **The `.rpm`'s firewall message names the branch it took, and the command
+  that checks it.** It said `opened …` whether the ports had been applied to a
+  running firewalld or written to the permanent config of one that has not
+  started yet. An operator reading that reaches for `firewall-cmd
+  --list-ports`, which talks to the *daemon*: on a fresh node — firewalld
+  enabled but not started, which is the normal case right after installing —
+  that answers *"FirewallD is not running"* and reads as a failure when nothing
+  failed. Each branch now says what it did and points at the matching
+  `firewall-cmd` / `firewall-offline-cmd` verify command.
+
+- **The EL9 developer toolchain drops `pcre-devel`.** That is PCRE1, and
+  nothing links it: no `-lpcre` and no `<pcre.h>` anywhere in the tree, the
+  build vendors PCRE2, and openresty wants PCRE2 too. The Debian side lost the
+  same dependency in 7.8.6-3, where PCRE1 no longer exists at all; this keeps
+  both families saying the same thing about what the build needs. (The Debian
+  package list is otherwise unchanged.)
+
 ## 7.8.6-3
 
 A packaging revision, not a new version of Yuneta: no source under `kernel/`,

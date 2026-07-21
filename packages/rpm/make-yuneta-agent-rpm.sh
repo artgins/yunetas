@@ -928,13 +928,19 @@ if [ "${ID:-}" != "fedora" ]; then
     fi
 fi
 
+# No pcre-devel: that is PCRE1, and nothing links it -- no -lpcre and no
+# <pcre.h> anywhere in the tree, the build vendors PCRE2
+# (kernel/c/linux-ext-libs/build/pcre2) and openresty wants PCRE2 too. The
+# Debian side lost the same dependency when the .deb moved to Debian 13, where
+# PCRE1 no longer exists at all; this keeps the two families saying the same
+# thing about what the build needs.
 PKGS=(
     git mercurial make cmake ninja-build
     gcc clang gcc-c++
     python3-devel python3-pip python3-setuptools
     python3-tkinter python3-wheel
     jansson-devel pcre2-devel liburing-devel
-    pcre-devel zlib-devel openssl-devel
+    zlib-devel openssl-devel
     perl dos2unix tree wget
     libpq-devel
     telnet pipx
@@ -1298,11 +1304,13 @@ fi
 YUNETA_FW_PORTS="1993/tcp 80/tcp 443/tcp"
 if command -v firewall-cmd >/dev/null 2>&1; then
     YUNETA_FW_RC=0
+    YUNETA_FW_HOW=""
     if systemctl is-active --quiet firewalld 2>/dev/null; then
         for p in $YUNETA_FW_PORTS; do
             firewall-cmd --permanent --add-port="$p" >/dev/null 2>&1 || YUNETA_FW_RC=1
         done
         firewall-cmd --reload >/dev/null 2>&1 || YUNETA_FW_RC=1
+        YUNETA_FW_HOW="live"
     elif command -v firewall-offline-cmd >/dev/null 2>&1; then
         # firewalld is installed and enabled but not running yet: the offline
         # tool writes the same permanent config, so the rules are in place when
@@ -1310,11 +1318,24 @@ if command -v firewall-cmd >/dev/null 2>&1; then
         for p in $YUNETA_FW_PORTS; do
             firewall-offline-cmd --add-port="$p" >/dev/null 2>&1 || YUNETA_FW_RC=1
         done
+        YUNETA_FW_HOW="offline"
     else
         YUNETA_FW_RC=1
     fi
     if [ "$YUNETA_FW_RC" = "0" ]; then
-        echo "[post] firewalld: opened ${YUNETA_FW_PORTS} (default zone)."
+        # Name the branch and the matching verify command. Saying only "opened"
+        # sends the operator to `firewall-cmd --list-ports`, which talks to the
+        # DAEMON: with firewalld enabled-but-not-started that answers "FirewallD
+        # is not running" and reads as a failure when nothing failed.
+        if [ "$YUNETA_FW_HOW" = "live" ]; then
+            echo "[post] firewalld: opened ${YUNETA_FW_PORTS} (default zone, applied now)."
+            echo "[post]            verify: firewall-cmd --list-ports"
+        else
+            echo "[post] firewalld: wrote ${YUNETA_FW_PORTS} to the permanent config"
+            echo "[post]            (default zone). firewalld is not running yet, so"
+            echo "[post]            these take effect when it starts."
+            echo "[post]            verify: firewall-offline-cmd --list-ports"
+        fi
     else
         echo "[post] WARNING: could not open ${YUNETA_FW_PORTS} in firewalld." >&2
         echo "[post]          Open them by hand or the agent becomes unreachable" >&2
