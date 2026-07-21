@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.6-4
+
+Another packaging revision — `YUNETA_VERSION` stays at 7.8.6, only `RELEASE`
+moves. Everything here is about what an operator is told when something goes
+wrong: a clean install on a *fast* Debian 13 dedicated server failed to install
+certbot and reported three symptoms and no cause, and a Rocky node reported its
+firewall work in words that sent the reader to the command that says
+"FirewallD is not running".
 
 - **The Debian certbot helper stops hiding why it failed, and retries.** It ran
   `snap wait system seed.loaded 2>/dev/null || true` and `snap install core ||
