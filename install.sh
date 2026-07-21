@@ -197,6 +197,18 @@ chmod 0644 "$PKG"
 
 echo "[i] Installing $(basename "$PKG")"
 if [ "$FAMILY" = "debian" ]; then
+    # Refresh the package index FIRST. A freshly imaged node carries whatever
+    # index its image was built with, and Debian keeps only the current version
+    # of each package in the pool: apt then asks for a superseded file and gets
+    # a 404 ("rsync 3.4.1+ds1-5+deb13u1" when the mirror already serves
+    # +deb13u4), the dependencies go unmet, and the agent is left unconfigured.
+    # Re-running the installer did NOT recover, because nothing here refreshed
+    # the index -- the node stayed stuck until someone ran `apt update` by hand.
+    # `|| true`: a mirror hiccup here should not stop an install that may still
+    # succeed from the cached index.
+    echo "[i] Refreshing the apt package index…"
+    apt-get update -y || echo "[!] 'apt-get update' failed; continuing with the cached index." >&2
+
     # apt-get resolves the package's deps from a local file (needs a path with a
     # '/', which $PKG always has). `dpkg -i` cannot: it leaves the package
     # unconfigured and prints a wall of dependency errors on every clean install

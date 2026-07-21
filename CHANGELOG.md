@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+- **`install.sh` refreshes the apt index before installing the `.deb`.** It
+  never did, and a freshly imaged Debian node carries whatever index its image
+  was built with. Debian keeps only the current version of each package in the
+  pool, so apt asked for superseded files and got 404s — `rsync
+  3.4.1+ds1-5+deb13u1` while the mirror already served `+deb13u4`,
+  `libpython3.13 3.13.5-2` against `3.13.5-2+deb13u3` — the dependencies went
+  unmet and `yuneta-agent` was left unpacked but unconfigured. **Re-running the
+  installer did not recover**: nothing in it refreshed the index, so the node
+  stayed stuck until someone ran `apt update` by hand. Two nodes installed
+  minutes apart from the same release differed only in how old their image was.
+  (This one reaches every node immediately: `install.sh` is fetched from `main`,
+  not from a release asset.)
+
 ## 7.8.6-4
 
 Another packaging revision — `YUNETA_VERSION` stays at 7.8.6, only `RELEASE`
