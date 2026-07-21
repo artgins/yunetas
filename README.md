@@ -32,8 +32,31 @@ To install **only the `yuneta-agent` package**, without the developer toolchain
 Both forms also set up certbot. To pin a published release instead of the
 latest, pass its tag: `… | sudo sh -s -- 7.8.6`.
 
-Verified distros, what the script does step by step, and the glibc rule that
-decides whether a node can *compile* against the shipped SDK:
+> [!WARNING]
+> **The packages *run* anywhere. They only *build* on one distro each.**
+>
+> | Package | Node that can build against it | glibc |
+> |---------|--------------------------------|-------|
+> | `.rpm` (EL9)   | **Rocky Linux / AlmaLinux 9** | 2.34 |
+> | `.deb` (amd64) | **Debian 13** (trixie)        | 2.41 |
+>
+> The shipped binaries are fully static, so the agent, the CLI tools and your
+> yunos run on any Linux of the same architecture. But the package also carries
+> a sparse SDK — prebuilt static archives under `outputs/` — and those archives
+> reference glibc internals whose layout moves between releases. Linking your
+> own code against them requires the node's glibc to match **exactly**.
+>
+> A mismatch does not fail the link. It **succeeds silently** and corrupts the
+> heap at run time: SIGABRT inside glibc's allocator seconds after start, no
+> Yuneta error logged first, and a stack pointing at innocent code. A build
+> guard stops this at configure time — do not override it.
+>
+> Every other distro — Ubuntu (24.04 is glibc 2.39, 26.04 is 2.43), Debian 12
+> (2.36) — is **runtime-only**. To develop there, either build on a matching
+> node and push the binaries with `yunetas sync-binaries`, or build the
+> framework from source (below) on that machine.
+
+What the script does step by step, and the full list of verified distros:
 [Installation](https://doc.yuneta.io/installation/).
 
 ## Build from source
