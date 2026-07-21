@@ -1,6 +1,20 @@
 # **Changelog**
 
-## Unreleased
+## 7.8.6-2
+
+A packaging revision, not a new version of Yuneta: no source under `kernel/`,
+`modules/`, `utils/` or `yunos/` changed, so `YUNETA_VERSION` stays at 7.8.6
+and only the `RELEASE` counter moves. The packages are rebuilt as
+`yuneta-agent-7.8.6-2` and attached to the existing 7.8.6 tag.
+
+What prompted it: clean installs on Debian 13 and Rocky 9 both finished on a
+green tick while leaving something broken behind them — a node that would stop
+answering at its first reboot, certificates that would not renew, and an apt
+that could not tell whether the payload fit on the disk.
+
+The two `install.sh` fixes below are listed for the record but were live the
+moment they were pushed: that script is fetched from `main`, not from a
+release asset.
 
 - **The `.rpm` opens the ports the node serves.** `fail2ban` — a weak
   dependency — pulls `fail2ban-firewalld`, which pulls `firewalld`, which its
