@@ -785,23 +785,83 @@ if ! command -v snap >/dev/null 2>&1; then
         apt-get install -y --no-install-recommends snapd
         # Ensure snapd services are up before using snap
         systemctl enable --now snapd snapd.apparmor 2>/dev/null || true
-        # Give snapd a moment and wait for initial seed if needed
-        sleep 3 || true
-        snap wait system seed.loaded 2>/dev/null || true
     else
         echo "apt-get not found; cannot install snapd automatically." >&2
         exit 1
     fi
 fi
 
-# Install/refresh core and certbot (official method)
-snap install core || true
-snap refresh core || true
-snap install --classic certbot
+# Wait for snapd to finish seeding before asking it for anything.
+#
+# This used to be `sleep 3` plus `snap wait ... 2>/dev/null || true`: the one
+# safeguard against the race, silenced. When snapd cannot seed, every later
+# command fails with something that looks unrelated -- "context canceled" from
+# a store POST -- and the real cause never reaches the operator. Bounded,
+# because `snap wait` has no timeout of its own and a broken snapd would
+# otherwise hang the whole installer.
+echo "[i] Waiting for snapd to finish seeding…"
+if ! timeout 180 snap wait system seed.loaded; then
+    echo "[!] snapd did not finish seeding within 180s; continuing anyway." >&2
+fi
+
+# Install core + certbot, retrying. snapd restarts itself right after being
+# installed, and a store request in flight when that happens dies with
+# "context canceled". These operations are idempotent, so retrying is safe.
+snap_try() {
+    _n=0
+    while :; do
+        if snap "$@"; then
+            return 0
+        fi
+        _n=$((_n + 1))
+        if [ "$_n" -ge 3 ]; then
+            return 1
+        fi
+        echo "[i] 'snap $1' failed (attempt ${_n}/3); retrying in 5s…" >&2
+        sleep 5
+    done
+}
+
+# core is not fatal on its own: certbot pulls what it needs. It is still
+# reported, because it failing is the first sign that snapd is unusable.
+snap_try install core || echo "[!] 'snap install core' failed; see the error above." >&2
+snap_try refresh core || true
+
+if ! snap_try install --classic certbot; then
+    cat >&2 <<'CERTBOT_FAIL'
+
+[!] certbot could NOT be installed from snap. The error above is the real one:
+      "context canceled"        -> snapd aborted the request: it restarts just
+                                   after being installed, or it never seeded.
+      dial tcp / no such host   -> this machine cannot reach api.snapcraft.io.
+      deadline exceeded         -> it can reach it, but something drops it.
+
+    Diagnose before retrying:
+      uname -r                     # an OVH kernel may lack what snapd needs
+      snap debug sandbox-features  # snapd says what the kernel denies it
+      snap changes
+      journalctl -u snapd -n 80
+
+    Debian also packages certbot (`apt install certbot`), but READ THIS FIRST:
+    the distro package has NO dns-ovh plugin. Debian ships cloudflare, desec,
+    google, infomaniak, rfc2136, route53 and standalone only, so a node whose
+    certificates use `authenticator = dns-ovh` CANNOT renew them with it. It
+    also takes over /usr/bin/certbot and adds a second renewal timer next to
+    snap's, both pointed at the same /etc/letsencrypt.
+CERTBOT_FAIL
+    exit 1
+fi
 
 # Make certbot visible even if /snap/bin isn't in PATH
-if [ -x /snap/bin/certbot ] && [ ! -e /usr/bin/certbot ]; then
-    ln -s /snap/bin/certbot /usr/bin/certbot
+if [ -x /snap/bin/certbot ]; then
+    if [ ! -e /usr/bin/certbot ]; then
+        ln -s /snap/bin/certbot /usr/bin/certbot
+    elif [ ! -L /usr/bin/certbot ]; then
+        echo "[!] /usr/bin/certbot is a real file, not a symlink to the snap:" >&2
+        echo "    another certbot (most likely the apt package) owns it. Two" >&2
+        echo "    certbots renewing the same /etc/letsencrypt is a hazard, and" >&2
+        echo "    the apt one cannot use dns-ovh. Keep one of them." >&2
+    fi
 fi
 
 # Ensure deploy-hook directory exists (also created by the .deb)

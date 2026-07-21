@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **The Debian certbot helper stops hiding why it failed, and retries.** It ran
+  `snap wait system seed.loaded 2>/dev/null || true` and `snap install core ||
+  true`: the one safeguard against snapd's start-up race, silenced, plus the
+  first two real errors swallowed — so a failed run showed only the third line
+  and no cause. snapd restarts itself right after being installed, and a store
+  request in flight when that happens dies with `context canceled`, which reads
+  like a network fault and is not one. The seed wait is now reported (and
+  bounded at 180s, since `snap wait` has no timeout of its own and a broken
+  snapd would hang the installer), the installs retry three times, and a
+  genuine failure prints what each error class means plus the commands that
+  tell them apart — `uname -r`, `snap debug sandbox-features`, `snap changes`,
+  `journalctl -u snapd`.
+
+  It also warns instead of staying quiet when `/usr/bin/certbot` is a real file
+  rather than the snap symlink. **Debian's own `certbot` package is not a drop-in
+  replacement**: it has no `dns-ovh` plugin (the archive ships cloudflare,
+  desec, google, infomaniak, rfc2136, route53 and standalone only), so a node
+  whose certificates carry `authenticator = dns-ovh` cannot renew them with it —
+  and installing it takes over `/usr/bin/certbot` and adds a second renewal
+  timer beside snap's, both aimed at the same `/etc/letsencrypt`.
+
 - **The `.rpm`'s firewall message names the branch it took, and the command
   that checks it.** It said `opened …` whether the ports had been applied to a
   running firewalld or written to the permanent config of one that has not
