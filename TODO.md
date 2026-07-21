@@ -240,7 +240,7 @@ with rt_disk followers — to 4096 (`max_user_watches = 524288`,
 raises the ceiling: **#1 still multiplies instances per Live card**, which is
 what the remaining work above fixes.
 
-## Packaging: the sparse SDK in the `.deb` cannot be used by any node
+## Packaging: the sparse SDK in the `.deb` serves one glibc at a time
 
 The `.deb` installs a sparse SDK under `/yuneta/development/yunetas`
 (`outputs/`, `outputs_ext/`, `tools/`, `.config` — no sources) so a node can
@@ -255,11 +255,18 @@ time — SIGABRT inside `_int_malloc` seconds after start, no framework error
 first. `tools/cmake/libc_guard.cmake` stops it at configure time via
 `outputs/lib/yuneta_libc.stamp`.
 
-The `.deb` is built by CI on `ubuntu-22.04` (glibc 2.35). **No node runs
-22.04**, so the guard fires everywhere and the sparse SDK is, in practice,
-dead weight in the package. (The EL9 `.rpm` does not have this problem: it is
-built in a `rockylinux:9` container, glibc 2.34, matching Rocky 9 nodes, which
-can build.)
+Since 7.8.6-3 the `.deb` is built in a `debian:13` container (glibc 2.41),
+matching Debian 13 nodes, which can build. Before that it came off an
+`ubuntu-22.04` runner (glibc 2.35) that **no node ran**, so the guard fired
+everywhere and the sparse SDK was dead weight in the package. (The EL9 `.rpm`
+never had that problem: `rockylinux:9`, glibc 2.34, matching Rocky 9 nodes. The
+guard compares only `major.minor`, so EL9 point releases — 2.34-231 vs
+2.34-272 — do not break it.)
+
+So the promise now holds, but for exactly one distro per package: an Ubuntu
+22.04/24.04/26.04 node still cannot compile against the shipped `.deb`, and
+neither can Debian 12. Moving the base moved the boundary; it did not remove
+it, which is what the options below are about.
 
 Options, in rough order of cost:
 
@@ -307,4 +314,5 @@ to the glibc the archives were built against, i.e. a portable form of the
 matrix option.
 
 Decide in the cold. Nothing here is urgent while every node is ours and no one
-compiles on one.
+compiles on one — and less urgent since 7.8.6-3, which at least aims the one
+supported glibc at a distro that is actually deployed.
