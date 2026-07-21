@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **The `.deb` declares `Installed-Size`.** `dpkg-deb --build` does not compute
+  the field — only `dpkg-gencontrol` does, and the packager writes
+  `DEBIAN/control` by hand — so apt counted the package as taking zero bytes:
+  a 294 MB `.deb` announced "After this operation, 49.0 MB of additional disk
+  space will be used" (the sum of its dependencies alone). apt's disk-space
+  check therefore passed on a box with no room for the payload, and the install
+  filled the disk instead of refusing up front.
+
+- **`install.sh` verifies the agent is running before declaring success.** The
+  postinst starts the service through `invoke-rc.d` and ignores the result; on
+  a systemd box the init script's output goes to the journal, so nothing about
+  the start ever reached the terminal. A `curl | sh` run ended on a green tick
+  whether or not anything came up. It now waits for the process, names what is
+  running, and exits non-zero with where to look when the agent is not. The
+  init script's own `status` exit code is unusable for this: it reports the web
+  server — absent on a fresh node — not the agent.
+
+- **The Debian developer toolchain installs `wget`.** `install.sh` promised it
+  in its own header and the `.rpm` list already carried it; only the `.deb`
+  list did not.
+
 - **`install.sh` no longer makes apt drop its download sandbox.** apt fetches
   as `_apt` even from a local file and could not traverse the 0700 root-owned
   `mktemp` directory, so it fell back to an unsandboxed download and said so.

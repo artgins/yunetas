@@ -1072,7 +1072,7 @@ PKGS=(
     python3-tk python3-wheel python3-venv
     libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev
     zlib1g-dev libssl-dev
-    perl dos2unix tree curl
+    perl dos2unix tree curl wget
     postgresql-server-dev-all libpq-dev
     kconfig-frontends telnet pipx
     patch gettext fail2ban rsync
@@ -1554,6 +1554,19 @@ esac
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
+
+# ---------- Installed-Size (KiB, payload only) ----------
+# `dpkg-deb --build` does NOT compute this field — only dpkg-gencontrol does,
+# and we write DEBIAN/control by hand. Without it apt reports the package as
+# taking 0 bytes ("After this operation, 49.0 MB will be used" for a 294 MB
+# .deb) and its disk-space check silently passes on a box that cannot hold the
+# payload. Insert it BEFORE Description: that field is multi-line, so anything
+# appended after it is parsed as part of the description.
+SIZE_ALL_KB=$(du -sk "${WORKDIR}" | cut -f1)
+SIZE_CTRL_KB=$(du -sk "${WORKDIR}/DEBIAN" | cut -f1)
+INSTALLED_SIZE_KB=$((SIZE_ALL_KB - SIZE_CTRL_KB))
+sed -i "/^Description:/i Installed-Size: ${INSTALLED_SIZE_KB}" "${WORKDIR}/DEBIAN/control"
+echo "[i] Installed-Size: ${INSTALLED_SIZE_KB} KiB"
 
 # ---------- Normalize permissions before building ----------
 # Ensure all dirs are 0755 and clear any inherited setgid/sticky bits

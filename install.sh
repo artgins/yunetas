@@ -258,7 +258,53 @@ else
     echo "    Install it later: sudo /yuneta/bin/install-yuneta-dev-deps.sh"
 fi
 
+# ----- Verify the agent came up ---------------------------------------------
+# The package's postinst starts the service through invoke-rc.d and ignores the
+# result; on a systemd box the init script's output goes to the journal, so
+# nothing about the start ever reaches this terminal. Without this check the
+# run ends on a green tick whether or not anything is running. Ask the
+# processes directly — the init script's own `status` exit code cannot be used,
+# it reports the WEB server (absent on a fresh box), not the agent.
+agent_running() {
+    pat="$1"
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -f "/agent/${pat}( |\$)" >/dev/null 2>&1
+    else
+        pidof -x "$pat" >/dev/null 2>&1
+    fi
+}
+
+# --start forks and returns, so give the daemon a moment to appear.
+AGENT_UP=0
+tries=0
+while [ "$tries" -lt 10 ]; do
+    if agent_running yuneta_agent; then
+        AGENT_UP=1
+        break
+    fi
+    tries=$((tries + 1))
+    sleep 1
+done
+
+AGENT22_UP=0
+if agent_running yuneta_agent22; then
+    AGENT22_UP=1
+fi
+
 echo ""
-echo "[✓] Done."
 echo "    Re-login (or 'source /etc/profile.d/yuneta.sh') to pick up PATH."
 echo "    Service: 'sudo service yuneta_agent status'"
+echo ""
+if [ "$AGENT_UP" = "1" ]; then
+    if [ "$AGENT22_UP" = "1" ]; then
+        echo "[✓] Done — yuneta_agent and yuneta_agent22 are running."
+    else
+        echo "[✓] Done — yuneta_agent is running (yuneta_agent22 is NOT)."
+    fi
+else
+    echo "[!] Installed, but yuneta_agent is NOT running." >&2
+    echo "    Start it:  sudo service yuneta_agent start" >&2
+    echo "    Why not:   sudo journalctl -t yuneta_agent_init -n 50" >&2
+    echo "               ls -lt /yuneta/realms/*/*/logs/" >&2
+    exit 1
+fi
