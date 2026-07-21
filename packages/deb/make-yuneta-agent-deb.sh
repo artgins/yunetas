@@ -897,6 +897,24 @@ Next steps (examples):
 Your .deb already installs a deploy hook at:
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 It copies renewed certs to /yuneta/store/certs/, reloads the selected web server, and restarts Yuneta.
+
+DNS-01 with a provider plugin (dns-ovh, dns-cloudflare, dns-route53, ...):
+only plain certbot is installed above, the plugins are separate snaps, and
+the FIRST of these two commands is the one nobody guesses -- without it the
+install fails with a message about trusting the plugin author, which snap
+prints inside a box that is easy to miss:
+
+  snap set certbot trust-plugin-with-root=ok
+  snap install certbot-dns-<provider>
+
+That acknowledges the plugin runs as root. Verify with `certbot plugins`;
+the plugin must appear there, and `snap connections certbot` must show
+certbot:plugin joined to the plugin snap.
+
+Note this is where Debian and RHEL genuinely differ: the RHEL side gets its
+plugins as ordinary rpms (`dnf install python3-certbot-dns-<provider>`),
+because EPEL packages them. The Debian archive does not package all of them
+-- dns-ovh, for one, exists nowhere but the snap.
 HINT
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot.sh"

@@ -717,6 +717,15 @@ Your .rpm already installs a deploy hook at:
 It copies renewed certs to /yuneta/store/certs/, reloads the selected web
 server, and hot-reloads TLS in every running yuno.
 
+DNS-01 with a provider plugin: EPEL packages them as ordinary rpms, so it is
+just another install -- no snap, no trust acknowledgement:
+
+  dnf install python3-certbot-dns-<provider>     # ovh, cloudflare, route53, ...
+
+Verify with `certbot plugins`. (Do not check availability with
+`dnf list --available`: it hides what is already installed and will tell you
+the plugin does not exist when it is sitting right there.)
+
 certbot's systemd renewal timer was enabled and started above; check it with:
   systemctl list-timers certbot-renew.timer
 HINT

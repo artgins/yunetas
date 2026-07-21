@@ -15,6 +15,14 @@
   tell them apart — `uname -r`, `snap debug sandbox-features`, `snap changes`,
   `journalctl -u snapd`.
 
+  Both helpers now also document how to add a DNS-01 provider plugin, which
+  neither installs. On RHEL it is one `dnf install
+  python3-certbot-dns-<provider>`. On Debian the plugins are separate snaps and
+  the first command is the one nobody guesses — `snap set certbot
+  trust-plugin-with-root=ok` — without which the install dies complaining about
+  trusting the plugin author, inside a box snap prints in a way that is easy to
+  miss entirely.
+
   It also warns instead of staying quiet when `/usr/bin/certbot` is a real file
   rather than the snap symlink. **Debian's own `certbot` package is not a drop-in
   replacement**: it has no `dns-ovh` plugin (the archive ships cloudflare,
