@@ -928,19 +928,13 @@ if [ "${ID:-}" != "fedora" ]; then
     fi
 fi
 
-# No pcre-devel: that is PCRE1, and nothing links it -- no -lpcre and no
-# <pcre.h> anywhere in the tree, the build vendors PCRE2
-# (kernel/c/linux-ext-libs/build/pcre2) and openresty wants PCRE2 too. The
-# Debian side lost the same dependency when the .deb moved to Debian 13, where
-# PCRE1 no longer exists at all; this keeps the two families saying the same
-# thing about what the build needs.
 PKGS=(
     git mercurial make cmake ninja-build
     gcc clang gcc-c++
     python3-devel python3-pip python3-setuptools
     python3-tkinter python3-wheel
     jansson-devel pcre2-devel liburing-devel
-    zlib-devel openssl-devel
+    pcre-devel zlib-devel openssl-devel
     perl dos2unix tree wget
     libpq-devel
     telnet pipx

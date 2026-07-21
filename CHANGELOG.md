@@ -12,13 +12,6 @@
   failed. Each branch now says what it did and points at the matching
   `firewall-cmd` / `firewall-offline-cmd` verify command.
 
-- **The EL9 developer toolchain drops `pcre-devel`.** That is PCRE1, and
-  nothing links it: no `-lpcre` and no `<pcre.h>` anywhere in the tree, the
-  build vendors PCRE2, and openresty wants PCRE2 too. The Debian side lost the
-  same dependency in 7.8.6-3, where PCRE1 no longer exists at all; this keeps
-  both families saying the same thing about what the build needs. (The Debian
-  package list is otherwise unchanged.)
-
 ## 7.8.6-3
 
 A packaging revision, not a new version of Yuneta: no source under `kernel/`,
