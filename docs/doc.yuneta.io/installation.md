@@ -42,17 +42,24 @@ The command above is exercised end-to-end, on a freshly installed OS, on:
 
 | Distro | Package | Verified |
 |---|---|---|
-| **Rocky Linux 9.8** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.5 · 2026-07-20 |
+| **Rocky Linux 9** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.6-4 · 2026-07-21 |
+| **Debian 13** (trixie) | `.deb` (amd64) | 7.8.6-4 · 2026-07-21 |
 | **Ubuntu 24.04 LTS** (noble) | `.deb` (amd64) | 7.8.6 · 2026-07-20 |
 | **Ubuntu 26.04 LTS** (resolute) | `.deb` (amd64) | 7.8.5 · 2026-07-20 |
+
+Debian 13 was exercised on **both a VM and a dedicated server**, deliberately:
+the faster machine loses a start-up race the slower one wins, which is exactly
+how a snapd bug in the certbot step stayed hidden. Rocky was also verified
+**across a reboot** — the moment firewalld first starts and the agent has to
+come up on its own.
 
 Other releases of the same families are expected to work — the script branches
 on `apt` vs `dnf`, not on the version — but they are not exercised.
 
-The published packages are built on **ubuntu-22.04** (`.deb`, glibc 2.35) and
-in a **rockylinux:9** container (`.rpm`, glibc 2.34). That build base decides
-whether a node can *compile* against the shipped SDK — see the glibc warning
-below. It does not affect running the shipped binaries.
+Each package is built in a container of its own target distro: **`debian:13`**
+(`.deb`, glibc 2.41) and **`rockylinux:9`** (`.rpm`, glibc 2.34). That build
+base decides whether a node can *compile* against the shipped SDK — see the
+glibc warning below. It does not affect running the shipped binaries.
 
 The script does everything in one run, no second step to remember:
 
@@ -133,11 +140,18 @@ Full inventory in
 > this at configure time; `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
 > message, it does not make the link safe.
 >
-> In practice: the EL9 `.rpm` is built in a `rockylinux:9` container, so its
-> glibc (2.34) matches Rocky 9 and those nodes **can** build. The AMD64 `.deb`
-> is built on ubuntu-22.04 (glibc 2.35), so any **newer** Ubuntu — 24.04
-> (2.39), 26.04 (2.43) — differs and is **runtime-only**. Build those elsewhere
-> and push binaries.
+> In practice, each package is built in a container of its own target distro,
+> so each one matches exactly one glibc:
+>
+> | Package | Built in | glibc | Nodes that can build on-node |
+> |---|---|---|---|
+> | `.rpm` (EL9) | `rockylinux:9` | 2.34 | Rocky/Alma 9 |
+> | `.deb` (AMD64) | `debian:13` | 2.41 | Debian 13 (trixie) |
+>
+> So **Ubuntu nodes are runtime-only** — 24.04 (2.39) and 26.04 (2.43) both
+> differ from 2.41 — as is Debian 12. Build those elsewhere and push binaries.
+> The `.deb` came off an `ubuntu-22.04` runner (glibc 2.35) until **7.8.6-3**;
+> if you are on an older package, check its stamp rather than this table.
 
 > ℹ️ **Build options of the published `.deb`.** The release asset is
 > compiled with the Kconfig defaults (`alldefconfig`): **GCC**,

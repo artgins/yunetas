@@ -14,7 +14,32 @@ An Asynchronous Development Framework
 
 For more details, see [doc.yuneta.io](https://doc.yuneta.io)
 
-To install use:
+## Install
+
+One command, on both distro families — Debian/Ubuntu (`.deb`) and
+RHEL/Rocky/Alma (`.rpm`). It installs the **`yuneta-agent` package** (the
+runtime: agent, CLI tools, bundled web server, plus the libraries, headers and
+CMake toolchain under `/yuneta/development/yunetas/`) **and** the developer
+toolchain, so the machine can both run yunos and build your own projects:
+
+    curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
+
+To install **only the `yuneta-agent` package**, without the developer toolchain
+— a pure deployment node:
+
+    curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- --runtime-only
+
+Both forms also set up certbot. To pin a published release instead of the
+latest, pass its tag: `… | sudo sh -s -- 7.8.6`.
+
+Verified distros, what the script does step by step, and the glibc rule that
+decides whether a node can *compile* against the shipped SDK:
+[Installation](https://doc.yuneta.io/installation/).
+
+## Build from source
+
+To develop the framework itself, or to build it with different options
+(TLS backend, modules, static/dynamic):
 
     git clone --recurse-submodules https://github.com/artgins/yunetas.git
 
