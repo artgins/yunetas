@@ -692,6 +692,20 @@ dnf -y install certbot
 
 install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
 
+# certbot's own scriptlet enables certbot-renew.timer but does NOT start it,
+# and says so. Enabled-not-started means renewals do not begin until the node
+# reboots — while the Debian side gets a live timer from the snap in the same
+# run. Start it here so a certificate issued today actually renews.
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl enable --now certbot-renew.timer >/dev/null 2>&1; then
+        echo "[i] certbot-renew.timer enabled and started."
+    else
+        echo "[!] Could not start certbot-renew.timer — certificates will NOT" >&2
+        echo "    auto-renew. Start it by hand:" >&2
+        echo "        systemctl enable --now certbot-renew.timer" >&2
+    fi
+fi
+
 echo
 echo "[i] Certbot version:"
 certbot --version || true
@@ -703,8 +717,8 @@ Your .rpm already installs a deploy hook at:
 It copies renewed certs to /yuneta/store/certs/, reloads the selected web
 server, and hot-reloads TLS in every running yuno.
 
-certbot's systemd renewal timer:
-  systemctl enable --now certbot-renew.timer
+certbot's systemd renewal timer was enabled and started above; check it with:
+  systemctl list-timers certbot-renew.timer
 HINT
 EOF
 chmod 0755 "${STAGE}/yuneta/bin/install-certbot.sh"
@@ -1265,6 +1279,48 @@ fi
 # harmless if it already exists).
 if ! getent group nogroup >/dev/null 2>&1; then
     groupadd nogroup >/dev/null 2>&1 || true
+fi
+
+# Open the ports this node serves, when a firewall is in the picture.
+#
+#   fail2ban (a weak dep) pulls fail2ban-firewalld, which pulls firewalld,
+#   whose scriptlet ENABLES it. firewalld is not started during the
+#   transaction, so a fresh node works right now and would start refusing
+#   connections at the first reboot — exactly what this installer recommends
+#   doing. Nothing else in the package touches the firewall, so open what we
+#   actually serve:
+#       1993/tcp   the agent's external control plane (wss://0.0.0.0:1993)
+#       80,443/tcp the bundled web server
+#   1991 is loopback-only and needs nothing; the outbound side (1994/1995) is
+#   not filtered by the default zone. An operator who moved these ports in
+#   /yuneta/agent/yuneta_agent.json has to open the new ones by hand — say so
+#   rather than pretend the defaults are the whole story.
+YUNETA_FW_PORTS="1993/tcp 80/tcp 443/tcp"
+if command -v firewall-cmd >/dev/null 2>&1; then
+    YUNETA_FW_RC=0
+    if systemctl is-active --quiet firewalld 2>/dev/null; then
+        for p in $YUNETA_FW_PORTS; do
+            firewall-cmd --permanent --add-port="$p" >/dev/null 2>&1 || YUNETA_FW_RC=1
+        done
+        firewall-cmd --reload >/dev/null 2>&1 || YUNETA_FW_RC=1
+    elif command -v firewall-offline-cmd >/dev/null 2>&1; then
+        # firewalld is installed and enabled but not running yet: the offline
+        # tool writes the same permanent config, so the rules are in place when
+        # it comes up at the next boot.
+        for p in $YUNETA_FW_PORTS; do
+            firewall-offline-cmd --add-port="$p" >/dev/null 2>&1 || YUNETA_FW_RC=1
+        done
+    else
+        YUNETA_FW_RC=1
+    fi
+    if [ "$YUNETA_FW_RC" = "0" ]; then
+        echo "[post] firewalld: opened ${YUNETA_FW_PORTS} (default zone)."
+    else
+        echo "[post] WARNING: could not open ${YUNETA_FW_PORTS} in firewalld." >&2
+        echo "[post]          Open them by hand or the agent becomes unreachable" >&2
+        echo "[post]          once firewalld starts: firewall-cmd --permanent" >&2
+        echo "[post]          --add-port=1993/tcp && firewall-cmd --reload" >&2
+    fi
 fi
 
 # Install + enable the SysV service

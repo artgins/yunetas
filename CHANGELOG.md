@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The `.rpm` opens the ports the node serves.** `fail2ban` — a weak
+  dependency — pulls `fail2ban-firewalld`, which pulls `firewalld`, which its
+  own scriptlet **enables**. firewalld is not started during the transaction,
+  so a fresh Rocky node worked right after installing and would have started
+  refusing connections at the first reboot — the very thing the installer
+  recommends doing. Nothing in the package touched the firewall. The `%post`
+  now opens 1993/tcp (the agent's external control plane) and 80/443 (the
+  bundled web server), via `firewall-offline-cmd` when firewalld is enabled but
+  not yet running. A node whose ports were moved from the defaults still needs
+  them opened by hand; the failure path says so instead of passing silently.
+
+- **The `.rpm` certbot helper starts the renewal timer.** certbot's scriptlet
+  enables `certbot-renew.timer` without starting it, and says so — meaning
+  renewals did not begin until the node rebooted, while the Debian side gets a
+  live timer from the snap in the same run. The helper printed the command to
+  fix it instead of running it.
+
 - **The `.deb` declares `Installed-Size`.** `dpkg-deb --build` does not compute
   the field — only `dpkg-gencontrol` does, and the packager writes
   `DEBIAN/control` by hand — so apt counted the package as taking zero bytes:
