@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`C_IEVENT_CLI` no longer writes into a jansson string to check `dst_yuno`.**
+  The check compares the part before `^`, and it did that by writing a NUL over
+  the `^` and restoring it after `strcmp()`. The buffer belongs to a `json_t`:
+  `kw_get_str()` hands back `json_string_value()`, which jansson owns and
+  documents as immutable. Nothing observed it half-truncated — the restore is
+  two lines later and yunos are single-threaded — but any trace or dump that
+  ever lands between the two would print a cut `dst_yuno`. It now measures the
+  prefix and compares with `strncmp()`, requiring the lengths to match, which
+  is what the truncated `strcmp()` meant.
+
 - **The string helpers stop discarding `const`.** glibc's `<string.h>` now
   declares `strchr`/`strrchr`/`strstr` as the C23 const-generic macros, so on a
   `const char *` they return `const char *` — and thirteen call sites that

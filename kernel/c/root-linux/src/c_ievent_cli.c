@@ -1031,14 +1031,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     const char *iev_dst_yuno = kw_get_str(gobj, jn_ievent_id, "dst_yuno", "", 0);
     if(!empty_string(iev_dst_yuno)) {
-        char *px = strchr(iev_dst_yuno, '^'); // TODO review, not used in ievent_srv, review
-        if(px) {
-            *px = 0;
-        }
-        int ret = strcmp(iev_dst_yuno, gobj_yuno_name());
-        if(px) {
-            *px = '^';
-        }
+        const char *px = strchr(iev_dst_yuno, '^'); // TODO review, not used in ievent_srv, review
+        size_t ln = px? (size_t)(px - iev_dst_yuno):strlen(iev_dst_yuno);
+        const char *my_yuno_name = gobj_yuno_name();
+        int ret = (strlen(my_yuno_name)==ln)? strncmp(iev_dst_yuno, my_yuno_name, ln):-1;
         if(ret!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
