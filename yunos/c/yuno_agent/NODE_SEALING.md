@@ -44,6 +44,7 @@ chosen for OVH-hosted nodes — see [§6](#6-break-glass-the-provider-console-is
 | **`seal-node` / `unseal-node` / `node-seal-status`** | **Proposed** | [§3](#3-command-surface), [§4](#4-the-seal-is-self-proving-and-self-validating) |
 | **`/yuneta/bin/yuneta-unseal-local`** (console break-glass) | **Proposed** | [§6](#6-break-glass-the-provider-console-is-the-contract) |
 | **Node-state topic + fleet view** | **Proposed** (phase 2) | [§7](#7-node-state-phase-2) |
+| **SSH-dependency ledger** — what still needs SSH, and at which tier | **Living inventory** | [§5.4](#54-the-ssh-dependency-ledger) |
 
 ---
 
@@ -156,6 +157,78 @@ auto-renewed**, never short. (Today's agent JWT carries `exp` in 2038 —
 effectively perpetual — and `cert_sync_*` already auto-renews the Let's Encrypt
 path; keep it that way. See [`YUNO_AUTH.md`](YUNO_AUTH.md).)
 
+### 5.4 The SSH-dependency ledger
+
+**The seal is blocked by whatever still needs SSH.** Sealing a node is not a
+switch to flip — it is the moment every remaining SSH dependency turns into an
+outage. So this ledger is a standing inventory, kept current: *policy is
+agent-first — if the agent can do it, do it through the agent, and every time
+something genuinely cannot be done through the agent, it gets recorded here.*
+
+The distinction that matters is **not** "possible / impossible" but which of
+three tiers a task falls in:
+
+**Tier 1 — a structured agent command exists.** Safe under a seal today.
+Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
+
+- Yuno lifecycle: `run-yuno`, `kill-yuno`, `play-yuno`, `pause-yuno`,
+  `enable-yuno`, `disable-yuno`, `create-yuno`, `delete-yuno`,
+  `find-new-yunos`.
+- Binaries: `install-binary`, `update-binary`, `delete-binary`,
+  `replicate-binaries`.
+- Configs / realms: `create-config`, `edit-config`, `update-config`,
+  `view-config`, `delete-config`, and the `*-realm` family.
+- Snapshots: `shoot-snap`, `activate-snap`, `deactivate-snap`, `snaps`,
+  `snap-content`.
+- Observability: `read-file`, `read-binary-file`, `read-json`, the `dir-*`
+  family (`dir-logs`, `dir-realms`, `dir-store`, …), `top`, `stats-yuno`,
+  `trace-on-yuno` / `trace-off-yuno`, `command-yuno`.
+- Fleet: `replicate-node`, `upgrade-node` — note these replicate **realms'
+  yunos**, they are *not* an OS package upgrade.
+- Certs: `cert-sync-now`, `cert-sync-status`.
+
+The deploy tooling already lives in this tier: `sync_binaries`, `sync_configs`
+and `set_start_priorities` (`yunetas.agent_tools.*`) drive a remote `wss://`
+agent through `ycommand` with a single OAuth2 password-grant login, reusing the
+JWT via `-j`. They were written for SSH-disabled nodes on purpose.
+
+**Tier 2 — only through the agent's PTY** (`open-console` + `write-tty`, the
+same channel the `gui_agent` Terminal workspace uses). Reachable under a seal,
+but as free-form shell text: no schema, no authz granularity beyond the
+`open-console` permission, nothing an operator can audit as a command. Anything
+here is a candidate for promotion to Tier 1:
+
+- Writing an **arbitrary file** to the node. There is `read-file` but **no
+  `write-file`**; only binaries and configs have structured write commands. So
+  certs, `/etc/security/limits.d/*.conf`, `resolv.conf`, nginx vhosts, secret
+  overlays all fall here.
+- OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
+  `core_pattern`/apport, certbot renewals, nginx/openresty reload.
+- Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
+  binaries). `upgrade-node` does not do this.
+- Upgrading **the agent binary**. The agent is a standalone daemon, not a
+  managed yuno: `update-binary` does not reach it, and it is restarted with
+  `yuneta_agent --config-file=<json> --stop` then `--start`. The intended
+  agent-side answer is the twin (each agent can replace the other — never both
+  at once), but there is no command for it today.
+
+**Open question for Tier 2:** which user the PTY runs as, and whether it has
+`sudo`. Everything OS-level above depends on that answer, and it decides
+whether a sealed node can be maintained at all or only observed. Settle it
+before the first real seal.
+
+**Tier 3 — genuinely SSH-only.** Nothing is known to be here yet, *because*
+Tier 2 exists: the PTY is a shell, so a shell-shaped task is never impossible,
+only unauditable. Treat this tier as the alarm — an entry here means the seal
+cannot be applied to that node until it is resolved or accepted as a
+console-only (break-glass) operation.
+
+**Known SSH-shaped leftover:** the CLI's node registry
+(`~/.yuneta/nodes.json`) stores only an `ssh` string per node
+(`yuneta@<host>`), with no agent URL. The registry assumes SSH even though the
+`sync_*` tools it ships with do not. It needs an agent-URL field before a
+sealed node can be registered.
+
 ---
 
 ## 6. Break-glass: the provider console is the contract
@@ -221,6 +294,7 @@ by design, not by discipline.
 
 ## 9. Build order
 
+0. **Keep the SSH-dependency ledger current** ([§5.4](#54-the-ssh-dependency-ledger)) — continuous, not a step: it is the readiness gate for every node. Work agent-first and record each new SSH-only need as it appears.
 1. **Hardening #0** — agent22 stops suiciding on empty `node_owner` ([§5.1](#51-hardening-0-agent22-must-never-suicide)). Self-contained, unblocks the rest.
 2. **agent22↔agent heartbeat** ([§5.2](#52-the-agent22agent-heartbeat)) — the gate's precondition #4.
 3. **`seal-node` / `unseal-node` / `node-seal-status`** ([§3](#3-command-surface)) — the three OS-persistent steps + the gate ([§4](#4-the-seal-is-self-proving-and-self-validating)).
