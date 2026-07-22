@@ -4,11 +4,11 @@ Lifecycle and runtime operations on gobj instances: start, stop, play, pause, en
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_bottom_gobj)=
-## [`gobj_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5056)
+## [`gobj_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5056)
 
 Returns the next bottom `gobj` of the given `gobj`. This function is useful for navigating hierarchical `gobj` structures where attributes may be inherited from a lower-level `gobj`.
 
@@ -35,7 +35,7 @@ This function is typically used in hierarchical `gobj` structures where attribut
 ---
 
 (gobj_change_parent)=
-## [`gobj_change_parent()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/js/gobj-js/src/gobj.js#L3228)
+## [`gobj_change_parent()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/js/gobj-js/src/gobj.js#L3228)
 
 Changes the parent of the given `hgobj` instance to a new parent `hgobj`. The function updates the internal hierarchy of the object tree.
 
@@ -64,7 +64,7 @@ This function ensures that the object hierarchy remains consistent when changing
 ---
 
 (gobj_child_by_index)=
-## [`gobj_child_by_index()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5318)
+## [`gobj_child_by_index()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5318)
 
 `gobj_child_by_index()` returns the child of a given `hgobj` at the specified index, where the index is relative to 1.
 
@@ -93,7 +93,7 @@ If `idx` is greater than the number of children, the function returns `NULL`.
 ---
 
 (gobj_child_by_name)=
-## [`gobj_child_by_name()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5277)
+## [`gobj_child_by_name()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5277)
 
 Retrieves the first child of a given `hgobj` that matches the specified name.
 
@@ -122,7 +122,7 @@ This function performs a case-sensitive comparison of the child names.
 ---
 
 (gobj_child_size)=
-## [`gobj_child_size()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5351)
+## [`gobj_child_size()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5351)
 
 Returns the number of child objects directly associated with the given `hgobj`.
 
@@ -149,7 +149,7 @@ This function does not count nested children beyond the first level.
 ---
 
 (gobj_child_size2)=
-## [`gobj_child_size2()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5361)
+## [`gobj_child_size2()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5361)
 
 Returns the number of child objects of the given `hgobj` that match the specified filter criteria.
 
@@ -178,7 +178,7 @@ The function iterates over the children of [`gobj_`](#gobj_child_size2) and appl
 ---
 
 (gobj_command)=
-## [`gobj_command()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4819)
+## [`gobj_command()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4819)
 
 Executes a command on the given `hgobj` instance, using either the local command parser or the global command parser if available.
 
@@ -211,7 +211,7 @@ If the target `hgobj` has a local command parser (`mt_command_parser`), it is us
 ---
 
 (gobj_default_service)=
-## [`gobj_default_service()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5068)
+## [`gobj_default_service()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5068)
 
 Returns the default service gobj, which is the primary service object in the system.
 
@@ -236,7 +236,7 @@ The default service is typically set using [`gobj_create_default_service()`](<#g
 ---
 
 (gobj_disable)=
-## [`gobj_disable()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4754)
+## [`gobj_disable()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4754)
 
 Disables the given `hgobj` instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed; otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
 
@@ -261,7 +261,7 @@ If the object is already disabled, a warning is logged, and no action is taken.
 ---
 
 (gobj_enable)=
-## [`gobj_enable()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4786)
+## [`gobj_enable()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4786)
 
 Enables the specified `hgobj` by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked; otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
 
@@ -286,7 +286,7 @@ If the object is already enabled, this function has no effect.
 ---
 
 (gobj_find_child)=
-## [`gobj_find_child()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5477)
+## [`gobj_find_child()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5477)
 
 Finds the first child of `gobj` that matches the given filter criteria.
 
@@ -315,7 +315,7 @@ The function iterates over the direct children of `gobj` and applies the filter 
 ---
 
 (gobj_find_gobj)=
-## [`gobj_find_gobj()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5181)
+## [`gobj_find_gobj()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5181)
 
 Finds a `gobj` by its path within the hierarchical structure of `gobj` instances.
 
@@ -342,7 +342,7 @@ If `path` is `__default_service__`, it returns the default service `gobj`. If `p
 ---
 
 (gobj_find_service)=
-## [`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5076)
+## [`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5076)
 
 Searches for a service gobj by its name, performing a case-insensitive comparison.
 
@@ -371,7 +371,7 @@ If `service` is `__default_service__`, the function returns the default service 
 ---
 
 (gobj_find_service_by_gclass)=
-## [`gobj_find_service_by_gclass()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5126)
+## [`gobj_find_service_by_gclass()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5126)
 
 Finds a service gobj by its gclass name. Returns a handle to the first matching service or NULL if not found.
 
@@ -400,7 +400,7 @@ If `verbose` is set to TRUE and no matching service is found, an error message i
 ---
 
 (gobj_first_child)=
-## [`gobj_first_child()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5202)
+## [`gobj_first_child()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5202)
 
 Returns the first child of the given `hgobj` object.
 
@@ -425,7 +425,7 @@ This function does not modify the object hierarchy; it only retrieves the first 
 ---
 
 (gobj_free_iter)=
-## [`gobj_free_iter()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5603)
+## [`gobj_free_iter()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5603)
 
 Decrements the reference count of each gobj in the given JSON array and frees the array.
 
@@ -452,7 +452,7 @@ Each gobj in the array has its reference count decremented before the array itse
 ---
 
 (gobj_last_bottom_gobj)=
-## [`gobj_last_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5041)
+## [`gobj_last_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5041)
 
 Returns the last bottom `gobj` in the hierarchy of the given `gobj`. This function traverses the bottom `gobj` chain to find the deepest `gobj` in the hierarchy.
 
@@ -479,7 +479,7 @@ This function is useful when dealing with a stack of `gobj` instances that act a
 ---
 
 (gobj_last_child)=
-## [`gobj_last_child()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5221)
+## [`gobj_last_child()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5221)
 
 Returns the last child of the given `hgobj` object.
 
@@ -504,7 +504,7 @@ This function is useful for iterating over child objects in reverse order.
 ---
 
 (gobj_local_method)=
-## [`gobj_local_method()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4263)
+## [`gobj_local_method()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4263)
 
 Executes a local method (`lmethod`) on the given `hgobj` instance, passing the provided keyword arguments (`kw`) and source object (`src`).
 
@@ -537,7 +537,7 @@ If the specified `lmethod` is not found in the local method table (`lmt`), an er
 ---
 
 (gobj_match_children)=
-## [`gobj_match_children()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5534)
+## [`gobj_match_children()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5534)
 
 Returns a list of child objects that match the specified filter criteria.
 
@@ -566,7 +566,7 @@ Use [`gobj_free_iter()`](#gobj_free_iter) to free the returned JSON array when i
 ---
 
 (gobj_match_children_tree)=
-## [`gobj_match_children_tree()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5571)
+## [`gobj_match_children_tree()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5571)
 
 Returns an iterator (JSON list of `hgobj`) containing all matched child objects, including deep levels of children. It traverses the entire tree of child objects and applies the given filter.
 
@@ -595,7 +595,7 @@ This function performs a deep search, checking all levels of child objects. The 
 ---
 
 (gobj_match_gobj)=
-## [`gobj_match_gobj()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5383)
+## [`gobj_match_gobj()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5383)
 
 Checks if a given `hgobj` matches the specified filter criteria in `jn_filter`. The function evaluates attributes and system-defined keys to determine if the object meets the conditions.
 
@@ -624,7 +624,7 @@ The function supports filtering based on system-defined keys like `__gclass_name
 ---
 
 (gobj_next_child)=
-## [`gobj_next_child()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5240)
+## [`gobj_next_child()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5240)
 
 Returns the next sibling of the given gobj in the parent's child list.
 
@@ -651,7 +651,7 @@ If `child` is NULL, an error is logged.
 ---
 
 (gobj_pause)=
-## [`gobj_pause()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4688)
+## [`gobj_pause()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4688)
 
 The `gobj_pause()` function pauses the execution of a given `hgobj` instance if it is currently playing. If the object is not playing, a warning is logged.
 
@@ -678,7 +678,7 @@ If the object is already paused, a warning is logged. If the object has a `mt_pa
 ---
 
 (gobj_play)=
-## [`gobj_play()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4601)
+## [`gobj_play()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4601)
 
 The `gobj_play()` function transitions a GObj into the playing state, invoking its `mt_play` method if defined. If the GObj is not already running, it will be started unless the `gcflag_required_start_to_play` flag is set.
 
@@ -705,7 +705,7 @@ Returns 0 on success, or a negative value if an error occurs.
 ---
 
 (gobj_prev_child)=
-## [`gobj_prev_child()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5258)
+## [`gobj_prev_child()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5258)
 
 Returns the previous sibling of the given gobj in its parent's child list.
 
@@ -732,7 +732,7 @@ If the given `child` is the first child in the parent's list, the function retur
 ---
 
 (gobj_search_path)=
-## [`gobj_search_path()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5639)
+## [`gobj_search_path()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5639)
 
 Searches for a `hgobj` instance by traversing the object tree using a path with '`' as a separator.
 
@@ -761,7 +761,7 @@ The function supports searching by both gclass and gobj names. If a segment cont
 ---
 
 (gobj_services)=
-## [`gobj_services()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L1372)
+## [`gobj_services()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L1372)
 
 Returns a JSON array containing the names of all registered services in the system.
 
@@ -786,7 +786,7 @@ This function provides a list of services that have been registered using [`gobj
 ---
 
 (gobj_set_bottom_gobj)=
-## [`gobj_set_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4981)
+## [`gobj_set_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4981)
 
 Sets the bottom gobj of a given gobj, allowing attribute inheritance from the specified bottom gobj.
 
@@ -815,7 +815,7 @@ The bottom gobj is used for attribute inheritance. If a gobj already has a botto
 ---
 
 (gobj_start)=
-## [`gobj_start()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4311)
+## [`gobj_start()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4311)
 
 The `gobj_start()` function starts the specified `hgobj` instance, transitioning it to a running state if it is not already running. It verifies required attributes before starting and invokes the `mt_start` method of the associated gclass if defined.
 
@@ -845,7 +845,7 @@ If the gclass has an `mt_start` method, it is invoked to perform additional star
 ---
 
 (gobj_start_children)=
-## [`gobj_start_children()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4394)
+## [`gobj_start_children()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4394)
 
 Starts all direct child objects of the given `hgobj` instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
 
@@ -872,7 +872,7 @@ This function only starts the direct children of [`gobj`](#gobj). It does not re
 ---
 
 (gobj_start_tree)=
-## [`gobj_start_tree()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4429)
+## [`gobj_start_tree()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4429)
 
 Starts the given `gobj` and all its child objects recursively, unless they have the `gcflag_manual_start` flag set.
 
@@ -899,7 +899,7 @@ If a child object has the `gcflag_manual_start` flag set, it will not be started
 ---
 
 (gobj_stop)=
-## [`gobj_stop()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4464)
+## [`gobj_stop()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4464)
 
 Stops the execution of the given `gobj` instance, ensuring it is no longer running. If the `gobj` is playing, it will be paused before stopping.
 
@@ -926,7 +926,7 @@ If the `gobj` is playing, it will be paused before stopping. If the `gobj` is al
 ---
 
 (gobj_stop_children)=
-## [`gobj_stop_children()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4538)
+## [`gobj_stop_children()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4538)
 
 Stops all direct child objects of the given `hgobj` instance by invoking [`gobj_stop()`](#gobj_stop) on each child.
 
@@ -953,7 +953,7 @@ This function only stops the direct children of `gobj`, not the entire hierarchy
 ---
 
 (gobj_stop_tree)=
-## [`gobj_stop_tree()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L4565)
+## [`gobj_stop_tree()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L4565)
 
 Stops the given `gobj` and all its child objects recursively. If the `gobj` is already being destroyed, it logs an error and returns immediately.
 
@@ -982,7 +982,7 @@ Uses [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree) to traver
 ---
 
 (gobj_walk_gobj_children)=
-## [`gobj_walk_gobj_children()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5703)
+## [`gobj_walk_gobj_children()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5703)
 
 Traverses the direct child objects of the given `hgobj` using the specified traversal method and applies a callback function to each child.
 
@@ -1018,7 +1018,7 @@ This function only traverses the direct children of the given `hgobj`. To traver
 ---
 
 (gobj_walk_gobj_children_tree)=
-## [`gobj_walk_gobj_children_tree()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/gobj.c#L5730)
+## [`gobj_walk_gobj_children_tree()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/gobj.c#L5730)
 
 Traverses the child objects of a given `hgobj` in a specified order and applies a callback function to each child.
 

@@ -87,7 +87,7 @@ typedef int (*tranger2_load_record_callback_t)(
 ```
 
 
-## Summary of [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/timeranger2/src/fs_watcher.h)
+## Summary of [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/timeranger2/src/fs_watcher.h)
 
 This header file defines the **fs_watcher** module, which provides filesystem event watching functionality.
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 7.8.7
+
+A release the toolchain asked for. Ubuntu 26.04 brought gcc-15 and clang-21,
+whose `<string.h>` hands back a `const char *` where the code expected a
+writable one, and the fourteen warnings that surfaced pointed at one place
+that really was editing memory it did not own. Following that thread through
+the inter-event layer turned up four identity checks that had drifted apart
+from each other and from how the framework matches names everywhere else.
+
 - **The ievent identity checks agree with each other, and with the framework.**
   `dst_role` and `dst_yuno` were checked in four places that all disagreed.
   `C_IEVENT_CLI` compared only the part before a `^`, and it obtained that part

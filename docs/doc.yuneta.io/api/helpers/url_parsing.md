@@ -4,11 +4,11 @@ Parse URLs into scheme, host, port, path, and query components. Used by TCP/UDP 
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/helpers.c)
 
 (get_url_schema)=
-## [`get_url_schema()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.c#L6318)
+## [`get_url_schema()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/helpers.c#L6318)
 
 Extracts the schema (protocol) from a given URL and stores it in the provided buffer.
 
@@ -40,7 +40,7 @@ Uses `http_parser_parse_url()` to parse the URL. If no schema is found, an error
 ---
 
 (parse_url)=
-## [`parse_url()`](https://github.com/artgins/yunetas/blob/7.8.6/kernel/c/gobj-c/src/helpers.c#L6187)
+## [`parse_url()`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/gobj-c/src/helpers.c#L6187)
 
 Parses a given URL into its components, including schema, host, port, path, and query. Supports optional schema parsing.
 
