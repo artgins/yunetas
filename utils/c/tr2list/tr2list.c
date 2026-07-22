@@ -352,7 +352,7 @@ PRIVATE BOOL list_topic_cb(
     wd_option opt           // option parameter
 )
 {
-    char *p = strrchr(directory, '/');
+    const char *p = strrchr(directory, '/');
     if(p) {
         printf("        %s\n", p+1);
     } else {

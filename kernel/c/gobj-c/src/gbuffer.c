@@ -830,7 +830,8 @@ PRIVATE size_t b64_encode(const char *src, size_t srclength, char *target, size_
 PRIVATE size_t b64_decode(const char *src, uint8_t *target, size_t targsize)
 {
     size_t tarindex, state;
-    char *pos, ch;
+    const char *pos;
+    char ch;
 
     state = 0;
     tarindex = 0;

@@ -530,7 +530,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 /***************************************************************************
  *  Search delimiter
  ***************************************************************************/
-PRIVATE char *search_delimiter(const char *s, char delimiter_)
+PRIVATE const char *search_delimiter(const char *s, char delimiter_)
 {
     if(!delimiter_) {
         return 0;
@@ -586,7 +586,7 @@ PRIVATE json_t *kw_find_path_depth(
         return 0;
     }
 
-    char *p = search_delimiter(path, delimiter[0]);
+    const char *p = search_delimiter(path, delimiter[0]);
     if(!p) {
         if(json_is_object(kw)) {
             // Dict

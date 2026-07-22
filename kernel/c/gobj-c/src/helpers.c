@@ -991,7 +991,7 @@ PUBLIC char * translate_string(
 ) {
     int pos;
     char chr;
-    char *chr_pos;
+    const char *chr_pos;
 
     tolen--;
     if(tolen<1)

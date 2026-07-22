@@ -10212,9 +10212,9 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     close(fp);
 
-    char *p = strrchr(filename, '/');
+    const char *p = strrchr(filename, '/');
     if(!p) {
-        p = (char *)filename;
+        p = filename;
     } else {
         p++;
     }
@@ -10332,9 +10332,9 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     close(fp);
 
-    char *p = strrchr(filename, '/');
+    const char *p = strrchr(filename, '/');
     if(!p) {
-        p = (char *)filename;
+        p = filename;
     } else {
         p++;
     }
@@ -10469,9 +10469,9 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
     close(fp);
 
-    char *p = strrchr(filename, '/');
+    const char *p = strrchr(filename, '/');
     if(!p) {
-        p = (char *)filename;
+        p = filename;
     } else {
         p++;
     }

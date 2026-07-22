@@ -2618,7 +2618,7 @@ PRIVATE const char *is_for_me(
     const char *gobj_name,
     const char *key)
 {
-    char *p = strchr(key, '.');
+    const char *p = strchr(key, '.');
     if(p) {
         char temp[256]; // if your names are longer than 256 bytes, you are ...
         int ln = p - key;
@@ -5655,7 +5655,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
         key = *(ss + i);
 
         const char *gclass_name_ = 0;
-        char *gobj_name_ = strchr(key, '^');
+        char *gobj_name_ = (char *)strchr(key, '^'); // writable: key is a split2() private copy
         if(gobj_name_) {
             gclass_name_ = key;
             *gobj_name_ = 0;

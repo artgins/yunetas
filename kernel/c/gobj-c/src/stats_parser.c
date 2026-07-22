@@ -122,7 +122,7 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
         if(!empty_string(stats)) {
             if(!strstr(stats, it->name)) { // Parece que es para seleccionar por prefijo
                 char prefix[32];
-                char *p = strchr(it->name, '_');
+                const char *p = strchr(it->name, '_');
                 if(p) {
                     int ln = p - it->name;
                     snprintf(prefix, sizeof(prefix), "%.*s", ln, it->name);

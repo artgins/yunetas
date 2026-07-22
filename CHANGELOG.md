@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The string helpers stop discarding `const`.** glibc's `<string.h>` now
+  declares `strchr`/`strrchr`/`strstr` as the C23 const-generic macros, so on a
+  `const char *` they return `const char *` — and thirteen call sites that
+  stored that in a `char *` started warning under gcc-15 / clang-21. All of
+  them only did pointer arithmetic or printing, so nothing changed at runtime;
+  they are now declared `const char *`. The one site that does write through
+  the pointer (`gobj_search_path()`, splitting `gclass^name`) keeps an explicit
+  cast, since the string it edits is `split2()`'s own heap copy.
+
 - **`install.sh` refreshes the apt index before installing the `.deb`.** It
   never did, and a freshly imaged Debian node carries whatever index its image
   was built with. Debian keeps only the current version of each package in the
