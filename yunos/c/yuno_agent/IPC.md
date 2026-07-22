@@ -516,6 +516,52 @@ The remote side does **not** need to keep the connection idle while
 waiting — events can fire whenever the publisher decides. From the
 subscriber's point of view, remote events look just like local ones.
 
+### 4.7 Two identities travel on a channel — don't confuse them
+
+A command crossing an ievent link carries **two** different identities, and
+they authorize different things. Getting them mixed up leads to the wrong
+conclusion about who is allowed to do what at the far end.
+
+| Identity | Where it lives | What it is | Who checks it |
+|---|---|---|---|
+| **Channel/session user** | `__md_iev__`ievent_gate_stack[]`user` | the *yuno* that dialled the link, from its own JWT | the **server** side, when accepting the connection |
+| **Operator** | `kw`__username__` | the human (or client) that issued the command | the **service** at the far end, via `authz_checker` |
+
+The controlcenter case makes it concrete. The agent dials out to the
+controlcenter, so on that link the agent is the client and its session user is
+its own JWT identity (`yuneta_agent@…`) — which is why that principal belongs
+in the **controlcenter's** authz list and *not* in the agents'. But when an
+operator drives a node *through* the controlcenter, the operator's
+`__username__` is propagated end to end and is what the node's agent evaluates:
+
+1. `C_IEVENT_SRV` on the controlcenter authenticates the operator and
+   **overwrites** `kw`__username__`` with the authenticated principal — a wire
+   client cannot spoof it.
+2. `cmd_command_agent` checks its own `command-agent` permission for that
+   operator, then deletes a fixed key list from the kw before forwarding —
+   `__username__` is **not** in that list, so it survives.
+3. The kw goes down the reverse channel unchanged.
+4. On the agent, `authz_checker` reads `kw`__username__`` **first**, and only
+   falls back to `gobj_read_str_attr(src, "__username__")` when the kw has
+   none.
+
+So a principal that must run authz-gated commands on a node needs to exist in
+**that node's** authz, not only in the controlcenter's. Verified end to end by
+enabling the `C_IEVENT_CLI` `ievents` trace on a target agent and reading the
+inbound frame: the gate stack showed `user: yuneta_agent@…` while the kw
+carried the operator's `__username__`.
+
+> ⚠️ **Asymmetry worth knowing:** the inbound path on the *client* side,
+> `ac_mt_command` in
+> [`c_ievent_cli.c`](../../../kernel/c/root-linux/src/c_ievent_cli.c), has an
+> empty `Check AUTHZ` banner and neither injects nor sanitizes
+> `__username__` — it hands the wire kw straight to `gobj_command`. A yuno
+> therefore **trusts whatever identity the peer it dialled asserts**. That is
+> defensible while the peer is your own controlcenter, but it means the
+> controlcenter is fully trusted by every node that connects to it, and it is
+> load-bearing for [`NODE_SEALING.md`](NODE_SEALING.md), where that link is the
+> only remaining door.
+
 ---
 
 ## 5. Commands and stats

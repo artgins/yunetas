@@ -255,6 +255,15 @@ only unauditable. Treat this tier as the alarm — an entry here means the seal
 cannot be applied to that node until it is resolved or accepted as a
 console-only (break-glass) operation.
 
+**Who reaches the node through the reverse channel:** the operator, not the
+system user. The agent's own JWT identity (`yuneta_agent@…`) authenticates the
+*link* into the controlcenter, but the operator's `__username__` is propagated
+end to end and is what the node's `authz_checker` evaluates — so every
+principal expected to run authz-gated commands on a sealed node must exist in
+**that node's** authz list, not only in the controlcenter's. Full chain,
+measurement method and the client-side trust asymmetry in
+[`IPC.md`](IPC.md) §4.7.
+
 **Known SSH-shaped leftover:** the CLI's node registry
 (`~/.yuneta/nodes.json`) stores only an `ssh` string per node
 (`yuneta@<host>`), with no agent URL. The registry assumes SSH even though the
