@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`is_service_authorized()` no longer trusts every `authorized_services`
+  entry to be a string.** The list is filled by `ac_identity_card` from
+  `json_object_foreach` keys, so entries are always strings today — but a
+  non-string entry would have made `json_string_value()` return NULL and
+  `strcasecmp(NULL, …)` crash the yuno. A non-string entry now logs a
+  `MSGSET_INTERNAL` error (broken invariant) and is skipped.
+
 ## 7.8.7
 
 A release the toolchain asked for. Ubuntu 26.04 brought gcc-15 and clang-21,

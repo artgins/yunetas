@@ -1017,7 +1017,20 @@ PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
     json_t *jn_authorized = gobj_read_json_attr(gobj, "authorized_services"); // not mine
     size_t idx; json_t *jn_svc;
     json_array_foreach(jn_authorized, idx, jn_svc) {
-        if(strcasecmp(json_string_value(jn_svc), service_name)==0) {
+        const char *authorized_name = json_string_value(jn_svc);
+        if(!authorized_name) {
+            // ac_identity_card fills the list from json_object_foreach keys,
+            // always strings: a non-string entry is a broken invariant.
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "authorized_services entry is not a string",
+                "idx",          "%d", (int)idx,
+                NULL
+            );
+            continue;
+        }
+        if(strcasecmp(authorized_name, service_name)==0) {
             return TRUE;
         }
     }
