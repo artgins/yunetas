@@ -2,15 +2,29 @@
 
 ## Unreleased
 
-- **`C_IEVENT_CLI` no longer writes into a jansson string to check `dst_yuno`.**
-  The check compares the part before `^`, and it did that by writing a NUL over
-  the `^` and restoring it after `strcmp()`. The buffer belongs to a `json_t`:
-  `kw_get_str()` hands back `json_string_value()`, which jansson owns and
-  documents as immutable. Nothing observed it half-truncated — the restore is
-  two lines later and yunos are single-threaded — but any trace or dump that
-  ever lands between the two would print a cut `dst_yuno`. It now measures the
-  prefix and compares with `strncmp()`, requiring the lengths to match, which
-  is what the truncated `strcmp()` meant.
+- **The ievent identity checks agree with each other, and with the framework.**
+  `dst_role` and `dst_yuno` were checked in four places that all disagreed.
+  `C_IEVENT_CLI` compared only the part before a `^`, and it obtained that part
+  by writing a NUL over the `^` and restoring it after `strcmp()` — over a
+  buffer owned by jansson, since `kw_get_str()` returns `json_string_value()`.
+  `C_IEVENT_SRV` did no `^` handling at all, and compared case-insensitively
+  while greeting (`identity_card`) but case-sensitively for every message after
+  it, so a peer could pass the handshake and be rejected by its first event.
+
+  Yuno, role and service names are a case-insensitive namespace — `gobj.c`
+  registers services through `strntolower()` and matches names with
+  `strcasecmp()`. All four checks now do the same, the `^` handling is gone
+  (nothing in the tree ever put a `^` in `dst_yuno`; it came from the pre-v7
+  wire format), and no one edits a jansson string any more.
+
+- **The cross-service authorization gate stops rejecting on letter case.**
+  `is_service_authorized()` matched the names in `authorized_services` — which
+  come from the roles written in the treedb — against the live service with
+  `strcmp()`, while `gobj_find_service()` resolves them lowercased. A role
+  granting `TreeDB` therefore resolved the service and then failed the gate.
+  It now uses `strcasecmp()`, like the rest of the naming. This only turns
+  false denials into the access the role already granted; it cannot widen a
+  grant, since the name still has to be in the list.
 
 - **The string helpers stop discarding `const`.** glibc's `<string.h>` now
   declares `strchr`/`strrchr`/`strstr` as the C23 const-generic macros, so on a

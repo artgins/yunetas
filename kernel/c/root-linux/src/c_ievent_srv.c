@@ -1017,7 +1017,7 @@ PRIVATE BOOL is_service_authorized(hgobj gobj, hgobj gobj_service)
     json_t *jn_authorized = gobj_read_json_attr(gobj, "authorized_services"); // not mine
     size_t idx; json_t *jn_svc;
     json_array_foreach(jn_authorized, idx, jn_svc) {
-        if(strcmp(json_string_value(jn_svc), service_name)==0) {
+        if(strcasecmp(json_string_value(jn_svc), service_name)==0) {
             return TRUE;
         }
     }
@@ -1223,7 +1223,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *----------------------------------------*/
     const char *iev_dst_role = kw_get_str(gobj, jn_ievent_id, "dst_role", "", 0);
     if(!empty_string(iev_dst_role)) {
-        if(strcmp(iev_dst_role, gobj_yuno_role())!=0) {
+        if(strcasecmp(iev_dst_role, gobj_yuno_role())!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
@@ -1241,7 +1241,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     const char *iev_dst_yuno = kw_get_str(gobj, jn_ievent_id, "dst_yuno", "", 0);
     if(!empty_string(iev_dst_yuno)) {
-        if(strcmp(iev_dst_yuno, gobj_yuno_name())!=0) {
+        if(strcasecmp(iev_dst_yuno, gobj_yuno_name())!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
