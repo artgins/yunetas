@@ -316,3 +316,25 @@ matrix option.
 Decide in the cold. Nothing here is urgent while every node is ours and no one
 compiles on one — and less urgent since 7.8.6-3, which at least aims the one
 supported glibc at a distro that is actually deployed.
+
+## CI: `release-packages.yml` runs on deprecated Node 20 actions
+
+Every run of the packaging workflow — including 7.8.7's — prints:
+
+```
+Node.js 20 is deprecated. The following actions target Node.js 20 but are
+being forced to run on Node.js 24: actions/checkout@v4,
+softprops/action-gh-release@v2
+```
+
+GitHub is compensating for now. When it stops, both steps fail, and since
+`release-packages.yml` is the repo's **only** workflow, that means no `.deb`
+and no `.rpm` for the release that trips over it — discovered, as always, in
+the middle of cutting one.
+
+The fix is a version bump of both actions (`actions/checkout@v5`,
+`softprops/action-gh-release@v3` or whichever majors have moved to Node 24 by
+then), verified with a `workflow_dispatch` run against an existing tag before
+the next release depends on it. Cheap, but it must be done off the critical
+path: a release is exactly when you do not want to be debugging the workflow
+that builds it.
