@@ -212,10 +212,42 @@ here is a candidate for promotion to Tier 1:
   agent-side answer is the twin (each agent can replace the other — never both
   at once), but there is no command for it today.
 
-**Open question for Tier 2:** which user the PTY runs as, and whether it has
-`sudo`. Everything OS-level above depends on that answer, and it decides
-whether a sealed node can be maintained at all or only observed. Settle it
-before the first real seal.
+**Tier 2 is reachable — and it is root.** Resolved on `e.com` 2026-07-22:
+
+- [`c_pty.c`](../../../kernel/c/root-linux/src/c_pty.c) spawns the shell with
+  `forkpty()` + `execv()` and **no `setuid`/`setgid`** — the PTY child inherits
+  the agent's own uid.
+- On that node both agents run as **`yuneta`**, and `yuneta` has
+  `(ALL) NOPASSWD: ALL`.
+
+So the PTY is a passwordless-root shell, and every OS-level item above really
+is doable under a seal: a sealed node can be *maintained*, not merely observed.
+The price is that **`open-console` is effectively root on the box** — under a
+seal it is the only door, and that door is total. Two consequences:
+
+- The `open-console` permission is the entire security boundary of a sealed
+  node. It must never be granted as a convenience.
+- Promoting Tier 2 items to Tier 1 is worth real effort — a structured
+  `write-file`, a package-upgrade command — because each promotion is one
+  fewer reason to hand out root.
+
+Verified on `e.com` only; confirm per node before sealing, especially the uid
+the agent runs as (the local dev node, for one, runs the primary agent as the
+developer's own user).
+
+**The two authz paths are not the same, and the asymmetry is deliberate:**
+`cmd_open_console` calls `gobj_user_has_authz(gobj, "open-console", …)`
+**unconditionally** ([`c_agent.c`](src/c_agent.c)), so the console is gated by
+the `Authz.initial_load` user list whatever else is configured. The generic
+per-command gate is different: `SDF_AUTHZ_X` runs only when the yuno sets
+`enable_command_authz` (see
+[`command_parser.c`](../../../kernel/c/gobj-c/src/command_parser.c)), and that
+attr is **absent on `e.com`** — so the rest of the surface (`install-binary`,
+`kill-yuno`, `read-file`, …) is **authenticated but not authorized**: any
+principal holding a valid realm token can drive it. Before sealing, decide
+whether that is acceptable, because a sealed node's only remaining defence is
+this gate. Tracked with the wider role-matrix work in
+[`YUNO_AUTH.md`](YUNO_AUTH.md) §4.5.
 
 **Tier 3 — genuinely SSH-only.** Nothing is known to be here yet, *because*
 Tier 2 exists: the PTY is a shell, so a shell-shaped task is never impossible,
