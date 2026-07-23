@@ -2293,8 +2293,19 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    gobj_send_event(gobj, EV_REJECT_USER, user, src);
+    /*
+     *  Kick the user's live sessions. EV_REJECT_USER reads "username" from its
+     *  kw and looks the user up itself, so it must get a {username} kw -- NOT
+     *  the node (which keys on "id"): passing the node made reject a silent
+     *  no-op AND, because the event owns and frees its kw, freed `user` under
+     *  gobj_delete_node below (a use-after-free that only mem-tracking caught).
+     */
+    gobj_send_event(gobj, EV_REJECT_USER, json_pack("{s:s}", "username", username), src);
 
+    /*
+     *  gobj_delete_node consumes the `user` ref (success or failure), so it is
+     *  not touched afterwards. 'force' unlinks the role fkeys first.
+     */
     int ret = gobj_delete_node(
         priv->gobj_treedb,
         "users",

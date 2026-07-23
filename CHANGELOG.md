@@ -13,7 +13,17 @@
   refuses cleanly (force-proof, no session reject); refuses a role-holding
   user unless `force=1` is passed (with `force` it unlinks the roles first,
   via `gobj_delete_node`'s force option); and returns an accurate result in
-  every path. `pm_delete_user` adds the `force` boolean.
+  every path. `pm_delete_user` adds the `force` boolean. A new regression test
+  `tests/c/command_delete_user/` drives a real C_AUTHZ over a temp store and
+  covers all four cases.
+  This also fixes a latent **use-after-free** in `cmd_delete_user`: it passed
+  the user *node* to `EV_REJECT_USER` (whose handler reads `username` and frees
+  the kw) and then reused that freed node in `gobj_delete_node` — a double
+  consume that also made session-rejection a silent no-op (the node keys on
+  `id`, not `username`). It never crashed in production (freed-but-unreused
+  memory) but the new test caught it under `CONFIG_DEBUG_TRACK_MEMORY`.
+  `EV_REJECT_USER` now gets its own `{username}` kw, so it actually kicks
+  sessions and `gobj_delete_node` owns the single node ref.
 
 - **`is_service_authorized()` no longer trusts every `authorized_services`
   entry to be a string.** The list is filled by `ac_identity_card` from
