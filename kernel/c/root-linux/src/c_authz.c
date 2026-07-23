@@ -2249,7 +2249,13 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     gobj_send_event(gobj, EV_REJECT_USER, user, src);
 
-    // TODO force to delete links?
+    /*
+     *  No 'force' by design: delete-user is the counterparty of create-user,
+     *  for LOCAL password users (e.g. MQTT/IoT gate identities) which carry no
+     *  treedb roles. A user holding roles was not created here; deleting it and
+     *  its links is a treedb operation, so gobj_delete_node fails on a linked
+     *  node and we report why instead of claiming success.
+     */
     int ret = gobj_delete_node(
         priv->gobj_treedb,
         "users",
@@ -2257,10 +2263,25 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0,
         gobj
     );
+    if(ret < 0) {
+        // Error already logged (treedb_delete_node: "Cannot delete node: has up links")
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "Can't delete user '%s': it has roles. delete-user removes only "
+                "local users; remove a role-holding user through the treedb.",
+                username
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
-        ret,
+        0,
         json_sprintf("User deleted: %s", username),
         0,
         0,
