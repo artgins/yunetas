@@ -596,7 +596,7 @@ Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yune
 | `create-user`      | Create a user row                                             |
 | `enable-user`      | Flip `disabled=false`                                         |
 | `disable-user`     | Flip `disabled=true`                                          |
-| `delete-user`      | Remove a user row                                             |
+| `delete-user`      | Remove a user row (`force=1` to delete one holding roles; immutable users are never deleted) |
 | `check-user-pwd`   | Verify a password against credentials                         |
 | `set-user-pwd`     | Set a user's password                                         |
 | `roles`            | List roles                                                    |

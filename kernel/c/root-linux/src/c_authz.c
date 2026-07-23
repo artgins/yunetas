@@ -263,6 +263,12 @@ PRIVATE sdata_desc_t pm_user[] = {
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_delete_user[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,      0,          "Delete even if the user holds roles (its role links are unlinked first). Immutable users are never deleted."),
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t pm_check_passw[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
@@ -339,7 +345,7 @@ SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, 
 SDATACM2(DTP_SCHEMA,    "update-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_update_user,"Update user (see ROLE format: roles^ROLE^users)"),
 SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_enable_user,"Enable user"),
 SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_user,        cmd_disable_user,"Disable user"),
-SDATACM2 (DTP_SCHEMA,   "delete-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_delete_user, "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "delete-user",  SDF_AUTHZ_X,    0,      pm_delete_user, cmd_delete_user, "Delete user (force=1 to delete one holding roles)"),
 SDATACM2 (DTP_SCHEMA,   "check-user-pwd",SDF_AUTHZ_X,   0,      pm_check_passw, cmd_check_user_passw, "Check user password"),
 SDATACM2 (DTP_SCHEMA,   "set-user-pwd", SDF_AUTHZ_X,    0,      pm_set_passw,   cmd_set_user_passw, "Set user password"),
 
@@ -2215,6 +2221,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     if(empty_string(username)) {
         return msg_iev_build_response(
@@ -2247,32 +2254,60 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    gobj_send_event(gobj, EV_REJECT_USER, user, src);
+    /*
+     *  Immutability is the only 'do not delete' boundary (the seed root/admin
+     *  users). It is force-proof at the treedb layer; check it up front so we
+     *  refuse cleanly without first rejecting the user's sessions.
+     */
+    if(kw_get_bool(gobj, user, "__md_treedb__`immutable", 0, 0)) {
+        JSON_DECREF(user)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Can't delete user '%s': it is immutable (protected).", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
-     *  No 'force' by design: delete-user is the counterparty of create-user,
-     *  for LOCAL password users (e.g. MQTT/IoT gate identities) which carry no
-     *  treedb roles. A user holding roles was not created here; deleting it and
-     *  its links is a treedb operation, so gobj_delete_node fails on a linked
-     *  node and we report why instead of claiming success.
+     *  Roles are NOT a protection: a local (password) user can hold roles too,
+     *  so refusing on roles would be wrong -- but silently dropping its links
+     *  would be worse. Require 'force' as an explicit acknowledgement; with it,
+     *  gobj_delete_node unlinks the roles first, then deletes.
      */
-    int ret = gobj_delete_node(
-        priv->gobj_treedb,
-        "users",
-        user,
-        0,
-        gobj
-    );
-    if(ret < 0) {
-        // Error already logged (treedb_delete_node: "Cannot delete node: has up links")
+    if(!force && json_array_size(kw_get_list(gobj, user, "roles", 0, 0)) > 0) {
+        JSON_DECREF(user)
         return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf(
-                "Can't delete user '%s': it has roles. delete-user removes only "
-                "local users; remove a role-holding user through the treedb.",
+                "User '%s' holds roles. Pass force=1 to delete it "
+                "(its role links will be unlinked).",
                 username
             ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_send_event(gobj, EV_REJECT_USER, user, src);
+
+    int ret = gobj_delete_node(
+        priv->gobj_treedb,
+        "users",
+        user,
+        force? json_pack("{s:b}", "force", 1) : 0,
+        gobj
+    );
+    if(ret < 0) {
+        // Error already logged (treedb_delete_node)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Can't delete user '%s'", username),
             0,
             0,
             kw  // owned

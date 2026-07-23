@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **`delete-user` (C_AUTHZ) can now delete a role-holding user, and reports
+  its result truthfully.** Two problems fixed together: (1) the command always
+  returned the comment `"User deleted"` while passing `gobj_delete_node`'s code
+  through verbatim, so a failed delete surfaced as `ERROR -1: User deleted`;
+  (2) it could not delete any user linked to a role, even though roles are not
+  a deletion boundary — a local password user (e.g. an MQTT/IoT gate identity)
+  can hold roles too, and the seed admins are protected by **immutability**,
+  not by having roles. `delete-user` now: checks immutability up front and
+  refuses cleanly (force-proof, no session reject); refuses a role-holding
+  user unless `force=1` is passed (with `force` it unlinks the roles first,
+  via `gobj_delete_node`'s force option); and returns an accurate result in
+  every path. `pm_delete_user` adds the `force` boolean.
+
 - **`is_service_authorized()` no longer trusts every `authorized_services`
   entry to be a string.** The list is filled by `ac_identity_card` from
   `json_object_foreach` keys, so entries are always strings today — but a
