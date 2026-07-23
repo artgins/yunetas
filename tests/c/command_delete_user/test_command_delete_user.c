@@ -13,7 +13,15 @@
  *          A real C_AUTHZ service is instantiated over a temp tranger store;
  *          a role and an immutable user are seeded via initial_load, and the
  *          mutable users are created with create-user (which can attach roles
- *          to a local user too — that is why "has roles" is not a boundary).
+ *          to a local user too -- that is why "has roles" is not a boundary).
+ *
+ *          The whole test runs under yuneta_entry_point (the canonical yuno
+ *          lifecycle): the driver does its work from a timer action, INSIDE
+ *          the running event loop, then set_yuno_must_die(). That matters for
+ *          leak checking -- the tranger master registers io_uring fs_watchers
+ *          per topic whose teardown is asynchronous, so the loop must be
+ *          running to reap the cancellations. A synchronous test (no loop)
+ *          would leak the fs_watchers and the yev_loop.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -22,13 +30,98 @@
 #include <string.h>
 #include <yunetas.h>
 
-#define APP    "test_command_delete_user"
-#define STORE  "/tmp/test_command_delete_user_store"
+#define APP             "test_command_delete_user"
+#define APP_VERSION     "1.0.0"
+#define APP_SUPPORT     "<support@artgins.com>"
+#define APP_DOC         "delete-user regression test"
+#define APP_DATETIME    ""
+#define STORE           "/tmp/test_command_delete_user_store"
+
+#define USE_OWN_SYSTEM_MEMORY   FALSE
+#define MEM_MIN_BLOCK           0
+#define MEM_MAX_BLOCK           0
+#define MEM_SUPERBLOCK          0
+#define MEM_MAX_SYSTEM_MEMORY   0
 
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE int global_result = 0;
+PRIVATE int s_result = 0;   /* accumulated check result, read after entry_point */
+
+GOBJ_DEFINE_GCLASS(C_TEST_DELUSER);
+
+typedef struct {
+    hgobj   timer;
+    BOOL    dying;
+} PRIVATE_DATA;
+
+/***************************************************************
+ *              Config (single quotes -> double at runtime)
+ ***************************************************************/
+PRIVATE char fixed_config[]= "\
+{                                                                   \n\
+    'yuno': {                                                       \n\
+        'yuno_role': 'test_command_delete_user',                    \n\
+        'tags': ['test', 'yunetas']                                 \n\
+    }                                                               \n\
+}                                                                   \n\
+";
+PRIVATE char variable_config[]= "\
+{                                                                   \n\
+    'environment': {                                                \n\
+        'work_dir': '/tmp',                                         \n\
+        'console_log_handlers': {},                                 \n\
+        'daemon_log_handlers': {}                                   \n\
+    },                                                              \n\
+    'yuno': {                                                       \n\
+        'autoplay': true,                                           \n\
+        'required_services': [],                                    \n\
+        'public_services': [],                                      \n\
+        'service_descriptor': {},                                   \n\
+        'realm_owner': 'test',                                      \n\
+        'realm_id':    'test',                                      \n\
+        'trace_levels': {}                                          \n\
+    },                                                              \n\
+    'services': [                                                   \n\
+        {                                                           \n\
+            'name': 'deluser-driver',                               \n\
+            'gclass': 'C_TEST_DELUSER',                             \n\
+            'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': true                                        \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'authz',                                        \n\
+            'gclass': 'C_AUTHZ',                                    \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'tranger_path': '" STORE "',                        \n\
+                'master': true,                                     \n\
+                'initial_load': {                                   \n\
+                    'roles': [                                      \n\
+                        {                                           \n\
+                            'id': 'testrole',                       \n\
+                            'disabled': false,                      \n\
+                            'description': 'test role',             \n\
+                            'realm_id': '*',                        \n\
+                            'parent_role_id': '',                   \n\
+                            'service': '*',                         \n\
+                            'permission': '*'                       \n\
+                        }                                           \n\
+                    ],                                              \n\
+                    'users': [                                      \n\
+                        {                                           \n\
+                            'id': 'seed_immutable',                 \n\
+                            'roles': ['roles^testrole^users']       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
 
 /***************************************************************
  *              Helpers
@@ -37,7 +130,7 @@ PRIVATE void check_int(const char *name, int got, int expected)
 {
     if(got != expected) {
         printf("FAIL %-44s got %d expected %d\n", name, got, expected);
-        global_result += -1;
+        s_result += -1;
     } else {
         printf("ok   %-44s (%d)\n", name, got);
     }
@@ -75,56 +168,23 @@ PRIVATE BOOL user_exists(const char *username)
 }
 
 /***************************************************************************
- *              Test body
+ *              The actual checks (run inside the loop, from the timer)
  ***************************************************************************/
-PRIVATE int do_test(void)
+PRIVATE void run_checks(hgobj gobj)
 {
     /*
-     *  Fresh store
+     *  C_AUTHZ is a config-defined service (already started+seeded by the yuno,
+     *  so the yuno's own shutdown tears it down cleanly inside the loop). We
+     *  only drive it here.
      */
-    rmrdir(STORE);
-    mkrdir(STORE, 02770);
-
-    /*
-     *  A role to link to, plus a seed user that (being in initial_load) is
-     *  stamped immutable on start and also holds a role.
-     */
-    json_t *initial_load = json_pack("{s:[o], s:[o]}",
-        "roles",
-            json_pack("{s:s, s:b, s:s, s:s, s:s, s:s, s:s}",
-                "id", "testrole",
-                "disabled", 0,
-                "description", "test role",
-                "realm_id", "*",
-                "parent_role_id", "",
-                "service", "*",
-                "permission", "*"
-            ),
-        "users",
-            json_pack("{s:s, s:[s]}",
-                "id", "seed_immutable",
-                "roles", "roles^testrole^users"
-            )
-    );
-
-    hgobj yuno = gobj_create_yuno("delete_user_yuno", C_YUNO, 0);
-
-    json_t *kw_authz = json_pack("{s:s, s:b, s:o}",
-        "tranger_path", STORE,
-        "master", 1,
-        "initial_load", initial_load
-    );
-    hgobj authz = gobj_create_service("authz", C_AUTHZ, kw_authz, yuno);
+    hgobj authz = gobj_find_service("authz", FALSE);
     if(!authz) {
-        printf("%s: FAIL (C_AUTHZ create)\n", APP);
-        return -1;
+        printf("FAIL %-44s\n", "C_AUTHZ service not found");
+        s_result += -1;
+        return;
     }
 
-    gobj_start_tree(yuno);
-
-    /*-------------------------------------------------------------------*
-     *  Case 1: plain local user (no roles) deletes without force
-     *-------------------------------------------------------------------*/
+    /*  Case 1: plain local user (no roles) deletes without force  */
     check_int("create local_noroles",
         cmd_result(authz, "create-user", json_pack("{s:s}", "username", "local_noroles")),
         0);
@@ -134,9 +194,7 @@ PRIVATE int do_test(void)
         0);
     check_int("local_noroles gone", user_exists("local_noroles"), 0);
 
-    /*-------------------------------------------------------------------*
-     *  Case 2 & 3: role-holding user needs force
-     *-------------------------------------------------------------------*/
+    /*  Case 2 & 3: role-holding user needs force  */
     check_int("create local_withroles",
         cmd_result(authz, "create-user",
             json_pack("{s:s, s:s}", "username", "local_withroles", "role", "roles^testrole^users")),
@@ -154,9 +212,7 @@ PRIVATE int do_test(void)
         0);
     check_int("local_withroles gone after force", user_exists("local_withroles"), 0);
 
-    /*-------------------------------------------------------------------*
-     *  Case 4: immutable seed user is never deletable, even with force
-     *-------------------------------------------------------------------*/
+    /*  Case 4: immutable seed user is never deletable, even with force  */
     check_int("delete seed_immutable (no force) refused",
         cmd_result(authz, "delete-user", json_pack("{s:s}", "username", "seed_immutable")),
         -1);
@@ -165,15 +221,122 @@ PRIVATE int do_test(void)
             json_pack("{s:s, s:b}", "username", "seed_immutable", "force", 1)),
         -1);
     check_int("seed_immutable kept", user_exists("seed_immutable"), 1);
+}
 
-    /*
-     *  Teardown: STOP the tree (tranger/treedb free their in-memory topics on
-     *  stop, not on destroy) but do NOT destroy it here -- gobj_end() destroys
-     *  the stopped tree. Destroying it here and then calling gobj_end() would
-     *  double-free the yuno.
-     */
-    gobj_stop_tree(yuno);
+/***************************************************************
+ *              Framework Methods
+ ***************************************************************/
+PRIVATE void mt_create(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+}
+
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gobj_start(priv->timer);
     return 0;
+}
+
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gobj_stop(priv->timer);
+    return 0;
+}
+
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    set_timeout(priv->timer, 10);   // fire once, inside the loop
+    return 0;
+}
+
+PRIVATE int mt_pause(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    clear_timeout(priv->timer);
+    return 0;
+}
+
+/***************************************************************
+ *              Actions
+ ***************************************************************/
+/*
+ *  First fire (dying==FALSE): run the checks, then arm the death timer.
+ *  Second fire (dying==TRUE): set_yuno_must_die() -- from inside the running
+ *  loop, so the yuno teardown (and the tranger's async fs_watcher
+ *  cancellations) are reaped before the loop exits.
+ */
+PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->dying) {
+        JSON_DECREF(kw)
+        set_yuno_must_die();
+        return 0;
+    }
+
+    run_checks(gobj);
+
+    priv->dying = TRUE;
+    set_timeout(priv->timer, 10);
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************
+ *              GClass registration
+ ***************************************************************/
+PRIVATE sdata_desc_t attrs_table[] = {
+    SDATA_END()
+};
+
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_start  = mt_start,
+    .mt_stop   = mt_stop,
+    .mt_play   = mt_play,
+    .mt_pause  = mt_pause,
+};
+
+PRIVATE int register_c_test_deluser(void)
+{
+    ev_action_t st_idle[] = {
+        {EV_TIMEOUT, ac_timer, 0},
+        {0, 0, 0}
+    };
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+    event_type_t event_types[] = {
+        {EV_TIMEOUT, 0},
+        {0, 0}
+    };
+    hgclass gc = gclass_create(
+        C_TEST_DELUSER,
+        event_types,
+        states,
+        &gmt,
+        0,                          // lmt
+        attrs_table,
+        sizeof(PRIVATE_DATA),
+        0,                          // authz_table
+        0,                          // command_table
+        0,                          // trace_level
+        0                           // gclass_flag
+    );
+    return gc ? 0 : -1;
+}
+
+PRIVATE int register_yuno_and_more(void)
+{
+    /*  yuneta_entry_point already calls yunetas_register_c_core(); only our
+     *  own driver gclass needs registering here.  */
+    return register_c_test_deluser();
 }
 
 /***************************************************************************
@@ -181,52 +344,46 @@ PRIVATE int do_test(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    sys_malloc_fn_t malloc_func;
-    sys_realloc_fn_t realloc_func;
-    sys_calloc_fn_t calloc_func;
-    sys_free_fn_t free_func;
-    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
-    json_set_alloc_funcs(malloc_func, free_func);
-
-    unsigned long memory_check_list[] = {0};
-    set_memory_check_list(memory_check_list);
-
-    gobj_start_up(
-        argc, argv,
-        NULL,                   // jn_global_settings
-        NULL,                   // persistent_attrs
-        command_parser,         // global_command_parser
-        NULL,                   // global_stats_parser
-        NULL,                   // global_authz_checker
-        NULL                    // global_authentication_parser
-    );
+    glog_init();
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
-    if(yunetas_register_c_core() != 0) {
-        printf("%s: FAIL (register c_core)\n", APP);
-        gobj_end();
-        return -1;
-    }
+    unsigned long memory_check_list[] = {0, 0};
+    set_memory_check_list(memory_check_list);
 
-    do_test();
+    helper_quote2doublequote(fixed_config);
+    helper_quote2doublequote(variable_config);
 
-    gobj_end();                 // free the startup baseline FIRST (stops+destroys the yuno)
+    /*  The store must exist before C_AUTHZ autostarts (it checks is_directory).  */
+    rmrdir(STORE);
+    mkrdir(STORE, 02770);
+
+    yuneta_setup(
+        NULL,                   // persistent_attrs
+        command_parser,         // command_parser (needed for gobj_command)
+        NULL,                   // stats_parser
+        NULL,                   // authz_checker
+        NULL,                   // authentication_parser
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
+    );
+
+    int result = yuneta_entry_point(
+        argc, argv,
+        APP, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
+        fixed_config,
+        variable_config,
+        register_yuno_and_more,
+        NULL                    // cleaning
+    );
+
     rmrdir(STORE);
 
-    /*
-     *  Informational, NOT a pass/fail gate. Instantiating a full C_AUTHZ (with
-     *  its C_TRANGER + C_NODE treedb) leaves a fixed ~5.5KB residual on
-     *  teardown. It is a pre-existing C_AUTHZ-stack teardown leak, first
-     *  exposed here because no test had ever leak-tracked a C_AUTHZ instance:
-     *  a probe that starts+seeds+stops WITHOUT any create/delete-user reports
-     *  the exact same figure, so it is a constant startup/teardown baseline,
-     *  independent of the delete-user logic under test (CLAUDE.md 0/N probe).
-     *  Tracked for a separate fix; do not let it mask the checks above.
-     */
     size_t leaked = get_cur_system_memory();
-    printf("info %-44s (%d bytes, pre-existing C_AUTHZ teardown baseline)\n",
-        "C_AUTHZ teardown residual", (int)leaked);
+    check_int("no memory leak", (int)leaked, 0);
 
-    printf("\n%s: %s\n", APP, global_result == 0 ? "PASS" : "FAIL");
-    return global_result;
+    printf("\n%s: %s\n", APP, (s_result == 0 && result == 0) ? "PASS" : "FAIL");
+    return s_result + result;
 }
