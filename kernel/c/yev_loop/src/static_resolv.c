@@ -548,7 +548,11 @@ static int dns_warn_due(const char *ns)
     if(!free_slot) {
         free_slot = &dns_warn_slots[0];
     }
-    snprintf(free_slot->ns, sizeof(free_slot->ns), "%s", ns);
+    /* Precision-cap the copy: ns is a const char* GCC cannot prove is
+     * NUL-terminated within its 46-byte array, so %s alone worst-cases a
+     * read past the field. The source is always an address string < 46. */
+    snprintf(free_slot->ns, sizeof(free_slot->ns), "%.*s",
+        (int)(sizeof(free_slot->ns) - 1), ns);
     free_slot->next_warn = cache_deadline(YUNETA_DNS_WARN_PERIOD);
     return 1;
 }
