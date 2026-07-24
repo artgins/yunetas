@@ -57,8 +57,9 @@ re-applies on each boot:
 | Step | Mechanism | Why it persists |
 |------|-----------|-----------------|
 | 1 · stop SSH | `systemctl disable --now ssh` | systemd will not start it on boot |
-| 2 · firewall | nftables rule dropping inbound `:22`, saved | survives reboot |
+| 2 · firewall :22 | nftables rule dropping inbound `:22`, saved | survives reboot |
 | 3 · keys | move every `~/.ssh/authorized_keys` → `…/authorized_keys.sealed`, `passwd -l` the bootstrap user | on-disk, survives reboot |
+| 4 · agent port | nftables rule dropping inbound `:1993` (the agent's wss+OAuth2 listener, bound `0.0.0.0` today), saved | forces every operation through the reverse channel; survives reboot |
 
 None of these depend on a running agent. The agent is needed **only to
 un-seal in-band** (over the reverse PTY). If the agent crashes, is SIGKILLed,
@@ -68,6 +69,59 @@ secondary defence in depth.
 
 Corollary: sealing is durable across reboot *by construction*. The agent does
 **not** re-seal on startup; the OS already holds the line.
+
+### 2.1 The access doors: three SSH-less paths, and the mutual-update rule
+
+Verified 2026-07-24 against the live artgins fleet. Excluding SSH (which is only
+for hand-over / provisioning — "the machine is given to us"), a node is
+reachable **three** ways, and they are **not** equivalent:
+
+| # | Door | Endpoint | Reaches | Surface |
+|---|------|----------|---------|---------|
+| 1 | Direct to the agent | `wss://<node>:1993` (OAuth2) — **inbound** | the node's own `yuneta_agent` | full `C_AGENT` |
+| 2 | Controlcenter, agent plane | `wss://<cc>.com:1996` → `command-agent agent_id=<node> cmd2agent=…` | `yuneta_agent` (`C_AGENT`) | **full**: deploy, lifecycle, realms, configs, snaps, `command-yuno`, `dir-*`, `read-*`, cert-sync, `open-console`, … |
+| 3 | Controlcenter, agent22 plane | `wss://<cc>.ovh:1997` → `command-agent …` | `yuneta_agent22` (`C_AGENT22`) | **minimal**: `help`, `list/open/close-console`, `write-tty` — essentially **just the root shell** |
+
+- **Door 1 (`:1993`) is inbound** and open to `0.0.0.0` today — it is the one
+  the seal must close (step 4 in the table above). Doors 2 and 3 are the node's
+  **outbound** reverse channels to the controlcenter and are what survives the
+  seal: you never connect *to* a sealed node, it reaches out and you ride its
+  channel back down through the controlcenter.
+- **The two controlcenter planes reach different agents with different
+  surfaces.** `.com`/`agent` is full node management; `.ovh`/`agent22` is a
+  deliberately minimal escape hatch that offers **only the console**. So the
+  redundancy is "a full agent + a bare-shell twin", not two equal copies. (On
+  our 7.8.x nodes the homing is clean: `.com`→`yuneta_agent`,
+  `.ovh`→`yuneta_agent22`; legacy 6.x nodes may home differently.)
+- **The controlcenter is a multi-tenant hub.** One CC (artgins) is the
+  reverse-channel endpoint for *many* independent fleets (start-fleet, the
+  normedan hospital nodes, a CESGA cluster of ~15, raspz, …). Any operator it
+  authenticates with the `command-agent` permission can address every agent
+  registered there. **Under a seal the controlcenter's security IS the whole
+  fleet's security** — it needs the strongest hardening in the network. (This is
+  compounded by the per-command gate being off on the nodes — see [§5.4](#54-the-ssh-dependency-ledger):
+  authenticated ⇒ full non-gated surface on every node.)
+
+#### The mutual-update rule — never saw off your own branch
+
+The two agents exist so **each can maintain the other**. The agent is a
+standalone daemon (not a managed yuno), so updating an agent binary is a
+`--stop` / replace / `--start` run **on the box, from a root console** — and you
+must open that console through the *other* agent's plane:
+
+- To update / restart **`yuneta_agent`** → open a console through **agent22**
+  (`.ovh:1997`) and do the stop/replace/start there. If instead you entered
+  through the agent's own plane (`.com:1996`) and killed it, you kill the very
+  reverse channel your session rides on and **lose the node**.
+- To update **`yuneta_agent22`** → open a console through **`yuneta_agent`**
+  (`.com:1996`).
+- Rule: **you can never kill or restart the agent whose reverse channel carries
+  your session.** Cross over — maintain each agent from the other's plane. This
+  is the concrete operational reason for the two-agent design (mutual,
+  cross-channel maintenance) and the sharp edge behind "never stop or upgrade
+  both agents at once": doing so, or killing the one you came in on, strands the
+  node with no in-band channel, recoverable only from the provider console
+  ([§6](#6-break-glass-the-provider-console-is-the-contract)).
 
 ---
 
