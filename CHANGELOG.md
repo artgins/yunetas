@@ -25,6 +25,13 @@
   `EV_REJECT_USER` now gets its own `{username}` kw, so it actually kicks
   sessions and `gobj_delete_node` owns the single node ref.
 
+- **`dns_warn_due()` (`static_resolv.c`) silences `-Wformat-truncation`.** The
+  helper took a `const char *ns` GCC could not prove NUL-terminated within its
+  46-byte source array, so `snprintf("%s")` worst-cased a read spanning the
+  whole `char[3][46]` into the 46-byte slot. `parse_resolv_conf()` already
+  bounds every entry, so no real truncation was possible; the copy is now
+  precision-capped (`%.*s`) so the bound is provable. No behaviour change.
+
 - **`is_service_authorized()` no longer trusts every `authorized_services`
   entry to be a string.** The list is filled by `ac_identity_card` from
   `json_object_foreach` keys, so entries are always strings today — but a
