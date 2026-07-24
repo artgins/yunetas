@@ -44,8 +44,6 @@ The command above is exercised end-to-end, on a freshly installed OS, on:
 |---|---|---|
 | **Rocky Linux 9** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.6-4 · 2026-07-21 |
 | **Debian 13** (trixie) | `.deb` (amd64) | 7.8.6-4 · 2026-07-21 |
-| **Ubuntu 24.04 LTS** (noble) | `.deb` (amd64) | 7.8.6 · 2026-07-20 |
-| **Ubuntu 26.04 LTS** (resolute) | `.deb` (amd64) | 7.8.5 · 2026-07-20 |
 
 Debian 13 was exercised on **both a VM and a dedicated server**, deliberately:
 the faster machine loses a start-up race the slower one wins, which is exactly
