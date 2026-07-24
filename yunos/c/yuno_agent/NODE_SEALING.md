@@ -165,8 +165,34 @@ outage. So this ledger is a standing inventory, kept current: *policy is
 agent-first — if the agent can do it, do it through the agent, and every time
 something genuinely cannot be done through the agent, it gets recorded here.*
 
-The distinction that matters is **not** "possible / impossible" but which of
-three tiers a task falls in:
+**Verified end-to-end SSH-less (2026-07-24).** The whole reverse-channel path
+was exercised with a real non-owner operator identity (`claudia@artgins.com`,
+root in the controlcenter, **not** in any node's authz), no SSH anywhere:
+operator → `wss://<cc>:1996` (OAuth2 password grant, client `yunetacontrol`) →
+`command-agent agent_id=<node> cmd2agent=<cmd>` → node agent. Results on the
+wattyzer agent:
+
+- `list-agents`, and `command-agent … cmd2agent=list-yunos` → **worked**
+  ("Command sent to 1 nodes" + the table). So **every Tier-1 command runs for
+  any operator the controlcenter authenticates** — because the per-command
+  `SDF_AUTHZ_X` gate is **off** on the node (`enable_command_authz` absent), so
+  authentication alone suffices; the node's authz list is not consulted.
+- `command-agent … cmd2agent=open-console` → **`No permission to 'open-console'
+  in service 'agent'`**. The *only* command that refused, because
+  `cmd_open_console` calls `gobj_user_has_authz` unconditionally and claudia is
+  not in the node's authz.
+
+**Two consequences for the seal.** (1) With the per-command gate off, the
+security boundary of a sealed node collapses to *"who can authenticate to the
+controlcenter"* plus *"who is in the node authz for `open-console`"* — the node
+authz list governs the kitchen and nothing else. (2) To give a principal full
+"to-the-kitchen" access you must add them to **each node's** authz (see the
+identity model in [`IPC.md`](IPC.md) §4.7); `yuneta_admin@artgins.com`, a seed
+immutable admin on every node, already has it, so it is today's working
+full-access operator over the reverse channel.
+
+The distinction below is **not** "possible / impossible" but which of three
+tiers a task falls in:
 
 **Tier 1 — a structured agent command exists.** Safe under a seal today.
 Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
