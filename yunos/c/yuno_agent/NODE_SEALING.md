@@ -245,6 +245,11 @@ identity model in [`IPC.md`](IPC.md) §4.7); `yuneta_admin@artgins.com`, a seed
 immutable admin on every node, already has it, so it is today's working
 full-access operator over the reverse channel.
 
+Turning this into a real boundary (enable the gate + a role→permission matrix)
+is deliberately deferred to a **single final phase** — the running backlog of
+every place needing a role/permission check lives in
+[`YUNO_AUTH.md`](YUNO_AUTH.md) §4.10.
+
 The distinction below is **not** "possible / impossible" but which of three
 tiers a task falls in:
 

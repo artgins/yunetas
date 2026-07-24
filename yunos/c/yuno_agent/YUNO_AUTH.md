@@ -580,6 +580,85 @@ window is refused rather than let through unregistered.
 
 ---
 
+### 4.10 Role/permission hardening backlog (final phase)
+
+**Status: deferred by decision (2026-07-24).** The fleet runs today with
+authorisation almost entirely *off* — authentication decides who gets in,
+almost nothing decides what they may do. Turning it on is a **single final
+phase**: define a role→permission matrix, create users with those roles, then
+flip the gates. Until then this is a **living inventory** — every place that
+needs a role/permission check gets recorded here as it is found, so the final
+phase has a complete punch list. Do **not** enable the gates piecemeal (a
+half-applied matrix locks out working operators); land the whole matrix at once.
+
+Points found so far (verified this session unless noted):
+
+1. **`enable_command_authz` is OFF on every node** (attr absent). With it off,
+   the per-command `SDF_AUTHZ_X` gate in
+   [`command_parser.c`](../../../kernel/c/gobj-c/src/command_parser.c) never
+   fires (see [§4.5](#45-the-command-authz-check--re-armed-gated-opt-in)), so
+   **any principal the node authenticates can run the entire agent surface** —
+   `install-binary`, `update-binary`, `kill-yuno`, `deactivate-snap`,
+   `create/delete-realm`, `command-yuno`, configs, … The node authz list
+   governs **only** `open-console` (the one unconditional check, in
+   `cmd_open_console`). Fix in the final phase: set `enable_command_authz` +
+   give each `SDATAAUTHZ` command a permission and map roles to it.
+
+2. **The controlcenter's `command-agent` is not scoped per node/tenant.**
+   `cmd_command_agent` ([`c_controlcenter.c`](src/c_controlcenter.c)) checks
+   only the flat `command-agent` permission on the CC; a holder can then address
+   **every agent registered on that CC**. The artgins CC is a **multi-tenant
+   hub** (start-fleet, normedan hospital nodes, a ~15-node CESGA cluster, raspz,
+   …), so one CC-root operator reaches every node of every tenant. Needs a
+   role/permission model that scopes *which agents/tenants* a CC role may
+   `command-agent`, and *which cmd2agent verbs* it may forward.
+
+3. **Seed admins are god-mode and immutable.** `yuneta`,
+   `yuneta_admin@artgins.com` (and the CC's `owner`) carry
+   `realm_id:* service:* permission:*`. The matrix needs granular roles *below*
+   root — e.g. read-only/observer, deploy-only, console-only (kitchen),
+   lifecycle-only — so day-to-day operators are not root. `claudia@artgins.com`
+   is the concrete test case: CC-root but not in node authz, so today (gate off)
+   she has full node management minus `open-console`; the matrix must decide
+   what she *should* have per node.
+
+4. **`ac_mt_command` on the client side trusts the peer's asserted identity**
+   (empty `Check AUTHZ` banner in
+   [`c_ievent_cli.c`](../../../kernel/c/root-linux/src/c_ievent_cli.c) — see
+   [`IPC.md`](IPC.md) §4.7). A node therefore fully trusts whatever
+   `__username__` the controlcenter it dialled asserts. That is load-bearing:
+   the CC's authentication must be airtight, because every node delegates
+   authorisation of the operator to it. Under a seal the CC is the only door, so
+   this trust is the fleet's whole perimeter.
+
+5. **`command-agent` / `command-yuno` forward unchecked keys** ("WARNING:
+   parameter's keys are not checked"). Once the gate is on, the forwarded
+   `cmd2agent`/inner command is authz-checked at the destination — but confirm
+   nested `command-agent … cmd2agent="command-agent …"` chains re-evaluate authz
+   at each hop, not just the first.
+
+6. **`seal-node` / `unseal-node` / `node-seal-status`** (proposed, see
+   [`NODE_SEALING.md`](NODE_SEALING.md) §3) must be authz-gated to a dedicated
+   role — sealing/unsealing is the highest-privilege operation on the box.
+
+7. **`C_IEVENT_SRV` cross-service gate** already checks `dst_service` against the
+   `services_roles` SET, but a test gap was noted (see the project memory /
+   `c_ievent_srv`); the final phase should close it and fold service-level roles
+   into the same matrix.
+
+8. **`open-console` is currently the whole per-node boundary** and it is a
+   single flat permission (root shell / nothing). The matrix may want to split
+   console access from full node management, since agent22's *entire* surface is
+   the console — a "console-only / break-glass" role is the natural unit.
+
+When the final phase runs: author the matrix (roles × permissions ×
+realm/service scope), provision users, set `enable_command_authz` on the agents
+and scope `command-agent` on the controlcenters, then re-verify the
+[§2.1 access doors](NODE_SEALING.md) with a *non-root* role to
+confirm the boundary actually bites.
+
+---
+
 ## 5. `C_AUTHZ` commands (user / role CRUD)
 
 Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.8.7/kernel/c/root-linux/src/c_authz.c). Just the names:
