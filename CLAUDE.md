@@ -54,11 +54,14 @@ submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `4.0.0`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `5.0.0`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
-  carries five BREAKING contract changes and requires gobj-js `>= 7.8.0`.
+  carries five BREAKING contract changes, and `5.0.0` is a **dependency-only
+  major** (no API moved) that raises the peer floors — gobj-js `>= 7.8.7`,
+  `maplibre-gl ^6.0.0` (ESM-only), i18next `^26.3.6`, tom-select `^2.6.2`,
+  vanilla-jsoneditor `^3.13.0`.
   **This submodule tracks `main`/v2.** It is consumed **locally** by **wattyzer**
   and the in-repo yunos **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`** as
   a `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`, exactly
