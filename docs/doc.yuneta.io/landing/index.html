@@ -80,14 +80,15 @@
    level only. Components never read colors inside a media
    query, so the data-theme overrides below always win.
 
-   These greens are also the site's: `_static/custom.css` paints
-   the MyST pages with --ground and --ground-2, so following a
-   link out of here does not change the ground under the text.
-   Any change to the two --ground values belongs in both files.
+   Both grounds are shared with the site, from opposite ends:
+   light is the book theme's own white, and dark is this page's
+   #0E1417, which `_static/custom.css` paints onto the MyST
+   pages. So a link out of here never swaps the ground under the
+   text. Changing --ground dark means changing that file too.
    ============================================================ */
 :root {
-    --ground:        #E8EBE8;
-    --ground-2:      #F2F4F1;
+    --ground:        #FFFFFF;
+    --ground-2:      #F0F3F0;
     --ground-3:      #DDE2DE;
     --rule:          #C7CFC9;
     --rule-soft:     #D6DCD7;
@@ -152,8 +153,8 @@
 }
 
 :root[data-theme="light"] {
-    --ground:     #E8EBE8;
-    --ground-2:   #F2F4F1;
+    --ground:     #FFFFFF;
+    --ground-2:   #F0F3F0;
     --ground-3:   #DDE2DE;
     --rule:       #C7CFC9;
     --rule-soft:  #D6DCD7;
