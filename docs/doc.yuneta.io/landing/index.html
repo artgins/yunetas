@@ -80,33 +80,31 @@
    level only. Components never read colors inside a media
    query, so the data-theme overrides below always win.
 
-   The neutrals are the MyST theme's own: the docs paint the
-   page `bg-white dark:bg-stone-900`, so --ground is #FFFFFF /
-   #1C1917 and the rest of the greys walk the same stone scale.
-   Landing and chapter share a background, so following a link
-   is not a jump. The accents (teal state, amber event) stay:
-   they carry meaning here, and the docs have none of their own.
+   These greens are also the site's: `_static/custom.css` paints
+   the MyST pages with --ground and --ground-2, so following a
+   link out of here does not change the ground under the text.
+   Any change to the two --ground values belongs in both files.
    ============================================================ */
 :root {
-    --ground:        #FFFFFF;
-    --ground-2:      #F5F5F4;
-    --ground-3:      #E7E5E4;
-    --rule:          #D6D3D1;
-    --rule-soft:     #E7E5E4;
-    --text:          #1C1917;
-    --text-muted:    #57534E;
-    --text-dim:      #78716C;
+    --ground:        #E8EBE8;
+    --ground-2:      #F2F4F1;
+    --ground-3:      #DDE2DE;
+    --rule:          #C7CFC9;
+    --rule-soft:     #D6DCD7;
+    --text:          #131D1B;
+    --text-muted:    #55635E;
+    --text-dim:      #7C8A85;
     --state:         #0F6B64;
     --state-soft:    #CFE3E0;
     --event:         #8A5A06;
     --event-soft:    #EFE2C6;
     --tradeoff:      #A83E31;
     --accent:        #0F6B64;
-    --on-accent:     #FFFFFF;
-    --panel:         #0C0A09;
-    --panel-text:    #E7E5E4;
-    --panel-rule:    #292524;
-    --panel-dim:     #8A827C;
+    --on-accent:     #F2F4F1;
+    --panel:         #10191A;
+    --panel-text:    #D9E2DE;
+    --panel-rule:    #263230;
+    --panel-dim:     #6E7F7A;
     --panel-state:   #6FCCBF;
     --panel-event:   #E9A63C;
 
@@ -128,25 +126,25 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ground:     #1C1917;
-        --ground-2:   #292524;
-        --ground-3:   #332E2B;
-        --rule:       #44403C;
-        --rule-soft:  #2E2A27;
-        --text:       #F5F5F4;
-        --text-muted: #A8A29E;
-        --text-dim:   #8A827C;
+        --ground:     #0E1417;
+        --ground-2:   #141C1E;
+        --ground-3:   #1A2426;
+        --rule:       #27332F;
+        --rule-soft:  #1E2A28;
+        --text:       #DEE6E2;
+        --text-muted: #94A39D;
+        --text-dim:   #6E7F79;
         --state:      #6FCCBF;
         --state-soft: #17302E;
         --event:      #E9A63C;
         --event-soft: #2E2415;
         --tradeoff:   #D9776A;
         --accent:     #6FCCBF;
-        --on-accent:  #1C1917;
-        --panel:      #0C0A09;
-        --panel-text: #E7E5E4;
-        --panel-rule: #292524;
-        --panel-dim:  #8A827C;
+        --on-accent:  #0B1214;
+        --panel:      #0A1012;
+        --panel-text: #D9E2DE;
+        --panel-rule: #222E2C;
+        --panel-dim:  #63736E;
         --panel-state:#6FCCBF;
         --panel-event:#E9A63C;
         color-scheme: dark;
@@ -154,48 +152,48 @@
 }
 
 :root[data-theme="light"] {
-    --ground:     #FFFFFF;
-    --ground-2:   #F5F5F4;
-    --ground-3:   #E7E5E4;
-    --rule:       #D6D3D1;
-    --rule-soft:  #E7E5E4;
-    --text:       #1C1917;
-    --text-muted: #57534E;
-    --text-dim:   #78716C;
+    --ground:     #E8EBE8;
+    --ground-2:   #F2F4F1;
+    --ground-3:   #DDE2DE;
+    --rule:       #C7CFC9;
+    --rule-soft:  #D6DCD7;
+    --text:       #131D1B;
+    --text-muted: #55635E;
+    --text-dim:   #7C8A85;
     --state:      #0F6B64;
     --state-soft: #CFE3E0;
     --event:      #8A5A06;
     --event-soft: #EFE2C6;
     --tradeoff:   #A83E31;
     --accent:     #0F6B64;
-    --on-accent:  #FFFFFF;
-    --panel:      #0C0A09;
-    --panel-text: #E7E5E4;
-    --panel-rule: #292524;
-    --panel-dim:  #8A827C;
+    --on-accent:  #F2F4F1;
+    --panel:      #10191A;
+    --panel-text: #D9E2DE;
+    --panel-rule: #263230;
+    --panel-dim:  #6E7F7A;
     color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-    --ground:     #1C1917;
-    --ground-2:   #292524;
-    --ground-3:   #332E2B;
-    --rule:       #44403C;
-    --rule-soft:  #2E2A27;
-    --text:       #F5F5F4;
-    --text-muted: #A8A29E;
-    --text-dim:   #8A827C;
+    --ground:     #0E1417;
+    --ground-2:   #141C1E;
+    --ground-3:   #1A2426;
+    --rule:       #27332F;
+    --rule-soft:  #1E2A28;
+    --text:       #DEE6E2;
+    --text-muted: #94A39D;
+    --text-dim:   #6E7F79;
     --state:      #6FCCBF;
     --state-soft: #17302E;
     --event:      #E9A63C;
     --event-soft: #2E2415;
     --tradeoff:   #D9776A;
     --accent:     #6FCCBF;
-    --on-accent:  #1C1917;
-    --panel:      #0C0A09;
-    --panel-text: #E7E5E4;
-    --panel-rule: #292524;
-    --panel-dim:  #8A827C;
+    --on-accent:  #0B1214;
+    --panel:      #0A1012;
+    --panel-text: #D9E2DE;
+    --panel-rule: #222E2C;
+    --panel-dim:  #63736E;
     color-scheme: dark;
 }
 

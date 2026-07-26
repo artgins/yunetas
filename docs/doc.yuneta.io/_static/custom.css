@@ -2,6 +2,54 @@
   /*--sd-color-primary: #f37726;*/
 }
 
+/* Page ground, shared with the landing page (landing/index.html).
+
+   The book theme paints the page `bg-white dark:bg-stone-900`; these are
+   the landing's own two grounds instead, so following a link out of
+   /landing does not swap the background under the reader. The values are
+   duplicated in landing/index.html's token block (--ground / --ground-2)
+   — a standalone document with inlined everything cannot import them.
+   Change one, change the other.
+
+   Tailwind's utilities are class-level, so every selector here has to
+   out-specify one: `body.bg-white` beats `.bg-white`, and the `.dark`
+   variants need one class more than `.dark .dark\:bg-stone-900`. */
+body.bg-white {
+    background-color: #E8EBE8;
+}
+
+html.dark body.bg-white {
+    background-color: #0E1417;
+}
+
+/* Sticky top bar: same ground, kept translucent for its backdrop blur. */
+.myst-top-nav.backdrop-blur {
+    background-color: rgba(232, 235, 232, 0.8);
+}
+
+html.dark .myst-top-nav.backdrop-blur {
+    background-color: rgba(14, 20, 23, 0.8);
+}
+
+/* The floating page outline is chrome, not a card: it has to sit on the
+   ground, not on a white sheet over it. */
+nav.myst-outline {
+    background-color: rgba(232, 235, 232, 0.95);
+}
+
+html.dark nav.myst-outline {
+    background-color: rgba(14, 20, 23, 0.95);
+}
+
+/* Search field: the raised chrome tone (the landing's --ground-2). */
+button.myst-search-bar {
+    background-color: #F2F4F1;
+}
+
+html.dark button.myst-search-bar {
+    background-color: #141C1E;
+}
+
 /* Vertically centre grid items so the hero tagline and logo
    sit on the same visual baseline, not top-aligned. */
 .myst-grid {
