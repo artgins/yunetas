@@ -460,6 +460,30 @@ h1.hero-title {
 .inst-bar .gobj { color: var(--panel-text); text-transform: none; letter-spacing: 0; }
 .inst-bar .cmd { margin-left: auto; text-transform: none; letter-spacing: 0; }
 
+/* Run/pause the trace. Hidden until the script unhides it: with no
+   JavaScript there is nothing to run. It is what a reader whose system
+   asks for reduced motion uses to start the trace deliberately, and
+   what everyone else uses to stop it. */
+.inst-play {
+    flex: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    padding: 0.16rem 0.5rem;
+    border: 1px solid var(--panel-rule);
+    background: transparent;
+    color: var(--panel-dim);
+    cursor: pointer;
+}
+.inst-play:hover { color: var(--panel-text); border-color: var(--panel-dim); }
+
+/* Narrow bars cannot hold the command line and the control at once.
+   The control is the one that does something, so the command goes. */
+@media (max-width: 620px) {
+    .inst-bar .cmd { display: none; }
+    .inst-play { margin-left: auto; }
+}
+
 .chips {
     display: flex;
     flex-wrap: wrap;
@@ -794,6 +818,7 @@ h1.hero-title {
                 <span>trace</span>
                 <span class="gobj">C_TCP^server-1</span>
                 <span class="cmd">set-global-trace level=machine</span>
+                <button type="button" class="inst-play" id="trace-play" hidden>Pause</button>
             </div>
 
             <div class="chips" id="chips">
@@ -1307,16 +1332,44 @@ h1.hero-title {
         idx = (idx + 1) % SEQ.length;
     }
 
+    /*
+     *  A system asking for reduced motion decides how the panel OPENS,
+     *  not whether it can run at all: the trace is the subject of the
+     *  page, so it stays one click away instead of being withheld.
+     *  Whoever it does run for gets the same button to stop it.
+     */
     var reduced = window.matchMedia
         && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
-        return;
+    var playEl = document.getElementById("trace-play");
+    var timer = null;
+
+    function setRunning(on) {
+        if (on && !timer) {
+            timer = window.setInterval(function () {
+                push(idx);
+                idx = (idx + 1) % SEQ.length;
+            }, 1250);
+        }
+        if (!on && timer) {
+            window.clearInterval(timer);
+            timer = null;
+        }
+        if (playEl) {
+            var label = on ? "Pause the trace" : "Run the trace";
+            playEl.textContent = on ? "Pause" : "Run";
+            playEl.setAttribute("aria-label", label);
+            playEl.setAttribute("title", label);
+        }
     }
 
-    window.setInterval(function () {
-        push(idx);
-        idx = (idx + 1) % SEQ.length;
-    }, 1250);
+    if (playEl) {
+        playEl.hidden = false;
+        playEl.addEventListener("click", function () {
+            setRunning(!timer);
+        });
+    }
+
+    setRunning(!reduced);
 }());
 </script>
 </body>
