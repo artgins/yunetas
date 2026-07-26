@@ -9,10 +9,18 @@
     Theme, resolved before the first paint so there is no flash.
 
     The stored preference is the MyST theme's own key, localStorage
-    "myst:theme" (same origin), so the choice made in a chapter is the
-    one this page opens with, and the toggle here is the one the docs
-    obey. Same contract as the docs' inline reader: a stored value
-    wins, otherwise the OS decides.
+    "myst:theme", so the choice made in a chapter is the one this page
+    opens with, and the toggle here is the one the docs obey. Same
+    contract as the docs' inline reader: a stored value wins, otherwise
+    the OS decides.
+
+    localStorage is per ORIGIN, and this same tree answers on five
+    hostnames — yuneta.io, yuneta.com, yuneta.es and yunetas.com serve
+    this page at their root, doc.yuneta.io serves it at /landing. That
+    is why every link out of here is root-relative: a reader who
+    arrived on one host stays on it, and the theme travels with them.
+    Absolute links to doc.yuneta.io would cross into a different
+    localStorage and silently drop the choice.
 -->
 <script>
 (function () {
@@ -773,8 +781,8 @@ h1.hero-title {
             </div>
 
             <nav class="actions">
-                <a class="btn btn-primary" href="https://doc.yuneta.io/get-started">Start here</a>
-                <a class="btn btn-ghost" href="https://doc.yuneta.io/design-principles">Design principles</a>
+                <a class="btn btn-primary" href="/get-started">Start here</a>
+                <a class="btn btn-ghost" href="/design-principles">Design principles</a>
                 <a class="btn btn-plain" href="https://github.com/artgins/yunetas">Source on GitHub</a>
             </nav>
         </div>
@@ -863,7 +871,7 @@ h1.hero-title {
         <p class="prose" style="margin-bottom:2.5rem; color:var(--text-muted);">Every framework
         publishes its advantages. These are the same decisions with the bill attached, because
         picking a framework means picking its trade-offs. Three more are documented in full on
-        <a href="https://doc.yuneta.io/design-principles">Design Principles</a>.</p>
+        <a href="/design-principles">Design Principles</a>.</p>
 
         <div class="decisions">
 
@@ -979,49 +987,49 @@ h1.hero-title {
         everything, but the order below is the one that works: why before what, what before how.</p>
 
         <nav class="path">
-            <a class="step" href="https://doc.yuneta.io/design-principles">
+            <a class="step" href="/design-principles">
                 <span class="step-n">01</span>
                 <span>
                     <span class="step-t">Design Principles</span>
                     <span class="step-d">The engineering decisions behind Yuneta, and what each one buys and costs.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/domain-model">
+            <a class="step" href="/domain-model">
                 <span class="step-n">02</span>
                 <span>
                     <span class="step-t">Domain Model</span>
                     <span class="step-d">The vocabulary the framework uses to model reality: realms, entities, messages.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/installation">
+            <a class="step" href="/installation">
                 <span class="step-n">03</span>
                 <span>
                     <span class="step-t">Installation</span>
                     <span class="step-d">Get a working build environment, then build the whole SDK.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/guide-basic-concepts">
+            <a class="step" href="/guide-basic-concepts">
                 <span class="step-n">04</span>
                 <span>
                     <span class="step-t">Basic Concepts</span>
                     <span class="step-d">GClass, gobj, yuno, event. Four words that carry the rest.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/guide-gclass">
+            <a class="step" href="/guide-gclass">
                 <span class="step-n">05</span>
                 <span>
                     <span class="step-t">Guides</span>
                     <span class="step-d">How to actually build with them, one subsystem at a time.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/appendix-api-index">
+            <a class="step" href="/appendix-api-index">
                 <span class="step-n">06</span>
                 <span>
                     <span class="step-t">API Reference</span>
                     <span class="step-d">Organised by subsystem: GObj, helpers, logging, parsers, timeranger2, TLS, event loop, JavaScript.</span>
                 </span>
             </a>
-            <a class="step" href="https://doc.yuneta.io/philosophy">
+            <a class="step" href="/philosophy">
                 <span class="step-n">07</span>
                 <span>
                     <span class="step-t">Inspiration</span>
@@ -1042,66 +1050,66 @@ h1.hero-title {
             <div class="map-col">
                 <h3>Get started</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/get-started">Get Started</a></li>
-                    <li><a href="https://doc.yuneta.io/installation">Installation</a></li>
-                    <li><a href="https://doc.yuneta.io/activating">Activating</a></li>
-                    <li><a href="https://doc.yuneta.io/yunetas-cli">The yunetas CLI</a></li>
-                    <li><a href="https://doc.yuneta.io/deploying-yunos">Deploying yunos</a></li>
-                    <li><a href="https://doc.yuneta.io/changelog">Changelog</a></li>
+                    <li><a href="/get-started">Get Started</a></li>
+                    <li><a href="/installation">Installation</a></li>
+                    <li><a href="/activating">Activating</a></li>
+                    <li><a href="/yunetas-cli">The yunetas CLI</a></li>
+                    <li><a href="/deploying-yunos">Deploying yunos</a></li>
+                    <li><a href="/changelog">Changelog</a></li>
                 </ul>
             </div>
             <div class="map-col">
                 <h3>Philosophy</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/design-principles">Design Principles</a></li>
-                    <li><a href="https://doc.yuneta.io/typed-graph-model">The Typed-Graph Model</a></li>
-                    <li><a href="https://doc.yuneta.io/domain-model">Domain Model</a></li>
-                    <li><a href="https://doc.yuneta.io/philosophy">Inspiration</a></li>
-                    <li><a href="https://doc.yuneta.io/glossary">Glossary</a></li>
+                    <li><a href="/design-principles">Design Principles</a></li>
+                    <li><a href="/typed-graph-model">The Typed-Graph Model</a></li>
+                    <li><a href="/domain-model">Domain Model</a></li>
+                    <li><a href="/philosophy">Inspiration</a></li>
+                    <li><a href="/glossary">Glossary</a></li>
                 </ul>
             </div>
             <div class="map-col">
                 <h3>Operating Yuneta</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/entry-point">Entry point</a></li>
-                    <li><a href="https://doc.yuneta.io/yuno-lifecycle">Yuno lifecycle</a></li>
-                    <li><a href="https://doc.yuneta.io/debugging">Debugging a yuno</a></li>
-                    <li><a href="https://doc.yuneta.io/ipc">Inter-process communication</a></li>
-                    <li><a href="https://doc.yuneta.io/realms">Realms &amp; multi-tenancy</a></li>
-                    <li><a href="https://doc.yuneta.io/scaffolding">Scaffolding new yunos</a></li>
-                    <li><a href="https://doc.yuneta.io/yuno-auth">Auth, permissions, TLS</a></li>
+                    <li><a href="/entry-point">Entry point</a></li>
+                    <li><a href="/yuno-lifecycle">Yuno lifecycle</a></li>
+                    <li><a href="/debugging">Debugging a yuno</a></li>
+                    <li><a href="/ipc">Inter-process communication</a></li>
+                    <li><a href="/realms">Realms &amp; multi-tenancy</a></li>
+                    <li><a href="/scaffolding">Scaffolding new yunos</a></li>
+                    <li><a href="/yuno-auth">Auth, permissions, TLS</a></li>
                 </ul>
             </div>
             <div class="map-col">
                 <h3>Guides</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/gobj">gobj crash course</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-gclass">GClass</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-sdata">SData schemas</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-yev-loop">The event loop</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-timeranger2">timeranger2</a></li>
-                    <li><a href="https://doc.yuneta.io/yuno-treedb">TreeDB</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-tls">TLS</a></li>
-                    <li><a href="https://doc.yuneta.io/guide-oauth2-pkce-bff">OAuth2 / PKCE BFF</a></li>
+                    <li><a href="/gobj">gobj crash course</a></li>
+                    <li><a href="/guide-gclass">GClass</a></li>
+                    <li><a href="/guide-sdata">SData schemas</a></li>
+                    <li><a href="/guide-yev-loop">The event loop</a></li>
+                    <li><a href="/guide-timeranger2">timeranger2</a></li>
+                    <li><a href="/yuno-treedb">TreeDB</a></li>
+                    <li><a href="/guide-tls">TLS</a></li>
+                    <li><a href="/guide-oauth2-pkce-bff">OAuth2 / PKCE BFF</a></li>
                 </ul>
             </div>
             <div class="map-col">
                 <h3>Browser GUI</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/shell">The declarative shell</a></li>
-                    <li><a href="https://doc.yuneta.io/routing">Routing &amp; navigation</a></li>
+                    <li><a href="/shell">The declarative shell</a></li>
+                    <li><a href="/routing">Routing &amp; navigation</a></li>
                 </ul>
             </div>
             <div class="map-col">
                 <h3>Reference</h3>
                 <ul>
-                    <li><a href="https://doc.yuneta.io/appendix-api-index">API index</a></li>
-                    <li><a href="https://doc.yuneta.io/modules">Modules</a></li>
-                    <li><a href="https://doc.yuneta.io/yunos">Yunos</a></li>
-                    <li><a href="https://doc.yuneta.io/tools">Tools</a></li>
-                    <li><a href="https://doc.yuneta.io/utilities">Utilities</a></li>
-                    <li><a href="https://doc.yuneta.io/testing">Testing</a></li>
-                    <li><a href="https://doc.yuneta.io/benchmarks">Benchmarks</a></li>
+                    <li><a href="/appendix-api-index">API index</a></li>
+                    <li><a href="/modules">Modules</a></li>
+                    <li><a href="/yunos">Yunos</a></li>
+                    <li><a href="/tools">Tools</a></li>
+                    <li><a href="/utilities">Utilities</a></li>
+                    <li><a href="/testing">Testing</a></li>
+                    <li><a href="/benchmarks">Benchmarks</a></li>
                 </ul>
             </div>
         </div>
