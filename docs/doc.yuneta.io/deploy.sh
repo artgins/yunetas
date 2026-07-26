@@ -111,6 +111,14 @@ for f in root.rglob('index.html'):
 print(f"diagram lightbox injected into {count} pages")
 PYEOF
 
+# Landing page: a standalone HTML document (its own inlined fonts and CSS, no
+# theme, no external requests) served at /landing.  myst copies no raw files,
+# so it is placed into the build output here — after the two injections above,
+# so it is left pristine, and before the --delete rsync, so the mirror keeps it.
+mkdir -p "${ORIGIN}landing"
+cp landing/index.html "${ORIGIN}landing/index.html"
+echo "landing page installed at /landing"
+
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
 # the server too. --delete-after defers removals until the transfer succeeds.
