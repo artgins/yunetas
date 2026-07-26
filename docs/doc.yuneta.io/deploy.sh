@@ -112,7 +112,8 @@ print(f"diagram lightbox injected into {count} pages")
 PYEOF
 
 # Landing page: a standalone HTML document (its own inlined fonts and CSS, no
-# theme, no external requests) served at /landing.  myst copies no raw files,
+# external requests) served at /landing.  It shares the theme with the site
+# through localStorage["myst:theme"], same origin.  myst copies no raw files,
 # so it is placed into the build output here — after the two injections above,
 # so it is left pristine, and before the --delete rsync, so the mirror keeps it.
 mkdir -p "${ORIGIN}landing"

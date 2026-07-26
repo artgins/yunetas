@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Yuneta Simplified — an asynchronous framework for long-lived, message-driven services on Linux. Documentation.">
 
+<!--
+    Theme, resolved before the first paint so there is no flash.
+
+    The stored preference is the MyST theme's own key, localStorage
+    "myst:theme" (same origin), so the choice made in a chapter is the
+    one this page opens with, and the toggle here is the one the docs
+    obey. Same contract as the docs' inline reader: a stored value
+    wins, otherwise the OS decides.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
 <style>
     *, *::before, *::after { box-sizing: border-box; }
     body { margin: 0; }
@@ -53,27 +79,34 @@
    Tokens. Light is the default; dark is redefined at token
    level only. Components never read colors inside a media
    query, so the data-theme overrides below always win.
+
+   The neutrals are the MyST theme's own: the docs paint the
+   page `bg-white dark:bg-stone-900`, so --ground is #FFFFFF /
+   #1C1917 and the rest of the greys walk the same stone scale.
+   Landing and chapter share a background, so following a link
+   is not a jump. The accents (teal state, amber event) stay:
+   they carry meaning here, and the docs have none of their own.
    ============================================================ */
 :root {
-    --ground:        #E8EBE8;
-    --ground-2:      #F2F4F1;
-    --ground-3:      #DDE2DE;
-    --rule:          #C7CFC9;
-    --rule-soft:     #D6DCD7;
-    --text:          #131D1B;
-    --text-muted:    #55635E;
-    --text-dim:      #7C8A85;
+    --ground:        #FFFFFF;
+    --ground-2:      #F5F5F4;
+    --ground-3:      #E7E5E4;
+    --rule:          #D6D3D1;
+    --rule-soft:     #E7E5E4;
+    --text:          #1C1917;
+    --text-muted:    #57534E;
+    --text-dim:      #78716C;
     --state:         #0F6B64;
     --state-soft:    #CFE3E0;
     --event:         #8A5A06;
     --event-soft:    #EFE2C6;
     --tradeoff:      #A83E31;
     --accent:        #0F6B64;
-    --on-accent:     #F2F4F1;
-    --panel:         #10191A;
-    --panel-text:    #D9E2DE;
-    --panel-rule:    #263230;
-    --panel-dim:     #6E7F7A;
+    --on-accent:     #FFFFFF;
+    --panel:         #0C0A09;
+    --panel-text:    #E7E5E4;
+    --panel-rule:    #292524;
+    --panel-dim:     #8A827C;
     --panel-state:   #6FCCBF;
     --panel-event:   #E9A63C;
 
@@ -95,25 +128,25 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ground:     #0E1417;
-        --ground-2:   #141C1E;
-        --ground-3:   #1A2426;
-        --rule:       #27332F;
-        --rule-soft:  #1E2A28;
-        --text:       #DEE6E2;
-        --text-muted: #94A39D;
-        --text-dim:   #6E7F79;
+        --ground:     #1C1917;
+        --ground-2:   #292524;
+        --ground-3:   #332E2B;
+        --rule:       #44403C;
+        --rule-soft:  #2E2A27;
+        --text:       #F5F5F4;
+        --text-muted: #A8A29E;
+        --text-dim:   #8A827C;
         --state:      #6FCCBF;
         --state-soft: #17302E;
         --event:      #E9A63C;
         --event-soft: #2E2415;
         --tradeoff:   #D9776A;
         --accent:     #6FCCBF;
-        --on-accent:  #0B1214;
-        --panel:      #0A1012;
-        --panel-text: #D9E2DE;
-        --panel-rule: #222E2C;
-        --panel-dim:  #63736E;
+        --on-accent:  #1C1917;
+        --panel:      #0C0A09;
+        --panel-text: #E7E5E4;
+        --panel-rule: #292524;
+        --panel-dim:  #8A827C;
         --panel-state:#6FCCBF;
         --panel-event:#E9A63C;
         color-scheme: dark;
@@ -121,48 +154,48 @@
 }
 
 :root[data-theme="light"] {
-    --ground:     #E8EBE8;
-    --ground-2:   #F2F4F1;
-    --ground-3:   #DDE2DE;
-    --rule:       #C7CFC9;
-    --rule-soft:  #D6DCD7;
-    --text:       #131D1B;
-    --text-muted: #55635E;
-    --text-dim:   #7C8A85;
+    --ground:     #FFFFFF;
+    --ground-2:   #F5F5F4;
+    --ground-3:   #E7E5E4;
+    --rule:       #D6D3D1;
+    --rule-soft:  #E7E5E4;
+    --text:       #1C1917;
+    --text-muted: #57534E;
+    --text-dim:   #78716C;
     --state:      #0F6B64;
     --state-soft: #CFE3E0;
     --event:      #8A5A06;
     --event-soft: #EFE2C6;
     --tradeoff:   #A83E31;
     --accent:     #0F6B64;
-    --on-accent:  #F2F4F1;
-    --panel:      #10191A;
-    --panel-text: #D9E2DE;
-    --panel-rule: #263230;
-    --panel-dim:  #6E7F7A;
+    --on-accent:  #FFFFFF;
+    --panel:      #0C0A09;
+    --panel-text: #E7E5E4;
+    --panel-rule: #292524;
+    --panel-dim:  #8A827C;
     color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-    --ground:     #0E1417;
-    --ground-2:   #141C1E;
-    --ground-3:   #1A2426;
-    --rule:       #27332F;
-    --rule-soft:  #1E2A28;
-    --text:       #DEE6E2;
-    --text-muted: #94A39D;
-    --text-dim:   #6E7F79;
+    --ground:     #1C1917;
+    --ground-2:   #292524;
+    --ground-3:   #332E2B;
+    --rule:       #44403C;
+    --rule-soft:  #2E2A27;
+    --text:       #F5F5F4;
+    --text-muted: #A8A29E;
+    --text-dim:   #8A827C;
     --state:      #6FCCBF;
     --state-soft: #17302E;
     --event:      #E9A63C;
     --event-soft: #2E2415;
     --tradeoff:   #D9776A;
     --accent:     #6FCCBF;
-    --on-accent:  #0B1214;
-    --panel:      #0A1012;
-    --panel-text: #D9E2DE;
-    --panel-rule: #222E2C;
-    --panel-dim:  #63736E;
+    --on-accent:  #1C1917;
+    --panel:      #0C0A09;
+    --panel-text: #E7E5E4;
+    --panel-rule: #292524;
+    --panel-dim:  #8A827C;
     color-scheme: dark;
 }
 
@@ -271,14 +304,45 @@ code, .mono { font-family: "Plex Mono", ui-monospace, monospace; }
 .prose + .prose { margin-top: 1rem; }
 
 /* ============================================================
+   Theme toggle
+
+   It lives in the hero's top padding, right-aligned with the
+   content: absolute rather than fixed, so it scrolls away
+   instead of floating over the band headings further down.
+   Hidden until the head script has set data-theme — with no
+   JavaScript the button could not do anything anyway.
+   ============================================================ */
+.theme-toggle { display: none; }
+
+:root[data-theme] .theme-toggle {
+    position: absolute;
+    top: clamp(1rem, 2.2vw, 1.75rem);
+    right: var(--pad-x);
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid var(--rule);
+    background: var(--ground);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--text-muted); color: var(--text); }
+.theme-toggle svg { width: 1.05rem; height: 1.05rem; }
+:root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+
+/* ============================================================
    Hero
    ============================================================ */
 .hero {
+    position: relative;
     display: grid;
     gap: clamp(2.5rem, 5vw, 4rem);
     grid-template-columns: 1fr;
     align-items: start;
-    padding-top: clamp(2.5rem, 6vw, 4.5rem);
+    padding-top: clamp(4rem, 6vw, 4.5rem);
 }
 
 @media (min-width: 1040px) {
@@ -671,6 +735,18 @@ h1.hero-title {
 
     <!-- ============ HERO ============ -->
     <header class="band hero">
+        <button type="button" class="theme-toggle" id="theme-toggle">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4.2"/>
+                <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+            </svg>
+        </button>
+
         <div>
             <div class="hero-eyebrow">
                 <span class="label">Yuneta Simplified</span>
@@ -1047,6 +1123,76 @@ h1.hero-title {
 </div>
 
 <script>
+(function () {
+    "use strict";
+
+    /*
+     *  Theme toggle. The head script already resolved and applied the
+     *  theme; this only flips it and writes the MyST key, so the docs
+     *  open in whatever was chosen here. The two listeners keep the
+     *  page honest while it stays open: another tab (a chapter) that
+     *  changes the theme, and the OS switching over while this page
+     *  has no stored preference of its own.
+     */
+    var STORE_KEY = "myst:theme";
+
+    var root = document.documentElement;
+    var button = document.getElementById("theme-toggle");
+    if (!button) {
+        return;
+    }
+
+    function readStored() {
+        var value = null;
+        try {
+            value = localStorage.getItem(STORE_KEY);
+        } catch (e) {
+            value = null;
+        }
+        if (value !== "light" && value !== "dark") {
+            return null;
+        }
+        return value;
+    }
+
+    function apply(theme) {
+        root.setAttribute("data-theme", theme);
+        var next = theme === "dark" ? "light" : "dark";
+        var label = "Switch to " + next + " theme";
+        button.setAttribute("aria-label", label);
+        button.setAttribute("title", label);
+    }
+
+    apply(root.getAttribute("data-theme") === "dark" ? "dark" : "light");
+
+    button.addEventListener("click", function () {
+        var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        apply(next);
+        try {
+            localStorage.setItem(STORE_KEY, next);
+        } catch (e) {
+            /* Private mode: the choice holds for this page only. */
+        }
+    });
+
+    window.addEventListener("storage", function (ev) {
+        if (ev.key !== STORE_KEY) {
+            return;
+        }
+        var stored = readStored();
+        if (stored) {
+            apply(stored);
+        }
+    });
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (ev) {
+        if (readStored()) {
+            return;
+        }
+        apply(ev.matches ? "dark" : "light");
+    });
+}());
+
 (function () {
     "use strict";
 
