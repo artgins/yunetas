@@ -737,8 +737,9 @@ SDATAPM (DTP_STRING,    "role_version", 0,              0,          "Role versio
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno name"),
 SDATAPM (DTP_STRING,    "name_version", 0,              0,          "Name version"),
 SDATAPM (DTP_STRING,    "yuno_tag",     0,              0,          "Yuno Tag"),
-SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release; if given, delete that exact instance (else the primary)"),
-SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
+SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release; if given, delete that exact release"),
+SDATAPM (DTP_BOOLEAN,   "whole",        0,              0,          "Delete the WHOLE yuno (required when no yuno_release is given)"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete (bypass the snap-tag guard; does NOT imply whole)"),
 SDATA_END()
 };
 
@@ -869,7 +870,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-config",    0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              ""),
 SDATACM2 (DTP_SCHEMA,   "find-new-yunos",   0,                  0,                  pm_find_new_yunos,cmd_find_new_yunos, "List the create-yuno rows for binaries/configs newer than the primary"),
 SDATACM2 (DTP_SCHEMA,   "create-yuno",      0,                  0,                  pm_create_yuno, cmd_create_yuno, "Create a yuno; with role_version/name_version, a new release of one existing"),
-SDATACM2 (DTP_SCHEMA,   "delete-yuno",      0,                  0,                  pm_delete_yuno, cmd_delete_yuno, "Delete a release (yuno_release=...) or the WHOLE yuno (without it)"),
+SDATACM2 (DTP_SCHEMA,   "delete-yuno",      0,                  0,                  pm_delete_yuno, cmd_delete_yuno, "Delete a release (yuno_release=...) or the whole yuno (whole=1)"),
 SDATACM2 (DTP_SCHEMA,   "set-tag",          0,                  0,                  pm_set_tag,   cmd_set_tag,  "Set yuno tag"),
 SDATACM2 (DTP_SCHEMA,   "set-multiple",     0,                  0,                  pm_set_multiple,cmd_set_multiple,"Set yuno multiple"),
 SDATACM2 (DTP_SCHEMA,   "edit-yuno-config", 0,                  a_edit_yuno_config, pm_list_yunos,  0,              "Edit yuno configuration"),
@@ -4946,6 +4947,31 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *  in-memory primary. See list_delete_targets().
      */
     BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "yuno_release", "", 0));
+
+    /*
+     *  Deleting the WHOLE yuno must be asked for, never inherited from an
+     *  omission.  Without `yuno_release` the target is the in-memory primary,
+     *  i.e. the yuno itself and every release behind it -- the destructive
+     *  reading was the one you got by typing LESS, and it has already cost a
+     *  realm its auth_bff.  `force` does not stand in for this: it bypasses
+     *  the snap-tag guard, a different question.
+     */
+    BOOL whole = kw_get_bool(gobj, kw, "whole", 0, KW_WILD_NUMBER);
+    if(!by_instance && !whole) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: refusing to delete the WHOLE yuno by omission. "
+                "Add yuno_release=<release> to delete one release, "
+                "or whole=1 to delete the yuno and all of its releases.",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Get a iter of matched resources.

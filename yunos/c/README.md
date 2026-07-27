@@ -123,7 +123,7 @@ Yuno lifecycle:
 |---------|-------------|
 | `find-new-yunos` | Find new yunos |
 | `create-yuno` | Create yuno |
-| `delete-yuno` | Delete yuno |
+| `delete-yuno` | Delete one release (`yuno_release=`) or the whole yuno (`whole=1`) |
 | `set-tag` | Set yuno tag |
 | `set-multiple` | Set yuno multiple instances |
 | `edit-yuno-config` | Edit yuno configuration |

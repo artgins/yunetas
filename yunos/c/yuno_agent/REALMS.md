@@ -389,7 +389,7 @@ REALM_ID=widgets.prod.production
 for y in $(ycommand -j -c "list-yunos realm_id=$REALM_ID" | jq -r '.[].id'); do
     ycommand -c "kill-yuno    id=$y"
     ycommand -c "disable-yuno id=$y"
-    ycommand -c "delete-yuno  id=$y"
+    ycommand -c "delete-yuno  id=$y whole=1"
 done
 
 # now the realm is empty

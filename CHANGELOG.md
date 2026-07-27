@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **BREAKING (agent): `delete-yuno` no longer deletes the whole yuno by
+  omission — it requires `whole=1`.** Without `yuno_release=` the command
+  targeted the in-memory primary, i.e. the yuno *and every release behind it*.
+  That put the destructive reading behind the SHORTER command line, and the
+  safe one behind the longer: an operator reaching for "drop this release" and
+  forgetting the parameter got "drop the yuno". It has already cost a realm its
+  `auth_bff`, with `delete-yuno` cascading onto the config row.
+
+  The three forms are now explicit:
+
+  ```
+  delete-yuno id=<id>                      # refused, with both options named
+  delete-yuno id=<id> yuno_release=<rel>   # one release
+  delete-yuno id=<id> whole=1              # the yuno and all of its releases
+  ```
+
+  `force=1` does **not** stand in for `whole=1` — it bypasses the snap-tag
+  guard, a different question, and its help line now says so. Nothing in the
+  tree called the bare form (not the `yunetas` CLI, the sync tools or the agent
+  SPA); the callers were operators following `REALMS.md` and
+  `YUNO_LIFECYCLE.md`, both updated.
+
+- **`create-yuno` / `delete-yuno` / `find-new-yunos` help lines name what they
+  actually do.** All three act on a yuno *or* on one of its releases, with a
+  parameter as the discriminator, and the old one-liners ("Create yuno",
+  "Delete yuno") hid it — the flow to adopt a new binary/config version is
+  `find-new-yunos create=1` + `deactivate-snap` (bundled as `yunetas
+  upgrade-yunos`), and reading `create-yuno`/`delete-yuno` as a symmetric pair
+  is what leads to inventing a destructive substitute for it.
+
+  Also dropped three alias arrays that pointed each of those commands at its
+  own name: they add nothing to `command_get_cmd_desc` (which matches `name`
+  first whenever the command has a `json_fn`) and surfaced in the help JSON as
+  an alias identical to the name, advertising a spelling that does not exist.
+
 - **`delete-user` (C_AUTHZ) can now delete a role-holding user, and reports
   its result truthfully.** Two problems fixed together: (1) the command always
   returned the comment `"User deleted"` while passing `gobj_delete_node`'s code

@@ -192,7 +192,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 | Command            | Effect                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
 | `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), else the primary. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
+| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), or `whole=1` for the yuno and all its releases; the bare form is **refused**. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
 | `enable-yuno`      | `yuno_disabled := false`.                                                 |
 | `disable-yuno`     | `yuno_disabled := true`. Does **not** stop a running yuno.                |
 | `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
@@ -407,8 +407,21 @@ Refuses if `yuno_running=true`. Optionally refuses on tagged yunos unless
 `force=1`. Removes the treedb row; the on-disk `bin/` directory is cleaned by
 treedb cascade.
 
-**Pruning one release instance.** Without `yuno_release=` the command targets the
-in-memory primary (historic behaviour). With `yuno_release=<rel>` it durably
+**You must say WHICH of the two deletions you mean.** The command refuses the
+bare form:
+
+```
+delete-yuno id=<id>                      # refused
+delete-yuno id=<id> yuno_release=<rel>   # one release
+delete-yuno id=<id> whole=1              # the yuno and every release behind it
+```
+
+Deleting the whole yuno used to be what you got by *omitting* `yuno_release`,
+so the destructive reading was the one you reached by typing less. It cost a
+realm its `auth_bff` once. `force=1` does **not** stand in for `whole=1`: it
+bypasses the snap-tag guard, a different question.
+
+**Pruning one release instance.** With `yuno_release=<rel>` the command durably
 prunes that one instance — useful to drop a superseded or mistakenly-created
 **higher** release without a snap rollback. This rides the treedb per-instance
 delete ([`treedb_delete_instance`](#treedb_delete_instance)), which tombstones **every** md2 row of the
@@ -662,7 +675,7 @@ ycommand -c 'command-yuno id=<yuno_id> service=__yuno__ command=view-config'
 ycommand -c 'kill-yuno    id=<yuno_id>'    # orderly shutdown
 ycommand -c 'list-yunos'                   # confirm running=false
 ycommand -c 'disable-yuno id=<yuno_id>'    # belt and braces
-ycommand -c 'delete-yuno  id=<yuno_id>'    # refuses if running
+ycommand -c 'delete-yuno  id=<yuno_id> whole=1'   # refuses if running
 # binary stays in /yuneta/repos until you delete-binary it
 ```
 

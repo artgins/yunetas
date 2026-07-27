@@ -212,12 +212,10 @@ decisions (Rosa):
   (`"Delete a release (yuno_release=...) or the WHOLE yuno (without it)"` and
   friends), which is what `ycommand -c 'help delete-yuno'` shows.
 
-  **Still open, worth considering:** `delete-yuno` deleting the whole yuno
-  should arguably require something explicit rather than an omission — a
-  `whole=1`, or refusing the bare form when the yuno has more than one release.
-  Note `force=1` does **not** cover this: it guards the snap-tag check, not the
-  primary-vs-release choice. Consolidated project — read `list_delete_targets`
-  and the snap/rollback paths before touching.
+  **Done (2026-07-27):** `delete-yuno` now requires `whole=1` to delete the
+  yuno and all of its releases; the bare form is refused with both options
+  named. `force=1` still means only "bypass the snap-tag guard", and its help
+  line says so.
 
 ## Observability: source-IP attribution in decoder logs — remaining pass
 
