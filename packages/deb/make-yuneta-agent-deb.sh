@@ -1349,6 +1349,36 @@ yuneta ALL=(ALL) NOPASSWD:ALL
 EOF
 chmod 0440 "${WORKDIR}/etc/sudoers.d/90-yuneta"
 
+# --- preinst (save the node's web config before dpkg can drop it) ---
+cat > "${WORKDIR}/DEBIAN/preinst" <<'EOF'
+#!/bin/sh
+#######################################################################
+# preinst
+# - Save the node's web server configuration before dpkg touches it.
+#
+# Until 7.9.0 the package OWNED /yuneta/bin/nginx/conf/nginx.conf and
+# overwrote it on every upgrade. 7.9.1 stopped shipping it — a file the
+# package does not contain cannot be overwritten — but dpkg DELETES files
+# an upgrade no longer provides, so the very transition that fixes the
+# overwrite would delete the operator's config instead. It did, on two
+# nodes, and the GUIs went down with it.
+#
+# Copy it aside here, before the unpack; postinst puts it back.
+#######################################################################
+set -e
+
+for _web in nginx openresty/nginx; do
+    _conf="/yuneta/bin/${_web}/conf"
+    if [ -f "${_conf}/nginx.conf" ]; then
+        cp -a "${_conf}/nginx.conf" "${_conf}/nginx.conf.pkgsave"
+        echo "[preinst] saved ${_conf}/nginx.conf"
+    fi
+done
+
+exit 0
+EOF
+chmod 0755 "${WORKDIR}/DEBIAN/preinst"
+
 # --- postinst (create login user, add to wide groups, locales, syslog, SysV enable) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
@@ -1462,7 +1492,15 @@ for _web in nginx openresty/nginx; do
     if [ -e "${_conf}/nginx.conf" ]; then
         continue
     fi
-    if [ -e "${_conf}/nginx.conf.default" ]; then
+    if [ -e "${_conf}/nginx.conf.pkgsave" ]; then
+        # dpkg dropped it as an obsolete package file (it was
+        # package-owned until 7.9.0). Put the NODE's own config back —
+        # seeding the stock default here would be the very overwrite
+        # this release exists to stop.
+        install -o yuneta -g yuneta -m 0644 -T \
+            "${_conf}/nginx.conf.pkgsave" "${_conf}/nginx.conf"
+        info "restored ${_conf}/nginx.conf from the pre-upgrade copy"
+    elif [ -e "${_conf}/nginx.conf.default" ]; then
         install -o yuneta -g yuneta -m 0644 -T \
             "${_conf}/nginx.conf.default" "${_conf}/nginx.conf"
         info "seeded ${_conf}/nginx.conf from nginx.conf.default"
@@ -1706,7 +1744,8 @@ chmod -t   "${WORKDIR}/DEBIAN" || true
 
 # All DEBIAN control files default to 0644 (maintainer scripts are made +x above)
 find "${WORKDIR}/DEBIAN" -type f -print0 | xargs -0 chmod 0644
-chmod 0755 "${WORKDIR}/DEBIAN/postinst" "${WORKDIR}/DEBIAN/prerm" "${WORKDIR}/DEBIAN/postrm"
+chmod 0755 "${WORKDIR}/DEBIAN/preinst" "${WORKDIR}/DEBIAN/postinst" \
+           "${WORKDIR}/DEBIAN/prerm" "${WORKDIR}/DEBIAN/postrm"
 
 # init.d script must be executable
 chmod 0755 "${WORKDIR}/etc/init.d/yuneta_agent"

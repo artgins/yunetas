@@ -1181,6 +1181,35 @@ fi
 # ---- scriptlets ----
 cat >> "${SPEC}" <<'SPEC_EOF'
 
+%pre
+#######################################################################
+# %pre  ($1 == 1 install, $1 == 2 upgrade)
+#
+# Save the node's web server configuration before rpm touches it.
+#
+# Until 7.9.0 the package OWNED /yuneta/bin/nginx/conf/nginx.conf and
+# overwrote it on every upgrade. 7.9.1 stopped shipping it — a file the
+# package does not contain cannot be overwritten — but rpm ERASES files
+# an upgrade no longer provides, so the very transition that fixes the
+# overwrite would delete the operator's config instead. It did.
+#
+# Restored in %posttrans, NOT in %post: on an upgrade rpm runs the new
+# %post BEFORE erasing the old package's files, so anything %post writes
+# is wiped straight afterwards. %posttrans runs at the end of the whole
+# transaction, which is the only hook that outlives the erase.
+#######################################################################
+set -u
+
+for _web in nginx openresty/nginx; do
+    _conf="/yuneta/bin/${_web}/conf"
+    if [ -f "${_conf}/nginx.conf" ]; then
+        cp -a "${_conf}/nginx.conf" "${_conf}/nginx.conf.pkgsave"
+        echo "[pre] saved ${_conf}/nginx.conf"
+    fi
+done
+
+exit 0
+
 %post
 #######################################################################
 # %post  ($1 == 1 install, $1 == 2 upgrade)
@@ -1259,31 +1288,6 @@ if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
             /yuneta/agent/yuneta_agent22.json
     fi
 fi
-
-# Web server configuration is owned by the NODE: the package no longer
-# carries nginx.conf or conf.d/ (see the payload strip in the builder), so
-# an upgrade cannot touch what the operator wrote. Seed a first install
-# from the pristine nginx.conf.default that the nginx build ships.
-for _web in nginx openresty/nginx; do
-    _conf="/yuneta/bin/${_web}/conf"
-    if [ ! -d "${_conf}" ]; then
-        continue
-    fi
-    if [ ! -d "${_conf}/conf.d" ]; then
-        mkdir -p "${_conf}/conf.d"
-        chown yuneta:yuneta "${_conf}/conf.d" 2>/dev/null || true
-    fi
-    if [ -e "${_conf}/nginx.conf" ]; then
-        continue
-    fi
-    if [ -e "${_conf}/nginx.conf.default" ]; then
-        install -o yuneta -g yuneta -m 0644 -T \
-            "${_conf}/nginx.conf.default" "${_conf}/nginx.conf"
-        info "seeded ${_conf}/nginx.conf from nginx.conf.default"
-    else
-        warn "no ${_conf}/nginx.conf and no default to seed it from"
-    fi
-done
 
 # Locale: rely on glibc-langpack-{en,es} (Requires); set a default if unset.
 if [ ! -s /etc/locale.conf ]; then
@@ -1485,6 +1489,52 @@ if [ "$1" = "0" ]; then
         rm -f /etc/init.d/yuneta_agent || true
     fi
 fi
+exit 0
+
+%posttrans
+#######################################################################
+# %posttrans  (end of the whole transaction)
+#
+# The web server configuration belongs to the NODE, so the package does
+# not carry it. This runs AFTER the old package's files have been erased
+# — the only hook that does — which is what makes the restore below
+# stick. Doing it in %post would write the file and then watch rpm
+# delete it moments later.
+#######################################################################
+set -u
+
+info() { echo "[posttrans] $*"; }
+warn() { echo "[posttrans] WARNING: $*" >&2; }
+
+for _web in nginx openresty/nginx; do
+    _conf="/yuneta/bin/${_web}/conf"
+    if [ ! -d "${_conf}" ]; then
+        continue
+    fi
+    if [ ! -d "${_conf}/conf.d" ]; then
+        mkdir -p "${_conf}/conf.d"
+        chown yuneta:yuneta "${_conf}/conf.d" 2>/dev/null || true
+    fi
+    if [ -e "${_conf}/nginx.conf" ]; then
+        continue
+    fi
+    if [ -e "${_conf}/nginx.conf.pkgsave" ]; then
+        # rpm erased it as an obsolete package file (it was package-owned
+        # until 7.9.0). Put the NODE's own config back — seeding the
+        # stock default here would be the very overwrite this release
+        # exists to stop.
+        install -o yuneta -g yuneta -m 0644 -T \
+            "${_conf}/nginx.conf.pkgsave" "${_conf}/nginx.conf"
+        info "restored ${_conf}/nginx.conf from the pre-upgrade copy"
+    elif [ -e "${_conf}/nginx.conf.default" ]; then
+        install -o yuneta -g yuneta -m 0644 -T \
+            "${_conf}/nginx.conf.default" "${_conf}/nginx.conf"
+        info "seeded ${_conf}/nginx.conf from nginx.conf.default"
+    else
+        warn "no ${_conf}/nginx.conf and no default to seed it from"
+    fi
+done
+
 exit 0
 SPEC_EOF
 
