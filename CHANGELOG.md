@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **CI: the packaging actions moved onto the Node 24 runtime.** Every run of
+  `release-packages.yml` carried the annotation *"Node.js 20 is deprecated …
+  being forced to run on Node.js 24: actions/checkout@v4,
+  softprops/action-gh-release@v2"*. GitHub was compensating; when it stops, both
+  steps fail, and since this is the repo's **only** workflow that means a
+  release with no `.deb` and no `.rpm` — found while cutting one. Bumped to the
+  latest majors that declare `using: node24` (`checkout` v4→v7,
+  `action-gh-release` v2→v3); neither breaking change touches this workflow.
+  Verified with a `workflow_dispatch` against a throwaway tag — **not** against
+  `7.9.0`, whose packages must keep matching the tagged tree — both jobs green
+  and zero Node 20 annotations.
+
+
 ## 7.9.0
 
 Ships with `@yuneta/gobj-js` **7.8.7** and `@yuneta/gobj-ui` **5.2.0**.
