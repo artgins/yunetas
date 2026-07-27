@@ -89,7 +89,7 @@ When you run `sudo apt install ./yuneta-agent-*.deb`, the following happens step
 
 ### 1. File Extraction
 
-The package manager extracts the full `/yuneta/` tree, configuration files under `/etc/`, and the `/var/crash/` directory onto the filesystem. No existing configuration files are overwritten (they are marked as `conffiles`).
+The package manager extracts the full `/yuneta/` tree, configuration files under `/etc/`, and the `/var/crash/` directory onto the filesystem. No existing configuration file is overwritten: those under `/etc/` are marked as `conffiles`, and the web server configuration — which lives outside `/etc/`, where `conffiles` cannot reach — is simply **not shipped** (see below).
 
 ### 2. Post-Installation Script (`postinst`)
 
@@ -176,6 +176,22 @@ These files are marked as `conffiles` and will not be overwritten on upgrade:
 - `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`
 - `/etc/yuneta/authorized_keys` (if bundled)
 - `/etc/yuneta/webserver` (if bundled)
+
+The web server configuration is preserved by a different mechanism, because it
+lives under `/yuneta/bin/`, where `conffiles` does not apply (and where the
+`.rpm` cannot tag it either: `%files` lists `/yuneta` as a directory, so
+rpmbuild rejects a second entry for a file inside it). These are **stripped
+from the payload** instead — a file the package does not contain cannot be
+replaced:
+
+- `/yuneta/bin/nginx/conf/nginx.conf` and `conf/conf.d/`
+- `/yuneta/bin/openresty/nginx/conf/nginx.conf` and `conf/conf.d/`
+
+On a **first** install `postinst` seeds `nginx.conf` from the pristine
+`nginx.conf.default` that the nginx build ships, and creates an empty
+`conf.d/`. On an upgrade it finds them and does nothing. Until 7.9.1 the
+package carried the build machine's copies and overwrote the node's on every
+upgrade.
 
 ## Installed Filesystem Layout
 

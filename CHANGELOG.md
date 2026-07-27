@@ -2,6 +2,70 @@
 
 ## Unreleased
 
+
+## 7.9.1
+
+A recovery release: after a machine reboot, a node came back with its login
+wedged and stayed that way. Three defects were behind it, at three layers.
+
+- **`c_prot_http_cl` sent `EV_DROP` as a string literal, so the event never
+  matched.** Events are compared by POINTER identity (`_find_event_action`),
+  never by text, so the interned symbol and a `"EV_DROP"` literal are two
+  different things. `ac_timeout_inactivity` used the literal, which produced
+  the misleading *"Event NOT DEFINED in state / C_TCP / ST_CONNECTED /
+  EV_DROP"* — naming an event the table does declare — and left the outbound
+  to an unreachable peer never dropped. Present since `80e6f7ad3` and in
+  7.8.7 too: it only bites once the inactivity timeout actually fires, which
+  is precisely what an unreachable IdP causes. It was the only such literal in
+  the tree.
+
+- **`c_auth_bff` now bounds the wait for an IdP it cannot reach, and retries.**
+  `C_TASK`'s `exec_timeout` does not cover this: it is armed inside
+  `execute_action`, and `execute_action` only runs once the channel is
+  connected (`c_task.c`, `mt_start`). While the IdP is unreachable the task
+  waits for a connection that never arrives — unarmed and unbounded — so no
+  `EV_END_TASK` is ever published, `discovery_done` stays FALSE, and every
+  browser request queues behind it forever with nothing logged. A reboot
+  produces exactly that: the yuno starts before the network is usable.
+
+  The BFF now owns the deadline, since it is the one with browsers waiting:
+
+  - a `C_TIMER` watchdog over the **connect gap only**, with its own budget
+    (`idp_connect_timeout_ms`, default 30 s). `idp_timeout_ms` keeps timing the
+    round-trip once connected — conflating the two failed an IdP that is merely
+    slow to appear. `ac_on_open` disarms the watchdog the moment the outbound
+    connects, so the two never time the same thing twice.
+  - the stuck task is failed through its **own** path (`EV_TIMEOUT` →
+    `stop_task(-2)`), so the existing `EV_END_TASK` handling applies unchanged:
+    504 for a request, a drained queue for discovery.
+  - a failed discovery is no longer terminal: `process_next` re-arms it on the
+    next request, so recovery rides on a retry rather than on a background
+    timer — there is nothing to poll for, the endpoints are only needed at
+    login.
+  - queued requests are answered **503 `auth_service_unavailable`** instead of
+    being left on a socket that will never produce bytes.
+  - on fire, a connect that burned its whole budget is aborted, so the next
+    attempt starts fresh instead of waiting out the kernel's SYN ladder
+    (`tcp_syn_retries=6` → ~127 s); and when a request needs an outbound that
+    sits disconnected, it is nudged with `EV_CONNECT` — `c_tcp`'s own
+    on-demand entry point — instead of waiting out a backoff already grown to
+    its 30 s cap.
+
+  Verified against a blackholed IdP: login answered 503 in 22 s instead of
+  hanging, back to 200 in 0.6 s once the IdP returned **without restarting the
+  yuno**, 0.3 s in steady state.
+
+- **The `.deb`/`.rpm` no longer overwrite the node's web server
+  configuration.** The packagers stage `/yuneta/bin/nginx` wholesale, and
+  `conffiles` / `%config(noreplace)` only cover `/etc`, so every upgrade
+  replaced the operator's `nginx.conf` — with the stock one built in CI — and
+  shipped the build machine's `conf.d/` on top. `%files` lists `/yuneta` as a
+  directory, so the file cannot even be tagged `%config` (rpmbuild: *"file
+  listed twice"*). Both packagers now **strip** `nginx.conf` and `conf.d/`
+  from the payload — a file the package does not contain cannot be replaced —
+  and `postinst`/`%post` seed `nginx.conf` from the pristine
+  `nginx.conf.default` only when there is none. Verified on a built `.deb`.
+
 - **CI: the packaging actions moved onto the Node 24 runtime.** Every run of
   `release-packages.yml` carried the annotation *"Node.js 20 is deprecated …
   being forced to run on Node.js 24: actions/checkout@v4,

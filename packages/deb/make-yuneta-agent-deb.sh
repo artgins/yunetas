@@ -189,6 +189,30 @@ rm -f "${WORKDIR}"/yuneta/development/yunetas/outputs/yunos/stress_* \
 rm -f "${WORKDIR}"/yuneta/bin/nginx/logs/* 2>/dev/null || true
 rm -f "${WORKDIR}"/yuneta/bin/openresty/nginx/logs/* 2>/dev/null || true
 
+#
+#   The web server configuration belongs to the NODE, not to the builder.
+#
+#   copy_tree ships /yuneta/bin/nginx wholesale, so without this the package
+#   carried the BUILD machine's nginx.conf and conf.d/ vhosts — and since
+#   neither lives under /etc, where the conffiles are declared, dpkg
+#   overwrote the node's own configuration on every upgrade, silently.
+#
+#   Stripping them from the payload is what makes that impossible: a file
+#   the package does not contain cannot be replaced. The pristine
+#   nginx.conf.default (shipped by the nginx build itself) stays, and
+#   postinst seeds nginx.conf from it only when there is none.
+#
+for _web in nginx openresty/nginx; do
+    _conf="${WORKDIR}/yuneta/bin/${_web}/conf"
+    if [ ! -d "${_conf}" ]; then
+        continue
+    fi
+    rm -f "${_conf}/nginx.conf"
+    rm -rf "${_conf}/conf.d"
+    mkdir -p "${_conf}/conf.d"
+    echo "[i] Stripped node-owned web config from ${_web}"
+done
+
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Two ways to provide keys (env var wins):
@@ -1421,6 +1445,31 @@ if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
             /yuneta/agent/yuneta_agent22.json
     fi
 fi
+
+# Web server configuration is owned by the NODE: the package no longer
+# carries nginx.conf or conf.d/ (see the payload strip in the builder), so
+# an upgrade cannot touch what the operator wrote. Seed a first install
+# from the pristine nginx.conf.default that the nginx build ships.
+for _web in nginx openresty/nginx; do
+    _conf="/yuneta/bin/${_web}/conf"
+    if [ ! -d "${_conf}" ]; then
+        continue
+    fi
+    if [ ! -d "${_conf}/conf.d" ]; then
+        mkdir -p "${_conf}/conf.d"
+        chown yuneta:yuneta "${_conf}/conf.d" 2>/dev/null || true
+    fi
+    if [ -e "${_conf}/nginx.conf" ]; then
+        continue
+    fi
+    if [ -e "${_conf}/nginx.conf.default" ]; then
+        install -o yuneta -g yuneta -m 0644 -T \
+            "${_conf}/nginx.conf.default" "${_conf}/nginx.conf"
+        info "seeded ${_conf}/nginx.conf from nginx.conf.default"
+    else
+        warn "no ${_conf}/nginx.conf and no default to seed it from"
+    fi
+done
 
 # Locales: ensure en_US.UTF-8 and es_ES.UTF-8
 if command -v locale-gen >/dev/null 2>&1; then
