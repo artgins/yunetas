@@ -80,7 +80,9 @@ the packaging metadata and the install/remove logic differ:
 | Concern            | `.deb` (Debian)                       | `.rpm` (RHEL/Rocky)                          |
 |--------------------|---------------------------------------|----------------------------------------------|
 | Package metadata   | `DEBIAN/control`                      | `.spec` (`Requires` / `Recommends`)          |
+| Pre-install hook   | `preinst`                             | `%pre` (`$1`: 1 install, 2 upgrade)          |
 | Install hook       | `postinst`                            | `%post` (`$1`: 1 install, 2 upgrade)         |
+| End-of-transaction | *(none — `postinst` runs late enough)* | `%posttrans` (after the old files are erased) |
 | Pre-remove hook    | `prerm`                               | `%preun` (`$1`: 0 remove, 1 upgrade)         |
 | Post-remove hook   | `postrm`                              | `%postun` (`$1`: 0 remove, 1 upgrade)        |
 | Create user        | `adduser --disabled-password`         | `useradd -m` + `passwd -l`                    |
@@ -124,30 +126,44 @@ surprising and un-idiomatic. The kernel tuning is applied live with
    `YUNETA_GROUPS`, create missing with `YUNETA_CREATE_MISSING_GROUPS=1`).
 3. Creates `/yuneta/agent/yuneta_agent*.json` from the bundled `.sample`
    (never overwrites; optional `YUNETA_OWNER=` substitutes `node_owner`).
-4. Seeds `/yuneta/bin/{nginx,openresty/nginx}/conf/nginx.conf` from the
-   pristine `nginx.conf.default`, and creates `conf/conf.d/`, **only when
-   absent**. The web server configuration belongs to the node, so it is
-   stripped from the payload rather than shipped: `%files` lists `/yuneta` as
-   a directory, so a file inside it cannot be tagged `%config(noreplace)`
-   (rpmbuild: *"file listed twice"*), and until 7.9.1 every upgrade replaced
-   the operator's `nginx.conf` with the build machine's.
-5. Sets `LANG=en_US.UTF-8` in `/etc/locale.conf` if unset.
-6. `chown -R yuneta:yuneta /yuneta`; private keys dir `0700`; `/var/crash`
+4. Sets `LANG=en_US.UTF-8` in `/etc/locale.conf` if unset.
+5. `chown -R yuneta:yuneta /yuneta`; private keys dir `0700`; `/var/crash`
    `0775 root:yuneta`, then `systemd-tmpfiles --create` on the bundled
    `/usr/lib/tmpfiles.d/yuneta-crash.conf`. **`/var/crash` is co-owned with
    `kexec-tools` (kdump)**, which declares it `root:root 0755`, so any later
    transaction touching that package silently reverts the group and mode and
    cores stop being written; the tmpfiles drop-in re-asserts it every boot.
-7. `sysctl --system` (applies the tuning **including io_uring**).
-8. Installs bundled `authorized_keys` for `yuneta` (if present).
-9. Enables `rsyslog`.
-10. Installs + enables the SysV service via `chkconfig`. It then starts the
+6. `sysctl --system` (applies the tuning **including io_uring**).
+7. Installs bundled `authorized_keys` for `yuneta` (if present).
+8. Enables `rsyslog`.
+9. Installs + enables the SysV service via `chkconfig`. It then starts the
    agent **only when io_uring is actually enabled** (re-checked after the
-   `sysctl --system` of step 7) and captures the real result — a disabled
+   `sysctl --system` of step 6) and captures the real result — a disabled
    io_uring, or any other start failure, is reported, **not** hidden behind
    RPM's always-"Complete" transaction.
-11. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
+10. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
     on RHEL; only appended if genuinely missing and not authselect-managed).
+
+## What `%pre` and `%posttrans` do (the web server config)
+
+The web server configuration belongs to the **node**, so it is stripped from
+the payload rather than shipped — `%files` lists `/yuneta` as a directory, so
+a file inside it cannot be tagged `%config(noreplace)` (rpmbuild: *"file
+listed twice"*). But not shipping it is only half the job: **rpm erases files
+that an upgrade no longer provides**, so coming from a package that still
+owned `nginx.conf` (7.9.0 or older) would remove it.
+
+- **`%pre`** copies `/yuneta/bin/{nginx,openresty/nginx}/conf/nginx.conf` to
+  `nginx.conf.pkgsave`, before rpm touches anything.
+- **`%posttrans`** restores it, picking in order: an existing `nginx.conf`
+  (left alone) → `nginx.conf.pkgsave` (the node's own, dropped by the erase)
+  → `nginx.conf.default` (a first install). It also creates `conf/conf.d/`
+  when missing.
+
+`%posttrans` and **not** `%post`: on an upgrade rpm runs the new `%post`
+*before* erasing the old package's files, so anything `%post` writes there is
+wiped moments later — which is exactly what happened in 7.9.1, leaving one
+node with no `nginx.conf` at all.
 
 > ℹ️ **If the agent is not running after install**, `%post` ends with a
 > `Yuneta files installed, but the AGENT IS NOT RUNNING` warning that names the

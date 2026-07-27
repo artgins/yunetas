@@ -187,11 +187,22 @@ replaced:
 - `/yuneta/bin/nginx/conf/nginx.conf` and `conf/conf.d/`
 - `/yuneta/bin/openresty/nginx/conf/nginx.conf` and `conf/conf.d/`
 
-On a **first** install `postinst` seeds `nginx.conf` from the pristine
-`nginx.conf.default` that the nginx build ships, and creates an empty
-`conf.d/`. On an upgrade it finds them and does nothing. Until 7.9.1 the
-package carried the build machine's copies and overwrote the node's on every
-upgrade.
+Not shipping them is only half the job, though: **dpkg deletes files that an
+upgrade no longer provides**, so upgrading from a package that still owned
+`nginx.conf` (7.9.0 or older) would remove it. Since 7.9.2 `preinst` copies it
+to `nginx.conf.pkgsave` before the unpack, and `postinst` restores from that
+copy.
+
+So `postinst` picks, in order:
+
+1. `nginx.conf` already there → leave it alone.
+2. `nginx.conf.pkgsave` → restore the node's own config (an upgrade that
+   dropped it).
+3. `nginx.conf.default` → seed a first install.
+
+It also creates `conf.d/` when missing. Until 7.9.1 the package carried the
+build machine's copies and overwrote the node's on every upgrade; 7.9.1 fixed
+the overwrite but deleted the file on the way, which is what 7.9.2 fixes.
 
 ## Installed Filesystem Layout
 

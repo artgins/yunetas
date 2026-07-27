@@ -3,6 +3,44 @@
 ## Unreleased
 
 
+## 7.9.2
+
+**Install this instead of 7.9.1.** On a node coming from **7.9.0 or older**,
+7.9.1 *deletes* the web server configuration it was meant to protect. If a
+node already runs 7.9.1 it is past that transition and is not affected.
+
+- **The upgrade no longer DELETES the configuration it stopped shipping.**
+  7.9.1 removed `nginx.conf` from the payload so an upgrade could not
+  overwrite it. It cannot — but dpkg and rpm **delete** files that an upgrade
+  no longer provides, so the very transition that fixed the overwrite removed
+  the operator's config instead. It took down the GUIs on two nodes, and the
+  two managers failed differently:
+
+  - **deb** — dpkg dropped the file, then `postinst` seeded the stock default,
+    so nginx served a configuration with no vhosts.
+  - **rpm** — `%post` runs *before* the old package's files are erased, so the
+    seeding was skipped and the erase left **no** `nginx.conf` at all; nginx
+    would not even start.
+
+  The configuration is now saved before the manager can touch it and restored
+  afterwards: a new `preinst` (deb) / `%pre` (rpm) copies it to
+  `nginx.conf.pkgsave`, and the restore prefers that copy over the stock
+  default. On rpm the restore moved from `%post` to **`%posttrans`** — the
+  only hook that runs *after* the erase; anything `%post` writes is wiped
+  moments later.
+
+  Both webservers are covered, `nginx` and `openresty`, each keeping its own
+  file. Verified with real dpkg (the delete on upgrade is reproducible), then
+  by running the **shipped** `preinst`/`postinst` and `%pre`/`%posttrans`
+  against a bind-mounted `/yuneta`, for the upgrade case and the fresh-install
+  case.
+
+- **`preinst` shipped non-executable.** The blanket
+  `find DEBIAN -type f -exec chmod 0644` re-flattened it after its own
+  `chmod 0755`, and `dpkg-deb` refuses a maintainer script that is not
+  executable — the package would not build at all.
+
+
 ## 7.9.1
 
 A recovery release: after a machine reboot, a node came back with its login
