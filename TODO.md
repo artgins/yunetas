@@ -183,6 +183,27 @@ decisions (Rosa):
   "already exists" guard). Consolidated project — read in depth, preserve the
   `create=1` semantics, before touching.
 
+- **`create-yuno` is a misleading name — propose `create-yuno-release`.**
+  `create-yuno` does not create a yuno: it registers a **release** of a yuno
+  that already exists, carrying its `role_version` (binary) and `name_version`
+  (config). `delete-yuno`, on the other hand, *does* remove the yuno from the
+  agent. The two read as a symmetric pair and are not one.
+
+  This is not theoretical. Working on `yunovatios` (2026-07-26) the pairing was
+  read the obvious way and a version bump was "adopted" with
+  `delete-config` + `delete-yuno` + `create-yuno` instead of the real flow
+  (`find-new-yunos create=1` + `deactivate-snap`, bundled as
+  `yunetas upgrade-yunos`). It is destructive: on that node `delete-yuno`
+  cascaded onto the config row and left the realm **without its `auth_bff`**
+  until both were recreated from the repo.
+
+  **Fix:** rename to `create-yuno-release`, keeping `create-yuno` as a
+  compatibility alias — the name appears in every project's `_<realm>.json`
+  batch, in `find-new-yunos`' own preview output, and in the deploy docs, so
+  the alias is not optional. Consider the same for `delete-yuno` →
+  `delete-yuno-completely`, or at least make its help line say that it removes
+  the yuno and not a release.
+
 ## Observability: source-IP attribution in decoder logs — remaining pass
 
 The `peername` roll-out across the protocol/decoder error logs shipped
