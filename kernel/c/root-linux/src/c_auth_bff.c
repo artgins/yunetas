@@ -90,6 +90,7 @@
 #include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
+#include "c_timer.h"
 #include "c_auth_bff.h"
 
 /***************************************************************************
@@ -166,6 +167,10 @@ typedef struct _PENDING_AUTH {
 PRIVATE BOOL stats_match(const char *stats, const char *name);
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
+PRIVATE void arm_connect_watchdog(hgobj gobj);
+PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
+    const char *error_code, const char *error_msg
+);
 PRIVATE void send_json_response(hgobj browser, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers
 );
@@ -218,6 +223,7 @@ SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /a
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
+SDATA (DTP_INTEGER,     "idp_connect_timeout_ms",SDF_RD,             "30000","How long to wait for the outbound to CONNECT before giving up on the task in flight. Separate from idp_timeout_ms, which times the round-trip once connected: while unconnected C_TASK arms nothing, so without this a task waits forever (see ac_timeout). 0 disables"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                  0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -261,6 +267,7 @@ typedef struct _PRIVATE_DATA {
     BOOL            processing;
     hgobj           gobj_idprovider;    /* C_PROT_HTTP_CL */
     hgobj           gobj_task;          /* C_TASK */
+    hgobj           gobj_timer;         /* C_TIMER: watchdog over the task in flight */
 
     /*
      *  task_valid flags whether the in-flight task's reply (or timeout)
@@ -424,6 +431,8 @@ PRIVATE void mt_create(hgobj gobj)
         );
     }
 
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
     /*
      *  SERVICE subscription model
      */
@@ -449,19 +458,78 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *      Framework Method start
  ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
+/***************************************************************************
+ *  Launch the one-shot OIDC discovery task.
+ *
+ *  Called from mt_start and, when that first attempt failed, again from
+ *  process_next as soon as a browser request needs the endpoints.
+ *
+ *  Retrying ON DEMAND rather than from a background timer is deliberate:
+ *  a timer re-issuing the same query is the polling pattern the framework
+ *  discards, and there is nothing to poll for — the endpoints are only
+ *  needed when somebody logs in.  The cost of the first failure is one
+ *  503 (see ac_end_task); the next request resolves it.
+ *
+ *  Returns TRUE if a task was started (or one was already in flight).
+ ***************************************************************************/
+/***************************************************************************
+ *  Arm the connect-gap watchdog for the task just started.
+ *
+ *  Only while the outbound is DISCONNECTED: once connected, C_TASK's
+ *  exec_timeout owns the round-trip, and ac_on_open disarms this one.
+ *  See ac_timeout for why the gap exists at all.
+ ***************************************************************************/
+PRIVATE void arm_connect_watchdog(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->gobj_idprovider) {
+        return;
+    }
+    if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
+        return;
+    }
+
     /*
-     *  If `issuer` was configured (and the operator did not override
-     *  the endpoints explicitly), fetch /.well-known/openid-configuration
-     *  before serving any browser request.  Browser requests that arrive
-     *  before discovery completes queue in dl_pending; process_next gates
-     *  on priv->discovery_done so they're held until the endpoints are
-     *  cached.
+     *  Somebody is waiting NOW — demand information the transport does
+     *  not have. After an outage c_tcp's reconnect backoff has grown to
+     *  its cap (30 s), so without this nudge the first login after the
+     *  IdP comes back waits out that backoff and the watchdog below
+     *  gives up first. EV_CONNECT in ST_DISCONNECTED is c_tcp's own
+     *  on-demand reconnection entry point.
      */
-    if(!priv->discovery_done && !empty_string(priv->issuer) && priv->gobj_idprovider) {
+    hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
+    if(tcp && gobj_current_state(tcp) == ST_DISCONNECTED) {
+        gobj_send_event(tcp, EV_CONNECT, 0, gobj);
+    }
+
+    json_int_t connect_timeout_ms =
+        gobj_read_integer_attr(gobj, "idp_connect_timeout_ms");
+    if(connect_timeout_ms <= 0) {
+        return;     /* explicitly disabled */
+    }
+
+    set_timeout(priv->gobj_timer, connect_timeout_ms);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL start_oidc_discovery(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->discovery_done) {
+        return FALSE;
+    }
+    if(priv->gobj_discovery_task) {
+        return TRUE;        /* already in flight */
+    }
+    if(empty_string(priv->issuer) || !priv->gobj_idprovider) {
+        return FALSE;
+    }
+
+    {
         json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
         if(idp_timeout_ms <= 0) {
             idp_timeout_ms = 30000;
@@ -490,12 +558,40 @@ PRIVATE int mt_start(hgobj gobj)
             gobj_start(priv->gobj_idprovider);
         }
 
+        /*
+         *  Watchdog over the CONNECT gap only; see ac_timeout.
+         */
+        arm_connect_watchdog(gobj);
+
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
                 "👤BFF OIDC discovery started: issuer=%s",
                 priv->issuer);
         }
     }
+    return TRUE;
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_timer);
+
+    /*
+     *  If `issuer` was configured (and the operator did not override the
+     *  endpoints explicitly), fetch /.well-known/openid-configuration
+     *  before serving any browser request.  Browser requests that arrive
+     *  before discovery completes queue in dl_pending; process_next gates
+     *  on priv->discovery_done so they're held until the endpoints are
+     *  cached.
+     *
+     *  A failure here is NOT terminal: see start_oidc_discovery.
+     */
+    start_oidc_discovery(gobj);
     return 0;
 }
 
@@ -505,6 +601,11 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->gobj_timer);
+    if(gobj_is_running(priv->gobj_timer)) {
+        gobj_stop(priv->gobj_timer);
+    }
 
     if(priv->gobj_discovery_task && gobj_is_running(priv->gobj_discovery_task)) {
         gobj_stop(priv->gobj_discovery_task);
@@ -1143,6 +1244,35 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     }
     dl_delete(&priv->dl_pending, pa, 0);
     return pa;
+}
+
+/***************************************************************************
+ *  Answer every queued request with the same error and drop the queue.
+ *
+ *  Used when the requests became unservable through no fault of their
+ *  own — today, an OIDC discovery that failed, so there are no endpoints
+ *  to call.  The alternative, leaving them queued, is worse than an
+ *  error: the browser waits on a socket that will never produce bytes,
+ *  and nothing is logged at the moment the user notices.
+ *
+ *  Each item carries its own Origin, so CORS headers are rebuilt per
+ *  request rather than reused.
+ ***************************************************************************/
+PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
+    const char *error_code, const char *error_msg
+)
+{
+    PENDING_AUTH *pa;
+
+    while((pa = dequeue(gobj))) {
+        char cors_hdrs[1024];
+        build_cors_headers(gobj, pa->client_origin,
+            cors_hdrs, sizeof(cors_hdrs), FALSE);
+        send_error_response(gobj, gobj_bottom_gobj(gobj),
+            status_code, status_str(status_code),
+            error_code, error_msg, cors_hdrs);
+        GBMEM_FREE(pa)
+    }
 }
 
 /***************************************************************************
@@ -1869,10 +1999,21 @@ PRIVATE void process_next(hgobj gobj)
     }
     if(!priv->discovery_done) {
         /*
-         *  OIDC endpoints not yet resolved (discovery in flight or no
-         *  IdP configured).  Keep requests queued; this function will
-         *  be re-driven from ac_end_task once discovery completes.
+         *  OIDC endpoints not yet resolved.  Keep the request queued and
+         *  make sure a discovery task is actually running: the one fired
+         *  from mt_start may have FAILED — the classic case is a machine
+         *  reboot, where the yuno starts before the network is usable and
+         *  the IdP is unreachable for a few seconds.
+         *
+         *  Before this retry, that first failure was terminal: nothing
+         *  re-armed discovery, so `discovery_done` stayed FALSE forever
+         *  and every later request queued here and was NEVER answered —
+         *  the browser just hung with no error anywhere.
+         *
+         *  process_next runs on every new request, so the retry rides on
+         *  the next login attempt instead of on a background timer.
          */
+        start_oidc_discovery(gobj);
         return;
     }
 
@@ -1918,10 +2059,11 @@ PRIVATE void process_next(hgobj gobj)
     GBMEM_FREE(pa)
 
     /*
-     *  Per-action timeout for the IdP round-trip.  When the IdP doesn't
-     *  reply within `idp_timeout_ms`, C_TASK fires its own timeout and
-     *  publishes EV_END_TASK with result=-2; ac_end_task turns that into
-     *  a 504 to the browser.  No watchdog timer in the BFF itself.
+     *  Timeout for the IdP round-trip, applied at two levels because one
+     *  is not enough. C_TASK's exec_timeout covers the ACTION: when the
+     *  IdP is connected but doesn't reply, C_TASK publishes EV_END_TASK
+     *  with result=-2 and ac_end_task turns that into a 504. It does NOT
+     *  cover waiting to CONNECT — see the watchdog armed below.
      */
     json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
     if(idp_timeout_ms <= 0) {
@@ -1981,6 +2123,11 @@ PRIVATE void process_next(hgobj gobj)
     if(!gobj_is_running(priv->gobj_idprovider)) {
         gobj_start(priv->gobj_idprovider);
     }
+
+    /*
+     *  Watchdog over the CONNECT gap only; see ac_timeout.
+     */
+    arm_connect_watchdog(gobj);
 }
 
 
@@ -2000,8 +2147,15 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gclass_name_t gclass_src_name = gobj_gclass_name(src);
     if(gclass_src_name == C_PROT_HTTP_CL) {
         /*
-         *  Connection from IdProvider
+         *  Connection from IdProvider.
+         *
+         *  The connect gap is over, so the watchdog hands the deadline to
+         *  C_TASK: execute_action runs now and arms its own exec_timeout.
+         *  Keeping ours armed would double-time the same round-trip and
+         *  report a reachable-but-silent IdP as unreachable.
          */
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        clear_timeout(priv->gobj_timer);
 
     } else if(gclass_src_name == C_PROT_HTTP_SR) {
         /*
@@ -2397,6 +2551,81 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Watchdog over the CONNECT gap of the task in flight (discovery or a
+ *  browser request).
+ *
+ *  Covers the gap C_TASK's exec_timeout leaves open: that one is armed
+ *  inside execute_action, and execute_action only runs once the channel
+ *  is connected (c_task.c, mt_start). While the IdP is UNREACHABLE the
+ *  task sits waiting for a connection that never arrives — unarmed and
+ *  unbounded — so it never publishes EV_END_TASK and every browser
+ *  request queues behind it forever, with nothing logged. That is what a
+ *  machine reboot produces: the yuno starts before the network is usable.
+ *
+ *  Strictly the CONNECT gap: it is not armed when the outbound is already
+ *  connected, and ac_on_open disarms it the moment it connects. From
+ *  there the round-trip belongs to C_TASK's exec_timeout — timing it
+ *  twice would report a reachable-but-silent IdP as unreachable.
+ *
+ *  Hence its OWN budget, `idp_connect_timeout_ms`, not `idp_timeout_ms`:
+ *  the two bound different things, and an IdP that is merely slow to
+ *  appear (the outbound still in its reconnect backoff) must not be
+ *  failed at the round-trip deadline.
+ *
+ *  The task is failed through its OWN path (EV_TIMEOUT -> stop_task(-2))
+ *  rather than torn down here, so the existing EV_END_TASK handling
+ *  applies unchanged: 504 to the browser for a request, drain-with-503
+ *  plus a re-armable discovery for discovery.
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj stuck = priv->gobj_discovery_task?
+        priv->gobj_discovery_task:
+        priv->gobj_task;
+
+    if(!stuck) {
+        /*
+         *  The task answered just as the watchdog fired; ac_end_task
+         *  already cleared it. Nothing to fail.
+         */
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
+
+    gobj_log_error(gobj, 0,
+        "function",  "%s", __FUNCTION__,
+        "msgset",    "%s", MSGSET_PROTOCOL,
+        "msg",       "%s", "👤BFF IdP unreachable, task watchdog fired",
+        "task",      "%s", gobj_short_name(stuck),
+        "discovery", "%d", priv->gobj_discovery_task? 1:0,
+        "connected", "%d", gobj_read_bool_attr(priv->gobj_idprovider, "connected")? 1:0,
+        "tcp_state", "%s", tcp? gobj_current_state(tcp):"?",
+        "issuer",    "%s", priv->issuer,
+        NULL
+    );
+
+    /*
+     *  Abort the connect that just burned its whole budget. It is aimed
+     *  at an address that stopped answering — a blackholed peer keeps it
+     *  in SYN retries for minutes — and c_tcp would keep retrying the
+     *  STALE address. Dropping it here (never at task start, where the
+     *  connect may be perfectly fresh) lets the next attempt re-resolve.
+     */
+    if(tcp && gobj_current_state(tcp) == ST_WAIT_CONNECTED) {
+        gobj_send_event(tcp, EV_DROP, 0, gobj);
+    }
+
+    gobj_send_event(stuck, EV_TIMEOUT, 0, gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  IdP task completed — clean up, process next queued request.
  *
  *  EV_END_TASK kw shape (from c_task::stop_task):
@@ -2406,8 +2635,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *      0   normal end (no more jobs)
  *     -1   a result_X or action_X returned STOP_TASK; the handler
  *          already produced the browser response (200, 4xx, 502...)
- *     -2   C_TASK exec_timeout fired — the IdP did not reply within
- *          idp_timeout_ms and no result handler ran.  Convert into 504
+ *     -2   a timeout fired — either C_TASK's exec_timeout (IdP connected
+ *          but silent) or this gclass's watchdog (IdP never reachable,
+ *          see ac_timeout) — and no result handler ran.  Convert into 504
  *          here so the browser unblocks and the operator gets a log.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2419,6 +2649,8 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  has a browser waiting, doesn't move the idp_* counters, and
      *  must drain the pending queue once the endpoints are cached.
      */
+    clear_timeout(priv->gobj_timer);    /* the task answered within its budget */
+
     if(src == priv->gobj_discovery_task) {
         priv->gobj_discovery_task = NULL;  /* ac_stopped will destroy it */
         int discovery_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
@@ -2431,6 +2663,31 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         if(priv->discovery_done) {
             process_next(gobj);
+            return 0;
+        }
+
+        /*
+         *  Discovery FAILED.  Anything already queued cannot be served —
+         *  there are no endpoints — so answer it instead of leaving the
+         *  browser waiting on a socket that will never produce bytes.
+         *
+         *  The queue is drained, not retried in place: the retry belongs
+         *  to the NEXT request (process_next re-arms discovery), and a
+         *  browser that got an explicit 503 can decide to try again,
+         *  which is precisely what re-arms it.
+         */
+        if(dl_size(&priv->dl_pending) > 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_PROTOCOL,
+                "msg",      "%s", "👤BFF OIDC discovery failed, draining queue",
+                "queued",   "%d", (int)dl_size(&priv->dl_pending),
+                "issuer",   "%s", priv->issuer,
+                NULL
+            );
+            flush_pending_with_error(gobj,
+                503, "auth_service_unavailable",
+                "Authentication service is not reachable yet");
         }
         return 0;
     }
@@ -2566,6 +2823,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE, ac_on_message,      0},
         {EV_ON_CLOSE,   ac_on_close,        0},
         {EV_END_TASK,   ac_end_task,        0},
+        {EV_TIMEOUT,    ac_timeout,         0},
         {EV_STOPPED,    ac_stopped,         0},
         {0, 0, 0}
     };
@@ -2583,6 +2841,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE, 0},
         {EV_ON_CLOSE,   0},
         {EV_END_TASK,   0},
+        {EV_TIMEOUT,    0},
         {EV_STOPPED,    0},
         {0, 0}
     };
