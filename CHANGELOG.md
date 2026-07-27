@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 7.9.0
+
+Ships with `@yuneta/gobj-js` **7.8.7** and `@yuneta/gobj-ui` **5.2.0**.
+
+The headline is a **BREAKING** change in the agent: `delete-yuno` no longer
+deletes a whole yuno by omission. See the entry below for why the old default
+was the wrong way round.
+
 - **BREAKING (agent): `delete-yuno` no longer deletes the whole yuno by
   omission — it requires `whole=1`.** Without `yuno_release=` the command
   targeted the in-memory primary, i.e. the yuno *and every release behind it*.
@@ -66,6 +74,12 @@
   whole `char[3][46]` into the 46-byte slot. `parse_resolv_conf()` already
   bounds every entry, so no real truncation was possible; the copy is now
   precision-capped (`%.*s`) so the bound is provable. No behaviour change.
+
+- **Scaffolding: new projects and yunos get a `CHANGELOG.md`, not a
+  `CHANGES.txt`.** The `yuno-skeleton` templates (`c_project`, `yuno_citizen`,
+  `yuno_standalone`) emitted a bare `CHANGES.txt` that nothing in the toolchain
+  read and no project kept up. Every repo in the ecosystem keeps a
+  Keep-a-Changelog `CHANGELOG.md` instead, so the skeletons now start one.
 
 - **`is_service_authorized()` no longer trusts every `authorized_services`
   entry to be a string.** The list is filled by `ac_identity_card` from
