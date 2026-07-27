@@ -30,6 +30,13 @@ on:
         required: true
         type: string
 
+# Both actions are pinned to their latest major because those are the first
+# lines that declare the Node 24 runtime. GitHub deprecated Node 20 on the
+# runners and was compensating by forcing Node 20 actions onto 24; when that
+# stops, a Node 20 action fails outright — and since this is the repo's ONLY
+# workflow, that would mean a release with no .deb and no .rpm, discovered
+# while cutting one. Do not move them back to v4/v2.
+
 permissions:
   contents: write   # needed to upload assets to the release
 
@@ -73,7 +80,7 @@ jobs:
             build-essential pkg-config ca-certificates linux-libc-dev
 
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
@@ -154,7 +161,7 @@ jobs:
           fi
 
       - name: Upload .deb to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: packages/deb/dist/yuneta-agent-*-amd64.deb
@@ -195,7 +202,7 @@ jobs:
           test -f /usr/lib64/libc.a
 
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
@@ -265,7 +272,7 @@ jobs:
           fi
 
       - name: Upload .rpm to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: packages/rpm/dist/yuneta-agent-*.x86_64.rpm
