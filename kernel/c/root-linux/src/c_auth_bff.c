@@ -2609,11 +2609,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     );
 
     /*
-     *  Abort the connect that just burned its whole budget. It is aimed
-     *  at an address that stopped answering — a blackholed peer keeps it
-     *  in SYN retries for minutes — and c_tcp would keep retrying the
-     *  STALE address. Dropping it here (never at task start, where the
-     *  connect may be perfectly fresh) lets the next attempt re-resolve.
+     *  Abort the connect that just burned its whole budget.
+     *
+     *  It is NOT stuck forever — the kernel always completes it, but a
+     *  blackholed peer costs the full SYN retry ladder first
+     *  (tcp_syn_retries=6 → ~127 s), and until that completion arrives
+     *  the socket is busy, so no fresh attempt can start. Each attempt
+     *  does re-resolve (yev_setup_connect_event calls getaddrinfo), so
+     *  aborting is what lets the next one pick up a changed address
+     *  instead of waiting out the ladder.
+     *
+     *  Only here, never at task start, where the connect may be fresh.
      */
     if(tcp && gobj_current_state(tcp) == ST_WAIT_CONNECTED) {
         gobj_send_event(tcp, EV_DROP, 0, gobj);
