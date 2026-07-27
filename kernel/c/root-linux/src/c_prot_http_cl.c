@@ -597,7 +597,15 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    /*
+     *  EV_DROP, the interned symbol — NOT the string literal "EV_DROP".
+     *  Events are matched by POINTER identity (_find_event_action), so a
+     *  literal is a different address that never matches the bottom
+     *  gobj's state table: the drop is silently refused with
+     *  "Event NOT DEFINED in state", naming an event the table clearly
+     *  declares, and the connection is never torn down.
+     */
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw);
     return 0;
 }
