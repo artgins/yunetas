@@ -183,26 +183,41 @@ decisions (Rosa):
   "already exists" guard). Consolidated project — read in depth, preserve the
   `create=1` semantics, before touching.
 
-- **`create-yuno` is a misleading name — propose `create-yuno-release`.**
-  `create-yuno` does not create a yuno: it registers a **release** of a yuno
-  that already exists, carrying its `role_version` (binary) and `name_version`
-  (config). `delete-yuno`, on the other hand, *does* remove the yuno from the
-  agent. The two read as a symmetric pair and are not one.
+- **`create-yuno` / `delete-yuno`: the confusion is the DEFAULT, not the name.**
+  *(Filed 2026-07-26 as a rename proposal; corrected 2026-07-27 after reading
+  the implementations — the original entry was wrong and is kept here only as
+  the reasoning trail.)*
 
-  This is not theoretical. Working on `yunovatios` (2026-07-26) the pairing was
-  read the obvious way and a version bump was "adopted" with
+  Both commands are in fact symmetric, and both are correctly named: they
+  operate on a yuno **or** on one of its releases, and the discriminator is a
+  parameter.
+
+  - `cmd_create_yuno` takes `role_version` (binary) + `name_version` (config).
+    With no matching row it creates the yuno; with a newer pair it registers a
+    new **release** of an existing one.
+  - `cmd_delete_yuno` keys on `yuno_release` (the pkey2): given it, that exact
+    release is deleted; **omitted, the in-memory primary — the yuno itself —
+    goes.**
+
+  So the trap is not the verb, it is that the *destructive* reading of
+  `delete-yuno` is what you get by **omitting** a parameter. Working on
+  `yunovatios` (2026-07-26) a config version bump was "adopted" with
   `delete-config` + `delete-yuno` + `create-yuno` instead of the real flow
   (`find-new-yunos create=1` + `deactivate-snap`, bundled as
-  `yunetas upgrade-yunos`). It is destructive: on that node `delete-yuno`
-  cascaded onto the config row and left the realm **without its `auth_bff`**
-  until both were recreated from the repo.
+  `yunetas upgrade-yunos`); the bare `delete-yuno` took the primary, cascaded
+  onto the config row, and left the realm **without its `auth_bff`** until both
+  were recreated from the repo.
 
-  **Fix:** rename to `create-yuno-release`, keeping `create-yuno` as a
-  compatibility alias — the name appears in every project's `_<realm>.json`
-  batch, in `find-new-yunos`' own preview output, and in the deploy docs, so
-  the alias is not optional. Consider the same for `delete-yuno` →
-  `delete-yuno-completely`, or at least make its help line say that it removes
-  the yuno and not a release.
+  **Done (2026-07-27):** the three help lines now name the discriminator
+  (`"Delete a release (yuno_release=...) or the WHOLE yuno (without it)"` and
+  friends), which is what `ycommand -c 'help delete-yuno'` shows.
+
+  **Still open, worth considering:** `delete-yuno` deleting the whole yuno
+  should arguably require something explicit rather than an omission — a
+  `whole=1`, or refusing the bare form when the yuno has more than one release.
+  Note `force=1` does **not** cover this: it guards the snap-tag check, not the
+  primary-vs-release choice. Consolidated project — read `list_delete_targets`
+  and the snap/rollback paths before touching.
 
 ## Observability: source-IP attribution in decoder logs — remaining pass
 
