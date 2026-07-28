@@ -2679,8 +2679,14 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *
          *  The queue is drained, not retried in place: the retry belongs
          *  to the NEXT request (process_next re-arms discovery), and a
-         *  browser that got an explicit 503 can decide to try again,
+         *  browser that got an explicit error can decide to try again,
          *  which is precisely what re-arms it.
+         *
+         *  502, not 503: c_auth_bff.h pins auth_service_unavailable to
+         *  502 ("IdP unreachable or 5xx"), which is exactly this case,
+         *  and 503 already means server_busy (pending queue full). One
+         *  code must not answer with two statuses — the GUI branches on
+         *  both.
          */
         if(dl_size(&priv->dl_pending) > 0) {
             gobj_log_error(gobj, 0,
@@ -2692,7 +2698,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
             flush_pending_with_error(gobj,
-                503, "auth_service_unavailable",
+                502, "auth_service_unavailable",
                 "Authentication service is not reachable yet");
         }
         return 0;
