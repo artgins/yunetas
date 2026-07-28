@@ -117,8 +117,16 @@ PYEOF
 # so it is placed into the build output here — after the two injections above,
 # so it is left pristine, and before the --delete rsync, so the mirror keeps it.
 mkdir -p "${ORIGIN}landing"
-cp landing/index.html "${ORIGIN}landing/index.html"
-echo "landing page installed at /landing"
+# The version lives in the source as __YUNETA_VERSION__ and is stamped
+# here, the same way index.md is above: written by hand in four places it
+# went stale at every release, and this page is the front door served at
+# yuneta.io.
+sed "s|__YUNETA_VERSION__|${VERSION}|g" landing/index.html > "${ORIGIN}landing/index.html"
+if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
+    echo "ERROR: landing page still carries an unsubstituted __YUNETA_VERSION__" >&2
+    exit 1
+fi
+echo "landing page installed at /landing (version ${VERSION})"
 
 # The login walkthrough: same deal as the landing — a standalone document
 # with no external requests, sharing the theme through

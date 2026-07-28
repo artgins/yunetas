@@ -6,6 +6,12 @@
 <meta name="description" content="Yuneta Simplified — an asynchronous framework for long-lived, message-driven services on Linux. Documentation.">
 
 <!--
+    __YUNETA_VERSION__ is substituted by deploy.sh when this file is
+    copied into the build, from the repo's YUNETA_VERSION. It used to be
+    the literal number in four places and went stale at every release,
+    so the front page announced an old version for months. Never write
+    a version number in this file — not even in a comment.
+
     Theme, resolved before the first paint so there is no flash.
 
     The stored preference is the MyST theme's own key, localStorage
@@ -759,7 +765,7 @@ h1.hero-title {
 <body>
 <div class="rail" aria-hidden="true">
     <span class="rail-stamp">doc.yuneta.io</span>
-    <span class="rail-ver">7.8.7</span>
+    <span class="rail-ver">__YUNETA_VERSION__</span>
 </div>
 
 <div class="shell">
@@ -784,7 +790,7 @@ h1.hero-title {
                 <span class="tick">/</span>
                 <span class="label">Documentation</span>
                 <span class="tick">/</span>
-                <span class="label">v7.8.7 &middot; MIT &middot; Linux</span>
+                <span class="label">v__YUNETA_VERSION__ &middot; MIT &middot; Linux</span>
             </div>
 
             <h1 class="hero-title">Nothing happens except through the machine.</h1>
@@ -865,7 +871,7 @@ h1.hero-title {
 
             <dl class="spec">
                 <dt>Version</dt>
-                <dd><span class="em">7.8.7</span></dd>
+                <dd><span class="em">__YUNETA_VERSION__</span></dd>
                 <dt>Languages</dt>
                 <dd>C (reference) &middot; JavaScript</dd>
                 <dt>Platform</dt>
@@ -1103,6 +1109,7 @@ h1.hero-title {
                     <li><a href="/realms">Realms &amp; multi-tenancy</a></li>
                     <li><a href="/scaffolding">Scaffolding new yunos</a></li>
                     <li><a href="/yuno-auth">Auth, permissions, TLS</a></li>
+                    <li><a href="/login-flow">The login, gobj by gobj &nbsp;▸</a></li>
                 </ul>
             </div>
             <div class="map-col">
@@ -1141,7 +1148,7 @@ h1.hero-title {
     </section>
 
     <footer class="foot">
-        <span>Yuneta Simplified 7.8.7</span>
+        <span>Yuneta Simplified __YUNETA_VERSION__</span>
         <span class="sep">/</span>
         <span>MIT</span>
         <span class="sep">/</span>

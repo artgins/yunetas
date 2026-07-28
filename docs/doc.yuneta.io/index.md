@@ -45,6 +45,30 @@ Versions in **C** (reference implementation) and **JavaScript** (browser/Node).
 
 ---
 
+## Interactive walkthroughs
+
+Pages that run rather than read: a diagram you step through instead of a
+figure you stare at. They live outside the sidebar's table of contents —
+they are whole documents, not chapters — so this is where they are
+listed.
+
+- [**The login, gobj by gobj**](https://doc.yuneta.io/login-flow) — the
+  `auth_bff` exchange as a graph that runs, with the real gobjs and the
+  real events on the edges. Five scenarios (login, restore, silent
+  refresh, transient failure, logout), the browser's cookie jar and the
+  client FSM updating at every step, and the checklist a new GUI has to
+  implement. Prose behind it: [Yuno auth](yuno-auth).
+
+:::{note} Adding one
+Drop a self-contained `index.html` under `docs/doc.yuneta.io/<slug>/`
+(no external requests — the theme travels through
+`localStorage["myst:theme"]`), install it in `deploy.sh` next to the
+others, and add a line here. `myst` copies no raw files, which is why
+the install step exists at all.
+:::
+
+---
+
 ## About this documentation
 
 This site is built with [mystmd (Jupyter Book 2)](https://mystmd.org). The
