@@ -647,7 +647,7 @@ Points found so far (verified this session unless noted):
 1. **`enable_command_authz` is OFF on every node** (attr absent). With it off,
    the per-command `SDF_AUTHZ_X` gate in
    [`command_parser.c`](../../../kernel/c/gobj-c/src/command_parser.c) never
-   fires (see [§4.5](#45-the-command-authz-check--re-armed-gated-opt-in)), so
+   fires (see [§4.5](https://doc.yuneta.io/yuno-auth#id-4-5-the-command-authz-check-re-armed-gated-opt-in)), so
    **any principal the node authenticates can run the entire agent surface** —
    `install-binary`, `update-binary`, `kill-yuno`, `deactivate-snap`,
    `create/delete-realm`, `command-yuno`, configs, … The node authz list
