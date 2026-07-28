@@ -28,8 +28,8 @@
  *    POST /auth/refresh
  *      Reads the "refresh_token" httpOnly cookie from the request.
  *      Action: call IdP refresh endpoint, overwrite cookies.
- *      Returns { "success": true, "expires_in": N,
- *                "refresh_expires_in": N }.
+ *      Returns { "success": true, "username": "…", "email": "…",
+ *                "expires_in": N, "refresh_expires_in": N }.
  *
  *    POST /auth/logout
  *      Reads the "refresh_token" httpOnly cookie from the request.
@@ -1545,9 +1545,22 @@ PRIVATE json_t *send_token_to_browser(
             "refresh_expires_in", (json_int_t)ref_exp_in
         );
     } else {
-        /* BFF_REFRESH */
-        jn_resp = json_pack("{s:b, s:I, s:I}",
+        /*
+         *  BFF_REFRESH — the identity travels too, and it has to.
+         *
+         *  A refresh is how a SPA restores its session after a reload,
+         *  and the tokens are httpOnly: JavaScript cannot read them, so
+         *  the browser has NO other way to learn who it is. Omitting
+         *  username/email here left every reloaded SPA showing an
+         *  anonymous user until the next full login.
+         *
+         *  Both are already decoded above for every action, so this
+         *  costs nothing and only ADDS fields to the response.
+         */
+        jn_resp = json_pack("{s:b, s:s, s:s, s:I, s:I}",
             "success",          1,
+            "username",         username,
+            "email",            email,
             "expires_in",       (json_int_t)expires_in,
             "refresh_expires_in", (json_int_t)ref_exp_in
         );
