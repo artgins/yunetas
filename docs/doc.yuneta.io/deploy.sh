@@ -128,14 +128,20 @@ if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
 fi
 echo "landing page installed at /landing (version ${VERSION})"
 
-# The login walkthrough: same deal as the landing — a standalone document
-# with no external requests, sharing the theme through
-# localStorage["myst:theme"].  It draws the auth_bff exchange as a running
-# graph of the real gobjs, which no markdown page can do, so it ships as
-# raw HTML and the /yuno-auth chapter links to it.
-mkdir -p "${ORIGIN}login-flow"
-cp login-flow/index.html "${ORIGIN}login-flow/index.html"
-echo "login walkthrough installed at /login-flow"
+#
+#   Interactive walkthroughs: standalone documents with no external
+#   requests, sharing the theme through localStorage["myst:theme"].  They
+#   draw things no markdown page can (a graph that runs), so they ship as
+#   raw HTML — myst copies no raw files.
+#
+#   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
+#   slug below, and list it in the landing's "Pages that run" band.
+#
+for _walkthrough in login-flow; do
+    mkdir -p "${ORIGIN}${_walkthrough}"
+    cp "${_walkthrough}/index.html" "${ORIGIN}${_walkthrough}/index.html"
+    echo "walkthrough installed at /${_walkthrough}"
+done
 
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on

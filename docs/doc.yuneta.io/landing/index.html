@@ -1070,6 +1070,43 @@ h1.hero-title {
         </nav>
     </section>
 
+    <!-- ============ WALKTHROUGHS ============
+
+         Standalone interactive documents, not chapters: myst copies no
+         raw files and its sidebar never lists them, so THIS is their
+         index. Adding one is three steps:
+
+           1. docs/doc.yuneta.io/<slug>/index.html — self-contained, no
+              external requests, theme through localStorage["myst:theme"]
+           2. an install line in deploy.sh, next to the others
+           3. one <a class="step"> below, and a line in the site map
+
+         Keep the list in the order a reader would want them, not in the
+         order they were written. No counter in the band-head label: it
+         would go stale the first time this grows.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>Pages that run</h2>
+            <span class="label">Walkthroughs</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">Whole documents
+        rather than chapters: a diagram you step through instead of a figure you stare at.</p>
+
+        <nav class="path">
+            <a class="step" href="/login-flow">
+                <span class="step-n">&#9654;</span>
+                <span>
+                    <span class="step-t">The login, gobj by gobj</span>
+                    <span class="step-d">The auth_bff exchange as a graph that runs: the real gobjs, the real events, five scenarios.</span>
+                </span>
+            </a>
+
+            <!-- next walkthrough goes here -->
+        </nav>
+    </section>
+
     <!-- ============ MAP ============ -->
     <section class="band">
         <div class="band-head">
