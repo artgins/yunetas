@@ -93,6 +93,15 @@ A standalone Yuneta yuno that runs the [`C_AUTH_BFF`](#gclass-c-auth-bff) kernel
 the **only** thing on the system that talks [OAuth2](https://oauth.net/2/) to the IdP. The SPA
 never sees a token — it just carries the cookie.
 
+:::{tip} Writing the GUI side? Watch the exchange run.
+[**The login, gobj by gobj**](https://doc.yuneta.io/login-flow) draws this
+dialogue as a running graph of the real gobjs — which event travels from
+`C_AUTH_BFF` to `C_TASK` to `C_PROT_HTTP_CL` and back — with the browser's
+cookie jar and the client FSM updating at every step. Five scenarios: login,
+restore, silent refresh, **transient failure** and logout. It carries the
+checklist a new GUI has to implement; this chapter is the prose behind it.
+:::
+
 ### 2.1 Why a BFF (and not the SPA talking to Keycloak)
 
 Tokens live in **HttpOnly cookies**, scoped by domain (no port). JavaScript

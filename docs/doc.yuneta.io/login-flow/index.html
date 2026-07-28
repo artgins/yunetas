@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The auth_bff login exchange as a running graph of gobjs: which event travels where, what the browser stores, and what a new GUI must implement.">
+
+<!--
+    The login exchange, gobj by gobj.
+
+    A standalone document (no external requests) served at /login-flow,
+    installed by deploy.sh the same way as /landing: myst copies no raw
+    files, so the build output gets it from there.
+
+    Theme, resolved before the first paint so there is no flash. The
+    stored preference is the MyST theme's own key, localStorage
+    "myst:theme", so the choice made in a chapter is the one this page
+    opens with, and the toggle here is the one the docs obey.
+
+    The gobjs and the events drawn here are the real ones:
+    C_IOGATE -> C_CHANNEL -> C_AUTH_BFF on the server side, with C_TASK
+    driving the outbound C_PROT_HTTP_CL. The error_code catalogue comes
+    from c_auth_bff.h, the cookie and response shapes from c_auth_bff.c,
+    and the client FSM from the reference client c_login.js.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>The login, gobj by gobj — Yuneta</title>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+
+  :root, :root[data-theme="light"] {
+    --paper: #F3F4F7; --raise: #FBFBFD; --sunk: #E9EBF1;
+    --ink: #171A21; --muted: #5D6474; --rule: #D3D7E1;
+    --gui: #2D4EC8; --bff: #0E6F63; --idp: #6B4FA8;
+    --deny: #A3282F; --tran: #9A5B00;
+    --shadow: 0 1px 2px rgba(23,26,33,.05), 0 10px 30px -22px rgba(23,26,33,.55);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0F1116; --raise: #171A21; --sunk: #0A0C10;
+    --ink: #E7E9EE; --muted: #969DAF; --rule: #262B36;
+    --gui: #7C93F5; --bff: #46C4B2; --idp: #B49AE8;
+    --deny: #E9737A; --tran: #D9A23F;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -22px rgba(0,0,0,1);
+  }
+
+  :root {
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --measure: 68ch;
+    --s--1: clamp(.76rem, .74rem + .1vw, .82rem);
+    --s-0:  clamp(1rem, .97rem + .16vw, 1.1rem);
+    --s-1:  clamp(1.16rem, 1.1rem + .3vw, 1.35rem);
+    --s-2:  clamp(1.45rem, 1.3rem + .7vw, 1.9rem);
+    --s-3:  clamp(2rem, 1.6rem + 2vw, 3.3rem);
+  }
+
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: var(--s-0); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .7rem clamp(1rem, 3vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--raise);
+    font-family: var(--mono); font-size: var(--s--1);
+  }
+  .topbar a { color: var(--muted); text-decoration: none; }
+  .topbar a:hover { color: var(--ink); text-decoration: underline; }
+  #theme-toggle {
+    background: none; border: 1px solid var(--rule); border-radius: 2px;
+    color: var(--muted); font-family: var(--mono); font-size: var(--s--1);
+    padding: .3rem .7rem; cursor: pointer;
+  }
+  #theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+
+  .wrap {
+    max-width: 82rem; margin: 0 auto;
+    padding: clamp(1.8rem, 4vw, 3.5rem) clamp(1rem, 3vw, 2.5rem) 6rem;
+    display: flex; flex-direction: column; gap: clamp(2.8rem, 5vw, 4.5rem);
+  }
+  .col { max-width: var(--measure); display: flex; flex-direction: column; gap: 1.05em; }
+
+  h1, h2, h3, .eyebrow, button, th, .chip, .pill, .counter, .legend { font-family: var(--mono); }
+  h1 { font-size: var(--s-3); line-height: 1.03; letter-spacing: -.03em; font-weight: 600; margin: 0; text-wrap: balance; }
+  h2 { font-size: var(--s-2); line-height: 1.15; letter-spacing: -.02em; font-weight: 600; margin: 0; text-wrap: balance; }
+  h3 { font-size: var(--s-0); letter-spacing: .06em; text-transform: uppercase; font-weight: 600; margin: 0; color: var(--muted); }
+  p { margin: 0; }
+
+  .eyebrow { font-size: var(--s--1); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .standfirst { font-size: var(--s-1); line-height: 1.45; color: var(--muted); text-wrap: pretty; }
+
+  code { font-family: var(--mono); }
+  p code, li code, td code {
+    font-size: .87em; background: var(--sunk);
+    border: 1px solid var(--rule); border-radius: 3px; padding: .06em .3em;
+  }
+  strong { font-weight: 650; }
+  .rule-top { height: 3px; background: var(--ink); max-width: 7rem; }
+
+  .player { background: var(--raise); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); overflow: hidden; }
+
+  .scenarios { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--rule); background: var(--sunk); }
+  .scenarios button {
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--muted); font-size: var(--s--1); letter-spacing: .05em;
+    padding: .85rem 1.1rem; cursor: pointer;
+  }
+  .scenarios button:hover { color: var(--ink); }
+  .scenarios button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); background: var(--raise); }
+
+  .graph-box { background: var(--raise); border-bottom: 1px solid var(--rule); }
+  /* a graph is wide content: it scrolls, the page never does */
+  .graph-scroll { overflow-x: auto; }
+  canvas { display: block; }
+
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; padding: .1rem 1rem .8rem; font-size: var(--s--1); color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: .35rem; }
+  .legend i { width: .7rem; height: .7rem; border-radius: 50%; display: inline-block; }
+
+  .stage { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 1px; background: var(--rule); }
+  @media (max-width: 56rem) { .stage { grid-template-columns: 1fr; } }
+  .wire, .state { background: var(--raise); padding: 1.1rem 1.2rem; }
+
+  .step-title { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .7rem; }
+  .step-n { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .step-h { font-weight: 600; font-size: var(--s-1); letter-spacing: -.01em; }
+
+  pre {
+    margin: 0; overflow-x: auto; background: var(--sunk);
+    border: 1px solid var(--rule); border-left: 3px solid var(--muted); border-radius: 2px;
+    padding: .85rem 1rem; font-family: var(--mono); font-size: var(--s--1);
+    line-height: 1.7; white-space: pre;
+  }
+  pre[data-side="gui"] { border-left-color: var(--gui); }
+  pre[data-side="bff"] { border-left-color: var(--bff); }
+  pre[data-side="idp"] { border-left-color: var(--idp); }
+
+  .why { margin-top: .8rem; color: var(--muted); font-size: var(--s--1); line-height: 1.6; }
+  .why strong { color: var(--ink); }
+
+  .state { display: flex; flex-direction: column; gap: 1.1rem; }
+  .state h3 { margin-bottom: .45rem; }
+  .fsm { font-family: var(--mono); font-size: var(--s-1); font-weight: 600; letter-spacing: -.01em; }
+  .fsm .ev { display: block; font-size: var(--s--1); font-weight: 400; color: var(--muted); margin-top: .15rem; }
+
+  .jar { display: flex; flex-direction: column; gap: .4rem; }
+  .chip {
+    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+    font-size: var(--s--1); border: 1px solid var(--rule); border-radius: 2px;
+    padding: .45rem .6rem; background: var(--sunk);
+  }
+  .chip[data-on="0"] { opacity: .35; }
+  .chip .k { font-weight: 600; }
+  .chip .v { color: var(--muted); }
+  .jar-note { font-size: var(--s--1); color: var(--muted); }
+
+  .controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .8rem 1.2rem; border-top: 1px solid var(--rule); background: var(--sunk); }
+  .controls button {
+    background: var(--raise); color: var(--ink); border: 1px solid var(--rule);
+    border-radius: 2px; font-size: var(--s--1); letter-spacing: .05em;
+    padding: .5rem .9rem; cursor: pointer;
+  }
+  .controls button:hover:not(:disabled) { border-color: var(--ink); }
+  #play { background: var(--ink); color: var(--paper); border-color: var(--ink); min-width: 6.5rem; }
+  .counter { font-size: var(--s--1); color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+  .dots { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .dots button { width: 1.9rem; height: 1.9rem; padding: 0; font-variant-numeric: tabular-nums; }
+  .dots button[aria-current="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  :focus-visible { outline: 2px solid var(--gui); outline-offset: 2px; }
+
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1.5rem; }
+  .panel {
+    background: var(--raise); border: 1px solid var(--rule); border-top: 3px solid var(--rule);
+    border-radius: 2px; padding: 1.3rem 1.3rem 1.5rem;
+    display: flex; flex-direction: column; gap: .8rem;
+  }
+  .panel.you { border-top-color: var(--gui); }
+  .panel.done { border-top-color: var(--bff); }
+  .panel h3 { color: var(--ink); }
+  .panel .tag { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); }
+  .panel ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .5em; font-size: var(--s--1); line-height: 1.55; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 2px; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--s--1); }
+  th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--sunk); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.code { font-family: var(--mono); white-space: nowrap; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .pill { display: inline-block; font-size: var(--s--1); padding: .1rem .45rem; border-radius: 2px; border: 1px solid; letter-spacing: .04em; white-space: nowrap; }
+  .pill.deny { color: var(--deny); border-color: var(--deny); }
+  .pill.tran { color: var(--tran); border-color: var(--tran); }
+
+  .callout { border-left: 3px solid var(--tran); background: var(--raise); border-radius: 2px; padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: .6em; }
+  ol.checklist { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .9em; }
+  ol.checklist li::marker { font-family: var(--mono); color: var(--muted); }
+
+  footer { border-top: 1px solid var(--rule); padding-top: 1.3rem; font-size: var(--s--1); color: var(--muted); max-width: var(--measure); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button id="theme-toggle" type="button">theme</button>
+</nav>
+
+<div class="wrap">
+
+  <header class="col">
+    <div class="rule-top"></div>
+    <p class="eyebrow">Authentication API &middot; auth_bff</p>
+    <h1>The login, gobj by gobj</h1>
+    <p class="standfirst">
+      The whole exchange, running: which gobj sends which event to which
+      gobj, what the browser holds, and what a new GUI has to implement.
+      The token never crosses into JavaScript — that one restriction
+      explains everything else.
+    </p>
+  </header>
+
+  <section class="player" id="player">
+    <div class="scenarios" role="tablist" aria-label="Scenarios"></div>
+
+    <div class="graph-box">
+      <div class="graph-scroll">
+        <canvas id="graph" role="img" aria-label="Graph of the dialogue between gobjs"></canvas>
+      </div>
+      <div class="legend">
+        <span><i style="background: var(--gui);"></i> browser</span>
+        <span><i style="background: var(--bff);"></i> yuneta node</span>
+        <span><i style="background: var(--idp);"></i> external</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="wire">
+        <div class="step-title">
+          <span class="step-n" id="step-n"></span>
+          <span class="step-h" id="step-h"></span>
+        </div>
+        <pre id="wire"></pre>
+        <p class="why" id="why"></p>
+      </div>
+
+      <div class="state">
+        <div>
+          <h3>FSM state</h3>
+          <div class="fsm"><span id="fsm-state"></span><span class="ev" id="fsm-ev"></span></div>
+        </div>
+        <div>
+          <h3>Browser cookies</h3>
+          <div class="jar">
+            <div class="chip" id="chip-at" data-on="0"><span class="k">access_token</span><span class="v">&mdash;</span></div>
+            <div class="chip" id="chip-rt" data-on="0"><span class="k">refresh_token</span><span class="v">&mdash;</span></div>
+          </div>
+          <p class="jar-note">HttpOnly &middot; Secure &middot; SameSite=Strict</p>
+        </div>
+        <div>
+          <h3>What JavaScript sees</h3>
+          <pre id="js-sees"></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="play" type="button">Pause</button>
+      <button id="prev" type="button" aria-label="Previous step">&larr;</button>
+      <button id="next" type="button" aria-label="Next step">&rarr;</button>
+      <div class="dots" id="dots"></div>
+      <span class="counter" id="counter"></span>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>The division of labour</h2>
+    <p>
+      Almost all the weight sits in the backend, and it is already written.
+      What is left for the GUI is small — but getting one of those pieces
+      wrong breaks the session in ways that are hard to diagnose.
+    </p>
+  </section>
+
+  <section class="split">
+    <article class="panel you">
+      <span class="tag">frontend</span>
+      <h3>What you implement</h3>
+      <ul>
+        <li>Send every request with <code>credentials: "include"</code>. Without it cookies do not travel and nothing works.</li>
+        <li>Classify each failure: <strong>transport</strong> or <strong>verdict</strong>. This is the decision that breaks the most sessions.</li>
+        <li>Arm the refresh before the <code>access_token</code> expires, using the <code>expires_in</code> you were given.</li>
+        <li>Try to restore the session on page load, before painting the form.</li>
+        <li>Model the states in an FSM and send every action as an event.</li>
+        <li>Translate by <code>error_code</code>; never display the <code>error</code> field.</li>
+      </ul>
+    </article>
+
+    <article class="panel done">
+      <span class="tag">backend</span>
+      <h3>What the BFF already does</h3>
+      <ul>
+        <li>Speak OAuth2 to the IdP: it is the only thing in the system that does.</li>
+        <li>Discover the endpoints from <code>issuer</code>, and retry when that fails.</li>
+        <li>Write and clear the cookies with their security attributes.</li>
+        <li>Bound every IdP round-trip with a watchdog, and answer instead of hanging.</li>
+        <li>Validate the JWT of every incoming WebSocket against the issuer's JWKS.</li>
+        <li>Return a stable <code>error_code</code>, designed as an i18n key.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="col">
+    <h2>The decision that breaks sessions</h2>
+    <p>
+      A failure of the <strong>transport</strong> says nothing about the
+      user's credentials. The network going away, the backend answering 5xx,
+      a body that is not JSON — a proxy error page — none of that is a
+      denial: it is noise. The session is still alive, because the refresh
+      cookie is untouched.
+    </p>
+    <div class="callout">
+      <p>
+        <strong>Rule:</strong> only a <code>4xx</code> from the BFF is a
+        verdict on the user. Everything else is retried with backoff, and the
+        session is <strong>kept</strong>.
+      </p>
+      <p style="color: var(--muted); font-size: var(--s--1);">
+        Reading <code>data.success</code> while ignoring the HTTP status is
+        the classic mistake: after a node reboots, the <code>502</code> it
+        answers while coming up reads as "credentials rejected" and drops the
+        user to the login form for no reason.
+      </p>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>The four endpoints</h2>
+    <p>All <code>POST</code>. All need <code>credentials: "include"</code>.</p>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Body you send</th><th>What it does</th><th>Cookies</th></tr></thead>
+      <tbody>
+        <tr><td class="code">/auth/login</td><td class="code">{username, password}</td><td>Exchanges credentials with the IdP</td><td>writes both</td></tr>
+        <tr><td class="code">/auth/callback</td><td class="code">{code, code_verifier,<br>&nbsp;redirect_uri}</td><td>PKCE code exchange</td><td>writes both</td></tr>
+        <tr><td class="code">/auth/refresh</td><td class="code">&mdash;</td><td>Renews from the refresh cookie</td><td>rewrites both</td></tr>
+        <tr><td class="code">/auth/logout</td><td class="code">&mdash;</td><td>Ends the session at the IdP too</td><td>clears both</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="col">
+    <h2>Responses</h2>
+    <p>Success always has this shape. The tokens are absent: they are in the cookies.</p>
+  </section>
+
+  <pre style="max-width: var(--measure);">{ "success": true,
+  "username": "…",
+  "email": "…",
+  "expires_in": 300,
+  "refresh_expires_in": 1800 }</pre>
+
+  <section class="col"><p>And an error, always this one:</p></section>
+
+  <pre style="max-width: var(--measure);">{ "success": false,
+  "error_code": "session_expired",
+  "error":      "…"   <span style="color: var(--muted);">← for the log, NOT for the user</span> }</pre>
+
+  <section class="col">
+    <h2>The <code>error_code</code> catalogue</h2>
+    <p>
+      It is the stable contract with the GUI: use it as the translation key.
+      The right-hand column is how your client must react.
+    </p>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>error_code</th><th class="num">HTTP</th><th>When</th><th>React as</th></tr></thead>
+      <tbody>
+        <tr><td class="code">invalid_credentials</td><td class="num">401</td><td>Wrong username or password (login only)</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">session_expired</td><td class="num">401</td><td>Refresh token or auth code no longer valid</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">account_disabled</td><td class="num">403</td><td>Account disabled or not fully set up</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">auth_rate_limited</td><td class="num">429</td><td>Too many login attempts</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">missing_refresh_token</td><td class="num">401</td><td>No refresh cookie present</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">missing_access_token</td><td class="num">401</td><td><code>/auth/token</code> without the AT cookie</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">method_not_allowed</td><td class="num">405</td><td>Request was not POST</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">missing_body</td><td class="num">400</td><td>POST with no JSON body</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">missing_params</td><td class="num">400</td><td>Required fields absent</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">redirect_uri_not_allowed</td><td class="num">400</td><td>redirect_uri fails the allowlist</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">origin_not_allowed</td><td class="num">403</td><td>Origin does not match (fail-closed)</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">unknown_endpoint</td><td class="num">404</td><td>URL outside the set</td><td><span class="pill deny">verdict</span></td></tr>
+        <tr><td class="code">auth_config_error</td><td class="num">500</td><td>BFF misconfigured</td><td><span class="pill tran">transport</span></td></tr>
+        <tr><td class="code">auth_service_unavailable</td><td class="num">502</td><td>IdP unreachable or 5xx</td><td><span class="pill tran">transport</span></td></tr>
+        <tr><td class="code">auth_unexpected_error</td><td class="num">502</td><td>IdP returned something unexpected</td><td><span class="pill tran">transport</span></td></tr>
+        <tr><td class="code">auth_empty_response</td><td class="num">502</td><td>IdP reply had no body</td><td><span class="pill tran">transport</span></td></tr>
+        <tr><td class="code">server_busy</td><td class="num">503</td><td>Pending queue full</td><td><span class="pill tran">transport</span></td></tr>
+        <tr><td class="code">auth_timeout</td><td class="num">504</td><td>Watchdog fired, no reply in time</td><td><span class="pill tran">transport</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="col">
+    <h2>The minimal FSM</h2>
+    <p>
+      Three states. Every action enters as an event — a click included. A view
+      that lives entirely in one state, calling functions straight from DOM
+      callbacks, throws away the machine trace, which is the only thing that
+      explains a failure afterwards.
+    </p>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>State</th><th>Events it accepts</th><th>Means</th></tr></thead>
+      <tbody>
+        <tr><td class="code">ST_LOGOUT</td><td class="code">EV_DO_LOGIN &middot; EV_LOGIN_DENIED &middot; EV_LOGOUT_DONE</td><td>No session. The form is on screen.</td></tr>
+        <tr><td class="code">ST_WAIT_TOKEN</td><td class="code">EV_LOGIN_ACCEPTED &middot; EV_LOGIN_DENIED</td><td>A request is in flight: login, or restore on load.</td></tr>
+        <tr><td class="code">ST_LOGIN</td><td class="code">EV_TIMEOUT &middot; EV_LOGIN_REFRESHED &middot; EV_REFRESH_FAILED &middot; EV_DO_LOGOUT</td><td>Session alive, refresh armed.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="col">
+    <div class="callout" style="border-left-color: var(--deny);">
+      <p>
+        <strong>The trap when adding <code>EV_REFRESH_FAILED</code>:</strong>
+        if you publish it as an output event, <em>every</em> subscriber of the
+        login service must declare it in its FSM. One that does not will raise
+        <em>"Event NOT DEFINED in state"</em> on every transient failure — you
+        will have traded an annoying logout for a noisy error. If a subscriber
+        is frozen and you cannot touch it, do not publish: report it inside the
+        service instead.
+      </p>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>Checklist for a new GUI</h2>
+    <ol class="checklist">
+      <li><strong>Create the login service</strong> with the BFF base URL and a subscriber.</li>
+      <li><strong>Restore on start:</strong> <code>POST /auth/refresh</code> before painting anything. If it succeeds you are in; if not, show the form. On a cold load do not build a retry loop: there is no session to protect.</li>
+      <li><strong>Login:</strong> the form submit sends an event; the action performs the <code>POST</code>.</li>
+      <li><strong>Classify the response</strong> by HTTP status <em>before</em> looking at <code>success</code>.</li>
+      <li><strong>Arm the refresh</strong> from <code>expires_in</code>, a few seconds early.</li>
+      <li><strong>Back off on a transient failure</strong>, starting at seconds with a cap; reset it when a refresh lands.</li>
+      <li><strong>Logout:</strong> <code>POST /auth/logout</code> and return to <code>ST_LOGOUT</code>. Do not clear cookies from JS — you cannot.</li>
+      <li><strong>Translate by <code>error_code</code></strong> and add the codes to the locale catalogues. A missing key renders as lowercase English and never changes language.</li>
+    </ol>
+  </section>
+
+  <footer>
+    The gobjs and events in the graph are the real ones:
+    <code>C_IOGATE</code> &rarr; <code>C_CHANNEL</code> &rarr;
+    <code>C_AUTH_BFF</code> on the server side, with <code>C_TASK</code>
+    driving the outbound <code>C_PROT_HTTP_CL</code>. The contract comes from
+    <code>c_auth_bff.h</code> (the <code>error_code</code> catalogue),
+    <code>c_auth_bff.c</code> (cookies and response shapes) and the reference
+    client <code>c_login.js</code>. Prose chapter:
+    <a href="/yuno-auth" style="color: var(--gui);">Yuno auth</a>.
+  </footer>
+
+</div>
+
+<script>
+  /* ---------------- topology: the real gobjs ---------------- */
+
+  const NODES = {
+    DOM:   { x: .075, y: .20, side: "gui", label: "DOM",            sub: "the click" },
+    LOGIN: { x: .075, y: .55, side: "gui", label: "C_LOGIN",        sub: "service" },
+    APP:   { x: .075, y: .88, side: "gui", label: "C_…_APP",        sub: "subscriber" },
+    SR:    { x: .40,  y: .55, side: "bff", label: "C_PROT_HTTP_SR", sub: "bff-1" },
+    BFF:   { x: .585, y: .55, side: "bff", label: "C_AUTH_BFF",     sub: "bff-1" },
+    TASK:  { x: .585, y: .17, side: "bff", label: "C_TASK",         sub: "one trip" },
+    CL:    { x: .775, y: .55, side: "bff", label: "C_PROT_HTTP_CL", sub: "outbound" },
+    IDP:   { x: .945, y: .55, side: "idp", label: "IdP",            sub: "Keycloak" }
+  };
+
+  const EDGES = [
+    ["DOM","LOGIN"], ["LOGIN","APP"], ["LOGIN","SR"],
+    ["SR","BFF"], ["BFF","TASK"], ["TASK","CL"], ["BFF","CL"], ["CL","IDP"]
+  ];
+
+  const NONE = JSON.stringify({}, null, 2);
+  const SESSION = JSON.stringify({ username: "ann@example.com", expires_in: 300 }, null, 2);
+
+  const SCENARIOS = [
+    {
+      id: "login", name: "Login",
+      steps: [
+        { from:"DOM", to:"LOGIN", tag:"EV_DO_LOGIN", side:"gui",
+          h:"The form sends an event",
+          wire:'gobj_send_event(login, "EV_DO_LOGIN",\n    { username, password }, gobj);',
+          why:"A click <strong>is</strong> an action: it enters the machine, it does not call a function. Whatever happens next is in the trace.",
+          fsm:"ST_LOGOUT", ev:"→ EV_DO_LOGIN", at:0, rt:0, js:NONE },
+
+        { from:"LOGIN", to:"SR", tag:"POST /auth/login", side:"gui",
+          h:"Across the wire",
+          wire:'POST /auth/login\nContent-Type: application/json\ncredentials: "include"\n\n{ "username": "ann@example.com",\n  "password": "……" }',
+          why:"Without <strong>credentials: include</strong> the browser neither sends nor accepts cookies, and the session never comes to exist.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"SR", to:"BFF", tag:"EV_ON_MESSAGE", side:"bff",
+          h:"Into the session gobj",
+          wire:'C_IOGATE^__bff_side__\n  ` C_CHANNEL^bff-1\n      ` C_AUTH_BFF^bff-1   ← here',
+          why:"There is one <code>C_AUTH_BFF</code> per browser connection, each with its own queue and its own endpoint discovery.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"BFF", to:"TASK", tag:"gobj_start()", side:"bff",
+          h:"Creates the task for the trip",
+          wire:'gobj_create(idp_name, C_TASK, {\n    exec_action:  "get_token_from_idp",\n    exec_result:  "send_token_to_browser",\n    exec_timeout: idp_timeout_ms\n}, gobj);',
+          why:"One <code>C_TASK</code> per trip to the IdP. It is what bounds the reply time and what announces the end.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"TASK", to:"CL", tag:"exec_action", side:"bff",
+          h:"Fires the action",
+          wire:'get_token_from_idp()\n  → C_PROT_HTTP_CL (bottom: C_TCP)',
+          why:"The action only runs once the channel is connected. If the IdP is unreachable nothing happens here — which is why the BFF arms a watchdog of its own.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"CL", to:"IDP", tag:"grant_type=password", side:"idp",
+          h:"Server to server",
+          wire:'POST  token_endpoint\ngrant_type=password\nclient_id=…\nusername=…&password=…',
+          why:"The browser takes no part in this leg and never sees this traffic.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"IDP", to:"CL", tag:"200 tokens", side:"idp",
+          h:"The IdP answers",
+          wire:'{ "access_token": "eyJ…",\n  "refresh_token": "eyJ…",\n  "expires_in": 300,\n  "refresh_expires_in": 1800 }',
+          why:"This is the only moment the tokens exist in the clear inside the process. From here they go into cookies and never come back out.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"CL", to:"TASK", tag:"EV_ON_MESSAGE", side:"bff",
+          h:"The task collects the result",
+          wire:'exec_result → send_token_to_browser()',
+          why:"<code>C_TASK</code> chains action and result; the ordering is its job, not the application gclass's.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"TASK", to:"BFF", tag:"EV_END_TASK", side:"bff",
+          h:"End of task",
+          wire:'{ "result": 0,\n  "last_job": 0,\n  "output_data": { … } }',
+          why:"<code>result</code> is 0 on the happy path, <code>-1</code> when a handler already answered, and <code>-2</code> when a timer fired.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:0, rt:0, js:NONE },
+
+        { from:"BFF", to:"SR", tag:"200 + Set-Cookie ×2", side:"bff",
+          h:"Writes the cookies",
+          wire:'HTTP/1.1 200 OK\nSet-Cookie: access_token=…;  HttpOnly; Secure; SameSite=Strict\nSet-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict\n\n{ "success": true,\n  "username": "ann@example.com",\n  "email": "ann@example.com",\n  "expires_in": 300,\n  "refresh_expires_in": 1800 }',
+          why:"The tokens travel <strong>only</strong> in the cookies. The body carries just enough to paint the interface and schedule the refresh.",
+          fsm:"ST_WAIT_TOKEN", ev:"awaiting reply", at:1, rt:1, js:NONE },
+
+        { from:"SR", to:"LOGIN", tag:"response", side:"gui",
+          h:"Back in the browser",
+          wire:'const {status, data} = await post("/auth/login", …);\n\ntransient = !resp.ok && resp.status >= 500;',
+          why:"Classify <strong>before</strong> looking at <code>success</code>: the HTTP status is what separates a verdict from a transport failure.",
+          fsm:"ST_WAIT_TOKEN", ev:"→ EV_LOGIN_ACCEPTED", at:1, rt:1, js:SESSION },
+
+        { from:"LOGIN", to:"APP", tag:"EV_LOGIN_ACCEPTED", side:"gui",
+          h:"Session alive",
+          wire:'ac_login_accepted()\n  store expires_in\n  set_timeout(timer, (expires_in - 30) * 1000)\n  open the WebSocket',
+          why:"The WebSocket upgrade request carries the cookies by itself; the backend reads the JWT from the header and validates it against the JWKS.",
+          fsm:"ST_LOGIN", ev:"refresh armed", at:1, rt:1, js:SESSION }
+      ]
+    },
+
+    {
+      id: "restore", name: "Restore session",
+      steps: [
+        { from:"LOGIN", to:"LOGIN", tag:"mt_start()", side:"gui",
+          h:"Before painting the form",
+          wire:'mt_start(gobj)\n  gobj_change_state(gobj, "ST_WAIT_TOKEN")\n  try_restore_session(gobj)',
+          why:"Restore is attempted <strong>before</strong> showing the login. Painting the form and then removing it is an ugly flash.",
+          fsm:"ST_WAIT_TOKEN", ev:"restoring", at:1, rt:1, js:NONE },
+
+        { from:"LOGIN", to:"SR", tag:"POST /auth/refresh", side:"gui",
+          h:"The cookie IS the credential",
+          wire:'POST /auth/refresh\ncredentials: "include"\n\n(no body)',
+          why:"JavaScript cannot read the refresh token, but the browser attaches it by itself. That is the whole point of the design.",
+          fsm:"ST_WAIT_TOKEN", ev:"restoring", at:1, rt:1, js:NONE },
+
+        { from:"CL", to:"IDP", tag:"grant_type=refresh_token", side:"idp",
+          h:"Renews at the IdP",
+          wire:'POST  token_endpoint\ngrant_type=refresh_token',
+          why:"The BFF takes the refresh token out of the cookie; the browser never handled it.",
+          fsm:"ST_WAIT_TOKEN", ev:"restoring", at:1, rt:1, js:NONE },
+
+        { from:"SR", to:"LOGIN", tag:"200 + Set-Cookie ×2", side:"gui",
+          h:"In, with no form",
+          wire:'{ "success": true, "username": "…", … }\n\n→ EV_LOGIN_ACCEPTED',
+          why:"If <code>401 missing_refresh_token</code> arrives instead, that is a verdict: <code>EV_RESTORE_FAILED</code> and the login is painted. On a cold load, do <strong>not</strong> retry.",
+          fsm:"ST_LOGIN", ev:"→ EV_LOGIN_ACCEPTED", at:1, rt:1, js:SESSION }
+      ]
+    },
+
+    {
+      id: "refresh", name: "Silent refresh",
+      steps: [
+        { from:"LOGIN", to:"LOGIN", tag:"EV_TIMEOUT", side:"gui",
+          h:"The timer fires",
+          wire:'ac_timeout()\n  do_bff_refresh(gobj)',
+          why:"Armed from <code>expires_in</code>, with margin: renewing late leaves the WebSocket on an expired JWT.",
+          fsm:"ST_LOGIN", ev:"→ EV_TIMEOUT", at:1, rt:1, js:SESSION },
+
+        { from:"LOGIN", to:"SR", tag:"POST /auth/refresh", side:"gui",
+          h:"No user involved",
+          wire:'POST /auth/refresh\ncredentials: "include"',
+          why:"The user notices nothing. If this is implemented badly, they notice all at once.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"CL", to:"IDP", tag:"grant_type=refresh_token", side:"idp",
+          h:"Renews and rewrites",
+          wire:'POST  token_endpoint\ngrant_type=refresh_token\n\n→ Set-Cookie ×2  (new)',
+          why:"The cookies are replaced wholesale. The GUI touches neither of them.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"SR", to:"LOGIN", tag:"EV_LOGIN_REFRESHED", side:"gui",
+          h:"Nothing to repaint",
+          wire:'ac_login_refreshed()\n  priv.retry_ms = 0        // backoff back to zero\n  set_timeout(timer, …)    // re-armed',
+          why:"The normal case has no visual effect. What matters is <strong>resetting the backoff</strong>: otherwise the next failure starts where the previous one left off.",
+          fsm:"ST_LOGIN", ev:"→ EV_LOGIN_REFRESHED", at:1, rt:1, js:SESSION }
+      ]
+    },
+
+    {
+      id: "transient", name: "Transient failure",
+      steps: [
+        { from:"LOGIN", to:"SR", tag:"POST /auth/refresh", side:"gui",
+          h:"Scheduled refresh",
+          wire:'POST /auth/refresh\ncredentials: "include"',
+          why:"Same as the happy path. The difference is in how the reply is read.",
+          fsm:"ST_LOGIN", ev:"→ EV_TIMEOUT", at:1, rt:1, js:SESSION },
+
+        { from:"BFF", to:"TASK", tag:"discovery + watchdog", side:"bff",
+          h:"Starts the task and its deadline",
+          wire:'arm_connect_watchdog(gobj)\n  set_timeout(timer, idp_connect_timeout_ms)',
+          why:"<code>C_TASK</code>'s <code>exec_timeout</code> does not cover this: it is armed <em>inside</em> the action, and the action only runs once the channel is connected.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"CL", to:"IDP", tag:"no answer", side:"idp", lost:true,
+          h:"The IdP is not there",
+          wire:'connect()  →  the node has just rebooted,\n              the network is not usable yet',
+          why:"Without a watchdog the task waits for a connection that never arrives: it never publishes end-of-task, and every request queues behind it forever.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"BFF", to:"TASK", tag:"EV_TIMEOUT", side:"bff",
+          h:"The watchdog fires",
+          wire:'ac_timeout()\n  gobj_send_event(stuck, EV_TIMEOUT, 0, gobj);',
+          why:"The task is failed through <strong>its own path</strong>, so the end-of-task handling that already exists applies unchanged.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"TASK", to:"BFF", tag:"EV_END_TASK result=-2", side:"bff",
+          h:"End of task by deadline",
+          wire:'stop_task(gobj, -2)   // -2 = incomplete',
+          why:"The same event as the happy path, with a different <code>result</code>. That is why nothing had to be duplicated.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"BFF", to:"SR", tag:"502 auth_service_unavailable", side:"bff",
+          h:"Answers instead of staying silent",
+          wire:'HTTP/1.1 502 Bad Gateway\n\n{ "success": false,\n  "error_code": "auth_service_unavailable",\n  "error": "Authentication service is not reachable yet" }',
+          why:"An explicit error can be handled; silence cannot. Leaving the browser on a socket that never produces bytes is the worst of both worlds.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"SR", to:"LOGIN", tag:"5xx → transport", side:"gui",
+          h:"Transport, not verdict",
+          wire:'transient = !resp.ok && resp.status >= 500\n\nif (transient) {\n    → EV_REFRESH_FAILED      // session KEPT\n    return;\n}',
+          why:"The refresh cookie is untouched: nobody rejected this user. Treating it as a denial is what produces the mass re-login after a reboot.",
+          fsm:"ST_LOGIN", ev:"→ EV_REFRESH_FAILED", at:1, rt:1, js:SESSION },
+
+        { from:"LOGIN", to:"APP", tag:"EV_REFRESH_FAILED", side:"gui",
+          h:"Backoff, session intact",
+          wire:'retry_ms = retry_ms ? min(retry_ms * 2, MAX) : MIN;\nset_timeout(timer, retry_ms);\n\nlog_warning("… retrying in Ns, session kept");',
+          why:"The shell and the open views are <strong>left alone</strong>. When the IdP returns, the next retry gets through and the user never noticed.",
+          fsm:"ST_LOGIN", ev:"retry armed", at:1, rt:1, js:SESSION }
+      ]
+    },
+
+    {
+      id: "logout", name: "Logout",
+      steps: [
+        { from:"APP", to:"LOGIN", tag:"EV_DO_LOGOUT", side:"gui",
+          h:"The menu sends the event",
+          wire:'gobj_send_event(login, "EV_DO_LOGOUT", {}, gobj);\n\nclear_timeout(timer);   // no zombie refreshes',
+          why:"Disarming the timer is part of closing: a refresh in flight can resolve when you are already logged out.",
+          fsm:"ST_LOGIN", ev:"→ EV_DO_LOGOUT", at:1, rt:1, js:SESSION },
+
+        { from:"LOGIN", to:"SR", tag:"POST /auth/logout", side:"gui",
+          h:"Close through the BFF",
+          wire:'POST /auth/logout\ncredentials: "include"',
+          why:"You cannot clear the cookies from JavaScript: they are HttpOnly. Only the server can.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"CL", to:"IDP", tag:"end_session_endpoint", side:"idp",
+          h:"Ends it at the IdP too",
+          wire:'POST  end_session_endpoint',
+          why:"Without this the session would stay alive at the IdP and the next login would walk straight in.",
+          fsm:"ST_LOGIN", ev:"awaiting reply", at:1, rt:1, js:SESSION },
+
+        { from:"SR", to:"LOGIN", tag:"Set-Cookie Max-Age=0", side:"bff",
+          h:"Clears the cookies",
+          wire:'HTTP/1.1 200 OK\nSet-Cookie: access_token=;  Max-Age=0\nSet-Cookie: refresh_token=; Max-Age=0',
+          why:"The browser drops them on receipt. It is the only possible route.",
+          fsm:"ST_LOGIN", ev:"→ EV_LOGOUT_DONE", at:0, rt:0, js:NONE },
+
+        { from:"LOGIN", to:"APP", tag:"EV_LOGOUT_DONE", side:"gui",
+          h:"Out",
+          wire:'ac_logout_done()\n  gobj_write_attr(gobj, "username", "")\n  → ST_LOGOUT',
+          why:"The state returns to the start and the form comes back.",
+          fsm:"ST_LOGOUT", ev:"session closed", at:0, rt:0, js:NONE }
+      ]
+    }
+  ];
+
+  /* ---------------- canvas ---------------- */
+
+  const cv  = document.getElementById("graph");
+  const ctx = cv.getContext("2d");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  let W = 0, H = 0, theme = {};
+
+  function readTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = (n) => cs.getPropertyValue(n).trim();
+    theme = {
+      ink: g("--ink"), muted: g("--muted"), rule: g("--rule"),
+      raise: g("--raise"), sunk: g("--sunk"),
+      gui: g("--gui"), bff: g("--bff"), idp: g("--idp"), deny: g("--deny")
+    };
+  }
+
+  function sideColor(s) {
+    return s === "gui" ? theme.gui : s === "idp" ? theme.idp : theme.bff;
+  }
+
+  function resize() {
+    const box = cv.parentElement.getBoundingClientRect();
+    /*
+     *  700 px floor: below that the eight gobjs overlap and their names
+     *  get clipped. The container scrolls instead.
+     */
+    W = Math.max(700, box.width);
+    H = Math.max(250, Math.min(390, W * 0.38));
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px";
+    cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  const PAD_X = 34, PAD_TOP = 30, PAD_BOT = 46;
+  const pos = (id) => ({
+    x: PAD_X + NODES[id].x * (W - PAD_X * 2),
+    y: PAD_TOP + NODES[id].y * (H - PAD_TOP - PAD_BOT)
+  });
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+  function nodeBox(id) {
+    const p = pos(id), n = NODES[id];
+    ctx.font = "600 11px " + MONO;
+    const w = Math.max(78, ctx.measureText(n.label).width + 20);
+    return { x: p.x - w / 2, y: p.y - 17, w, h: 34, cx: p.x, cy: p.y };
+  }
+
+  function drawNode(id, active) {
+    const b = nodeBox(id), n = NODES[id], c = sideColor(n.side);
+    ctx.save();
+    roundRect(b.x, b.y, b.w, b.h, 3);
+    ctx.fillStyle = active ? c : theme.sunk;
+    ctx.globalAlpha = active ? 0.16 : 1;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = active ? 1.8 : 1;
+    ctx.strokeStyle = active ? c : theme.rule;
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 11px " + MONO;
+    ctx.fillStyle = active ? c : theme.ink;
+    ctx.fillText(n.label, b.cx, b.cy - 4);
+    ctx.font = "9px " + MONO;
+    ctx.fillStyle = theme.muted;
+    ctx.fillText(n.sub, b.cx, b.cy + 9);
+    ctx.restore();
+  }
+
+  function edgePoints(a, b) {
+    const A = nodeBox(a), B = nodeBox(b);
+    const clip = (box, sx, sy, tx, ty) => {
+      const hx = box.w / 2 + 4, hy = box.h / 2 + 4;
+      const vx = tx - sx, vy = ty - sy;
+      const s = Math.min(
+        Math.abs(vx) > 0.001 ? hx / Math.abs(vx) : Infinity,
+        Math.abs(vy) > 0.001 ? hy / Math.abs(vy) : Infinity
+      );
+      return { x: sx + vx * s, y: sy + vy * s };
+    };
+    const p1 = clip(A, A.cx, A.cy, B.cx, B.cy);
+    const p2 = clip(B, B.cx, B.cy, A.cx, A.cy);
+    return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+  }
+
+  function drawEdge(a, b, lit) {
+    const e = edgePoints(a, b);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(e.x1, e.y1);
+    ctx.lineTo(e.x2, e.y2);
+    ctx.lineWidth = lit ? 1.6 : 1;
+    ctx.strokeStyle = lit ? sideColor(NODES[b].side) : theme.rule;
+    ctx.setLineDash(lit ? [] : [3, 4]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /*
+   *  The browser / node boundary. Naming each zone is the HTML legend's
+   *  job: repeating it here overlapped it.
+   */
+  function drawBands() {
+    const bx = (pos("LOGIN").x + pos("SR").x) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([2, 5]);
+    ctx.moveTo(bx, PAD_TOP - 10);
+    ctx.lineTo(bx, H - PAD_BOT + 10);
+    ctx.strokeStyle = theme.rule;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "9px " + MONO;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = theme.muted;
+    ctx.fillText("cookies ride along on their own", bx, PAD_TOP - 15);
+    ctx.restore();
+  }
+
+  function drawPacket(step, t) {
+    if (step.from === step.to) {
+      const b = nodeBox(step.from);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(b.cx, b.cy, 24 + t * 16, 0, Math.PI * 2);
+      ctx.strokeStyle = sideColor(step.side);
+      ctx.globalAlpha = Math.max(0, 1 - t);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      drawTag(step, b.cx, b.cy - 34, 1);
+      return;
+    }
+    const e = edgePoints(step.from, step.to);
+    const stop = step.lost ? 0.55 : 1;
+    const u = Math.min(t, stop);
+    const x = e.x1 + (e.x2 - e.x1) * u;
+    const y = e.y1 + (e.y2 - e.y1) * u;
+    const fade = step.lost ? Math.max(0, 1 - Math.max(0, (t - stop) / (1 - stop + .001))) : 1;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = step.lost ? theme.deny : sideColor(step.side);
+    ctx.fill();
+    ctx.restore();
+
+    /*
+     *  A lost packet leaves a mark: if it vanished entirely, anyone
+     *  pausing on this step would see a lit edge and no idea what died.
+     */
+    if (step.lost && fade < 1) {
+      ctx.save();
+      ctx.globalAlpha = .75;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = theme.deny;
+      ctx.setLineDash([2, 2]);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawTag(step, x, y - 16, 1);
+  }
+
+  function drawTag(step, x, y, alpha) {
+    ctx.save();
+    ctx.font = "10px " + MONO;
+    const w = ctx.measureText(step.tag).width + 14;
+    const tx = Math.min(Math.max(x - w / 2, 4), W - w - 4);
+    ctx.globalAlpha = alpha;
+    roundRect(tx, y - 11, w, 18, 2);
+    ctx.fillStyle = theme.raise;
+    ctx.fill();
+    ctx.strokeStyle = step.lost ? theme.deny : sideColor(step.side);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = step.lost ? theme.deny : theme.ink;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(step.tag, tx + 7, y - 1);
+    ctx.restore();
+  }
+
+  let scen = 0, idx = 0, playing = !reduced.matches, t0 = 0, prog = 0, raf = 0;
+  const TRAVEL = 1100, HOLD = 900;
+
+  function step() { return SCENARIOS[scen].steps[idx]; }
+
+  function draw() {
+    if (!W) { return; }
+    ctx.clearRect(0, 0, W, H);
+    const st = step();
+    drawBands();
+    EDGES.forEach(([a, b]) =>
+      drawEdge(a, b, (a === st.from && b === st.to) || (a === st.to && b === st.from)));
+    Object.keys(NODES).forEach((id) =>
+      drawNode(id, id === st.from || (prog >= 1 && id === st.to && !st.lost)));
+    drawPacket(st, reduced.matches ? 1 : prog);
+  }
+
+  function tick(ts) {
+    if (!t0) { t0 = ts; }
+    const dt = ts - t0;
+    prog = Math.min(1, dt / TRAVEL);
+    draw();
+    if (dt < TRAVEL + HOLD) {
+      raf = requestAnimationFrame(tick);
+    } else if (playing) {
+      advance(1);
+    }
+  }
+
+  function restart() {
+    cancelAnimationFrame(raf);
+    t0 = 0; prog = reduced.matches ? 1 : 0;
+    if (reduced.matches) { draw(); return; }
+    raf = requestAnimationFrame(tick);
+  }
+
+  function advance(d) {
+    const n = SCENARIOS[scen].steps.length;
+    idx = (idx + d + n) % n;
+    render();
+  }
+
+  /* ---------------- panels ---------------- */
+
+  const tabsEl = document.querySelector(".scenarios");
+  const el = (id) => document.getElementById(id);
+  const stepNEl = el("step-n"), stepHEl = el("step-h"), wireEl = el("wire"),
+        whyEl = el("why"), fsmEl = el("fsm-state"), fsmEvEl = el("fsm-ev"),
+        chipAT = el("chip-at"), chipRT = el("chip-rt"), jsEl = el("js-sees"),
+        prevEl = el("prev"), nextEl = el("next"), playEl = el("play"),
+        dotsEl = el("dots"), countEl = el("counter");
+
+  SCENARIOS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = s.name; b.setAttribute("role", "tab");
+    b.addEventListener("click", () => { scen = i; idx = 0; render(); });
+    tabsEl.appendChild(b);
+  });
+
+  function setChip(node, on) {
+    node.dataset.on = on ? "1" : "0";
+    node.querySelector(".v").textContent = on ? "opaque" : "—";
+  }
+
+  function render() {
+    const s = SCENARIOS[scen], st = s.steps[idx];
+
+    Array.from(tabsEl.children).forEach((b, i) =>
+      b.setAttribute("aria-selected", i === scen ? "true" : "false"));
+
+    stepNEl.textContent = String(idx + 1).padStart(2, "0");
+    stepHEl.textContent = st.h;
+    wireEl.textContent = st.wire;
+    wireEl.dataset.side = st.side;
+    whyEl.innerHTML = st.why;
+    fsmEl.textContent = st.fsm;
+    fsmEvEl.textContent = st.ev;
+    setChip(chipAT, st.at);
+    setChip(chipRT, st.rt);
+    jsEl.textContent = st.js;
+    countEl.textContent = (idx + 1) + " / " + s.steps.length;
+    playEl.textContent = playing ? "Pause" : "Play";
+
+    dotsEl.replaceChildren();
+    s.steps.forEach((_, i) => {
+      const d = document.createElement("button");
+      d.type = "button"; d.textContent = String(i + 1);
+      d.setAttribute("aria-label", "Step " + (i + 1));
+      d.setAttribute("aria-current", i === idx ? "true" : "false");
+      d.addEventListener("click", () => { idx = i; playing = false; render(); });
+      dotsEl.appendChild(d);
+    });
+
+    restart();
+  }
+
+  playEl.addEventListener("click", () => {
+    playing = !playing;
+    playEl.textContent = playing ? "Pause" : "Play";
+    if (playing) { restart(); }
+  });
+  prevEl.addEventListener("click", () => { playing = false; advance(-1); });
+  nextEl.addEventListener("click", () => { playing = false; advance(1); });
+
+  el("player").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { nextEl.click(); }
+    else if (e.key === "ArrowLeft") { prevEl.click(); }
+  });
+
+  /* ---------------- theme ---------------- */
+
+  const STORE_KEY = "myst:theme";
+  const toggle = document.getElementById("theme-toggle");
+
+  function applyTheme(name) {
+    document.documentElement.setAttribute("data-theme", name);
+    readTheme();
+    draw();
+  }
+
+  toggle.addEventListener("click", () => {
+    const now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /* private mode: the choice just does not persist */
+    }
+    applyTheme(now);
+  });
+
+  /* the OS switching over, for a reader with no stored preference */
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+
+  window.addEventListener("resize", resize);
+
+  readTheme();
+  resize();
+  render();
+</script>
+</body>
+</html>

@@ -120,6 +120,15 @@ mkdir -p "${ORIGIN}landing"
 cp landing/index.html "${ORIGIN}landing/index.html"
 echo "landing page installed at /landing"
 
+# The login walkthrough: same deal as the landing — a standalone document
+# with no external requests, sharing the theme through
+# localStorage["myst:theme"].  It draws the auth_bff exchange as a running
+# graph of the real gobjs, which no markdown page can do, so it ships as
+# raw HTML and the /yuno-auth chapter links to it.
+mkdir -p "${ORIGIN}login-flow"
+cp login-flow/index.html "${ORIGIN}login-flow/index.html"
+echo "login walkthrough installed at /login-flow"
+
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
 # the server too. --delete-after defers removals until the transfer succeeds.
