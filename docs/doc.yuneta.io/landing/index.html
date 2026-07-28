@@ -707,6 +707,69 @@ h1.hero-title {
 .step-d { color: var(--text-muted); font-size: var(--t-md); margin-top: 0.15rem; }
 
 /* ============================================================
+   Walkthroughs
+   ============================================================ */
+/* The cards run: a signal sweeps the top edge, which is the whole
+   claim of the band. Stopped for a reader who asked for less motion. */
+.runs {
+    display: grid;
+    gap: clamp(1rem, 2vw, 1.5rem);
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+}
+.run-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 1.6rem 1.5rem 1.4rem;
+    background: var(--ground-2);
+    border: 1px solid var(--rule);
+    text-decoration: none;
+    color: inherit;
+}
+.run-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background-image: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: run-sweep 3.4s linear infinite;
+}
+.run-card:nth-child(2)::before { animation-delay: 1.1s; }
+.run-card:hover { border-color: var(--accent); }
+@keyframes run-sweep {
+    from { background-position: -45% 0; }
+    to   { background-position: 145% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .run-card::before { animation: none; background-position: 0 0; }
+}
+.run-kick {
+    font-family: "Plex Mono", ui-monospace, monospace;
+    font-size: var(--t-sm);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+.run-t {
+    font-family: "Plex Cond", "Arial Narrow", sans-serif;
+    font-weight: 700;
+    font-size: var(--t-xl);
+    line-height: 1.15;
+}
+.run-d { color: var(--text-muted); font-size: var(--t-md); }
+.run-go {
+    margin-top: 0.35rem;
+    font-family: "Plex Mono", ui-monospace, monospace;
+    font-size: var(--t-sm);
+    color: var(--text-dim);
+}
+.run-card:hover .run-go { color: var(--accent); }
+
+/* ============================================================
    Doc map
    ============================================================ */
 /* Six groups: three columns keep the two rows even. */
@@ -1094,17 +1157,27 @@ h1.hero-title {
         <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">Whole documents
         rather than chapters: a diagram you step through instead of a figure you stare at.</p>
 
-        <nav class="path">
-            <a class="step" href="/login-flow">
-                <span class="step-n">&#9654;</span>
-                <span>
-                    <span class="step-t">The login, gobj by gobj</span>
-                    <span class="step-d">The auth_bff exchange as a graph that runs: the real gobjs, the real events, five scenarios.</span>
-                </span>
+        <div class="runs">
+            <a class="run-card" href="/login-flow">
+                <span class="run-kick">&#9654;&ensp;Interactive</span>
+                <span class="run-t">The login, gobj by gobj</span>
+                <span class="run-d">The auth_bff exchange as a graph that runs, with the real
+                gobjs and the real events on the edges. Five scenarios, from a clean login to
+                the reboot that used to log everyone out.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="run-card" href="/package-transition">
+                <span class="run-kick">&#9654;&ensp;Interactive</span>
+                <span class="run-t">The file that disappears</span>
+                <span class="run-d">Taking a config file out of a package makes dpkg and rpm
+                delete it on upgrade. Where the delete lands, why %post is too early, and a
+                harness that proves it.</span>
+                <span class="run-go">open &rarr;</span>
             </a>
 
             <!-- next walkthrough goes here -->
-        </nav>
+        </div>
     </section>
 
     <!-- ============ MAP ============ -->
@@ -1147,6 +1220,7 @@ h1.hero-title {
                     <li><a href="/scaffolding">Scaffolding new yunos</a></li>
                     <li><a href="/yuno-auth">Auth, permissions, TLS</a></li>
                     <li><a href="/login-flow">The login, gobj by gobj &nbsp;▸</a></li>
+                    <li><a href="/package-transition">The file that disappears &nbsp;▸</a></li>
                 </ul>
             </div>
             <div class="map-col">

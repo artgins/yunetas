@@ -137,9 +137,12 @@ echo "landing page installed at /landing (version ${VERSION})"
 #   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
 #   slug below, and list it in the landing's "Pages that run" band.
 #
-for _walkthrough in login-flow; do
-    mkdir -p "${ORIGIN}${_walkthrough}"
-    cp "${_walkthrough}/index.html" "${ORIGIN}${_walkthrough}/index.html"
+for _walkthrough in login-flow package-transition; do
+    # The whole directory: a walkthrough may ship files of its own (a
+    # script to download, an image), and index.html alone would leave
+    # them 404ing.
+    rm -rf "${ORIGIN:?}${_walkthrough}"
+    cp -a "${_walkthrough}" "${ORIGIN}${_walkthrough}"
     echo "walkthrough installed at /${_walkthrough}"
 done
 

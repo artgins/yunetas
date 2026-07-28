@@ -86,12 +86,21 @@
   }
   .topbar a { color: var(--muted); text-decoration: none; }
   .topbar a:hover { color: var(--ink); text-decoration: underline; }
-  #theme-toggle {
-    background: none; border: 1px solid var(--rule); border-radius: 2px;
-    color: var(--muted); font-family: var(--mono); font-size: var(--s--1);
-    padding: .3rem .7rem; cursor: pointer;
+  /*
+   *  Same control as the landing: two icons, one shown at a time, and
+   *  hidden altogether until data-theme exists — no JS, no toggle.
+   */
+  .theme-toggle { display: none; }
+  :root[data-theme] .theme-toggle {
+    display: grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; padding: 0;
+    border: 1px solid var(--rule); border-radius: 2px;
+    background: none; color: var(--muted); cursor: pointer;
   }
-  #theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  .theme-toggle svg { width: 1.05rem; height: 1.05rem; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"]  .theme-toggle .icon-sun  { display: none; }
 
   .wrap {
     max-width: 82rem; margin: 0 auto;
@@ -226,7 +235,17 @@
 
 <nav class="topbar">
   <a href="/">&larr; Yuneta documentation</a>
-  <button id="theme-toggle" type="button">theme</button>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
 </nav>
 
 <div class="wrap">

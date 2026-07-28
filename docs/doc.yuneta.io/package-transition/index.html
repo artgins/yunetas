@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Taking a config file out of a package makes dpkg and rpm delete it on upgrade. Where the delete lands, why %post is too early, and how to test the transition.">
+
+<!--
+    The file that disappears.
+
+    A standalone document (no external requests) served at
+    /package-transition, installed by deploy.sh together with the other
+    walkthroughs. It ships one asset of its own,
+    verify-package-transition.sh, which is why deploy.sh copies the whole
+    directory.
+
+    Theme, resolved before the first paint so there is no flash. The
+    stored preference is the MyST theme's own key, localStorage
+    "myst:theme", so the choice made in a chapter is the one this page
+    opens with, and the toggle here is the one the docs obey.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>The file that disappears — Yuneta</title>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+
+  :root, :root[data-theme="light"] {
+    --paper:  #EFF2F0; --raise: #F7F9F8; --sunk: #E4E9E6;
+    --ink:    #131A18; --muted: #5A6B66; --rule: #CFD8D4;
+    --keep:   #0F6B60; --erase: #8E2C36;
+    --erase-wash: rgba(142, 44, 54, 0.09);
+    --shadow: 0 1px 2px rgba(19,26,24,.05), 0 8px 24px -18px rgba(19,26,24,.5);
+  }
+  :root[data-theme="dark"] {
+    --paper:  #0D1211; --raise: #131A19; --sunk: #090D0C;
+    --ink:    #E4EAE7; --muted: #8A9A95; --rule: #22302C;
+    --keep:   #3FBFAE; --erase: #D9636D;
+    --erase-wash: rgba(217, 99, 109, 0.11);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.9);
+  }
+
+  :root {
+    --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono:  ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --measure: 66ch;
+    --s--1: clamp(.78rem, .76rem + .1vw, .84rem);
+    --s-0:  clamp(1.02rem, .99rem + .16vw, 1.14rem);
+    --s-1:  clamp(1.22rem, 1.15rem + .35vw, 1.45rem);
+    --s-2:  clamp(1.5rem, 1.35rem + .75vw, 2rem);
+    --s-3:  clamp(2.1rem, 1.7rem + 2vw, 3.6rem);
+  }
+
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--serif); font-size: var(--s-0); line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .7rem clamp(1rem, 3vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--raise);
+    font-family: var(--mono); font-size: var(--s--1);
+  }
+  .topbar a { color: var(--muted); text-decoration: none; }
+  .topbar a:hover { color: var(--ink); text-decoration: underline; }
+
+  /* Same control as the landing: two icons, one shown at a time, and
+     hidden altogether until data-theme exists — no JS, no toggle. */
+  .theme-toggle { display: none; }
+  :root[data-theme] .theme-toggle {
+    display: grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; padding: 0;
+    border: 1px solid var(--rule); border-radius: 2px;
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  .theme-toggle svg { width: 1.05rem; height: 1.05rem; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"]  .theme-toggle .icon-sun  { display: none; }
+
+  .wrap {
+    max-width: 78rem; margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 3rem) 6rem;
+    display: flex; flex-direction: column; gap: clamp(3rem, 6vw, 5rem);
+  }
+  .col { max-width: var(--measure); display: flex; flex-direction: column; gap: 1.15em; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: var(--s--1);
+    letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  h1 { font-size: var(--s-3); line-height: 1.02; letter-spacing: -.022em; font-weight: 600; text-wrap: balance; margin: 0; }
+  h2 { font-size: var(--s-2); line-height: 1.14; letter-spacing: -.015em; font-weight: 600; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  .standfirst { font-size: var(--s-1); line-height: 1.44; color: var(--muted); text-wrap: pretty; }
+
+  code, .mono { font-family: var(--mono); }
+  p code, li code, td code {
+    font-size: .86em; background: var(--sunk);
+    border: 1px solid var(--rule); border-radius: 3px; padding: .08em .32em;
+  }
+  strong { font-weight: 650; }
+  .keep { color: var(--keep); }
+  .erase { color: var(--erase); }
+  .rule-top { height: 3px; background: var(--ink); max-width: 8rem; }
+
+  .tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: clamp(1.2rem, 3vw, 2.4rem); }
+  .track {
+    background: var(--raise); border: 1px solid var(--rule); border-radius: 2px;
+    box-shadow: var(--shadow); padding: 1.5rem 1.4rem 1.7rem;
+    display: flex; flex-direction: column; gap: .9rem;
+  }
+  .track-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    border-bottom: 1px solid var(--rule); padding-bottom: .7rem;
+  }
+  .track-name { font-family: var(--mono); font-size: var(--s-1); font-weight: 600; letter-spacing: -.01em; }
+  .track-verdict { font-family: var(--mono); font-size: var(--s--1); letter-spacing: .08em; text-transform: uppercase; }
+
+  ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .1rem; counter-reset: step; }
+  ol.steps li {
+    display: grid; grid-template-columns: 2.1rem 1fr; align-items: baseline; gap: .6rem;
+    font-family: var(--mono); font-size: var(--s--1); line-height: 1.5;
+    padding: .5rem 0; counter-increment: step;
+  }
+  ol.steps li::before { content: counter(step); color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  ol.steps li.killline {
+    grid-template-columns: 1fr; margin: .35rem 0; padding: .55rem .7rem;
+    background: var(--erase-wash); border-left: 3px solid var(--erase);
+    color: var(--erase); font-weight: 600;
+  }
+  ol.steps li.killline::before { content: none; }
+  li.hook-lost .what { color: var(--erase); text-decoration: line-through; text-decoration-thickness: 1px; }
+  li.hook-lost .note { color: var(--erase); }
+  li.hook-ok .what { color: var(--keep); font-weight: 650; }
+  .note { display: block; color: var(--muted); font-size: .92em; }
+
+  .trace {
+    background: var(--raise); border: 1px solid var(--rule);
+    border-left: 3px solid var(--keep); border-radius: 2px;
+    padding: 1rem 1.1rem; overflow-x: auto;
+    font-family: var(--mono); font-size: var(--s--1); line-height: 1.72; white-space: pre;
+  }
+  .trace.bad { border-left-color: var(--erase); }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--s--1); font-family: var(--mono); }
+  th, td { text-align: left; padding: .62rem .8rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th { letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--ink); }
+
+  ul.plain { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .55em; }
+
+  .harness {
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    padding: 1.6rem 0; display: flex; flex-wrap: wrap;
+    align-items: center; justify-content: space-between; gap: 1.2rem;
+  }
+  .dl {
+    font-family: var(--mono); font-size: var(--s--1); letter-spacing: .06em;
+    text-transform: uppercase; color: var(--paper); background: var(--keep);
+    border: 1px solid var(--keep); border-radius: 2px;
+    padding: .7rem 1.2rem; text-decoration: none; display: inline-block;
+  }
+  .dl:hover { opacity: .85; }
+  :focus-visible { outline: 2px solid var(--keep); outline-offset: 3px; }
+
+  footer { border-top: 1px solid var(--rule); padding-top: 1.4rem; font-family: var(--mono); font-size: var(--s--1); color: var(--muted); max-width: var(--measure); }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
+</nav>
+
+<div class="wrap">
+
+  <header class="col">
+    <div class="rule-top"></div>
+    <p class="eyebrow">Packaging note &middot; dpkg &amp; rpm</p>
+    <h1>The file that disappears</h1>
+    <p class="standfirst">
+      Taking a configuration file out of the package is not leaving it
+      alone. It is asking the manager to delete it.
+    </p>
+  </header>
+
+  <section class="col">
+    <h2>The setup</h2>
+    <p>
+      A package installs a web server under its own prefix and, with it,
+      its <code>nginx.conf</code>. The operator edits that file: their
+      vhosts live there, their certificates, their site. Every upgrade
+      overwrites it with the stock copy, because the mechanisms that
+      protect configuration — <code>conffiles</code> on Debian,
+      <code>%config(noreplace)</code> on RPM — had only been declared for
+      <code>/etc</code>, and this file does not live there.
+    </p>
+    <p>
+      The obvious fix: <strong>stop shipping it</strong>. A file the
+      package does not contain cannot be overwritten. That is correct, and
+      it is not enough.
+    </p>
+  </section>
+
+  <section class="col">
+    <h2>The trap</h2>
+    <p>
+      <strong>dpkg and rpm delete the files a new version no longer
+      ships.</strong> That is their job: it is how obsolete binaries and
+      libraries get cleaned up. But they do not distinguish between a
+      stale <code>.so</code> and the configuration an administrator wrote
+      by hand.
+    </p>
+    <p>
+      So the upgrade that fixes the overwrite is precisely the one that
+      deletes the file. And it happens <em>once</em>, on the transition
+      from the version that still packaged it — which makes it easy to
+      miss until it is in production.
+    </p>
+  </section>
+
+  <section>
+    <div class="col" style="margin-bottom: 1.8rem;">
+      <h2>Where the delete lands</h2>
+      <p>
+        Both managers do the same thing in a different order, and the
+        order changes everything. The line marks the moment obsolete files
+        are removed; whatever a hook writes <em>above</em> it does not
+        survive.
+      </p>
+    </div>
+
+    <div class="tracks">
+      <article class="track">
+        <div class="track-head">
+          <span class="track-name">dpkg</span>
+          <span class="track-verdict keep">the hook runs late enough &check;</span>
+        </div>
+        <ol class="steps">
+          <li class="hook-ok"><span><span class="what">preinst</span><span class="note">saves the copy</span></span></li>
+          <li><span>unpacks the new files</span></li>
+          <li class="killline">removes the obsolete files</li>
+          <li class="hook-ok"><span><span class="what">postinst</span><span class="note">restores from the copy</span></span></li>
+        </ol>
+      </article>
+
+      <article class="track">
+        <div class="track-head">
+          <span class="track-name">rpm</span>
+          <span class="track-verdict erase">%post lands on the wrong side</span>
+        </div>
+        <ol class="steps">
+          <li class="hook-ok"><span><span class="what">%pre</span><span class="note">saves the copy</span></span></li>
+          <li><span>installs the new files</span></li>
+          <li class="hook-lost"><span><span class="what">%post</span><span class="note">whatever it writes here is lost</span></span></li>
+          <li class="killline">erases the old package's files</li>
+          <li class="hook-ok"><span><span class="what">%posttrans</span><span class="note">restores from the copy</span></span></li>
+        </ol>
+      </article>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>The two symptoms</h2>
+    <p>
+      The same cause showed up differently in each manager, which delayed
+      the diagnosis: they looked like two separate faults.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Manager</th><th>What was left</th><th>Symptom</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>deb</td>
+            <td>the stock <code>nginx.conf</code></td>
+            <td>the server starts and serves nothing: a config with no vhosts</td>
+          </tr>
+          <tr>
+            <td>rpm</td>
+            <td><span class="erase">no file at all</span></td>
+            <td>the server will not even start</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      On RPM the <code>%post</code> ran <em>before</em> the erase: it found
+      the file still present, decided there was nothing to do, and the
+      erase took it away afterwards.
+    </p>
+  </section>
+
+  <section class="col">
+    <h2>The fix</h2>
+    <p>
+      Save before the manager can touch anything, restore after it has
+      finished. And on restore, <strong>prefer the operator's copy over
+      the stock file</strong>: seeding the stock one onto a node that
+      already had a configuration is exactly the overwrite you were trying
+      to avoid.
+    </p>
+
+    <div class="trace">preinst / %pre        cp -a nginx.conf  &rarr;  nginx.conf.pkgsave
+
+postinst / %posttrans
+  nginx.conf present?          &rarr; leave it alone
+  nginx.conf.pkgsave present?  &rarr; restore   <span class="keep">(the operator's)</span>
+  nginx.conf.default present?  &rarr; seed      <span class="note" style="display:inline">(first install)</span></div>
+
+    <p>
+      On RPM the restore goes in <code>%posttrans</code>, not
+      <code>%post</code>. It is the only hook that runs at the end of the
+      whole transaction, after the erase.
+    </p>
+    <p>
+      One detail that bites: on Debian the <code>preinst</code> has to be
+      executable. A blanket <code>chmod</code> over the control directory
+      can flatten it back to <code>0644</code> after you set it, and then
+      <code>dpkg-deb</code> refuses to build the package at all.
+    </p>
+  </section>
+
+  <section class="col">
+    <h2>How to verify it</h2>
+    <p>
+      Here is the lesson that actually costs something:
+      <strong>inspecting the built package proves nothing.</strong> The
+      package can be immaculate — no file, hooks inside — and the upgrade
+      still destroy the configuration. What has to be exercised is the
+      <em>transition</em> from the previous version.
+    </p>
+    <p>At two levels:</p>
+    <ul class="plain">
+      <li>
+        <strong>Reproduce the delete</strong> with the real manager: two
+        minimal packages — one that owns the file, one that does not — and
+        install them into a sandbox. This confirms the semantics instead of
+        assuming them.
+      </li>
+      <li>
+        <strong>Run the hooks that ship</strong> against a fake root,
+        simulating the delete in between. Not a copy of the scripts: the
+        ones inside the package.
+      </li>
+    </ul>
+
+    <div class="trace bad">&#9888;  dpkg --force-script-chrootless runs the scripts
+   against the REAL /, not against the sandbox.
+   It invalidates the test and touches your machine.</div>
+
+    <p>
+      With no containers around, a namespace is enough to give the scripts
+      a fake root without privileges:
+    </p>
+
+    <div class="trace">unshare -r -m sh -c 'mount --bind "$FAKE" "$PREFIX"; ...'</div>
+
+    <p>
+      And all four boxes need covering: upgrade and fresh install, crossed
+      with every web server the package carries. Each has its own
+      configuration and its own stock file.
+    </p>
+  </section>
+
+  <section class="col">
+    <h2>The harness</h2>
+    <p>
+      The script sets up both checks. The first needs <code>dpkg</code>;
+      the second only <code>unshare</code>. Neither touches the machine
+      outside its temporary directory.
+    </p>
+    <div class="harness">
+      <div>
+        <p class="mono" style="font-size: var(--s-0); font-weight: 600;">verify-package-transition.sh</p>
+        <p style="font-size: var(--s--1); color: var(--muted);">Reproduces the delete, then exercises the hooks.</p>
+      </div>
+      <a class="dl" href="verify-package-transition.sh" download>Download the script</a>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>The rule</h2>
+    <p style="font-size: var(--s-1); line-height: 1.42;">
+      When you change <em>which files a package ships</em>, test the
+      upgrade from the previous version. The artefact can be perfect and
+      the transition still destroy data.
+    </p>
+  </section>
+
+  <footer>
+    Written from a real regression: the release that stopped packaging
+    <code>nginx.conf</code> so it could not be overwritten ended up
+    deleting it on upgrade. The follow-up added the save in
+    <code>preinst</code> / <code>%pre</code> and moved the restore to
+    <code>%posttrans</code>. See the packaging READMEs under
+    <code>packages/deb</code> and <code>packages/rpm</code>.
+  </footer>
+
+</div>
+
+<script>
+  "use strict";
+
+  const STORE_KEY = "myst:theme";
+  const toggle = document.getElementById("theme-toggle");
+
+  toggle.addEventListener("click", function () {
+    const now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /* private mode: the choice just does not persist */
+    }
+    document.documentElement.setAttribute("data-theme", now);
+  });
+
+  /* the OS switching over, for a reader with no stored preference */
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+    let stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+    }
+  });
+</script>
+</body>
+</html>
