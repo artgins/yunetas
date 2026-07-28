@@ -118,7 +118,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 |--------------------|--------|------------------------------------------------------|---------------------|
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant) | yes              |
 | `/auth/callback`   | POST   | PKCE code exchange (authorisation_code grant)        | yes                 |
-| `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token    | yes                 |
+| `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is | yes |
 | `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies     | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding) | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
@@ -238,7 +238,7 @@ thing twice. On expiry it fails the task through `C_TASK`'s own path
 
 | Situation | Answer to the browser |
 |---|---|
-| discovery never completed | **503** `auth_service_unavailable` |
+| discovery never completed | **502** `auth_service_unavailable` |
 | IdP connected but silent | **504** `auth_timeout` |
 
 A failed discovery is **not** terminal: `process_next` re-arms it on the next
@@ -247,7 +247,7 @@ endpoints are only needed at login. What an operator sees in the log is
 *"BFF IdP unreachable, task watchdog fired"* (with `connected` and
 `tcp_state`), then *"OIDC discovery failed, draining queue"*.
 
-**The SPA side matters as much.** A `503 auth_service_unavailable` on
+**The SPA side matters as much.** A `502 auth_service_unavailable` on
 `/auth/refresh` is a failure of the TRANSPORT and says nothing about the
 user's credentials, so a client must retry with backoff and **keep the
 session**, never log the user out. Reading `data.success` while ignoring the

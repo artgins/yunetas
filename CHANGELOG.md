@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **`auth_bff`: `/auth/refresh` answers with the identity too.** It returned
+  only `{success, expires_in, refresh_expires_in}`, which made session restore
+  impossible to finish: the tokens are httpOnly, so after a reload JavaScript
+  has no other way to learn who the user is — the SPA came back authenticated
+  but anonymous, avatar on `?`, until the next full login. `username` and
+  `email` are already decoded from the access token for every action, so this
+  only ADDS fields.
+
+- **`auth_bff`: one `error_code`, one HTTP status.** The discovery-drain path
+  added in 7.9.1 answered `503` with `auth_service_unavailable`, but
+  `c_auth_bff.h` pins that code to `502` and `503` is already `server_busy`.
+  Clients branch on the status as well as the code, so one code answering with
+  two statuses is a defect however transient both happen to be.
+
+- **`@yuneta/gobj-ui` 5.2.1**: clicking a node in the schema graph threw
+  `ReferenceError: gobj_send_event is not defined` — the module published
+  `EV_NODE_CLICK` with it and never imported it, breaking the schema landing in
+  every consumer.
+
+
 
 ## 7.9.2
 
