@@ -136,15 +136,50 @@ echo "landing page installed at /landing (version ${VERSION})"
 #
 #   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
 #   slug below, and list it in the landing's "Pages that run" band.
+#   The check after the loop enforces that last step.
 #
-for _walkthrough in login-flow package-transition; do
+WALKTHROUGHS="login-flow package-transition"
+
+for _walkthrough in ${WALKTHROUGHS}; do
     # The whole directory: a walkthrough may ship files of its own (a
     # script to download, an image), and index.html alone would leave
     # them 404ing.
+    if [ ! -f "${_walkthrough}/index.html" ]; then
+        echo "ERROR: walkthrough '${_walkthrough}' has no index.html" >&2
+        exit 1
+    fi
     rm -rf "${ORIGIN:?}${_walkthrough}"
     cp -a "${_walkthrough}" "${ORIGIN}${_walkthrough}"
     echo "walkthrough installed at /${_walkthrough}"
 done
+
+#
+#   The landing is the only index these pages have, so the two lists must
+#   agree. Installed-but-unlisted is a page nobody can find; listed-but-
+#   not-installed is a 404 on the front page. Neither shows up until
+#   somebody complains, so they are caught here — before the rsync, so a
+#   mismatch never reaches the server.
+#
+_carded=$(grep -oE 'class="run-card" href="/[a-z0-9-]+"' landing/index.html |
+          sed 's|.*href="/||; s|"$||' | sort)
+_installed=$(printf '%s\n' ${WALKTHROUGHS} | sort)
+
+_unlisted=$(comm -23 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
+_orphan=$(comm -13 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
+
+if [ -n "${_unlisted}" ]; then
+    echo "ERROR: walkthrough(s) installed but not carded in the landing's" >&2
+    echo "       \"Pages that run\" band — nobody would find them:" >&2
+    printf '         /%s\n' ${_unlisted} >&2
+    exit 1
+fi
+if [ -n "${_orphan}" ]; then
+    echo "ERROR: the landing cards walkthrough(s) that are not installed —" >&2
+    echo "       those links would 404:" >&2
+    printf '         /%s\n' ${_orphan} >&2
+    exit 1
+fi
+echo "walkthrough cards match the installed set"
 
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on
