@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+
+## 7.9.3
+
+Ships with `@yuneta/gobj-js` **7.8.7** and `@yuneta/gobj-ui` **5.3.2**.
+
+Two `auth_bff` fixes finish the session-restore path opened in 7.9.1, and the
+UI library turns navigation into a tree of gobjs.
+
 - **`auth_bff`: `/auth/refresh` answers with the identity too.** It returned
   only `{success, expires_in, refresh_expires_in}`, which made session restore
   impossible to finish: the tokens are httpOnly, so after a reload JavaScript
@@ -16,11 +24,48 @@
   Clients branch on the status as well as the code, so one code answering with
   two statuses is a defect however transient both happen to be.
 
-- **`@yuneta/gobj-ui` 5.2.1**: clicking a node in the schema graph threw
+- **`@yuneta/gobj-ui` 5.2.1 → 5.3.2: navigation becomes a tree of gobjs.**
+  `C_YUI_NODE` lets a section declare its own subtree, so depth stops being a
+  flat route table: a node projects its children as an `index` or as `chrome`
+  (tabs, cards), and the new `projection.path` adds a third mode — a breadcrumb
+  drawn from the tree ROOT, for branches where one strip per level becomes a
+  wall. `yui_node_set_chrome_depth()` makes that cap reachable at runtime,
+  which the config could already declare but the API could not change. The
+  shell root is itself a node now (`config.shell.tree`).
+
+  Around it: the **site map** became a navigation PANEL instead of a transient
+  overlay — it joins the window manager when the app has one, draws each
+  subtree once (a route reachable from three surfaces repeated its whole
+  branch three times), and hides reference rows behind a toggle without ever
+  emptying a menu. `remember_section_position` (opt-in) returns a menu click
+  to where the reader was inside that section, and `C_YUI_JSON` grew depth
+  guides. Indentation is **four spaces** wherever structure is shown as
+  indentation, rendered trees indenting in `ch` so the guides stay lined up
+  with the text at any zoom.
+
+  The same line shipped broken twice, for a reason worth recording:
+  `keep_on_navigate` was verified only in an app **with** a window manager,
+  where a dock-managed window registers no overlay at all — the one
+  configuration in which the flag is not used. 5.3.1 fixed a different bug on
+  it (`gobj_find_service()` answers `undefined`, not null, and handing that to
+  a `DTP_POINTER` attr fails the whole kw), 5.3.2 the flag itself, and
+  `_qa_routing` now drives the shell contract directly instead of the app.
+
+  Also in 5.2.1: clicking a node in the schema graph threw
   `ReferenceError: gobj_send_event is not defined` — the module published
   `EV_NODE_CLICK` with it and never imported it, breaking the schema landing in
   every consumer.
 
+- **`yunos/js`: the console dump indents with four spaces**, the last
+  two-space `JSON.stringify` left in either SPA. Both also carry the site map's
+  two new i18n keys: the library translates through the APP's i18next, so a key
+  missing there renders as the key itself, in lower-case English, and never
+  changes language.
+
+- **Docs: the 7.9.2 packaging incident is written up at `/package-transition`**,
+  with `verify-package-transition.sh` — a harness that reproduces the delete
+  with real dpkg in a temp root and then runs the SHIPPED hooks against a fake
+  one. The login exchange is a running graph at `/login-flow`.
 
 
 ## 7.9.2
