@@ -892,13 +892,21 @@ def link_files_doc(doc, basename_index, tag):
 # must be re-pinned together. Only /blob/ links carry #L anchors; a /tree/ link
 # is a plain tag swap, but leaving it behind strands the doc on the old release
 # — which is exactly what happened to YUNO_TREEDB.md at 7.8.2.
+#
+# The path after the tag is OPTIONAL: a link to the repo ROOT at a tag carries
+# none (`/tree/7.9.2`). That is the site's "Current version" stamp, the most
+# visible version number it has, and requiring the path left it behind on every
+# release until someone noticed by hand.
 GH_KIND = r"(?P<kind>blob|tree)"
 GH_LINK = re.compile(
     r"\[(?P<txt>`[^`]+`|[^\]]+)\]\("
     r"(?P<url>" + re.escape(GH_ROOT) + r"/" + GH_KIND +
-    r"/(?P<tag>[^/]+)/(?P<rel>[^)#]+)"
+    r"/(?P<tag>[^/)#]+)(?:/(?P<rel>[^)#]+))?"
     r"(?:#L(?P<l1>\d+)(?:-L(?P<l2>\d+))?)?)\)"
 )
+# A link whose TEXT is just the tag names the release it points at, so the swap
+# has to reach the text too — otherwise the stamp reads 7.9.2 and links 7.9.3.
+TAG_TEXT = re.compile(r"^`?(?P<tag>\d+\.\d+(?:\.\d+)?)`?$")
 SYMBOL_TEXT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 FILELINE_TEXT = re.compile(r":(\d+)`?$")
 
@@ -930,7 +938,10 @@ def repin_line(line, newtag, missing):
         sym = symbol_of_text(m.group("txt"))
         if not sym:
             continue
-        path = REPO / m.group("rel")
+        rel = m.group("rel")
+        if not rel:
+            continue
+        path = REPO / rel
         nl = def_line_of(sym, path) if path.exists() else None
         if nl is not None:
             anchor_map[int(l1)] = nl
@@ -944,7 +955,10 @@ def repin_line(line, newtag, missing):
         kind = m.group("kind")   # blob or tree — a /tree/ link must stay /tree/
         l1, l2 = m.group("l1"), m.group("l2")
         new_txt, new_l1 = txt, None
-        if l1 and not l2:
+        tag_txt = TAG_TEXT.match(txt)
+        if tag_txt and tag_txt.group("tag") == tag:
+            new_txt = txt.replace(tag, newtag)
+        if l1 and not l2 and rel:
             sym = symbol_of_text(txt)
             if sym:
                 path = REPO / rel
@@ -973,7 +987,8 @@ def repin_line(line, newtag, missing):
             anchor = ""
         if tag != newtag:
             n_tag += 1
-        out.append(f"[{new_txt}]({GH_ROOT}/{kind}/{newtag}/{rel}{anchor})")
+        tail = f"/{rel}" if rel else ""
+        out.append(f"[{new_txt}]({GH_ROOT}/{kind}/{newtag}{tail}{anchor})")
         pos = m.end()
     out.append(line[pos:])
     return "".join(out), n_tag, n_anchor, n_drift
