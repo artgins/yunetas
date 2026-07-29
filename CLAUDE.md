@@ -939,6 +939,14 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   caught by `scripts/validate-locales.mjs` — copy it into any new SPA; it also
   scans the gobj-ui modules the app mounts, because **the library translates
   through the APP's i18next**. Details: gobj-ui's README ("Conventions → i18n").
+- **Indentation is always FOUR spaces.** Anywhere structure is shown as
+  indentation — a rendered tree (site map, JSON viewer), a `<pre>` dump, any
+  `JSON.stringify` that reaches the screen — one level is four characters:
+  `JSON.stringify(v, null, 4)`, never `2`. Rendered trees indent in **`ch`**
+  (`padding-left: 4ch`), not `rem`, so the guides follow the row's own
+  monospace font instead of drifting from the text at some zoom level. **Why:**
+  the reader is using the indentation to see the shape, and a shape whose width
+  changes between two panels of the same app is one more thing to decode.
 - **No transitions/animations.** Menus, popovers, tooltips and state changes
   appear instantly — no fade/slide/glide. If a third-party lib injects
   transition CSS, override it (`transition: none !important`). Don't add
