@@ -183,7 +183,7 @@
   .chip .v { color: var(--muted); }
   .jar-note { font-size: var(--s--1); color: var(--muted); }
 
-  .controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .8rem 1.2rem; border-top: 1px solid var(--rule); background: var(--sunk); }
+  .controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .6rem 1rem; border-top: 1px solid var(--rule); background: var(--sunk); }
   .controls button {
     background: var(--raise); color: var(--ink); border: 1px solid var(--rule);
     border-radius: 2px; font-size: var(--s--1); letter-spacing: .05em;
@@ -191,11 +191,14 @@
   }
   .controls button:hover:not(:disabled) { border-color: var(--ink); }
   #play { background: var(--ink); color: var(--paper); border-color: var(--ink); min-width: 6.5rem; }
-  .counter { font-size: var(--s--1); color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
-  .dots { display: flex; gap: .3rem; flex-wrap: wrap; }
-  .dots button { width: 1.9rem; height: 1.9rem; padding: 0; font-variant-numeric: tabular-nums; }
-  .dots button[aria-current="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-
+  /*  Fixed spot, fixed width: the step number changes twelve times a
+   *  cycle, and a counter that reflows drags the buttons beside it. */
+  .counter {
+    font-size: var(--s--1); color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto; min-width: 3.6rem; text-align: right;
+  }
+  .counter .of { color: var(--rule); margin: 0 .15rem; }
   /*  Speed: one group, so the three buttons read as one control.  */
   .speeds { display: flex; align-items: center; gap: .3rem; }
   .speeds .lbl { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); margin-right: .1rem; }
@@ -275,6 +278,22 @@
       <div class="graph-scroll">
         <canvas id="graph" role="img" aria-label="Graph of the dialogue between gobjs"></canvas>
       </div>
+      <!--
+          The transport controls live INSIDE the graph box, under the
+          canvas: they drive what the canvas shows, and sitting below the
+          stage meant reaching past a screenful of text to pause the
+          thing you were watching.
+      -->
+      <div class="controls">
+        <button id="play" type="button">Pause</button>
+        <button id="prev" type="button" aria-label="Previous step">&larr;</button>
+        <button id="next" type="button" aria-label="Next step">&rarr;</button>
+        <div class="speeds" id="speeds" role="group" aria-label="Playback speed">
+          <span class="lbl">speed</span>
+        </div>
+        <span class="counter" id="counter"></span>
+      </div>
+
       <div class="legend">
         <span><i style="background: var(--gui);"></i> browser</span>
         <span><i style="background: var(--bff);"></i> yuneta node</span>
@@ -312,16 +331,6 @@
       </div>
     </div>
 
-    <div class="controls">
-      <button id="play" type="button">Pause</button>
-      <button id="prev" type="button" aria-label="Previous step">&larr;</button>
-      <button id="next" type="button" aria-label="Next step">&rarr;</button>
-      <div class="speeds" id="speeds" role="group" aria-label="Playback speed">
-        <span class="lbl">speed</span>
-      </div>
-      <div class="dots" id="dots"></div>
-      <span class="counter" id="counter"></span>
-    </div>
   </section>
 
   <section class="col">
@@ -1093,7 +1102,7 @@
         whyEl = el("why"), fsmEl = el("fsm-state"), fsmEvEl = el("fsm-ev"),
         chipAT = el("chip-at"), chipRT = el("chip-rt"), jsEl = el("js-sees"),
         prevEl = el("prev"), nextEl = el("next"), playEl = el("play"),
-        dotsEl = el("dots"), countEl = el("counter");
+        countEl = el("counter");
 
   SCENARIOS.forEach((s, i) => {
     const b = document.createElement("button");
@@ -1159,18 +1168,20 @@
     setChip(chipAT, st.at);
     setChip(chipRT, st.rt);
     jsEl.textContent = st.js;
-    countEl.textContent = (idx + 1) + " / " + s.steps.length;
+    /*  "5|12" in one fixed spot, instead of a row of numbered buttons
+     *  as long as the rest of the bar. The arrows walk the sequence, and
+     *  a scenario is a dozen steps — not something anyone jumps into the
+     *  middle of by number.  */
+    countEl.replaceChildren();
+    countEl.appendChild(document.createTextNode(String(idx + 1)));
+    const $of = document.createElement("span");
+    $of.className = "of";
+    $of.textContent = "|";
+    countEl.appendChild($of);
+    countEl.appendChild(document.createTextNode(String(s.steps.length)));
+    countEl.setAttribute("aria-label",
+        "Step " + (idx + 1) + " of " + s.steps.length);
     playEl.textContent = playing ? "Pause" : "Play";
-
-    dotsEl.replaceChildren();
-    s.steps.forEach((_, i) => {
-      const d = document.createElement("button");
-      d.type = "button"; d.textContent = String(i + 1);
-      d.setAttribute("aria-label", "Step " + (i + 1));
-      d.setAttribute("aria-current", i === idx ? "true" : "false");
-      d.addEventListener("click", () => { idx = i; playing = false; render(); });
-      dotsEl.appendChild(d);
-    });
 
     restart();
   }

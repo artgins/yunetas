@@ -32,6 +32,23 @@
 
 ### Documentation
 
+- **The landing's live trace INDENTS, like the kernel's.** Every line sat at
+  column zero, so the one thing a machine trace exists to show — that this
+  event was fired from inside that action — was invisible. `tab()` in `gobj.c`
+  writes 2 spaces per level of `__inside__`; the panel now does the same, and
+  the sequence carries the two publications `C_TCP` really makes
+  (`EV_CONNECTED` / `EV_DISCONNECTED` to its iogate) so there is a nested level
+  to see. The state chips keep tracking `C_TCP`: a nested line belongs to
+  another gobj and leaves them alone.
+
+- **`/login-flow`: the transport controls moved INSIDE the graph box**, under
+  the canvas. They drive what the canvas shows, and sitting below the stage
+  meant reaching past a screenful of text to pause the thing you were watching.
+  The row of twelve numbered step buttons is gone with them: it was longer than
+  the rest of the bar, and the arrows already walk the sequence. In its place,
+  `5|12` in one fixed spot — fixed width and tabular figures, so the number
+  changing twelve times a cycle does not drag the buttons beside it.
+
 - **`/navigation`: the three mechanisms are live, and they run on gobj-js.**
   Each demo is a real GCLASS on the real runtime (the 7.9.4 ES build ships next
   to the page): a card click sends `EV_OPEN_CARD`, the tree sends `EV_GO` and

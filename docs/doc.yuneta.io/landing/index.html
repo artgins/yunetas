@@ -526,6 +526,7 @@ h1.hero-title {
 }
 .trace li { white-space: pre; line-height: 1.45; }
 .trace .glyph { opacity: 0.75; }
+.trace .ind { white-space: pre; }
 .trace .dim { color: var(--panel-dim); }
 .trace .st { color: var(--panel-state); }
 .trace .ev { color: var(--panel-event); }
@@ -1402,17 +1403,36 @@ h1.hero-title {
      *  (state, event, action) triple below exists in c_tcp.c.
      */
     var SEQ = [
-        {k: "ev",  st: "ST_DISCONNECTED",   ev: "EV_CONNECT", ac: "ac_connect",           src: "C_IOGATE^gate"},
-        {k: "tr",  to: "ST_WAIT_CONNECTED", from: "ST_DISCONNECTED"},
-        {k: "ev",  st: "ST_WAIT_CONNECTED", ev: "EV_TX_DATA", ac: "ac_tx_data_queued",    src: "C_PROT_RAW^proto"},
-        {k: "tr",  to: "ST_WAIT_HANDSHAKE", from: "ST_WAIT_CONNECTED"},
-        {k: "tr",  to: "ST_CONNECTED",      from: "ST_WAIT_HANDSHAKE"},
-        {k: "ev",  st: "ST_CONNECTED",      ev: "EV_TX_DATA", ac: "ac_tx_data",           src: "C_PROT_RAW^proto"},
-        {k: "ret", st: "ST_CONNECTED",      ev: "EV_TX_DATA", ret: 0},
-        {k: "ev",  st: "ST_CONNECTED",      ev: "EV_TIMEOUT", ac: "ac_timeout_inactivity", src: "C_TIMER^timer"},
-        {k: "ev",  st: "ST_CONNECTED",      ev: "EV_DROP",    ac: "ac_drop",              src: "C_IOGATE^gate"},
-        {k: "tr",  to: "ST_DISCONNECTED",   from: "ST_CONNECTED"}
+        {k: "ev",  d: 1, st: "ST_DISCONNECTED",   ev: "EV_CONNECT", ac: "ac_connect",            src: "C_IOGATE^gate"},
+        {k: "tr",  d: 1, to: "ST_WAIT_CONNECTED", from: "ST_DISCONNECTED"},
+        {k: "ev",  d: 1, st: "ST_WAIT_CONNECTED", ev: "EV_TX_DATA", ac: "ac_tx_data_queued",     src: "C_PROT_RAW^proto"},
+        {k: "tr",  d: 1, to: "ST_WAIT_HANDSHAKE", from: "ST_WAIT_CONNECTED"},
+        {k: "tr",  d: 1, to: "ST_CONNECTED",      from: "ST_WAIT_HANDSHAKE"},
+        /*  Published from inside the action, so it is one level deeper —
+         *  and it lands on ANOTHER gobj, which is what the indentation is
+         *  there to show.  */
+        {k: "ev",  d: 2, gobj: "C_IOGATE^gate",   st: "ST_IDLE",    ev: "EV_CONNECTED",
+                         ac: "ac_connected",      src: "C_TCP^server-1"},
+        {k: "ev",  d: 1, st: "ST_CONNECTED",      ev: "EV_TX_DATA", ac: "ac_tx_data",            src: "C_PROT_RAW^proto"},
+        {k: "ret", d: 1, st: "ST_CONNECTED",      ev: "EV_TX_DATA", ret: 0},
+        {k: "ev",  d: 1, st: "ST_CONNECTED",      ev: "EV_TIMEOUT", ac: "ac_timeout_inactivity", src: "C_TIMER^timer"},
+        {k: "ev",  d: 1, st: "ST_CONNECTED",      ev: "EV_DROP",    ac: "ac_drop",               src: "C_IOGATE^gate"},
+        {k: "tr",  d: 1, to: "ST_DISCONNECTED",   from: "ST_CONNECTED"},
+        {k: "ev",  d: 2, gobj: "C_IOGATE^gate",   st: "ST_IDLE",    ev: "EV_DISCONNECTED",
+                         ac: "ac_disconnected",   src: "C_TCP^server-1"}
     ];
+
+    /*
+     *  The kernel indents a trace line by its nesting depth — `tab()` in
+     *  gobj.c writes 2 spaces per level of `__inside__`, the counter
+     *  gobj_send_event bumps on the way in. Without it every line reads
+     *  as if it happened at top level, and the one thing a machine trace
+     *  is for — seeing that THIS event was fired from inside THAT
+     *  action — is lost.
+     */
+    function indent(d) {
+        return new Array(2 * (d || 1) + 1).join(" ");
+    }
 
     var GOBJ = "C_TCP^server-1";
     var MAX_LINES = 40;
@@ -1434,10 +1454,12 @@ h1.hero-title {
 
     function lineFor(step) {
         var li = document.createElement("li");
+        var who = step.gobj || GOBJ;
+        li.appendChild(span("ind", indent(step.d)));
 
         if (step.k === "tr") {
             li.appendChild(span("glyph", "🔀🔀 "));
-            li.appendChild(span("dim", "mach(" + GOBJ + "), new st("));
+            li.appendChild(span("dim", "mach(" + who + "), new st("));
             li.appendChild(span("st", step.to));
             li.appendChild(span("dim", "), prev st("));
             li.appendChild(span("st", step.from));
@@ -1447,7 +1469,7 @@ h1.hero-title {
 
         if (step.k === "ret") {
             li.appendChild(span("glyph", "<- "));
-            li.appendChild(span("dim", "mach(" + GOBJ + "), st: "));
+            li.appendChild(span("dim", "mach(" + who + "), st: "));
             li.appendChild(span("st", step.st));
             li.appendChild(span("dim", ", ev: "));
             li.appendChild(span("ev", step.ev));
@@ -1456,7 +1478,7 @@ h1.hero-title {
         }
 
         li.appendChild(span("glyph", "🔄 "));
-        li.appendChild(span("dim", "mach(" + GOBJ + "), st: "));
+        li.appendChild(span("dim", "mach(" + who + "), st: "));
         li.appendChild(span("st", step.st));
         li.appendChild(span("dim", ", ev: "));
         li.appendChild(span("ev", step.ev));
@@ -1467,14 +1489,25 @@ h1.hero-title {
     }
 
     function highlight(state) {
+        if (state === null) {
+            return;
+        }
         for (var i = 0; i < chipEls.length; i++) {
             var on = chipEls[i].getAttribute("data-st") === state;
             chipEls[i].setAttribute("data-on", on ? "1" : "0");
         }
     }
 
+    /*
+     *  The chips track C_TCP. A nested line belongs to another gobj, so
+     *  it leaves them where they were instead of lighting up a state
+     *  that is not C_TCP's.
+     */
     function currentStateAt(i) {
         var step = SEQ[i];
+        if (step.gobj) {
+            return null;
+        }
         if (step.k === "tr") {
             return step.to;
         }
