@@ -3,6 +3,74 @@
 ## Unreleased
 
 
+## 7.9.4
+
+Ships with `@yuneta/gobj-js` **7.9.4** and `@yuneta/gobj-ui` **5.4.0**.
+
+A kernel fix that had been paid for three times at the call site, and the
+three ways of showing depth in a node tree become one runtime knob.
+
+### Fixed
+
+- **`gobj_destroy()` now actually stops the gobj it complains about**
+  (`kernel/c/gobj-c/src/gobj.c`, and identically in `kernel/js/gobj-js`).
+  Destroying a live gobj is the caller's bug and the kernel has always said so
+  out loud — *"Destroying a RUNNING gobj"*, *"Destroying a PLAYING gobj"* —
+  and then tried to repair it with `gobj_stop()` / `gobj_pause()`. That repair
+  could never run: `obflag_destroying` was raised **first**, and both entry
+  points refuse a destroying gobj. That refusal is correct and stays — nobody
+  OUTSIDE may stop something already being dismantled — but it meant the
+  rescue died on its own guard, logging a second, misleading *"hgobj
+  destroying"*, and `mt_stop` / `mt_pause` never ran: the gobj was taken apart
+  still holding its timers, subscriptions and children.
+
+  The pause/stop now happen **before** the flag goes up, so `mt_stop` sees
+  exactly what an orderly stop sees. That is not cosmetic ordering: a gclass
+  that stops its children in `mt_stop` goes through `gobj_stop_children()`,
+  which carries the same guard — with the flag already up, the whole subtree
+  would have stayed running. Both complaints now also carry
+  `LOG_OPT_TRACE_STACK`, since the useful information is *who* destroyed a
+  live gobj.
+
+  The fix at the call site is unchanged: `gobj_stop_tree()` before
+  `gobj_destroy()`. What changed is that the framework no longer pretends to
+  repair it when you forget. The trap had been diagnosed and fixed at the
+  caller at least three times in the JS GUIs alone. New unit tests in gobj-js
+  (`tests/destroy_stops.test.js`) pin the order and fail against the old one.
+
+- **`scripts/check_doc_line_refs.py --repin` reaches the site's "Current
+  version" stamp.** The regex required a path after the tag, so a link to the
+  repo ROOT (`/tree/7.9.2`) never matched — and that link is the front page's
+  version stamp, the most visible version number the site has. It was left
+  behind on every release and corrected by hand, which is the exact failure
+  mode the script exists to remove. The path is optional now, and a link whose
+  TEXT is just the tag gets the text swapped too.
+
+### Changed
+
+- **`@yuneta/gobj-ui` 5.3.2 → 5.4.0: `nav_mode`, the three shapes of a node
+  tree as one knob.** A `C_YUI_NODE` tree can be asked for stacked strips
+  (`"stack"`, the default and what it declares), a single `← parent`
+  (`"back"`) or the trail as one breadcrumb (`"path"`) —
+  `yui_node_set_nav_mode(root, mode)` at runtime, or `"nav_mode"` in the
+  root's declaration. All three shapes were expressible before, but only by
+  rewriting the declarations: `"back"` is not a root-level edit (projections
+  do not inherit, so every branch had to be rewritten) and going back was
+  lossy, since restoring "stacked" meant imposing a canonical shape on
+  branches that had declared their own. A mode is now a **filter applied when
+  the renders are asked for**, so `"stack"` is an exact restore, per branch.
+  The knob is per tree, so an app can run one section as a breadcrumb and
+  another as a backbar.
+
+  With it, the rule that was missing from the docs: **chrome belongs to the
+  node that declares it, so every branch declares its own.** The library was
+  already right — a node's backbar goes back to *its* route — but the README's
+  own example showed the shape that breaks it (the pair on the root, a child
+  with only an `index`), and an app that copies it ends up with a single ←
+  that reads "← root" at every depth. 5.3.3 also fixed a `link` node's viewer
+  being sized by its own content instead of by the body.
+
+
 ## 7.9.3
 
 Ships with `@yuneta/gobj-js` **7.8.7** and `@yuneta/gobj-ui` **5.3.2**.

@@ -2310,6 +2310,48 @@ PUBLIC void gobj_destroy(hgobj hgobj)
         );
         return;
     }
+
+    /*------------------------------------------------------------*
+     *      Pause and Stop
+     *
+     *  BEFORE raising obflag_destroying, and that order is the
+     *  whole point: gobj_pause() and gobj_stop() refuse a gobj
+     *  that is already destroying, so doing this after the flag
+     *  logged "hgobj destroying" and quietly skipped mt_pause /
+     *  mt_stop -- the gobj was dismantled without ever releasing
+     *  its timers, subscriptions and children.  The two errors
+     *  below are still loud: destroying a live gobj remains the
+     *  CALLER's bug, and the fix is gobj_stop_tree() before
+     *  gobj_destroy().  What changed is that the rescue now runs
+     *  instead of pretending to.
+     *
+     *  Quiescing first also means mt_stop() sees exactly what an
+     *  orderly stop sees.  It matters: a gclass that stops its
+     *  children there goes through gobj_stop_children(), which
+     *  carries the same destroying guard -- with the flag already
+     *  up, the whole subtree would stay running.
+     *------------------------------------------------------------*/
+    if(gobj->playing) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "Destroying a PLAYING gobj",
+            "full-name",    "%s", gobj_full_name(gobj),
+            NULL
+        );
+        gobj_pause(gobj);
+    }
+    if(gobj->running) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "Destroying a RUNNING gobj",
+            "full-name",    "%s", gobj_full_name(gobj),
+            NULL
+        );
+        gobj_stop(gobj);
+    }
+
     gobj->obflag |= obflag_destroying;
 
     if(__trace_gobj_create_delete__(gobj)) {
@@ -2338,34 +2380,6 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *--------------------------------*/
     if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         _deregister_service(gobj);
-    }
-
-    /*--------------------------------*
-     *      Pause
-     *--------------------------------*/
-    if(gobj->playing) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "Destroying a PLAYING gobj",
-            "full-name",    "%s", gobj_full_name(gobj),
-            NULL
-        );
-        gobj_pause(gobj);
-    }
-
-    /*--------------------------------*
-     *      Stop
-     *--------------------------------*/
-    if(gobj->running) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL,
-            "msg",          "%s", "Destroying a RUNNING gobj",
-            "full-name",    "%s", gobj_full_name(gobj),
-            NULL
-        );
-        gobj_stop(gobj);
     }
 
     /*--------------------------------*
