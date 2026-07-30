@@ -84,7 +84,7 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   by `file:`, like gui_agent — it is **not** a v1/npm consumer.)
 - **wattyzer** is a **third** case since 2026-07-25: it tracks the **v2** line
   like the in-repo yunos, but consumes it from the **npm registry**
-  (`@yuneta/gobj-ui@^5.0.0` + `@yuneta/gobj-js@^7.8.7`) instead of by `file:`.
+  (`@yuneta/gobj-ui@^5.4.0` + `@yuneta/gobj-js@^7.8.7`) instead of by `file:`.
   So a local edit under `kernel/js/gobj-ui` reaches `gui_agent`/`gui_treedb`
   immediately and reaches wattyzer **only after `npm publish` + a range bump in
   `wattyzer/gui/package.json`**. Dropping the `file:` symlink also let
