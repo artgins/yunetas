@@ -138,7 +138,7 @@ echo "landing page installed at /landing (version ${VERSION})"
 #   slug below, and list it in the landing's "Pages that run" band.
 #   The check after the loop enforces that last step.
 #
-WALKTHROUGHS="login-flow package-transition"
+WALKTHROUGHS="login-flow package-transition navigation"
 
 for _walkthrough in ${WALKTHROUGHS}; do
     # The whole directory: a walkthrough may ship files of its own (a

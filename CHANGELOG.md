@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Documentation
+
+- **New walkthrough: `/navigation` — "Getting back".** Navigation in a gobj-ui
+  app is one decision — *where the reader's position lives* — and the page is
+  built on that axis: the url (`C_YUI_NAV`, cards + subpath), the node tree
+  (`C_YUI_NODE`, one declared route and free depth), and the pager's in-memory
+  stack (`C_YUI_PAGER`). It exists because `stack` / `back` / `path` read like
+  three ways to navigate when they are the three values of `nav_mode`, and all
+  three live **inside** the url: they choose how the way back is drawn, not
+  where the position lives. Taking `"stack"` for the pager's stack inverts the
+  one distinction that matters.
+
+- **`/login-flow`: the player was stuck on step 1 for anyone with "reduce
+  motion" on.** `restart()` returned before scheduling anything when
+  `prefers-reduced-motion: reduce` matched, so `playing = true` had no effect
+  and Play did nothing — the walkthrough only moved with the arrows. Honouring
+  the preference means not animating a packet along a wire nobody asked to
+  watch; it does not mean refusing to turn the page the reader pressed Play to
+  turn, so the step now advances on a timer with no travel.
+
+- **`/login-flow`: the graph fits a phone.** Below 700 px it is drawn turned —
+  the same topology with its axes swapped, its five columns spread as five
+  rows — instead of keeping the 700 px floor and letting the container scroll
+  sideways, which on a phone meant watching a third of the graph while the
+  packet animated off-screen.
+
 
 ## 7.9.4
 

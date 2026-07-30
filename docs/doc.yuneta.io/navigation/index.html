@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How you get back in a gobj-ui app: the URL, the node tree and the pager's stack — one decision, where the reader's position lives.">
+
+<!--
+    Getting back — navigation in gobj-ui.
+
+    A standalone document (no external requests) served at /navigation,
+    installed by deploy.sh the same way as /landing and /login-flow: myst
+    copies no raw files, so the build output gets it from there.
+
+    Theme, resolved before the first paint so there is no flash. The
+    stored preference is the MyST theme's own key, localStorage
+    "myst:theme", so the choice made in a chapter is the one this page
+    opens with, and the toggle here is the one the docs obey.
+
+    Everything stated here is checked against gobj-ui 5.4.0: ROUTING.md
+    (the Litmus is §3), c_yui_node.js and node_tree_model.js for
+    nav_mode, shell_section_index.js for the section index and its
+    backbar, c_yui_nav.js for the layouts, c_yui_pager.js for the stack.
+
+    Why the page exists: "stack / back / path" are the three values of
+    C_YUI_NODE's nav_mode, and all three live INSIDE the url. Reading
+    them as three ways to navigate — with "stack" as the pager's
+    in-memory stack — inverts the one distinction that matters.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>Getting back — navigation in gobj-ui</title>
+
+<style>
+  /*
+   *  Colour says WHERE THE POSITION LIVES: indigo = in the url,
+   *  copper = in memory. The three nav_modes deliberately share the
+   *  indigo — they are one mechanism drawn three ways, and a colour
+   *  each would make them read as three alternatives. What tells them
+   *  apart is the SHAPE of their diagram.
+   */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+
+  :root, :root[data-theme="light"] {
+    --paper:    #EAEDF2;
+    --surface:  #FFFFFF;
+    --sunk:     #F1F4F8;
+    --ink:      #141922;
+    --ink-soft: #39424F;
+    --muted:    #67717F;
+    --faint:    #8C96A4;
+    --rule:     #D2D8E1;
+    --rule-2:   #B6BFCB;
+    --url:      #2F4FD8;
+    --url-bg:   #E7EBFB;
+    --url-line: #A9B8F0;
+    --mem:      #B0521C;
+    --mem-bg:   #FBEDE2;
+    --mem-line: #E8B389;
+    --shadow: 0 1px 2px rgba(20,25,34,.05), 0 10px 28px -18px rgba(20,25,34,.45);
+  }
+  :root[data-theme="dark"] {
+    --paper:    #0C1117;
+    --surface:  #131A23;
+    --sunk:     #0F161E;
+    --ink:      #E6EBF2;
+    --ink-soft: #BAC4D1;
+    --muted:    #8894A3;
+    --faint:    #66707E;
+    --rule:     #222D39;
+    --rule-2:   #2F3B49;
+    --url:      #8AA2FF;
+    --url-bg:   #161C33;
+    --url-line: #2F3A63;
+    --mem:      #F09355;
+    --mem-bg:   #241A12;
+    --mem-line: #58381F;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 30px -18px rgba(0,0,0,.9);
+  }
+
+  :root {
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --s--1: clamp(.75rem, .73rem + .1vw, .82rem);
+    --s-0:  clamp(1rem, .97rem + .15vw, 1.08rem);
+    --s-1:  clamp(1.14rem, 1.08rem + .3vw, 1.32rem);
+    --s-2:  clamp(1.42rem, 1.26rem + .7vw, 1.95rem);
+    --s-3:  clamp(1.95rem, 1.5rem + 2.1vw, 3.2rem);
+    --measure: 64ch;
+  }
+
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: var(--s-0); line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .7rem clamp(1rem, 3vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--surface);
+    font-family: var(--mono); font-size: var(--s--1);
+  }
+  .topbar a { color: var(--muted); text-decoration: none; }
+  .topbar a:hover { color: var(--ink); text-decoration: underline; }
+  .theme-toggle { display: none; }
+  :root[data-theme] .theme-toggle {
+    display: grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; padding: 0;
+    border: 1px solid var(--rule); border-radius: 2px;
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  .theme-toggle svg { width: 1.05rem; height: 1.05rem; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"]  .theme-toggle .icon-sun  { display: none; }
+
+  .wrap {
+    max-width: 74rem; margin: 0 auto;
+    padding: clamp(1.6rem, 4vw, 3.4rem) clamp(1rem, 3.5vw, 2.4rem) 5rem;
+    display: flex; flex-direction: column; gap: clamp(2.4rem, 4.5vw, 3.8rem);
+  }
+  .col { max-width: var(--measure); display: flex; flex-direction: column; gap: .9em; }
+
+  h1, h2, h3, .eyebrow, .tag, th, .k, .lbl, code { font-family: var(--mono); }
+  h1 { font-size: var(--s-3); line-height: 1.04; letter-spacing: -.035em; font-weight: 600; margin: 0; text-wrap: balance; }
+  h2 { font-size: var(--s-2); line-height: 1.14; letter-spacing: -.025em; font-weight: 600; margin: 0; text-wrap: balance; }
+  h3 { font-size: var(--s-0); letter-spacing: .05em; font-weight: 600; margin: 0; }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-size: var(--s--1); letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: .65rem;
+  }
+  .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--ink); }
+
+  .standfirst { font-size: var(--s-1); line-height: 1.46; color: var(--ink-soft); text-wrap: pretty; }
+  .standfirst b { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-size: .87em; background: var(--sunk); border: 1px solid var(--rule);
+    border-radius: 3px; padding: .05em .32em; color: var(--ink-soft);
+  }
+
+  .axis {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 4px; overflow: hidden; box-shadow: var(--shadow);
+    max-width: 52rem;
+  }
+  @media (max-width: 40rem) { .axis { grid-template-columns: 1fr; } }
+  .axis > div { background: var(--surface); padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .3rem; }
+  .axis .k { font-size: var(--s-0); font-weight: 700; letter-spacing: -.01em; }
+  .axis .d { font-size: var(--s--1); color: var(--muted); }
+  .axis .in-url .k { color: var(--url); }
+  .axis .in-mem .k { color: var(--mem); }
+
+  .warn {
+    border-left: 3px solid var(--mem); background: var(--surface);
+    border-radius: 0 4px 4px 0; box-shadow: var(--shadow);
+    padding: 1.05rem 1.25rem; display: flex; flex-direction: column; gap: .6em;
+    max-width: 56rem;
+  }
+  .warn strong { color: var(--ink); }
+  .warn .lbl {
+    font-size: var(--s--1); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--mem); font-weight: 700;
+  }
+
+  section.mech { display: flex; flex-direction: column; gap: .9rem; }
+  .mech-head { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+  .tag {
+    font-size: var(--s--1); letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; color: var(--c); background: var(--c-bg);
+    border: 1px solid var(--c-line); border-radius: 999px; padding: .16em .7em;
+  }
+  .mech .role { color: var(--muted); font-size: var(--s--1); }
+
+  .panel {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 4px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  @media (max-width: 52rem) { .panel { grid-template-columns: 1fr; } }
+  .viz { background: var(--c-bg); padding: 1.3rem; display: flex; align-items: center; justify-content: center; }
+  .viz svg { width: 100%; max-width: 320px; height: auto; display: block; }
+  .body { background: var(--surface); padding: 1.25rem 1.35rem; display: flex; flex-direction: column; gap: .85rem; }
+  .body p { color: var(--ink-soft); font-size: var(--s--1); line-height: 1.62; }
+
+  .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+  /*
+   *  The marker is positioned, NOT a two-column grid: a `li` with
+   *  display:grid turns every child into its own cell, and these carry
+   *  <code> inline — each one went to a cell of its own and the text
+   *  overlapped its neighbour.
+   */
+  .facts li {
+    position: relative; padding-left: 1.35rem;
+    font-size: var(--s--1); color: var(--ink-soft); line-height: 1.55;
+  }
+  .facts li::before {
+    content: "\25B8"; position: absolute; left: 0; top: 0;
+    color: var(--c); font-size: .75rem; line-height: 1.85;
+  }
+
+  .api {
+    font-family: var(--mono); font-size: var(--s--1); line-height: 1.75;
+    background: var(--sunk); border: 1px solid var(--rule);
+    border-left: 3px solid var(--c); border-radius: 2px;
+    padding: .7rem .85rem; color: var(--ink-soft);
+    overflow-x: auto; white-space: pre;
+  }
+  .api .cmt { color: var(--faint); }
+  .api b { color: var(--ink); font-weight: 600; }
+
+  .tscroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--surface); font-size: var(--s--1); }
+  th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th { font-size: var(--s--1); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--sunk); }
+  tbody th { font-weight: 700; white-space: nowrap; color: var(--url); }
+  tbody th.dim { color: var(--muted); }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  td .sub, th .sub { display: block; color: var(--faint); margin-top: .1rem; font-weight: 400; }
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: var(--s--1);
+    border: 1px solid; border-radius: 2px; padding: .05rem .4rem; white-space: nowrap;
+  }
+  .pill.in-url { color: var(--url); border-color: var(--url-line); }
+  .pill.in-mem { color: var(--mem); border-color: var(--mem-line); }
+
+  .flow { display: flex; flex-direction: column; gap: .6rem; max-width: 56rem; }
+  .q {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: var(--shadow); padding: .95rem 1.1rem;
+    display: grid; grid-template-columns: auto 1fr; gap: .85rem; align-items: start;
+  }
+  .q .n {
+    font-family: var(--mono); font-size: var(--s--1); font-weight: 700;
+    color: var(--surface); background: var(--ink);
+    width: 1.65rem; height: 1.65rem; border-radius: 4px;
+    display: grid; place-items: center;
+  }
+  .q .qt { font-weight: 600; margin: 0 0 .25rem; }
+  .q .qa { margin: 0; font-size: var(--s--1); color: var(--muted); }
+  .q .qa b { font-family: var(--mono); }
+  .q .qa .go-url { color: var(--url); }
+  .q .qa .go-mem { color: var(--mem); }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 1.2rem;
+    font-size: var(--s--1); color: var(--muted); max-width: var(--measure);
+    display: flex; flex-direction: column; gap: .6em;
+  }
+  footer .src { font-family: var(--mono); font-size: .9em; color: var(--faint); }
+  footer a { color: var(--url); }
+
+  a { color: var(--url); }
+  :focus-visible { outline: 2px solid var(--url); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
+</nav>
+
+<div class="wrap">
+
+  <header class="col">
+    <p class="eyebrow">gobj-ui 5.4 &middot; C_YUI_SHELL &middot; ROUTING</p>
+    <h1>Getting back</h1>
+    <p class="standfirst">
+      A section of <b>cards</b> is the list&nbsp;&rarr;&nbsp;detail pattern: a
+      grid where each card enters one element. The question is not how you get
+      in, it is <b>how you get back</b> — and there is only one decision to
+      make: <b>where the reader's position lives</b>. Everything else follows
+      from it.
+    </p>
+  </header>
+
+  <div class="axis">
+    <div class="in-url">
+      <span class="k">in the url</span>
+      <span class="d">
+        Deep-linkable, survives a reload and a shared link, and the browser's
+        Back button works without writing any code. This is the default.
+      </span>
+    </div>
+    <div class="in-mem">
+      <span class="k">in memory</span>
+      <span class="d">
+        A drill-down that floats above a resting view and disappears with it.
+        Not deep-linkable — and it should not be.
+      </span>
+    </div>
+  </div>
+
+  <section class="col">
+    <p>
+      That axis, and no other, is the one that decides. It is settled by the
+      <em>Litmus</em> in <code>ROUTING.md</code> §3: is this a
+      <b>position</b> ("what am I looking at?") or something
+      <b>transient</b> floating above one? No side channel —
+      <code>localStorage</code>, a flag in <code>priv</code> — gets to answer
+      on the url's behalf where the user is.
+    </p>
+  </section>
+
+  <div class="warn">
+    <span class="lbl">A note on names</span>
+    <p>
+      <strong><code>stack</code>, <code>back</code> and <code>path</code> are
+      not three ways to navigate.</strong> They are the three values of
+      <code>nav_mode</code>, an attr of <code>C_YUI_NODE</code> since gobj-ui
+      <b>5.4.0</b>, and all three live <strong>inside the url</strong>: they
+      pick how the way back is <em>drawn</em> in a node tree — stacked strips,
+      a single <code>&larr;</code>, or one breadcrumb line — not where the
+      position lives.
+    </p>
+    <p>
+      <code>"stack"</code> in particular means <em>stacked strips in the
+      url</em>, and has nothing to do with the <code>C_YUI_PAGER</code>'s
+      in-memory stack, which is precisely the mechanism that is <b>not</b> in
+      the url.
+    </p>
+  </div>
+
+  <!-- =================== 1. the url =================== -->
+  <section class="mech" style="--c: var(--url); --c-bg: var(--url-bg); --c-line: var(--url-line)">
+    <div class="mech-head">
+      <span class="tag">1 &middot; in the url</span>
+      <h2>The route is the truth</h2>
+    </div>
+    <p class="role">The shell's canonical model — intent &rarr; url &rarr; view.</p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 150" role="img"
+             aria-label="A url split into the part the shell declares and the subpath the view owns">
+          <rect x="8" y="14" width="284" height="28" rx="4"
+                fill="var(--surface)" stroke="var(--rule-2)"/>
+          <text x="20" y="33" font-family="ui-monospace, monospace" font-size="12">
+            <tspan fill="var(--faint)">#</tspan><tspan fill="var(--url)">/reports/sales</tspan><tspan fill="var(--muted)">/q3</tspan>
+          </text>
+          <line x1="24" y1="52" x2="118" y2="52" stroke="var(--url)" stroke-width="2"/>
+          <line x1="122" y1="52" x2="150" y2="52" stroke="var(--muted)" stroke-width="2" stroke-dasharray="3 3"/>
+          <text x="24" y="68" font-family="ui-monospace, monospace" font-size="9" fill="var(--url)">declared route</text>
+          <text x="24" y="80" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">subpath: the view owns it</text>
+
+          <rect x="8" y="96" width="128" height="40" rx="4" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="72" y="113" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">C_YUI_NAV</text>
+          <text x="72" y="127" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">layout: cards</text>
+
+          <path d="M140 116 l16 0" stroke="var(--rule-2)" stroke-width="1.5"/>
+          <path d="M152 112 l5 4 l-5 4" fill="none" stroke="var(--rule-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <rect x="162" y="96" width="130" height="40" rx="4" fill="var(--surface)" stroke="var(--rule-2)"/>
+          <text x="227" y="113" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">the view</text>
+          <text x="227" y="127" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">EV_ROUTE_CHANGED</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          Every card is a real <code>&lt;a href="#/reports/sales"&gt;</code>.
+          The click does not touch the view: it changes the hash, and the
+          shell's <code>hashchange</code> mounts the destination. Back and
+          Forward walk the same path, so they are correct by construction —
+          and the link can be shared, bookmarked and opened in a new tab.
+        </p>
+        <ul class="facts">
+          <li>
+            The grid is a <code>C_YUI_NAV</code> with
+            <code>layout:"cards"</code>, which the shell synthesises from
+            <code>submenu.index</code> on a level-1 menu item.
+          </li>
+          <li>
+            On mobile that same index adds a <code>backbar</code>
+            (<code>show_on:"&lt;tablet"</code>) instead of repeating the tab
+            strip; turn it off with <code>index:{backbar:false}</code>. It is
+            still a link to a <b>fixed destination</b>, not a history pop.
+          </li>
+          <li>
+            The view owns its deep levels through the <b>subpath</b>: the
+            shell resolves down to the nearest declared ancestor and hands
+            over the tail. An empty <code>subpath</code> means "its home".
+          </li>
+        </ul>
+        <div class="api"><span class="cmt">// a human chose it &rarr; push (the default)</span>
+yui_shell_navigate(shell, <b>"/reports/sales"</b>)
+
+<span class="cmt">// code decided it (redirect, normalise) &rarr; replace</span>
+yui_shell_navigate(shell, r, <b>{replace: true}</b>)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== 2. the node tree =================== -->
+  <section class="mech" style="--c: var(--url); --c-bg: var(--url-bg); --c-line: var(--url-line)">
+    <div class="mech-head">
+      <span class="tag">2 &middot; in the url</span>
+      <h2>The node tree</h2>
+    </div>
+    <p class="role">
+      <code>C_YUI_NODE</code> — one declared route, free depth underneath.
+    </p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 165" role="img"
+             aria-label="A node tree: one declared route, its descendants arriving as subpath">
+          <rect x="8" y="10" width="284" height="26" rx="4" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="20" y="27" font-family="ui-monospace, monospace" font-size="11">
+            <tspan fill="var(--url)">/admin</tspan><tspan fill="var(--muted)">/treedb/db/data</tspan>
+          </text>
+          <text x="20" y="50" font-family="ui-monospace, monospace" font-size="9" fill="var(--url)">1 declared route</text>
+          <text x="150" y="50" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">all of this is subpath</text>
+
+          <line x1="30" y1="68" x2="30" y2="96" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="30" cy="68" r="4.5" fill="var(--url)"/>
+          <text x="44" y="72" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">admin</text>
+
+          <line x1="30" y1="96" x2="56" y2="96" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="62" cy="96" r="4" fill="var(--url)" opacity=".65"/>
+          <text x="76" y="100" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-soft)">treedb</text>
+
+          <line x1="62" y1="96" x2="62" y2="122" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <line x1="62" y1="122" x2="88" y2="122" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="94" cy="122" r="4" fill="var(--url)" opacity=".45"/>
+          <text x="108" y="126" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-soft)">db</text>
+
+          <line x1="94" y1="122" x2="94" y2="146" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <line x1="94" y1="146" x2="120" y2="146" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <rect x="126" y="134" width="94" height="24" rx="3" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="173" y="149" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--ink)">link &rarr; the view</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          A shell submenu paints two levels. When a section has more, the node
+          tree solves it the other way round: it declares <b>one</b> route and
+          everything below arrives as subpath, at whatever depth is needed.
+          Each node paints its own share of the way back and hands its child
+          the tail of the url, already trimmed.
+        </p>
+        <ul class="facts">
+          <li>
+            A <code>link</code> node is where the structure ends: from there
+            the subpath belongs to the view, which receives it as
+            <code>EV_ROUTE_CHANGED {route, base, subpath}</code> — the same
+            contract the shell gave it, so the view cannot tell who mounted it.
+          </li>
+          <li>
+            Which is why, to <em>talk</em> to the shell from inside a tree, you
+            resolve it with <code>yui_shell_of(gobj)</code>: the parent is no
+            longer the shell, it is the node.
+          </li>
+          <li>
+            <code>chrome_depth</code> caps how many strips are painted; the
+            deepest declaration on the path wins.
+          </li>
+        </ul>
+        <div class="api"><span class="cmt">// the whole tree reads the mode from its ROOT</span>
+yui_node_set_nav_mode(root, <b>"path"</b>)
+yui_node_nav_mode(node)   <span class="cmt">// &rarr; "stack" | "back" | "path"</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="col">
+    <h3 style="color: var(--muted); text-transform: uppercase; letter-spacing: .1em;">
+      The three shapes of one way back
+    </h3>
+    <p>
+      <code>nav_mode</code> does not change where the position lives — it stays
+      in the url. It changes how it is <em>drawn</em>. It is a <b>filter</b>
+      applied when the renders are asked for, never a rewrite of what the app
+      declared; that is what makes going back to <code>"stack"</code> an exact
+      restore, branch by branch. It belongs to the <b>root</b>: set on a middle
+      node it is refused with a log.
+    </p>
+  </section>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>nav_mode</th><th>What it draws</th><th>Chrome strips</th><th>Equivalent declaration</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>stack</th>
+          <td>One strip per ancestor<span class="sub">the default</span></td>
+          <td>whatever each branch declares</td>
+          <td><span class="sub">&mdash; (it is what was declared)</span></td>
+        </tr>
+        <tr>
+          <th>back</th>
+          <td>The tip's parent only, as <code>&larr; parent</code></td>
+          <td><code>1</code></td>
+          <td><code>chrome: {layout:"backbar"}</code> on every branch</td>
+        </tr>
+        <tr>
+          <th>path</th>
+          <td>The whole trail on one line (breadcrumb)</td>
+          <td><code>0</code></td>
+          <td><code>path: {layout:"breadcrumb"}</code> on the root</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- =================== 3. the stack =================== -->
+  <section class="mech" style="--c: var(--mem); --c-bg: var(--mem-bg); --c-line: var(--mem-line)">
+    <div class="mech-head">
+      <span class="tag">3 &middot; in memory</span>
+      <h2>The page stack</h2>
+    </div>
+    <p class="role"><code>C_YUI_PAGER</code> — a transient drill-down.</p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 150" role="img"
+             aria-label="A LIFO stack of pages in memory, with push and pop">
+          <rect x="46" y="16" width="170" height="30" rx="4" fill="var(--surface)" stroke="var(--mem-line)" opacity=".45"/>
+          <text x="62" y="35" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)" opacity=".8">page &middot; root</text>
+
+          <rect x="58" y="52" width="170" height="30" rx="4" fill="var(--surface)" stroke="var(--mem-line)" opacity=".7"/>
+          <text x="74" y="71" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)">page &middot; list</text>
+
+          <rect x="70" y="88" width="170" height="32" rx="4" fill="var(--surface)" stroke="var(--mem)" stroke-width="1.8"/>
+          <text x="86" y="108" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)">page &middot; form &#9656; top</text>
+
+          <path d="M258 34 l0 62" stroke="var(--mem)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <path d="M254 90 l4 6 l4 -6" fill="none" stroke="var(--mem)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="252" y="28" text-anchor="end" font-family="ui-monospace, monospace" font-size="8.5" fill="var(--mem)">EV_PUSH_PAGE</text>
+          <text x="252" y="112" text-anchor="end" font-family="ui-monospace, monospace" font-size="8.5" fill="var(--mem)">EV_POP_PAGE</text>
+
+          <text x="150" y="140" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">none of this is in the url</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          The pager keeps a LIFO <code>priv.stack</code> in memory:
+          <code>EV_PUSH_PAGE</code> pushes a panel and
+          <code>EV_POP_PAGE</code> takes it off. Its <code>&larr;</code>
+          navigates the stack and nothing else; popping past the root emits
+          <code>EV_PAGER_EXIT</code> so the host can close (governed by the
+          <code>back_on_root</code> attr).
+        </p>
+        <ul class="facts">
+          <li>
+            <b>It is not a route</b>, and must not be: it floats inside a
+            <code>C_YUI_WINDOW</code>, a modal, or inline. Not deep-linkable,
+            and it does not survive a reload.
+          </li>
+          <li>
+            No Confirm/Cancel chrome: the content saves itself (a
+            <code>C_YUI_FORM</code>, for instance), with an optional
+            <code>discard</code> per page.
+          </li>
+          <li>
+            Container-agnostic: the host mounts its <code>$container</code>
+            wherever it wants and listens for
+            <code>EV_PAGE_SHOWN {id, depth}</code>.
+          </li>
+        </ul>
+        <div class="api"><b>EV_PUSH_PAGE</b> { id, title, content, discardable? }
+<b>EV_POP_PAGE</b> / <b>EV_BACK</b>     <span class="cmt">// at the root &rarr; EV_PAGER_EXIT</span>
+<b>EV_REPLACE_PAGE</b> &middot; <b>EV_DISCARD_PAGE</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== choosing =================== -->
+  <section class="col">
+    <h2>How to choose</h2>
+    <p>
+      Two questions settle it. The third only comes up when there is real
+      depth.
+    </p>
+  </section>
+
+  <div class="flow">
+    <div class="q">
+      <span class="n">1</span>
+      <div>
+        <p class="qt">Does it float <em>above</em> the view and vanish with it?</p>
+        <p class="qa">
+          Yes &rarr; <b class="go-mem">C_YUI_PAGER</b>. Keep it out of the url:
+          a deep-linkable overlay is the rare exception, not the rule.
+        </p>
+      </div>
+    </div>
+    <div class="q">
+      <span class="n">2</span>
+      <div>
+        <p class="qt">Is it a <em>position</em> — must it survive a reload, a shared link, and Back?</p>
+        <p class="qa">
+          Yes &rarr; <b class="go-url">the url</b>. Give it a segment and make
+          arriving a <code>push</code>. This is the default case.
+        </p>
+      </div>
+    </div>
+    <div class="q">
+      <span class="n">3</span>
+      <div>
+        <p class="qt">And does it go more than two levels below the section?</p>
+        <p class="qa">
+          &rarr; <b class="go-url">C_YUI_NODE</b>: one declared route, the rest
+          as subpath. That is where you pick <code>nav_mode</code>, which is
+          <em>presentation</em> — the position stays in the url under all three.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== matrix =================== -->
+  <section class="col">
+    <h2>The three, side by side</h2>
+  </section>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th>The url</th><th>The node tree</th><th>The stack</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="dim">Where the position lives</th>
+          <td><span class="pill in-url">url</span></td>
+          <td><span class="pill in-url">url</span><span class="sub">one route + subpath</span></td>
+          <td><span class="pill in-mem">memory</span><span class="sub">priv.stack LIFO</span></td>
+        </tr>
+        <tr>
+          <th class="dim">Deep link &middot; reload &middot; share</th>
+          <td>Yes</td><td>Yes</td><td>No</td>
+        </tr>
+        <tr>
+          <th class="dim">Browser Back</th>
+          <td>Full history</td>
+          <td>Full history<span class="sub">into the tree as well</span></td>
+          <td>Not involved<span class="sub">its &larr; is internal</span></td>
+        </tr>
+        <tr>
+          <th class="dim">Component</th>
+          <td><code>C_YUI_NAV</code><span class="sub">cards &middot; backbar &middot; breadcrumb</span></td>
+          <td><code>C_YUI_NODE</code></td>
+          <td><code>C_YUI_PAGER</code></td>
+        </tr>
+        <tr>
+          <th class="dim">Depth</th>
+          <td>As declared, route by route</td>
+          <td>Free, under a single route</td>
+          <td>Free, and none of it is a position</td>
+        </tr>
+        <tr>
+          <th class="dim">Nature (Litmus)</th>
+          <td>Position</td><td>Position</td><td>Transient</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p>
+      <b>Rule of thumb:</b> if a human deliberately chose to go there, it is a
+      position and it belongs in the url. If it floats above and disappears, it
+      is transient and it belongs in the stack. <code>nav_mode</code> is picked
+      <em>afterwards</em>, and only decides the drawing.
+    </p>
+    <p class="src">
+      Checked against gobj-ui 5.4.0 &middot; ROUTING.md §2–3 &middot;
+      c_yui_node.js &middot; node_tree_model.js (nav_mode_renders,
+      nav_mode_depth) &middot; shell_section_index.js &middot; c_yui_nav.js
+      &middot; c_yui_pager.js
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  /* ---------------- theme ---------------- */
+
+  const STORE_KEY = "myst:theme";
+  const toggle = document.getElementById("theme-toggle");
+
+  toggle.addEventListener("click", () => {
+    const now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /* private mode: the choice just does not persist */
+    }
+    document.documentElement.setAttribute("data-theme", now);
+  });
+
+  /* the OS switching over, for a reader with no stored preference */
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      document.documentElement.setAttribute("data-theme", e.matches ? "dark" : "light");
+    }
+  });
+</script>
+
+</body>
+</html>

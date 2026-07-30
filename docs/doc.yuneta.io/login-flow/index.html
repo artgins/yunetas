@@ -759,7 +759,7 @@
   const ctx = cv.getContext("2d");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  let W = 0, H = 0, theme = {};
+  let W = 0, H = 0, vertical = false, theme = {};
 
   function readTheme() {
     const cs = getComputedStyle(document.documentElement);
@@ -778,11 +778,24 @@
   function resize() {
     const box = cv.parentElement.getBoundingClientRect();
     /*
-     *  700 px floor: below that the eight gobjs overlap and their names
-     *  get clipped. The container scrolls instead.
+     *  Two layouts, one topology. Wide: the dialogue runs left to right,
+     *  with a 700 px floor — below that the eight gobjs overlap and their
+     *  names get clipped.
+     *
+     *  Narrow: the same graph TURNED, so it runs top to bottom and fits
+     *  the width it was given. It used to keep the 700 px floor and let
+     *  the container scroll sideways, which on a phone meant watching a
+     *  third of the graph while the packet animated somewhere off-screen
+     *  — the one thing this player exists to show.
      */
-    W = Math.max(700, box.width);
-    H = Math.max(250, Math.min(390, W * 0.38));
+    vertical = box.width < 700;
+    if (vertical) {
+      W = Math.max(280, box.width);
+      H = 480;
+    } else {
+      W = Math.max(700, box.width);
+      H = Math.max(250, Math.min(390, W * 0.38));
+    }
     const dpr = window.devicePixelRatio || 1;
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);
@@ -793,10 +806,29 @@
   }
 
   const PAD_X = 34, PAD_TOP = 30, PAD_BOT = 46;
-  const pos = (id) => ({
-    x: PAD_X + NODES[id].x * (W - PAD_X * 2),
-    y: PAD_TOP + NODES[id].y * (H - PAD_TOP - PAD_BOT)
-  });
+
+  /*
+   *  The vertical layout is the horizontal one with the axes swapped —
+   *  a rotation, not a second topology to keep in step with the first.
+   *
+   *  With one correction: the five columns become five evenly spread
+   *  rows. Rotating the x coordinates as they are keeps the gap that
+   *  separates the browser from the node, which was horizontal breathing
+   *  room and becomes 180 px of empty screen on the layout that has the
+   *  least of it.
+   */
+  const V_ROWS = [...new Set(Object.values(NODES).map((n) => n.x))].sort((a, b) => a - b);
+  const v_row = (x) => V_ROWS.indexOf(x) / (V_ROWS.length - 1);
+
+  const pos = (id) => {
+    const n = NODES[id];
+    const nx = vertical ? n.y : n.x;
+    const ny = vertical ? v_row(n.x) : n.y;
+    return {
+      x: PAD_X + nx * (W - PAD_X * 2),
+      y: PAD_TOP + ny * (H - PAD_TOP - PAD_BOT)
+    };
+  };
 
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -874,21 +906,33 @@
    *  job: repeating it here overlapped it.
    */
   function drawBands() {
-    const bx = (pos("LOGIN").x + pos("SR").x) / 2;
     ctx.save();
     ctx.beginPath();
     ctx.setLineDash([2, 5]);
-    ctx.moveTo(bx, PAD_TOP - 10);
-    ctx.lineTo(bx, H - PAD_BOT + 10);
     ctx.strokeStyle = theme.rule;
     ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.setLineDash([]);
     ctx.font = "9px " + MONO;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = theme.muted;
-    ctx.fillText("cookies ride along on their own", bx, PAD_TOP - 15);
+
+    /*  The boundary follows the layout: it always sits between the last
+     *  browser gobj and the first one on the node.  */
+    if (vertical) {
+      const by = (pos("LOGIN").y + pos("SR").y) / 2;
+      ctx.moveTo(PAD_X - 10, by);
+      ctx.lineTo(W - PAD_X + 10, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText("cookies ride along on their own", W / 2, by - 7);
+    } else {
+      const bx = (pos("LOGIN").x + pos("SR").x) / 2;
+      ctx.moveTo(bx, PAD_TOP - 10);
+      ctx.lineTo(bx, H - PAD_BOT + 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText("cookies ride along on their own", bx, PAD_TOP - 15);
+    }
     ctx.restore();
   }
 
@@ -960,6 +1004,7 @@
   }
 
   let scen = 0, idx = 0, playing = !reduced.matches, t0 = 0, prog = 0, raf = 0;
+  let hold = 0;
   const TRAVEL = 1100, HOLD = 900;
 
   function step() { return SCENARIOS[scen].steps[idx]; }
@@ -988,10 +1033,28 @@
     }
   }
 
+  /*
+   *  Reduced motion removes the ANIMATION, not the player.
+   *
+   *  This used to return here and schedule nothing, so with "reduce" set
+   *  the Play button did nothing at all: the walkthrough sat on step 1
+   *  for ever, and the only way through was the arrows. Honouring the
+   *  preference means not moving a packet along a wire the reader did not
+   *  ask to see — it does not mean refusing to turn the page they pressed
+   *  Play to turn. So: no travel (the step is drawn arrived), and the
+   *  advance runs on a timer instead of on the animation frame.
+   */
   function restart() {
     cancelAnimationFrame(raf);
+    clearTimeout(hold);
     t0 = 0; prog = reduced.matches ? 1 : 0;
-    if (reduced.matches) { draw(); return; }
+    if (reduced.matches) {
+      draw();
+      if (playing) {
+        hold = setTimeout(() => advance(1), TRAVEL + HOLD);
+      }
+      return;
+    }
     raf = requestAnimationFrame(tick);
   }
 
@@ -1058,7 +1121,13 @@
   playEl.addEventListener("click", () => {
     playing = !playing;
     playEl.textContent = playing ? "Pause" : "Play";
-    if (playing) { restart(); }
+    if (playing) {
+      restart();
+    } else {
+      /*  Pausing has to disarm the pending advance too, or the reduced-
+       *  motion timer turns the page after the reader stopped it.  */
+      clearTimeout(hold);
+    }
   });
   prevEl.addEventListener("click", () => { playing = false; advance(-1); });
   nextEl.addEventListener("click", () => { playing = false; advance(1); });
