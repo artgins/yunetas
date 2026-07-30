@@ -41,10 +41,10 @@
   to see. The state chips keep tracking `C_TCP`: a nested line belongs to
   another gobj and leaves them alone.
 
-- **`gobj-js`: `tab()` indents 2 spaces per level, like `gobj.c`** — it was
-  `2n - 1`, one short at every level, so a JS trace read beside a node's did
-  not line up. Committed, not published: it rides with the next release rather
-  than costing three consumers a range bump for one space.
+- **`@yuneta/gobj-js` **7.9.6**: `tab()` indents 2 spaces per level, like
+  `gobj.c`** — it was `2n - 1`, one short at every level, and its floor was
+  zero where the C version's is one, so a JS trace read beside a node's did not
+  line up. Published to npm.
 
 - **`/login-flow`: the transport controls moved INSIDE the graph box**, under
   the canvas. They drive what the canvas shows, and sitting below the stage
