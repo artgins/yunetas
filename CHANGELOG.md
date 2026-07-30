@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **`gobj-js`: the `machine` trace is back, aligned with `gobj.c`.** The JS port
+  had the trace lines written but disconnected — `tracea` came from a yuno attr
+  and the calls in `gobj_change_state`, start/stop and create/delete were
+  commented out — so the runtime that the browser SPAs are built on could not
+  answer *"what happened?"* the way a node does. The C kernel's level model is
+  now in place, with the **same names and the same bits**:
+  `gobj_set_global_trace("machine", true)`, `gobj_set_gclass_trace(...)`,
+  `gobj_set_gobj_trace(...)`, plus the no-trace veto by SOURCE, the union of
+  global|gclass|gobj, and `timer`/`timer_periodic` firing for their own event
+  only. Read it with `set_log_callback()`. See gobj-js's own CHANGELOG.
+
+  Fixed on the way: `log_error` / `log_warning` reached for `window.console`
+  directly, so **any error logged outside a browser threw `ReferenceError`** —
+  the failure path replacing the failure it was reporting.
+
 ### Documentation
 
 - **`/navigation`: the three mechanisms are live, and they run on gobj-js.**
@@ -14,10 +31,11 @@
   at the same depth, redrawn as stacked strips, a single `← parent`, or one
   breadcrumb — the table's three rows, live.
 
-  Worth knowing while reading that panel: **gobj-js does not emit the `machine`
-  trace** today — the calls are in `gobj.js` but commented out, with only
-  `trace_creation` live — so the panel is fed by a four-line `send()` wrapper.
-  The states it prints are read back from `gobj_current_state()`.
+  The panel under each demo is **the kernel's own `machine` trace**, not a log
+  the page writes: `gobj_set_global_trace("machine", true)` +
+  `set_log_callback()`, the same two calls a yuno makes on a node. That is what
+  the gobj-js fix above was for — the trace did not exist when the demos were
+  written.
 
 - **New walkthrough: `/navigation` — "Getting back".** Navigation in a gobj-ui
   app is one decision — *where the reader's position lives* — and the page is

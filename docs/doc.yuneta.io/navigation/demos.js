@@ -12,14 +12,12 @@
  *      and the panel at the bottom of each demo shows the machine as it
  *      goes: which gobj, which event, which state.
  *
- *      HONEST NOTE ON THAT PANEL: gobj-js does not currently emit the
- *      `machine` trace — the calls exist in gobj.js but are commented
- *      out (only `trace_creation` is live), so there is nothing to
- *      subscribe to. The panel is therefore fed by `send()` below, a
- *      four-line wrapper that records the event and then delegates to
- *      `gobj_send_event`. The STATE it prints is read back from
- *      `gobj_current_state()`, so the transition shown is the one that
- *      really happened.
+ *      THE PANEL IS THE REAL TRACE. It is not a log this file writes:
+ *      it is the framework's own `machine` trace, turned on with
+ *      `gobj_set_global_trace("machine", true)` and read through
+ *      `set_log_callback()` — the same two calls a yuno makes on a
+ *      node, and the same lines. Nothing here reports on itself; the
+ *      kernel reports, and the page listens.
  *
  *      Nothing else is imported: Canvas 2D and the DOM, wrapped in
  *      gobjs. No framework, no build step, no external request.
@@ -32,7 +30,8 @@ import {
     gclass_create, log_error,
     gobj_create, gobj_start, gobj_start_up,
     gobj_create_yuno, register_c_yuno, register_c_timer,
-    gobj_send_event, gobj_current_state,
+    gobj_send_event,
+    gobj_set_global_trace, gobj_set_trace_machine_format, set_log_callback,
     gobj_read_attr, gobj_write_attr,
     gobj_name, gobj_gclass_name,
 } from "/navigation/gobj-js.es.min.js";   /*  absolute: see index.html  */
@@ -40,37 +39,34 @@ import {
 
 /***************************************************************
  *              The machine panel
+ *
+ *  One sink for the whole page. A trace line names its gobj, so each
+ *  line is routed to the panel of the demo it belongs to — which is
+ *  also why the three gobjs are named `url`, `tree` and `pager`.
  ***************************************************************/
 const LOG_MAX = 7;
+const panels = {};      /*  gobj_name → its <ol>  */
 
-/*
- *  One panel per demo, resolved from the demo's own container so two
- *  demos on the same page never write into each other's log.
- */
-function machine_log(gobj, event, state_before)
+function route_trace_line(msg)
 {
-    const $log = gobj.priv.$log;
+    const line = String(msg).trim();
+
+    let $log = null;
+    for(const name in panels) {
+        if(line.includes("^" + name + ")") || line.includes("^" + name + " ")) {
+            $log = panels[name];
+            break;
+        }
+    }
     if(!$log) {
         return;
     }
-    const state_after = gobj_current_state(gobj);
 
-    const moved = (state_after !== state_before);
     const $li = document.createElement("li");
-    if(moved) {
+    if(line.indexOf("🔀") === 0) {
         $li.classList.add("moved");
     }
-    const span = (cls, text) => {
-        const $s = document.createElement("span");
-        $s.className = cls;
-        $s.textContent = text;
-        return $s;
-    };
-    $li.appendChild(span("ml-gobj", gobj_gclass_name(gobj) + "^" + gobj_name(gobj)));
-    $li.appendChild(span("ml-ev", event));
-    $li.appendChild(span("ml-st",
-        moved ? state_before + " → " + state_after : state_before));
-
+    $li.textContent = line;
     $log.appendChild($li);
     while($log.children.length > LOG_MAX) {
         $log.removeChild($log.firstChild);
@@ -78,16 +74,13 @@ function machine_log(gobj, event, state_before)
 }
 
 /*
- *  The ONLY way these demos send an event. It exists so the panel can
- *  show what the framework's `machine` trace would show if gobj-js
- *  emitted it — see the file header.
+ *  Every demo sends its events through here — a plain gobj_send_event
+ *  with the demo's gobj as `src`. No logging of its own: the trace
+ *  comes out of the kernel.
  */
 function send(gobj, event, kw)
 {
-    const before = gobj_current_state(gobj);
-    const ret = gobj_send_event(gobj, event, kw || {}, gobj);
-    machine_log(gobj, event, before);
-    return ret;
+    return gobj_send_event(gobj, event, kw || {}, gobj);
 }
 
 /*
@@ -145,7 +138,7 @@ function build_frame(gobj, url_label)
 
     gobj.priv.$url = $url;
     gobj.priv.$stage = $stage;
-    gobj.priv.$log = $log;
+    panels[gobj_name(gobj)] = $log;
     gobj_write_attr(gobj, "$container", $root);
 }
 
@@ -656,6 +649,20 @@ __yuno__ = gobj_create_yuno("navigation_demos", "C_YUNO", {
     yuno_name:    "navigation_demos",
     yuno_role:    "doc",
     yuno_version: "1.0.0"
+});
+
+/*
+ *  The machine trace, on — compact format, which is the one-line-per
+ *  transition view. `set_log_callback` mirrors every framework log line
+ *  here IN ADDITION to the console, so a reader with devtools open sees
+ *  exactly the same lines.
+ */
+gobj_set_trace_machine_format(1);
+gobj_set_global_trace("machine", true);
+set_log_callback((level, msg) => {
+    if(level === "debug") {
+        route_trace_line(msg);
+    }
 });
 
 if(create_url_gclass() === 0 && create_tree_gclass() === 0 && create_pager_gclass() === 0) {
