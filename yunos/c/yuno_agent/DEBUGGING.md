@@ -398,6 +398,28 @@ ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gobj-trace gobj
 
 Both are live-only — they vanish on restart.
 
+### The same trace in the browser
+
+Everything in this chapter is about a yuno on a node, but a browser SPA runs
+the **same kernel**, ported: since `@yuneta/gobj-js` **7.9.5** the JS runtime
+has this level model with the same names and the same bits, so a habit learned
+here transfers, and two traces read side by side line up.
+
+```javascript
+gobj_set_global_trace("machine", true);          // the big one, same as above
+gobj_set_gclass_trace("C_MY_VIEW", "machine", true);
+gobj_set_gobj_no_trace(noisy_src, "machine", true);   // veto, by the SOURCE
+
+set_log_callback((level, msg) => { ... });       // the trace arrives as `debug`
+```
+
+There is no `ycommand` on that side: the switch is the call above, and the
+output goes to the browser console — or wherever `set_log_callback()` sends it,
+which is how gobj-ui's dev panel shows the machine inside the app.
+[`doc.yuneta.io/navigation`](https://doc.yuneta.io/navigation) runs three demos
+with the panel wired to that callback, if you want to see the lines before
+wiring your own.
+
 ---
 
 ## 7. Following a message end-to-end

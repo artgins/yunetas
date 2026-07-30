@@ -30,6 +30,19 @@
   no sibling files. `deploy.sh` excludes `artifact/` from the install, since it
   is source for a page published elsewhere, not part of this site.
 
+### Fixed
+
+- **`gui_treedb` talks to the shell through `yui_shell_of()`, not through its
+  parent.** `ac_child_selected` (mirror the selected topic into the url) and
+  `ac_remove_conn` (the confirm dialog) took the parent to be the shell, which
+  only holds while a view hangs off a route the shell itself declares — under a
+  `C_YUI_NODE` tree the parent is the NODE, with no `use_hash`, no `item_index`
+  and no `EV_ROUTE_REQUESTED`. Latent here (gui_treedb mounts on declared
+  routes); it is what actually broke yunovatios, whose treedb views moved under
+  a node tree. The `EV_ROUTE_CHANGED` subscription keeps using the parent on
+  purpose — a subscription goes to whoever PUBLISHES — and its variable is now
+  named `host` to keep the two apart.
+
 ### Documentation
 
 - **The landing's live trace INDENTS, like the kernel's.** Every line sat at
