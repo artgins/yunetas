@@ -2,7 +2,7 @@
  *          demos.js
  *
  *      The three navigation mechanisms, running — each one a real
- *      GCLASS on the real `@yuneta/gobj-js` runtime (the 7.9.4 build
+ *      GCLASS on the real `@yuneta/gobj-js` runtime (the 7.9.5 build
  *      sitting next to this file), not a hand-rolled imitation.
  *
  *      WHY THAT MATTERS HERE: the page argues that a click IS an action

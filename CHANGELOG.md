@@ -4,7 +4,8 @@
 
 ### Added
 
-- **`gobj-js`: the `machine` trace is back, aligned with `gobj.c`.** The JS port
+- **`@yuneta/gobj-js` **7.9.5**: the `machine` trace is back, aligned with
+  `gobj.c`.** The JS port
   had the trace lines written but disconnected — `tracea` came from a yuno attr
   and the calls in `gobj_change_state`, start/stop and create/delete were
   commented out — so the runtime that the browser SPAs are built on could not
@@ -18,6 +19,16 @@
   Fixed on the way: `log_error` / `log_warning` reached for `window.console`
   directly, so **any error logged outside a browser threw `ReferenceError`** —
   the failure path replacing the failure it was reporting.
+
+  Published to npm as a patch ahead of the SDK; consumers on the registry
+  (wattyzer, estadodelaire, hidraulia) get it by bumping their range.
+
+- **The Spanish artifact of `/navigation` is in the repo**, beside the page it
+  translates (`docs/doc.yuneta.io/navigation/artifact/`), with the script that
+  assembles it: content, the demos' CSS from the English page, `demos.js` with
+  its strings translated, and gobj-js's IIFE build inlined — an artifact serves
+  no sibling files. `deploy.sh` excludes `artifact/` from the install, since it
+  is source for a page published elsewhere, not part of this site.
 
 ### Documentation
 

@@ -150,16 +150,21 @@ WALKTHROUGHS="login-flow"
 REFERENCES="package-transition navigation"
 
 for _walkthrough in ${WALKTHROUGHS} ${REFERENCES}; do
-    # The whole directory: a walkthrough may ship files of its own (a
-    # script to download, an image), and index.html alone would leave
+    # The whole directory: a page may ship files of its own (a script to
+    # download, an image, a runtime), and index.html alone would leave
     # them 404ing.
+    #
+    # Except `artifact/`, which is SOURCE for a page published elsewhere
+    # (see navigation/artifact/README.md). Copying it would put a
+    # half-assembled document at /<page>/artifact/content.es.html for
+    # anyone — and a crawler — to find.
     if [ ! -f "${_walkthrough}/index.html" ]; then
-        echo "ERROR: walkthrough '${_walkthrough}' has no index.html" >&2
+        echo "ERROR: page '${_walkthrough}' has no index.html" >&2
         exit 1
     fi
     rm -rf "${ORIGIN:?}${_walkthrough}"
-    cp -a "${_walkthrough}" "${ORIGIN}${_walkthrough}"
-    echo "walkthrough installed at /${_walkthrough}"
+    rsync -a --exclude 'artifact/' "${_walkthrough}/" "${ORIGIN}${_walkthrough}/"
+    echo "page installed at /${_walkthrough}"
 done
 
 #

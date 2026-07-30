@@ -1,0 +1,654 @@
+<title>Volver atrás en gobj-ui — la URL, el árbol y la pila</title>
+
+<style>
+  /*
+   *  El color dice DÓNDE VIVE la posición: índigo = en la URL,
+   *  cobre = en memoria. Los tres nav_mode comparten el índigo a
+   *  propósito — son el mismo mecanismo dibujado de tres formas, y
+   *  darles un color a cada uno los haría parecer tres alternativas.
+   *  Lo que los distingue es la FORMA de su diagrama.
+   */
+  :root {
+    --paper:    #EAEDF2;
+    --surface:  #FFFFFF;
+    --sunk:     #F1F4F8;
+    --ink:      #141922;
+    --ink-soft: #39424F;
+    --muted:    #67717F;
+    --faint:    #8C96A4;
+    --rule:     #D2D8E1;
+    --rule-2:   #B6BFCB;
+
+    --url:      #2F4FD8;   /* la posición vive en la URL */
+    --url-bg:   #E7EBFB;
+    --url-line: #A9B8F0;
+    --mem:      #B0521C;   /* la posición vive en memoria */
+    --mem-bg:   #FBEDE2;
+    --mem-line: #E8B389;
+
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+    --s--1: clamp(.75rem, .73rem + .1vw, .82rem);
+    --s-0:  clamp(1rem, .97rem + .15vw, 1.08rem);
+    --s-1:  clamp(1.14rem, 1.08rem + .3vw, 1.32rem);
+    --s-2:  clamp(1.42rem, 1.26rem + .7vw, 1.95rem);
+    --s-3:  clamp(1.95rem, 1.5rem + 2.1vw, 3.2rem);
+
+    --measure: 62ch;
+    --shadow: 0 1px 2px rgba(20,25,34,.05), 0 10px 28px -18px rgba(20,25,34,.45);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0C1117; --surface: #131A23; --sunk: #0F161E;
+      --ink: #E6EBF2; --ink-soft: #BAC4D1; --muted: #8894A3; --faint: #66707E;
+      --rule: #222D39; --rule-2: #2F3B49;
+      --url: #8AA2FF; --url-bg: #161C33; --url-line: #2F3A63;
+      --mem: #F09355; --mem-bg: #241A12; --mem-line: #58381F;
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 30px -18px rgba(0,0,0,.9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0C1117; --surface: #131A23; --sunk: #0F161E;
+    --ink: #E6EBF2; --ink-soft: #BAC4D1; --muted: #8894A3; --faint: #66707E;
+    --rule: #222D39; --rule-2: #2F3B49;
+    --url: #8AA2FF; --url-bg: #161C33; --url-line: #2F3A63;
+    --mem: #F09355; --mem-bg: #241A12; --mem-line: #58381F;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 30px -18px rgba(0,0,0,.9);
+  }
+
+  :root[data-theme="light"] {
+    --paper: #EAEDF2; --surface: #FFFFFF; --sunk: #F1F4F8;
+    --ink: #141922; --ink-soft: #39424F; --muted: #67717F; --faint: #8C96A4;
+    --rule: #D2D8E1; --rule-2: #B6BFCB;
+    --url: #2F4FD8; --url-bg: #E7EBFB; --url-line: #A9B8F0;
+    --mem: #B0521C; --mem-bg: #FBEDE2; --mem-line: #E8B389;
+    --shadow: 0 1px 2px rgba(20,25,34,.05), 0 10px 28px -18px rgba(20,25,34,.45);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--s-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: clamp(1.6rem, 4vw, 3.4rem) clamp(1rem, 3.5vw, 2.4rem) 5rem;
+    display: flex; flex-direction: column;
+    gap: clamp(2.4rem, 4.5vw, 3.8rem);
+  }
+  .col { max-width: var(--measure); display: flex; flex-direction: column; gap: .9em; }
+
+  h1, h2, h3, .eyebrow, .tag, th, .k, .lbl, code { font-family: var(--mono); }
+  h1 {
+    font-size: var(--s-3); line-height: 1.04; letter-spacing: -.035em;
+    font-weight: 600; margin: 0; text-wrap: balance;
+  }
+  h2 { font-size: var(--s-2); line-height: 1.14; letter-spacing: -.025em; font-weight: 600; margin: 0; text-wrap: balance; }
+  h3 { font-size: var(--s-0); letter-spacing: .05em; font-weight: 600; margin: 0; }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-size: var(--s--1); letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: .65rem;
+  }
+  .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--ink); }
+
+  .standfirst { font-size: var(--s-1); line-height: 1.46; color: var(--ink-soft); text-wrap: pretty; }
+  .standfirst b { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-size: .87em; background: var(--sunk); border: 1px solid var(--rule);
+    border-radius: 3px; padding: .05em .32em; color: var(--ink-soft);
+  }
+
+  .axis {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 4px; overflow: hidden; box-shadow: var(--shadow);
+    max-width: 52rem;
+  }
+  @media (max-width: 40rem) { .axis { grid-template-columns: 1fr; } }
+  .axis > div { background: var(--surface); padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .3rem; }
+  .axis .k { font-size: var(--s-0); font-weight: 700; letter-spacing: -.01em; }
+  .axis .d { font-size: var(--s--1); color: var(--muted); }
+  .axis .url .k { color: var(--url); }
+  .axis .mem .k { color: var(--mem); }
+
+  .warn {
+    border-left: 3px solid var(--mem); background: var(--surface);
+    border-radius: 0 4px 4px 0; box-shadow: var(--shadow);
+    padding: 1.05rem 1.25rem; display: flex; flex-direction: column; gap: .6em;
+    max-width: 56rem;
+  }
+  .warn strong { color: var(--ink); }
+  .warn .lbl {
+    font-size: var(--s--1); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--mem); font-weight: 700;
+  }
+
+  section.mech { display: flex; flex-direction: column; gap: .9rem; }
+  .mech-head { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+  .tag {
+    font-size: var(--s--1); letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; color: var(--c); background: var(--c-bg);
+    border: 1px solid var(--c-line); border-radius: 999px; padding: .16em .7em;
+  }
+  .mech .role { color: var(--muted); font-size: var(--s--1); }
+
+  .panel {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 4px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  @media (max-width: 52rem) { .panel { grid-template-columns: 1fr; } }
+  .viz { background: var(--c-bg); padding: 1.3rem; display: flex; align-items: center; justify-content: center; }
+  .viz svg { width: 100%; max-width: 320px; height: auto; display: block; }
+  .body { background: var(--surface); padding: 1.25rem 1.35rem; display: flex; flex-direction: column; gap: .85rem; }
+  .body p { color: var(--ink-soft); font-size: var(--s--1); line-height: 1.62; }
+
+  .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+  /*
+   *  El marcador va posicionado, NO en una rejilla de dos columnas: un
+   *  `li` con display:grid convierte cada hijo en celda propia, y estos
+   *  llevan <code> intercalado — cada uno se iba a su celda y el texto
+   *  se solapaba con el de al lado.
+   */
+  .facts li {
+    position: relative; padding-left: 1.35rem;
+    font-size: var(--s--1); color: var(--ink-soft); line-height: 1.55;
+  }
+  .facts li::before {
+    content: "▸"; position: absolute; left: 0; top: 0;
+    color: var(--c); font-size: .75rem; line-height: 1.85;
+  }
+
+  .api {
+    font-family: var(--mono); font-size: var(--s--1); line-height: 1.75;
+    background: var(--sunk); border: 1px solid var(--rule);
+    border-left: 3px solid var(--c); border-radius: 2px;
+    padding: .7rem .85rem; color: var(--ink-soft);
+    overflow-x: auto; white-space: pre;
+  }
+  .api .cmt { color: var(--faint); }
+  .api b { color: var(--ink); font-weight: 600; }
+
+  .tscroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--surface); font-size: var(--s--1); }
+  th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th { font-size: var(--s--1); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--sunk); }
+  tbody th { font-weight: 700; white-space: nowrap; color: var(--url); }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  td .sub { display: block; color: var(--faint); margin-top: .1rem; }
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: var(--s--1);
+    border: 1px solid; border-radius: 2px; padding: .05rem .4rem; white-space: nowrap;
+  }
+  .pill.url { color: var(--url); border-color: var(--url-line); }
+  .pill.mem { color: var(--mem); border-color: var(--mem-line); }
+
+  .flow { display: flex; flex-direction: column; gap: .6rem; max-width: 56rem; }
+  .q {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: var(--shadow); padding: .95rem 1.1rem;
+    display: grid; grid-template-columns: auto 1fr; gap: .85rem; align-items: start;
+  }
+  .q .n {
+    font-family: var(--mono); font-size: var(--s--1); font-weight: 700;
+    color: var(--surface); background: var(--ink);
+    width: 1.65rem; height: 1.65rem; border-radius: 4px;
+    display: grid; place-items: center;
+  }
+  .q .qt { font-weight: 600; margin: 0 0 .25rem; }
+  .q .qa { margin: 0; font-size: var(--s--1); color: var(--muted); }
+  .q .qa b { font-family: var(--mono); }
+  .q .qa .go-url { color: var(--url); }
+  .q .qa .go-mem { color: var(--mem); }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 1.2rem;
+    font-size: var(--s--1); color: var(--muted); max-width: var(--measure);
+    display: flex; flex-direction: column; gap: .6em;
+  }
+  footer .src { font-family: var(--mono); font-size: .9em; color: var(--faint); }
+
+  a { color: var(--url); }
+  :focus-visible { outline: 2px solid var(--url); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="col">
+    <p class="eyebrow">gobj-ui 5.4 · C_YUI_SHELL · ROUTING</p>
+    <h1>Volver atrás<br>en gobj-ui</h1>
+    <p class="standfirst">
+      Una sección de <b>cards</b> es el patrón lista&nbsp;→&nbsp;detalle: una
+      rejilla donde cada tarjeta entra en un elemento. La pregunta no es cómo
+      se entra, sino <b>cómo se vuelve</b> — y sólo hay una decisión que tomar:
+      <b>dónde vive la posición del usuario</b>. Todo lo demás se deriva de ahí.
+    </p>
+  </header>
+
+  <div class="axis">
+    <div class="url">
+      <span class="k">en la URL</span>
+      <span class="d">
+        Deep-linkable, sobrevive a F5 y a compartir, y el Atrás del navegador
+        funciona sin escribir nada. Es el caso por defecto.
+      </span>
+    </div>
+    <div class="mem">
+      <span class="k">en memoria</span>
+      <span class="d">
+        Un drill-down que flota sobre una vista en reposo y desaparece con
+        ella. No es deep-linkable, y no debe serlo.
+      </span>
+    </div>
+  </div>
+
+  <section class="col">
+    <p>
+      Ese eje —y no otro— es el que decide. Se resuelve con el
+      <em>Litmus</em> de <code>ROUTING.md</code> §3: ¿esto es una
+      <b>posición</b> («¿qué estoy mirando?») o algo <b>transitorio</b> que
+      flota por encima? Ningún canal lateral —<code>localStorage</code>, un
+      flag en <code>priv</code>— puede responder por la URL dónde está el
+      usuario.
+    </p>
+  </section>
+
+  <div class="warn">
+    <span class="lbl">Aviso de nombres</span>
+    <p>
+      <strong><code>stack</code>, <code>back</code> y <code>path</code> no son
+      tres formas de navegar.</strong> Son los tres valores de
+      <code>nav_mode</code>, un attr de <code>C_YUI_NODE</code> desde gobj-ui
+      <b>5.4.0</b>, y los tres viven <strong>dentro de la URL</strong>: eligen
+      cómo se <em>dibuja</em> el camino de vuelta en un árbol de nodos —tiras
+      apiladas, un solo <code>←</code>, o una miga de pan—, no dónde vive la
+      posición.
+    </p>
+    <p>
+      En particular <code>"stack"</code> es <em>tiras apiladas en la URL</em>,
+      y no tiene nada que ver con la pila en memoria del
+      <code>C_YUI_PAGER</code>, que es justo el mecanismo que <b>no</b> está en
+      la URL.
+    </p>
+  </div>
+
+  <!-- =================== 1. la URL =================== -->
+  <section class="mech" style="--c: var(--url); --c-bg: var(--url-bg); --c-line: var(--url-line)">
+    <div class="mech-head">
+      <span class="tag">1 · en la URL</span>
+      <h2>La ruta es la verdad</h2>
+    </div>
+    <p class="role">El modelo canónico del shell — intención → URL → vista.</p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 150" role="img"
+             aria-label="Una URL partida en el tramo declarado por el shell y el subpath que posee la vista">
+          <rect x="8" y="14" width="284" height="28" rx="4"
+                fill="var(--surface)" stroke="var(--rule-2)"/>
+          <text x="20" y="33" font-family="ui-monospace, monospace" font-size="12">
+            <tspan fill="var(--faint)">#</tspan><tspan fill="var(--url)">/reports/sales</tspan><tspan fill="var(--muted)">/q3</tspan>
+          </text>
+          <line x1="24" y1="52" x2="118" y2="52" stroke="var(--url)" stroke-width="2"/>
+          <line x1="122" y1="52" x2="150" y2="52" stroke="var(--muted)" stroke-width="2" stroke-dasharray="3 3"/>
+          <text x="24" y="68" font-family="ui-monospace, monospace" font-size="9" fill="var(--url)">ruta declarada</text>
+          <text x="24" y="80" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">subpath: lo posee la vista</text>
+
+          <rect x="8" y="96" width="128" height="40" rx="4" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="72" y="113" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">C_YUI_NAV</text>
+          <text x="72" y="127" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">layout: cards</text>
+
+          <path d="M140 116 l16 0" stroke="var(--rule-2)" stroke-width="1.5"/>
+          <path d="M152 112 l5 4 l-5 4" fill="none" stroke="var(--rule-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <rect x="162" y="96" width="130" height="40" rx="4" fill="var(--surface)" stroke="var(--rule-2)"/>
+          <text x="227" y="113" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">la vista</text>
+          <text x="227" y="127" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">EV_ROUTE_CHANGED</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          Cada card es un <code>&lt;a href="#/reports/sales"&gt;</code> de
+          verdad. El click no toca la vista: cambia el hash, y el
+          <code>hashchange</code> del shell monta el destino. Atrás y Adelante
+          recorren el mismo camino, así que son correctos por construcción —
+          y el enlace se puede compartir, abrir en otra pestaña y marcar.
+        </p>
+        <ul class="facts">
+          <li>
+            La rejilla es un <code>C_YUI_NAV</code> con
+            <code>layout:"cards"</code>, que el shell sintetiza a partir de
+            <code>submenu.index</code> en un item de menú de nivel 1.
+          </li>
+          <li>
+            En móvil, ese mismo índice añade una <code>backbar</code>
+            (<code>show_on:"&lt;tablet"</code>) en vez de repetir la tira de
+            pestañas; se apaga con <code>index:{backbar:false}</code>.
+            Sigue siendo un enlace a un <b>destino fijo</b>, no un pop del
+            historial.
+          </li>
+          <li>
+            La vista posee sus niveles profundos vía <b>subpath</b>: el shell
+            resuelve hasta el ancestro declarado y le entrega la cola.
+            <code>subpath</code> vacío significa «su home».
+          </li>
+        </ul>
+        <div class="api"><span class="cmt">// lo eligió un humano → push (es el defecto)</span>
+yui_shell_navigate(shell, <b>"/reports/sales"</b>)
+
+<span class="cmt">// lo decide el código (redirect, normalizar) → replace</span>
+yui_shell_navigate(shell, r, <b>{replace: true}</b>)</div>
+      </div>
+    </div>
+
+    <div id="demo-url"></div>
+  </section>
+
+  <!-- =================== 2. el árbol =================== -->
+  <section class="mech" style="--c: var(--url); --c-bg: var(--url-bg); --c-line: var(--url-line)">
+    <div class="mech-head">
+      <span class="tag">2 · en la URL</span>
+      <h2>El árbol de nodos</h2>
+    </div>
+    <p class="role">
+      <code>C_YUI_NODE</code> — una ruta declarada, profundidad libre debajo.
+    </p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 165" role="img"
+             aria-label="Un árbol de nodos: una ruta declarada y sus descendientes como subpath">
+          <rect x="8" y="10" width="284" height="26" rx="4" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="20" y="27" font-family="ui-monospace, monospace" font-size="11">
+            <tspan fill="var(--url)">/admin</tspan><tspan fill="var(--muted)">/treedb/db/data</tspan>
+          </text>
+          <text x="20" y="50" font-family="ui-monospace, monospace" font-size="9" fill="var(--url)">1 ruta declarada</text>
+          <text x="150" y="50" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">todo esto es subpath</text>
+
+          <line x1="30" y1="68" x2="30" y2="96" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="30" cy="68" r="4.5" fill="var(--url)"/>
+          <text x="44" y="72" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink)">admin</text>
+
+          <line x1="30" y1="96" x2="56" y2="96" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="62" cy="96" r="4" fill="var(--url)" opacity=".65"/>
+          <text x="76" y="100" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-soft)">treedb</text>
+
+          <line x1="62" y1="96" x2="62" y2="122" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <line x1="62" y1="122" x2="88" y2="122" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <circle cx="94" cy="122" r="4" fill="var(--url)" opacity=".45"/>
+          <text x="108" y="126" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-soft)">db</text>
+
+          <line x1="94" y1="122" x2="94" y2="146" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <line x1="94" y1="146" x2="120" y2="146" stroke="var(--rule-2)" stroke-width="1.2"/>
+          <rect x="126" y="134" width="88" height="24" rx="3" fill="var(--surface)" stroke="var(--url-line)"/>
+          <text x="170" y="149" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--ink)">link → la vista</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          Un submenú del shell pinta dos niveles. Cuando la sección tiene más,
+          el árbol de nodos lo resuelve al revés: declara <b>una</b> ruta y
+          todo lo que cuelga llega como subpath, con la profundidad que haga
+          falta. Cada nodo pinta su parte del camino de vuelta y entrega a su
+          hijo la cola de la URL ya recortada.
+        </p>
+        <ul class="facts">
+          <li>
+            Un nodo <code>link</code> es el final de la estructura: a partir
+            de ahí el subpath es de la vista. Lo recibe como
+            <code>EV_ROUTE_CHANGED {route, base, subpath}</code> — el mismo
+            contrato que le daba el shell, así que la vista no distingue quién
+            la monta.
+          </li>
+          <li>
+            Y por eso, para <em>hablar</em> con el shell desde dentro de un
+            árbol, hay que resolverlo con <code>yui_shell_of(gobj)</code>:
+            el padre ya no es el shell, es el nodo.
+          </li>
+          <li>
+            <code>chrome_depth</code> limita cuántas tiras se pintan; gana la
+            declaración más profunda del camino.
+          </li>
+        </ul>
+        <div class="api"><span class="cmt">// el árbol entero lee el modo de su RAÍZ</span>
+yui_node_set_nav_mode(root, <b>"path"</b>)
+yui_node_nav_mode(node)   <span class="cmt">// → "stack" | "back" | "path"</span></div>
+      </div>
+    </div>
+
+    <div id="demo-tree"></div>
+  </section>
+
+  <section class="col">
+    <h3 style="color: var(--muted); text-transform: uppercase; letter-spacing: .1em;">
+      Las tres formas del mismo camino
+    </h3>
+    <p>
+      <code>nav_mode</code> no cambia dónde vive la posición —sigue en la
+      URL—: cambia cómo se <em>dibuja</em>. Es un <b>filtro</b> aplicado
+      cuando se piden los renders, nunca una reescritura de lo que declaró la
+      app; por eso volver a <code>"stack"</code> restituye exactamente lo
+      declarado, rama por rama. Pertenece a la <b>raíz</b>: ponerlo en un nodo
+      intermedio se rechaza con un log.
+    </p>
+  </section>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>nav_mode</th><th>Qué dibuja</th><th>Tiras de chrome</th><th>Equivale a declarar</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>stack</th>
+          <td>Una tira por ancestro<span class="sub">el defecto</span></td>
+          <td>lo que declare cada rama</td>
+          <td><span class="sub">— (es lo declarado)</span></td>
+        </tr>
+        <tr>
+          <th>back</th>
+          <td>Sólo el padre de la punta, como <code>← padre</code></td>
+          <td><code>1</code></td>
+          <td><code>chrome: {layout:"backbar"}</code> en cada rama</td>
+        </tr>
+        <tr>
+          <th>path</th>
+          <td>El rastro entero en una línea (miga de pan)</td>
+          <td><code>0</code></td>
+          <td><code>path: {layout:"breadcrumb"}</code> en la raíz</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- =================== 3. la pila =================== -->
+  <section class="mech" style="--c: var(--mem); --c-bg: var(--mem-bg); --c-line: var(--mem-line)">
+    <div class="mech-head">
+      <span class="tag">3 · en memoria</span>
+      <h2>La pila de páginas</h2>
+    </div>
+    <p class="role"><code>C_YUI_PAGER</code> — drill-down transitorio.</p>
+
+    <div class="panel">
+      <div class="viz">
+        <svg viewBox="0 0 300 150" role="img"
+             aria-label="Pila LIFO de páginas en memoria, con push y pop">
+          <rect x="46" y="16" width="170" height="30" rx="4" fill="var(--surface)" stroke="var(--mem-line)" opacity=".45"/>
+          <text x="62" y="35" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)" opacity=".8">page · root</text>
+
+          <rect x="58" y="52" width="170" height="30" rx="4" fill="var(--surface)" stroke="var(--mem-line)" opacity=".7"/>
+          <text x="74" y="71" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)">page · lista</text>
+
+          <rect x="70" y="88" width="170" height="32" rx="4" fill="var(--surface)" stroke="var(--mem)" stroke-width="1.8"/>
+          <text x="86" y="108" font-family="ui-monospace, monospace" font-size="10" fill="var(--mem)">page · form ▸ top</text>
+
+          <path d="M258 34 l0 62" stroke="var(--mem)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <path d="M254 90 l4 6 l4 -6" fill="none" stroke="var(--mem)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="252" y="28" text-anchor="end" font-family="ui-monospace, monospace" font-size="8.5" fill="var(--mem)">EV_PUSH_PAGE</text>
+          <text x="252" y="112" text-anchor="end" font-family="ui-monospace, monospace" font-size="8.5" fill="var(--mem)">EV_POP_PAGE</text>
+
+          <text x="150" y="140" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">nada de esto está en la URL</text>
+        </svg>
+      </div>
+      <div class="body">
+        <p>
+          El pager mantiene un <code>priv.stack</code> LIFO en memoria:
+          <code>EV_PUSH_PAGE</code> apila un panel y <code>EV_POP_PAGE</code>
+          lo saca. Su <code>←</code> navega la pila y nada más; hacer pop en la
+          raíz emite <code>EV_PAGER_EXIT</code> para que el anfitrión cierre
+          (gobernado por el attr <code>back_on_root</code>).
+        </p>
+        <ul class="facts">
+          <li>
+            <b>No es una ruta</b>, y no debe serlo: flota dentro de un
+            <code>C_YUI_WINDOW</code>, un modal o inline. No es deep-linkable
+            y no sobrevive a un F5.
+          </li>
+          <li>
+            Sin chrome de Confirmar/Cancelar: el contenido se autoguarda (por
+            ejemplo un <code>C_YUI_FORM</code>), con un <code>discard</code>
+            opcional por página.
+          </li>
+          <li>
+            Agnóstico del contenedor: el anfitrión monta su
+            <code>$container</code> donde quiera y escucha
+            <code>EV_PAGE_SHOWN {id, depth}</code>.
+          </li>
+        </ul>
+        <div class="api"><b>EV_PUSH_PAGE</b> { id, title, content, discardable? }
+<b>EV_POP_PAGE</b> / <b>EV_BACK</b>     <span class="cmt">// en la raíz → EV_PAGER_EXIT</span>
+<b>EV_REPLACE_PAGE</b> · <b>EV_DISCARD_PAGE</b></div>
+      </div>
+    </div>
+
+    <div id="demo-pager"></div>
+  </section>
+
+  <!-- =================== decisión =================== -->
+  <section class="col">
+    <h2>Cómo elegir</h2>
+    <p>
+      Dos preguntas resuelven el caso, y la tercera sólo aparece si hay
+      profundidad de verdad.
+    </p>
+  </section>
+
+  <div class="flow">
+    <div class="q">
+      <span class="n">1</span>
+      <div>
+        <p class="qt">¿Flota <em>sobre</em> la vista y desaparece con ella?</p>
+        <p class="qa">
+          Sí → <b class="go-mem">C_YUI_PAGER</b>. No lo metas en la URL: un
+          overlay deep-linkable es la excepción rara, no la regla.
+        </p>
+      </div>
+    </div>
+    <div class="q">
+      <span class="n">2</span>
+      <div>
+        <p class="qt">¿Es una <em>posición</em>: debe sobrevivir a recarga, a compartir y al Atrás?</p>
+        <p class="qa">
+          Sí → <b class="go-url">la URL</b>. Dale un segmento y haz que llegar
+          sea un <code>push</code>. Es el caso por defecto.
+        </p>
+      </div>
+    </div>
+    <div class="q">
+      <span class="n">3</span>
+      <div>
+        <p class="qt">¿Y tiene más de dos niveles bajo la sección?</p>
+        <p class="qa">
+          → <b class="go-url">C_YUI_NODE</b>, una ruta declarada y el resto
+          como subpath. Ahí eliges <code>nav_mode</code>, que es
+          <em>presentación</em>: la posición sigue estando en la URL con
+          cualquiera de los tres.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== tabla =================== -->
+  <section class="col">
+    <h2>Los tres, cara a cara</h2>
+  </section>
+
+  <div class="tscroll">
+    <table>
+      <thead>
+        <tr><th>Dimensión</th><th>La URL</th><th>El árbol de nodos</th><th>La pila</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th style="color: var(--muted)">Dónde vive la posición</th>
+          <td><span class="pill url">URL</span></td>
+          <td><span class="pill url">URL</span><span class="sub">una ruta + subpath</span></td>
+          <td><span class="pill mem">memoria</span><span class="sub">priv.stack LIFO</span></td>
+        </tr>
+        <tr>
+          <th style="color: var(--muted)">Deep-link · F5 · compartir</th>
+          <td>Sí</td><td>Sí</td><td>No</td>
+        </tr>
+        <tr>
+          <th style="color: var(--muted)">Atrás del navegador</th>
+          <td>Historial completo</td>
+          <td>Historial completo<span class="sub">también hacia dentro del árbol</span></td>
+          <td>No participa<span class="sub">el ← es interno</span></td>
+        </tr>
+        <tr>
+          <th style="color: var(--muted)">Componente</th>
+          <td><code>C_YUI_NAV</code><span class="sub">cards · backbar · breadcrumb</span></td>
+          <td><code>C_YUI_NODE</code></td>
+          <td><code>C_YUI_PAGER</code></td>
+        </tr>
+        <tr>
+          <th style="color: var(--muted)">Profundidad</th>
+          <td>La que declares, ruta a ruta</td>
+          <td>Libre bajo una sola ruta</td>
+          <td>Libre, y ninguna es una posición</td>
+        </tr>
+        <tr>
+          <th style="color: var(--muted)">Naturaleza (Litmus)</th>
+          <td>Posición</td><td>Posición</td><td>Transitorio</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p>
+      <b>Regla de oro:</b> si un humano eligió deliberadamente ir ahí, es una
+      posición y va a la URL. Si flota por encima y desaparece, es transitorio
+      y va a la pila. <code>nav_mode</code> se elige <em>después</em>, y sólo
+      decide el dibujo.
+    </p>
+    <p class="src">
+      Las tres demos corren sobre <b>@yuneta/gobj-js</b> de verdad, con el
+      runtime empotrado en la página: cada una es una GCLASS con su FSM, y el
+      panel <code>machine</code> es la traza del propio kernel
+      (<code>gobj_set_global_trace("machine", true)</code> +
+      <code>set_log_callback()</code>), no un log escrito aquí.
+    </p>
+    <p class="src">
+      Verificado contra gobj-ui 5.4.0 · ROUTING.md §2–3 ·
+      c_yui_node.js · node_tree_model.js (nav_mode_renders, nav_mode_depth) ·
+      shell_section_index.js · c_yui_nav.js · c_yui_pager.js
+    </p>
+  </footer>
+
+</div>
