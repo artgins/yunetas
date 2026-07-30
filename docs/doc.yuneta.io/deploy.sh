@@ -129,18 +129,27 @@ fi
 echo "landing page installed at /landing (version ${VERSION})"
 
 #
-#   Interactive walkthroughs: standalone documents with no external
-#   requests, sharing the theme through localStorage["myst:theme"].  They
-#   draw things no markdown page can (a graph that runs), so they ship as
-#   raw HTML — myst copies no raw files.
+#   Standalone documents with no external requests, sharing the theme
+#   through localStorage["myst:theme"].  They do things no markdown page
+#   can, so they ship as raw HTML — myst copies no raw files.
+#
+#   Two kinds, and the difference is real enough to have its own band on
+#   the landing:
+#
+#     WALKTHROUGHS  are stepped through — a graph that runs, a harness
+#                   that proves something.  Band "Pages that run",
+#                   carded with class="run-card".
+#     REFERENCES    are read — one decision followed down to the API
+#                   names.  Band "Field guides", class="ref-card".
 #
 #   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
-#   slug below, and list it in the landing's "Pages that run" band.
-#   The check after the loop enforces that last step.
+#   slug to the right list below, and card it in the matching band.  The
+#   check after the loop enforces that last step, per band.
 #
-WALKTHROUGHS="login-flow package-transition navigation"
+WALKTHROUGHS="login-flow package-transition"
+REFERENCES="navigation"
 
-for _walkthrough in ${WALKTHROUGHS}; do
+for _walkthrough in ${WALKTHROUGHS} ${REFERENCES}; do
     # The whole directory: a walkthrough may ship files of its own (a
     # script to download, an image), and index.html alone would leave
     # them 404ing.
@@ -154,32 +163,54 @@ for _walkthrough in ${WALKTHROUGHS}; do
 done
 
 #
-#   The landing is the only index these pages have, so the two lists must
-#   agree. Installed-but-unlisted is a page nobody can find; listed-but-
-#   not-installed is a 404 on the front page. Neither shows up until
-#   somebody complains, so they are caught here — before the rsync, so a
-#   mismatch never reaches the server.
+#   The landing is the only index these pages have, so each list must
+#   agree with its own band. Installed-but-unlisted is a page nobody can
+#   find; listed-but-not-installed is a 404 on the front page. And a page
+#   carded in the WRONG band is found by nobody looking for it, which is
+#   why the check is per band and not against the union. None of the
+#   three shows up until somebody complains, so they are caught here —
+#   before the rsync, so a mismatch never reaches the server.
 #
-_carded=$(grep -oE 'class="run-card" href="/[a-z0-9-]+"' landing/index.html |
-          sed 's|.*href="/||; s|"$||' | sort)
-_installed=$(printf '%s\n' ${WALKTHROUGHS} | sort)
+check_band()   # <card-class> <band-name> <slug>...
+{
+    _class="$1"
+    _band="$2"
+    shift 2
 
-_unlisted=$(comm -23 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
-_orphan=$(comm -13 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
+    #
+    #   Both sides can legitimately be EMPTY — a band with no cards yet,
+    #   a list emptied while a page is retired — and under `set -o
+    #   pipefail` an empty grep would kill the deploy with no message at
+    #   all. Say "nothing" explicitly instead of exiting silently.
+    #
+    _carded=$(grep -oE "class=\"${_class}\" href=\"/[a-z0-9-]+\"" landing/index.html |
+              sed 's|.*href="/||; s|"$||' | sort || true)
+    if [ "$#" -gt 0 ]; then
+        _installed=$(printf '%s\n' "$@" | sort)
+    else
+        _installed=""
+    fi
 
-if [ -n "${_unlisted}" ]; then
-    echo "ERROR: walkthrough(s) installed but not carded in the landing's" >&2
-    echo "       \"Pages that run\" band — nobody would find them:" >&2
-    printf '         /%s\n' ${_unlisted} >&2
-    exit 1
-fi
-if [ -n "${_orphan}" ]; then
-    echo "ERROR: the landing cards walkthrough(s) that are not installed —" >&2
-    echo "       those links would 404:" >&2
-    printf '         /%s\n' ${_orphan} >&2
-    exit 1
-fi
-echo "walkthrough cards match the installed set"
+    _unlisted=$(comm -23 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
+    _orphan=$(comm -13 <(printf '%s\n' "${_installed}") <(printf '%s\n' "${_carded}"))
+
+    if [ -n "${_unlisted}" ]; then
+        echo "ERROR: page(s) installed but not carded in the landing's" >&2
+        echo "       \"${_band}\" band — nobody would find them:" >&2
+        printf '         /%s\n' ${_unlisted} >&2
+        exit 1
+    fi
+    if [ -n "${_orphan}" ]; then
+        echo "ERROR: the landing's \"${_band}\" band cards page(s) that are" >&2
+        echo "       not installed there — those links would 404:" >&2
+        printf '         /%s\n' ${_orphan} >&2
+        exit 1
+    fi
+    echo "\"${_band}\" cards match the installed set"
+}
+
+check_band run-card "Pages that run" ${WALKTHROUGHS}
+check_band ref-card "Field guides"   ${REFERENCES}
 
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on

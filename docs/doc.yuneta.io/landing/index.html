@@ -716,7 +716,20 @@ h1.hero-title {
     gap: clamp(1rem, 2vw, 1.5rem);
     grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
 }
-.run-card {
+/*
+    auto-FILL, not auto-fit: this band starts with one card, and auto-fit
+    would collapse the empty tracks and stretch it across the full width
+    — a single line of prose 1100 px long. The empty columns stay, and
+    fill up as guides are added.
+*/
+.runs.guides { grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); }
+/*
+    Two bands share one card. What separates them is the rule along the
+    top: a walkthrough RUNS, so its rule sweeps; a field guide is read,
+    so its rule sits still. The distinction is the point of having two
+    bands, and it should be visible before reading a word.
+*/
+.run-card, .ref-card {
     position: relative;
     overflow: hidden;
     display: flex;
@@ -728,6 +741,14 @@ h1.hero-title {
     text-decoration: none;
     color: inherit;
 }
+.ref-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--rule);
+}
+.ref-card:hover::before { background: var(--accent); }
 .run-card::before {
     content: "";
     position: absolute;
@@ -739,7 +760,7 @@ h1.hero-title {
     animation: run-sweep 3.4s linear infinite;
 }
 .run-card:nth-child(2)::before { animation-delay: 1.1s; }
-.run-card:hover { border-color: var(--accent); }
+.run-card:hover, .ref-card:hover { border-color: var(--accent); }
 @keyframes run-sweep {
     from { background-position: -45% 0; }
     to   { background-position: 145% 0; }
@@ -767,7 +788,7 @@ h1.hero-title {
     font-size: var(--t-sm);
     color: var(--text-dim);
 }
-.run-card:hover .run-go { color: var(--accent); }
+.run-card:hover .run-go, .ref-card:hover .run-go { color: var(--accent); }
 
 /* ============================================================
    Doc map
@@ -1176,8 +1197,29 @@ h1.hero-title {
                 <span class="run-go">open &rarr;</span>
             </a>
 
-            <a class="run-card" href="/navigation">
-                <span class="run-kick">&#9654;&ensp;Reference</span>
+            <!-- next walkthrough goes here -->
+        </div>
+    </section>
+
+    <!-- ============ FIELD GUIDES ============
+         Standalone pages like the walkthroughs above, but read rather
+         than stepped through: one decision explained end to end, with
+         the API names it lands on. Their cards carry a still rule, not
+         the sweeping one — see .ref-card.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>Field guides</h2>
+            <span class="label">Reference</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">One decision,
+        followed all the way down to the names you type. The page you keep open while writing
+        the code, not the chapter you read once.</p>
+
+        <div class="runs guides">
+            <a class="ref-card" href="/navigation">
+                <span class="run-kick">Reference</span>
                 <span class="run-t">Getting back</span>
                 <span class="run-d">Navigation in a gobj-ui app comes down to one decision:
                 where the reader's position lives. The url, the node tree and the pager's
@@ -1185,7 +1227,7 @@ h1.hero-title {
                 <span class="run-go">open &rarr;</span>
             </a>
 
-            <!-- next walkthrough goes here -->
+            <!-- next field guide goes here -->
         </div>
     </section>
 
