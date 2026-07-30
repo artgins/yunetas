@@ -183,7 +183,11 @@
   .chip .v { color: var(--muted); }
   .jar-note { font-size: var(--s--1); color: var(--muted); }
 
-  .controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .6rem 1rem; border-top: 1px solid var(--rule); background: var(--sunk); }
+  .controls {
+    display: flex; align-items: center; gap: .5rem .9rem; flex-wrap: wrap;
+    padding: .6rem 1rem; border-top: 1px solid var(--rule); background: var(--sunk);
+  }
+  .ctl-row { display: flex; align-items: center; gap: .5rem; }
   .controls button {
     background: var(--raise); color: var(--ink); border: 1px solid var(--rule);
     border-radius: 2px; font-size: var(--s--1); letter-spacing: .05em;
@@ -193,10 +197,12 @@
   #play { background: var(--ink); color: var(--paper); border-color: var(--ink); min-width: 6.5rem; }
   /*  Fixed spot, fixed width: the step number changes twelve times a
    *  cycle, and a counter that reflows drags the buttons beside it. */
+  /*  Between the arrows, and a fixed width: the number changes twelve
+   *  times a cycle, and a counter that reflows shoves the → button. */
   .counter {
     font-size: var(--s--1); color: var(--muted);
     font-variant-numeric: tabular-nums;
-    margin-left: auto; min-width: 3.6rem; text-align: right;
+    min-width: 3.2rem; text-align: center;
   }
   .counter .of { color: var(--rule); margin: 0 .15rem; }
   /*  Speed: one group, so the three buttons read as one control.  */
@@ -285,13 +291,23 @@
           thing you were watching.
       -->
       <div class="controls">
-        <button id="play" type="button">Pause</button>
-        <button id="prev" type="button" aria-label="Previous step">&larr;</button>
-        <button id="next" type="button" aria-label="Next step">&rarr;</button>
-        <div class="speeds" id="speeds" role="group" aria-label="Playback speed">
-          <span class="lbl">speed</span>
+        <!--
+            Transport first, and the step indicator BETWEEN the arrows —
+            the number belongs to the thing the arrows move, and reading
+            "← 5|12 →" is one glance. Speed is a setting, not transport,
+            so it wraps to its own row as soon as the bar is narrow.
+        -->
+        <div class="ctl-row">
+          <button id="play" type="button">Pause</button>
+          <button id="prev" type="button" aria-label="Previous step">&larr;</button>
+          <span class="counter" id="counter"></span>
+          <button id="next" type="button" aria-label="Next step">&rarr;</button>
         </div>
-        <span class="counter" id="counter"></span>
+        <div class="ctl-row">
+          <div class="speeds" id="speeds" role="group" aria-label="Playback speed">
+            <span class="lbl">speed</span>
+          </div>
+        </div>
       </div>
 
       <div class="legend">

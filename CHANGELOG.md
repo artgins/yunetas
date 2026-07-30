@@ -41,13 +41,21 @@
   to see. The state chips keep tracking `C_TCP`: a nested line belongs to
   another gobj and leaves them alone.
 
+- **`gobj-js`: `tab()` indents 2 spaces per level, like `gobj.c`** — it was
+  `2n - 1`, one short at every level, so a JS trace read beside a node's did
+  not line up. Committed, not published: it rides with the next release rather
+  than costing three consumers a range bump for one space.
+
 - **`/login-flow`: the transport controls moved INSIDE the graph box**, under
   the canvas. They drive what the canvas shows, and sitting below the stage
   meant reaching past a screenful of text to pause the thing you were watching.
   The row of twelve numbered step buttons is gone with them: it was longer than
   the rest of the bar, and the arrows already walk the sequence. In its place,
-  `5|12` in one fixed spot — fixed width and tabular figures, so the number
-  changing twelve times a cycle does not drag the buttons beside it.
+  `5|12` between the arrows — the number belongs to what the arrows move, and
+  `← 5|12 →` is one glance — with a fixed width and tabular figures so a number
+  changing twelve times a cycle does not shove the `→` button. Speed is a
+  setting rather than transport, so it wraps to its own row: on a phone the bar
+  reads as two lines, on a desktop as one.
 
 - **`/navigation`: the three mechanisms are live, and they run on gobj-js.**
   Each demo is a real GCLASS on the real runtime (the 7.9.4 ES build ships next
