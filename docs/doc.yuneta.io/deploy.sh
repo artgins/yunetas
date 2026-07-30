@@ -146,8 +146,8 @@ echo "landing page installed at /landing (version ${VERSION})"
 #   slug to the right list below, and card it in the matching band.  The
 #   check after the loop enforces that last step, per band.
 #
-WALKTHROUGHS="login-flow package-transition"
-REFERENCES="navigation"
+WALKTHROUGHS="login-flow"
+REFERENCES="package-transition navigation"
 
 for _walkthrough in ${WALKTHROUGHS} ${REFERENCES}; do
     # The whole directory: a walkthrough may ship files of its own (a

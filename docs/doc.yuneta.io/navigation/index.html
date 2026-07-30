@@ -270,6 +270,108 @@
   footer .src { font-family: var(--mono); font-size: .9em; color: var(--faint); }
   footer a { color: var(--url); }
 
+  /*
+   *  The demos. Each one is a real gobj on the real gobj-js runtime
+   *  (see demos.js): the fake url bar on top, the stage, and the machine
+   *  panel underneath showing which event landed in which state.
+   */
+  .demo {
+    border: 1px solid var(--rule); border-radius: 4px;
+    background: var(--surface); box-shadow: var(--shadow);
+    overflow: hidden; margin-top: 1rem;
+  }
+  .demo-bar {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .55rem .8rem; background: var(--sunk);
+    border-bottom: 1px solid var(--rule);
+  }
+  .demo-bar-lbl {
+    font-family: var(--mono); font-size: var(--s--1);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+  .demo-url {
+    font-family: var(--mono); font-size: var(--s--1); color: var(--url);
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 3px; padding: .2rem .5rem; flex: 1;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .demo-stage { padding: .9rem 1rem; display: flex; flex-direction: column; gap: .8rem; }
+
+  .demo-cards { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .demo-card {
+    display: block; padding: .7rem .9rem; min-width: 7rem;
+    border: 1px solid var(--url-line); border-radius: 3px;
+    background: var(--url-bg); color: var(--url);
+    font-family: var(--mono); font-size: var(--s--1); text-decoration: none;
+  }
+  .demo-card:hover { border-color: var(--url); }
+
+  .demo-detail {
+    border-left: 3px solid var(--url); background: var(--sunk);
+    padding: .7rem .9rem; border-radius: 0 3px 3px 0;
+  }
+  .demo-detail h4 { margin: 0 0 .2rem; font-family: var(--mono); font-size: var(--s-0); }
+  .demo-detail p { margin: 0; font-size: var(--s--1); color: var(--muted); }
+
+  .demo-modes, .demo-hist { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+  .demo-btn {
+    font-family: var(--mono); font-size: var(--s--1);
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px;
+    padding: .35rem .6rem; cursor: pointer;
+  }
+  .demo-btn:hover:not(:disabled) { border-color: var(--ink); }
+  .demo-btn:disabled { opacity: .4; cursor: default; }
+  .demo-btn.on { background: var(--url); border-color: var(--url); color: var(--surface); }
+  .demo-note { font-family: var(--mono); font-size: var(--s--1); color: var(--faint); }
+
+  .demo-chrome { display: flex; flex-direction: column; gap: .3rem; }
+  .demo-strip {
+    display: flex; gap: .3rem; flex-wrap: wrap;
+    padding: .3rem; background: var(--sunk); border-radius: 3px;
+  }
+  .demo-strip.crumb { align-items: center; }
+  .demo-sep { color: var(--faint); font-family: var(--mono); }
+  .demo-tab {
+    font-family: var(--mono); font-size: var(--s--1);
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent; border-radius: 3px;
+    padding: .3rem .55rem; cursor: pointer;
+  }
+  .demo-tab:hover { color: var(--ink); }
+  .demo-tab.on { background: var(--surface); border-color: var(--rule); color: var(--url); }
+  .demo-tab.back { color: var(--url); }
+
+  .demo-deck { display: flex; flex-direction: column; gap: .25rem; }
+  .demo-page {
+    font-family: var(--mono); font-size: var(--s--1);
+    border: 1px solid var(--mem-line); border-radius: 3px;
+    background: var(--mem-bg); color: var(--mem);
+    padding: .5rem .7rem;
+  }
+  .demo-page.root { background: var(--sunk); border-color: var(--rule); color: var(--muted); }
+  .demo-page.top { border-width: 2px; font-weight: 600; }
+  .demo-exit { font-family: var(--mono); font-size: var(--s--1); color: var(--mem); margin: 0; }
+
+  .machine {
+    border-top: 1px solid var(--rule); background: var(--sunk);
+    padding: .6rem .8rem; display: flex; flex-direction: column; gap: .35rem;
+  }
+  .machine-lbl {
+    font-family: var(--mono); font-size: var(--s--1);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+  .machine-log {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: .15rem;
+    font-family: var(--mono); font-size: var(--s--1);
+    min-height: 1.2rem;
+  }
+  .machine-log li { display: flex; gap: .6rem; flex-wrap: wrap; color: var(--muted); }
+  .machine-log .ml-gobj { color: var(--faint); }
+  .machine-log .ml-ev { color: var(--ink); font-weight: 600; }
+  .machine-log li.moved .ml-st { color: var(--url); }
+
   a { color: var(--url); }
   :focus-visible { outline: 2px solid var(--url); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -420,6 +522,8 @@ yui_shell_navigate(shell, <b>"/reports/sales"</b>)
 yui_shell_navigate(shell, r, <b>{replace: true}</b>)</div>
       </div>
     </div>
+
+    <div id="demo-url"></div>
   </section>
 
   <!-- =================== 2. the node tree =================== -->
@@ -492,6 +596,8 @@ yui_node_set_nav_mode(root, <b>"path"</b>)
 yui_node_nav_mode(node)   <span class="cmt">// &rarr; "stack" | "back" | "path"</span></div>
       </div>
     </div>
+
+    <div id="demo-tree"></div>
   </section>
 
   <section class="col">
@@ -596,6 +702,8 @@ yui_node_nav_mode(node)   <span class="cmt">// &rarr; "stack" | "back" | "path"<
 <b>EV_REPLACE_PAGE</b> &middot; <b>EV_DISCARD_PAGE</b></div>
       </div>
     </div>
+
+    <div id="demo-pager"></div>
   </section>
 
   <!-- =================== choosing =================== -->
@@ -734,6 +842,20 @@ yui_node_nav_mode(node)   <span class="cmt">// &rarr; "stack" | "back" | "path"<
     }
   });
 </script>
+
+<!--
+    The three demos, each a real GCLASS on the real gobj-js runtime that
+    ships next to this file. A page arguing that a click IS an event
+    should not be making that argument with DOM callbacks.
+
+    ABSOLUTE path, not "./demos.js": this page is served at /navigation
+    with NO trailing slash (nginx try_files, no redirect), so a relative
+    specifier resolves against the ROOT — the browser asks for
+    /demos.js, gets the 404 page, and refuses the module for its
+    text/html MIME type. Same reason demos.js imports the runtime by
+    absolute path.
+-->
+<script type="module" src="/navigation/demos.js"></script>
 
 </body>
 </html>

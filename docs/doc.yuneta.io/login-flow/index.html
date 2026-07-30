@@ -196,6 +196,12 @@
   .dots button { width: 1.9rem; height: 1.9rem; padding: 0; font-variant-numeric: tabular-nums; }
   .dots button[aria-current="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
+  /*  Speed: one group, so the three buttons read as one control.  */
+  .speeds { display: flex; align-items: center; gap: .3rem; }
+  .speeds .lbl { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); margin-right: .1rem; }
+  .speeds button { padding: .5rem .55rem; font-variant-numeric: tabular-nums; }
+  .speeds button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
   :focus-visible { outline: 2px solid var(--gui); outline-offset: 2px; }
 
   .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1.5rem; }
@@ -310,6 +316,9 @@
       <button id="play" type="button">Pause</button>
       <button id="prev" type="button" aria-label="Previous step">&larr;</button>
       <button id="next" type="button" aria-label="Next step">&rarr;</button>
+      <div class="speeds" id="speeds" role="group" aria-label="Playback speed">
+        <span class="lbl">speed</span>
+      </div>
       <div class="dots" id="dots"></div>
       <span class="counter" id="counter"></span>
     </div>
@@ -1007,6 +1016,18 @@
   let hold = 0;
   const TRAVEL = 1100, HOLD = 900;
 
+  /*
+   *  Playback speed. The two durations are always read through these,
+   *  never as the constants: a reader following the packet wants it
+   *  slower, and one who already knows the exchange wants it out of the
+   *  way. It applies to the reduced-motion timer too — there the travel
+   *  is not drawn, but the dwell on each step still is a duration.
+   */
+  const SPEEDS = [0.5, 1, 2];
+  let speed = 1;
+  const travel_ms = () => TRAVEL / speed;
+  const hold_ms   = () => HOLD / speed;
+
   function step() { return SCENARIOS[scen].steps[idx]; }
 
   function draw() {
@@ -1024,9 +1045,9 @@
   function tick(ts) {
     if (!t0) { t0 = ts; }
     const dt = ts - t0;
-    prog = Math.min(1, dt / TRAVEL);
+    prog = Math.min(1, dt / travel_ms());
     draw();
-    if (dt < TRAVEL + HOLD) {
+    if (dt < travel_ms() + hold_ms()) {
       raf = requestAnimationFrame(tick);
     } else if (playing) {
       advance(1);
@@ -1051,7 +1072,7 @@
     if (reduced.matches) {
       draw();
       if (playing) {
-        hold = setTimeout(() => advance(1), TRAVEL + HOLD);
+        hold = setTimeout(() => advance(1), travel_ms() + hold_ms());
       }
       return;
     }
@@ -1079,6 +1100,42 @@
     b.type = "button"; b.textContent = s.name; b.setAttribute("role", "tab");
     b.addEventListener("click", () => { scen = i; idx = 0; render(); });
     tabsEl.appendChild(b);
+  });
+
+  /*
+   *  Changing speed mid-flight keeps the packet where it is: `prog` is
+   *  derived from elapsed time over the duration, so a new duration
+   *  would otherwise make it jump. Re-anchoring t0 turns the change into
+   *  a change of rate, which is what the reader asked for.
+   */
+  const speedsEl = el("speeds");
+  SPEEDS.forEach((s) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "×" + s;
+    b.setAttribute("aria-label", "Speed " + s + "×");
+    b.setAttribute("aria-pressed", s === speed ? "true" : "false");
+    b.addEventListener("click", () => {
+      if (s === speed) {
+        return;
+      }
+      speed = s;
+      Array.from(speedsEl.querySelectorAll("button")).forEach((o, i) =>
+        o.setAttribute("aria-pressed", SPEEDS[i] === speed ? "true" : "false"));
+
+      if (reduced.matches) {
+        /*  No travel to preserve — just re-arm the dwell.  */
+        clearTimeout(hold);
+        if (playing) {
+          hold = setTimeout(() => advance(1), travel_ms() + hold_ms());
+        }
+        return;
+      }
+      if (t0) {
+        t0 = performance.now() - prog * travel_ms();
+      }
+    });
+    speedsEl.appendChild(b);
   });
 
   function setChip(node, on) {

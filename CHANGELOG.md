@@ -4,6 +4,21 @@
 
 ### Documentation
 
+- **`/navigation`: the three mechanisms are live, and they run on gobj-js.**
+  Each demo is a real GCLASS on the real runtime (the 7.9.4 ES build ships next
+  to the page): a card click sends `EV_OPEN_CARD`, the tree sends `EV_GO` and
+  `EV_SET_NAV_MODE`, the pager sends `EV_PUSH_PAGE` / `EV_POP_PAGE`, and a
+  panel under each demo shows which event landed in which state. A page whose
+  argument is *a click IS an action* had no business making it out of DOM
+  callbacks. The `nav_mode` demo is the one that earns its keep: the same tree
+  at the same depth, redrawn as stacked strips, a single `← parent`, or one
+  breadcrumb — the table's three rows, live.
+
+  Worth knowing while reading that panel: **gobj-js does not emit the `machine`
+  trace** today — the calls are in `gobj.js` but commented out, with only
+  `trace_creation` live — so the panel is fed by a four-line `send()` wrapper.
+  The states it prints are read back from `gobj_current_state()`.
+
 - **New walkthrough: `/navigation` — "Getting back".** Navigation in a gobj-ui
   app is one decision — *where the reader's position lives* — and the page is
   built on that axis: the url (`C_YUI_NAV`, cards + subpath), the node tree
