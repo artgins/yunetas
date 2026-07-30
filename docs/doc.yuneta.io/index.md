@@ -12,7 +12,7 @@ title: Yuneta Simplified
 
 **Current version: [7.9.4](https://github.com/artgins/yunetas/tree/7.9.4)**
 
-*Documentation updated: 2026-07-29*
+*Documentation updated: 2026-07-30*
 :::
 
 :::{grid-item}
