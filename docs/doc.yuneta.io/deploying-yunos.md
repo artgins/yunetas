@@ -166,8 +166,8 @@ cannot happen silently.
 (dy-recipe-hotpatch)=
 ## Recipe A — hot-patch (same version)
 
-Use when the code changed but `APP_VERSION` did not: a quick fix, a rebuild
-with more debug info, a relink.
+If the code changed but `APP_VERSION` did not, use this recipe. It covers a
+quick fix, a rebuild with more debug info, and a relink.
 
 ```bash
 # 1. Build
@@ -190,19 +190,24 @@ run-yuno  yuno_role=<role> play=0   # only if it had been running
 play-yuno yuno_role=<role>          # only if it had been playing
 ```
 
-Prior run/play state is restored per role — a deliberately stopped yuno stays
-stopped. Multiple roles restart in ascending `start_priority`, so
-infrastructure (logcenter, auth_bff…) comes back before its dependents. Pass
-`--no-restart` if you want the push only, with a printed reminder instead.
+The tool restores the prior run and play state of each role. A yuno that you
+stopped on purpose stays stopped. Multiple roles restart in ascending
+`start_priority`, so the infrastructure (logcenter, auth_bff…) starts before
+its dependents. If you want the push only, pass `--no-restart`. The tool then
+prints a reminder instead of the restart.
 
-**Do NOT run `upgrade-yunos` after a hot-patch** — there is no new version to
-promote; it will find nothing to do (harmless, but noise).
+**Do not run `upgrade-yunos` after a hot-patch.** There is no new version to
+promote, so the command finds nothing to do. It does no damage, but it adds
+noise.
 
 (dy-recipe-bump)=
 ## Recipe B — version bump
 
-Use when `APP_VERSION` changed in `main.c` (or the SDK version moved and your
-yunos re-versioned with it).
+If `APP_VERSION` changed in `main.c`, use this recipe. Also use it when the SDK
+version moved and your yunos took a new version with it.
+
+CAUTION: Step 3 restarts every yuno on the node, not only the yunos that you
+changed. On a busy production node, tell the team before you start.
 
 ```bash
 # 1. Build
@@ -216,40 +221,48 @@ yunetas sync
 yunetas upgrade-yunos
 ```
 
-**Step 3 is not optional.** `install-binary` creates a *new* `(role, version)`
-slot next to the old one; the running yunos are still registered against — and
-will be relaunched on — the OLD release, even across `kill-yuno`/`run-yuno`.
-`upgrade-yunos` is what flips the node to the new release. It does, in order:
-
-1. **Rollback snap** — `shoot-snap name=pre-upgrade-<YYYYMMDD>` (idempotent by
-   name; reuses an already-active snap; `--no-snap` skips, `--snap-name N`
-   renames).
-2. **Preview** — runs `find-new-yunos`, lists the new yuno rows it would
-   register, and asks for confirmation (`-y` skips the prompt).
-3. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows.
-4. **Promote + restart** — `deactivate-snap`, which triggers the agent's
-   `restart_nodes()`: **SIGKILL every running yuno on the node**, reload the
-   treedb with the newest release promoted to primary, and bring everything
-   back up.
-
-Two things to know about step 4:
-
-- It is a **node-wide bounce**, not per-role. Fine for infrastructure windows;
-  flag it before running it on a busy production node.
-- SIGKILL means no orderly shutdown (`mt_stop` does not run). If some yuno
-  must flush state on exit, `ycommand -c 'kill-yuno id=<id>'` it manually
-  before `upgrade-yunos`.
-
-Verify:
+To make sure that the node runs the new release:
 
 ```bash
-ycommand -c 'list-yunos'      # release column shows the new version, running=true
+ycommand -c 'list-yunos'      # the release column shows the new version, running=true
 ```
+
+### Why step 3 is not optional
+
+`install-binary` makes a **new** `(role, version)` slot next to the old one. It
+does not touch the registration of the yunos that run now. The agent keeps each
+one registered against the OLD release, and it starts them again on that old
+release, even after `kill-yuno` and `run-yuno`. `upgrade-yunos` is the command
+that moves the node to the new release.
+
+`upgrade-yunos` does four operations, in this order:
+
+1. **Rollback snap** — `shoot-snap name=pre-upgrade-<YYYYMMDD>`. The name makes
+   the operation idempotent, and the tool uses an already-active snap again.
+   `--no-snap` skips this operation. `--snap-name N` gives the snap another
+   name.
+2. **Preview** — `find-new-yunos` lists the new yuno rows that the tool can
+   register. Then the tool asks you for confirmation. `-y` skips the question.
+3. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows.
+4. **Promote and restart** — `deactivate-snap` starts the agent's
+   `restart_nodes()`.
+
+Operation 4 sends **SIGKILL to every yuno that runs on the node**. Then the
+agent loads the treedb again. The newest release becomes primary, and all the
+yunos start again.
+
+The restart is node-wide, not per-role. During an infrastructure window this is
+acceptable. On a production node it is not, and the CAUTION above applies.
+
+SIGKILL gives no orderly shutdown, because `mt_stop` does not run. If a yuno
+must write its state to disk on exit, stop it first with
+`ycommand -c 'kill-yuno id=<id>'`. Then run `upgrade-yunos`.
 
 (dy-recipe-config)=
 ## Recipe C — config-only change
 
-You edited a config under `<project>/yunos/batches/<host>/`, no binary change.
+If you edited a config under `<project>/yunos/batches/<host>/` and no binary
+changed, use this recipe.
 
 ```bash
 # Preview, then push AND restart the yunos that use the changed configs
@@ -259,33 +272,39 @@ yunetas sync-configs -r
 
 Key facts, because configs behave differently from binaries:
 
-- **A config push never needs a kill.** It always succeeds against a running
-  yuno — but the yuno only reads its config at **(re)start**. Without `-r` the
-  new content sits in the agent until the yuno's next restart, which is a great
-  way to believe a change is live when it isn't. `-r`/`--restart` bounces the
-  affected yunos (scoped by id, run/play state preserved, `start_priority`
-  order); the default prints their ids as a reminder instead.
+- **A config push never needs a kill.** The push always succeeds, even while
+  the yuno runs. But the yuno reads its config only at start or restart.
+  Without `-r`, the new content stays in the agent until the next restart of
+  the yuno. Then you can believe that a change is live when it is not.
+  `-r`/`--restart` restarts the affected yunos, scoped by id, in
+  `start_priority` order, and keeps their run and play state. By default the
+  tool prints their ids as a reminder instead.
 - **The file name is the config id**: `auth_bff.1801.json` → id
   `auth_bff.1801`. **The version lives inside the file**, in its
-  `__version__` field. A file without `__version__` is skipped (not
-  deployable); files starting with `_` (batch helpers) are skipped too.
-- Same version + changed content → `UPDATE` (`update-config`, overwrite in
-  place). Higher `__version__` → `BUMP` (`create-config`, new record — needs a
-  promote just like a binary bump if the yuno row pins config versions;
-  normally you bump config versions together with binary versions and
-  [Recipe B](#dy-recipe-bump) covers both).
-- A **local version older than the agent's is never pushed** (`DOWNGRADE`,
-  reported only) — seeding a stale version would corrupt the version logic.
+  `__version__` field. A file without `__version__` is not deployable, and the
+  tool skips it. The tool also skips the files that start with `_`, which are
+  batch helpers.
+- Same version and changed content give `UPDATE` (`update-config`), which
+  overwrites in place. A higher `__version__` gives `BUMP` (`create-config`),
+  which writes a new record. If the yuno row pins config versions, a `BUMP`
+  needs the same promote step as a binary bump. Normally you raise the config
+  versions together with the binary versions, and
+  [Recipe B](#dy-recipe-bump) covers both.
+- **The tool never pushes a local version that is older than the version on
+  the agent.** It reports the difference as `DOWNGRADE` and does nothing else.
+  A stale version corrupts the version logic.
 
-**Which batches directory gets synced?** Without `--host`, the CLI asks the
-local agent (`*list-realms`) for the realm_ids it manages and syncs every
-`batches/<host>/` of every registered project whose name matches one — a node
-running several realms deploys all of them in one pass. `--host <h>` targets
-one directory explicitly; if the agent is unreachable it falls back to matching
-the machine's hostname. `Skipping <project>: no batches for host ...` almost
-always means the batches directory is not named after the node's realm_id.
+**Which batches directory does the tool sync?** Without `--host`, the CLI asks
+the local agent for the realm_ids that it manages (`*list-realms`). Then it
+syncs the `batches/<host>/` directory of every registered project with a name
+that matches one realm_id. A node with several realms deploys all of them in
+one pass. `--host <h>` targets one directory explicitly. If the agent does not
+answer, the CLI uses the hostname of the machine instead. The message
+`Skipping <project>: no batches for host ...` almost always means that the
+batches directory does not have the name of the node's realm_id.
 
-Verify the *effective* config (main.c defaults merged with the stored JSON):
+To make sure that the *effective* config is correct (the `main.c` defaults
+merged with the stored JSON):
 
 ```bash
 ycommand -c 'command-yuno id=<yuno_id> service=__yuno__ command=view-config'
@@ -295,10 +314,10 @@ ycommand -c 'command-yuno id=<yuno_id> service=__yuno__ command=view-config'
 ## Recipe D — brand-new yuno on this node
 
 **The sync tools will not propose a role the agent does not already manage.**
-`sync_binaries.py` deliberately drives from the agent's installed set — not
-from `outputs/yunos` — so it never offers to install the 30 other binaries
-your build tree happens to contain. First-time provisioning is therefore a
-short manual sequence (full detail in
+`sync_binaries.py` drives from the agent's installed set, not from
+`outputs/yunos`. This is deliberate. The tool therefore never offers to
+install the 30 other binaries in your build tree. The first installation is
+therefore a short manual sequence (full detail in
 [Yuno lifecycle §6.1](../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md)):
 
 ```bash
@@ -326,18 +345,23 @@ through Recipes A–C.
 (dy-recipe-rollback)=
 ## Recipe E — rollback
 
-`upgrade-yunos` shot a snap before changing anything (default name
-`pre-upgrade-<YYYYMMDD>`). If the new release misbehaves:
+`upgrade-yunos` shot a snap before it changed anything. The default name is
+`pre-upgrade-<YYYYMMDD>`.
+
+CAUTION: `activate-snap` restarts every yuno on the node, like
+`upgrade-yunos`. On a busy production node, tell the team before you start.
+
+If the new release is not correct, run these commands:
 
 ```bash
 ycommand -c 'snaps'                              # find the snap name
 ycommand -c 'activate-snap name=pre-upgrade-<YYYYMMDD>'
 ```
 
-`activate-snap` runs the same node-wide restart cycle, but with the snap
-active the OLD releases win — the node is back on what it ran before the
-upgrade. When the situation is resolved (either a fixed release was deployed,
-or you decided to stay), remove the pin:
+`activate-snap` runs the same node-wide restart cycle. But with the snap
+active, the OLD releases become primary. The node runs again what it ran
+before the upgrade. When you deploy a corrected release, or when you decide to
+stay on the old one, remove the pin:
 
 ```bash
 ycommand -c 'deactivate-snap'
