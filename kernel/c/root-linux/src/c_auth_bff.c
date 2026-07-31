@@ -1362,8 +1362,8 @@ PRIVATE json_t *send_token_to_browser(
         /*
          *  Map IdP failures to stable browser-facing error codes.
          *  Never leak the word "IdP" to the browser — that's an
-         *  internal implementation detail.  The operator still gets
-         *  full detail via gobj_log_error emitted by send_error_response.
+         *  internal implementation detail.  The operator gets the IdP's
+         *  own answer in the log emitted below, next to the mapping.
          *
          *  IdP's /token endpoint replies with an RFC-6749 error
          *  envelope: { "error": "<rfc_code>", "error_description": "..." }.
@@ -1446,6 +1446,31 @@ PRIVATE json_t *send_token_to_browser(
             browser_status = 502;
             browser_code   = "auth_service_unavailable";
             browser_msg    = "Authentication service unavailable";
+        }
+
+        /*
+         *  What the IdP answered IS the diagnosis, and the mapping above
+         *  deliberately hides it from the browser. The specific mappings
+         *  name the cause by themselves, so they travel on the single line
+         *  of send_error_response; the generic ones name nothing, and
+         *  without this the log says only "auth_unexpected_error" — a
+         *  deleted client_id then looks exactly like an IdP outage.
+         */
+        if(strcmp(browser_code, "auth_unexpected_error") == 0 ||
+           strcmp(browser_code, "auth_config_error") == 0 ||
+           strcmp(browser_code, "auth_service_unavailable") == 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s",       __FUNCTION__,
+                "msgset",           "%s",       MSGSET_PROTOCOL,
+                "msg",              "%s",       "👤BFF IdP rejected the request",
+                "action",           "%s",       action_name(action),
+                "idp_status",       "%d",       status,
+                "idp_error",        "%.128s",   idp_err,
+                "idp_description",  "%.256s",   idp_desc,
+                "client_id",        "%s",       gobj_read_str_attr(gobj, "client_id"),
+                "browser_code",     "%s",       browser_code,
+                NULL
+            );
         }
 
         send_error_response(gobj, gobj_bottom_gobj(gobj), browser_status,

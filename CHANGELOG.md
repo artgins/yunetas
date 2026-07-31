@@ -1,5 +1,26 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **`C_AUTH_BFF` now logs what the IdP answered.** An IdP failure that did not
+  match a specific mapping was reported to the operator as
+  `auth_unexpected_error` and nothing else, because `send_error_response` logs
+  the browser-facing code, not the cause. A deleted `client_id` was therefore
+  indistinguishable from an IdP outage, and a real deployment lost its login to
+  exactly that (Keycloak answers 401 + `invalid_client` for a client that no
+  longer exists).
+
+  `send_token_to_browser` now emits one line with `action`, `idp_status`,
+  `idp_error`, `idp_description`, `client_id` and the browser code it mapped
+  to. It fires only for the three generic mappings (`auth_unexpected_error`,
+  `auth_config_error`, `auth_service_unavailable`); the specific ones
+  (`invalid_credentials`, `session_expired`, `account_disabled`,
+  `auth_rate_limited`) already name the cause and stay on one line, so a wrong
+  password does not double its log volume. Nothing that reaches the browser
+  changes.
+
 ## 7.9.5
 
 ### Security
