@@ -111,6 +111,41 @@ for f in root.rglob('index.html'):
 print(f"diagram lightbox injected into {count} pages")
 PYEOF
 
+# Theme hand-off to demo.yuneta.io: localStorage is per ORIGIN, so the demo
+# on its own host cannot read the reader's light/dark choice and opens on its
+# own default.  Carry it in the url instead.  The landing does this in its own
+# script; these are the myst pages, where the link is plain markdown.
+#
+# Stamped at CLICK time, not at load: this theme is a React app that re-renders
+# on navigation and on the theme toggle, so an href written once goes stale or
+# disappears with the node that held it.  A delegated listener has neither
+# problem and needs no observer.
+#
+# The theme is the `dark` class the book-theme puts on <html> (Tailwind), NOT a
+# data-theme attribute — the landing uses data-theme, the docs use the class,
+# and both agree on the localStorage key.
+python3 - "$ORIGIN" <<'PYEOF'
+import sys, pathlib
+root = pathlib.Path(sys.argv[1])
+marker = 'yuneta-demo-theme'
+script = ('<script>/*yuneta-demo-theme*/(function(){'
+          'document.addEventListener("click",function(e){'
+          'var a=e.target.closest&&e.target.closest(\'a[href^="https://demo.yuneta.io"]\');'
+          'if(!a)return;'
+          'var d=document.documentElement.classList.contains("dark");'
+          'try{if(!d&&localStorage.getItem("myst:theme")==="dark")d=true;}catch(x){}'
+          'a.href="https://demo.yuneta.io/?theme="+(d?"dark":"light");'
+          '},true);})();</script>')
+count = 0
+for f in root.rglob('index.html'):
+    html = f.read_text(encoding='utf-8')
+    if marker in html or '</body>' not in html:
+        continue
+    f.write_text(html.replace('</body>', script + '</body>', 1), encoding='utf-8')
+    count += 1
+print(f"demo theme hand-off injected into {count} pages")
+PYEOF
+
 # Landing page: a standalone HTML document (its own inlined fonts and CSS, no
 # external requests) served at /landing.  It shares the theme with the site
 # through localStorage["myst:theme"], same origin.  myst copies no raw files,
