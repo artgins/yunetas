@@ -269,7 +269,32 @@ illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:
 In production deployments the project's Keycloak gives those four
 realm. See §7 for the project conventions.
 
-### 2.8 Pending bugs
+### 2.8 Diagnose a failure of the IdP
+
+The browser never sees the cause: the BFF maps every IdP failure to a stable
+code of its own catalog (`c_auth_bff.h`). The log carries the cause.
+
+When the mapping is one of the three generic ones —
+`auth_unexpected_error`, `auth_config_error`, `auth_service_unavailable` —
+`send_token_to_browser` writes the answer of the IdP:
+
+```
+"msg": "👤BFF IdP rejected the request", "action": "login", "idp_status": 401,
+"idp_error": "invalid_client",
+"idp_description": "Invalid client or Invalid client credentials",
+"client_id": "app.example.com", "browser_code": "auth_config_error"
+```
+
+Read `idp_error` and `client_id` first. The example above is a client that no
+longer exists in the realm, which is the failure that a deleted or renamed
+client gives.
+
+The four specific mappings (`invalid_credentials`, `session_expired`,
+`account_disabled`, `auth_rate_limited`) name the cause by themselves, so they
+travel on the single line of `send_error_response` and add nothing more. A
+wrong password is not a diagnosis problem.
+
+### 2.9 Pending bugs
 
 Two issues are tracked but not fixed (per
 `project_auth_bff_pending_bugs`):

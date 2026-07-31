@@ -1434,7 +1434,15 @@ PRIVATE json_t *send_token_to_browser(
                 browser_code   = "session_expired";
                 browser_msg    = "Session expired, please log in again";
             }
-        } else if(status == 400 && strcmp(idp_err, "invalid_client") == 0) {
+        } else if((status == 400 || status == 401) &&
+                strcmp(idp_err, "invalid_client") == 0) {
+            /*
+             *  401 belongs here as much as 400: Keycloak answers 401 for a
+             *  client_id that does not exist, or whose secret is wrong. With
+             *  400 alone the commonest misconfiguration of all — a client
+             *  deleted or renamed in the IdP — fell into the generic bucket
+             *  and reported an outage.
+             */
             browser_status = 500;
             browser_code   = "auth_config_error";
             browser_msg    = "Authentication configuration error";

@@ -21,6 +21,18 @@
   password does not double its log volume. Nothing that reaches the browser
   changes.
 
+- **`C_AUTH_BFF` maps `invalid_client` on 401 too.** The mapping accepted that
+  IdP error only with status 400, and Keycloak answers **401** for a
+  `client_id` that does not exist or whose secret is wrong. The commonest
+  misconfiguration of all — a client deleted or renamed in the IdP — therefore
+  reported `auth_unexpected_error` (502), which reads as an outage of the IdP.
+  It now answers `auth_config_error` (500), the code whose catalogue entry in
+  `c_auth_bff.h` already said *"BFF misconfigured (bad client_id, ...)"*.
+
+  BREAKING for a client that switches on the code: this case moves from
+  `auth_unexpected_error`/502 to `auth_config_error`/500. Both are already in
+  the published catalogue, and no SPA in this repo branches on either.
+
 ## 7.9.5
 
 ### Security
