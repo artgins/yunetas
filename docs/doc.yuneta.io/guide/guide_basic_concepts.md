@@ -109,7 +109,7 @@ name: gclass_diagram
 
     - `authz_table`: Authorization Table, defines access restrictions for specific actions or commands based on user permissions. Enhances security by controlling access to sensitive operations.
 
- - `command_table`: Defines commands supported by the gclass. Commands can include parameters and operate independently of the FSM. Commands are parsed using an internal parser, which can be replaced in [`gobj_start_up()`](<#gobj_start_up>) with a custom parser. Commands are a key part of the gobj's interface. This allows external systems or users to interact with the gobj directly.
+    - `command_table`: Defines commands supported by the gclass. Commands can include parameters and operate independently of the FSM. Commands are parsed using an internal parser, which can be replaced in [`gobj_start_up()`](<#gobj_start_up>) with a custom parser. Commands are a key part of the gobj's interface. This allows external systems or users to interact with the gobj directly.
 
     - `s_user_trace_level`: Defines trace levels for the gclass. These trace levels can be dynamically activated during runtime to log the activity and behavior of gobjs. Facilitates debugging and monitoring of gobj operations.
 
@@ -151,7 +151,7 @@ Once a system of gclasses is created, we can build a **yuno**, which is a **sing
 
 ## **Key Characteristics of a Yuno**:
 1. **Monolithic Binary**:
- - A yuno encapsulates all function within a single binary, simplifying deployment and management.
+    - A yuno encapsulates all function within a single binary, simplifying deployment and management.
 
 2. **Asynchronous Execution**:
     - Operates in a non-blocking, event-driven manner to efficiently manage tasks.
@@ -159,7 +159,7 @@ Once a system of gclasses is created, we can build a **yuno**, which is a **sing
 3. **Hierarchical Structure**:
     - Built as a tree of gobjs, where:
         - Each gobj is a node in the hierarchy.
- - Parent gobjs manage their children. This enables structured interaction and modular design.
+        - Parent gobjs manage their children. This enables structured interaction and modular design.
 
 4. **Root Object**:
     - The root of the gobj tree is referred to as the `__yuno__` or `__root__`.

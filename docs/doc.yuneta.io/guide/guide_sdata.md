@@ -86,7 +86,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 (SDF_REQUIRED)=
 ### SDF_REQUIRED
- Field is required. It must not be null.
+    Field is required. It must not be null.
 
 (SDF_PERSIST)=
 ### SDF_PERSIST

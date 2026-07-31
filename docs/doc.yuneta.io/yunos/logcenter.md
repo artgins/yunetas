@@ -106,7 +106,7 @@ The summary report (from `display-summary` / `send-summary`) looks like:
   `restart_on_alarm` is set with `queue_size ≥ queue_restart_limit`, it runs
   `restart_yuneta_command` via `system()`, throttled so a new restart cannot
   fire until `timeout_restart_yuneta` has elapsed. This is a last-resort
- watchdog for a node whose queues are runaway. It is off by default.
+  watchdog for a node whose queues are runaway. It is off by default.
 
 ## Debugging
 

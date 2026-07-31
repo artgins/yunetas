@@ -56,10 +56,10 @@ The `gbuffer_t` structure includes the following key fields:
 - Supports serialization to and from JSON objects.
 - Provides [Base64](https://datatracker.ietf.org/doc/html/rfc4648) encoding and decoding for binary data.
 - **Hardened deserialization (since 7.6.0).** `gbuffer_deserialize()` is reachable
- pre-auth (for example the ievent server), so it is defensive against hostile input: a
+  pre-auth (for example the ievent server), so it is defensive against hostile input: a
   malformed base64 `data` field that decodes to NULL is rejected instead of being
   fed into `gbuffer_setmark()` (was a pre-auth NULL-deref crash), and
- `gbuffer_create()` refuses a `data_size == SIZE_MAX` (the `+1` will wrap to a
+  `gbuffer_create()` refuses a `data_size == SIZE_MAX` (the `+1` will wrap to a
   0-byte allocation that slipped past the max-block guard).
 
 ### 5. **Utility Functions**

@@ -17,10 +17,10 @@ C_EMAILSENDER          <- queueing, retry, dead-letter, MIME encoding
   (pending) and `emails_failed` (dead-letter). It builds the full RFC 5322 /
   MIME message ([`mime_encoder.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/emailsender/src/mime_encoder.c)) and drives the send/retry loop.
 - `C_SMTP_SESSION` implements the line-based SMTP client as an FSM. It uses
- **AUTH PLAIN**. **STARTTLS is not implemented** (the transport is TLS from the
+  **AUTH PLAIN**. **STARTTLS is not implemented** (the transport is TLS from the
   first byte via the `smtps://` C_TCP bottom). EHLO advertises the local
   hostname. An idle session closed by the server (SMTP 421 — OVH does this
- aggressively) is treated as a graceful close. C_TCP reconnects on the next
+  aggressively) is treated as a graceful close. C_TCP reconnects on the next
   send.
 
 ## Configuration

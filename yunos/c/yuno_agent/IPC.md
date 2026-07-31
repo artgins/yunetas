@@ -980,7 +980,7 @@ listen for `EV_MT_COMMAND_ANSWER`.
 
 2. Write `cmd_my_cmd()` returning a `msg_iev_build_response`.
 
-3. Register the service publicly. Make sure that the service name is in the
+   3. Register the service publicly. Make sure that the service name is in the
    `public_services` array of the yuno.
 
 4. From the SPA:

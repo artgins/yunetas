@@ -334,7 +334,7 @@ The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c
 
 Two consequences:
 
-- **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
+  - **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
   stop.** The first SIGQUIT is a request. The second is a hard stop
   that still leaves the watcher satisfied.
 - **SIGTERM is ignored.** `init` can send it on shutdown. The yuno
@@ -495,7 +495,7 @@ the core in `/var/crash/` is from the previous incarnation.
 
 1. **Anything `json_*` before `gbmem_setup` leaks.** Do not `json_pack` in
    `main()` before `yuneta_entry_point()`. Use `register_yuno_and_more`.
-2. **Executable basename must equal `yuno_role`.** The framework enforces
+   2. **Executable basename must equal `yuno_role`.** The framework enforces
    this. Do not `mv` a yuno binary to rename it. Use `update-binary`, so
    that the agent rewrites the launcher script too.
 3. **`test_` prefix skips the 15-char `APP_NAME` limit.** This is
@@ -504,7 +504,7 @@ the core in `/var/crash/` is from the previous incarnation.
 4. **Two pids per yuno.** `ps -ef | grep <role>` returns the watcher and
    the child. The child is the one with the open log fds. The watcher
    shows in `ppid` and has no open files of its own (`ls -l /proc/<pid>/fd`).
-5. **`relaunch_times > 0` is a crash signal.** No alarm starts. Add
+   5. **`relaunch_times > 0` is a crash signal.** No alarm starts. Add
    `Daemon relaunched` to the checklist of your log greps.
 6. **The framework overwrites the cores.** The pattern has no PID. If a
    yuno crashes in a loop, only the last core survives. If you want the

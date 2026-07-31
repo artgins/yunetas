@@ -365,7 +365,7 @@ This is the most useful trace for the behavior of a gobj. It is defined in
 [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L7507):
 
 - Before dispatch: a `🔜` line per event entry.
-- "Event NOT DEFINED" error: a `📛` line. This is the canonical failure in
+  - "Event NOT DEFINED" error: a `📛` line. This is the canonical failure in
   which the parent FSM does not declare the event of the child (see CLAUDE.md
   "CHILD vs SERVICE" section).
 - After dispatch: a `🔄` line per executed event.

@@ -219,7 +219,7 @@ Utility scripts and CLI tools for Yuneta.
     - [`ylist`](#util-ylist): Lists yunos.
     - `ymake-skeleton`: Generates project skeletons.
     - [`yscapec`](#util-yscapec): Escapes C strings.
- - [`yshutdown`](#util-yshutdown): Stops yunos.
+    - [`yshutdown`](#util-yshutdown): Stops yunos.
     - [`ystats`](#util-ystats): Retrieves yuno statistics.
     - [`ytestconfig`](#util-ytestconfig): Tests configuration files.
     - [`ytests`](#util-ytests): Test runner.

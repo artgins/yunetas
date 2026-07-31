@@ -93,7 +93,7 @@ easiest thing to break when touching the reload path.
 - **mbed-TLS backend.** `ytls` maintains an explicit `mbedtls_state_t`
   bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` + `mbedtls_pk_context`)
   with a refcount. Each `hsskt` takes a ref on creation and releases it on
- [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops the handle's ref. Live
+  [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops the handle's ref. Live
   sessions keep the old bundle alive on their own.
 
 ### Callers
@@ -129,11 +129,11 @@ Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
 
 - **OpenSSL** accepts `SSLv3` / `TLS1.0` / `TLS1.1` / `TLS1.2` / `TLS1.3`. A floor
   **below TLS 1.2** is the IoT/legacy escape hatch: it must be paired with
- `ssl_ciphers "@SECLEVEL=0"` for OpenSSL to negotiate the old suite, and
+  `ssl_ciphers "@SECLEVEL=0"` for OpenSSL to negotiate the old suite, and
   it logs a warning at context build (*"legacy floor below TLS1.2 / IoT-compat
   downgrade"*) so downgraded gates stay enumerable in the logs.
 - **mbed-TLS** accepts only `TLS1.2` / `TLS1.3` — it can raise the floor, never
- lower it. Legacy peers must use the OpenSSL backend.
+  lower it. Legacy peers must use the OpenSSL backend.
 - A peer offering a version below the floor is rejected, and the rejected
   handshake is logged **by default** (not only under `trace_tls`) in
   [`ytls_do_handshake()`](#ytls_do_handshake).
@@ -297,7 +297,7 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    confirm the warning is gone and traffic still flows.
 4. **Pin the legacy gates** that showed `TLS handshake rejected` to Profile B.
 5. **Validate in staging, then production.** Roll the config to a staging
- environment first and watch the same logs. Only then promote to production.
+   environment first and watch the same logs. Only then promote to production.
 
 Goal state: no `WITHOUT server-certificate validation` lines outside known IoT
 gates, and every `legacy floor` / `renegotiation enabled` line traceable to a

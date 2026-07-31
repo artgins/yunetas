@@ -93,7 +93,7 @@ Because both planes share primitives, you can express almost any kind
 of organization as some combination of typed nodes and typed links:
 
 - **Strict hierarchies** — a single parent hook. The gobj-tree itself
- is built this way. So is any topic that links back to a parent of
+  is built this way. So is any topic that links back to a parent of
   the same type.
 - **Matrix or many-to-many** — multiple [`fkey`](#fkey) fields on a child node,
   each pointing to a different parent topic. Bipartite (users ↔ roles)
@@ -109,7 +109,7 @@ of organization as some combination of typed nodes and typed links:
   what to whom, with delivery semantics (sync command vs. published
   event vs. queued message) baked into the binding type.
 - **Versioned relations over time** — every treedb write appends a new
- record with a fresh [`g_rowid`](#g_rowid) and a timestamp. The current view is a
+  record with a fresh [`g_rowid`](#g_rowid) and a timestamp. The current view is a
   projection of the latest non-deleted row per `id`. Historical
   reconstruction is a matter of choosing a different cut-off.
 
@@ -151,7 +151,7 @@ Worth being honest about where the model strains:
 - **Truly opaque payloads** — anything that genuinely cannot be typed
   becomes a `json_t *` blob or a base64 string in a `user_data`
   field. Those are the cracks where the model lets through what it
- cannot classify, and they are worth treating as design smells
+  cannot classify, and they are worth treating as design smells
   when they appear in new code.
 
 ## The implicit axiom
@@ -181,7 +181,7 @@ the leak explicitly — is the running design discipline.
 
 The payoffs that justify the upfront typing cost:
 
-- **Uniform composition at every scale.** A TCP socket is a gobj. A
+  - **Uniform composition at every scale.** A TCP socket is a gobj. A
  protocol on top is a gobj that owns the socket as `bottom_gobj`. A
  service is a gobj that owns the protocol. A yuno is a gobj that
  owns services. The agent is a gobj that owns yunos. The same
@@ -191,7 +191,7 @@ The payoffs that justify the upfront typing cost:
   [mbedTLS](https://github.com/Mbed-TLS/mbedtls) under [`C_YTLS`](#ytls)
   and the layers above do not notice. Swap [`c_tcp`](#gclass-c-tcp) for
   `c_unix_socket` and the protocols stay blind. The contract is the
- gclass signature. The implementation behind it is interchangeable.
+  gclass signature. The implementation behind it is interchangeable.
 - **Structural traceability.** [`gobj_short_name(g)`](#gobj_short_name) returns the full
   path through the tree
   (`C_YUNO^...^C_AUTH_BFF^auth_bff^C_HTTPS_CL^...^C_TCP^...`). You

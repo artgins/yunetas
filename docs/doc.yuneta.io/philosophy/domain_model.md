@@ -216,4 +216,4 @@ paired with an `fkey` on the child — see
 - [Basic Concepts](../guide/guide_basic_concepts.md) — the same concepts
   from the implementation side.
 - [Timeranger2 Guide](../guide/guide_timeranger2.md) — how CRUDLU
- works on disk and in memory.
+  works on disk and in memory.

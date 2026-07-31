@@ -322,7 +322,7 @@ in production:
 
 - **Per-channel pending queue.** Every browser channel has its own
   `dl_list` of pending IdP requests (depth `pending_queue_size`). One job
- is in flight at a time. The rest wait FIFO. Overflows bump the
+  is in flight at a time. The rest wait FIFO. Overflows bump the
   `q_full_drops` stat and the browser sees a mapped `error_code`.
 - **Flush-on-disconnect.** When a browser closes mid-round-trip the BFF
   flushes its queue for that channel and, if a reply from the IdP later
@@ -335,9 +335,9 @@ in production:
   browser, drains the task and bumps `idp_timeouts`. Closes the
   "silent IdP → channel wedged forever" deadlock.
 - **Stable error_code for GUI i18n.** Every error response carries a
- stable `error_code` (snake_case, for example `invalid_refresh_token`,
+  stable `error_code` (snake_case, for example `invalid_refresh_token`,
   `idp_unreachable`, `queue_full`). The human `error` message is
- localisable in the GUI. `error_code` is the i18n translation key and
+  localisable in the GUI. `error_code` is the i18n translation key and
   never changes between releases.
 - **Log hygiene.** 4xx IdP replies are logged as `INFO`, not `ERROR` —
   a wrong password is not a server error. All secrets (cookies,
@@ -352,7 +352,7 @@ in production:
   `"<stat>"` or `"<prefix>_"` and is case-insensitive.
 - **Trace levels.** `messages` and `traffic` trace levels dump the full
   BFF↔IdP and BFF↔browser exchanges, with 👤 BFF prefix and ⏩/⏪
- direction arrows. Both honour the redaction rules above.
+  direction arrows. Both honour the redaction rules above.
 
 ### Frontend (backend_config.js)
 

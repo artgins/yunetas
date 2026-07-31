@@ -47,7 +47,7 @@ identity** you present. It never stores a password. Give the credential at call
 time in `$YUNETA_OAUTH_PASSW`. To use a token again, give it in
 `$YUNETA_OAUTH_JWT`.
 
-- **Same-version rebuild (hot-patch)?** `yunetas sync` is enough. It stops and
+  - **Same-version rebuild (hot-patch)?** `yunetas sync` is enough. It stops and
   restarts the affected yunos itself. Do not run `upgrade-yunos`.
 - **Version bump (`APP_VERSION` changed)?** Run `yunetas sync`, then
   `yunetas upgrade-yunos`. Without the second command, **the node keeps the old
@@ -277,7 +277,7 @@ yunetas sync-configs -r
 
 Key facts, because configs behave differently from binaries:
 
-- **A config push never needs a kill.** The push always succeeds, even while
+  - **A config push never needs a kill.** The push always succeeds, even while
   the yuno runs. But the yuno reads its config only at start or restart.
   Without `-r`, the new content stays in the agent until the next restart of
   the yuno. Then you can believe that a change is live when it is not.

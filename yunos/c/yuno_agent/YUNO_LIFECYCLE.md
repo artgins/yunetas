@@ -343,7 +343,7 @@ An **orderly shutdown**, not a SIGKILL, performed by
 1. Read the `signal2kill` attribute (default `SIGQUIT`).
 2. `kill(yuno_pid, signal2kill)`.
 3. If the chosen signal is `SIGKILL`, the watcher is killed too.
-4. **No timer-based escalation in code**. The agent trusts the signal handler
+   4. **No timer-based escalation in code**. The agent trusts the signal handler
    of the yuno to shut it down. If the handler does not shut it down, the
    record of the agent keeps the yuno as "running" forever (see §5).
 5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L11316)
@@ -368,7 +368,7 @@ for the full decision matrix.
 
 What the agent contributes on top:
 
-- It logs the closed channel and clears `yuno_pid` and `yuno_playing`. A
+  - It logs the closed channel and clears `yuno_pid` and `yuno_playing`. A
   new `run-yuno` is **not** necessary. The watcher already forked a new
   child with a new pid, and that child connects to the agent on its own
   through the normal `EV_ON_OPEN` handshake.
@@ -743,7 +743,7 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
 
 #### Caveats
 
-- **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
+  - **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
   yuno on the node, not only to the one that you upgrade. This is
   acceptable for kernel-yuno rotations (`auth_bff`, `emailsender`,
   `logcenter`). On a realm with many citizen yunos, tell the team before

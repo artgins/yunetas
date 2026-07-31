@@ -234,7 +234,7 @@ Reads:
 
 - The standard case: a SERVICE has its `subscriber` set explicitly by
   whoever wires it.
-- The fallback: if something created the gobj as a pure child, the gobj
+  - The fallback: if something created the gobj as a pure child, the gobj
   subscribes the parent instead.
 
 Service templates also include `help` and `authzs` commands in their
@@ -309,7 +309,7 @@ reference example) and [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9
 
 Important consequences:
 
-- Do not delete a banner because its section has no entries.
+  - Do not delete a banner because its section has no entries.
 - Do not insert a section between two banners.
 - Do not rename a banner. The format is exact, so count the blank lines
   and the asterisks.
@@ -333,7 +333,7 @@ For a citizen yuno you must also do these steps:
 1. **Create a binary record** in the agent: `install-binary content64=$$(<role>)`
    (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1).
 2. **Create a configuration**: `create-config id=<role>.<name>
-   content64=$$(<role>_<name>.json)`. The alias is `install-config`, and the
+content64=$$(<role>_<name>.json)`. The alias is `install-config`, and the
    `__version__` field inside the file gives the version.
 3. **Create the yuno record** that links realm, binary and config.
 4. **Enable the yuno, then run it**.

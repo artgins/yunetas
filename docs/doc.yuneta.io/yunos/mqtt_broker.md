@@ -105,7 +105,7 @@ Enforcement is gated by the `enable_acl` attr on `C_MQTT_BROKER` (default
 
 - `enable_acl` is **off** (default) — no enforcement, allow-all. OR
 - the client's groups define **no patterns** for that access — allow-all
- (so adding the columns does not break an existing broker until ACLs are
+  (so adding the columns does not break an existing broker until ACLs are
   authored).
 
 With `enable_acl` **on** and patterns authored, a topic must match one of the
@@ -120,14 +120,14 @@ through the same `mqtt_acl_check()` helper:
 - **PUBLISH** — `C_PROT_MQTT2` decides the publish outcome, so it asks the broker
   over a **direct** `EV_MQTT_ACL_CHECK` event (`0` = allowed / `-1` = denied) —
   a direct `gobj_send_event`, not a publish (the published path runs through the
- intermediate `C_CHANNEL` / `C_IOGATE`, which do not carry the event). A denied
+  intermediate `C_CHANNEL` / `C_IOGATE`, which do not carry the event). A denied
   publish is rejected with `MQTT_RC_NOT_AUTHORIZED`. If no `C_MQTT_BROKER`
   service is found the protocol **fails open** (allows) with a warning.
 - **SUBSCRIBE** — the per-topic SUBACK reason is built in the broker's
   `ac_mqtt_subscribe`, so the check lives there (alongside the existing
   `deny_subscribes` gate), calling `mqtt_acl_check(..., "read")` directly per
   requested filter. A denied filter is **not** added and its SUBACK reason is
- `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x). The rest of the SUBSCRIBE
+  `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x). The rest of the SUBSCRIBE
   succeeds (per-topic, as MQTT requires).
 
 ```{note}

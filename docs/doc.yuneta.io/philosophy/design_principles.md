@@ -18,7 +18,7 @@ definitions live in [Basic Concepts](../guide/guide_basic_concepts.md).
   states, events, attribute schema, commands, and action callbacks.
   There is no inheritance.
 - **[event](#event) + [`kw`](#kw)** — the only way gobjs talk to each other. An event
- is a typed name. `kw` is its JSON key-value payload (`json_t *`).
+  is a typed name. `kw` is its JSON key-value payload (`json_t *`).
 - [**SData**](#glossary-sdata) — the typed schema used for a GClass's attributes and
   commands. Carries type, default, persistence and authorization
   flags in one declaration.
@@ -41,7 +41,7 @@ inside IoT gateways — and that need to:
 - expose a **control plane** so operators and tools can inspect and
   steer the running process without restarting it,
 - and **stay up for months** with predictable memory and CPU
- behavior.
+  behavior.
 
 Most frameworks optimise for one of those axes. Yuneta is the result
 of doing all of them, with the same conceptual core (GClass, gobj,
@@ -206,11 +206,11 @@ version and authorize it like any other contract.
 
 - **Predictable long runs.** No lock contention, no GC pauses, no
   thread-explosion, no hidden pools.
-- **Replayability.** Every state change is an event. Every event can
+  - **Replayability.** Every state change is an event. Every event can
  be logged. Persistent state is an append-only log. Incidents can be
   reproduced offline.
 - **Operable from day one.** Commands and stats come for free with
- every GClass. `ycommand` works on anything.
+  every GClass. `ycommand` works on anything.
 - **C / JavaScript interoperability.** The same SData schema and the
   same `kw` payloads mean a browser can act as if it were a local
   gobj in a C yuno.

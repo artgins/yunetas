@@ -41,7 +41,7 @@ This is what keeps `gobj-c` free of any `CONFIG_HAVE_OPENSSL` /
 
 ## Backend notes — mbed-TLS v4.0
 
-- `psa_crypto_init()` must be called before any crypto operation. It
+  - `psa_crypto_init()` must be called before any crypto operation. It
  initializes the PSA RNG, so `mbedtls_ssl_conf_rng` is no longer needed.
 - `mbedtls_pk_parse_keyfile(ctx, path, password)` — 3 arguments in v4.0
   (`f_rng` / `p_rng` removed).

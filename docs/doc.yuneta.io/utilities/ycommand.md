@@ -50,7 +50,7 @@ gated by an OAuth2 JWT, supplied one of two ways:
 
 - **Pre-obtained token** — pass it directly with `--jwt`.
 - **Fetch at connect** — pass `--user_id` + `--user_passw` together with an IdP
- (`--issuer` or `--token-endpoint`) and `--client-id`. `ycommand` obtains the
+  (`--issuer` or `--token-endpoint`) and `--client-id`. `ycommand` obtains the
   JWT itself before opening the WebSocket.
 
 When an IdP and a `--user_id` are present, `ycommand` runs a one-shot

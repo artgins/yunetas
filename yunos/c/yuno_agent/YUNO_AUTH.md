@@ -938,7 +938,7 @@ OFF**. By default the framework therefore **does not call**
 command. The effective posture is the same as the old commented-out state.
 Plan for this:
 
-- On a stock yuno, do not use `pm_*` or `SDF_AUTHZ_X` for security. The gate
+  - On a stock yuno, do not use `pm_*` or `SDF_AUTHZ_X` for security. The gate
   is off.
 - To enable the gate you need a running `C_AUTHZ` role model in that yuno.
   The global checker is **fail-closed**, so the gate without a role model

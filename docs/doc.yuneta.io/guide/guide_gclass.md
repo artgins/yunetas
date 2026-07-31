@@ -67,7 +67,7 @@ A `GClass` consists of several key components that define its operation:
 2. **Instantiation**:
     - A GObject instance is created from a `GClass` using the GObject API.
 3. **Interaction**:
- - The GObject API (for example [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the gclass methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
+    - The GObject API (for example [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the gclass methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
@@ -506,7 +506,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
 
 (mt_stats_updated)=
 - `mt_stats_updated`:
- - Purpose: Notifies that statistics were updated.
+   - Purpose: Notifies that statistics were updated.
    - Example: Refreshing metrics in real time.
 
 (mt_disable)=
@@ -800,7 +800,7 @@ typedef struct event_type_s {
 ## States Table
 
 Defines the behavior of the `GClass` in terms of states, events, and transitions:
- - **States**: Predefined states (for example `ST_CLOSED`, `ST_OPENED`).
+    - **States**: Predefined states (for example `ST_CLOSED`, `ST_OPENED`).
  - **Events**: Triggers for state transitions (for example `EV_ON_OPEN`, `EV_ON_CLOSE`).
     - **Actions**: Functions executed during transitions between states.
 
@@ -1080,13 +1080,13 @@ Values of `gclass_flag_t` Flags
     - **Use Case**: Optimization when output event checking is unnecessary.
 - `gcflag_ignore_unknown_attrs`: (`0x0004`)
     - **Description**: Allows the creation of a GObject even if it contains attributes that are not defined in the `GClass`.
- - **Use Case**: Flexibility during dynamic object creation when unknown attributes can be present.
+    - **Use Case**: Flexibility during dynamic object creation when unknown attributes can be present.
 - `gcflag_required_start_to_play`: (`0x0008`)
     - **Description**: Prevents the GObject from entering the "play" state unless it has already been started.
     - **Use Case**: Ensures proper initialization before transitioning to "play."
 - `gcflag_singleton`: (`0x0010`)
     - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
- - **Use Case**: For `GClasses` that must maintain a single-instance constraint (for example a singleton pattern).
+    - **Use Case**: For `GClasses` that must maintain a single-instance constraint (for example a singleton pattern).
 
 
 ## Error Handling Convention — No Silent Errors

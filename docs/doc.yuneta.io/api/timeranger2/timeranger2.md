@@ -489,7 +489,7 @@ Side effects to be aware of:
   contract for "1 dead in this segment".
 - `topic_cache` cells (`fr_t`/`to_t`/`fr_tm`/`to_tm`) are not
   refreshed. If the deleted instance was the min/max t/tm of its file,
- the cell rollup can lie. Cheap to fix on next cold reload. Expensive
+  the cell rollup can lie. Cheap to fix on next cold reload. Expensive
  to fix incrementally. Deferred until a consumer needs it.
 
 ---

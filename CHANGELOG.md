@@ -43,7 +43,60 @@
   purpose — a subscription goes to whoever PUBLISHES — and its variable is now
   named `host` to keep the two apart.
 
+### Tools
+
+- **`scripts/check_ste.py` — a linter for the documentation's English.** The
+  docs are written to the structural rules of ASD-STE100: short sentences, one
+  word one meaning, simple tenses, active voice, condition before command. Most
+  of those rules need judgement, but a useful subset does not, and that subset
+  is what this reports: contractions, semicolons, the banned modals
+  (`should`/`would`/`may`/`might`/`could`), British spellings, Latin
+  abbreviations, perfect tenses, phrasal verbs and the usual filler.
+
+  It reads markdown table cells, which is where reference material lives, and
+  it skips the Untouchables — code fences, inline code, link targets, URLs and
+  double-quoted text, that last one because a quoted log line or command
+  description is quoted material under rule 8.6 and must stay exact. Quote
+  state carries across a line break, so a quotation that wraps is not scanned
+  as prose. `--summary` gives one line per file, `--rule <id>` filters to one
+  category, and `--strict` adds the judgement calls that are off by default: a
+  possessive is legal when it is correct, and "just" is filler in "just run it"
+  but temporal in "the yuno you just built". Exit 1 when anything is reported,
+  so it fits a pre-commit hook.
+
+  A clean run is not compliance. It is a spell-checker for the rules that need
+  no judgement, and it says so.
+
 ### Documentation
+
+- **The whole documentation set is rewritten in Simplified Technical English**
+  — 194 files: `docs/doc.yuneta.io/**` and the eleven onboarding chapters under
+  `yunos/c/yuno_agent/`. The content did not change. Every fact of the previous
+  text survives, and the sentences that carried it are shorter. `check_ste.py`
+  reports zero on all of it.
+
+  Two defects turned up that were not style. `DEBUGGING.md` §1 announced "Two
+  destinations" above a diagram of four, with a sentence below it that already
+  said "all four destinations". And `deploying-yunos.md` and `NODE_SEALING.md`
+  both buried a node-wide SIGKILL under the command block that causes it, so a
+  reader who followed a recipe top-down had already killed the node before
+  reading the warning. Both now carry a CAUTION above the commands, which is
+  the rule for a safety instruction: the risk level first, then the command,
+  then the result.
+
+  What changed in the prose. British spellings became American. Contractions
+  are expanded. `should` is gone where it stated a requirement, because a
+  reader treats it as optional. Each concept keeps one term, so `enable` and
+  `disable` replaced a rotation of `turn on`, `activate`, `arm` and `switch`.
+  Semicolons became sentences, phrasal verbs became plain verbs, and
+  `e.g.`, `i.e.` and `etc.` are written out. The alt text of every diagram was
+  re-punctuated too: a screen reader reads it as continuous prose, and every
+  one of them was a run-on joined by semicolons.
+
+  Untouched throughout: commands, code blocks, identifiers, quoted log lines
+  and quoted source strings. The command description
+  *"WARNING: Don't use in production!"* keeps its contraction, because it is
+  the literal string in `c_agent.c`.
 
 - **The landing's live trace INDENTS, like the kernel's.** Every line sat at
   column zero, so the one thing a machine trace exists to show — that this

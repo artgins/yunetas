@@ -157,7 +157,7 @@ through the door that replaces it.
 1. `node_owner != "none"`.
 2. `controlcenter.jwt` present and **not expired** (the agent introspects its
    own `exp` claim).
-3. The controlcenter link of the agent is established. The session is
+   3. The controlcenter link of the agent is established. The session is
    connected, not only configured.
 4. **agent22 is also connected** to its controlcenter — redundancy is present.
    See the heartbeat in [§5.2](#52-the-agent22agent-heartbeat). This is the one

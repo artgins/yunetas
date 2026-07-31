@@ -146,7 +146,7 @@ two conventions the default parser handles for free:
 
 - **`"__reset__"` semantics.** Zero the resettable counters yourself.
   Gauges (live state — current queue depth, current connection count,
- …) must be left alone or anchored to "now". Pure counters
+  …) must be left alone or anchored to "now". Pure counters
   (lifetime totals, error counts, …) reset to `0`.
 - **Prefix filter.** When `stats` is non-empty, return only the
   entries whose name appears in the filter string. Mirror the

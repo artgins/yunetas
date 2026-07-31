@@ -24,7 +24,7 @@ Source code in:
     - Functions are implemented in **C** using the Jansson library.
     - In **JavaScript**, native types like `object`, `array`, and `bool` replace the need for external libraries.
     - In **Python**, the library will use native types like `list` and `dict`.
- - This cross-language compatibility makes sure of consistent function across environments.
+    - This cross-language compatibility makes sure of consistent function across environments.
 
 3. **Path-Based Access and Manipulation**:
     - Functions like `kw_find_path`, `kw_set_dict_value`, and `kw_delete` allow for fine-grained control over nested JSON structures using path-based syntax.

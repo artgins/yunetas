@@ -35,7 +35,7 @@ and authentication options match [`ycommand`](ycommand.md) (default
 - **Per-connection command cache** — the remote command set is warmed on connect
   via `list-gobj-commands`, so completions follow whichever window has focus.
 - **Local vs remote routing** — commands prefixed with `!` run locally (in
- `ycli` itself). Everything else goes to the focused remote yuno.
+  `ycli` itself). Everything else goes to the focused remote yuno.
 - **Safe local config filenames (since 7.6.0)** — like `ycommand`, a config
   answer (`view-config` / `read-json` / `read-file` / `edit-config`) saved under
   `~/.yuneta/configs/` has its peer-supplied record name sanitized to a single

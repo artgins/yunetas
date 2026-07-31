@@ -275,7 +275,7 @@ no record.
 [`tranger2_startup`](#tranger2_startup) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
 lock** on `__timeranger2__.json`. Whoever gets it is the master:
 
-- The master can **read AND write**. Only the master can
+  - The master can **read AND write**. Only the master can
   call `tranger2_append_record`, [`tranger2_delete_topic`](#tranger2_delete_topic) and the other write functions.
 - Non-masters can only read. They are expected to use
   `tranger2_open_rt_disk` so the master can push updates to them via
@@ -477,7 +477,7 @@ attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel
 - `tag` — user_flag from md2, used for snapshots (§3.7).
 - `immutable` — present **only when set** (omitted on ordinary nodes).
   `true` means the record carries the `sf_immutable_record` md2 bit and
-  cannot be deleted. See §3.10.
+cannot be deleted. See §3.10.
 - `pure_node` — true for ordinary nodes. This is the metadata that you read.
 
 A node that appears in multiple places in a JSON dump (once under the
