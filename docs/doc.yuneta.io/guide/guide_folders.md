@@ -12,9 +12,9 @@ The Yuneta SDK is structured into the following top folders:
 - [scripts](#scripts):   Auxiliary scripts added to the shell `PATH`.
 - [stress](#stress):     Stress tests.
 - [tests](#tests):       Tests.
-- [tools](#tools):       Compilation or building tools.
+- [tools](#folders-tools): Compilation or building tools.
 - [utils](#utils):       Utilities for Yuneta.
-- [yunos](#folders-yunos):       Yunos supplied by the SDK.
+- [yunos](#folders-yunos): Yunos supplied by the SDK.
 
 ---
 
@@ -178,7 +178,7 @@ Tests for Yuneta components.
 
 ---
 
-(tools)=
+(folders-tools)=
 ## `tools`
 
 Auxiliary tools for building and compiling Yuneta projects.
