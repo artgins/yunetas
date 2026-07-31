@@ -1309,7 +1309,7 @@ CLIENT=user-provisioner-<consumer>
 
 read -r -s -p "Keycloak admin password: " KCPASS; echo
 TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
-    -d grant_type=password -d client_id=admin-cli -d username=admin \
+    -d grant_type=password -d client_id=admin-cli -d username=<admin-user> \
     --data-urlencode "password=$KCPASS" \
     | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
@@ -1335,6 +1335,11 @@ curl -s -X POST "$KC/admin/realms/$REALM/users/$SA/role-mappings/clients/$RM" \
 #   The secret.
 curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients/$CID/client-secret"
 ```
+
+CAUTION: If one of these commands prints nothing, do it again with `-i` and
+without `-s`. A failed `curl` inside a pipe does not stop the shell, and the
+next command reads zero bytes. Then the message that you read is a Python
+error, and not the answer of Keycloak.
 
 **2. Configure the `authz` service of the yuno.**
 
