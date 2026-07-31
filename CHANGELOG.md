@@ -78,9 +78,9 @@
 
   The file already carried the answer: its `yunos` entry is `(folders-yunos)=`,
   renamed at some point for the same reason. `tools` is now `(folders-tools)=`
-  and resolves on the page. myst had been reporting this as *"Linking 'tools'
-  to an implicit heading reference"*, which reads like a style note and is why
-  it survived so long.
+  and resolves on the page. myst reported this as *"Linking 'tools' to an
+  implicit heading reference"*, which reads like a style note and is why it
+  survived so long.
 
 - **The whole documentation set is rewritten in Simplified Technical English**
   — 194 files: `docs/doc.yuneta.io/**` and the eleven onboarding chapters under
