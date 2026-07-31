@@ -4423,6 +4423,20 @@ PRIVATE BOOL ensure_kc_client(hgobj gobj)
     priv->gobj_kc = gobj_create(
         priv->kc_name, C_PROT_HTTP_CL,
         json_pack("{s:s}", "url", kc_base_url), gobj);
+
+    /*
+     *  C_PROT_HTTP_CL is a CHILD gclass: it subscribes its parent to every
+     *  event it publishes. This parent wants none of them. The audience is
+     *  the C_TASK, which subscribes to gobj_results by itself, and C_AUTHZ
+     *  declares neither EV_ON_MESSAGE nor EV_ON_OPEN — but it does declare
+     *  EV_ON_CLOSE, for a USER channel that closes. So the close of this
+     *  outbound socket entered ac_on_close and logged out a user that does
+     *  not exist ("__session_id__ not found", "User not found"), while the
+     *  answers of Keycloak were lost in "Event NOT DEFINED in state".
+     *  Same treatment as the IdP client of C_AUTH_BFF.
+     */
+    gobj_unsubscribe_event(priv->gobj_kc, NULL, NULL, gobj);
+
     gobj_set_manual_start(priv->gobj_kc, TRUE);
     gobj_set_bottom_gobj(
         priv->gobj_kc,

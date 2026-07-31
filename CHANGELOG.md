@@ -4,6 +4,33 @@
 
 ### Fixed
 
+- **`C_AUTHZ`: `register-idp-user` could never work.** The outbound client to
+  Keycloak (`C_PROT_HTTP_CL`) is a CHILD gclass, so it subscribed its parent to
+  every event it publishes, and `ensure_kc_client()` never dropped that
+  subscription. Three faults at once, all from the one cause:
+
+  - `EV_ON_MESSAGE` is not in the FSM of `C_AUTHZ`, so **every answer of
+    Keycloak was lost** in *"Event NOT DEFINED in state"*. The task ended
+    without an answer and the caller got the catch-all `kc_unavailable`,
+    *"Keycloak register-idp-user failed"*, which reads as an unreachable IdP.
+  - `EV_ON_OPEN` is not in the FSM either, so the connection logged a second
+    error.
+  - `EV_ON_CLOSE` **is** in the FSM, for a USER channel that closes. The close
+    of this outbound socket therefore entered `ac_on_close` and ran the logout
+    of a user that does not exist (*"__session_id__ not found"*, *"User not
+    found"*, and *"kw must be list or dict"* from the treedb).
+
+  `ensure_kc_client()` now unsubscribes the parent right after it creates the
+  client, which is what `C_AUTH_BFF` already does with its IdP client. The
+  audience is the `C_TASK`: it subscribes to `gobj_results` by itself.
+
+  The path was never exercised before, because it needs a confidential IdP
+  client that no deployment had. Verified against a real Keycloak with a
+  `kc_admin_client_id` that does not exist: the answer is now
+  `kc_token_refused` with *"Keycloak admin authentication failed (status
+  401)"*, and the log carries neither the undefined events nor the phantom
+  logout.
+
 - **`C_AUTH_BFF` now logs what the IdP answered.** An IdP failure that did not
   match a specific mapping was reported to the operator as
   `auth_unexpected_error` and nothing else, because `send_error_response` logs
