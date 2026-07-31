@@ -166,7 +166,7 @@ need it.
    ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c), SEC-06).
 5. BFF calls IdP `/token` with `grant_type=authorization_code` +
    `code_verifier` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)).
-6. Tokens come back. BFF writes them as HttpOnly cookies
+6. The tokens arrive. BFF writes them as HttpOnly cookies
    ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)).
 
 State and nonce are the SPA's responsibility — the BFF does not generate
@@ -266,7 +266,7 @@ illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:
 "cookie_domain": ""
 ```
 
-In production deployments those four come from the project's Keycloak
+In production deployments the project's Keycloak gives those four
 realm. See §7 for the project conventions.
 
 ### 2.8 Pending bugs
@@ -307,7 +307,7 @@ runs **inside `C_AUTHZ`**, not `C_IEVENT_SRV`.
 ### 3.3 Signature verification: libjwt
 
 `kernel/c/libjwt/` — Yuneta vendors a copy of libjwt. The verification
-entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/libjwt/src/jwt-verify.c#L136) in [`jwt-verify.c:136`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/libjwt/src/jwt-verify.c#L136). Keys come from [JWKS](https://datatracker.ietf.org/doc/html/rfc7517)
+entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/libjwt/src/jwt-verify.c#L136) in [`jwt-verify.c:136`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/libjwt/src/jwt-verify.c#L136). The [JWKS] endpoint gives the keys(https://datatracker.ietf.org/doc/html/rfc7517)
 fetched from the issuer (cached, refreshed on rotation). The crypto
 backend is OpenSSL or mbedTLS, runtime-selectable via the same `ytls`
 abstraction used by TCP.

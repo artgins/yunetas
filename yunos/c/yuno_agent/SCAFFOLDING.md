@@ -146,7 +146,7 @@ rootname=foo →   ./c_foo.c
 
 ### 4.3 Derived variables
 
-User-prompted vars come from the catalog. The engine adds derived ones
+The catalog gives the user-prompted vars. The engine adds derived ones
 automatically in [`make_skeleton.c`](https://github.com/artgins/yunetas/blob/7.9.4/utils/c/yuno-skeleton/make_skeleton.c):
 
 | Variable      | Derivation                                                |

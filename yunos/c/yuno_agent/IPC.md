@@ -449,7 +449,7 @@ either way.
 
 `ac_on_message` in [`c_ievent_srv.c:933`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c#L933):
 
-1. [`iev_create_from_gbuffer`](#iev_create_from_gbuffer) ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c#L152)) deserialises the WS
+1. [`iev_create_from_gbuffer`](#iev_create_from_gbuffer) ([`msg_ievent.c:152`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c#L152)) deserializes the WS
    frame.
 2. Inspect the latest `ievent_gate_stack` entry — `dst_yuno`,
    `dst_role`, `dst_service` ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c)).

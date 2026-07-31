@@ -214,7 +214,7 @@ realm's lifetime.
 ## 7. What is **not** scoped per realm
 
 This is where production gotchas live. The fact that some things look
-realm-scoped but aren't is the most common cause of surprises.
+realm-scoped but is not, is the most common cause of surprises.
 
 ### 7.1 Port pool (`range_ports` / `last_port`)
 

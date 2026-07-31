@@ -182,7 +182,7 @@ writes `"none"` and **keeps running** ([`c_agent.c`](src/c_agent.c) `mt_start`).
 For a black box this asymmetry is dangerous: if a provisioning mistake clears
 `node_owner`, the escape hatch kills itself **exactly when you need it most**.
 
-**Fix:** agent22 must behave like the primary — fall back to standalone
+**Fix:** agent22 must behave like the primary. It must return to standalone
 `"none"` mode (quiet, no controlcenter) and **stay alive**. The escape hatch
 never exits on a config value it can default. This is self-contained and
 low-risk, and it is the prerequisite for everything else here.
@@ -332,7 +332,7 @@ per-command gate is different: `SDF_AUTHZ_X` runs only when the yuno sets
 attr is **absent on `e.com`** — so the rest of the surface (`install-binary`,
 `kill-yuno`, `read-file`, …) is **authenticated but not authorized**: any
 principal holding a valid realm token can drive it. Before sealing, decide
-whether that is acceptable, because a sealed node's only remaining defence is
+whether that is acceptable, because the only remaining defense of a sealed node is
 this gate. Tracked with the wider role-matrix work in
 [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.5.
 

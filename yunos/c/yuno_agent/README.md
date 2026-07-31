@@ -20,7 +20,7 @@ to by default.
 | [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
-| [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and is not realm-scoped (ports and certs aren't), the hierarchical `parent_realm_id`, sharp edges, recipes. |
+| [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and is not realm-scoped (ports and certs are not), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
 | [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, the `issuer` config), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas — the per-command authz gate is **re-armed but gated off by default** (`enable_command_authz`, see §4.5), cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
 | [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, `mt_writing` and `mt_reading`), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
@@ -76,7 +76,7 @@ to by default.
   `realms` topic, the composed `<name>.<role>.<env>` URL identity, the
   `/yuneta/realms/<owner>/<url>/<yuno>/{bin,logs}` on-disk layout, `create-
   realm` / `update-realm` / `delete-realm`, and the things that **look**
-  per-realm but aren't (port pool, cert sync, the binary repo).
+  per-realm but are not (port pool, cert sync, the binary repo).
 - **Scaffolding a new yuno or gclass** → [`SCAFFOLDING.md`](SCAFFOLDING.md)
   explains `yuno-skeleton`, the seven shipped templates, the templating
   engine (`{{var}}` for content, `+var+` for filenames, the `_tmpl`

@@ -334,8 +334,8 @@ The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c
 
 Two consequences:
 
-- **Sending SIGQUIT to a healthy yuno is the right way to ask it to
-  shut down.** The first SIGQUIT is a request. The second is a hard stop
+- **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
+  stop.** The first SIGQUIT is a request. The second is a hard stop
   that still leaves the watcher satisfied.
 - **SIGTERM is ignored.** `init` can send it on shutdown. The yuno
   depends on the agent's `kill-yuno` (which sends SIGQUIT), or on the
@@ -404,7 +404,7 @@ fs.nr_open  = 4000000
 **`core_pattern` is contested, and losing it is silent.** A crash handler
 installed by the distro takes it over at boot — `apport` on Ubuntu,
 `abrt-addon-ccpp` on RHEL/Rocky — replacing the path with a pipe to itself.
-Both discard cores from binaries that did not come from a distro package, so
+Both discard cores from binaries that a distro package did not install, so
 yuno cores stop existing. Nothing is written to any log.
 
 `sysctl --system` at install time is not enough: `systemd-sysctl.service` runs
