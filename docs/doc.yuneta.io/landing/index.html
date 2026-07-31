@@ -1189,6 +1189,25 @@ h1.hero-title {
                 <span class="run-go">open &rarr;</span>
             </a>
 
+            <!--
+                The one absolute href on this page besides GitHub, and it
+                breaks the root-relative rule in the header comment on
+                purpose: the demo is a separate app on its own host, not a
+                page of this tree, so there is nothing to keep on the
+                reader's hostname. It carries no MyST theme either, so the
+                localStorage argument does not apply to it.
+            -->
+            <a class="run-card" href="https://demo.yuneta.io">
+                <span class="run-kick">&#9654;&ensp;Live</span>
+                <span class="run-t">The shell, running</span>
+                <span class="run-d">Not a diagram of the UI library — the library itself, in
+                your browser. Every <code>C_YUI_NAV</code> layout and the per-zone responsive
+                model, declared in one JSON file and materialized by the shell. No backend and
+                no login. Open it on a phone too: the layouts change per breakpoint, which is
+                the part a screenshot cannot show.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
             <!-- next walkthrough goes here -->
         </div>
     </section>
