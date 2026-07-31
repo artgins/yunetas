@@ -413,6 +413,23 @@ PRIVATE int display_webix_result(
             printf("%s\n", data);
         }
         gbmem_free(data);
+    } else if(json_is_string(jn_data) || json_is_integer(jn_data) ||
+            json_is_real(jn_data) || json_is_boolean(jn_data)) {
+        /*
+         *  A scalar answer used to fall through both branches and vanish:
+         *  legal JSON, printed by nobody. Same hole as ycommand had.
+         */
+        if(priv->verbose >=2)  {
+            if(json_is_string(jn_data)) {
+                printf("%s\n", json_string_value(jn_data));
+            } else {
+                char *data = json2str(jn_data);
+                if(data) {
+                    printf("%s\n", data);
+                    gbmem_free(data);
+                }
+            }
+        }
     }
 
     JSON_DECREF(webix);

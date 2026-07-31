@@ -26,6 +26,20 @@
 
 ### Fixed
 
+- **A scalar answer was invisible in `ycommand` and `ybatch`.** Their display
+  handled `data` only as an array or an object, so a command that answers with
+  a string, a number or a boolean printed nothing at all — legal JSON, read by
+  nobody. `node-uuid` is how it showed: the uuid appeared in `ycli`, which has
+  its own display, and vanished through `ycommand` and therefore through the
+  controlcenter scripts, which run `ycommand`. The answer had left the agent
+  well formed.
+
+- **`node-uuid` answers like every other command.** It put the uuid in `data`
+  as a bare string. It now carries it in `comment`, prefixed with the yuno
+  identity as the other `cmd_*` handlers do, and in `data` as
+  `{"uuid": "..."}`. Clients no longer need to special-case a scalar to show
+  it, which is the half of the fault that lives in the agent.
+
 - **`ystats` never sent its token.** Its gobj tree defined `__jwt__` and no
   field used it, so every remote connection went out anonymous and the agent
   refused it with *"Without JWT/passw only localhost is allowed"*. The `jwt`
@@ -45,8 +59,6 @@
   given to the token endpoint as well, the login died with a hostname mismatch
   before the agent was ever dialed. The builder now takes `pin_server_name`,
   true only for the agent.
-
-### Fixed
 
 - **`C_AUTHZ`: `register-idp-user` could never work.** The outbound client to
   Keycloak (`C_PROT_HTTP_CL`) is a CHILD gclass, so it subscribed its parent to

@@ -1348,6 +1348,21 @@ PRIVATE int display_webix_result(
         char *data = json2str(jn_data);
         printf("%s\n", data);
         gbmem_free(data);
+    } else if(json_is_string(jn_data)) {
+        /*
+         *  A scalar answer used to fall through both branches and vanish:
+         *  legal JSON, printed by nobody. `node-uuid` is the case that
+         *  showed it — visible in ycli, invisible here and therefore
+         *  through the controlcenter, which runs this same tool.
+         */
+        printf("%s\n", json_string_value(jn_data));
+    } else if(json_is_integer(jn_data) || json_is_real(jn_data) ||
+            json_is_boolean(jn_data)) {
+        char *data = json2str(jn_data);
+        if(data) {
+            printf("%s\n", data);
+            gbmem_free(data);
+        }
     }
 
     if(result < 0) {

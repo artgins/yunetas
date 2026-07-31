@@ -1522,12 +1522,17 @@ PRIVATE json_t *cmd_ping(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_uuid(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*
+     *  The uuid travels in `comment` and in `data` as an object. It used to
+     *  be a bare string in `data`: legal, but then every client has to
+     *  special-case a scalar, and the ones that did not simply dropped it.
+     */
     return msg_iev_build_response(
         gobj,
         0,
+        json_sprintf("%s: %s", gobj_yuno_role_plus_name(), node_uuid()),
         0,
-        0,
-        json_sprintf("%s", node_uuid()),
+        json_pack("{s:s}", "uuid", node_uuid()),
         kw  // owned
     );
 }
