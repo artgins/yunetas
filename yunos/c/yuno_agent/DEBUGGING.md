@@ -1,19 +1,20 @@
 # Debugging a yuno
 
-This document covers what you actually do when something inside a running yuno
-is misbehaving: how to turn the right knobs to see what's happening, where the
-output lands, how to follow a single message end-to-end through several yunos,
-and how the centralised log aggregator (`logcenter`) fits in.
+This document covers what you do when a yuno does not behave correctly. It
+explains how to enable the traces that show you what happens, where the output
+goes, and how to follow one message through several yunos. It also explains the
+part that the centralized log aggregator (`logcenter`) plays.
 
-Companion to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md). That one covers how the agent
-manages yunos; this one covers how to look *inside* them.
+This document is the companion to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md).
+That one covers how the agent manages yunos. This one covers how to look
+*inside* them.
 
 ---
 
 ## 1. Mental model
 
-Three observation layers are independent. Confusing them is the first source
-of frustration:
+Three observation layers are independent. A confusion between them is the
+first source of frustration:
 
 | Layer                  | Question it answers                        | How you turn it on        |
 |------------------------|--------------------------------------------|---------------------------|
@@ -21,8 +22,8 @@ of frustration:
 | **Trace (categories)** | "What was the system *doing* just now?"    | `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` — off by default. |
 | **Audit**              | "What commands did operators run on this yuno?" | Always written when `use_audit_command_file=true`. |
 
-Two destinations, configurable per yuno via `daemon_log_handlers` in the yuno
-config JSON:
+You configure four destinations per yuno, with `daemon_log_handlers` in the
+yuno config JSON:
 
 ```
                         ┌──────────────────────────┐
@@ -42,8 +43,8 @@ config JSON:
                         └──────────────────────────┘
 ```
 
-Same log line can fan out to all four destinations at once. None of them is
-"the" log — they are just different sinks.
+One log line can go to all four destinations at the same time. No destination
+is "the" log. They are different sinks.
 
 ---
 
@@ -62,24 +63,25 @@ defined in [`kernel/c/gobj-c/src/glogger.c`](https://github.com/artgins/yunetas/
 | [`gobj_log_info`](#gobj_log_info)         | `LOG_INFO`    | [glogger.c:559](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c#L559)         |
 | [`gobj_log_debug`](#gobj_log_debug)        | `LOG_DEBUG`   | [glogger.c:574](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c#L574)         |
 
-Plus two parallel non-syslog channels declared in glogger.c:
+glogger.c declares two more channels that are not syslog channels:
 
-- `LOG_AUDIT` (8) — written **without the standard header**. Used for command
-  audit. Tooling that filters on the standard timestamp format will skip these
-  lines — read the audit file directly.
-- `LOG_MONITOR` (9) — used by monitoring tools.
+- `LOG_AUDIT` (8) — the framework writes these lines **without the standard
+  header**. They record the command audit. A tool that filters on the standard
+  timestamp format skips them, so read the audit file directly.
+- `LOG_MONITOR` (9) — the monitoring tools use this channel.
 
 **Per-yuno HARD RULE** (see [`CLAUDE.md`](../../../CLAUDE.md)): every
 error-return path calls `gobj_log_error` or carries an
-`// Error already logged` comment. If you can't find the error in the log,
-it's a bug in that yuno, not "the log lost it".
+`// Error already logged` comment. If you cannot find the error in the log,
+that yuno has a bug. The log did not lose it.
 
 ---
 
 ## 3. Trace categories
 
-Tracing is the off-by-default running commentary the framework can emit. It
-is **noisy** — only turn it on when needed, and turn it off when done.
+A trace is the running commentary that the framework can emit. It is off by
+default. It is **noisy**, so enable it only when you need it, and disable it
+when you finish.
 
 ### 3.1 Global trace levels
 
@@ -93,7 +95,7 @@ Defined in `s_global_trace_level[16]` at [`kernel/c/gobj-c/src/gobj.c`](https://
 | 3   | `subscriptions`   | `gobj_subscribe_event` / `gobj_unsubscribe_event`                   |
 | 4   | `start_stop`      | `gobj_start` / `gobj_stop`                                          |
 | 5   | `ev_kw`           | Dump the `kw` JSON payload on every event dispatch (huge volume)    |
-| 6   | `authzs`          | Authorisation checks                                                |
+| 6   | `authzs`          | Authorization checks                                                |
 | 7   | `states`          | State changes (subset of `machine`)                                 |
 | 8   | `gbuffers`        | gbuffer alloc / free / realloc                                      |
 | 9   | `timer`           | One-shot timer fires                                                |
@@ -103,7 +105,8 @@ Defined in `s_global_trace_level[16]` at [`kernel/c/gobj-c/src/gobj.c`](https://
 | 13  | `liburing_timer`  | io_uring-backed timers                                              |
 | 14  | `commands`        | `gobj_command` invocations                                          |
 
-These are global bits — when on, **every** gobj in the yuno is affected.
+These are global bits. When you enable one, it affects **every** gobj in the
+yuno.
 
 ### 3.2 Per-gclass trace levels
 
@@ -134,29 +137,31 @@ The names are gclass-specific. Common ones across runtime gclasses:
 - [`C_WEBSOCKET`](#gclass-c-websocket): gclass-specific `debug` for HTTP-upgrade handshakes
 - [`C_TIMER`](#gclass-c-timer), [`C_TIMER0`](#gclass-c-timer0): their own `tick` / `periodic`
 
-Discover what a gclass actually offers with `get-gclass-trace gclass=<X>`
-(see §4).
+To see what a gclass offers, run `get-gclass-trace gclass=<X>` (see §4).
 
 ### 3.3 Per-gobj trace levels
 
-Same as per-gclass but scoped to a single gobj instance. Useful when you have
-ten TCP connections and only want the trace for one. API:
+These levels are the same as the per-gclass levels, but they are scoped to one
+gobj instance. They are useful when you have ten TCP connections and you want
+the trace of one connection. API:
 [`gobj_set_gobj_trace()`](#gobj_set_gobj_trace) at [`kernel/c/gobj-c/src/gobj.c:11256`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11256).
 
 ### 3.4 The `no_trace` parallel system
 
 For every "set trace" command there is a "set no-trace" counterpart. The
-no-trace mask is **subtracted** from the effective trace mask, so you can
-turn on a noisy level globally and silence it on specific gclasses / gobjs.
+framework **subtracts** the no-trace mask from the effective trace mask. So
+you can enable a noisy level globally, then silence it on specific gclasses or
+gobjs.
 Functions: [`gobj_set_global_no_trace()`](#gobj_set_global_no_trace) at [gobj.c:11396](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11396),
 [`gobj_set_gclass_no_trace()`](#gobj_set_gclass_no_trace) at [gobj.c:11617](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11617), [`gobj_set_gobj_no_trace()`](#gobj_set_gobj_no_trace) at [gobj.c:11746](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11746).
 
 ### 3.5 Deep trace mode
 
 [`gobj_set_deep_tracing(level)`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11338)
-forces all traces on regardless of masks. **Not exposed as a [`ycommand`](#util-ycommand)** — only via the C API,
-mostly used internally for emergency dumps. Avoid unless you are willing to
-deal with the volume.
+enables all traces, and the masks do not apply. There is **no
+[`ycommand`](#util-ycommand) for it**. It is available only in the C API, and
+the framework uses it internally for emergency dumps. Do not use it unless you
+can accept the volume.
 
 ---
 
@@ -184,9 +189,10 @@ ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=get-gclass-trace gc
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=get-gobj-trace gobj=<short_name>'
 ```
 
-CLAUDE.md's shorthand `ycommand -c 'command-yuno id=<id> service=__yuno__ command=…'`
-is exactly this. The default-yuno shortcut `ycommand -c 'set-global-trace …'`
-is in fact `command-yuno` to whatever yuno is registered as default.
+The short form in CLAUDE.md,
+`ycommand -c 'command-yuno id=<id> service=__yuno__ command=…'`, is exactly
+this. The shorter form `ycommand -c 'set-global-trace …'` sends `command-yuno`
+to the yuno that is registered as the default yuno.
 
 ### Persistence
 
@@ -195,15 +201,16 @@ is in fact `command-yuno` to whatever yuno is registered as default.
   re-applied on the next start.
 - **Gclass and gobj traces** are **live-only**. They die with the process.
 
-Implication: a forgotten `set-global-trace level=machine set=1` will survive
-a restart and quietly fill your disk. Always pair on/off in the same session.
+CAUTION: a forgotten `set-global-trace level=machine set=1` survives a
+restart, and it fills your disk. It gives no message first. Always pair the
+enable and the disable in the same session.
 
 ### 4.1 When the yuno never reaches the agent (`--global-trace`)
 
 Every command above travels over the yuno's control channel to the agent. So
-none of them work for the failure that most needs tracing: a yuno that dies,
-hangs or misbehaves **before** that channel is up. `ycommand` cannot reach it,
-and `list-yunos` will report `running=false` even while the process is alive.
+none of them work for the failure that most needs a trace: a yuno that dies,
+hangs or fails **before** that channel is ready. `ycommand` cannot reach it,
+and `list-yunos` reports `running=false` even while the process is alive.
 
 Since 7.8.2 the levels can be armed on the command line instead:
 
@@ -216,20 +223,20 @@ auth_bff --config-file='[...]' --global-trace=machine,create_delete,start_stop
 auth_bff --global-trace=list
 ```
 
-They are applied after every gclass is registered and before the first service
-starts, so they cover start up itself. An unknown level exits pointing at
-`list` rather than being silently ignored.
+The framework applies them after it registers every gclass, and before the
+first service starts, so they cover start up itself. An unknown level stops the
+yuno with a message that points at `list`. The yuno does not ignore it.
 
-To reproduce a yuno the agent launches, take its command line from
-`running-bin id=<id>` / `running-keys id=<id>`, or use the ready-made script the
-agent writes at
-`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`, and append the flag.
+To reproduce a yuno that the agent launches, take its command line from
+`running-bin id=<id>` or `running-keys id=<id>`. You can also use the script
+that the agent writes at
+`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`. Then append the flag.
 
-Two older tricks, and their limits:
+Two older methods, and their limits:
 
 - **`kill -10 <pid>`** (SIGUSR1) cycles the global mask
-  `0` → `0x00FF0000` → `0x0FFF0000` → `0xFFFF0000` → `0`. Useful on a process
-  that is already up, useless for anything that happens during start up.
+  `0` → `0x00FF0000` → `0x0FFF0000` → `0xFFFF0000` → `0`. It is useful on a
+  process that already runs. It does nothing for a problem during start up.
 - **`--verbose-log=N` is not a trace switch.** It only overrides the *stdout*
   log handler's field bitmask (which fields each line prints). `--verbose-log=3`
   prints *fewer* fields than the config default of 255, which is why it reads as
@@ -237,24 +244,26 @@ Two older tricks, and their limits:
 
 ### 4.2 Two warnings that arrive without being asked for
 
-Some failures below the framework cannot wait to be traced, so they report
+Some failures below the framework cannot wait for a trace, so they report
 themselves:
 
 - **`getaddrinfo() BLOCKED the event loop`** (`gobj_log_warning`, msgset `OS`,
-  from `yev_loop.c`) — name resolution is synchronous and runs inside the loop,
-  so a slow resolver stops **every** gobj in the process, not just the socket
-  being opened. Emitted with the host and the elapsed `msec` when it exceeds
-  1 s. If you see it, the yuno is not slow: it is stopped.
-- **`YUNETAS static_resolv: …`** in **syslog** (`journalctl`), from the
-  `CONFIG_FULLY_STATIC` resolver, which sits below the gobj log and cannot
-  reach it: an unresponsive `nameserver` in `/etc/resolv.conf` (rate limited to
-  one per nameserver per 5 min), a resolution over 1 s, or an allocation
-  failure.
+  from `yev_loop.c`) — name resolution is synchronous and runs inside the loop.
+  A slow resolver therefore stops **every** gobj in the process, not only the
+  socket that you open. The framework emits the warning with the host and the
+  elapsed `msec` when the time is more than 1 s. If you see it, the yuno is not
+  slow. It is stopped.
+- **`YUNETAS static_resolv: …`** in **syslog** (`journalctl`) — the
+  `CONFIG_FULLY_STATIC` resolver writes it. That resolver is below the gobj
+  log and cannot reach it. Three conditions emit the message: a `nameserver`
+  in `/etc/resolv.conf` that does not answer (rate limited to one message per
+  nameserver per 5 min), a resolution of more than 1 s, or a failed
+  allocation.
 
 A dead first `nameserver` costs ~6 s (A + AAAA timeouts) on **every** lookup,
-so a yuno opening many channels can spend minutes in start up. Answers are
-cached since 7.8.2, which bounds it to the first lookup, but the fix is the
-node's `/etc/resolv.conf`.
+so a yuno that opens many channels can spend minutes in start up. The resolver
+caches answers since 7.8.2, which limits the cost to the first lookup. But the
+correction belongs in the node's `/etc/resolv.conf`.
 
 ---
 
@@ -269,9 +278,9 @@ Per-yuno log file, built by [`yuneta_log_file()`](#yuneta_log_file) at
 /yuneta/logs/<yuno_role_plus_name>/<filename_mask>
 ```
 
-The actual mask is whatever you set in `daemon_log_handlers.<handler>.filename_mask`
-(see §5.4). Conventionally `<role>-W.log` (the `W` is replaced by a rotation
-counter).
+The mask is the value that you set in
+`daemon_log_handlers.<handler>.filename_mask` (see §5.4). By convention it is
+`<role>-W.log`, where a rotation counter replaces the `W`.
 
 Active log discovery:
 
@@ -313,9 +322,9 @@ grep -a '"msg":"Event NOT DEFINED in state"' …               # the canonical F
 
 The `rotatory` library rotates the file when it crosses a size threshold
 (default 8 MB, configurable via `max_megas_rotatoryfile_size`,
-[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/entry_point.c)). Old files are renamed; the active filename never moves.
-There is no time-based rotation. There is no cron — rotation happens on the
-next write that would cross the threshold.
+[`entry_point.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/entry_point.c)). The library renames the old files, and the active filename never moves.
+There is no rotation by time. There is no cron. The rotation happens on the
+next write that crosses the threshold.
 
 ### 5.4 Where to configure handlers
 
@@ -340,25 +349,25 @@ In the yuno's config JSON, under `environment.daemon_log_handlers` (or
 }
 ```
 
-`handler_options` is a bitmask of `LOG_HND_OPT_*` (glogger.h) selecting
-which severities the handler accepts. `255` = all of them; clearing bits drops
-DEBUG / INFO / AUDIT / etc.
+`handler_options` is a bitmask of `LOG_HND_OPT_*` (glogger.h) that selects
+which severities the handler accepts. `255` accepts all of them. If you clear
+bits, the handler drops DEBUG, INFO, AUDIT and the other severities.
 
-Add or remove handlers at runtime via [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c)
-(`add-log-handler` / `del-log-handler` commands).
+To add or remove handlers at run time, use the `add-log-handler` and
+`del-log-handler` commands of [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c).
 
 ---
 
 ## 6. The FSM trace (`machine`)
 
-Single most useful trace when debugging gobj behaviour. Defined in
+This is the most useful trace for the behavior of a gobj. It is defined in
 [`glogger.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c) (`trace_machine`). Called from the event dispatcher in
 [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L7507):
 
 - Before dispatch: a `🔜` line per event entry.
-- "Event NOT DEFINED" error: a `📛` line — this is the canonical "parent FSM
-  doesn't declare the child's event" failure (see CLAUDE.md "CHILD vs SERVICE"
-  section).
+- "Event NOT DEFINED" error: a `📛` line. This is the canonical failure in
+  which the parent FSM does not declare the event of the child (see CLAUDE.md
+  "CHILD vs SERVICE" section).
 - After dispatch: a `🔄` line per executed event.
 - State change: a `🔀🔀` line.
 
@@ -380,13 +389,13 @@ Two output formats, switched by the integer variable `trace_machine_format`:
 🔀🔀 mach(!!c_tcp), new st(:closed), prev st(:open)
 ```
 
-`!!` before a name means the gobj is **not running** at that moment. Two
-of those in a row is usually the bug.
+`!!` before a name means that the gobj is **not running** at that moment. Two
+of them in a row are usually the bug.
 
 ### Scoping the machine trace
 
-The whole-yuno machine trace is overwhelming on anything bigger than a toy
-test. Two ways to narrow:
+The machine trace of a whole yuno gives too much output on anything larger
+than a toy test. You can make it narrow in two ways:
 
 ```bash
 # only one gclass
@@ -400,10 +409,11 @@ Both are live-only — they vanish on restart.
 
 ### The same trace in the browser
 
-Everything in this chapter is about a yuno on a node, but a browser SPA runs
-the **same kernel**, ported: since `@yuneta/gobj-js` **7.9.5** the JS runtime
-has this level model with the same names and the same bits, so a habit learned
-here transfers, and two traces read side by side line up.
+This chapter is about a yuno on a node. But a browser SPA runs the **same
+kernel**, ported to JavaScript. Since `@yuneta/gobj-js` **7.9.5** the JS
+runtime has this level model, with the same names and the same bits. A habit
+that you learn here therefore transfers, and you can read two traces side by
+side.
 
 ```javascript
 gobj_set_global_trace("machine", true);          // the big one, same as above
@@ -413,12 +423,13 @@ gobj_set_gobj_no_trace(noisy_src, "machine", true);   // veto, by the SOURCE
 set_log_callback((level, msg) => { ... });       // the trace arrives as `debug`
 ```
 
-There is no `ycommand` on that side: the switch is the call above, and the
-output goes to the browser console — or wherever `set_log_callback()` sends it,
-which is how gobj-ui's dev panel shows the machine inside the app.
+There is no `ycommand` on that side. The switch is the call above, and the
+output goes to the browser console. It goes to any other destination that
+`set_log_callback()` selects, and that is how the dev panel of gobj-ui shows
+the machine inside the app.
 [`doc.yuneta.io/navigation`](https://doc.yuneta.io/navigation) runs three demos
-with the panel wired to that callback, if you want to see the lines before
-wiring your own.
+with the panel connected to that callback. Read them if you want to see the
+lines before you write your own code.
 
 ---
 
@@ -486,9 +497,9 @@ To grep the same transaction across multiple yunos' logs:
 grep -a 'ievent_gate_stack' /yuneta/logs/*/*.log | grep '<the user or src_yuno you care about>'
 ```
 
-There is **no automatic UUID** propagated for non-ievent calls (a direct C
-function call has nothing to grep). The correlation is only available when
-the message actually traverses an ievent boundary.
+The framework propagates **no automatic UUID** for calls that are not ievents.
+A direct C function call has nothing to grep. The correlation is available only
+when the message crosses an ievent boundary.
 
 ### Practical sequence to follow one HTTP request
 
@@ -527,9 +538,9 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gcl
 
 ## 8. The SPA-side "dev panel" viewer
 
-When a SPA built on the JS gobj framework is connected to a yuno, it can
-display **live** what crosses the websocket — the same lines you'd see in
-the local log file, plus the ievent message bodies.
+A SPA built on the JS gobj framework can connect to a yuno. Then it can
+display **live** what crosses the websocket: the same lines that you see in
+the local log file, plus the bodies of the ievent messages.
 
 ### Wire-up
 
@@ -546,7 +557,7 @@ the local log file, plus the ievent message bodies.
   - the **legacy** `C_YUI_WINDOW` modal, or
   - the **modern** `build_dev_panel()` modal ([yui_dev.js:452](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-ui/src/yui_dev.js#L452)).
 
-Both still ship — apps pick one based on the shell version.
+Both still ship. An app selects one of them from the version of its shell.
 
 ### Rendering
 
@@ -559,31 +570,33 @@ Both still ship — apps pick one based on the shell version.
 
 ### Filtering on the SPA side
 
-**None in the UI.** The viewer shows whatever flows through the websocket.
-The only knobs are on/off — `trace_inter_event` boolean and the
-`trace_ievent_callback` itself. To "filter", you change what the yuno emits
-using the `ycommand` knobs from §4.
+**The UI has no filter.** The viewer shows everything that flows through the
+websocket. The only two controls are on and off: the `trace_inter_event`
+boolean and the `trace_ievent_callback` itself. To filter, change what the
+yuno emits with the `ycommand` controls from §4.
 
 ### Teardown order — the recursion gotcha
 
 When the websocket closes, `ac_on_close` ([`c_ievent_cli.js:897`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/c_ievent_cli.js#L897)) fires
-`EV_ON_CLOSE`. If `set_remote_log_functions` is still installed (it
-hijacks JS `log_error`/`log_warning` to the DOM callback), the warning
-emitted **inside** the teardown path is captured, mutates the DOM, which
-can fire more events, which log again — infinite recursion.
+`EV_ON_CLOSE`. `set_remote_log_functions` redirects the JS `log_error` and
+`log_warning` calls to the DOM callback. If it is still installed, the callback
+captures the warning that the teardown path emits. The callback changes the
+DOM, the change can fire more events, and those events log again. The result is
+an infinite recursion.
 
-The fix at [`c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/c_ievent_cli.js) is to call
-`set_remote_log_functions(null)` (clears the hooks, resets to console —
-see [`helpers.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/helpers.js)) **before** anything publishes `EV_ON_CLOSE`. See
-memory note "Remote-log unwire order" for the historical incident.
+The correction at [`c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/c_ievent_cli.js) is to call
+`set_remote_log_functions(null)` **before** anything publishes `EV_ON_CLOSE`.
+That call clears the hooks and resets them to the console (see
+[`helpers.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/helpers.js)). The memory note "Remote-log unwire order" records the
+incident.
 
 ---
 
 ## 9. The logcenter yuno
 
-`yunos/c/logcenter/` aggregates UDP-shipped logs from every yuno on the
-host (or LAN). It is **not enabled by default** — each yuno only ships to
-UDP if its config lists a `udp` handler.
+`yunos/c/logcenter/` collects the logs that every yuno on the host, or on the
+LAN, ships over UDP. It is **not enabled by default**. A yuno ships to UDP
+only if its config lists a `udp` handler.
 
 ### How it listens
 
@@ -612,12 +625,12 @@ Commands ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/
 | `display-summary` | Print the in-memory counters: alerts, criticals, errors, warnings.      |
 | `send-summary`    | Email the same summary (used as a daily/weekly batch).                  |
 | `search`          | Search the stored log file for matching lines.                          |
-| `tail`            | Last N lines of the centralised log.                                    |
+| `tail`            | Last N lines of the centralized log.                                    |
 | `reset-counters`  | Zero the in-memory counters.                                            |
 
-Use it like any other yuno (target it by `yuno_role=logcenter` so you
-don't depend on the yuno's numeric `id`, which varies per realm; the
-default service is implied for `command-yuno`):
+Use it like any other yuno. Target it by `yuno_role=logcenter`, because the
+numeric `id` of the yuno changes with the realm. `command-yuno` implies the
+default service:
 
 ```bash
 # rollup counters (Alert/Critical/Error/Warning/Info + Connect/Disconnect breakdown)
@@ -634,12 +647,12 @@ ycommand -c 'command-yuno yuno_role=logcenter command=search text="EV_ON_CLOSE" 
 ycommand -c 'command-yuno yuno_role=logcenter command=reset-counters'
 ```
 
-Other commands worth knowing about ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/logcenter/src/c_logcenter.c)):
-`send-summary` / `enable-send-summary` / `disable-send-summary` (email
-rollup), `restart-yuneta-on-queue-alarm` (auto-recovery hook when the
-UDP queue floods).
+Three more commands are useful ([`c_logcenter.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/logcenter/src/c_logcenter.c)):
+`send-summary`, `enable-send-summary` and `disable-send-summary` control the
+email rollup. `restart-yuneta-on-queue-alarm` is the auto-recovery hook for a
+UDP queue that floods.
 
-### Per-yuno vs centralised — when to use each
+### Per-yuno vs centralized — when to use each
 
 - **Per-yuno tail** when you know which yuno is misbehaving and want raw
   control over `grep`. `/yuneta/logs/<yuno>/<file>.log` is full fidelity.
@@ -647,19 +660,19 @@ UDP queue floods).
   a yuno crashes too fast to read its own file, or for the rollup
   counters / email summaries.
 
-Both can run at the same time — the file handler writes locally and the
-UDP handler ships to logcenter in parallel. They are not exclusive.
+Both can run at the same time. The file handler writes locally, and the UDP
+handler ships to logcenter in parallel. They are not exclusive.
 
 ---
 
 ## 10. Sharp edges
 
-### 10.1 Traces stack up; disable when done
+### 10.1 Traces accumulate — disable them when you finish
 
 A forgotten `set-global-trace level=machine set=1` survives a restart
-(see §4 *Persistence*). Logs balloon. Always pair on/off in the same
-operational session, and double-check with `get-global-trace` before you
-leave.
+(see §4 *Persistence*). The logs then grow without limit. Always pair the
+enable and the disable in the same operational session. Before you leave, make
+sure that the state is correct with `get-global-trace`.
 
 ### 10.2 Persistence asymmetry
 
@@ -670,34 +683,35 @@ leave.
 | `gobj`        | No                             |
 | `no_trace`    | No (all flavours)              |
 
-If you persisted a global level by mistake, clear it explicitly:
-`set-global-trace level=<name> set=0`. Removing the file does not help —
-the value lives in the yuno's treedb config.
+If you persisted a global level by mistake, clear it explicitly with
+`set-global-trace level=<name> set=0`. To delete the file does not help,
+because the value is in the treedb config of the yuno.
 
 ### 10.3 `ievent_gate_stack` is only on inter-event hops
 
 A direct C function call between gobjs in the same yuno does **not** carry
-the stack — there's no metadata to attach. The correlation only exists
-across yuno boundaries. Plan your traces accordingly.
+the stack, because there is no metadata to attach. The correlation exists only
+across yuno boundaries. Plan your traces for this limit.
 
 ### 10.4 `LOG_AUDIT` lines have no standard header
 
-[`glogger.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c) — audit lines are written raw. Any line-filter that expects
-the timestamp prefix will miss them. Read the audit file directly when
-chasing operator actions.
+[`glogger.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c) writes the audit lines raw. A line filter that expects
+the timestamp prefix misses them. When you look for operator actions, read the
+audit file directly.
 
 ### 10.5 UDP can drop
 
-UDP logs are not reliable. Under burst (e.g. machine trace fully on) the
-kernel buffer can overflow and logcenter loses lines silently. The local
-file handler does not drop — when in doubt, trust the local file.
+UDP logs are not reliable. Under a burst, for example a machine trace that is
+fully on, the kernel buffer can overflow, and logcenter loses lines. It gives
+no message. The local file handler drops nothing, so trust the local file when
+you are not sure.
 
 ### 10.6 `ev_kw` is enormous
 
-`set-global-trace level=ev_kw set=1` dumps every event's full `kw` JSON
-payload to the log. Useful on a single-shot test; ruinous on a busy
-service. Combine with gclass-scoped `machine` trace if you need it
-narrowly.
+`set-global-trace level=ev_kw set=1` writes the full `kw` JSON payload of every
+event to the log. It is useful on a single-shot test. It is ruinous on a busy
+service. If you need it narrowly, combine it with a `machine` trace that is
+scoped to one gclass.
 
 ### 10.7 SPA dev-panel teardown order
 
@@ -707,15 +721,15 @@ narrowly.
 
 ### 10.8 Deep tracing has no `ycommand` switch
 
-[`gobj_set_deep_tracing()`](#gobj_set_deep_tracing) is C-only (gobj.c). If you find a yuno
-generating apparently-unconfigurable traces, look for a `gobj_set_deep_tracing`
-call in its `mt_create` that someone left in.
+[`gobj_set_deep_tracing()`](#gobj_set_deep_tracing) is available only in C (gobj.c). If a yuno generates
+traces that you cannot configure, look for a `gobj_set_deep_tracing` call that
+someone left in its `mt_create`.
 
 ---
 
 ## 11. Operational recipes
 
-### 11.1 Just watch what a yuno is doing
+### 11.1 Watch what a yuno does
 
 ```bash
 YUNO=<id>
@@ -738,7 +752,7 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gclass-trace gcl
 
 ### 11.3 Watch all logs from this host in one place
 
-Enable logcenter. In every yuno's config JSON add:
+Enable logcenter. Add this to the config JSON of every yuno:
 
 ```json
 "daemon_log_handlers": {
@@ -757,9 +771,10 @@ ycommand -c 'command-yuno yuno_role=logcenter command=reset-counters'   # wipe t
 
 ### 11.4 Follow one request end-to-end
 
-See §7 — the block of `set-gclass-trace ... traffic` + `set-global-trace
-... machine` + `set-global-trace ... fs` + `set-gclass-trace C_IEVENT_SRV
-... ievents2` is the kit. Don't forget to disable everything afterwards.
+See §7. The set of commands is `set-gclass-trace ... traffic`,
+`set-global-trace ... machine`, `set-global-trace ... fs` and
+`set-gclass-trace C_IEVENT_SRV ... ievents2`. Do not forget to disable
+everything afterwards.
 
 ### 11.5 Capture an FSM bug in one gobj only
 
@@ -772,20 +787,21 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=ev_kw   set=0"
 ```
 
-These are live-only — even if you forget the off-step, a yuno restart
-clears them.
+These traces are live-only. If you forget the disable step, a restart of the
+yuno clears them.
 
 ### 11.6 Spot the canonical "Event NOT DEFINED in state" error
 
-That single string is the most common FSM failure (parent
-FSM didn't declare a child's published event — see CLAUDE.md "CHILD vs
-SERVICE"). It's logged at `LOG_ERR` regardless of trace settings, so:
+That single string is the most common FSM failure. The parent FSM did not
+declare an event that a child publishes (see CLAUDE.md "CHILD vs SERVICE").
+The framework logs it at `LOG_ERR`, and the trace settings do not change that,
+so:
 
 ```bash
 grep -a '"msg":"Event NOT DEFINED in state"' /yuneta/logs/*/*.log
 ```
 
-works on any host without enabling anything.
+This command works on any host, and it needs no trace.
 
 ---
 
