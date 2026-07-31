@@ -1,6 +1,35 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.5
+
+### Security
+
+- **llhttp 9.4.3** (vendored, `kernel/c/gobj-c/src/llhttp*`). Upstream fix:
+  *do not allow an empty transfer-encoding*. The parser now rejects a request
+  whose `Transfer-Encoding` header is present but blank, instead of accepting
+  it, which is the class of ambiguity that request smuggling is built on.
+  `c_prot_http_sr` parses requests from the network, so this reaches every
+  yuno that serves HTTP.
+
+  The four vendored files were pristine 9.4.2 with no local modification, so
+  9.4.3 is a verbatim drop-in. Only the generated state machine and the
+  version constant change: `api.c` and `http.c` are byte-identical between
+  the two releases. Verified with a clean SDK rebuild and the full suite,
+  119 of 119 passing, `test_c_llhttp_parser` included.
+
+### Changed
+
+- **maplibre-gl 6.1.0.** No breaking change, no worker or bundling change, so
+  the v6 worker handling stays as it is: the bundle still emits
+  `maplibre-gl-worker.js` with a `.js` extension, which is what keeps the MIME
+  type servable. Worth having are the renderer fix for raster tile sources
+  with errored tiles, the terrain resource leak when switching configurations,
+  and the tile/image race with an undefined `AbortController`.
+
+  `gui_treedb` pins `^6.1.0`, because an application takes the floor it was
+  tested against. `gobj-ui` keeps its peer range at `^6.0.0`, because a
+  library must not force the update on estadodelaire, hidraulia or wattyzer
+  for fixes it does not itself depend on.
 
 ### Added
 
@@ -68,6 +97,19 @@
   no judgement, and it says so.
 
 ### Documentation
+
+- **The declarative shell has a public demo: [demo.yuneta.io](https://demo.yuneta.io).**
+  The `gobj-ui` test-app was only reachable at `niyamaka.com`, a domain whose
+  name says nothing about Yuneta, and no page linked to it. It now has its own
+  host on the documentation box, with its own certificate, and
+  `doc.yuneta.io` links to it under *See it run*. It shows every `C_YUI_NAV`
+  layout and the per-zone responsive model, with no backend and no login.
+
+  The script that deploys it was untracked, listed in `.git/info/exclude`, so
+  nobody could reproduce the deployment from a clone. `test-app/deploy.sh`
+  replaces it: the host is an argument, `demo.yuneta.io` is the default,
+  `niyamaka.com` stays for mobile testing, and it curl-verifies the result
+  instead of reporting success on the rsync alone.
 
 - **`/guide-folders`: the `tools` entry linked to the CHANGELOG.** The list of
   top folders links each name to its section below, and `[tools](#tools)`

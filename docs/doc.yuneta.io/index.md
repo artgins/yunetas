@@ -10,7 +10,7 @@ title: Yuneta Simplified
 
 ## *An Asynchronous Development Framework*
 
-**Current version: [7.9.4](https://github.com/artgins/yunetas/tree/7.9.4)**
+**Current version: [7.9.5](https://github.com/artgins/yunetas/tree/7.9.5)**
 
 *Documentation updated: 2026-07-31*
 :::
@@ -66,3 +66,17 @@ Suggested reading order:
    Event Loop, JavaScript).
 7. [Inspiration](philosophy/philosophy.md) — optional, the humanist
    angle that shaped the framework's vocabulary.
+
+## See it run
+
+[**demo.yuneta.io**](https://demo.yuneta.io) is the declarative shell of
+`gobj-ui`, live. It shows every `C_YUI_NAV` menu layout and the per-zone
+responsive model that renders one menu differently in different zones and
+breakpoints. There is no backend and no login: the whole navigation is
+declared in one JSON file, and the shell materializes it.
+
+Open it on a phone as well as a desktop. The layouts change per breakpoint,
+which is the part that a screenshot cannot show. The source is
+[`kernel/js/gobj-ui/test-app/`](https://github.com/artgins/yunetas/tree/7.9.5/kernel/js/gobj-ui/test-app),
+and the design it demonstrates is in
+[SHELL.md](https://github.com/artgins/gobj-ui.js/blob/main/SHELL.md).
