@@ -16,7 +16,7 @@ The timestamp is the `-t` **option**, not a positional argument.
 |--------|---------|
 | `--time_t` / `-t` | Epoch seconds (or date string) — **required** |
 | `--type` / `-p` | `hours` \| `days` \| `weeks` \| `months` \| `years` — **required** |
-| `--range` / `-r` | Integer offset (e.g. previous/next period) |
+| `--range` / `-r` | Integer offset (for example previous/next period) |
 | `--TZ` / `-z` | Time zone |
 
 Prints `Start: … End: …`.

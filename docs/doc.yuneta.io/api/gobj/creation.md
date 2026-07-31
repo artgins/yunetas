@@ -36,7 +36,7 @@ Returns a handle to the newly created `gobj` (`hgobj`). Returns `NULL` if the cr
 
 **Notes**
 
-['The function internally calls [`gobj_create2()`](#gobj_create2) with default flags.', 'If `gobj_name` is longer than 15 characters on ESP32, the function will abort execution.', 'If `gclass_name` is empty or not found, an error is logged and `NULL` is returned.', "The function ensures that `gobj_name` does not contain invalid characters such as '`' or '^'.", 'If `parent` is `NULL`, an error is logged unless the `gobj` is a Yuno instance.']
+['The function internally calls [`gobj_create2()`](#gobj_create2) with default flags.', 'If `gobj_name` is longer than 15 characters on ESP32, the function will abort execution.', 'If `gclass_name` is empty or not found, an error is logged and `NULL` is returned.', "The function makes sure that `gobj_name` does not contain invalid characters such as '`' or '^'.", 'If `parent` is `NULL`, an error is logged unless the `gobj` is a Yuno instance.']
 
 ---
 
@@ -279,7 +279,7 @@ The Yuno object is the top-level object in the gobj hierarchy and must be unique
 (gobj_destroy)=
 ## [`gobj_destroy()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L2272)
 
-The `gobj_destroy()` function deallocates and removes a given `hgobj` instance, ensuring proper cleanup of its resources, subscriptions, and child objects.
+The `gobj_destroy()` function deallocates and removes a given `hgobj` instance. This makes sure of proper cleanup of its resources, subscriptions, and child objects.
 
 ```C
 void gobj_destroy(
@@ -306,7 +306,7 @@ This function does not return a value.
 (gobj_destroy_children)=
 ## [`gobj_destroy_children()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L2453)
 
-Destroys all child objects of the given `hgobj`, ensuring proper cleanup and deallocation.
+Destroys all child objects of the given `hgobj`. This makes sure of proper cleanup and deallocation.
 
 ```C
 void gobj_destroy_children(
@@ -413,7 +413,7 @@ A new JSON object (owned by the caller) with one key per schema attribute, each 
 
 **Notes**
 
-This function is called internally during gobj creation to initialize the gobj's attribute dictionary (`jn_attrs`). It can also be used independently to build data records from any `sdata_desc_t` schema (e.g., subscription records).
+This function is called internally during gobj creation to initialize the gobj's attribute dictionary (`jn_attrs`). It can also be used independently to build data records from any `sdata_desc_t` schema (for example subscription records).
 
 ---
 

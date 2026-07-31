@@ -1,7 +1,7 @@
 (command_parser_guide)=
 # **Command Parser**
 
-The command parser in Yuneta validates and processes commands defined in a GClass's `command_table`. It ensures commands sent to a GObj are properly formatted and conform to the schema for that GClass. The parser dynamically selects between an instance-specific method (`mt_command`), a global parser, or an internal parser to handle commands.
+The command parser in Yuneta validates and processes commands defined in a GClass's `command_table`. It makes sure of commands sent to a GObj are properly formatted and conform to the schema for that GClass. The parser dynamically selects between an instance-specific method (`mt_command`), a global parser, or an internal parser to handle commands.
 
 Commands are executed using the API  [`gobj_command`](<#gobj_command>):
 
@@ -17,7 +17,7 @@ Source code in:
 ## How the Command Parser Works
 
 ### 1. **Command Validation**
-The parser checks the `cmd` and `kw` arguments to ensure:
+The parser checks the `cmd` and `kw` arguments to make sure that:
 - The command name exists in the `command_table`.
 - The provided parameters match the schema for the command.
 
@@ -85,7 +85,7 @@ The `command_table` defines the commands supported by a GObj. Each entry include
 - **Dynamic Handling:** Automatically selects the appropriate parser or method for each command.
 - **Validation:** Ensures all commands conform to the schema before execution.
 - **Customizability:** Allows GClasses to override the default behavior with `mt_command`.
-- **Fallback Support:** The internal parser ensures commands are always processed, even without custom parsers.
+- **Fallback Support:** The internal parser makes sure of commands are always processed, even without custom parsers.
 
 ---
 

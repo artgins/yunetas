@@ -1,6 +1,6 @@
 # tr_msg2db
 
-Dict-style message store: one value per key, backed by timeranger2. Updates are appended; reads return the latest value.
+Dict-style message store: one value per key, backed by timeranger2. Updates are appended. Reads return the latest value.
 
 Source code:
 
@@ -38,7 +38,7 @@ Returns a pointer to `bf` containing the constructed index path.
 
 **Notes**
 
-Ensure that `bf` has sufficient space (`bfsize`) to store the generated path to prevent buffer overflows.
+Make sure that `bf` has sufficient space (`bfsize`) to store the generated path to prevent buffer overflows.
 
 ---
 
@@ -73,15 +73,15 @@ A JSON object representing the appended message. The returned object is NOT owne
 
 **Notes**
 
-The caller should not modify or free the returned JSON object.
-Ensure that [`msg2db_open_db()`](<#msg2db_open_db>) has been called before using [`msg2db_append_message()`](<#msg2db_append_message>).
+The caller must not modify or free the returned JSON object.
+Make sure that [`msg2db_open_db()`](<#msg2db_open_db>) was called before using [`msg2db_append_message()`](<#msg2db_append_message>).
 
 ---
 
 (msg2db_close_db)=
 ## [`msg2db_close_db()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_msg2db.c#L418)
 
-`msg2db_close_db()` closes an open message database identified by `msg2db_name`, ensuring that all resources associated with it are properly released.
+`msg2db_close_db()` closes an open message database identified by `msg2db_name`. This makes sure that all resources associated with it are properly released.
 
 ```C
 int msg2db_close_db(
@@ -103,7 +103,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-Ensure that [`msg2db_close_db()`](<#msg2db_close_db>) is called after all operations on the database are complete to prevent resource leaks.
+Make sure that [`msg2db_close_db()`](<#msg2db_close_db>) is called after all operations on the database are complete to prevent resource leaks.
 
 ---
 
@@ -139,7 +139,7 @@ A JSON object containing the requested message. The returned object is not owned
 **Notes**
 
 The function returns a reference to an internal JSON object, so the caller must not modify or free it.
-If the message is not found, the function may return `NULL`.
+If the message is not found, the function can return `NULL`.
 The function relies on the structure and indexing of the database, which must be properly initialized using [`msg2db_open_db()`](<#msg2db_open_db>).
 
 ---
@@ -217,6 +217,6 @@ A JSON object representing the opened message database, or `NULL` on failure.
 
 The function [`tranger2_startup()`](<#tranger2_startup>) must be called before invoking [`msg2db_open_db()`](<#msg2db_open_db>).
 If the 'persistent' option is enabled, the schema is loaded from a file, which takes precedence over any provided schema.
-To modify the schema after it has been saved, the schema version and topic version must be updated.
+To modify the schema after it was saved, the schema version and topic version must be updated.
 
 ---

@@ -1,6 +1,6 @@
 # Misc
 
-Miscellaneous helpers that don't fit anywhere else: byte-order conversion, base64, hex dumps, small math utilities.
+Miscellaneous helpers that do not fit anywhere else: byte-order conversion, base64, hex dumps, small math utilities.
 
 Source code:
 
@@ -28,7 +28,7 @@ A pointer to a static string containing the hostname of the system.
 
 **Notes**
 
-The returned string is statically allocated and should not be modified or freed by the caller.
+The returned string is statically allocated and must not be modified or freed by the caller.
 
 ---
 

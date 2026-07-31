@@ -119,10 +119,10 @@ udpc_t udpc_open(
 | `url` | `const char *` | The destination URL for the UDP client. |
 | `bindip` | `const char *` | The local IP address to bind the socket, or NULL for default. |
 | `if_name` | `const char *` | The network interface name to bind the socket, or NULL for default. |
-| `bf_size` | `size_t` | The buffer size in bytes; 0 defaults to 256 KB. |
-| `udp_frame_size` | `size_t` | The maximum UDP frame size; 0 defaults to 1500 bytes. |
-| `output_format` | `output_format_t` | The output format for logging; defaults to `OUTPUT_FORMAT_YUNETA` if invalid. |
-| `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure; otherwise, it continues. |
+| `bf_size` | `size_t` | The buffer size in bytes. 0 defaults to 256 KB. |
+| `udp_frame_size` | `size_t` | The maximum UDP frame size. 0 defaults to 1500 bytes. |
+| `output_format` | `output_format_t` | The output format for logging. Defaults to `OUTPUT_FORMAT_YUNETA` if invalid. |
+| `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure. Otherwise, it continues. |
 
 **Returns**
 
@@ -131,7 +131,7 @@ Returns a `udpc_t` handle to the UDP client on success, or `NULL` on failure.
 **Notes**
 
 If `url` is empty or invalid, [`udpc_open()`](#udpc_open) returns `NULL`.
-Memory is allocated dynamically for the buffer; ensure proper cleanup with [`udpc_close()`](#udpc_close).
+Memory is allocated dynamically for the buffer. Make sure that proper cleanup with [`udpc_close()`](#udpc_close).
 If the socket cannot be created, the function logs an error and returns `NULL`.
 
 ---
@@ -197,7 +197,7 @@ Returns `0` on success, or `-1` if an error occurs.
 **Notes**
 
 If the message length exceeds the buffer size, the function returns an error.
-The function ensures that the message is properly formatted based on the selected `output_format_t`.
+The function makes sure that the message is properly formatted based on the selected `output_format_t`.
 If the UDP socket is not open, [`udpc_write()`](#udpc_write) attempts to reopen it before sending the message.
 Messages are sent in chunks of `udp_frame_size` if they exceed the frame size.
 

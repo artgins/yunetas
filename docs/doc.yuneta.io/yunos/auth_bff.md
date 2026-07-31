@@ -14,7 +14,7 @@ C_AUTH_BFF_YUNO (default service)
     __bff_side__ : gate of per-connection C_AUTH_BFF instances
 ```
 
-The yuno (`C_AUTH_BFF_YUNO`) hosts a `__bff_side__` gate; each client
+The yuno (`C_AUTH_BFF_YUNO`) hosts a `__bff_side__` gate. Each client
 connection gets its own [`C_AUTH_BFF`](#gclass-c-auth-bff) gobj that drives the OIDC round-trip with
 the IdP. The protocol/flow details live in the **Auth, permissions, TLS**
 chapter.

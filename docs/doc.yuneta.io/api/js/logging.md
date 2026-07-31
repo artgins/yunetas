@@ -4,7 +4,7 @@
 
 All log functions take a single `format` argument and use `printf`-style
 substitution (`%s`, `%d`, `%i`, `%f`, `%o`/`%O`). There is **no** `gobj`
-or error-code argument — that's the C API. The JS runtime is simpler.
+or error-code argument — that is the C API. The JS runtime is simpler.
 
 ```javascript
 log_error   (format, ...args)   // red,   prefixed "ERROR"

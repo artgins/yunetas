@@ -4,7 +4,7 @@ Yuneta is an engineering framework, but its vocabulary — [*events*](#event),
 [*actions*](#action-callback), [*gobjs*](../guide/guide_basic_concepts.md#basic_gobj),
 *hierarchy*, [*realms*](domain_model.md#realms) —
 did not come out of a specification document. It came from looking at
-how **life itself** is organised and borrowing the words that fit.
+how **life itself** is organized and borrowing the words that fit.
 
 This page is the short, non-technical companion to the
 [Design Principles](design_principles.md) and the
@@ -36,11 +36,11 @@ A well-designed gobj, like a well-designed life, is one that reacts
 gracefully to external events while still generating enough internal
 ones to make progress.
 
-## What is above is below; what is inside is outside
+## What is above is below. What is inside is outside
 
-A Yuneta system is organised as a **tree of gobjs**, and that tree
-has the same shape at every scale: a [yuno](../guide/guide_basic_concepts.md#yuno) contains gobjs; a gobj can
-contain child gobjs; two yunos can be connected as if they were a
+A Yuneta system is organized as a **tree of gobjs**, and that tree
+has the same shape at every scale: a [yuno](../guide/guide_basic_concepts.md#yuno) contains gobjs. A gobj can
+contain child gobjs. Two yunos can be connected as if they were a
 single bigger tree. The interaction patterns — parent to child,
 service to client, publisher to subscriber — repeat at every level.
 
@@ -62,7 +62,7 @@ overwritten without leaving a trace.
 This is also why **consistency** and **repetition** matter in Yuneta.
 A service that does the same thing the same way, event after event,
 for months, is a service you can trust, reason about, and replay.
-Sporadic, unpredictable behaviour is the enemy.
+Sporadic, unpredictable behavior is the enemy.
 
 ## Hierarchy gives lifetimes their meaning
 
@@ -73,7 +73,7 @@ lifetime. When a parent goes, its children go with it. When a branch
 is paused, everything in it is paused. When you trace a log line, you
 always know the full lineage of the gobj that produced it.
 
-A well-designed Yuneta application, like a well-designed organisation,
+A well-designed Yuneta application, like a well-designed organization,
 knows who is responsible for what, who creates whom, and when things
 are allowed to end.
 
@@ -82,7 +82,7 @@ are allowed to end.
 Yuneta is a tool. It is written in C (and JavaScript), it runs on
 Linux, and it solves a fairly concrete class of engineering problems.
 But the reason it uses the words it uses — events, actions, hierarchy,
-realms, time — is that those words describe how reality is organised,
+realms, time — is that those words describe how reality is organized,
 and reality is the system we are ultimately modelling.
 
 If any of this resonates, read the [Design Principles](design_principles.md)

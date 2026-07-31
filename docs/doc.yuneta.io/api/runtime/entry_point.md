@@ -40,7 +40,7 @@ int yuneta_setup(
 | `authz_checker` | `authorization_checker_fn` | Authorization checker (`NULL` uses the default `C_AUTHZ` monoclass). |
 | `authentication_parser` | `authentication_parser_fn` | Authentication parser (`NULL` uses the default `C_AUTHZ` monoclass). |
 | `mem_max_block` | `size_t` | Largest memory block size for the allocator. |
-| `mem_max_system_memory` | `size_t` | Maximum system memory the allocator may use. |
+| `mem_max_system_memory` | `size_t` | Maximum system memory the allocator can use. |
 | `use_own_system_memory` | `BOOL` | `TRUE` to use the custom memory allocator. |
 | `mem_min_block` | `size_t` | Smallest memory block size. |
 | `mem_superblock` | `size_t` | Super-block size. |
@@ -86,7 +86,7 @@ int yuneta_entry_point(
 | `APP_DATETIME` | `const char *` | Build date/time. |
 | `fixed_config` | `const char *` | Fixed configuration (JSON string). |
 | `variable_config` | `const char *` | Variable configuration (JSON string). |
-| `register_yuno_and_more` | `int (*)(void)` | Callback to register custom GClasses — executed after the environment is set up but before yuno creation. |
+| `register_yuno_and_more` | `int (*)(void)` | Callback to register custom GClasses — executed after the environment is ready, but before yuno creation. |
 | `cleaning_fn` | `void (*)(void)` | Cleanup callback — executed after all resources are freed. |
 
 **Returns**
@@ -232,7 +232,7 @@ This function does not return a value.
 (yuno_shutdown)=
 ## [`yuno_shutdown()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/manage_services.c#L92)
 
-Shuts down the yuno by marking it as shutting down and stopping the
+Stops the yuno by marking it as shutting down and stopping the
 event loop.
 
 ```C

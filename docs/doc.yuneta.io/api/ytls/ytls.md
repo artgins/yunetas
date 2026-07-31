@@ -15,12 +15,12 @@ CONFIG_HAVE_MBEDTLS=y     # lightweight (≈3× smaller static binaries)
 
 When both are enabled, the preferred default is OpenSSL. Each connection
 can select its backend at runtime via the `"library"` key in the crypto
-JSON config (e.g. `"library": "mbedtls"` to override the default).
+JSON config (for example `"library": "mbedtls"` to override the default).
 
 `ytls.h` is the **single source of truth** for the backend names:
 
 - `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
-- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
+- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (for example `"openssl+mbedtls"`).
 
 Use `TLS_LIBRARY_NAME` directly in C string literals instead of a hard-coded value:
 
@@ -41,8 +41,8 @@ This is what keeps `gobj-c` free of any `CONFIG_HAVE_OPENSSL` /
 
 ## Backend notes — mbed-TLS v4.0
 
-- `psa_crypto_init()` must be called before any crypto operation; it
-  initialises the PSA RNG, so `mbedtls_ssl_conf_rng` is no longer needed.
+- `psa_crypto_init()` must be called before any crypto operation. It
+ initializes the PSA RNG, so `mbedtls_ssl_conf_rng` is no longer needed.
 - `mbedtls_pk_parse_keyfile(ctx, path, password)` — 3 arguments in v4.0
   (`f_rng` / `p_rng` removed).
 - Use `mbedtls_ssl_is_handshake_over(&ssl)` to check handshake state
@@ -71,7 +71,7 @@ information needed to recompute the key.
 
 The only non-deterministic part is salt generation (`gen_salt()`), which
 uses `RAND_bytes()` (OpenSSL) or `psa_generate_random()` (mbed-TLS).
-Both produce cryptographically strong random bytes; the algorithm
+Both produce cryptographically strong random bytes. The algorithm
 result is independent of which RNG was used.
 
 ### Supported digests (PBKDF2)
@@ -117,7 +117,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`ytls_cleanup()`](<#ytls_cleanup>) is called to free resources allocated by [`ytls_init()`](<#ytls_init>) to prevent memory leaks.
+Make sure that [`ytls_cleanup()`](<#ytls_cleanup>) is called to free resources allocated by [`ytls_init()`](<#ytls_init>) to prevent memory leaks.
 
 ---
 
@@ -145,7 +145,7 @@ int ytls_reload_certificates(
 
 **Returns**
 
-`0` on success; `-1` on failure (for example: a file is missing, the
+`0` on success. `-1` on failure (for example: a file is missing, the
 cert and key do not match, or the cert/key is unparseable). On failure
 the previous context is kept intact — the caller can continue serving
 traffic with the old material and retry the reload later.
@@ -156,7 +156,7 @@ The old backend state is kept alive, via refcount, for every secure
 filter ([`hsskt`](<#ytls_new_secure_filter>)) created before the reload.
 New filters created after the reload use the fresh state. Concretely:
 
-- **OpenSSL**: `SSL_new()` already increments the `SSL_CTX` refcount;
+- **OpenSSL**: `SSL_new()` already increments the `SSL_CTX` refcount.
   swapping `ytls->ctx` and calling `SSL_CTX_free()` just drops the
   ytls handle's ref. The `SSL_CTX` lives until the last
   [`SSL_free`](https://www.openssl.org/docs/man3.0/man3/SSL_free.html)
@@ -290,7 +290,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-This function ensures that any pending clear or encrypted data is processed and sent.
+This function makes sure that any pending clear or encrypted data is processed and sent.
 
 ---
 
@@ -319,7 +319,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing the secure filter to properly close the connection.
+Make sure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing the secure filter to properly close the connection.
 
 ---
 
@@ -353,10 +353,10 @@ OpenSSL and mbed-TLS backends):
 
 | Key | Type | Description |
 |---|---|---|
-| `subject` | `string` | X.509 subject DN in one-line form (e.g. `/CN=api.example.com`). |
+| `subject` | `string` | X.509 subject DN in one-line form (for example `/CN=api.example.com`). |
 | `issuer` | `string` | X.509 issuer DN in one-line form. Equal to `subject` for self-signed certs. |
 | `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
-| `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`; a negative value means already expired. |
+| `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`. A negative value means already expired. |
 | `serial` | `string` | Serial number as uppercase hex (no colons). |
 
 **Notes**
@@ -394,7 +394,7 @@ A pointer to a string containing the last error message, or `NULL` if no error h
 
 **Notes**
 
-The returned error message is managed internally and should not be freed by the caller.
+The returned error message is managed internally and must not be freed by the caller.
 
 ---
 
@@ -403,7 +403,7 @@ The returned error message is managed internally and should not be freed by the 
 
 Returns the path of the first OS CA-certificate bundle found on the host, probing
 the well-known locations across distros (Debian/Ubuntu/Alpine, RHEL/Rocky/Alma/
-Fedora, SUSE, BSD). This is what `ssl_use_system_ca` relies on; it works in fully
+Fedora, SUSE, BSD). This is what `ssl_use_system_ca` relies on. It works in fully
 static binaries, where OpenSSL's compile-time `OPENSSLDIR` is not present.
 
 ```C
@@ -446,7 +446,7 @@ hytls ytls_init(
 |---|---|---|
 | `gobj` | `hgobj` | The GObj context in which the TLS instance will operate. |
 | `jn_config` | `json_t *` | A JSON object containing TLS configuration parameters. This object is not owned by the function. |
-| `server` | `BOOL` | A boolean flag indicating whether the TLS context should be initialized in server mode (`TRUE`) or client mode (`FALSE`). |
+| `server` | `BOOL` | A boolean flag indicating whether the TLS context must be initialized in server mode (`TRUE`) or client mode (`FALSE`). |
 
 **Returns**
 
@@ -454,7 +454,7 @@ Returns a handle to the newly created TLS context (`hytls`) on success, or `NULL
 
 **Notes**
 
-The `jn_config` parameter should include necessary TLS settings such as certificates, ciphers, and buffer sizes. See the structure documentation for valid configuration fields.
+The `jn_config` parameter must include necessary TLS settings such as certificates, ciphers, and buffer sizes. See the structure documentation for valid configuration fields.
 
 ---
 
@@ -497,7 +497,7 @@ Returns an `hsskt` handle representing the newly created secure filter, or `NULL
 
 The secure filter manages encrypted communication and invokes the provided callbacks for handshake completion, clear data reception, and encrypted data transmission.
 
-The filter is returned "cold": no handshake is started automatically. Call [`ytls_do_handshake()`](<#ytls_do_handshake>) right after this function to kick off the TLS handshake. On the client side this emits the ClientHello via `on_encrypted_data_cb`; on the server side it is a no-op that returns `0` (WANT_READ) until the peer speaks first.
+The filter is returned "cold": no handshake is started automatically. Call [`ytls_do_handshake()`](<#ytls_do_handshake>) right after this function to kick off the TLS handshake. On the client side this emits the ClientHello via `on_encrypted_data_cb`. On the server side it is a no-op that returns `0` (WANT_READ) until the peer speaks first.
 
 ---
 
@@ -505,7 +505,7 @@ The filter is returned "cold": no handshake is started automatically. Call [`ytl
 ## [`ytls_set_peer_name()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/ytls/src/ytls.c#L276)
 
 Records the connection's peer and local socket names on the secure socket `sskt`
-so the backend's default-on TLS diagnostics (e.g. a rejected handshake) are
+so the backend's default-on TLS diagnostics (for example a rejected handshake) are
 self-contained — the offending peer is identifiable even with the transport's
 `connections` trace disabled.
 
@@ -524,8 +524,8 @@ void ytls_set_peer_name(
 |---|---|---|
 | `ytls` | `hytls` | The TLS context. |
 | `sskt` | `hsskt` | The secure socket to annotate. |
-| `peername` | `const char *` | Remote address (`ip:port`); `NULL` is treated as empty. |
-| `sockname` | `const char *` | Local address (`ip:port`); `NULL` is treated as empty. |
+| `peername` | `const char *` | Remote address (`ip:port`). `NULL` is treated as empty. |
+| `sockname` | `const char *` | Local address (`ip:port`). `NULL` is treated as empty. |
 
 **Returns**
 
@@ -534,7 +534,7 @@ This function does not return a value.
 **Notes**
 
 Optional. ytls never reinterprets the secure filter's `user_data` as a gobj, so a
-caller that does not set the names simply logs them as empty strings. The
+caller that does not set the names logs them as empty strings. The
 transport (`c_tcp`) calls it right after creating the secure filter.
 
 ---
@@ -558,7 +558,7 @@ void ytls_set_trace(
 |---|---|---|
 | `ytls` | `hytls` | The TLS context. |
 | `sskt` | `hsskt` | The secure socket for which tracing is to be set. |
-| `set` | `BOOL` | If `TRUE`, enables tracing; if `FALSE`, disables tracing. |
+| `set` | `BOOL` | If `TRUE`, enables tracing. If `FALSE`, disables tracing. |
 
 **Returns**
 
@@ -566,7 +566,7 @@ This function does not return a value.
 
 **Notes**
 
-Tracing provides verbose output for debugging purposes. It should be used with caution in production environments.
+Tracing provides verbose output for debugging purposes. It must be used with caution in production environments.
 
 ---
 
@@ -587,7 +587,7 @@ void ytls_shutdown(
 | Key | Type | Description |
 |---|---|---|
 | `ytls` | `hytls` | The TLS context managing the secure connection. |
-| `sskt` | `hsskt` | The secure socket session to be shut down. |
+| `sskt` | `hsskt` | The secure socket session to be stop. |
 
 **Returns**
 
@@ -595,7 +595,7 @@ This function does not return a value.
 
 **Notes**
 
-After calling `ytls_shutdown()`, the secure session `sskt` should no longer be used.
+After calling `ytls_shutdown()`, the secure session `sskt` must no longer be used.
 
 ---
 
@@ -622,7 +622,7 @@ A string representing the version of the TLS implementation.
 
 **Notes**
 
-The returned string is managed internally and should not be freed by the caller.
+The returned string is managed internally and must not be freed by the caller.
 
 ---
 

@@ -1,6 +1,6 @@
 # Memory
 
-Yuneta's memory management API: allocate, free, and reallocate memory through the system-wide allocator configured at startup. All gobj-aware code should use these helpers instead of raw `malloc`/`free` so that leak tracking and memory limits work correctly.
+Yuneta's memory management API: allocate, free, and reallocate memory through the system-wide allocator configured at startup. All gobj-aware code must use these helpers instead of raw `malloc`/`free` so that leak tracking and memory limits work correctly.
 
 Source code:
 
@@ -223,7 +223,7 @@ Pointer to the resized memory block, or `NULL` on failure.
 
 **Notes**
 
-If `ptr` is `NULL`, this behaves like `gbmem_malloc()`. The returned pointer may differ from `ptr` if the block was moved. Contents up to the minimum of the old and new sizes are preserved.
+If `ptr` is `NULL`, this behaves like `gbmem_malloc()`. The returned pointer can differ from `ptr` if the block was moved. Contents up to the minimum of the old and new sizes are preserved.
 
 ---
 
@@ -280,7 +280,7 @@ int gbmem_setup(
 | Key | Type | Description |
 |---|---|---|
 | `mem_max_block` | `size_t` | Maximum size of a single allocation block. Default is 16 MB. |
-| `mem_max_system_memory` | `size_t` | Maximum total memory the allocator may use. Default is 64 MB. |
+| `mem_max_system_memory` | `size_t` | Maximum total memory the allocator can use. Default is 64 MB. |
 | `use_own_system_memory` | `BOOL` | Reserved for future use. |
 | `mem_min_block` | `size_t` | Minimum block size. Default is 512 bytes. |
 | `mem_superblock` | `size_t` | Superblock size. Default is 16 MB. |
@@ -298,7 +298,7 @@ Must be called before any other `gbmem_*` allocation function. Typically called 
 (gbmem_shutdown)=
 ## [`gbmem_shutdown()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbmem.c#L108)
 
-Shuts down the memory manager and cleans up resources.
+Stops the memory manager and cleans up resources.
 
 ```C
 void gbmem_shutdown(void);
@@ -316,7 +316,7 @@ None.
 
 **Notes**
 
-Should be called during yuno shutdown. After this call, no further `gbmem_*` allocation functions should be used.
+Must be called during yuno shutdown. After this call, no further `gbmem_*` allocation functions must be used.
 
 ---
 

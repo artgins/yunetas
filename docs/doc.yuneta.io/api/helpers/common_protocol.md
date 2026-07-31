@@ -28,7 +28,7 @@ This function does not return a value.
 
 **Notes**
 
-This function should be called to clean up the communication protocol registry before program termination.
+This function must be called to clean up the communication protocol registry before program termination.
 
 ---
 
@@ -62,7 +62,7 @@ This function searches the registered communication protocols and returns the co
 (comm_prot_register)=
 ## [`comm_prot_register()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L5896)
 
-Registers a `gclass` with a specified communication protocol schema, allowing it to be retrieved later by schema name.
+Registers a `gclass` with a specified communication protocol schema. This allows it to be retrieved later by schema name.
 
 ```C
 int comm_prot_register(

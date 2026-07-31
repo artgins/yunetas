@@ -25,7 +25,7 @@ json_t *gobj_find_subscribings(
 
 | Key | Type | Description |
 |---|---|---|
-| `subscriber` | `hgobj` | The subscriber gobj whose subscriptions are being queried. |
+| `subscriber` | `hgobj` | The subscriber gobj whose subscriptions are queried. |
 | `event` | `gobj_event_t` | The event name to filter subscriptions. If NULL, all events are considered. |
 | `kw` | `json_t *` | A JSON object containing additional filtering criteria, such as `__config__`, `__global__`, `__local__`, and `__filter__`. Owned by the function. |
 | `publisher` | `hgobj` | The publisher gobj to filter subscriptions. If NULL, all publishers are considered. |
@@ -58,7 +58,7 @@ json_t *gobj_find_subscriptions(
 
 | Key | Type | Description |
 |---|---|---|
-| `publisher` | `hgobj` | The publisher object whose subscriptions are being queried. |
+| `publisher` | `hgobj` | The publisher object whose subscriptions are queried. |
 | `event` | `gobj_event_t` | The event name to filter subscriptions. If NULL, all events are considered. |
 | `kw` | `json_t *` | A JSON object containing filtering parameters such as `__config__`, `__global__`, `__local__`, and `__filter__`. If NULL, no additional filtering is applied. |
 | `subscriber` | `hgobj` | The subscriber object to filter subscriptions. If NULL, all subscribers are considered. |
@@ -126,13 +126,13 @@ int gobj_publish_event(
 
 **Returns**
 
-Returns the sum of the return values from [`gobj_send_event()`](<#gobj_send_event>) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
+Returns the sum of the return values from [`gobj_send_event()`](<#gobj_send_event>) calls to all subscribers. A return value of -1 indicates that an event was owned and must not be further published.
 
 **Notes**
 
 If the publisher has a `mt_publish_event` method, it is called first. If it returns <= 0, the function returns immediately.
-Each subscriber's `mt_publication_pre_filter` method is called before dispatching the event, allowing for filtering or modification of the event data.
-If a subscriber has a `mt_publication_filter` method, it is used to determine whether the event should be sent to that subscriber.
+Each subscriber's `mt_publication_pre_filter` method is called before dispatching the event. This allows for filtering or modification of the event data.
+If a subscriber has a `mt_publication_filter` method, it is used to determine whether the event must be sent to that subscriber.
 Local and global keyword modifications are applied before sending the event.
 If the event is a system event, it is only sent to subscribers that support system events.
 
@@ -192,10 +192,10 @@ int gobj_unsubscribe_event(
 
 | Key | Type | Description |
 |---|---|---|
-| `publisher` | `hgobj` | The GObj acting as the publisher from which the subscription should be removed. |
-| `event` | `gobj_event_t` | The event name for which the subscription should be removed. |
+| `publisher` | `hgobj` | The GObj acting as the publisher from which the subscription must be removed. |
+| `event` | `gobj_event_t` | The event name for which the subscription must be removed. |
 | `kw` | `json_t *` | A JSON object containing additional parameters for filtering the subscription removal. Owned by the function. |
-| `subscriber` | `hgobj` | The GObj acting as the subscriber that should be unsubscribed from the event. |
+| `subscriber` | `hgobj` | The GObj acting as the subscriber that must be unsubscribed from the event. |
 
 **Returns**
 
@@ -243,7 +243,7 @@ Each subscription in `dl_subs` is checked and removed from both the publisher's 
 (gobj_list_subscribings)=
 ## [`gobj_list_subscribings()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L8864)
 
-Returns a JSON array describing the subscriptions where the given gobj is acting as a subscriber. Each element in the returned array contains human-readable information about a matching subscription (publisher name, event, subscriber name, flags, etc.). The results can be filtered by event, kw sub-dictionaries, and subscriber.
+Returns a JSON array describing the subscriptions where the given gobj is acting as a subscriber. Each element in the returned array contains human-readable information about a matching subscription (publisher name, event, subscriber name, flags and more.). The results can be filtered by event, kw sub-dictionaries, and subscriber.
 
 ```C
 json_t *gobj_list_subscribings(

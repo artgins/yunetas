@@ -5,10 +5,10 @@
 same control plane (connect to a yuno, send commands, read responses), but in a
 windowed terminal UI built for live debugging and browsing rather than
 scripting. Use `ycli` when you want to keep several views open and watch a
-system interactively; use [`ycommand`](#util-ycommand) when you want a single command or a
+system interactively. Use [`ycommand`](#util-ycommand) when you want a single command or a
 scriptable pipe.
 
-(The source directory was `yunos/c/yuno_cli` before 7.4.x; the binary has always
+(The source directory was `yunos/c/yuno_cli` before 7.4.x. The binary has always
 been `ycli`.)
 
 ## Usage
@@ -17,14 +17,14 @@ been `ycli`.)
 ycli [--url ws://host:port]
 ```
 
-Navigate with the arrow keys; press `?` inside the UI for help. The connection
+Navigate with the arrow keys. Press `?` inside the UI for help. The connection
 and authentication options match [`ycommand`](ycommand.md) (default
-`ws://127.0.0.1:1991`; OAuth2 / OIDC flags for the remote / TLS path — see
+`ws://127.0.0.1:1991`. OAuth2 / OIDC flags for the remote / TLS path — see
 [Authentication](#ycommand-auth)).
 
 ## What it adds over `ycommand`
 
-- **Multi-session / multi-window** — open several connections and views at once;
+- **Multi-session / multi-window** — open several connections and views at one time.
   the active window decides where a command is sent.
 - **Shared line editor** — `ycli` and `ycommand` both use the `C_EDITLINE`
   gclass, so line editing, history, `Ctrl+R` / `Ctrl+S` incremental search
@@ -35,7 +35,7 @@ and authentication options match [`ycommand`](ycommand.md) (default
 - **Per-connection command cache** — the remote command set is warmed on connect
   via `list-gobj-commands`, so completions follow whichever window has focus.
 - **Local vs remote routing** — commands prefixed with `!` run locally (in
-  `ycli` itself); everything else goes to the focused remote yuno.
+ `ycli` itself). Everything else goes to the focused remote yuno.
 - **Safe local config filenames (since 7.6.0)** — like `ycommand`, a config
   answer (`view-config` / `read-json` / `read-file` / `edit-config`) saved under
   `~/.yuneta/configs/` has its peer-supplied record name sanitized to a single
@@ -48,7 +48,7 @@ In addition to the [shared editline shortcuts](#ycommand-shortcuts):
 
 | Shortcut | Action |
 |----------|--------|
-| `Tab` / `Up` / `Down` | Navigate the completion popup; `Enter` commits the candidate |
+| `Tab` / `Up` / `Down` | Navigate the completion popup. `Enter` commits the candidate |
 | `ESC` / `Ctrl+G` | Cancel the popup or incremental search |
 | `Ctrl+K` | Delete from cursor to end of line (readline) |
 | `Ctrl+U` / `Ctrl+Y` | Clear the whole line |
@@ -56,7 +56,7 @@ In addition to the [shared editline shortcuts](#ycommand-shortcuts):
 
 ## Window gclasses
 
-`ycli` is itself a yuno; its TUI is composed from a small set of window
+`ycli` is itself a yuno. Its TUI is composed from a small set of window
 gclasses driven by `C_CLI`:
 
 | GClass | Purpose |

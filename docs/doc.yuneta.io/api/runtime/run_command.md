@@ -35,7 +35,7 @@ gbuffer_t *run_command(const char *command);
 (run_process2)=
 ## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/run_command.c#L81)
 
-Runs a process synchronously using `fork()` with robust signal handling.
+Runs a process synchronously using `fork()` with reliable signal handling.
 
 ```C
 int run_process2(

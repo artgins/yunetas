@@ -57,7 +57,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-The function does not take ownership of the `parent` or `child` nodes, meaning the caller is responsible for managing their memory.
+The function does not take ownership of the `parent` or `child` nodes. This means the caller is responsible for managing their memory.
 
 ---
 
@@ -236,7 +236,7 @@ int parse_hooks(
 
 | Key | Type | Description |
 |---|---|---|
-| `schema` | `json_t *` | A JSON object representing the schema; it is not owned by the function. |
+| `schema` | `json_t *` | A JSON object representing the schema. It is not owned by the function. |
 
 **Returns**
 
@@ -244,14 +244,14 @@ Returns `0` on success or a negative number if an error occurs during parsing.
 
 **Notes**
 
-This function ensures that hooks in the schema are correctly defined and structured.
+This function makes sure that hooks in the schema are correctly defined and structured.
 
 ---
 
 (parse_schema)=
 ## [`parse_schema()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L1897)
 
-`parse_schema()` validates and processes a JSON schema definition, ensuring its structure and integrity.
+`parse_schema()` validates and processes a JSON schema definition. This makes sure of its structure and integrity.
 
 ```C
 int parse_schema(
@@ -278,7 +278,7 @@ This function does not modify the input `schema` and does not take ownership of 
 (parse_schema_cols)=
 ## [`parse_schema_cols()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L1932)
 
-`parse_schema_cols()` validates and processes the column definitions in a schema, ensuring correctness and consistency.
+`parse_schema_cols()` validates and processes the column definitions in a schema. This makes sure of correctness and consistency.
 
 ```C
 int parse_schema_cols(
@@ -300,14 +300,14 @@ Returns `0` if the schema columns are valid, or a negative number indicating the
 
 **Notes**
 
-The function ensures that the column definitions conform to the expected schema format. If errors are found, the return value indicates the number of issues detected.
+The function makes sure that the column definitions conform to the expected schema format. If errors are found, the return value indicates the number of issues detected.
 
 ---
 
 (set_volatil_values)=
 ## [`set_volatil_values()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L2873)
 
-The `set_volatil_values()` function assigns volatile values to a record in the TreeDB, ensuring that non-persistent fields are set using default values if not provided.
+The `set_volatil_values()` function assigns volatile values to a record in the TreeDB. This makes sure that non-persistent fields are set using default values if not provided.
 
 ```C
 int set_volatil_values(
@@ -363,18 +363,18 @@ int treedb_activate_snap(
 
 Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an integer on success, `0` for the `"__clear__"` deactivate path, or a negative value on error (`-1` if the named snap is not found).
 
-**Behaviour**
+**Behavior**
 
-This call only toggles the `active` flag on the snap node. The primary index of every topic is **not** refreshed in memory; the new visibility takes effect on the next `treedb_open_db()`:
+This call only toggles the `active` flag on the snap node. The primary index of every topic is **not** refreshed in memory. The new visibility takes effect on the next `treedb_open_db()`:
 
 - With a snap active, the topic loader filters by `user_flag = snap_tag` and only records carrying that tag become primary — this gives rollback to the state captured by [`treedb_shoot_snap()`](<#treedb_shoot_snap>).
-- After `"__clear__"` (or with no snap ever shot) the loader applies no filter; the backward scan picks the highest-`rowid` record per key as primary — i.e. the latest live record.
+- After `"__clear__"` (or with no snap ever shot) the loader applies no filter. The backward scan picks the highest-`rowid` record per key as primary — that is, the latest live record.
 
-Consumers that need the change visible immediately must close and reopen the resource (e.g. `gobj_stop` + `gobj_start` on the gclass that owns the treedb, which is what the agent's `restart_nodes` does).
+Consumers that need the change visible immediately must close and reopen the resource (for example `gobj_stop` + `gobj_start` on the gclass that owns the treedb, which is what the agent's `restart_nodes` does).
 
 **Notes**
 
-Ensure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>) (except for `"__clear__"`, which is always valid).
+Make sure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>) (except for `"__clear__"`, which is always valid).
 
 ---
 
@@ -440,14 +440,14 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-This function only removes foreign key links; it does not delete the node itself. If `save` is `TRUE`, the changes are persisted in the database.
+This function only removes foreign key links. It does not delete the node itself. If `save` is `TRUE`, the changes are persisted in the database.
 
 ---
 
 (treedb_close_db)=
 ## [`treedb_close_db()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L1123)
 
-Closes the TreeDB instance identified by `treedb_name` in the given `json_t *` `tranger`. This function ensures that all resources associated with the TreeDB instance are properly released.
+Closes the TreeDB instance identified by `treedb_name` in the given `json_t *` `tranger`. This function makes sure that all resources associated with the TreeDB instance are properly released.
 
 ```C
 int treedb_close_db(
@@ -469,14 +469,14 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that [`treedb_open_db()`](<#treedb_open_db>) was previously called before attempting to close the TreeDB instance.
+Make sure that [`treedb_open_db()`](<#treedb_open_db>) was previously called before attempting to close the TreeDB instance.
 
 ---
 
 (treedb_close_topic)=
 ## [`treedb_close_topic()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L1468)
 
-Closes the specified topic in the TreeDB system, ensuring that all associated resources are properly released.
+Closes the specified topic in the TreeDB system. This makes sure that all associated resources are properly released.
 
 ```C
 int treedb_close_topic(
@@ -500,7 +500,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that the topic is not in use before calling [`treedb_close_topic()`](<#treedb_close_topic>).
+Make sure that the topic is not in use before calling [`treedb_close_topic()`](<#treedb_close_topic>).
 
 ---
 
@@ -580,7 +580,7 @@ Returns a JSON object representing the created topic. WARNING: The returned obje
 
 The primary key (`pkey`) of all topics must be `id`.
 This function does not load hook links.
-The returned JSON object should not be modified or freed by the caller.
+The returned JSON object must not be modified or freed by the caller.
 
 The `__system__` structural topics and the per-treedb `__snaps__` / `__graphs__`
 topics are created with `system_topic = TRUE`. See
@@ -688,10 +688,10 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that the topic does not contain critical data before calling [`treedb_delete_topic()`](<#treedb_delete_topic>).
+Make sure that the topic does not contain critical data before calling [`treedb_delete_topic()`](<#treedb_delete_topic>).
 
 A topic created with `system_topic = TRUE` (see [`treedb_create_topic()`](<#treedb_create_topic>))
-is refused; there is no `force` override.
+is refused. There is no `force` override.
 
 ---
 
@@ -722,7 +722,7 @@ A JSON object containing the ID index of the specified topic. WARNING: The retur
 
 **Notes**
 
-The returned JSON object should not be modified or freed by the caller.
+The returned JSON object must not be modified or freed by the caller.
 
 ---
 
@@ -792,7 +792,7 @@ A reference to the requested node as a `json_t *`. The returned node must not be
 
 **Notes**
 
-The returned node is not owned by the caller and should not be modified or freed. Use [`treedb_update_node()`](<#treedb_update_node>) to modify the node safely.
+The returned node is not owned by the caller and must not be modified or freed. Use [`treedb_update_node()`](<#treedb_update_node>) to modify the node safely.
 
 ---
 
@@ -854,7 +854,7 @@ A JSON array containing the names of the columns that are foreign key links in t
 
 **Notes**
 
-The function provides insight into the schema of a topic by identifying its foreign key relationships. The returned list should not be modified or freed by the caller.
+The function provides insight into the schema of a topic by identifying its foreign key relationships. The returned list must not be modified or freed by the caller.
 
 ---
 
@@ -918,7 +918,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-The function does not take ownership of `parent_node` or `child_node`. Ensure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
+The function does not take ownership of `parent_node` or `child_node`. Make sure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
 
 ---
 
@@ -959,7 +959,7 @@ A JSON array containing the list of matching instances. The caller must decremen
 
 **Notes**
 
-The returned list must be decref'd by the caller to avoid memory leaks. Filtering is applied using both `jn_filter` and `match_fn` if provided.
+The returned list must be decrefed by the caller to avoid memory leaks. Filtering is applied using both `jn_filter` and `match_fn` if provided.
 
 ---
 
@@ -1023,7 +1023,7 @@ json_t *treedb_list_parents(
 | `tranger` | `json_t *` | A reference to the tranger database instance. |
 | `fkey` | `const char *` | The foreign key field used to identify parent nodes. |
 | `node` | `json_t *` | The node whose parents are to be retrieved. This parameter is not owned by the function. |
-| `collapsed_view` | `BOOL` | If `TRUE`, returns a collapsed view of the parent nodes; otherwise, returns full parent nodes. |
+| `collapsed_view` | `BOOL` | If `TRUE`, returns a collapsed view of the parent nodes. Otherwise, returns full parent nodes. |
 | `jn_options` | `json_t *` | Options for filtering and formatting the returned parent nodes. This parameter is owned by the function. |
 
 **Returns**
@@ -1092,7 +1092,7 @@ A JSON array containing the names of available TreeDBs. The caller must not modi
 
 **Notes**
 
-The returned list is managed internally and should not be altered or freed by the caller.
+The returned list is managed internally and must not be altered or freed by the caller.
 
 ---
 
@@ -1197,7 +1197,7 @@ A JSON dictionary representing the opened tree database inside `tranger`. The re
 
 **Notes**
 
-Ensure that `tranger` is already initialized before calling [`treedb_open_db()`](<#treedb_open_db>).
+Make sure that `tranger` is already initialized before calling [`treedb_open_db()`](<#treedb_open_db>).
 The function follows a hierarchical structure where nodes are linked via parent-child relationships.
 If the `persistent` option is enabled, the schema is loaded from a file, and modifications require a version update.
 
@@ -1357,7 +1357,7 @@ int treedb_set_trace(
 
 | Key | Type | Description |
 |---|---|---|
-| `set` | `BOOL` | If `TRUE`, enables trace logging; if `FALSE`, disables it. |
+| `set` | `BOOL` | If `TRUE`, enables trace logging. If `FALSE`, disables it. |
 
 **Returns**
 
@@ -1372,7 +1372,7 @@ This function is useful for debugging and monitoring TreeDB operations.
 (treedb_shoot_snap)=
 ## [`treedb_shoot_snap()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L9085)
 
-Captures the current primary set of every user topic by stamping each primary record's `user_flag` field with the snap's id. The snap is registered as a row in `__snaps__` (assigned an integer `id` from its `g_rowid`); that same `id` is then written *in place* via `tranger2_write_user_flag()` on the live `.md2` record of each current primary. The snap is created with `active: false` — use [`treedb_activate_snap()`](<#treedb_activate_snap>) to switch to it.
+Captures the current primary set of every user topic by stamping each primary record's `user_flag` field with the snap's id. The snap is registered as a row in `__snaps__` (assigned an integer `id` from its `g_rowid`). That same `id` is then written *in place* via `tranger2_write_user_flag()` on the live `.md2` record of each current primary. The snap is created with `active: false` — use [`treedb_activate_snap()`](<#treedb_activate_snap>) to switch to it.
 
 ```C
 int treedb_shoot_snap(
@@ -1394,15 +1394,15 @@ int treedb_shoot_snap(
 
 **Returns**
 
-Returns `0` on success, or a negative error code on failure (snap already exists, or the snap `id` would exceed the 16-bit `user_flag` ceiling — i.e. `>= 0xFFFF` snaps in this treedb's history).
+Returns `0` on success, or a negative error code on failure (snap already exists, or the snap `id` will exceed the 16-bit `user_flag` ceiling — that is, `>= 0xFFFF` snaps in this treedb's history).
 
-**Behaviour**
+**Behavior**
 
-For every non-meta topic (i.e. names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
+For every non-meta topic (that is, names not starting with `__`), the function walks the primary index and, for each current primary node, calls `tranger2_write_user_flag(tranger, topic_name, key, t, i_rowid, snap_id)`. This modifies the underlying `.md2` record byte without appending a new instance — so the chronological `rowid` order is preserved, and `tranger2_read_user_flag()` on the same `(topic, key, t, rowid)` immediately returns the new tag.
 
 Because the tag rides on the existing record, the snap captures *exactly* the primaries that were live at shoot-time — including records originally written with `user_flag = 0` (which then carry the snap's id thereafter).
 
-When the next shoot finds a primary record that *already* carries a tag from an earlier snap (i.e. `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag; the original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is being snapped for the first time.
+When the next shoot finds a primary record that *already* carries a tag from an earlier snap (that is, `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag. The original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is snapped for the first time.
 
 **Notes**
 
@@ -1435,7 +1435,7 @@ A JSON list containing the `pkey2s` values of the specified topic. The returned 
 
 **Notes**
 
-The returned list should not be modified or freed by the caller.
+The returned list must not be modified or freed by the caller.
 
 ---
 
@@ -1499,7 +1499,7 @@ Returns the number of nodes in the specified topic.
 
 **Notes**
 
-If the topic does not exist, the function may return `0`.
+If the topic does not exist, the function can return `0`.
 
 ---
 
@@ -1522,7 +1522,7 @@ json_t *treedb_topics(
 |---|---|---|
 | `tranger` | `json_t *` | A reference to the `tranger` database instance. |
 | `treedb_name` | `const char *` | The name of the TreeDB from which to retrieve topic names. |
-| `jn_options` | `json_t *` | Options for the output format. If set to `"dict"`, returns a list of dictionaries; otherwise, returns a list of strings. |
+| `jn_options` | `json_t *` | Options for the output format. If set to `"dict"`, returns a list of dictionaries. Otherwise, returns a list of strings. |
 
 **Returns**
 
@@ -1530,7 +1530,7 @@ A JSON array containing the topic names or a list of dictionaries if `jn_options
 
 **Notes**
 
-The returned JSON object should not be modified or freed by the caller. Use [`treedb_list_treedb()`](<#treedb_list_treedb>) to retrieve available TreeDB names.
+The returned JSON object must not be modified or freed by the caller. Use [`treedb_list_treedb()`](<#treedb_list_treedb>) to retrieve available TreeDB names.
 
 ---
 
@@ -1563,7 +1563,7 @@ Returns `0` on success, or a negative error code if the unlinking operation fail
 
 **Notes**
 
-The function does not take ownership of `parent_node` or `child_node`, meaning the caller is responsible for managing their memory. Ensure that the specified `hook` exists before calling [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>).
+The function does not take ownership of `parent_node` or `child_node`. This means the caller is responsible for managing their memory. Make sure that the specified `hook` exists before calling [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>).
 
 ---
 

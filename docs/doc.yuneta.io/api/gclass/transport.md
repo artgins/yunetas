@@ -23,7 +23,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Connection URL (e.g. `tcp://host:port`, `ssl://host:port`). |
+| `url` | `string` | Connection URL (for example `tcp://host:port`, `ssl://host:port`). |
 | `connected` | `bool` | Current connection state (volatile, read-only). |
 | `use_ssl` | `bool` | Enable TLS on the connection. |
 | `crypto` | `json` | TLS configuration (certificates, keys). |
@@ -39,7 +39,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 ### Usage
 
 Typically used as the bottom gobj of a protocol GClass (C_PROT_TCP4H,
-C_WEBSOCKET, etc.) or directly inside a C_CHANNEL.
+C_WEBSOCKET and more.) or directly inside a C_CHANNEL.
 
 ---
 
@@ -59,7 +59,7 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL (e.g. `tcp://0.0.0.0:1234`). |
+| `url` | `string` | Listening URL (for example `tcp://0.0.0.0:1234`). |
 | `backlog` | `integer` | Listen backlog. |
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
@@ -137,7 +137,7 @@ Serial port (UART/TTY) transport.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Device path (e.g. `/dev/ttyUSB0`). |
+| `url` | `string` | Device path (for example `/dev/ttyUSB0`). |
 | `baudrate` | `integer` | Baud rate (default `115200`). |
 | `bytesize` | `integer` | Data bits (`5`–`8`, default `8`). |
 | `parity` | `string` | Parity: `"N"`, `"E"`, `"O"`. |

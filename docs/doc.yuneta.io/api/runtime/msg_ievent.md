@@ -143,7 +143,7 @@ int msg_iev_push_stack(
 |---|---|---|
 | `gobj` | `hgobj` | GObject instance. |
 | `kw` | `json_t *` | Message kw (not owned). |
-| `stack` | `const char *` | Stack name (e.g. `"ievent_gate_stack"`). |
+| `stack` | `const char *` | Stack name (for example `"ievent_gate_stack"`). |
 | `jn_data` | `json_t *` | Data to push (owned). |
 
 **Returns**
@@ -229,7 +229,7 @@ json_t *msg_iev_set_back_metadata(
 |---|---|---|
 | `gobj` | `hgobj` | GObject instance. |
 | `kw_request` | `json_t *` | Request kw (owned). |
-| `kw_response` | `json_t *` | Response kw (like owned, returned; created if `NULL`). |
+| `kw_response` | `json_t *` | Response kw (like owned, returned, and created if `NULL`). |
 | `reverse_dst` | `BOOL` | `TRUE` to swap `src`/`dst` in the ievent gate stack. |
 
 **Returns**
@@ -342,7 +342,7 @@ int msg_iev_set_msg_type(
 |---|---|---|
 | `gobj` | `hgobj` | GObject instance. |
 | `kw` | `json_t *` | Message kw. |
-| `msg_type` | `const char *` | Message type string (e.g. `"__command__"`, `"__stats__"`, `"__message__"`). Pass an empty string to delete. |
+| `msg_type` | `const char *` | Message type string (for example `"__command__"`, `"__stats__"`, `"__message__"`). Pass an empty string to delete. |
 
 **Returns**
 

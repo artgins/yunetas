@@ -99,7 +99,7 @@ The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_
 (istream_cur_rd_pointer)=
 ## [`istream_cur_rd_pointer()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/istream.c#L248)
 
-Returns the current read pointer of the `istream_h` instance, allowing access to the unread portion of the internal buffer.
+Returns the current read pointer of the `istream_h` instance. This allows access to the unread portion of the internal buffer.
 
 ```C
 char *istream_cur_rd_pointer(
@@ -119,7 +119,7 @@ A pointer to the current read position in the internal buffer. Returns `NULL` if
 
 **Notes**
 
-Ensure that `istream` is properly initialized before calling this function to avoid undefined behavior.
+Make sure that `istream` is properly initialized before calling this function to avoid undefined behavior.
 
 ---
 
@@ -146,7 +146,7 @@ This function does not return a value.
 
 **Notes**
 
-After calling `istream_destroy()`, the `istream_h` handle becomes invalid and should not be used.
+After calling `istream_destroy()`, the `istream_h` handle becomes invalid and must not be used.
 
 ---
 
@@ -202,7 +202,7 @@ Returns a pointer to the [`gbuffer_t *`](#gbuffer_t) associated with the given `
 
 **Notes**
 
-The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and should not be freed directly.
+The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and must not be freed directly.
 
 ---
 
@@ -314,7 +314,7 @@ Returns the [`gbuffer_t *`](#gbuffer_t) extracted from the `istream_h *`. The ca
 
 **Notes**
 
-After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buffer of the `istream_h *` is set to `NULL`, meaning subsequent reads will require a new buffer.
+After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buffer of the `istream_h *` is set to `NULL`. This means subsequent reads will require a new buffer.
 
 ---
 
@@ -385,7 +385,7 @@ Once the specified number of bytes is accumulated, the event is triggered with t
 (istream_reset_rd)=
 ## [`istream_reset_rd()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/istream.c#L416)
 
-Resets the reading pointer of the `istream_h` stream, allowing data to be read again from the beginning.
+Resets the reading pointer of the `istream_h` stream. This allows data to be read again from the beginning.
 
 ```C
 int istream_reset_rd(
@@ -405,7 +405,7 @@ Returns 0 on success, or -1 if the `istream` or its internal buffer is NULL.
 
 **Notes**
 
-This function ensures that subsequent reads start from the beginning of the buffer. If the `istream` or its buffer is NULL, an error is logged.
+This function makes sure that subsequent reads start from the beginning of the buffer. If the `istream` or its buffer is NULL, an error is logged.
 
 ---
 

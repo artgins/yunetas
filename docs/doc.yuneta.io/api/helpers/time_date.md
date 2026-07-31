@@ -59,14 +59,14 @@ A pointer to a static `struct date_mode` initialized with the given type. If `DA
 
 **Notes**
 
-The returned pointer refers to a static structure, so it should not be modified or freed by the caller.
+The returned pointer refers to a static structure, so it must not be modified or freed by the caller.
 
 ---
 
 (date_overflows)=
 ## [`date_overflows()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L4798)
 
-Checks if a given timestamp exceeds the system's time_t limits, ensuring it fits within the supported range.
+Checks if a given timestamp exceeds the system's time_t limits. This makes sure of it fits within the supported range.
 
 ```C
 int date_overflows(timestamp_t date);
@@ -84,7 +84,7 @@ Returns 1 if the timestamp exceeds the system's time_t limits, otherwise returns
 
 **Notes**
 
-This function ensures that the given timestamp does not exceed the maximum representable value in time_t, preventing potential overflows.
+This function makes sure that the given timestamp does not exceed the maximum representable value in time_t, preventing potential overflows.
 
 ---
 
@@ -105,7 +105,7 @@ void datestamp(
 | Key | Type | Description |
 |---|---|---|
 | `out` | `char *` | Buffer to store the generated timestamp string. |
-| `outsize` | `int` | Size of the output buffer to ensure safe string operations. |
+| `outsize` | `int` | Size of the output buffer to make sure that safe string operations. |
 
 **Returns**
 
@@ -146,14 +146,14 @@ Returns a pointer to the formatted date string stored in `bf`.
 
 **Notes**
 
-['If `format` is NULL or empty, the default format `DD/MM/CCYY-W-ZZZ` is used.', 'Internally, `strftime()` is used to generate the formatted date string.', 'Ensure that `bf` has enough space to store the formatted string.']
+['If `format` is NULL or empty, the default format `DD/MM/CCYY-W-ZZZ` is used.', 'Internally, `strftime()` is used to generate the formatted date string.', 'Make sure that `bf` has enough space to store the formatted string.']
 
 ---
 
 (htonll)=
 ## [`htonll()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L5461)
 
-`htonll()` converts a 64-bit integer from host byte order to network byte order, ensuring correct endianness for network communication.
+`htonll()` converts a 64-bit integer from host byte order to network byte order. This makes sure of correct endianness for network communication.
 
 ```C
 uint64_t htonll(uint64_t value);
@@ -171,7 +171,7 @@ Returns the 64-bit integer in network byte order.
 
 **Notes**
 
-If the system is little-endian, the function swaps the byte order; otherwise, it returns the value unchanged.
+If the system is little-endian, the function swaps the byte order. Otherwise, it returns the value unchanged.
 
 ---
 
@@ -203,7 +203,7 @@ None.
 (ntohll)=
 ## [`ntohll()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L5476)
 
-Converts a 64-bit integer from network byte order to host byte order. The function ensures proper endianness conversion based on the system's architecture.
+Converts a 64-bit integer from network byte order to host byte order. The function makes sure of proper endianness conversion based on the system's architecture.
 
 ```C
 uint64_t ntohll(uint64_t value);
@@ -221,7 +221,7 @@ Returns the 64-bit integer in host byte order.
 
 **Notes**
 
-This function checks the system's byte order and swaps bytes if necessary to ensure correct conversion.
+This function checks the system's byte order and swaps bytes if necessary to make sure that correct conversion.
 
 ---
 
@@ -248,7 +248,7 @@ int parse_date(
 
 **Returns**
 
-Returns 0 on success, or -1 if the date string could not be parsed.
+Returns 0 on success, or -1 if the date string cannot be parsed.
 
 **Notes**
 
@@ -279,7 +279,7 @@ int parse_date_basic(
 
 **Returns**
 
-Returns 0 on success, or -1 if the date string could not be parsed.
+Returns 0 on success, or -1 if the date string cannot be parsed.
 
 **Notes**
 
@@ -372,7 +372,7 @@ A pointer to a statically allocated string containing the formatted date.
 
 **Notes**
 
-The returned string is stored in a static buffer and should not be modified or freed by the caller.
+The returned string is stored in a static buffer and must not be modified or freed by the caller.
 
 ---
 
@@ -395,7 +395,7 @@ void show_date_relative(
 |---|---|---|
 | `time` | `timestamp_t` | The timestamp to be converted into a relative time string. |
 | `timebuf` | `char *` | A buffer where the formatted relative time string will be stored. |
-| `timebufsize` | `int` | The size of the buffer `timebuf` to ensure safe string operations. |
+| `timebufsize` | `int` | The size of the buffer `timebuf` to make sure that safe string operations. |
 
 **Returns**
 
@@ -478,7 +478,7 @@ char *t2timestamp(
 | Key | Type | Description |
 |---|---|---|
 | `bf` | `char *` | Buffer to store the formatted timestamp. |
-| `bfsize` | `int` | Size of the buffer to ensure safe string formatting. |
+| `bfsize` | `int` | Size of the buffer to make sure that safe string formatting. |
 | `t` | `time_t` | Time value to be converted into a timestamp. |
 | `local` | `BOOL` | Flag indicating whether to use local time (`TRUE`) or UTC (`FALSE`). |
 
@@ -801,7 +801,7 @@ time_t gmtime2timezone(
 | Key | Type | Description |
 |---|---|---|
 | `t` | `time_t` | The Unix timestamp to convert. |
-| `tz` | `const char *` | The target timezone name (e.g., `"Europe/Madrid"`). |
+| `tz` | `const char *` | The target timezone name (for example `"Europe/Madrid"`). |
 | `ltm` | `struct tm *` | Optional pointer to a `struct tm` to receive the broken-down local time. Can be NULL. |
 | `offset` | `time_t *` | Optional pointer to receive the UTC offset in seconds for the given timezone. Can be NULL. |
 
@@ -836,7 +836,7 @@ A `uint64_t` value representing the current time in milliseconds, obtained using
 
 **Notes**
 
-This clock is subject to system time adjustments (e.g., NTP). For measuring elapsed time, use [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_monotonic) instead.
+This clock is subject to system time adjustments (for example NTP). For measuring elapsed time, use [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_monotonic) instead.
 
 ---
 

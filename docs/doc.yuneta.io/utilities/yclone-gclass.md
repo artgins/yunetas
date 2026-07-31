@@ -14,7 +14,7 @@ yclone-gclass <OLD_GCLASS> <NEW_GCLASS>
 yclone-gclass postgres authenticate     # c_postgres.{c,h} -> c_authenticate.{c,h}
 ```
 
-Give the names **without** the `c_` prefix or `.c`/`.h` extension; both names
+Give the names **without** the `c_` prefix or `.c`/`.h` extension. Both names
 are required. No options beyond argp's built-in `--help` / `--version`.
 
 ## See also

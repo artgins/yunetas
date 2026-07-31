@@ -42,7 +42,7 @@ If a local authentication method (`mt_authenticate`) is defined, it takes preced
 (gobj_authz)=
 ## [`gobj_authz()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L9418)
 
-Retrieves the authorization details for a given `hgobj`. If `authz` is specified, it returns the details of that specific authorization; otherwise, it returns all authorizations available for the object.
+Retrieves the authorization details for a given `hgobj`. If `authz` is specified, it returns the details of that specific authorization. Otherwise, it returns all authorizations available for the object.
 
 ```C
 json_t *gobj_authz(
@@ -55,7 +55,7 @@ json_t *gobj_authz(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The object whose authorizations are being queried. |
+| `gobj` | `hgobj` | The object whose authorizations are queried. |
 | `authz` | `const char *` | The specific authorization to retrieve. If empty, all authorizations are returned. |
 
 **Returns**
@@ -178,7 +178,7 @@ A pointer to the matching `sdata_desc_t` entry if found, or `NULL` if no entry m
 
 **Notes**
 
-Aliases allow a single authorization level to be referenced by multiple names. When a descriptor has no `json_fn`, alias matching is checked first, allowing aliases to redirect authorization checks to a named event.
+Aliases allow a single authorization level to be referenced by multiple names. When a descriptor has no `json_fn`, alias matching is checked first. This allows aliases to redirect authorization checks to a named event.
 
 ---
 

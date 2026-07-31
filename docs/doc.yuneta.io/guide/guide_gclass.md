@@ -3,9 +3,9 @@
 
 ## What is a GClass?
 
-A `GClass` (short for GObject Class) is a core construct in the Yuneta framework. It defines the behavior, attributes, and structure of GObjects (runtime instances of a `GClass`). The `GClass` encapsulates the functionality and state machine of a particular object type, serving as a blueprint for creating and managing GObjects.
+A `GClass` (short for GObject Class) is a core construct in the Yuneta framework. It defines the behavior, attributes, and structure of GObjects (runtime instances of a `GClass`). The `GClass` encapsulates the function and state machine of a particular object type, serving as a blueprint for creating and managing GObjects.
 
-A `GClass` in Yuneta is the foundation for defining the behavior and structure of objects in the framework. It encapsulates attributes, methods, and finite state machines, enabling the creation of reusable, modular, and extensible components.
+A `GClass` in Yuneta is the foundation for defining the behavior and structure of objects in the framework. It encapsulates attributes, methods, and finite state machines. This enables the creation of reusable, modular, and extensible components.
 
 Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c)
@@ -67,7 +67,7 @@ A `GClass` consists of several key components that define its operation:
 2. **Instantiation**:
     - A GObject instance is created from a `GClass` using the GObject API.
 3. **Interaction**:
-    - The GObject API (e.g., [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the gclass methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
+ - The GObject API (for example [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the gclass methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
@@ -95,8 +95,8 @@ five uniform mechanisms:
 | Need | Mechanism | Caller API |
 |---|---|---|
 | Persistent typed state, configurable | **Attribute** (`SDATA` in `attrs_table`) | `gobj_read_*_attr()` / `gobj_write_*_attr()` |
-| Numeric counter / rate / gauge an operator would chart or reset | **Statistic** (`SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS`, or override `mt_stats` — see [parser stats guide](#stats_parser_guide)) | [`gobj_stats()`](../api/gobj/stats.md#gobj_stats) |
-| Synchronous query or operation, also human-callable | **Command** (`SDATACM` in [`command_table`](#command_table)) | [`gobj_command()`](../api/gobj/op.md#gobj_command); also reachable via [`ycommand`](#util-ycommand) |
+| Numeric counter / rate / gauge an operator will chart or reset | **Statistic** (`SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS`, or override `mt_stats` — see [parser stats guide](#stats_parser_guide)) | [`gobj_stats()`](../api/gobj/stats.md#gobj_stats) |
+| Synchronous query or operation, also human-callable | **Command** (`SDATACM` in [`command_table`](#command_table)) | [`gobj_command()`](../api/gobj/op.md#gobj_command). Also reachable via [`ycommand`](#util-ycommand) |
 | Asynchronous notification or message flow | **Event** (entry in `event_types[]` + `states[]`) | [`gobj_send_event()`](../api/gobj/events_state.md#gobj_send_event) / [`gobj_publish_event()`](../api/gobj/publish.md#gobj_publish_event) |
 | Tight inter-gobj plumbing without a human use case | **Local method** (entry in [`LMETHOD`](#LMETHOD) table) | `gobj_local_method()` |
 
@@ -162,7 +162,7 @@ Attributes in a GClass define its properties or state. They are represented as s
 ### Key Features of Attributes
 
 #### 1. **Data Types**
-Attributes support various data types, enabling them to store different kinds of information. Common data types include:
+Attributes support various data types. This enables them to store different kinds of information. Common data types include:
 - **String (`DTP_STRING`)**: Textual data.
 - **Boolean (`DTP_BOOLEAN`)**: Logical values (`true` or `false`).
 - **Integer (`DTP_INTEGER`)**: Whole numbers.
@@ -192,13 +192,13 @@ Flags define the access permissions and characteristics of attributes:
   - `SDF_AUTHZ_RS`: Stats reset requires authorization.
 
 #### 3. **Default Values**
-Default values ensure that attributes are initialized with predictable and meaningful data. They are applied when no explicit value is provided during configuration or runtime.
+Default values make sure that attributes are initialized with predictable and meaningful data. They are applied when no explicit value is provided during configuration or runtime.
 
 #### 4. **Descriptions**
 Each attribute includes a description that explains its purpose and behavior. Descriptions serve as documentation for developers and users interacting with the GClass.
 
 #### 5. **Hierarchical Definitions**
-Attributes can reference other schemas, allowing for nested and hierarchical data structures. This capability enables complex configurations while maintaining clarity.
+Attributes can reference other schemas. This allows for nested and hierarchical data structures. This capability enables complex configurations while maintaining clarity.
 
 ---
 
@@ -216,9 +216,9 @@ The `attrs_table` table serves multiple purposes in a GClass:
 
 | **Component**       | **Description**                                                                 |
 |----------------------|---------------------------------------------------------------------------------|
-| **Type**            | Specifies the data type of the attribute (e.g., string, boolean, integer).      |
+| **Type**            | Specifies the data type of the attribute (for example string, boolean, integer).      |
 | **Name**            | The unique identifier for the attribute.                                       |
-| **Flags**           | Define access permissions and additional properties (e.g., read-only, persist). |
+| **Flags**           | Define access permissions and additional properties (for example read-only, persist). |
 | **Default Value**   | The initial value of the attribute if none is provided.                        |
 | **Description**     | Explains the purpose and behavior of the attribute.                            |
 
@@ -250,10 +250,10 @@ Attributes can represent metadata about the GClass or its environment, including
 
 ### Benefits of Attribute Design with `attrs_table`
 
-- **Modularity:** Attributes are defined in structured schemas, making them reusable and maintainable.
+- **Modularity:** Attributes are defined in structured schemas. This makes them reusable and maintainable.
 - **Flexibility:** Support for various data types and nested schemas allows for complex configurations.
 - **Validation:** Ensures that data conforms to the schema, reducing errors.
-- **Security:** Access control flags and authorization paths enforce robust security policies.
+- **Security:** Access control flags and authorization paths enforce reliable security policies.
 - **Documentation:** Descriptions provide built-in documentation for each attribute.
 
 
@@ -286,7 +286,7 @@ In C:
 typedef const char *gobj_event_t;
 ```
 
-The FSM ensures clear behavior and modular event handling.
+The FSM makes sure of clear behavior and modular event handling.
 
 ### 🛠️ How It Works
 
@@ -359,9 +359,9 @@ The following events are defined in the system using `GOBJ_DEFINE_EVENT()`:
 - `EV_TX_READY`
 - `EV_STOPPED`
 
-These events represent system signals for timeouts, state transitions, messaging, connection handling, and data transmission. They are used to trigger actions within the system, allowing GObjs to react to external stimuli, manage their internal state, and facilitate communication between different components.
+These events represent system signals for timeouts, state transitions, messaging, connection handling, and data transmission. They trigger actions within the system. This allows GObjs to react to external stimuli, manage their internal state, and make possible communication between different components.
 
-These predefined states and events form the core of Yuneta's GObj framework, enabling structured event-driven programming and state management. States define the behavior of an object at any given time, while events act as triggers that drive transitions between these states. Together, they create a dynamic and responsive system that efficiently handles various operational scenarios.
+These predefined states and events form the core of Yuneta's GObj framework. This enables structured event-driven programming and state management. States define the behavior of an object at any given time, while events act as triggers that drive transitions between these states. Together, they create a dynamic and responsive system that efficiently handles various operational scenarios.
 
 (EV_STATE_CHANGED)=
 - `EV_STATE_CHANGED`
@@ -376,11 +376,11 @@ Is a system event. Publish when a FSM change his state.
 (GMETHODS)=
 ## GMETHODS
 
-The `GMETHODS` structure in Yuneta defines the gclass methods that a `GClass` can implement. These methods encapsulate key behaviors and operations associated with the lifecycle, state management, and functionality of GObjects.
+The `GMETHODS` structure in Yuneta defines the gclass methods that a `GClass` can implement. These methods encapsulate key behaviors and operations associated with the lifecycle, state management, and function of GObjects.
 
-Each method serves a specific purpose and is invoked through the GObject API, enabling dynamic and modular behavior across different `GClasses`.
+Each method serves a specific purpose and is invoked through the GObject API. This enables dynamic and modular behavior across different `GClasses`.
 
-The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional, allowing `GClasses` to implement only the functionality they need.
+The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional. This allows `GClasses` to implement only the function they need.
 
 ### Methods
 
@@ -506,7 +506,7 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
 
 (mt_stats_updated)=
 - `mt_stats_updated`:
-   - Purpose: Notifies that statistics have been updated.
+ - Purpose: Notifies that statistics were updated.
    - Example: Refreshing metrics in real time.
 
 (mt_disable)=
@@ -607,9 +607,9 @@ Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
 (mapping_gmethods)=
 ### Mapping
 
-This section maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
+This section maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are used within the GObject lifecycle.
 
-This mapping provides a detailed and structured view of how `GMETHODS` are utilized across various GObject API functions, covering attributes, events, TreeDB, lifecycle, and more. Each method plays a specific role in the modular design of the GClass.
+This mapping provides a detailed and structured view of how `GMETHODS` are used across various GObject API functions, covering attributes, events, TreeDB, lifecycle, and more. Each method plays a specific role in the modular design of the GClass.
 
 
 #### Creation and Destruction
@@ -800,8 +800,8 @@ typedef struct event_type_s {
 ## States Table
 
 Defines the behavior of the `GClass` in terms of states, events, and transitions:
-    - **States**: Predefined states (e.g., `ST_CLOSED`, `ST_OPENED`).
-    - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
+ - **States**: Predefined states (for example `ST_CLOSED`, `ST_OPENED`).
+ - **Events**: Triggers for state transitions (for example `EV_ON_OPEN`, `EV_ON_CLOSE`).
     - **Actions**: Functions executed during transitions between states.
 
 In C:
@@ -832,11 +832,11 @@ Each authorization defines a level or type of access, such as:
 #### 2. **Validation Parameters**
 Each authorization level can specify a schema that describes the parameters required for validation. For example:
 - Parameters can include resource names, IDs, or paths.
-- Parameters may reference specific authorization paths (e.g., `"record`id"`).
+- Parameters can reference specific authorization paths (for example `"record`id"`).
 
 #### 3. **Authorization Paths**
-Authorization paths define the logic for validating access. Paths may:
-- Point to specific fields or metadata within a resource (e.g., `"__md_treedb__`treedb_name"`).
+Authorization paths define the logic for validating access. Paths can:
+- Point to specific fields or metadata within a resource (for example `"__md_treedb__`treedb_name"`).
 - Be empty (`""`) for unrestricted or default access.
 
 #### 4. **Descriptions**
@@ -846,7 +846,7 @@ Each authorization includes a description that clearly defines its purpose. Thes
 
 ### Purpose of `authz_table`
 
-The `authz_table` enforces access control within a GClass. By defining and validating authorizations, the GClass ensures that operations are performed only by users or systems with the necessary permissions.
+The `authz_table` enforces access control within a GClass. By defining and validating authorizations, the GClass makes sure that operations are performed only by users or systems with the necessary permissions.
 
 ---
 
@@ -858,7 +858,7 @@ The `authz_table` works with APIs like `gobj_user_has_authz` to validate permiss
 3. Respond with an appropriate error or success message.
 
 #### High-Level Process
-1. **Permission Check:** Specify the desired permission (e.g., `"create"`).
+1. **Permission Check:** Specify the desired permission (for example `"create"`).
 2. **Validation:** The `gobj_user_has_authz` function validates the authorization based on:
   - The current user's roles and permissions.
   - The input parameters provided to the function.
@@ -870,7 +870,7 @@ The `authz_table` works with APIs like `gobj_user_has_authz` to validate permiss
 ### Benefits of `authz_table`
 
 - **Granular Access Control:** Permissions can be tailored for specific actions and resources.
-- **Validation and Consistency:** Using schemas ensures that authorization checks are structured and reliable.
+- **Validation and Consistency:** Using schemas makes sure that authorization checks are structured and reliable.
 - **Reusability:** Authorization definitions can be reused across different operations or resources within a GClass.
 - **Security:** Centralized definitions minimize the risk of unauthorized access.
 
@@ -886,13 +886,13 @@ The `authz_table` works with APIs like `gobj_user_has_authz` to validate permiss
 
 #### Parameterized Authorizations
 - Authorizations can specify required parameters, such as resource names, IDs, or metadata paths, for validation.
-- For example, a `read` permission might require a `treedb_name` and `id` to validate access to a specific node.
+- For example, a `read` permission can require a `treedb_name` and `id` to validate access to a specific node.
 
 
 (command_table)=
 ## Command Table
 
-The `command_table` in a GClass defines the available commands and their corresponding behaviors. Each command is represented as an entry in the table, described with parameters, aliases, execution logic, and a human-readable description. This structured approach ensures consistency, flexibility, and clarity in how commands are defined and executed.
+The `command_table` in a GClass defines the available commands and their corresponding behaviors. Each command is represented as an entry in the table, described with parameters, aliases, execution logic, and a human-readable description. This structured approach makes sure of consistency, flexibility, and clarity in how commands are defined and executed.
 
 ---
 
@@ -911,7 +911,7 @@ Commands can have alternative names (aliases) to provide flexibility and improve
 #### 3. **Parameters**
 Commands accept structured input, described using schemas. These schemas are defined in `sdata_desc_t` tables, specifying:
 - **Parameter Name:** The name of the input parameter.
-- **Type:** The type of the parameter (e.g., string, boolean, integer).
+- **Type:** The type of the parameter (for example string, boolean, integer).
 - **Flags:** Attributes of the parameter, such as required or optional.
 - **Default Value:** The default value for the parameter if none is provided.
 - **Description:** A description of the parameter’s purpose.
@@ -923,7 +923,7 @@ Each command is linked to a function that implements its logic. These handler fu
 - Return results or error messages.
 
 #### 5. **Descriptions**
-Commands include a detailed description to document their purpose and functionality. This description is useful for both users and developers.
+Commands include a detailed description to document their purpose and function. This description is useful for both users and developers.
 
 ---
 
@@ -955,13 +955,13 @@ The `command_table` serves as a central registry for all commands available in a
 - **Reusability:** Shared schemas allow commands to reuse parameter definitions across multiple commands.
 - **Validation:** Input parameters are rigorously validated using predefined schemas.
 - **Self-Documentation:** Command descriptions and aliases make the system intuitive for users and developers.
-- **Integration:** Commands are seamlessly integrated with authorization and other components of the GClass.
+- **Integration:** Commands are integrated with authorization and other components of the GClass.
 
 
 (trace_level_t)=
 ## Trace Levels
 
-Trace levels allow precise control over debugging and diagnostic logging in a GClass. By defining a table of trace levels (`s_user_trace_level`), GClasses can manage which aspects of their behavior are logged, ensuring detailed, yet efficient, monitoring and debugging.
+Trace levels allow precise control over debugging and diagnostic logging in a GClass. By defining a table of trace levels (`s_user_trace_level`), GClasses can manage which aspects of their behavior are logged. This makes sure of detailed, yet efficient, monitoring and debugging.
 
 In C:
 ```C
@@ -1080,13 +1080,13 @@ Values of `gclass_flag_t` Flags
     - **Use Case**: Optimization when output event checking is unnecessary.
 - `gcflag_ignore_unknown_attrs`: (`0x0004`)
     - **Description**: Allows the creation of a GObject even if it contains attributes that are not defined in the `GClass`.
-    - **Use Case**: Flexibility during dynamic object creation when unknown attributes may be present.
+ - **Use Case**: Flexibility during dynamic object creation when unknown attributes can be present.
 - `gcflag_required_start_to_play`: (`0x0008`)
     - **Description**: Prevents the GObject from entering the "play" state unless it has already been started.
     - **Use Case**: Ensures proper initialization before transitioning to "play."
 - `gcflag_singleton`: (`0x0010`)
     - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
-    - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
+ - **Use Case**: For `GClasses` that must maintain a single-instance constraint (for example a singleton pattern).
 
 
 ## Error Handling Convention — No Silent Errors
@@ -1129,7 +1129,7 @@ if(!priv->gobj_bff_side) {
 
 Here `gobj_find_service` was called with `verbose=TRUE`, which makes
 the helper itself emit a `gobj_log_error` on miss. Logging again
-would be noise; the comment proves the silence is intentional.
+will be noise. The comment proves the silence is intentional.
 
 ### Example — direct logging at the point of failure
 

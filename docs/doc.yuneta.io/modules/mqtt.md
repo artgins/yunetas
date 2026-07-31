@@ -11,7 +11,7 @@ broker backed by TreeDB.
 MQTT protocol with publish, subscribe, QoS levels, and event-driven
 message handling. `C_PROT_MQTT2` is the current implementation (and works as
 both the broker's per-connection protocol and a standalone client — see
-[`mqtt_tui`](../utilities/mqtt_tui.md)); `C_PROT_MQTT` is the legacy version
+[`mqtt_tui`](../utilities/mqtt_tui.md)). `C_PROT_MQTT` is the legacy version
 kept for backward compatibility.
 
 **Trace levels (`C_PROT_MQTT2`):** `traffic` (packets, no payload),

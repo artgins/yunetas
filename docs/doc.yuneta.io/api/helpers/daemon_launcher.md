@@ -34,9 +34,9 @@ Returns the PID of the first child process if successful, or `-1` if an error oc
 
 **Notes**
 
-- Uses a double-fork technique to ensure the daemon process is fully
+- Uses a double-fork technique to make sure that the daemon process is fully
   detached from the terminal.
-- The parent process does not wait for the first child, allowing it to
+- The parent process does not wait for the first child. This allows it to
   continue execution immediately.
 - If `execvp()` fails, an error is written to a pipe and the function
   returns `-1`.
@@ -58,7 +58,7 @@ relaunches the child on crash. They are only compiled on Linux
 
 `daemon_run()` starts the watcher / child supervision loop. The parent
 process keeps running as a watcher that relaunches the child if it
-dies; the child calls `process(process_name, work_dir, domain_dir, cleaning_fn)`
+dies. The child calls `process(process_name, work_dir, domain_dir, cleaning_fn)`
 to do the actual work.
 
 ```C
@@ -84,7 +84,7 @@ int daemon_run(
 | `process_name` | `const char *` | Name of the process (used in `/proc` lookups and logs). |
 | `work_dir` | `const char *` | Working directory to `chdir` into before running. |
 | `domain_dir` | `const char *` | Domain-specific directory passed through to the child. |
-| `cleaning_fn` | `function pointer` | Cleanup callback invoked on shutdown. May be `NULL`. |
+| `cleaning_fn` | `function pointer` | Cleanup callback invoked on shutdown. It can be `NULL`. |
 
 **Returns**
 
@@ -105,7 +105,7 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
 by process name. The function locates the watcher process and signals
-it; the watcher in turn signals its child and terminates.
+it. The watcher in turn signals its child and terminates.
 
 ```C
 void daemon_shutdown(const char *process_name);
@@ -115,7 +115,7 @@ void daemon_shutdown(const char *process_name);
 
 | Key | Type | Description |
 |---|---|---|
-| `process_name` | `const char *` | Name of the running daemon process to shut down. |
+| `process_name` | `const char *` | Name of the running daemon process to stop. |
 
 **Returns**
 
@@ -199,7 +199,7 @@ the watcher process to signal.
 
 `daemon_set_debug_mode()` enables or disables daemon debug mode for
 the current process. When debug mode is on the supervisor emits extra
-tracing and may skip behaviours that would make debugging harder (for
+tracing and can skip behaviors that will make debugging harder (for
 example, preventing auto-relaunch on crash).
 
 ```C

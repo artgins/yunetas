@@ -231,7 +231,7 @@ Returns `TRUE` if the JSON value represents a truthy value, otherwise returns `F
 
 **Notes**
 
-This function is useful for safely interpreting JSON values as boolean flags. It ensures that various JSON types are correctly mapped to boolean values.
+This function is useful for safely interpreting JSON values as boolean flags. It makes sure that various JSON types are correctly mapped to boolean values.
 
 ---
 
@@ -288,7 +288,7 @@ If `jn_var` is a string, it is converted using `atof()`. Boolean values are mapp
 (jn2string)=
 ## [`jn2string()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L2296)
 
-`jn2string()` converts a JSON value into a dynamically allocated string representation, ensuring proper memory management.
+`jn2string()` converts a JSON value into a dynamically allocated string representation. This makes sure of proper memory management.
 
 ```C
 char *jn2string(json_t *jn_var);
@@ -365,7 +365,7 @@ This function uses `JSON_COMPACT` and `JSON_ENCODE_ANY` flags to generate a mini
 (json_check_refcounts)=
 ## [`json_check_refcounts()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L2687)
 
-Checks the reference counts of a JSON object and its nested elements, ensuring they do not exceed a specified limit.
+Checks the reference counts of a JSON object and its nested elements. This makes sure of they do not exceed a specified limit.
 
 ```C
 int json_check_refcounts(
@@ -396,7 +396,7 @@ This function recursively checks all elements in the JSON object, including arra
 (json_config)=
 ## [`json_config()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/json_config.c#L333)
 
-The `json_config` function merges multiple JSON configuration sources into a single JSON string, allowing for variable substitution and expansion. It processes fixed, variable, file-based, and parameter-based configurations in a structured order.
+The `json_config` function merges multiple JSON configuration sources into a single JSON string. This allows for variable substitution and expansion. It processes fixed, variable, file-based, and parameter-based configurations in a structured order.
 
 ```C
 json_t *json_config(
@@ -428,7 +428,7 @@ Returns a dynamically allocated JSON string containing the merged configuration.
 
 **Notes**
 
-['The function processes configurations in the following order: `fixed_config`, `variable_config`, `config_json_file`, and `parameter_config`.', 'If `print_verbose_config` or `print_final_config` is `TRUE`, the function prints the configuration and exits.', 'The function supports variable substitution using the `__json_config_variables__` key.', 'The JSON string can contain one-line comments using `##^`.', 'If an error occurs in JSON parsing, the function may exit based on the `quit` parameter.']
+['The function processes configurations in the following order: `fixed_config`, `variable_config`, `config_json_file`, and `parameter_config`.', 'If `print_verbose_config` or `print_final_config` is `TRUE`, the function prints the configuration and exits.', 'The function supports variable substitution using the `__json_config_variables__` key.', 'The JSON string can contain one-line comments using `##^`.', 'If an error occurs in JSON parsing, the function can exit based on the `quit` parameter.']
 
 ---
 
@@ -484,7 +484,7 @@ Returns `TRUE` if `kw1` and `kw2` are identical, otherwise returns `FALSE`.
 
 **Notes**
 
-The function converts both JSON objects to their string representations and compares them. It ensures deep comparison of JSON structures.
+The function converts both JSON objects to their string representations and compares them. It makes sure of deep comparison of JSON structures.
 
 ---
 
@@ -507,7 +507,7 @@ int json_list_str_index(
 |---|---|---|
 | `jn_list` | `json_t *` | A JSON array to search within. |
 | `str` | `const char *` | The string to search for in the JSON array. |
-| `ignore_case` | `BOOL` | If `TRUE`, the search is case-insensitive; otherwise, it is case-sensitive. |
+| `ignore_case` | `BOOL` | If `TRUE`, the search is case-insensitive. Otherwise, it is case-sensitive. |
 
 **Returns**
 
@@ -569,7 +569,7 @@ BOOL json_str_in_list(
 | `gobj` | `hgobj` | A handle to the gobj instance, used for logging errors. |
 | `jn_list` | `json_t *` | A JSON array containing string elements to be searched. |
 | `str` | `const char *` | The string to search for within the JSON array. |
-| `ignore_case` | `BOOL` | If TRUE, the comparison is case-insensitive; otherwise, it is case-sensitive. |
+| `ignore_case` | `BOOL` | If TRUE, the comparison is case-insensitive. Otherwise, it is case-sensitive. |
 
 **Returns**
 
@@ -708,8 +708,8 @@ int save_json_to_file(
 | `gobj` | `hgobj` | The GObj context, used for logging and error handling. |
 | `directory` | `const char *` | The directory where the JSON file will be saved. |
 | `filename` | `const char *` | The name of the JSON file to be created or overwritten. |
-| `xpermission` | `int` | The permission mode for the directory (e.g., 02770). |
-| `rpermission` | `int` | The permission mode for the file (e.g., 0660). |
+| `xpermission` | `int` | The permission mode for the directory (for example 02770). |
+| `rpermission` | `int` | The permission mode for the file (for example 0660). |
 | `on_critical_error` | `log_opt_t` | Logging options for handling critical errors. |
 | `create` | `BOOL` | If `TRUE`, the function will create the directory and file if they do not exist. |
 | `only_read` | `BOOL` | If `TRUE`, the file will be set to read-only mode after writing. |
@@ -721,7 +721,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-The function ensures that the directory exists before saving the file. If `only_read` is `TRUE`, the file permissions are set to read-only after writing.
+The function makes sure that the directory exists before saving the file. If `only_read` is `TRUE`, the file permissions are set to read-only after writing.
 
 ---
 
@@ -924,7 +924,7 @@ json_t *json_config_string2json(
 
 | Key | Type | Description |
 |---|---|---|
-| `bf` | `const char *` | The JSON configuration string to parse. May contain inline comments delimited by `##^`. |
+| `bf` | `const char *` | The JSON configuration string to parse. It can contain inline comments delimited by `##^`. |
 | `verbose` | `BOOL` | If TRUE, logs errors when parsing fails. |
 
 **Returns**
@@ -1104,7 +1104,7 @@ json_t *json_listsrange2set(
 
 | Key | Type | Description |
 |---|---|---|
-| `listsrange` | `json_t *` | A JSON array containing integers and/or two-element integer range arrays. Not owned by the function. |
+| `listsrange` | `json_t *` | A JSON array containing integers or both two-element integer range arrays. Not owned by the function. |
 
 **Returns**
 

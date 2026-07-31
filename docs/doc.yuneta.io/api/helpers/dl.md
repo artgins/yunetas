@@ -56,11 +56,11 @@ int dl_delete(
 
 **Returns**
 
-Returns 0 on success, or -1 if an error occurs (e.g., null item, empty list, or item not found).
+Returns 0 on success, or -1 if an error occurs (for example null item, empty list, or item not found).
 
 **Notes**
 
-The function ensures that the list remains consistent after deletion. If `fnfree` is provided, it is called to free the memory of the removed item.
+The function makes sure that the list remains consistent after deletion. If `fnfree` is provided, it is called to free the memory of the removed item.
 
 ---
 
@@ -147,7 +147,7 @@ Returns 0 on successful initialization.
 
 **Notes**
 
-This function ensures that the list is empty before initialization. If the list is not empty, an error message is logged.
+This function makes sure that the list is empty before initialization. If the list is not empty, an error message is logged.
 
 ---
 

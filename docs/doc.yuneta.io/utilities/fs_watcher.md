@@ -12,7 +12,7 @@ is built on.
 fs_watcher <directory>
 ```
 
-Watches recursively; press Ctrl-C to exit (it dumps the tracked paths on quit).
+Watches recursively. Press Ctrl-C to exit (it dumps the tracked paths on quit).
 No options — a single directory argument.
 
 ## See also

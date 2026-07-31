@@ -29,7 +29,7 @@
 - **Integrated with Yuneta’s Object Model**: Works alongside `gobj` architecture for seamless event handling.
 - **Persistence & Retrieval**: Complements **Treedb** by focusing on long-term storage and efficient retrieval.
 
-Timeranger2 is optimized for scenarios where structured time-based data is essential, making it a key component of Yuneta’s ecosystem.
+Timeranger2 is optimized for scenarios where structured time-based data is essential. This makes it a key component of Yuneta’s ecosystem.
 
 (tr_queue)=
 ```c
@@ -89,7 +89,7 @@ typedef int (*tranger2_load_record_callback_t)(
 
 ## Summary of [`fs_watcher.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/fs_watcher.h)
 
-This header file defines the **fs_watcher** module, which provides filesystem event watching functionality.
+This header file defines the **fs_watcher** module, which provides filesystem event watching function.
 
 ### **Typedefs**
 - Contains multiple `typedef` declarations:

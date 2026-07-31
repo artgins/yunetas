@@ -24,7 +24,7 @@ on a match, runs `command`.
 |-----------|---------|---------|
 | `path` | — | Directory to watch |
 | `recursive` | `false` | Watch the whole directory tree |
-| `patterns` | — | List of POSIX regex; only matching filenames trigger `command` |
+| `patterns` | — | List of POSIX regex. Only matching filenames trigger `command` |
 | `command` | — | Shell command to run on a matching event |
 | `use_parameter` | `false` | Append the changed filename as an argument to `command` |
 | `ignore_changed_event` | `false` | Ignore `EV_FS_CHANGED` |

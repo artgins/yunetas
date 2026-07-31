@@ -279,7 +279,7 @@ If the event is not found in the current state of `dst`, the function checks if 
 (gobj_find_event_type)=
 ## [`gobj_find_event_type()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L993)
 
-Searches all registered GClasses for an event type matching the given string name. This performs a global, case-insensitive lookup across every GClass's event list. Optionally filters by event flags (e.g., `EVF_PUBLIC_EVENT`).
+Searches all registered GClasses for an event type matching the given string name. This performs a global, case-insensitive lookup across every GClass's event list. Optionally filters by event flags (for example `EVF_PUBLIC_EVENT`).
 
 ```C
 event_type_t *gobj_find_event_type(
@@ -376,7 +376,7 @@ Internally uses `gobj_walk_gobj_children_tree()` for recursive traversal. Childr
 (gobj_state_find_by_name)=
 ## `gobj_state_find_by_name()`
 
-Finds a registered GClass by its name. The search first attempts an exact pointer comparison (for `gclass_name_t` constants), and if that fails, falls back to a string comparison. This allows lookup by either the canonical GClass name constant or a plain `char *` string.
+Finds a registered GClass by its name. The search first attempts an exact pointer comparison (for `gclass_name_t` constants), and if that fails, then uses a string comparison. This allows lookup by either the canonical GClass name constant or a plain `char *` string.
 
 ```C
 hgclass gobj_state_find_by_name(

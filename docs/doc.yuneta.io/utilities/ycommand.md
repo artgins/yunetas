@@ -38,8 +38,8 @@ Run `ycommand --help` for the full flag list.
 | Mode | When to use | Trade-off |
 |------|-------------|-----------|
 | `ycommand -c '<cmd>'` | A single command inside a shell script or one-liner | Pays connect + auth on every invocation |
-| `ycommand -i` | Interactive exploration: prompt, TAB, history, `Ctrl+R`, did-you-mean | Requires a TTY; not scriptable |
-| `... \| ycommand` (stdin) | A known sequence of N commands without needing to read a response first | No feedback loop — every line is sent regardless of prior output; connect + auth paid once |
+| `ycommand -i` | Interactive exploration: prompt, TAB, history, `Ctrl+R`, did-you-mean | Requires a TTY. Not scriptable |
+| `... \| ycommand` (stdin) | A known sequence of N commands without needing to read a response first | No feedback loop — every line is sent regardless of prior output. Connect + auth paid once |
 
 (ycommand-auth)=
 ## Authentication (OAuth2 / OIDC)
@@ -50,7 +50,7 @@ gated by an OAuth2 JWT, supplied one of two ways:
 
 - **Pre-obtained token** — pass it directly with `--jwt`.
 - **Fetch at connect** — pass `--user_id` + `--user_passw` together with an IdP
-  (`--issuer` or `--token-endpoint`) and `--client-id`; `ycommand` obtains the
+ (`--issuer` or `--token-endpoint`) and `--client-id`. `ycommand` obtains the
   JWT itself before opening the WebSocket.
 
 When an IdP and a `--user_id` are present, `ycommand` runs a one-shot
@@ -63,13 +63,13 @@ serves every piped command.
 
 | Flag | Short | Purpose |
 |------|-------|---------|
-| `--issuer=<url>` | `-I` | OIDC issuer URL; triggers discovery of the token / end-session endpoints |
-| `--token-endpoint=<url>` | `-T` | Explicit token endpoint; skips discovery (set with `--end-session-endpoint`) |
-| `--end-session-endpoint=<url>` | `-E` | Explicit OIDC end_session endpoint; skips discovery (set with `--token-endpoint`) |
+| `--issuer=<url>` | `-I` | OIDC issuer URL. Triggers discovery of the token / end-session endpoints |
+| `--token-endpoint=<url>` | `-T` | Explicit token endpoint. Skips discovery (set with `--end-session-endpoint`) |
+| `--end-session-endpoint=<url>` | `-E` | Explicit OIDC end_session endpoint. Skips discovery (set with `--token-endpoint`) |
 | `--client-id=<id>` | `-Z` | OAuth2 `client_id` (Keycloak / Auth0 / Azure AD / …) |
 | `--user_id=<user>` | `-x` | Username for the token grant |
 | `--user_passw=<passw>` | `-X` | Password for the token grant |
-| `--jwt=<token>` | `-j` | Use a previously obtained JWT; skips the token-fetch task |
+| `--jwt=<token>` | `-j` | Use a previously obtained JWT. Skips the token-fetch task |
 
 ```bash
 # Fetch a JWT via discovery, then connect to a remote agent
@@ -96,7 +96,7 @@ The same flags work for [`ybatch`](ybatch.md) and [`ystats`](ystats.md).
 | `!cmd` | Run a **local** `ycommand` command (see `!help`) |
 | `!!` | Re-run the last command (bash-style history expansion) |
 | `!N` | Re-run history entry N (1-based, matches `!history` output) |
-| `cmd1 ; cmd2 ; ...` | Chain; each waits for the previous response |
+| `cmd1 ; cmd2 ; ...` | Chain. Each waits for the previous response |
 | `-cmd` | Ignore errors for this command (the [`ybatch`](#util-ybatch) convention) |
 | `#` at start of line | Comment (ignored by `!source` / stdin piping) |
 
@@ -112,7 +112,7 @@ Available in `-i` mode (and shared with [`ycli`](ycli.md) through the common
 
 | Shortcut | Action |
 |----------|--------|
-| `TAB` | Complete command or parameter; list candidates if ambiguous |
+| `TAB` | Complete command or parameter. List candidates if ambiguous |
 | `TAB` after `param=` | Complete values for boolean params (`true` / `false`) |
 | `Ctrl+R` / `Ctrl+S` | Reverse / forward incremental history search |
 | `Up` / `Down` | Previous / next history entry |
@@ -126,7 +126,7 @@ Available in `-i` mode (and shared with [`ycli`](ycli.md) through the common
 | `Ctrl+L` | Clear screen |
 
 While in `Ctrl+R` / `Ctrl+S` search mode the prompt changes to
-`(reverse-i-search)'pat': <match>`; `Enter` accepts and submits, an arrow key
+`(reverse-i-search)'pat': <match>`. `Enter` accepts and submits, an arrow key
 accepts and keeps editing, `ESC` or `Ctrl+G` cancel.
 
 ## Local commands (invoked with `!`)
@@ -151,11 +151,11 @@ previous response — similar to [`ybatch`](ybatch.md) but with the line-oriente
 - `cmd1 ; cmd2 ; cmd3` on a single line.
 - `!source script.ycmd` inside an interactive session.
 - `cat script.ycmd | ycommand -u ws://...` from a shell pipe.
-- Any command may be prefixed with `-` to keep the batch going on error. Without
+- Any command can be prefixed with `-` to keep the batch going on error. Without
   the `-`, the first error drops the queue.
 
 Script file format: one command per line, `#` comments and blank lines ignored,
-each line may itself contain `;`-chained commands.
+each line can itself contain `;`-chained commands.
 
 ## Other features
 

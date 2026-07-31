@@ -24,18 +24,18 @@ client  ───▶  __input_side__  ──▶  C_SGATEWAY  ──▶  __output
 - `C_SGATEWAY` relays `EV_ON_MESSAGE`: bytes from the input side are sent to
   the output side and vice-versa.
 
-TLS is selected by the URL scheme (`tcps://` for either side); `tcp://` is
+TLS is selected by the URL scheme (`tcps://` for either side). `tcp://` is
 plain. Because the relay is byte-transparent it bridges any TCP-based protocol.
 
 ## Configuration
 
-Both URLs are required; at play time, if either is empty the yuno logs an error
+Both URLs are required. At play time, if either is empty the yuno logs an error
 and pauses itself.
 
 | Attribute | Default | Purpose |
 |-----------|---------|---------|
-| `input_url` | *(required)* | URL the gateway **listens** on (e.g. `tcp://0.0.0.0:2011`) |
-| `output_url` | *(required)* | URL the gateway **connects** to (e.g. `tcp://host:port`) |
+| `input_url` | *(required)* | URL the gateway **listens** on (for example `tcp://0.0.0.0:2011`) |
+| `output_url` | *(required)* | URL the gateway **connects** to (for example `tcp://host:port`) |
 | `timeout` | `1000` | Stats tick (ms) |
 
 `input_url` / `output_url` are writable and persisted. Set them through the

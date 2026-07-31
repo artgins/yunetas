@@ -8,7 +8,7 @@ in its area with signatures and parameters.
 ## In this section
 
 - [Startup](startup.md) — `gobj_start_up()` / `gobj_end()` and process-wide
-  initialisation.
+ initialization.
 - [GClass](gclass.md) — defining and registering a gclass.
 - [Creation](creation.md) — `gobj_create*()` and destruction.
 - [Attributes](attrs.md) — reading and writing typed attributes.

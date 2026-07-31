@@ -6,7 +6,7 @@ a controlled rate, so device-facing GClasses and ingest pipelines can be tested
 without real hardware.
 
 A standalone utility yuno (built under `utils/c/emu_device`, installed to
-`/yuneta/bin`); run it from the CLI, not deployed as a managed service.
+`/yuneta/bin`). Run it from the CLI, not deployed as a managed service.
 
 ## How it works
 
@@ -18,7 +18,7 @@ C_EMU_DEVICE
 
 - On **play**, it starts a TimeRanger2 reader and loads every matching record
   from the `path` / `database` / `topic` topic (filtered by `from_t`/`to_t`,
-  `from_rowid`/`to_rowid`, the flag masks and `key`/`notkey`; all keys by
+ `from_rowid`/`to_rowid`, the flag masks and `key`/`notkey`. All keys by
   default) into memory.
 - When the output side **connects** (`url`, a raw-TCP client), it first sends
   the `leading` frame (if set), then emits **`window` frames every `interval`

@@ -2,7 +2,7 @@
 # `controlcenter`
 
 Central management point for a fleet of Yuneta nodes. Nodes **dial in** to the
-control center (the agents are the clients); operators then reach any connected
+control center (the agents are the clients). Operators then reach any connected
 node *through* the control center. `C_CONTROLCENTER` is a **server** — it never
 dials out.
 
@@ -21,7 +21,7 @@ A node connects only when it has an **owner**. The primary
 [`yuneta_agent`](yuneta_agent.md) declares an outbound client service named
 `controlcenter` (gclass [`C_IEVENT_CLI`](#gclass-c-ievent-cli), chain
 `C_IEVENT_CLI → C_IOGATE → C_CHANNEL → C_PROT_TCP4H → C_TCP`, TLS). That service
-is `autostart:false` and is started **only** when `node_owner` ≠ `"none"`; an
+is `autostart:false` and is started **only** when `node_owner` ≠ `"none"`. An
 empty owner is forced to `"none"`, so by default a node does **not** dial out.
 
 To enrol a node, set its `node_owner` (and, if not using the default control
@@ -35,7 +35,7 @@ The agent assembles the control-center URL from config variables:
 tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)
 ```
 
-i.e. **`tcps://<machine>.<node_owner>.<output_url>`** where:
+that is, **`tcps://<machine>.<node_owner>.<output_url>`** where:
 
 | Variable | Source | Example |
 |----------|--------|---------|
@@ -100,7 +100,7 @@ connected agents.
 ## Configuration
 
 The yuno composes `authz` ([`C_AUTHZ`](#gclass-c-authz)) + `controlcenter` (`C_CONTROLCENTER`,
-default service); `Authz.max_sessions_per_user` defaults to 4. Key attributes:
+default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 
 | Attribute | Purpose |
 |-----------|---------|

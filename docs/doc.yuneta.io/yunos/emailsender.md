@@ -17,21 +17,21 @@ C_EMAILSENDER          <- queueing, retry, dead-letter, MIME encoding
   (pending) and `emails_failed` (dead-letter). It builds the full RFC 5322 /
   MIME message ([`mime_encoder.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/emailsender/src/mime_encoder.c)) and drives the send/retry loop.
 - `C_SMTP_SESSION` implements the line-based SMTP client as an FSM. It uses
-  **AUTH PLAIN**; **STARTTLS is not implemented** (the transport is TLS from the
+ **AUTH PLAIN**. **STARTTLS is not implemented** (the transport is TLS from the
   first byte via the `smtps://` C_TCP bottom). EHLO advertises the local
   hostname. An idle session closed by the server (SMTP 421 — OVH does this
-  aggressively) is treated as a graceful close; C_TCP reconnects on the next
+ aggressively) is treated as a graceful close. C_TCP reconnects on the next
   send.
 
 ## Configuration
 
 Effective config is the usual merge of `main.c` fixed/variable config with the
-external JSON; inspect it at runtime with
+external JSON. Inspect it at runtime with
 `ycommand command-yuno id=<id> service=__yuno__ command=view-config`.
 
 | Attribute | Default | Purpose |
 |-----------|---------|---------|
-| `url` | *(required)* | SMTP server, e.g. `smtps://ssl0.ovh.net:465` |
+| `url` | *(required)* | SMTP server, for example `smtps://ssl0.ovh.net:465` |
 | `from` | *(required)* | Default envelope/From address |
 | `from_beautiful` | `""` | Optional display name for the From header |
 | `username` / `password` | `""` | AUTH PLAIN credentials (empty → skip AUTH) |
@@ -61,11 +61,11 @@ to any logic in the current code; setting them has no effect.
 
 | Command | Parameters | Description |
 |---------|------------|-------------|
-| `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists; recipients are deduplicated. |
+| `send-email` | `to`, `subject`, `body`, `reply-to`, `attachment`, `inline_file_id`, `is_html` | Enqueue an email. `to`/`cc`/`bcc` accept comma- **or** semicolon-separated lists. Recipients are deduplicated. |
 | `list-queues` | — | Dump the messages in `emails_queue` and `emails_failed` with totals. Works while paused (queues are opened temporarily). |
 | `remove-emails-failed` | — | Purge the `emails_failed` dead-letter queue. Works while paused. |
-| `set-email-user` | `username`, `password`, `url`, `from` | Set the AUTH PLAIN credentials (required) and optionally the SMTP url / default From; all saved as persistent attrs. |
-| `set-url-from` | `url`, `from` | Set the SMTP url and/or the default From and save them as persistent attrs (at least one required). |
+| `set-email-user` | `username`, `password`, `url`, `from` | Set the AUTH PLAIN credentials (required) and optionally the SMTP url / default From. All saved as persistent attrs. |
+| `set-url-from` | `url`, `from` | Set the SMTP url or both the default From and save them as persistent attrs (at least one required). |
 | `enable-alarm-emails` | — | Re-enable alarm emails |
 | `disable-alarm-emails` | — | Suppress "ALERT Queuing" alarm emails |
 | `help` | `cmd`, `level` | Command help |
@@ -74,7 +74,7 @@ to any logic in the current code; setting them has no effect.
 `__execute_command__` permission when the per-command authz gate is enabled.
 
 Other yunos send mail by publishing `EV_SEND_EMAIL` to the `emailsender`
-service (e.g. `logcenter`'s summary report).
+service (for example `logcenter`'s summary report).
 
 ## Delivery semantics
 

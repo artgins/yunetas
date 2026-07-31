@@ -18,7 +18,7 @@ definitions live in [Basic Concepts](../guide/guide_basic_concepts.md).
   states, events, attribute schema, commands, and action callbacks.
   There is no inheritance.
 - **[event](#event) + [`kw`](#kw)** — the only way gobjs talk to each other. An event
-  is a typed name; `kw` is its JSON key-value payload (`json_t *`).
+ is a typed name. `kw` is its JSON key-value payload (`json_t *`).
 - [**SData**](#glossary-sdata) — the typed schema used for a GClass's attributes and
   commands. Carries type, default, persistence and authorization
   flags in one declaration.
@@ -41,7 +41,7 @@ inside IoT gateways — and that need to:
 - expose a **control plane** so operators and tools can inspect and
   steer the running process without restarting it,
 - and **stay up for months** with predictable memory and CPU
-  behaviour.
+ behavior.
 
 Most frameworks optimise for one of those axes. Yuneta is the result
 of doing all of them, with the same conceptual core (GClass, gobj,
@@ -59,16 +59,16 @@ a `json_t *kw` payload. Every gobj is a **finite state machine**: its
 GClass declares states, the events accepted in each state, and the
 action callback that runs when an accepted event arrives.
 
-**Why.** FSMs make behaviour enumerable. You can draw the state
+**Why.** FSMs make behavior enumerable. You can draw the state
 diagram, reason about unreachable code, replay an event log, and write
 fuzz tests that drive the machine through every transition. Callbacks
-and ad-hoc flags scale badly in long-lived services; state machines do
+and ad-hoc flags scale badly in long-lived services. State machines do
 not.
 
 **Trade-off.** You must *design* the states up-front. Yuneta does not
 let you "just call a method" on another gobj — there are no methods.
 
-### 2. One thread per yuno; scale horizontally across cores
+### 2. One thread per yuno. Scale horizontally across cores
 
 A yuno is a single-threaded process. There is no thread pool, no lock,
 no mutex, no atomic counter inside the framework. Scaling happens by
@@ -101,7 +101,7 @@ cost per operation. It also supports linked and batched submissions,
 which matters for the per-yuno message throughput Yuneta targets.
 
 **Trade-off.** Requires a reasonably recent Linux kernel. Not portable
-to non-Linux systems; the ESP32 port (`kernel/c/root-esp32`) lives
+to non-Linux systems. The ESP32 port (`kernel/c/root-esp32`) lives
 outside `yev_loop` and relies on the
 [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) runtime instead.
 
@@ -120,7 +120,7 @@ C backend through the same `kw` payloads that two C gobjs exchange in
 the same process.
 
 **Trade-off.** JSON parsing is not free. Yuneta pays the cost on
-purpose; its throughput targets are in the "many thousands of
+purpose. Its throughput targets are in the "many thousands of
 messages per second per core", not in the "tens of millions".
 
 ### 5. Function-oriented classes, language-portable by construction
@@ -150,9 +150,9 @@ Every gobj has exactly one parent. The root of the tree is the
 the runtime that drives it.
 
 **Why.** A tree gives you lifetimes, authorization scopes, and
-navigation for free. Starting a branch starts every gobj in it;
-destroying a parent destroys the children; a command from the control
-plane can be routed by path; traces and logs always know the full
+navigation for free. Starting a branch starts every gobj in it. Destroying a parent destroys
+the children. A command from the control
+plane can be routed by path. Traces and logs always know the full
 ancestor chain of the gobj that produced them.
 
 **Trade-off.** Peer-to-peer relationships between sibling gobjs go
@@ -180,7 +180,7 @@ primitive, several views.
 means there is no in-place rewrite or compaction. What timeranger2 gives
 you to manage that is **time-segmented data files**: each topic's file
 name is a `strftime` `filename_mask` applied to the record's timestamp
-(default `%Y-%m-%d`, one file per day; set `%Y` or `%Y-%m` to segment by
+(default `%Y-%m-%d`, one file per day. Set `%Y` or `%Y-%m` to segment by
 year or month, or a constant for a single file). Old segments are then
 just plain files on disk, so archiving or backing up everything past a
 cutoff date is an ordinary file copy.
@@ -188,7 +188,7 @@ cutoff date is an ordinary file copy.
 ### 8. The control plane is first-class, not bolted on
 
 Every running yuno exposes **commands** and **stats**. Operators reach
-them through a local socket via the [`ycommand`](#util-ycommand) CLI; other yunos reach
+them through a local socket via the [`ycommand`](#util-ycommand) CLI. Other yunos reach
 them by sending the same commands as events over the inter-yuno
 protocol. In both cases the surface is identical. Commands are
 declared on the GClass with name, parameters, authorization, and help
@@ -206,15 +206,15 @@ version and authorize it like any other contract.
 
 - **Predictable long runs.** No lock contention, no GC pauses, no
   thread-explosion, no hidden pools.
-- **Replayability.** Every state change is an event; every event can
-  be logged; persistent state is an append-only log. Incidents can be
+- **Replayability.** Every state change is an event. Every event can
+ be logged. Persistent state is an append-only log. Incidents can be
   reproduced offline.
 - **Operable from day one.** Commands and stats come for free with
-  every GClass; `ycommand` works on anything.
+ every GClass. `ycommand` works on anything.
 - **C / JavaScript interoperability.** The same SData schema and the
   same `kw` payloads mean a browser can act as if it were a local
   gobj in a C yuno.
-- **Horizontal scaling by CPU.** Add a yuno per core; communicate via
+- **Horizontal scaling by CPU.** Add a yuno per core. Communicate via
   events. There is nothing else to tune.
 
 ## What they cost you
@@ -224,7 +224,7 @@ version and authorize it like any other contract.
 - **Learning a different OO model.** No inheritance, no methods —
   composition through "bottom gobj" and through events.
 - **A non-zero JSON cost** on every message in flight.
-- **Linux-first.** Windows and macOS are not targets; the ESP32 port
+- **Linux-first.** Windows and macOS are not targets. The ESP32 port
   lives outside `yev_loop` and uses the ESP-IDF runtime instead.
 
 ## Where to go next

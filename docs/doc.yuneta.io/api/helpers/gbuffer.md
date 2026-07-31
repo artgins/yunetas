@@ -23,7 +23,7 @@ json_t *gbuf2json(
 
 | Key | Type | Description |
 |---|---|---|
-| `gbuf` | `gbuffer_t *` | The input [`gbuffer_t *`](#gbuffer_t) containing JSON data. This buffer is consumed and should not be used after calling this function. |
+| `gbuf` | `gbuffer_t *` | The input [`gbuffer_t *`](#gbuffer_t) containing JSON data. This buffer is consumed and must not be used after calling this function. |
 | `verbose` | `int` | Logging verbosity level: `1` logs errors, `2` logs errors and dumps the buffer content. |
 
 **Returns**
@@ -63,7 +63,7 @@ Returns the number of bytes successfully appended to the [`gbuffer_t`](#gbuffer_
 
 **Notes**
 
-If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to reallocate memory. If reallocation fails, fewer bytes may be appended than requested.
+If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to reallocate memory. If reallocation fails, fewer bytes can be appended than requested.
 
 ---
 
@@ -92,7 +92,7 @@ Returns `0` on success, or `-1` if an error occurs during the append operation.
 
 **Notes**
 
-The function iterates over `src` in chunks, copying data into `dst`. Ensure that `dst` has enough space to accommodate the data from `src`.
+The function iterates over `src` in chunks, copying data into `dst`. Make sure that `dst` has enough space to accommodate the data from `src`.
 
 ---
 
@@ -202,11 +202,11 @@ void *gbuffer_get(
 
 **Returns**
 
-Returns a pointer to the extracted data if `len` bytes are available; otherwise, returns `NULL`.
+Returns a pointer to the extracted data if `len` bytes are available. Otherwise, returns `NULL`.
 
 **Notes**
 
-Ensure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t). If `len` is greater than the remaining bytes, the function returns `NULL` without modifying the buffer.
+Make sure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t). If `len` is greater than the remaining bytes, the function returns `NULL` without modifying the buffer.
 
 ---
 
@@ -273,7 +273,7 @@ If the buffer does not have enough space, it attempts to reallocate memory. If r
 (gbuffer_remove)=
 ## [`gbuffer_remove()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.c#L162)
 
-The function `gbuffer_remove()` deallocates memory associated with a [`gbuffer_t *`](#gbuffer_t) instance, including its internal data buffer and label, ensuring proper cleanup.
+The function `gbuffer_remove()` deallocates memory associated with a [`gbuffer_t *`](#gbuffer_t) instance, including its internal data buffer and label. This makes sure of proper cleanup.
 
 ```C
 void gbuffer_remove(gbuffer_t *gbuf);
@@ -291,7 +291,7 @@ This function does not return a value.
 
 **Notes**
 
-This function should not be called directly. Instead, use `gbuffer_decref()` to manage reference counting and ensure proper deallocation.
+This function must not be called directly. Instead, use `gbuffer_decref()` to manage reference counting and make sure that proper deallocation.
 
 ---
 
@@ -320,14 +320,14 @@ A JSON object containing the serialized [`gbuffer_t *`](#gbuffer_t), including i
 
 **Notes**
 
-The function encodes the buffer's data in Base64 format to ensure safe storage and transmission. The returned JSON object must be freed by the caller.
+The function encodes the buffer's data in Base64 format to make sure that safe storage and transmission. The returned JSON object must be freed by the caller.
 
 ---
 
 (gbuffer_set_rd_offset)=
 ## [`gbuffer_set_rd_offset()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.c#L203)
 
-Sets the read offset of the given `gbuffer_t` instance to the specified position, ensuring it does not exceed the allocated data size or the current write position.
+Sets the read offset of the given `gbuffer_t` instance to the specified position. This makes sure of it does not exceed the allocated data size or the current write position.
 
 ```C
 int gbuffer_set_rd_offset(
@@ -378,7 +378,7 @@ Returns 0 on success. Returns -1 if the specified offset exceeds the buffer size
 
 **Notes**
 
-This function is useful when using [`gbuffer_t`](#gbuffer_t) as a write buffer, allowing manual control over the write position.
+This function is useful when using [`gbuffer_t`](#gbuffer_t) as a write buffer. This allows manual control over the write position.
 
 ---
 
@@ -407,7 +407,7 @@ Returns `0` on success. If `gbuf` is `NULL`, an error is logged and `-1` is retu
 
 **Notes**
 
-If a label is already set, it is freed before assigning the new one. The function duplicates the input string to ensure memory safety.
+If a label is already set, it is freed before assigning the new one. The function duplicates the input string to make sure that memory safety.
 
 ---
 
@@ -590,12 +590,12 @@ int gbuf2file(
 | `gobj` | `hgobj` | The GObj instance used for error logging. |
 | `gbuf` | `gbuffer_t *` | The buffer whose contents will be written to the file. Ownership is taken -- the buffer is decremented after the operation. |
 | `path` | `const char *` | The file path where the data will be written. |
-| `permission` | `int` | File permission mode (e.g. 0644) applied when creating the file. |
+| `permission` | `int` | File permission mode (for example 0644) applied when creating the file. |
 | `overwrite` | `BOOL` | If TRUE, an existing file at `path` will be overwritten. If FALSE, the function fails if the file already exists. |
 
 **Returns**
 
-Returns 0 on success, or -1 on error (e.g. file creation failure or write error).
+Returns 0 on success, or -1 on error (for example file creation failure or write error).
 
 **Notes**
 
@@ -653,7 +653,7 @@ gbuffer_t *gbuffer_base64_to_binary(
 
 **Returns**
 
-Returns a new `gbuffer_t` containing the decoded binary data, or NULL on error (e.g. NULL input, memory allocation failure, or decoding error).
+Returns a new `gbuffer_t` containing the decoded binary data, or NULL on error (for example NULL input, memory allocation failure, or decoding error).
 
 **Notes**
 
@@ -682,7 +682,7 @@ gbuffer_t *gbuffer_binary_to_base64(
 
 **Returns**
 
-Returns a new `gbuffer_t` containing the Base64-encoded string, or NULL on error (e.g. memory allocation failure or encoding error).
+Returns a new `gbuffer_t` containing the Base64-encoded string, or NULL on error (for example memory allocation failure or encoding error).
 
 **Notes**
 
@@ -709,7 +709,7 @@ gbuffer_t *gbuffer_file2base64(
 
 **Returns**
 
-Returns a new `gbuffer_t` containing the Base64-encoded file contents, or NULL on error (e.g. file not found, memory allocation failure).
+Returns a new `gbuffer_t` containing the Base64-encoded file contents, or NULL on error (for example file not found, memory allocation failure).
 
 **Notes**
 

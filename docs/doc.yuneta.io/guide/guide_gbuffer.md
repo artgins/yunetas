@@ -42,7 +42,7 @@ The `gbuffer_t` structure includes the following key fields:
 
 ### 1. **Reference Counting**
 - The buffer uses a reference counter (`refcount`) to manage memory safely.
-- Functions like [`gbuffer_incref`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.h#L78) and [`gbuffer_decref`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.h#L93) ensure that the buffer is only freed when no references remain.
+- Functions like [`gbuffer_incref`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.h#L78) and [`gbuffer_decref`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gbuffer.h#L93) make sure that the buffer is only freed when no references remain.
 
 ### 2. **Dynamic Memory Management**
 - The buffer dynamically allocates and grows its memory up to `max_memory_size`.
@@ -56,10 +56,10 @@ The `gbuffer_t` structure includes the following key fields:
 - Supports serialization to and from JSON objects.
 - Provides [Base64](https://datatracker.ietf.org/doc/html/rfc4648) encoding and decoding for binary data.
 - **Hardened deserialization (since 7.6.0).** `gbuffer_deserialize()` is reachable
-  pre-auth (e.g. the ievent server), so it is defensive against hostile input: a
+ pre-auth (for example the ievent server), so it is defensive against hostile input: a
   malformed base64 `data` field that decodes to NULL is rejected instead of being
   fed into `gbuffer_setmark()` (was a pre-auth NULL-deref crash), and
-  `gbuffer_create()` refuses a `data_size == SIZE_MAX` (the `+1` would wrap to a
+ `gbuffer_create()` refuses a `data_size == SIZE_MAX` (the `+1` will wrap to a
   0-byte allocation that slipped past the max-block guard).
 
 ### 5. **Utility Functions**
@@ -94,7 +94,7 @@ The `gbuffer_t` structure includes the following key fields:
 - **Efficiency:** Separate read and write pointers allow simultaneous operations without reallocations.
 - **Flexibility:** Support for dynamic memory allocation and customizable markers or labels.
 - **Extensibility:** Serialization and encoding functions make it versatile for different use cases.
-- **Safety:** Reference counting ensures proper memory management and prevents premature deallocation.
+- **Safety:** Reference counting makes sure of proper memory management and prevents premature deallocation.
 
 ---
 

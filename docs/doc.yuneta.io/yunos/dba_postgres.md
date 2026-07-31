@@ -15,7 +15,7 @@ Dba_postgres (default service)   <- DBA logic, table organization, tasks
 ```
 
 `Dba_postgres` resolves the `__postgres__` service at start
-(`gobj_find_service("__postgres__")`); the PostgreSQL connection (host, port,
+(`gobj_find_service("__postgres__")`). The PostgreSQL connection (host, port,
 database, user, password) is configured on that `C_POSTGRES` service through
 the yuno's external configuration, not hardcoded in the binary.
 
@@ -25,7 +25,7 @@ The yuno also declares `emailsender` as a required service (for alerting).
 
 | Attribute | Default | Purpose |
 |-----------|---------|---------|
-| `master` | `1` | Only the master instance may write |
+| `master` | `1` | Only the master instance can write |
 | `filename_mask` | `%Y-%m` | Time-based table/file organization (monthly) |
 | `xpermission` | `02770` | Permission for created directories/executables |
 | `rpermission` | `0660` | Permission for created files |

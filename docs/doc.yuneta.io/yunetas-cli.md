@@ -16,11 +16,11 @@ yunetas version                 # print the installed CLI version
 ```
 
 > ℹ️ The PyPI package `yunetas` is the **management/build CLI**, *not* the C
-> framework runtime. The runtime is the `.deb`/`.rpm` (or a source build); the
+> framework runtime. The runtime is the `.deb`, the `.rpm`, or a source build. The
 > CLI drives that build and talks to the local agent. The two version
 > independently. Source for the CLI lives in
 > [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.9.4/utils/python/tui_yunetas)
-> (a git submodule); for development it can be installed editable instead of
+> (a git submodule). For development you can install it editable instead of
 > from PyPI.
 
 Most commands assume the build environment is sourced first — see
@@ -42,7 +42,7 @@ source yunetas-env.sh
 | Secrets | `list-secrets` |
 | Misc | `venv`, `version` |
 
-`yunetas --help` documents every command and option in full (since CLI 0.18.0);
+`yunetas --help` documents every command and option in full (since CLI 0.18.0).
 bare `yunetas` prints just the list, and `yunetas <command> --help` the detail
 of one.
 
@@ -56,7 +56,7 @@ yunetas clean     # wipe the build dirs
 ```
 
 `init` regenerates `yuneta_version.h` / `yuneta_config.h` and runs `cmake` in
-each module's `build/`; `build` runs `make install` in dependency order.
+each module's `build/`. `build` runs `make install` in dependency order.
 
 **Re-run `init`:**
 
@@ -73,7 +73,7 @@ yunetas build --sdk-only      # only the SDK
 
 ## External projects
 
-Projects (e.g. an app repo) can be registered so the SDK build is immediately
+You can register projects, for example an app repo, so that the SDK build is immediately
 followed by theirs. The registry is machine-local user state
 (`~/.yuneta/projects.json`), kept outside the source tree.
 
@@ -114,7 +114,7 @@ verify-by-default) against a stale no-CA config is exactly what breaks OIDC
 login. `sync` couples the steps so neither is forgotten, and aborts before the
 configs pass if the binaries push fails (no half-deploy). Shared arguments
 (`-n` dry-run, `-a` all, OAuth2 options…) are forwarded to both underlying
-tools; for a tool-specific flag use the individual command:
+tools. For a tool-specific flag, use the individual command:
 
 ```bash
 yunetas sync-binaries -n      # outputs/yunos vs the local agent
@@ -126,13 +126,13 @@ yunetas sync-configs -n --host my.host.com   # or target one batches dir explici
 Without `--host` it queries the local agent (`*list-realms`) and syncs every
 `batches/<host>/` whose name is a realm_id the agent manages — a node running
 several realms deploys all the relevant ones in one pass (a batches dir is
-named after its realm_id, the deploy FQDN). If the agent can't be reached it
-falls back to a single hostname match.
+named after its realm_id, the deploy FQDN). If the agent cannot be reached it
+uses a single hostname match instead.
 
 `upgrade-yunos` takes an optional rollback snapshot (idempotent by name,
-default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip; if a snap is already
+default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip. If a snap is already
 active it reuses that one instead of shooting another), lists the new yuno rows
-`find-new-yunos` would create and asks for confirmation (`--yes` to skip),
+`find-new-yunos` creates and asks for confirmation (`--yes` to skip),
 registers them (`find-new-yunos create=1`), then runs `deactivate-snap` — which
 triggers the agent's `restart_nodes()` (SIGKILL + treedb reload), promoting the
 newest release of every yuno.
@@ -140,7 +140,7 @@ newest release of every yuno.
 ### Resuming a half-applied upgrade
 
 The deploy is **idempotent**: re-running `sync` then `upgrade-yunos` after a run
-that pushed the artifacts but never promoted them (e.g. `deactivate-snap` was
+that pushed the artifacts but never promoted them, for example when `deactivate-snap` was
 not reached) finishes the job instead of failing. When the binaries, configs and
 yuno rows from the prior run are already on the agent, its create commands answer
 `... already exists` — and that is treated as a benign already-present state, not
@@ -148,14 +148,14 @@ an error (since CLI 0.11.1):
 
 - `sync-binaries` / `sync-configs` report such a row as `ALREADY PRESENT`
   (yellow) and count it as ok, not a red `FAILED`.
-- `upgrade-yunos` does **not** abort when `find-new-yunos create=1` comes back
+- `upgrade-yunos` does **not** abort when `find-new-yunos create=1` answers
   "already exists" — it falls through to `deactivate-snap`, the step that
-  actually promotes the new releases. (Before 0.11.1 it aborted *before* the
+  promotes the new releases. (Before 0.11.1 it aborted *before* the
   restart, and the operator had to run `deactivate-snap` by hand.)
 
 A genuine (non-idempotent) error still fails closed, and the agent's comments are
 printed so a mixed result stays visible. So the safe recovery from any
-interrupted upgrade is simply to re-run `yunetas sync && yunetas upgrade-yunos`.
+interrupted upgrade is to run `yunetas sync && yunetas upgrade-yunos` again.
 
 For a same-version **hot-patch** (no `APP_VERSION` bump) you can skip
 `upgrade-yunos`: `sync`, then bounce the affected yunos with
@@ -184,7 +184,7 @@ time via `$YUNETA_OAUTH_PASSW`, `$YUNETA_OAUTH_CLIENT_SECRET` or
 `$YUNETA_OAUTH_JWT`.
 
 A config that needs a credential declares it in the committed file as
-`"__SECRET__"`; the value lives on the deploy machine in
+`"__SECRET__"`. The value lives on the deploy machine in
 `~/.yuneta/secrets/<node>/<config-id>.json` and is merged in just before the
 push. A missing **or empty** value refuses the push rather than shipping a
 blank password. Rotating a credential means bumping `__version__` in the
@@ -195,7 +195,7 @@ value never touches it.
 yunetas list-secrets          # which configs have an overlay, and which fields
 ```
 
-There is deliberately no `set-secret`: an argument would land in your shell
+There is deliberately no `set-secret`, because an argument lands in your shell
 history and in the process table. Write the overlay with an editor, mode 600.
 
 ## Misc
@@ -209,7 +209,7 @@ yunetas version               # installed CLI version
 ## See also
 
 - [Installation](installation.md) — prerequisites and the one-time build setup.
-- [Activating](activating.md) — initialise, build, run the agent, first yuno.
+- [Activating](activating.md) — initialize, build, run the agent, first yuno.
 - [Tools](tools.md) — the `tools/agent/` scripts the deploy commands wrap.
 - [`ycommand`](utilities/ycommand.md) — the control-plane client used to talk
   to a running yuno.

@@ -8,7 +8,7 @@ and — after confirmation — pushes the differences via `install-binary` /
 
 It **drives from the agent's installed binaries**, not from `outputs/yunos`:
 only roles the agent already manages on this node are candidates, so it never
-proposes installing a role this node doesn't run.
+proposes installing a role this node does not run.
 
 - **Agent side:** `ycommand -c '*list-binaries'` (the leading `*` makes ycommand
   emit raw JSON instead of the table).
@@ -33,15 +33,15 @@ then runs `install-binary` / `update-binary id=<role> content64=$$(<role>)` for
 each chosen role.
 
 A rebuild that keeps the byte count identical — a one-character log edit, or a
-relink against a changed static lib — would otherwise read as `UP-TO-DATE`. To
+relink against a changed static lib — will otherwise read as `UP-TO-DATE`. To
 catch it, `*list-binaries` / `*list-binaries-instances` report each binary's
-on-disk file time as `time` (epoch) and `time_str` next to `size`; when the
+on-disk file time as `time` (epoch) and `time_str` next to `size`. When the
 local file is newer than the agent's installed slot the role is flagged
 `REBUILD` even though `Δsize` is 0 (the table notes it as "newer build"). For an
-older agent that does not report `time`, the comparison falls back to the
+older agent that does not report `time`, the comparison then uses the
 embedded build date (`date`, the C `__DATE__ " " __TIME__`).
 
-## REBUILD lifecycle is automated; the bump path is not
+## REBUILD lifecycle is automated. The bump path is not
 
 A same-version `REBUILD` overwrites the very slot the running yuno is executing
 from, so `update-binary` fails with `text-file-busy` unless the running instance
@@ -71,12 +71,12 @@ Prior run/play state is read from `*list-yunos` and restored per role, so a
 deliberately stopped or paused yuno is left as it was, and a role with several
 instances across realms is handled in one shot (the role-scoped commands act on
 every instance — they all share the one slot). Pass `--no-restart` to keep the
-old print-only-reminder behaviour.
+old print-only-reminder behavior.
 
 When several roles are pushed at once the restarts run in **ascending
 `start_priority`** order (read from the agent via `*list-yunos`), so a `REBUILD`
 brings infrastructure (logcenter/emailsender/auth_bff) back before gates and dba
-instead of alphabetically; it degrades to the previous order when the agent has
+instead of alphabetically. It degrades to the previous order when the agent has
 no `start_priority` yet. See [`set_start_priorities.py`](set_start_priorities.md).
 
 The **version-bump** path is still **not** automated: after an `install-binary`

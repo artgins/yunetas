@@ -2,7 +2,7 @@
 # `yscapec`
 
 Escape a file's contents into a **C string literal** printed to stdout — handy
-for embedding JSON, SQL or HTML in `.c` source (e.g. a yuno's `fixed_config`).
+for embedding JSON, SQL or HTML in `.c` source (for example a yuno's `fixed_config`).
 
 ## Usage
 

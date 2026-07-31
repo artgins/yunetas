@@ -1,6 +1,6 @@
 # Attributes
 
-Read and write gobj attributes. Attributes are typed fields declared through the GClass's SData schema and can be marked writable, persistent, statistic, etc.
+Read and write gobj attributes. Attributes are typed fields declared through the GClass's SData schema and can be marked writable, persistent, statistic and more.
 
 Source code:
 
@@ -54,7 +54,7 @@ data_type_t gobj_attr_type(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose attribute type is being queried. |
+| `gobj` | `hgobj` | The `hgobj` instance whose attribute type is queried. |
 | `name` | `const char *` | The name of the attribute whose type is to be retrieved. |
 
 **Returns**
@@ -128,7 +128,7 @@ This function traverses the bottom hierarchy of the given `hgobj` to check for t
 (gobj_is_readable_attr)=
 ## [`gobj_is_readable_attr()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L3444)
 
-Checks if a given attribute of a `hgobj` is readable, meaning it has the `SDF_RD` flag set.
+Checks if a given attribute of a `hgobj` is readable. This means it has the `SDF_RD` flag set.
 
 ```C
 BOOL gobj_is_readable_attr(
@@ -141,7 +141,7 @@ BOOL gobj_is_readable_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose attribute is being checked. |
+| `gobj` | `hgobj` | The `hgobj` instance whose attribute is checked. |
 | `name` | `const char *` | The name of the attribute to check. |
 
 **Returns**
@@ -170,7 +170,7 @@ BOOL gobj_is_writable_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose attribute is being checked. |
+| `gobj` | `hgobj` | The `hgobj` instance whose attribute is checked. |
 | `name` | `const char *` | The name of the attribute to check. |
 
 **Returns**
@@ -199,7 +199,7 @@ json_t *gobj_list_persistent_attrs(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` whose persistent attributes should be listed. If `NULL`, lists attributes for all services. |
+| `gobj` | `hgobj` | The `hgobj` whose persistent attributes must be listed. If `NULL`, lists attributes for all services. |
 | `jn_attrs` | `json_t *` | A JSON object specifying which attributes to list. Can be a string, a list of keys, or a dictionary. |
 
 **Returns**
@@ -239,7 +239,7 @@ A JSON object containing the attribute value. If the attribute is not found, a w
 
 **Notes**
 
-If the attribute exists, the function returns a reference to the JSON object stored in the `hgobj`. The caller should not modify or free the returned JSON object.
+If the attribute exists, the function returns a reference to the JSON object stored in the `hgobj`. The caller must not modify or free the returned JSON object.
 
 ---
 
@@ -451,7 +451,7 @@ If the attribute is inherited from a bottom `hgobj`, the function retrieves the 
 (gobj_read_user_data)=
 ## [`gobj_read_user_data()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L3583)
 
-Retrieves user-defined data associated with the given `hgobj`. If a specific key is provided, it returns the corresponding value; otherwise, it returns the entire user data dictionary.
+Retrieves user-defined data associated with the given `hgobj`. If a specific key is provided, it returns the corresponding value. Otherwise, it returns the entire user data dictionary.
 
 ```C
 json_t *gobj_read_user_data(
@@ -473,7 +473,7 @@ A JSON object containing the requested user data. If `name` is specified, the co
 
 **Notes**
 
-The returned JSON object is not owned by the caller and should not be modified or freed.
+The returned JSON object is not owned by the caller and must not be modified or freed.
 
 ---
 
@@ -493,7 +493,7 @@ int gobj_remove_persistent_attrs(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance from which persistent attributes should be removed. |
+| `gobj` | `hgobj` | The `hgobj` instance from which persistent attributes must be removed. |
 | `jn_attrs` | `json_t *` | A JSON object specifying the attributes to remove. If empty, all attributes are removed. |
 
 **Returns**
@@ -521,7 +521,7 @@ int gobj_reset_rstats_attrs(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` whose resettable statistics attributes should be reset. |
+| `gobj` | `hgobj` | The `hgobj` whose resettable statistics attributes must be reset. |
 
 **Returns**
 
@@ -529,7 +529,7 @@ Returns `0` on success.
 
 **Notes**
 
-This function resets only attributes marked with `SDF_RSTATS`, leaving other attributes unchanged.
+This function resets only attributes marked with `SDF_RSTATS`. This leaves other attributes unchanged.
 
 ---
 
@@ -556,14 +556,14 @@ Returns 0 on success.
 
 **Notes**
 
-This function resets only attributes marked with `SDF_VOLATIL`, leaving other attributes unchanged.
+This function resets only attributes marked with `SDF_VOLATIL`. This leaves other attributes unchanged.
 
 ---
 
 (gobj_save_persistent_attrs)=
 ## [`gobj_save_persistent_attrs()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L2948)
 
-The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given `hgobj` object. It ensures that only named gobjs (services) can store persistent attributes.
+The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given `hgobj` object. It makes sure that only named gobjs (services) can store persistent attributes.
 
 ```C
 int gobj_save_persistent_attrs(
@@ -618,7 +618,7 @@ Returns 0 on success, or -1 if the attribute is not found or an error occurs.
 
 **Notes**
 
-If the attribute does not exist, an error is logged. The function ensures that the provided value is decremented after use.
+If the attribute does not exist, an error is logged. The function makes sure that the provided value is decremented after use.
 
 ---
 
@@ -642,7 +642,7 @@ int gobj_write_attrs(
 |---|---|---|
 | `gobj` | `hgobj` | The target `hgobj` object whose attributes will be modified. |
 | `kw` | `json_t *` | A JSON dictionary containing attribute names and their new values. The ownership of this object is transferred to the function. |
-| `include_flag` | `sdata_flag_t` | A flag specifying which attributes should be updated. Only attributes matching this flag will be modified. |
+| `include_flag` | `sdata_flag_t` | A flag specifying which attributes must be updated. Only attributes matching this flag will be modified. |
 | `src` | `hgobj` | The source `hgobj` object initiating the attribute modification. |
 
 **Returns**
@@ -651,7 +651,7 @@ Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function ensures that only attributes matching the specified flag are updated. The `kw` parameter is decremented after processing.
+This function makes sure that only attributes matching the specified flag are updated. The `kw` parameter is decremented after processing.
 
 ---
 
@@ -672,7 +672,7 @@ int gobj_write_bool_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose attribute is being modified. |
+| `gobj` | `hgobj` | The `hgobj` instance whose attribute is modified. |
 | `name` | `const char *` | The name of the attribute to modify. |
 | `value` | `BOOL` | The boolean value to set for the attribute. |
 
@@ -703,7 +703,7 @@ int gobj_write_integer_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` object whose attribute is being modified. |
+| `gobj` | `hgobj` | The `hgobj` object whose attribute is modified. |
 | `name` | `const char *` | The name of the attribute to be updated. |
 | `value` | `json_int_t` | The new integer value to be assigned to the attribute. |
 
@@ -720,7 +720,7 @@ If the `mt_writing` method is defined in the object's gclass, it is called after
 (gobj_write_json_attr)=
 ## [`gobj_write_json_attr()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4131)
 
-Writes a JSON value to the specified attribute of a `hgobj`. The function ensures that the attribute exists and is of the correct type before updating its value.
+Writes a JSON value to the specified attribute of a `hgobj`. The function makes sure that the attribute exists and is of the correct type before updating its value.
 
 ```C
 int gobj_write_json_attr(
@@ -734,7 +734,7 @@ int gobj_write_json_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose attribute is being updated. |
+| `gobj` | `hgobj` | The `hgobj` instance whose attribute is updated. |
 | `name` | `const char *` | The name of the attribute to update. |
 | `jn_value` | `json_t *` | The new JSON value to assign to the attribute. The function increases the reference count of this value. |
 
@@ -775,7 +775,7 @@ Returns 0 on success, or -1 if the attribute is not found.
 
 **Notes**
 
-This function does not increment the reference count of `jn_value`. Ensure that `jn_value` is not used elsewhere after calling [`gobj_write_new_json_attr()`](#gobj_write_new_json_attr).
+This function does not increment the reference count of `jn_value`. Make sure that `jn_value` is not used elsewhere after calling [`gobj_write_new_json_attr()`](#gobj_write_new_json_attr).
 
 ---
 
@@ -796,7 +796,7 @@ int gobj_write_pointer_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` object whose attribute is being modified. |
+| `gobj` | `hgobj` | The `hgobj` object whose attribute is modified. |
 | `name` | `const char *` | The name of the attribute to modify. |
 | `value` | `void *` | The new pointer value to assign to the attribute. |
 
@@ -827,7 +827,7 @@ int gobj_write_real_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | A handle to the `hgobj` object whose attribute is being modified. |
+| `gobj` | `hgobj` | A handle to the `hgobj` object whose attribute is modified. |
 | `name` | `const char *` | The name of the attribute to modify. It must be of type `DTP_REAL`. |
 | `value` | `double` | The new floating-point value to assign to the attribute. |
 
@@ -858,7 +858,7 @@ int gobj_write_str_attr(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` object whose attribute is being modified. |
+| `gobj` | `hgobj` | The `hgobj` object whose attribute is modified. |
 | `name` | `const char *` | The name of the attribute to modify. |
 | `value` | `const char *` | The new string value to set. If `NULL`, the attribute is set to `json_null()`. |
 
@@ -875,7 +875,7 @@ If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgo
 (gobj_write_strn_attr)=
 ## [`gobj_write_strn_attr()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L3994)
 
-Writes a string attribute to a `hgobj` object, ensuring the string is properly truncated to the specified length.
+Writes a string attribute to a `hgobj` object. This makes sure of the string is properly truncated to the specified length.
 
 ```C
 int gobj_write_strn_attr(
@@ -957,7 +957,7 @@ int gobj_load_persistent_attrs(
 
 **Returns**
 
-Returns `0` on success, or `-1` if the gobj is not a service, or if no persistent attributes loader function has been registered.
+Returns `0` on success, or `-1` if the gobj is not a service, or if no persistent attributes loader function was registered.
 
 **Notes**
 

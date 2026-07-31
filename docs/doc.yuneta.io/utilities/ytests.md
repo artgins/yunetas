@@ -28,7 +28,7 @@ Run `ytests --help` for the full flag list.
 | Option | Short | Purpose |
 |--------|-------|---------|
 | `<FILE>` | — | The test-suite JSON (positional) |
-| `--repeat=<n>` | `-t` | Repeat the run `n` times; `-1` = infinite loop (default `1`) |
+| `--repeat=<n>` | `-t` | Repeat the run `n` times. `-1` = infinite loop (default `1`) |
 | `--url=<url>` | `-u` | Yuno to connect to. Default `ws://127.0.0.1:1991` |
 | `--yuno_role=<role>` | `-O` | Remote yuno role |
 | `--yuno_name=<name>` | `-o` | Remote yuno name |
@@ -43,5 +43,5 @@ Authentication uses the same OAuth2 / OIDC flags as [`ycommand`](#util-ycommand)
 
 ## See also
 
-- [`ycommand`](ycommand.md) — one-shot commands; [`ybatch`](ybatch.md) — scripted batches.
+- [`ycommand`](ycommand.md) — one-shot commands. [`ybatch`](ybatch.md) — scripted batches.
 - [`utils/c/ytests/README.md`](https://github.com/artgins/yunetas/blob/7.9.4/utils/c/ytests/README.md).

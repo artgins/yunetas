@@ -32,7 +32,7 @@ A list of cloned active records. The caller owns the returned value and must dec
 
 **Notes**
 
-The returned list contains cloned records, making it safe for modification. The caller is responsible for managing the memory of the returned value.
+The returned list contains cloned records. This makes it safe for modification. The caller is responsible for managing the memory of the returned value.
 
 ---
 
@@ -65,7 +65,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-The `jn_msg` parameter is owned by [`trmsg_add_instance()`](<#trmsg_add_instance>), meaning it will be managed and freed internally.
+The `jn_msg` parameter is owned by [`trmsg_add_instance()`](<#trmsg_add_instance>). This means it will be managed and freed internally.
 
 ---
 
@@ -94,14 +94,14 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-Ensure that [`trmsg_open_list()`](<#trmsg_open_list>) was called before invoking [`trmsg_close_list()`](<#trmsg_close_list>) to properly manage resources.
+Make sure that [`trmsg_open_list()`](<#trmsg_open_list>) was called before invoking [`trmsg_close_list()`](<#trmsg_close_list>) to properly manage resources.
 
 ---
 
 (trmsg_close_topics)=
 ## [`trmsg_close_topics()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_msg.c#L73)
 
-The `trmsg_close_topics()` function closes the specified topics in the given `tranger` instance, ensuring proper resource cleanup.
+The `trmsg_close_topics()` function closes the specified topics in the given `tranger` instance. This makes sure of proper resource cleanup.
 
 ```C
 int trmsg_close_topics(
@@ -123,7 +123,7 @@ Returns `0` on success, or a negative value if an error occurs during topic clos
 
 **Notes**
 
-Ensure that [`trmsg_open_topics()`](<#trmsg_open_topics>) was previously called before invoking this function to close topics properly.
+Make sure that [`trmsg_open_topics()`](<#trmsg_open_topics>) was previously called before invoking this function to close topics properly.
 
 ---
 
@@ -193,7 +193,7 @@ Returns 0 on success, a negative value if the iteration was interrupted by the c
 
 **Notes**
 
-The callback function should return a negative value to break the iteration, 0 to continue, or 1 to add the record to the returned list. See [`trmsg_foreach_messages()`](<#trmsg_foreach_messages>) for iterating over all messages.
+The callback function must return a negative value to break the iteration, 0 to continue, or 1 to add the record to the returned list. See [`trmsg_foreach_messages()`](<#trmsg_foreach_messages>) for iterating over all messages.
 
 ---
 
@@ -234,7 +234,7 @@ Returns 0 on success, a negative value if the iteration was interrupted by the c
 
 **Notes**
 
-The callback function should return a negative value to break the iteration. The `instances` parameter passed to the callback is owned by the caller and must be managed accordingly.
+The callback function must return a negative value to break the iteration. The `instances` parameter passed to the callback is owned by the caller and must be managed accordingly.
 
 ---
 
@@ -265,8 +265,8 @@ int trmsg_foreach_messages(
 | Key | Type | Description |
 |---|---|---|
 | `list` | `json_t *` | The list containing messages to iterate over. |
-| `duplicated` | `BOOL` | If `true`, the callback receives duplicated messages; otherwise, it receives cloned messages. |
-| `callback` | `int (*)(json_t *, const char *, json_t *, void *, void *)` | A function pointer to the callback that processes each message. It should return a negative value to break the iteration. |
+| `duplicated` | `BOOL` | If `true`, the callback receives duplicated messages. Otherwise, it receives cloned messages. |
+| `callback` | `int (*)(json_t *, const char *, json_t *, void *, void *)` | A function pointer to the callback that processes each message. It must return a negative value to break the iteration. |
 | `user_data1` | `void *` | User-defined data passed to the callback function. |
 | `user_data2` | `void *` | Additional user-defined data passed to the callback function. |
 | `jn_filter` | `json_t *` | A JSON object specifying filtering criteria for selecting messages. The caller owns this parameter. |
@@ -306,7 +306,7 @@ A pointer to a `json_t` dictionary containing the active message's metadata. The
 
 **Notes**
 
-The returned metadata is part of the internal data structure and should not be modified or freed by the caller.
+The returned metadata is part of the internal data structure and must not be modified or freed by the caller.
 
 ---
 
@@ -335,7 +335,7 @@ A JSON object representing the active message associated with the given key. The
 
 **Notes**
 
-The returned JSON object should not be modified or freed by the caller. To modify the data, create a copy before making changes.
+The returned JSON object must not be modified or freed by the caller. To modify the data, create a copy before making changes.
 
 ---
 
@@ -393,7 +393,7 @@ A JSON object containing the `active` message and its `instances`. The returned 
 
 **Notes**
 
-The returned JSON object should not be modified or freed by the caller.
+The returned JSON object must not be modified or freed by the caller.
 
 ---
 
@@ -420,7 +420,7 @@ A dictionary of messages. The returned value is not owned by the caller.
 
 **Notes**
 
-The returned dictionary should not be modified or freed by the caller.
+The returned dictionary must not be modified or freed by the caller.
 
 ---
 
@@ -459,14 +459,14 @@ Returns a JSON object representing the opened list. The caller is responsible fo
 
 **Notes**
 
-`trmsg_open_list()` internally uses [`tranger2_open_list()`](<#tranger2_open_list>) to perform the operation. If `rt_by_disk` is set to `true`, the list is loaded from disk, which may introduce delays in application startup.
+`trmsg_open_list()` internally uses [`tranger2_open_list()`](<#tranger2_open_list>) to perform the operation. If `rt_by_disk` is set to `true`, the list is loaded from disk, which can introduce delays in application startup.
 
 ---
 
 (trmsg_open_topics)=
 ## [`trmsg_open_topics()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_msg.c#L41)
 
-`trmsg_open_topics()` initializes and opens topics for message handling using TimeRanger, ensuring that the necessary structures are available for message storage and retrieval.
+`trmsg_open_topics()` initializes and opens topics for message handling using TimeRanger. This makes sure that the necessary structures are available for message storage and retrieval.
 
 ```C
 int trmsg_open_topics(
@@ -488,7 +488,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that `tranger2_startup()` has been called before invoking [`trmsg_open_topics()`](<#trmsg_open_topics>) to properly initialize the TimeRanger environment.
+Make sure that `tranger2_startup()` was called before invoking [`trmsg_open_topics()`](<#trmsg_open_topics>) to properly initialize the TimeRanger environment.
 
 ---
 
@@ -519,6 +519,6 @@ A JSON list of cloned instances matching the specified key and filter. The calle
 
 **Notes**
 
-The returned list is a deep copy of the instances, ensuring that modifications do not affect the original data. The caller must manage the memory of the returned object by calling `json_decref()` when it is no longer needed.
+The returned list is a deep copy of the instances. This makes sure that modifications do not affect the original data. The caller must manage the memory of the returned object by calling `json_decref()` when it is no longer needed.
 
 ---

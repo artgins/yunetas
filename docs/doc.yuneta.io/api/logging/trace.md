@@ -10,7 +10,7 @@ Source code:
 (gobj_add_trace_filter)=
 ## [`gobj_add_trace_filter()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L11532)
 
-Adds a trace filter to a given gclass, allowing selective tracing based on attribute values.
+Adds a trace filter to a given gclass. This allows selective tracing based on attribute values.
 
 ```C
 int gobj_add_trace_filter(
@@ -59,7 +59,7 @@ Returns an integer representing the deep tracing level. A value of 1 enables tra
 
 **Notes**
 
-This function is useful for debugging and monitoring purposes, allowing developers to control the depth of trace logging.
+This function is useful for debugging and monitoring purposes. This allows developers to control the depth of trace logging.
 
 ---
 
@@ -140,7 +140,7 @@ A JSON array containing the names of the disabled trace levels for the specified
 
 **Notes**
 
-This function returns a list of trace levels that have been explicitly disabled for the given gclass. The returned JSON array must be freed by the caller.
+This function returns a list of trace levels that were explicitly disabled for the given gclass. The returned JSON array must be freed by the caller.
 
 ---
 
@@ -273,7 +273,7 @@ A JSON array containing the names of the disabled trace levels for the given `go
 
 **Notes**
 
-This function returns a list of trace levels that have been explicitly disabled for the given `gobj`. The returned JSON object should not be modified or freed by the caller.
+This function returns a list of trace levels that were explicitly disabled for the given `gobj`. The returned JSON object must not be modified or freed by the caller.
 
 ---
 
@@ -300,7 +300,7 @@ A JSON array containing objects with the gobj name and its disabled trace levels
 
 **Notes**
 
-This function traverses the entire gobj tree and collects trace levels that have been explicitly disabled.
+This function traverses the entire gobj tree and collects trace levels that were explicitly disabled.
 
 ---
 
@@ -327,7 +327,7 @@ A JSON object containing the trace filter configuration. The returned object is 
 
 **Notes**
 
-The function returns the trace filter settings applied to the specified `hgclass`. The caller should not modify or free the returned JSON object.
+The function returns the trace filter settings applied to the specified `hgclass`. The caller must not modify or free the returned JSON object.
 
 ---
 
@@ -377,8 +377,8 @@ int gobj_remove_trace_filter(
 
 | Key | Type | Description |
 |---|---|---|
-| `gclass` | `hgclass` | The `hgclass` from which the trace filter should be removed. |
-| `attr` | `const char *` | The attribute name whose filter should be removed. If empty, all filters are removed. |
+| `gclass` | `hgclass` | The `hgclass` from which the trace filter must be removed. |
+| `attr` | `const char *` | The attribute name whose filter must be removed. If empty, all filters are removed. |
 | `value` | `const char *` | The specific value to remove from the filter. If empty, all values for the given attribute are removed. |
 
 **Returns**
@@ -485,9 +485,9 @@ int gobj_set_gclass_no_trace(
 
 | Key | Type | Description |
 |---|---|---|
-| `gclass` | `hgclass` | The `hgclass` whose no-trace level is being modified. |
+| `gclass` | `hgclass` | The `hgclass` whose no-trace level is modified. |
 | `level` | `const char *` | The trace level to set or reset. If empty, all levels are affected. |
-| `set` | `BOOL` | If `TRUE`, the level is set; if `FALSE`, the level is reset. |
+| `set` | `BOOL` | If `TRUE`, the level is set. If `FALSE`, the level is reset. |
 
 **Returns**
 
@@ -516,9 +516,9 @@ int gobj_set_gclass_trace(
 
 | Key | Type | Description |
 |---|---|---|
-| `gclass` | `hgclass` | The `hgclass` whose trace level is being modified. |
+| `gclass` | `hgclass` | The `hgclass` whose trace level is modified. |
 | `level` | `const char *` | The trace level to set or reset. If `NULL`, all levels are affected. If an empty string, only user-defined levels are affected. |
-| `set` | `BOOL` | If `TRUE`, the trace level is set; if `FALSE`, it is reset. |
+| `set` | `BOOL` | If `TRUE`, the trace level is set. If `FALSE`, it is reset. |
 
 **Returns**
 
@@ -547,7 +547,7 @@ int gobj_set_global_no_trace(
 | Key | Type | Description |
 |---|---|---|
 | `level` | `const char *` | The trace level to be set or reset. If empty, all global trace levels are affected. |
-| `set` | `BOOL` | If TRUE, the specified trace level is set; if FALSE, it is reset. |
+| `set` | `BOOL` | If TRUE, the specified trace level is set. If FALSE, it is reset. |
 
 **Returns**
 
@@ -576,7 +576,7 @@ int gobj_set_global_trace(
 | Key | Type | Description |
 |---|---|---|
 | `level` | `const char *` | The trace level to set or reset. If empty, all global trace levels are affected. |
-| `set` | `BOOL` | If `TRUE`, the trace level is set; if `FALSE`, the trace level is reset. |
+| `set` | `BOOL` | If `TRUE`, the trace level is set. If `FALSE`, the trace level is reset. |
 
 **Returns**
 
@@ -584,7 +584,7 @@ Returns 0 on success, or -1 if the specified trace level is not found.
 
 **Notes**
 
-If `level` is empty, all global trace levels are affected. The function ensures that the trace level exists before modifying it.
+If `level` is empty, all global trace levels are affected. The function makes sure that the trace level exists before modifying it.
 
 ---
 
@@ -605,9 +605,9 @@ int gobj_set_gobj_no_trace(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `gobj` whose no-trace level is being modified. |
+| `gobj` | `hgobj` | The `gobj` whose no-trace level is modified. |
 | `level` | `const char *` | The trace level to be set or reset. If empty, all trace levels are affected. |
-| `set` | `BOOL` | If `TRUE`, the specified trace level is added to the no-trace list; if `FALSE`, it is removed. |
+| `set` | `BOOL` | If `TRUE`, the specified trace level is added to the no-trace list. If `FALSE`, it is removed. |
 
 **Returns**
 
@@ -637,9 +637,9 @@ int gobj_set_gobj_trace(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The `hgobj` whose trace level is being modified. If `NULL`, modifies the global trace level. |
+| `gobj` | `hgobj` | The `hgobj` whose trace level is modified. If `NULL`, modifies the global trace level. |
 | `level` | `const char *` | The trace level to set or reset. If `NULL`, all levels are affected. If an empty string, only user-defined levels are affected. |
-| `set` | `BOOL` | If `TRUE`, enables the specified trace level; if `FALSE`, disables it. |
+| `set` | `BOOL` | If `TRUE`, enables the specified trace level. If `FALSE`, disables it. |
 | `kw` | `json_t *` | Additional parameters (owned). |
 
 **Returns**
@@ -1009,7 +1009,7 @@ This function does not return a value.
 
 **Notes**
 
-Unlike [`trace_machine()`](#trace_machine), this variant does not prepend a timestamp to the output. It is useful for continuation lines or structured output where timestamps would add noise.
+Unlike [`trace_machine()`](#trace_machine), this variant does not prepend a timestamp to the output. It is useful for continuation lines or structured output where timestamps will add noise.
 
 ---
 

@@ -24,7 +24,7 @@ BOOL all_numbers(const char *s);
 
 **Returns**
 
-Returns `TRUE` if the string contains only numeric characters and is not empty; otherwise, returns `FALSE`.
+Returns `TRUE` if the string contains only numeric characters and is not empty. Otherwise, returns `FALSE`.
 
 **Notes**
 
@@ -68,7 +68,7 @@ The output buffer `bf` must be large enough to store the hexadecimal representat
 (build_path)=
 ## [`build_path()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L673)
 
-`build_path()` constructs a file path by concatenating multiple path segments, ensuring proper directory separators and removing redundant slashes.
+`build_path()` constructs a file path by concatenating multiple path segments. This makes sure of proper directory separators and removing redundant slashes.
 
 ```C
 char *build_path(
@@ -123,7 +123,7 @@ Returns the number of characters replaced in the string.
 
 **Notes**
 
-The function modifies the input string in place. Ensure that `s` is a valid, mutable string.
+The function modifies the input string in place. Make sure that `s` is a valid, mutable string.
 
 ---
 
@@ -339,7 +339,7 @@ Returns a pointer to the extracted parameter, or `NULL` if no parameter is found
 
 **Notes**
 
-If the parameter is enclosed in quotes (`'` or `"`), the function ensures that the returned string does not include them.
+If the parameter is enclosed in quotes (`'` or `"`), the function makes sure that the returned string does not include them.
 
 ---
 
@@ -364,7 +364,7 @@ Returns the modified string with all double quotes replaced by single quotes.
 
 **Notes**
 
-This function modifies the input string in place. Ensure that the input string is mutable and properly allocated.
+This function modifies the input string in place. Make sure that the input string is mutable and properly allocated.
 
 ---
 
@@ -424,7 +424,7 @@ Returns a pointer to the output buffer `bf` containing the binary data.
 
 **Notes**
 
-['The function processes the input hexadecimal string two characters at a time, converting them into a single byte.', 'If a non-hexadecimal character is encountered, the conversion stops.', 'The function does not allocate memory; the caller must ensure `bf` has enough space.', 'The `out_len` parameter is optional; if provided, it will contain the number of bytes written to `bf`.']
+['The function processes the input hexadecimal string two characters at a time, converting them into a single byte.', 'If a non-hexadecimal character is encountered, the conversion stops.', 'The function does not allocate memory. The caller must make sure that `bf` has enough space.', 'The `out_len` parameter is optional. If provided, it will contain the number of bytes written to `bf`.']
 
 ---
 
@@ -447,7 +447,7 @@ int idx_in_list(
 |---|---|---|
 | `list` | `const char **` | A null-terminated array of string pointers to search within. |
 | `str` | `const char *` | The string to search for in the list. |
-| `ignore_case` | `BOOL` | If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive. |
+| `ignore_case` | `BOOL` | If `TRUE`, the comparison is case-insensitive. Otherwise, it is case-sensitive. |
 
 **Returns**
 
@@ -462,7 +462,7 @@ The function iterates through the list and compares each element with `str` usin
 (left_justify)=
 ## [`left_justify()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L920)
 
-The `left_justify()` function removes leading and trailing whitespace characters from the given string `s`, ensuring that the string is left-aligned with no extra spaces at the beginning or end.
+The `left_justify()` function removes leading and trailing whitespace characters from the given string `s`. This makes sure that the string is left-aligned with no extra spaces at the beginning or end.
 
 ```C
 void left_justify(char *s);
@@ -487,7 +487,7 @@ If `s` is NULL, the function does nothing. The function modifies the input strin
 (nice_size)=
 ## [`nice_size()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L840)
 
-`nice_size()` formats a byte count into a human-readable string with appropriate units (B, KB, MB, etc.), using either base-1000 or base-1024 scaling.
+`nice_size()` formats a byte count into a human-readable string with appropriate units (B, KB, MB and more.), using either base-1000 or base-1024 scaling.
 
 ```C
 void nice_size(
@@ -503,7 +503,7 @@ void nice_size(
 | `bf` | `char *` | Buffer to store the formatted size string. |
 | `bfsize` | `size_t` | Size of the buffer `bf`. |
 | `bytes` | `uint64_t` | The number of bytes to format. |
-| `b1024` | `BOOL` | If `TRUE`, uses base-1024 (binary units); otherwise, uses base-1000 (decimal units). |
+| `b1024` | `BOOL` | If `TRUE`, uses base-1024 (binary units). Otherwise, uses base-1000 (decimal units). |
 
 **Returns**
 
@@ -511,7 +511,7 @@ None.
 
 **Notes**
 
-The function ensures that the formatted string fits within `bfsize` and selects the most appropriate unit for readability.
+The function makes sure that the formatted string fits within `bfsize` and selects the most appropriate unit for readability.
 
 ---
 
@@ -623,14 +623,14 @@ None.
 
 **Notes**
 
-This function should be used to deallocate memory allocated by [`split2()`](#split2) to prevent memory leaks.
+This function must be used to deallocate memory allocated by [`split2()`](#split2) to prevent memory leaks.
 
 ---
 
 (split_free3)=
 ## [`split_free3()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L1325)
 
-Frees the memory allocated for a list of strings created by `split3()`, ensuring proper deallocation of each string and the list itself.
+Frees the memory allocated for a list of strings created by `split3()`. This makes sure of proper deallocation of each string and the list itself.
 
 ```C
 void split_free3(const char **list);
@@ -648,7 +648,7 @@ None.
 
 **Notes**
 
-This function should be used to free memory allocated by [`split3()`](#split3). It iterates through the list, freeing each string before deallocating the list itself.
+This function must be used to free memory allocated by [`split3()`](#split3). It iterates through the list, freeing each string before deallocating the list itself.
 
 ---
 
@@ -733,7 +733,7 @@ None.
 
 **Notes**
 
-This function should only be used to free memory allocated by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
+This function must only be used to free memory allocated by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
 
 ---
 
@@ -756,7 +756,7 @@ BOOL str_in_list(
 |---|---|---|
 | `list` | `const char **` | A null-terminated array of string pointers representing the list to search. |
 | `str` | `const char *` | The string to search for within the list. |
-| `ignore_case` | `BOOL` | If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive. |
+| `ignore_case` | `BOOL` | If `TRUE`, the comparison is case-insensitive. Otherwise, it is case-sensitive. |
 
 **Returns**
 
@@ -857,7 +857,7 @@ Returns a pointer to the `to` buffer containing the translated string.
 
 **Notes**
 
-['The `mk_from` and `mk_to` strings define a mapping where each character in `mk_from` is replaced by the corresponding character in `mk_to`.', 'If `tolen` is too small, the function may not fully translate the input.', 'The function does not allocate memory; the caller must ensure `to` has sufficient space.']
+['The `mk_from` and `mk_to` strings define a mapping where each character in `mk_from` is replaced by the corresponding character in `mk_to`.', 'If `tolen` is too small, the function cannot fully translate the input.', 'The function does not allocate memory. The caller must make sure that `to` has sufficient space.']
 
 ---
 
@@ -938,7 +938,7 @@ A pointer to the last component (filename) within the `path` string. If no direc
 
 **Notes**
 
-The returned pointer points into the original `path` string; no new memory is allocated. The input string is not modified.
+The returned pointer points into the original `path` string. No new memory is allocated. The input string is not modified.
 
 ---
 

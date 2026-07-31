@@ -15,7 +15,7 @@ and database-like records in a highly structured and reusable way.
 SData fields are descriptors that define individual fields or attributes. These fields include information about their type, name, default value, description, flags, and other properties.
 
 ### SData Tables
-SData tables are arrays of field descriptors (`sdata_desc_t`) that define structured data. These tables allow hierarchical definitions, enabling the creation of complex schemas.
+SData tables are arrays of field descriptors (`sdata_desc_t`) that define structured data. These tables allow hierarchical definitions. This enables the creation of complex schemas.
 
 ---
 
@@ -57,7 +57,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 | `SDF_NOTACCESS` | Field is not accessible. |
 | `SDF_RD`        | Field is read-only. |
 | `SDF_WR`        | Field is writable (and readable). |
-| `SDF_REQUIRED`  | Field is required; it must not be null. |
+| `SDF_REQUIRED`  | Field is required. It must not be null. |
 | `SDF_PERSIST`   | Field is persistent and must be saved/loaded. |
 | `SDF_VOLATIL`   | Field is volatile and must not be saved/loaded. |
 | `SDF_RESOURCE`  | Field is a resource, referencing another schema. |
@@ -86,7 +86,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 (SDF_REQUIRED)=
 ### SDF_REQUIRED
-    Field is required; it must not be null.
+ Field is required. It must not be null.
 
 (SDF_PERSIST)=
 ### SDF_PERSIST
@@ -154,7 +154,7 @@ The `sdata_desc_t` structure defines a field or schema. Each descriptor specifie
 
 | Field | Type | Description |
 |---|---|---|
-| `type`          | `data_type_t`          | The type of the field (e.g., string, boolean). |
+| `type`          | `data_type_t`          | The type of the field (for example string, boolean). |
 | `name`          | `const char *`         | The name of the field. |
 | `alias`         | `const char **`        | Alternative names (aliases) for the field. |
 | `flag`          | `sdata_flag_t`         | Flags defining the field's properties. |
@@ -172,10 +172,10 @@ The `sdata_desc_t` structure defines a field or schema. Each descriptor specifie
 ## Application
 
 ### Attributes
-SData tables define attributes by listing fields with their types, default values, and flags. These fields form the basis of object definitions, enabling schema-based validation and management.
+SData tables define attributes by listing fields with their types, default values, and flags. These fields form the basis of object definitions. This enables schema-based validation and management.
 
 ### Commands
-SData tables can define commands with associated parameters, schemas, and descriptions. Commands extend the functionality of objects, providing structured inputs and outputs.
+SData tables can define commands with associated parameters, schemas, and descriptions. Commands extend the function of objects, providing structured inputs and outputs.
 
 ### Nested Schemas
-Fields in SData can reference other schemas, enabling hierarchical definitions. This allows for the creation of complex, nested structures while maintaining clarity and reusability.
+Fields in SData can reference other schemas. This enables hierarchical definitions. This allows for the creation of complex, nested structures while maintaining clarity and reusability.

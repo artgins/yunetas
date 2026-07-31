@@ -53,7 +53,7 @@ A pointer to a null-terminated array of strings representing sdata flag names.
 
 **Notes**
 
-The returned array contains predefined flag names used in structured data attributes. The caller should not modify or free the returned pointer.
+The returned array contains predefined flag names used in structured data attributes. The caller must not modify or free the returned pointer.
 
 ---
 
@@ -138,7 +138,7 @@ A pointer to a statically allocated string containing the full hierarchical name
 
 **Notes**
 
-The returned string is managed internally and should not be modified or freed by the caller.
+The returned string is managed internally and must not be modified or freed by the caller.
 
 ---
 
@@ -163,7 +163,7 @@ Returns the `hgclass` associated with the given `hgobj`, or NULL if the input is
 
 **Notes**
 
-This function does not perform extensive validation on the input `hgobj`. Ensure that the object is properly initialized before calling this function.
+This function does not perform extensive validation on the input `hgobj`. Make sure that the object is properly initialized before calling this function.
 
 ---
 
@@ -233,7 +233,7 @@ A JSON object containing the following global variables:
 | `__bind_ip__`             | Bind IP address of the Yuno (set when yuno is running). |
 | `__multiple__`            | Whether the Yuno allows multiple instances (boolean, set when yuno is running). |
 
-Plus any extra variables that have been published by upper layers via [`gobj_add_global_variable()`](#gobj_add_global_variable). For example, `root-linux`'s `yunetas_register_c_core()` publishes:
+Plus any extra variables that were published by upper layers via [`gobj_add_global_variable()`](#gobj_add_global_variable). For example, `root-linux`'s `yunetas_register_c_core()` publishes:
 
 | **Variable**              | **Description**                          |
 |---------------------------|------------------------------------------|
@@ -249,7 +249,7 @@ The returned JSON object must be decremented with `json_decref()` to avoid memor
 (gobj_add_global_variable)=
 ## [`gobj_add_global_variable()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L6212)
 
-Publishes an extra entry into the global-variables pool returned by [`gobj_global_variables()`](#gobj_global_variables). It lets upper layers contribute variables that gobj-c itself does not (and should not) know about — for example TLS backend names, which are injected from the `ytls` layer by `yunetas_register_c_core()`.
+Publishes an extra entry into the global-variables pool returned by [`gobj_global_variables()`](#gobj_global_variables). It lets upper layers contribute variables that gobj-c itself does not (and must not) know about — for example TLS backend names, which are injected from the `ytls` layer by `yunetas_register_c_core()`.
 
 ```C
 int gobj_add_global_variable(const char *name, json_t *value); // value owned
@@ -259,16 +259,16 @@ int gobj_add_global_variable(const char *name, json_t *value); // value owned
 
 | Key | Type | Description |
 |---|---|---|
-| `name`  | `const char *` | Variable name (e.g. `"__tls_library__"`). Must be non-empty. |
+| `name`  | `const char *` | Variable name (for example `"__tls_library__"`). Must be non-empty. |
 | `value` | `json_t *`     | The value to publish. **Ownership is transferred** — the function takes the reference. |
 
 **Returns**
 
-`0` on success; `-1` if `name` is empty or `value` is `NULL` (in which case the value's reference is released anyway).
+`0` on success. `-1` if `name` is empty or `value` is `NULL` (in which case the value's reference is released anyway).
 
 **Notes**
 
-- Call this once at startup, **before** any service is created (i.e. before `yuneta_entry_point()` reaches the run phase). The variables are merged into every subsequent call to `gobj_global_variables()` and feed kw-config substitution via `(^^var^^)`.
+- Call this once at startup, **before** any service is created (that is, before `yuneta_entry_point()` reaches the run phase). The variables are merged into every subsequent call to `gobj_global_variables()` and feed kw-config substitution via `(^^var^^)`.
 - The pool is owned by gobj-c and freed automatically at shutdown.
 
 ---
@@ -290,7 +290,7 @@ BOOL gobj_is_destroying(hgobj gobj);
 
 **Returns**
 
-Returns `TRUE` if the `hgobj` is being destroyed or has already been destroyed, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` is destroyed or has already been destroyed, otherwise returns `FALSE`.
 
 **Notes**
 
@@ -344,14 +344,14 @@ Returns `TRUE` if the `hgobj` is playing, otherwise returns `FALSE`.
 
 **Notes**
 
-If the `hgobj` is `NULL` or has been destroyed, an error is logged and `FALSE` is returned.
+If the `hgobj` is `NULL` or was destroyed, an error is logged and `FALSE` is returned.
 
 ---
 
 (gobj_is_pure_child)=
 ## [`gobj_is_pure_child()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L6365)
 
-Checks if the given `hgobj` is marked as a pure child, meaning it sends events directly to its parent instead of publishing them.
+Checks if the given `hgobj` is marked as a pure child. This means it sends events directly to its parent instead of publishing them.
 
 ```C
 BOOL gobj_is_pure_child(hgobj gobj);
@@ -394,7 +394,7 @@ Returns `TRUE` if the `hgobj` is running, otherwise returns `FALSE`.
 
 **Notes**
 
-If the provided `hgobj` is `NULL` or has been destroyed, an error is logged and `FALSE` is returned.
+If the provided `hgobj` is `NULL` or was destroyed, an error is logged and `FALSE` is returned.
 
 ---
 
@@ -426,7 +426,7 @@ A service object is identified by the `gobj_flag_service` flag.
 (gobj_is_volatil)=
 ## [`gobj_is_volatil()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L6323)
 
-Checks if the given `hgobj` is marked as volatile, meaning it is temporary and can be automatically destroyed.
+Checks if the given `hgobj` is marked as volatile. This means it is temporary and can be automatically destroyed.
 
 ```C
 BOOL gobj_is_volatil(hgobj gobj);
@@ -469,7 +469,7 @@ A pointer to a string containing the name of the `hgobj` instance. If `gobj` is 
 
 **Notes**
 
-The returned string is managed internally and should not be modified or freed by the caller.
+The returned string is managed internally and must not be modified or freed by the caller.
 
 ---
 
@@ -519,7 +519,7 @@ A pointer to the private data associated with the given `hgobj`.
 
 **Notes**
 
-The returned pointer provides direct access to the private data structure of the `hgobj`. Ensure that the `hgobj` is valid before accessing its private data.
+The returned pointer provides direct access to the private data structure of the `hgobj`. Make sure that the `hgobj` is valid before accessing its private data.
 
 ---
 
@@ -540,7 +540,7 @@ int gobj_set_manual_start(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` whose manual-start flag is to be modified. |
-| `set`  | `BOOL`  | If `TRUE`, the `gobj_flag_manual_start` flag is set; if `FALSE`, it is cleared. |
+| `set`  | `BOOL`  | If `TRUE`, the `gobj_flag_manual_start` flag is set. If `FALSE`, it is cleared. |
 
 **Returns**
 
@@ -558,7 +558,7 @@ with {ref}`gobj_start`.
 
 Typical use: a parent needs to control the lifecycle of one particular
 child (delayed start, conditional start, reconnect throttling via
-`timeout_between_connections`, etc.) without having to mark the whole
+`timeout_between_connections` and more.) without having to mark the whole
 gclass as manual-start.
 
 ```C
@@ -574,7 +574,7 @@ gobj_start(slow_peer);
 Clear the flag (`set = FALSE`) to restore normal behavior and let the
 next {ref}`gobj_start_tree` on an ancestor start the child again.
 
-The flag is read at start-walk time; setting it on an already-running
+The flag is read at start-walk time. Setting it on an already-running
 `hgobj` has no effect until the next stop/start cycle.
 
 Symmetry: there is currently no `stop`-walk counterpart — the flag
@@ -599,7 +599,7 @@ int gobj_set_volatil(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance whose volatility flag is to be modified. |
-| `set` | `BOOL` | If `TRUE`, the `gobj_flag_volatil` flag is set; if `FALSE`, the flag is cleared. |
+| `set` | `BOOL` | If `TRUE`, the `gobj_flag_volatil` flag is set. If `FALSE`, the flag is cleared. |
 
 **Returns**
 
@@ -607,7 +607,7 @@ Returns `0` on success.
 
 **Notes**
 
-A volatile `hgobj` is typically used for temporary objects that should not persist beyond a certain scope.
+A volatile `hgobj` is typically used for temporary objects that must not persist beyond a certain scope.
 
 ---
 
@@ -721,7 +721,7 @@ A JSON object representing the hierarchical structure of `gobj` and its children
 
 **Notes**
 
-The returned JSON object must be freed by the caller. The `jn_filter` parameter allows selective inclusion of attributes such as `fullname`, `state`, `attrs`, etc.
+The returned JSON object must be freed by the caller. The `jn_filter` parameter allows selective inclusion of attributes such as `fullname`, `state`, `attrs` and more.
 
 ---
 
@@ -742,7 +742,7 @@ hgobj gobj_yuno(void);
 
 **Returns**
 
-A handle to the Yuno `gobj` instance, or `NULL` if the Yuno has not been initialized or has been destroyed.
+A handle to the Yuno `gobj` instance, or `NULL` if the Yuno has not been initialized or was destroyed.
 
 **Notes**
 
@@ -1021,7 +1021,7 @@ A pointer to a string containing the `yuno` tag. If the `yuno` instance is not a
 
 **Notes**
 
-The returned string is managed internally and should not be modified or freed by the caller.
+The returned string is managed internally and must not be modified or freed by the caller.
 
 ---
 
@@ -1127,9 +1127,9 @@ json_t *gobj_kw_get_user_data(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The GObj instance whose user data will be queried. |
-| `path` | `const char *` | A dot-separated path to the desired value within the user data dictionary (e.g., `"key"` or `"nested.key"`). |
+| `path` | `const char *` | A dot-separated path to the desired value within the user data dictionary (for example `"key"` or `"nested.key"`). |
 | `default_value` | `json_t *` | The value to return if the path is not found. |
-| `flag` | `kw_flag_t` | Flags controlling retrieval behavior. Use `KW_EXTRACT` to remove the value from user data and take ownership; otherwise the returned reference is NOT owned by the caller. |
+| `flag` | `kw_flag_t` | Flags controlling retrieval behavior. Use `KW_EXTRACT` to remove the value from user data and take ownership. Otherwise the returned reference is NOT owned by the caller. |
 
 **Returns**
 

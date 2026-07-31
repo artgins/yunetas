@@ -61,7 +61,7 @@ Attributes marked with `SDF_PSTATS` serve dual purposes:
 
 | **Parameter** | **Description**                                                                 |
 |---------------|---------------------------------------------------------------------------------|
-| `gobj`       | The GObj instance for which statistics are being requested.                     |
+| `gobj`       | The GObj instance for which statistics are requested.                     |
 | `stats`      | The name of the statistic to retrieve, or `__reset__` to reset all resettable statistics. |
 | `kw`         | Additional parameters for the statistics request.                                |
 | `src`        | The source GObj sending the statistics request.                                  |
@@ -146,7 +146,7 @@ two conventions the default parser handles for free:
 
 - **`"__reset__"` semantics.** Zero the resettable counters yourself.
   Gauges (live state — current queue depth, current connection count,
-  …) should be left alone or anchored to "now"; pure counters
+ …) must be left alone or anchored to "now". Pure counters
   (lifetime totals, error counts, …) reset to `0`.
 - **Prefix filter.** When `stats` is non-empty, return only the
   entries whose name appears in the filter string. Mirror the
@@ -155,7 +155,7 @@ two conventions the default parser handles for free:
 
 Return the result via [`build_stats_response`](#build_stats_response)
 (`{result, comment, schema, data}`) so the envelope is identical to
-what the default parser would return.
+what the default parser will return.
 
 #### Example — [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)
 
@@ -245,7 +245,7 @@ The full source is in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.co
 In both cases the public interface seen by callers is the same:
 `gobj_stats(gobj, prefix, kw, src)` returns the same envelope.
 Switching from path A to path B is a private optimisation that
-doesn't break consumers.
+does not break consumers.
 
 ---
 

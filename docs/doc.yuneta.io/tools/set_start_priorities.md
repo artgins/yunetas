@@ -22,7 +22,7 @@ agent.
 
 ## Tiers
 
-Rules are matched in order; the **first match wins**, and explicit `--rule`
+Rules are matched in order. The **first match wins**, and explicit `--rule`
 entries are matched **before** the built-ins. Lower priority starts earlier.
 
 | Tier | Roles (built-in) |
@@ -42,7 +42,7 @@ set_start_priorities.py --rule 'agregador_wz=8' --rule 'scheduler_wz=8'
 
 ## How it writes
 
-The agent's `update-node` reads its record from `content64` (base64 JSON); the
+The agent's `update-node` reads its record from `content64` (base64 JSON). The
 inline `record={...}` form is **not** coerced by the ycommand CLI. The tool
 therefore base64-encodes a strict-JSON `{ "id": ..., "start_priority": ... }`
 per changed yuno and sends:
@@ -51,7 +51,7 @@ per changed yuno and sends:
 command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos content64=<base64>
 ```
 
-Only yunos whose `start_priority` actually changes are written. New yunos born
+Only yunos whose `start_priority` changes are written. New yunos born
 with the `util` tag already default to tier `1` at `create-yuno`, so they
 usually need no action here.
 

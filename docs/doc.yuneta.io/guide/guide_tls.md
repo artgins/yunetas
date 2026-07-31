@@ -2,7 +2,7 @@
 # **TLS**
 
 ## **ytls.h**
-The **ytls.h** header file defines the interface for the [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) (Transport Layer Security) functionality in the Yuneta framework. It provides function declarations and structures for handling secure communication using TLS. Key features include:
+The **ytls.h** header file defines the interface for the [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) (Transport Layer Security) function in the Yuneta framework. It provides function declarations and structures for handling secure communication using TLS. Key features include:
 
 - **Initialization & Cleanup:** Functions to initialize and clean up TLS resources.
 - **TLS Context Management:** Creation and management of TLS contexts for secure communication.
@@ -22,7 +22,7 @@ Both backends can be enabled simultaneously. When both are present, OpenSSL is p
 [`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/ytls/src/ytls.h) is the **single source of truth** for the backend names:
 
 - `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
-- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
+- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (for example `"openssl+mbedtls"`).
 
 At runtime, two matching **yuno global variables** are available — `root-linux`'s [`yunetas_register_c_core()`](#yunetas_register_c_core) publishes them into gobj's global-variable pool via [`gobj_add_global_variable()`](../api/gobj/info.md#gobj_add_global_variable), so `gobj-c` itself stays free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDTLS` checks:
 
@@ -39,7 +39,7 @@ At runtime, two matching **yuno global variables** are available — `root-linux
 
 ### Backend implementations
 
-Both backends implement the same functionality:
+Both backends implement the same function:
 
 - **TLS Context Setup:** Creating, configuring, and destroying TLS contexts.
 - **Certificate Loading:** Loading certificates, verifying them, and handling private keys.
@@ -48,7 +48,7 @@ Both backends implement the same functionality:
 - **Secure Communication:** Encrypting and decrypting data sent over a TLS connection.
 - **Password Hashing:** Both backends use PBKDF2-HMAC (RFC 2898) and produce bit-for-bit identical output, so user/password databases are fully portable between backends.
 
-This module ensures that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
+This module makes sure that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
 
 ## Hot-reloading certificates
 
@@ -93,12 +93,12 @@ easiest thing to break when touching the reload path.
 - **mbed-TLS backend.** `ytls` maintains an explicit `mbedtls_state_t`
   bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` + `mbedtls_pk_context`)
   with a refcount. Each `hsskt` takes a ref on creation and releases it on
-  [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops the handle's ref; live
+ [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops the handle's ref. Live
   sessions keep the old bundle alive on their own.
 
 ### Callers
 
-Yuneta ships three layers of defence that all drive
+Yuneta ships three layers of defense that all drive
 `ytls_reload_certificates()` through the same path — see the
 [TLS certificate management guide](guide_cert_management.md) for the full
 picture:
@@ -109,8 +109,8 @@ picture:
    `cert_sync_interval_sec` seconds (default 15 min) and broadcasts
    `reload-certs` when `size+mtime` changes.
 3. **Layer 3 — `c_yuno` expiry monitor.** Periodic `view-cert` walk with
-   warning / critical thresholds (`cert_warn_days`, `cert_critical_days`);
-   alerts only — never reloads.
+   warning / critical thresholds (`cert_warn_days`, `cert_critical_days`).
+   It only alerts, and it never reloads.
 
 Each [`C_TCP_S`](#gclass-c-tcp-s) / [`C_UDP_S`](#gclass-c-udp-s) listener also exposes `reload-certs` and
 `view-cert` directly, so a single listener can be targeted from
@@ -119,9 +119,9 @@ Each [`C_TCP_S`](#gclass-c-tcp-s) / [`C_UDP_S`](#gclass-c-udp-s) listener also e
 ## TLS security posture (hardening)
 
 `ytls` is **secure-by-default**: a gate that sets no TLS knobs gets the hardened
-behaviour, and every deliberate relaxation is an explicit, **logged** downgrade —
+behavior, and every deliberate relaxation is an explicit, **logged** downgrade —
 the yuneta *"no silent errors"* axiom applied to crypto. The knobs below live in
-the gate's `crypto` config; the same key means the same thing on both backends.
+the gate's `crypto` config. The same key means the same thing on both backends.
 
 ### Protocol floor — `ssl_min_version`
 
@@ -129,11 +129,11 @@ Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
 
 - **OpenSSL** accepts `SSLv3` / `TLS1.0` / `TLS1.1` / `TLS1.2` / `TLS1.3`. A floor
   **below TLS 1.2** is the IoT/legacy escape hatch: it must be paired with
-  `ssl_ciphers "@SECLEVEL=0"` for OpenSSL to actually negotiate the old suite, and
+ `ssl_ciphers "@SECLEVEL=0"` for OpenSSL to negotiate the old suite, and
   it logs a warning at context build (*"legacy floor below TLS1.2 / IoT-compat
   downgrade"*) so downgraded gates stay enumerable in the logs.
 - **mbed-TLS** accepts only `TLS1.2` / `TLS1.3` — it can raise the floor, never
-  lower it; legacy peers must use the OpenSSL backend.
+ lower it. Legacy peers must use the OpenSSL backend.
 - A peer offering a version below the floor is rejected, and the rejected
   handshake is logged **by default** (not only under `trace_tls`) in
   [`ytls_do_handshake()`](#ytls_do_handshake).
@@ -141,7 +141,7 @@ Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
 ### Renegotiation — `ssl_disable_renegotiation`
 
 Defaults to **`true`** (renegotiation disabled), closing the renegotiation-based
-DoS/abuse surface; TLS 1.3 has no renegotiation at all. Set it to `false` only on
+DoS/abuse surface. TLS 1.3 has no renegotiation at all. Set it to `false` only on
 a gate that genuinely needs it — that re-enable is logged as an auditable
 downgrade. OpenSSL backend only.
 
@@ -152,16 +152,16 @@ configured:
 
 | Situation | Computed default |
 |---|---|
-| **server**, no CA configured | `none` — preserves historical IoT / PSK / self-signed behaviour (anonymous clients accepted) |
+| **server**, no CA configured | `none` — preserves historical IoT / PSK / self-signed behavior (anonymous clients accepted) |
 | **client**, no CA configured | **refused** — see verify-by-default below |
 | **server** with a CA | `optional` — request + verify the client cert if presented |
 | **client** with a CA | `required` — validate the server cert + hostname |
 
 `ssl_verify_mode` (`required` / `optional` / `none`) overrides the computed
-default; `ssl_use_system_ca` adds the OS trust store; `ssl_verify_depth` bounds
+default. `ssl_use_system_ca` adds the OS trust store. `ssl_verify_depth` bounds
 the chain. A verify failure is **never silent**: under `optional` a non-verifying
 peer is accepted but logged post-handshake (OpenSSL `SSL_get_verify_result()`,
-mbed-TLS `mbedtls_ssl_get_verify_result()`); under `required` the verify callback
+mbed-TLS `mbedtls_ssl_get_verify_result()`). Under `required` the verify callback
 logs the chain error and aborts the handshake. The mbed-TLS verify *default* is
 deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
 `ssl_verify_mode=required`.
@@ -175,7 +175,7 @@ backends: `ytls_init()` fails and the connection is not made (fail-soft — the
 yuno stays up). This is a **breaking change** for clients that previously ran
 unverified. To keep running such a client (self-signed / PSK / IoT bring-up) set
 `ssl_allow_insecure_client: true` in its `crypto` block to accept the MITM risk
-explicitly; the choice is then logged, never silent (the mbed-TLS backend runs
+explicitly. The choice is then logged, never silent (the mbed-TLS backend runs
 the opted-in client under `optional` so the tolerated verify failure is still
 surfaced — OpenSSL parity). **Servers** with no CA legitimately accept anonymous
 clients and are unaffected.
@@ -196,7 +196,7 @@ clients and are unaffected.
 Regression coverage:
 [`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/ytls/test_tls_floor_openssl.c)
 asserts that an explicit sub-TLS1.2 floor is logged and that a real TLS1.0
-ClientHello is rejected by the default floor;
+ClientHello is rejected by the default floor.
 [`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/ytls/test_tls_verify_openssl.c)
 drives a real client/server handshake and asserts that a trusted cert with a
 matching host connects, while a hostname mismatch or an unknown CA is rejected.
@@ -212,7 +212,7 @@ gate.
 #### Profile A — high-security gate
 
 For SPA / BFF front ends, host-to-host links and the control plane — gates that
-talk to modern peers. Turn verification on; the floor, reneg-off and the
+talk to modern peers. Turn verification on. The floor, reneg-off and the
 computed `required`/`optional` mode are already the defaults, so the CA is the
 only thing you add.
 
@@ -234,8 +234,8 @@ A **client** that dials out (validates the server it connects to):
 
 The bundled CLI tools (`ycommand`, `ystats`, `ybatch`, `ytests`, `ycli`,
 `mqtt_tui`, `emu_device`) already pass `"ssl_use_system_ca": true` on their
-outbound TLS, so a `wss://` / `https://` endpoint with a public CA (e.g. Let's
-Encrypt) works out of the box — including `ycommand`'s OIDC `task-authenticate`
+outbound TLS, so a `wss://` / `https://` endpoint with a public CA
+(for example Let's Encrypt) works by default — including `ycommand`'s OIDC `task-authenticate`
 to the issuer. `ycommand` exposes `--ssl-use-system-ca` (default on),
 `--ssl-trusted-certificate` (private CA) and `--ssl-allow-insecure-client`
 (bypass) to override per call. Note that verification checks the **hostname**:
@@ -255,7 +255,7 @@ A **server** doing mutual-TLS (validates the client certificate):
 ```
 
 A CA-configured server defaults to `optional` (request + verify the client cert
-if presented, tolerate absent); set `required` to reject clients without a valid
+if presented, tolerate absent). Set `required` to reject clients without a valid
 certificate.
 
 #### Profile B — IoT / legacy-compat gate
@@ -274,14 +274,14 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
 
 - Legacy floors are **OpenSSL only** — mbed-TLS cannot negotiate below TLS 1.2,
   so legacy gates must use the OpenSSL backend.
-- `@SECLEVEL=0` is required for OpenSSL to actually offer the old cipher suites;
+- `@SECLEVEL=0` is required for OpenSSL to offer the old cipher suites.
   `ssl_min_version` alone is not enough.
-- Keep this profile on the narrowest possible set of gates; everything else
+- Keep this profile on the narrowest possible set of gates. Everything else
   stays on Profile A / the defaults.
 
 #### Rollout procedure
 
-1. **Upgrade.** Nothing breaks; the reduced-security gates simply start
+1. **Upgrade.** Nothing breaks. The reduced-security gates start
    announcing themselves in the log.
 2. **Enumerate from the logs.** Every gap is designed to be greppable:
 
@@ -297,7 +297,7 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    confirm the warning is gone and traffic still flows.
 4. **Pin the legacy gates** that showed `TLS handshake rejected` to Profile B.
 5. **Validate in staging, then production.** Roll the config to a staging
-   environment first and watch the same logs; only then promote to production.
+ environment first and watch the same logs. Only then promote to production.
 
 Goal state: no `WITHOUT server-certificate validation` lines outside known IoT
 gates, and every `legacy floor` / `renegotiation enabled` line traceable to a
@@ -308,9 +308,9 @@ The **ytls** module is built with the core philosophy of Yuneta in mind:
 
 - **Security as a Priority:** Ensuring that all data transmitted over the network is encrypted and protected from eavesdropping or tampering.
 - **Backend Agnosticism:** Abstracting the TLS backend behind a dispatch table so the rest of the codebase never depends on a specific crypto library. Switching between OpenSSL and mbed-TLS requires only a Kconfig change and rebuild.
-- **Minimalism & Efficiency:** Providing a streamlined, efficient implementation that integrates seamlessly with the Yuneta framework. Choose mbed-TLS for smaller binaries on embedded/edge deployments.
+- **Minimalism and Efficiency:** A small, efficient implementation that integrates with the Yuneta framework. Choose mbed-TLS for smaller binaries on embedded/edge deployments.
 - **Reliability & Stability:** Both OpenSSL and mbed-TLS are well-tested, industry-standard cryptographic libraries.
 - **Flexibility:** Allowing customization of TLS parameters, certificates, and cipher suites to meet diverse application needs.
 - **Ease of Use:** Abstracting complex TLS operations while giving developers a simple and consistent API for secure communication.
 
-By following these principles, **ytls** ensures that Yuneta-based applications maintain strong security without unnecessary complexity.
+By following these principles, **ytls** makes sure that Yuneta-based applications maintain strong security without unnecessary complexity.

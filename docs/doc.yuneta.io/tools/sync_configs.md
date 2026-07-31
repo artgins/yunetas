@@ -20,7 +20,7 @@ binaries are:
 
 A config in the agent is keyed by `(id, version)`:
 
-- **`id`** is supplied as a command parameter; by convention it equals the config
+- **`id`** is supplied as a command parameter. By convention it equals the config
   **filename without the `.json` extension** (`auth_bff.1801.json` → id
   `auth_bff.1801`, mirroring the live agent ids `scheduler_wz.5004`,
   `gate_auraair.4502`, …).
@@ -53,12 +53,12 @@ up in the agent, and classifies it.
 | `agent-only` | agent has a config absent in the directory | skipped (informational)      |
 
 A `DOWNGRADE` is never offered for install: seeding a stale version with
-`create-config` would break the version logic, so it is reported and left alone.
+`create-config` will break the version logic, so it is reported and left alone.
 
 There is no separate `install-config` command — it is an **alias of
 `create-config`**, added by analogy with `install-binary`. `create-config`
 refuses to overwrite an existing `(id, version)` (so it is the new-version
-install); `update-config` overwrites the content of an existing same-version
+install). `update-config` overwrites the content of an existing same-version
 record.
 
 It prints the candidate table, asks what to apply (all / one-by-one / quit),
@@ -70,11 +70,11 @@ each chosen config.
 Installing a config does **not** require stopping the yuno. This is the key
 difference from a binary: `update-binary` fails with `text-file-busy` while the
 yuno runs from that slot, so [`sync_binaries.py`](sync_binaries.md) must kill
-first; a config push has no such constraint — it always succeeds on a running
+first. A config push has no such constraint — it always succeeds on a running
 yuno, it just does not take effect until that yuno next **(re)starts**.
 
 So by default this script only pushes, then prints the affected yuno ids (from
-the agent record's `yunos` field; a config id is `<role>.<yuno_id>`, and the
+the agent record's `yunos` field. A config id is `<role>.<yuno_id>`, and the
 field lists the using yuno instance ids) as a `kill-yuno` + `run-yuno` reminder.
 Restarting to apply the change is a separate, optional step.
 
@@ -93,7 +93,7 @@ start). NEW configs have no agent record yet (typically a yuno not created here)
 so they are never auto-restarted — their ids are printed as a reminder.
 
 The affected yunos are restarted in **ascending `start_priority`** order (read
-from their `*list-yunos` record), so infrastructure comes back before its
+from their `*list-yunos` record), so the infrastructure starts before its
 dependents instead of in alphabetical id order. See
 [`set_start_priorities.py`](set_start_priorities.md).
 

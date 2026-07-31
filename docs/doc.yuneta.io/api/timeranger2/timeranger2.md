@@ -30,7 +30,7 @@ increments the per-key `g_rowid` (monotonic, never resets) and `i_rowid`
 (row position in the `.md2` index file).
 
 :::{important}
-TreeDB relies on these semantics for its `link` / `unlink` behaviour:
+TreeDB relies on these semantics for its `link` / `unlink` behavior:
 **link/unlink saves only the child node** (the one carrying the fkey
 field), never the parent. See the
 [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) for the
@@ -104,7 +104,7 @@ Returns 0 on success, or a negative value on failure.
 
 **Notes**
 
-The function ensures that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
+The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
 ---
 
@@ -133,7 +133,7 @@ json_t *tranger2_backup_topic(
 | `backup_path` | `const char *` | The directory where the backup will be stored. If empty, the topic path is used. |
 | `backup_name` | `const char *` | The name of the backup file. If empty, `topic_name.bak` is used. |
 | `overwrite_backup` | `BOOL` | If true, an existing backup is overwritten unless `tranger_backup_deleting_callback` prevents it. |
-| `tranger_backup_deleting_callback` | `tranger_backup_deleting_callback_t` | A callback function that determines whether an existing backup should be deleted before overwriting. |
+| `tranger_backup_deleting_callback` | `tranger_backup_deleting_callback_t` | A callback function that determines whether an existing backup must be deleted before overwriting. |
 
 **Returns**
 
@@ -149,8 +149,8 @@ If `overwrite_backup` is true and the backup exists, `tranger_backup_deleting_ca
 ## [`tranger2_close_all_lists()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L8899)
 
 Closes the iterators, `rt_mem` and `rt_disk` lists of a topic that belong to a
-given `creator`. An empty `creator` closes **all** of them; a non-empty `creator`
-with an empty `rt_id` closes all of that creator's; with both set it narrows to a
+given `creator`. An empty `creator` closes **all** of them. A non-empty `creator`
+with an empty `rt_id` closes all of that creator's. With both set it narrows to a
 single `rt_id`.
 
 ```C
@@ -164,7 +164,7 @@ int tranger2_close_all_lists(
 
 :::{note}
 The parameter order is `(creator, rt_id)` — matching the implementation and every
-caller. Earlier headers listed them swapped as `(rt_id, creator)`; a caller that
+caller. Earlier headers listed them swapped as `(rt_id, creator)`. A caller that
 trusted that order filtered by the wrong field.
 :::
 
@@ -173,7 +173,7 @@ trusted that order filtered by the wrong field.
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
-| `topic_name` | `const char *` | Name of the topic whose lists should be closed. |
+| `topic_name` | `const char *` | Name of the topic whose lists must be closed. |
 | `creator` | `const char *` | Creator identifier. If empty, all lists are removed. |
 | `rt_id` | `const char *` | Realtime list identifier. If empty, all lists of the `creator` are removed. |
 
@@ -215,7 +215,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-Closing an iterator ensures that any allocated memory or resources are properly released.
+Closing an iterator makes sure that any allocated memory or resources are properly released.
 
 ---
 
@@ -244,7 +244,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-This function ensures that resources associated with the list are properly released. If the list is a real-time list, it stops receiving updates.
+This function makes sure that resources associated with the list are properly released. If the list is a real-time list, it stops receiving updates.
 
 ---
 
@@ -273,7 +273,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-This function should be called when a real-time disk stream is no longer needed to free resources.
+This function must be called when a real-time disk stream is no longer needed to free resources.
 
 ---
 
@@ -302,7 +302,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-Closing a real-time memory stream using [`tranger2_close_rt_mem()`](#tranger2_close_rt_mem) ensures that resources are properly released.
+Closing a real-time memory stream using [`tranger2_close_rt_mem()`](#tranger2_close_rt_mem) makes sure that resources are properly released.
 
 ---
 
@@ -331,14 +331,14 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-Closing a topic does not delete its data; it only releases resources associated with the open topic.
+Closing a topic does not delete its data. It only releases resources associated with the open topic.
 
 ---
 
 (tranger2_create_topic)=
 ## [`tranger2_create_topic()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L630)
 
-The `tranger2_create_topic()` function creates a new topic in the TimeRanger database if it does not already exist. If the topic exists, it returns the existing topic metadata. The function ensures that the topic is properly initialized with the specified primary key, time key, system flags, and additional metadata.
+The `tranger2_create_topic()` function creates a new topic in the TimeRanger database if it does not already exist. If the topic exists, it returns the existing topic metadata. The function makes sure that the topic is properly initialized with the specified primary key, time key, system flags, and additional metadata.
 
 ```C
 json_t *tranger2_create_topic(
@@ -368,11 +368,11 @@ json_t *tranger2_create_topic(
 
 **Returns**
 
-Returns a JSON object representing the topic metadata. The returned JSON object is not owned by the caller and should not be modified or freed.
+Returns a JSON object representing the topic metadata. The returned JSON object is not owned by the caller and must not be modified or freed.
 
 **Notes**
 
-This function is idempotent, meaning that if the topic already exists, it will return the existing topic metadata instead of creating a new one. If the primary key (`pkey`) is not specified, the function defaults to `sf_string_key` if `pkey` is defined, otherwise it defaults to `sf_int_key`.
+This function is idempotent. This means that if the topic already exists, it will return the existing topic metadata instead of creating a new one. If the primary key (`pkey`) is not specified, the function defaults to `sf_string_key` if `pkey` is defined, otherwise it defaults to `sf_int_key`.
 
 ---
 
@@ -427,7 +427,7 @@ If the specified `key` does not exist in the topic, `tranger2_delete_key()` will
 
 The legacy name `tranger2_delete_record()` is kept as a source-level
 alias in `timeranger2.h` (`#define tranger2_delete_record tranger2_delete_key`)
-so existing callers keep compiling unchanged; new code should use
+so existing callers keep compiling unchanged. New code must use
 `tranger2_delete_key()`.
 
 ---
@@ -439,7 +439,7 @@ The `tranger2_delete_instance()` function deletes a single instance
 (one row of a key's `.md2` index) without touching the surrounding
 rows. The row's metadata is mutated in place: `sf_deleted_instance`
 (bit `0x0400` of `system_flag2_t`, on the inherited side of the mask
-so `rt_by_disk` followers see the same tombstone) is OR'd into the
+so `rt_by_disk` followers see the same tombstone) is ORed into the
 system flag bits. The `.json` data log stays append-only.
 
 Read paths (`tranger2_open_iterator` history loop,
@@ -489,8 +489,8 @@ Side effects to be aware of:
   contract for "1 dead in this segment".
 - `topic_cache` cells (`fr_t`/`to_t`/`fr_tm`/`to_tm`) are not
   refreshed. If the deleted instance was the min/max t/tm of its file,
-  the cell rollup may lie. Cheap to fix on next cold reload; expensive
-  to fix incrementally; deferred until a consumer needs it.
+ the cell rollup can lie. Cheap to fix on next cold reload. Expensive
+ to fix incrementally. Deferred until a consumer needs it.
 
 ---
 
@@ -508,9 +508,9 @@ this subscriber tracks:
   `disks/<rt_id>/` when the master mirrors the deletion.
 
 The subscriber's `key` filter is honoured: an empty filter (`""`)
-matches every deletion; a specific key only matches that one.
+matches every deletion. A specific key only matches that one.
 
-Additive: existing handles default to "no callback", behaviour
+Additive: existing handles default to "no callback", behavior
 unchanged. Passing `cb=NULL` clears any previously registered callback.
 
 ```C
@@ -576,7 +576,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-Deleting a topic is irreversible. Ensure that the topic is no longer needed before calling [`tranger2_delete_topic()`](<#tranger2_delete_topic>).
+Deleting a topic is irreversible. Make sure that the topic is no longer needed before calling [`tranger2_delete_topic()`](<#tranger2_delete_topic>).
 
 ---
 
@@ -612,7 +612,7 @@ This function is similar to [`tranger2_list_topic_desc_cols()`](<#tranger2_list_
 (tranger2_get_iterator_by_id)=
 ## [`tranger2_get_iterator_by_id()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L6685)
 
-Retrieve an iterator by its identifier. If the iterator exists, it is returned; otherwise, NULL is returned.
+Retrieve an iterator by its identifier. If the iterator exists, it is returned. Otherwise, NULL is returned.
 
 ```C
 json_t *tranger2_get_iterator_by_id(
@@ -630,16 +630,16 @@ json_t *tranger2_get_iterator_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the iterator. |
 | `iterator_id` | `const char *` | Unique identifier of the iterator to retrieve. |
-| `creator` | `const char *` | Identifier of the entity that created the iterator. NULL or empty matches only creatorless iterators; to reach one registered with a creator, pass that same creator. |
+| `creator` | `const char *` | Identifier of the entity that created the iterator. NULL or empty matches only creatorless iterators. To reach one registered with a creator, pass that same creator. |
 
 **Returns**
 
-Returns a pointer to the iterator JSON object if found; otherwise, returns NULL.
+Returns a pointer to the iterator JSON object if found. Otherwise, returns NULL.
 
 **Notes**
 
 This function does not produce any error messages if the iterator is not found.
-The `creator` filters the match: pass the same creator used at open; an empty
+The `creator` filters the match: pass the same creator used at open. An empty
 `creator` matches only entries that were themselves opened without a creator.
 
 ---
@@ -647,7 +647,7 @@ The `creator` filters the match: pass the same creator used at open; an empty
 (tranger2_get_rt_disk_by_id)=
 ## [`tranger2_get_rt_disk_by_id()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L4347)
 
-Retrieve a real-time disk instance by its identifier. If the specified real-time disk exists, it returns the corresponding JSON object; otherwise, it returns NULL.
+Retrieve a real-time disk instance by its identifier. If the specified real-time disk exists, it returns the corresponding JSON object. Otherwise, it returns NULL.
 
 ```C
 json_t *tranger2_get_rt_disk_by_id(
@@ -665,16 +665,16 @@ json_t *tranger2_get_rt_disk_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the real-time disk. |
 | `rt_id` | `const char *` | Identifier of the real-time disk to retrieve. |
-| `creator` | `const char *` | Creator identifier used to filter the real-time disk instances. NULL or empty matches only creatorless feeds; to reach one registered with a creator, pass that same creator. |
+| `creator` | `const char *` | Creator identifier used to filter the real-time disk instances. NULL or empty matches only creatorless feeds. To reach one registered with a creator, pass that same creator. |
 
 **Returns**
 
-Returns a JSON object representing the real-time disk instance if found; otherwise, returns NULL.
+Returns a JSON object representing the real-time disk instance if found. Otherwise, returns NULL.
 
 **Notes**
 
 This function does not produce any error messages if the real-time disk is not found.
-The `creator` filters the match: pass the same creator used at open; an empty
+The `creator` filters the match: pass the same creator used at open. An empty
 `creator` matches only entries that were themselves opened without a creator.
 
 ---
@@ -682,7 +682,7 @@ The `creator` filters the match: pass the same creator used at open; an empty
 (tranger2_get_rt_mem_by_id)=
 ## [`tranger2_get_rt_mem_by_id()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L4023)
 
-Retrieve a real-time memory instance by its identifier. If the specified real-time memory instance exists, it is returned; otherwise, NULL is returned.
+Retrieve a real-time memory instance by its identifier. If the specified real-time memory instance exists, it is returned. Otherwise, NULL is returned.
 
 ```C
 json_t *tranger2_get_rt_mem_by_id(
@@ -700,7 +700,7 @@ json_t *tranger2_get_rt_mem_by_id(
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic associated with the real-time memory instance. |
 | `rt_id` | `const char *` | Identifier of the real-time memory instance to retrieve. |
-| `creator` | `const char *` | Creator identifier used to filter the real-time memory instance. NULL or empty matches only creatorless feeds; to reach one registered with a creator, pass that same creator. |
+| `creator` | `const char *` | Creator identifier used to filter the real-time memory instance. NULL or empty matches only creatorless feeds. To reach one registered with a creator, pass that same creator. |
 
 **Returns**
 
@@ -709,7 +709,7 @@ Returns a pointer to the real-time memory instance as a `json_t *` if found, oth
 **Notes**
 
 This function does not produce any internal logging or error messages if the requested real-time memory instance is not found.
-The `creator` filters the match: pass the same creator used at open; an empty
+The `creator` filters the match: pass the same creator used at open. An empty
 `creator` matches only entries that were themselves opened without a creator.
 
 ---
@@ -737,7 +737,7 @@ json_t *tranger2_iterator_get_page(
 | `iterator` | `json_t *` | A pointer to the iterator from which records will be retrieved. |
 | `from_rowid` | `json_int_t` | The starting position of the page, 1-based. See the note below: it is a position among the rows the iterator RETURNS, which is a global rowid only when the iterator does not filter. |
 | `limit` | `size_t` | The maximum number of records to retrieve in the page. |
-| `backward` | `BOOL` | If `TRUE`, records are retrieved in reverse order; otherwise, they are retrieved in forward order. |
+| `backward` | `BOOL` | If `TRUE`, records are retrieved in reverse order. Otherwise, they are retrieved in forward order. |
 
 **Returns**
 
@@ -818,7 +818,7 @@ it when no longer needed. Never NULL — a missing topic yields an **empty array
 
 **Notes**
 
-The keys come from the topic's in-memory `cache`, not a disk scan. Slow for
+The keys are from the topic's in-memory `cache`, not a disk scan. Slow for
 thousands of keys (allocates one string per key).
 
 ---
@@ -952,7 +952,7 @@ topic sets `sf_t_ms` / `sf_tm_ms`.
 
 Every condition is honored **per record**, in both modes of the iterator:
 
-- **LOADING** (a `load_record_callback` and/or `data`): each record is matched as
+- **LOADING** (a `load_record_callback` or both `data`): each record is matched as
   the history is walked.
 - **PAGING** (neither): a filtered iterator builds its row **index** when it
   opens, so [`tranger2_iterator_size()`](#tranger2_iterator_size) and
@@ -1004,7 +1004,7 @@ json_t *tranger2_open_list(
 | `match_cond` | `json_t *` | A JSON object specifying filtering conditions for records. Owned by the function. |
 | `extra` | `json_t *` | Additional user data to be added to the returned real-time object. Owned by the function. |
 | `rt_id` | `const char *` | The real-time list identifier. |
-| `rt_by_disk` | `BOOL` | If `TRUE`, enables real-time updates via disk; otherwise, uses memory. |
+| `rt_by_disk` | `BOOL` | If `TRUE`, enables real-time updates via disk. Otherwise, uses memory. |
 | `creator` | `const char *` | The identifier of the entity creating the list. |
 
 **Returns**
@@ -1013,7 +1013,7 @@ Returns a JSON object representing the real-time list (`rt_mem` or `rt_disk`) or
 
 **Notes**
 
-Loading all records may introduce delays in application startup. Use filtering conditions in `match_cond` to optimize performance.
+Loading all records can introduce delays in application startup. Use filtering conditions in `match_cond` to optimize performance.
 
 ---
 
@@ -1058,10 +1058,10 @@ This function is used when monitoring real-time changes in a topic via disk even
 
 The rowid the callback receives is the key's **global `g_rowid`** — the one that
 never resets — not the row's position inside the `.md2` file it lives in (that
-one is `i_rowid`, and it restarts at 1 with every new file). A consumer may
+one is `i_rowid`, and it restarts at 1 with every new file). A consumer can
 therefore dedupe or page by it across a file rotation.
 
-Several feeds may be open on the same key (a per-key one and a whole-topic one,
+Several feeds can be open on the same key (a per-key one and a whole-topic one,
 say). Each is served exactly once per record: the feed keeps a watermark of the
 last row it was given, per key and per file, and the master hard-links each new
 `.md2` into the directory of every feed that wants the key. A feed's watermark
@@ -1133,11 +1133,11 @@ json_t *tranger2_open_topic(
 
 **Returns**
 
-A JSON object representing the opened topic. The returned object is not owned by the caller and should not be modified or freed.
+A JSON object representing the opened topic. The returned object is not owned by the caller and must not be modified or freed.
 
 **Notes**
 
-This function is idempotent, meaning that calling it multiple times with the same `topic_name` will return the same JSON object without creating a new instance.
+This function is idempotent. This means that calling it multiple times with the same `topic_name` will return the same JSON object without creating a new instance.
 
 ---
 
@@ -1173,7 +1173,7 @@ This function does not return a value.
 
 **Notes**
 
-The function formats the metadata into the provided buffer, ensuring it does not exceed `bfsize`. It prints row ID, time, message time, and key.
+The function formats the metadata into the provided buffer. This makes sure of it does not exceed `bfsize`. It prints row ID, time, message time, and key.
 
 ---
 
@@ -1198,7 +1198,7 @@ void tranger2_print_md1_record(
 | Key | Type | Description |
 |---|---|---|
 | `bf` | `char *` | Buffer where the formatted metadata string will be stored. |
-| `bfsize` | `int` | Size of the buffer to ensure safe writing. |
+| `bfsize` | `int` | Size of the buffer to make sure that safe writing. |
 | `key` | `const char *` | Key associated with the record. |
 | `md_record_ex` | `const md2_record_ex_t *` | Pointer to the record metadata structure containing the information to be printed. |
 | `print_local_time` | `BOOL` | Flag indicating whether to print timestamps in local time (if `TRUE`) or UTC (if `FALSE`). |
@@ -1209,7 +1209,7 @@ This function does not return a value.
 
 **Notes**
 
-The function formats and writes metadata details into the provided buffer, ensuring that the output does not exceed `bfsize` bytes.
+The function formats and writes metadata details into the provided buffer. This makes sure that the output does not exceed `bfsize` bytes.
 
 ---
 
@@ -1236,7 +1236,7 @@ void tranger2_print_md2_record(
 | Key | Type | Description |
 |---|---|---|
 | `bf` | `char *` | Buffer where the formatted metadata string will be stored. |
-| `bfsize` | `int` | Size of the buffer to ensure safe writing. |
+| `bfsize` | `int` | Size of the buffer to make sure that safe writing. |
 | `tranger` | `json_t *` | Reference to the TimeRanger database instance. |
 | `topic` | `json_t *` | JSON object representing the topic associated with the record. |
 | `key` | `const char *` | Key identifying the record within the topic. |
@@ -1249,7 +1249,7 @@ This function does not return a value.
 
 **Notes**
 
-The function formats metadata details into the provided buffer, ensuring that the output remains within the specified buffer size.
+The function formats metadata details into the provided buffer. This makes sure that the output remains within the specified buffer size.
 
 ---
 
@@ -1319,7 +1319,7 @@ Returns a `json_t *` object containing the record's content. The caller owns the
 
 **Notes**
 
-This function is useful when only metadata has been loaded and the full record content needs to be retrieved.
+This function is useful when only metadata was loaded and the full record content needs to be retrieved.
 
 ---
 
@@ -1389,7 +1389,7 @@ Higher trace levels typically enable more detailed logging, which can be useful 
 ## [`tranger2_set_system_flag()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L3456)
 
 Sets or clears specific bits in the **system** flag of a record — the metadata
-band reserved for the framework (e.g. the immutable-record bit), distinct from
+band reserved for the framework (for example the immutable-record bit), distinct from
 the user flag set by [`tranger2_set_user_flag()`](<#tranger2_set_user_flag>).
 
 ```C
@@ -1414,7 +1414,7 @@ int tranger2_set_system_flag(
 | `__t__` | `uint64_t` | Record time. |
 | `rowid` | `uint64_t` | Real rowid in the file (not the topic-global rowid). |
 | `mask` | `uint16_t` | Bitmask specifying which bits in the system flag to modify. |
-| `set` | `BOOL` | If `TRUE`, the bits in `mask` are set; if `FALSE`, they are cleared. |
+| `set` | `BOOL` | If `TRUE`, the bits in `mask` are set. If `FALSE`, they are cleared. |
 
 **Returns**
 
@@ -1422,7 +1422,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-Only the bits in `mask` are touched. The system flag is framework-owned; user
+Only the bits in `mask` are touched. The system flag is framework-owned. User
 code normally goes through higher-level treedb helpers rather than setting system
 bits directly.
 
@@ -1451,9 +1451,9 @@ int tranger2_set_user_flag(
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
 | `topic_name` | `const char *` | Name of the topic containing the record. |
-| `rowid` | `uint64_t` | Unique identifier of the record whose user flag is being modified. |
-| `mask` | `uint32_t` | Bitmask specifying which bits in the user flag should be modified. |
-| `set` | `BOOL` | If `TRUE`, the bits specified in `mask` are set; if `FALSE`, they are cleared. |
+| `rowid` | `uint64_t` | Unique identifier of the record whose user flag is modified. |
+| `mask` | `uint32_t` | Bitmask specifying which bits in the user flag must be modified. |
+| `set` | `BOOL` | If `TRUE`, the bits specified in `mask` are set. If `FALSE`, they are cleared. |
 
 **Returns**
 
@@ -1461,14 +1461,14 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-This function modifies only the bits specified in `mask`, leaving other bits in the user flag unchanged.
+This function modifies only the bits specified in `mask`. This leaves other bits in the user flag unchanged.
 
 ---
 
 (tranger2_shutdown)=
 ## [`tranger2_shutdown()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L592)
 
-The `tranger2_shutdown()` function shuts down the TimeRanger database, releasing all allocated memory.
+The `tranger2_shutdown()` function stops the TimeRanger database, releasing all allocated memory.
 
 ```C
 int tranger2_shutdown(
@@ -1480,7 +1480,7 @@ int tranger2_shutdown(
 
 | Key | Type | Description |
 |---|---|---|
-| `tranger` | `json_t *` | A pointer to the TimeRanger database instance to be shut down. |
+| `tranger` | `json_t *` | A pointer to the TimeRanger database instance to be stop. |
 
 **Returns**
 
@@ -1488,7 +1488,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function should be called when the database is no longer needed to free resources.
+This function must be called when the database is no longer needed to free resources.
 
 ---
 
@@ -1526,7 +1526,7 @@ The returned JSON object must be properly managed and eventually passed to [`tra
 (tranger2_stop)=
 ## [`tranger2_stop()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L565)
 
-The `tranger2_stop()` function closes the TimeRanger database, ensuring that all topics and file descriptors are properly closed.
+The `tranger2_stop()` function closes the TimeRanger database. This makes sure that all topics and file descriptors are properly closed.
 
 ```C
 int tranger2_stop(
@@ -1546,7 +1546,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function should be called before shutting down the database using [`tranger2_shutdown()`](<#tranger2_shutdown>).
+This function must be called before shutting down the database using [`tranger2_shutdown()`](<#tranger2_shutdown>).
 
 ---
 
@@ -1598,7 +1598,7 @@ json_t *tranger2_topic(
 
 **Returns**
 
-A JSON object representing the topic. The returned object is not owned by the caller and should not be modified or freed.
+A JSON object representing the topic. The returned object is not owned by the caller and must not be modified or freed.
 
 **Notes**
 
@@ -1665,7 +1665,7 @@ whole-topic total when `key` is empty.
 
 **Notes**
 
-Counts come from the in-memory cache. A missing topic returns `0`. When `key` is
+Counts are from the in-memory cache. A missing topic returns `0`. When `key` is
 empty the call delegates to [`tranger2_topic_size()`](#tranger2_topic_size).
 
 ---
@@ -1675,7 +1675,7 @@ empty the call delegates to [`tranger2_topic_size()`](#tranger2_topic_size).
 
 Returns the **time span** of one key of a topic, on both axes, read from the
 in-memory cache totals (maintained on load and on every append) — so a client can
-bound a time picker to what the key actually holds without reading a single
+bound a time picker to what the key holds without reading a single
 record.
 
 ```C
@@ -1801,7 +1801,7 @@ Returns the total number of records in the specified topic as a `uint64_t` value
 
 **Notes**
 
-If the topic does not exist, the function may return `0`.
+If the topic does not exist, the function can return `0`.
 
 ---
 
@@ -1823,7 +1823,7 @@ int tranger2_write_topic_cols(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | A pointer to the TimeRanger database instance. |
-| `topic_name` | `const char *` | The name of the topic whose column definitions are being updated. |
+| `topic_name` | `const char *` | The name of the topic whose column definitions are updated. |
 | `jn_cols` | `json_t *` | A JSON object containing the new column definitions. The ownership of this object is transferred to [`tranger2_write_topic_cols()`](<#tranger2_write_topic_cols>). |
 
 **Returns**
@@ -1868,7 +1868,7 @@ Returns `0` on success, or a negative value on failure.
 **Notes**
 
 **Master-only.** Merges `jn_topic_var` into the existing `topic_var.json` (update,
-not replace) and persists it; the in-memory topic is updated too, except the
+not replace) and persists it. The in-memory topic is updated too, except the
 immutable descriptor fields.
 
 ---
@@ -1931,7 +1931,7 @@ A new JSON array of strings, each being a topic name found as a subdirectory in 
 
 **Notes**
 
-This function operates on disk, not in memory. It may return topic names that are not currently open, or miss topics that exist only in memory. Use [`tranger2_list_topics()`](#tranger2_list_topics) to get the in-memory list instead.
+This function operates on disk, not in memory. It can return topic names that are not currently open, or miss topics that exist only in memory. Use [`tranger2_list_topics()`](#tranger2_list_topics) to get the in-memory list instead.
 
 ---
 

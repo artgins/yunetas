@@ -2,8 +2,8 @@
 # `yuneta_agent22`
 
 A minimal **second agent** — a redundant remote entry point for the control
-center. Every node runs it alongside the primary [`yuneta_agent`](yuneta_agent.md);
-the init scripts deliberately leave `agent22` alive when stopping the node, so
+center. Every node runs it next to the primary [`yuneta_agent`](yuneta_agent.md).
+The init scripts deliberately leave `agent22` alive when stopping the node, so
 a remote operator is never stranded if the primary agent is down or being
 upgraded (the two agents upgrade each other, never both at once).
 

@@ -28,7 +28,7 @@ This function does not return a value.
 
 **Notes**
 
-This function should generally not be called, as the logging system consumes minimal memory and should remain available throughout the program's execution.
+This function must generally not be called, as the logging system consumes minimal memory and must remain available throughout the program's execution.
 
 ---
 
@@ -53,7 +53,7 @@ This function does not return a value.
 
 **Notes**
 
-This function ensures that the logging system is initialized only once. It registers built-in log handlers such as `stdout`, `file`, and `udp`.
+This function makes sure that the logging system is initialized only once. It registers built-in log handlers such as `stdout`, `file`, and `udp`.
 
 ---
 
@@ -78,7 +78,7 @@ A JSON object containing log statistics with keys: 'debug', 'info', 'warning', '
 
 **Notes**
 
-The returned JSON object must be managed by the caller, ensuring proper memory deallocation when no longer needed.
+The returned JSON object must be managed by the caller. This makes sure of proper memory deallocation when no longer needed.
 
 ---
 
@@ -141,7 +141,7 @@ The log message is formatted using `vsnprintf()` and logged with priority `LOG_I
 (gobj_log_add_handler)=
 ## [`gobj_log_add_handler()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/glogger.c#L278)
 
-Registers a new log handler with the specified name, type, options, and handler object. The function ensures that the handler name is unique and associates it with a registered handler type.
+Registers a new log handler with the specified name, type, options, and handler object. The function makes sure that the handler name is unique and associates it with a registered handler type.
 
 ```C
 int gobj_log_add_handler(
@@ -167,7 +167,7 @@ Returns 0 on success, or -1 if the handler name already exists or the handler ty
 
 **Notes**
 
-The function checks if the handler name is already registered and ensures that the handler type exists before adding the handler. If the handler type is not found, the function returns an error.
+The function checks if the handler name is already registered and makes sure that the handler type exists before adding the handler. If the handler type is not found, the function returns an error.
 
 ---
 
@@ -371,7 +371,7 @@ Returns `TRUE` if the log handler exists, otherwise returns `FALSE`.
 **Notes**
 
 If `handler_name` is empty or `NULL`, the function returns `FALSE`.
-This function ensures that the logging system is initialized before performing the check.
+This function makes sure that the logging system is initialized before performing the check.
 
 ---
 
@@ -423,7 +423,7 @@ const char *gobj_log_last_message(void);
 
 **Returns**
 
-A pointer to a string containing the last logged message. The returned string is managed internally and should not be modified or freed by the caller.
+A pointer to a string containing the last logged message. The returned string is managed internally and must not be modified or freed by the caller.
 
 **Notes**
 
@@ -483,7 +483,7 @@ int gobj_log_register_handler(
 
 **Returns**
 
-Returns 0 on success, or -1 if the maximum number of log handler types has been reached.
+Returns 0 on success, or -1 if the maximum number of log handler types was reached.
 
 **Notes**
 
@@ -508,7 +508,7 @@ int gobj_log_set_global_handler_option(
 | Key | Type | Description |
 |---|---|---|
 | `log_handler_opt` | `log_handler_opt_t` | The log handler option to be modified. |
-| `set` | `BOOL` | If `TRUE`, the option is enabled; if `FALSE`, the option is disabled. |
+| `set` | `BOOL` | If `TRUE`, the option is enabled. If `FALSE`, the option is disabled. |
 
 **Returns**
 
@@ -578,7 +578,7 @@ This function does not return a value.
 
 **Notes**
 
-The function checks if logging is initialized before proceeding. If logging is already in progress, it prevents recursive calls. The log message is processed by registered handlers, and if configured, a backtrace may be printed.
+The function checks if logging is initialized before proceeding. If logging is already in progress, it prevents recursive calls. The log message is processed by registered handlers, and if configured, a backtrace can be printed.
 
 ---
 
@@ -914,7 +914,7 @@ void _log_bf(
 
 | Key | Type | Description |
 |---|---|---|
-| `priority` | `int` | The syslog priority level of the message (e.g. `LOG_ERR`, `LOG_DEBUG`). |
+| `priority` | `int` | The syslog priority level of the message (for example `LOG_ERR`, `LOG_DEBUG`). |
 | `opt` | `log_opt_t` | Logging options that control behavior such as stack trace printing or process exit. |
 | `bf` | `const char *` | Pointer to the pre-formatted log message buffer. |
 | `len` | `size_t` | Length of the log message in bytes. Must be greater than 0. |

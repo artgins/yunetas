@@ -8,7 +8,7 @@ Source code in:
 
 ## Authentication and Authorization in Yuneta
 
-Authentication and authorization in Yuneta ensure secure identification of users and
+Authentication and authorization in Yuneta make sure that secure identification of users and
 validation of their permissions to access resources or perform actions. 
 These processes are managed via APIs such as [`gobj_authenticate`](<#gobj_authenticate>)
 and [`gobj_user_has_authz`](<#gobj_user_has_authz>), with the ability to use custom or
@@ -38,7 +38,7 @@ The authentication parser:
 (authorization_checker)=
 
 ### 2. **Authorization**
-Authorization ensures that an authenticated user has the necessary permissions to perform an action or access a resource.
+Authorization makes sure that an authenticated user has the necessary permissions to perform an action or access a resource.
 
 - **API:**
 
@@ -52,7 +52,7 @@ BOOL gobj_user_has_authz(hgobj gobj_to_check, const char *authz, json_t *kw, hgo
 The authorization checker:
 - Uses the [`mt_authz_checker`](#mt_authz_checker) method if defined in the GClass.
 - Verifies if the user has the required permission (`authz`) based on roles and parameters.
-- Returns `TRUE` if the user is authorized; otherwise, `FALSE`.
+- Returns `TRUE` if the user is authorized. Otherwise, `FALSE`.
 
 ---
 
@@ -79,7 +79,7 @@ These are public module-level functions (not GClass methods). They can be passed
     - If no parser is provided, the default mechanism is used.
 
 3. **Validation:**
-    - Credentials are validated, possibly using external systems (e.g., [OAuth2](https://oauth.net/2/), [JWT](https://datatracker.ietf.org/doc/html/rfc7519)).
+ - Credentials are validated, possibly using external systems (for example [OAuth2](https://oauth.net/2/), [JWT](https://datatracker.ietf.org/doc/html/rfc7519)).
 
 4. **Response:**
     - A JSON response indicates authentication success or failure.
@@ -129,5 +129,5 @@ Checker selection is "first one set wins"; the authentication path
 ## Benefits
 
 - **Flexibility:** Custom parsers and checkers enable tailored authentication and authorization logic.
-- **Security:** Centralized access controls ensure consistency and reliability.
-- **Simplicity:** Built-in functionality in `C_AUTHZ` reduces development overhead.
+- **Security:** Centralized access controls make sure that consistency and reliability.
+- **Simplicity:** Built-in function in `C_AUTHZ` reduces development overhead.

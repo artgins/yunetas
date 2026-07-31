@@ -25,9 +25,9 @@ sibling files and fetches nothing external, so all of it has to travel in the
 page — which the site's own `/navigation` does not need to do.
 
 Only `content.es.html` is maintained by hand. The demos, their CSS and the
-runtime come from the page, so a fix there reaches the artifact by rebuilding.
+runtime are from the page, so a fix there reaches the artifact by rebuilding.
 If a demo's wording changes, the script **fails loudly** naming the strings it
-could no longer find, rather than shipping a half-translated page.
+can no longer find, and it does not ship a half-translated page.
 
 ## Publishing it
 

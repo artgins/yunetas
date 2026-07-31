@@ -47,14 +47,14 @@ the section where the diagram appears in context. All are hand-authored SVG
 :link: ./philosophy/typed_graph_model.md#the-unit-is-not-node-edge-it-is-typed-instance-with-typed-bindings
 ![treedb graph](./_static/treedb_graph.svg)
 
-**TreeDB graph** — topics, nodes, hooks and fkeys; port colour = linked topic.
+**TreeDB graph** — topics, nodes, hooks and fkeys. Port color = linked topic.
 :::
 
 :::{card}
 :link: ./philosophy/typed_graph_model.md#what-this-lets-you-model
 ![node is its history](./_static/node_history.svg)
 
-**Node is its history** — `node`ⁿ as an append timeline; a link is an event.
+**Node is its history** — `node`ⁿ as an append timeline. A link is an event.
 :::
 
 ::::
@@ -74,7 +74,7 @@ the section where the diagram appears in context. All are hand-authored SVG
 :link: ../../yunos/c/yuno_agent/ENTRY_POINT.md#id-1-the-picture
 ![process tree](./_static/process_tree.svg)
 
-**Process tree** — grandparent / watcher / yuno; two pids per yuno.
+**Process tree** — grandparent, watcher and yuno. Two pids per yuno.
 :::
 
 :::{card}
@@ -108,7 +108,7 @@ the section where the diagram appears in context. All are hand-authored SVG
 :link: ../../yunos/c/yuno_agent/IPC.md#id-6-gates-how-external-traffic-becomes-events
 ![message pipeline](./_static/message_pipeline.svg)
 
-**Message pipeline** — bytes climb the gate stack to a service; traces per layer.
+**Message pipeline** — bytes climb the gate stack to a service. traces per layer.
 :::
 
 :::{card}
@@ -182,7 +182,7 @@ the section where the diagram appears in context. All are hand-authored SVG
 :link: ./yunos/controlcenter.md
 ![control-center topology](./_static/controlcenter_topology.svg)
 
-**Control-center topology** — nodes dial in; `command-agent` routed back.
+**Control-center topology** — nodes dial in. `command-agent` routed back.
 :::
 
 :::{card}

@@ -41,7 +41,7 @@ topic^parent_id^hook_name
 ```
 
 For example, a `user` record under the `administration` department
-might have:
+can have:
 
 ```
 departments^administration^users

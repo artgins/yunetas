@@ -61,11 +61,11 @@ int gclass_add_ev_action(
 
 **Returns**
 
-Returns `0` on success, or `-1` if an error occurs (e.g., if the state does not exist or the event is already defined).
+Returns `0` on success, or `-1` if an error occurs (for example if the state does not exist or the event is already defined).
 
 **Notes**
 
-This function ensures that an event-action pair is uniquely associated with a state. If the event is already defined in the state, an error is logged and the function returns `-1`.
+This function makes sure that an event-action pair is uniquely associated with a state. If the event is already defined in the state, an error is logged and the function returns `-1`.
 
 ---
 
@@ -95,7 +95,7 @@ Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-Ensure that the `event_type` does not already exist in the `gclass` before calling [`gclass_add_event_type()`](<#gclass_add_event_type>).
+Make sure that the `event_type` does not already exist in the `gclass` before calling [`gclass_add_event_type()`](<#gclass_add_event_type>).
 
 ---
 
@@ -120,7 +120,7 @@ int gclass_add_state(
 
 **Returns**
 
-Returns `0` on success, or `-1` if an error occurs (e.g., `gclass` is NULL or memory allocation fails).
+Returns `0` on success, or `-1` if an error occurs (for example `gclass` is NULL or memory allocation fails).
 
 **Notes**
 
@@ -189,7 +189,7 @@ This function is useful for inspecting the access control definitions of a `gcla
 (gclass_check_fsm)=
 ## [`gclass_check_fsm()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L1225)
 
-Checks the finite state machine (FSM) of a given `hgclass` for consistency, ensuring that all states and events are properly defined.
+Checks the finite state machine (FSM) of a given `hgclass` for consistency. This makes sure that all states and events are properly defined.
 
 ```C
 int gclass_check_fsm(
@@ -400,7 +400,7 @@ Returns a `gclass_name_t` (const char *) representing the name of the given `gcl
 
 **Notes**
 
-This function does not allocate memory; the returned string is managed internally.
+This function does not allocate memory. The returned string is managed internally.
 
 ---
 

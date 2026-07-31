@@ -63,15 +63,15 @@ int parse_url(
 |---|---|---|
 | `gobj` | `hgobj` | Handle to the calling object, used for logging errors. |
 | `uri` | `const char *` | The URL string to be parsed. |
-| `schema` | `char *` | Buffer to store the extracted schema (e.g., 'http'). |
+| `schema` | `char *` | Buffer to store the extracted schema (for example 'http'). |
 | `schema_size` | `size_t` | Size of the schema buffer. |
-| `host` | `char *` | Buffer to store the extracted host (e.g., 'example.com'). |
+| `host` | `char *` | Buffer to store the extracted host (for example 'example.com'). |
 | `host_size` | `size_t` | Size of the host buffer. |
-| `port` | `char *` | Buffer to store the extracted port (e.g., '8080'). |
+| `port` | `char *` | Buffer to store the extracted port (for example '8080'). |
 | `port_size` | `size_t` | Size of the port buffer. |
-| `path` | `char *` | Buffer to store the extracted path (e.g., '/index.html'). |
+| `path` | `char *` | Buffer to store the extracted path (for example '/index.html'). |
 | `path_size` | `size_t` | Size of the path buffer. |
-| `query` | `char *` | Buffer to store the extracted query string (e.g., 'id=123'). |
+| `query` | `char *` | Buffer to store the extracted query string (for example 'id=123'). |
 | `query_size` | `size_t` | Size of the query buffer. |
 | `no_schema` | `BOOL` | If TRUE, the function does not parse the schema. |
 

@@ -152,7 +152,7 @@ SOFT_RULES = [
 #   A product name is a technical name (1.5), so it stays exact.
 #
 PROPER_NOUNS = [
-    r"Let's Encrypt",
+    r"Let['’]s Encrypt",
 ]
 
 

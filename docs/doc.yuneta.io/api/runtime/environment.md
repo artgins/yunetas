@@ -27,8 +27,8 @@ int register_yuneta_environment(
 |---|---|---|
 | `root_dir` | `const char *` | Root directory path. |
 | `domain_dir` | `const char *` | Domain (realms) directory path. |
-| `xpermission` | `int` | Permission mask for directories and executable files (e.g. `02775`). |
-| `rpermission` | `int` | Permission mask for regular files (e.g. `0664`). |
+| `xpermission` | `int` | Permission mask for directories and executable files (for example `02775`). |
+| `rpermission` | `int` | Permission mask for regular files (for example `0664`). |
 
 **Returns**
 

@@ -60,8 +60,8 @@ Suggested reading order:
 3. [Installation](installation.md) — get a working build environment.
 4. [Basic concepts](guide/guide_basic_concepts.md) — GClass, gobj, yuno,
    events.
-5. [Guides](guide/guide_gclass.md) — how to actually build with them.
-6. The **API reference** sections in the sidebar — organised by
+5. [Guides](guide/guide_gclass.md) — how to build with them.
+6. The **API reference** sections in the sidebar — organized by
    subsystem (GObj, Helpers, Logging, Parsers, Timeranger2, TLS,
    Event Loop, JavaScript).
 7. [Inspiration](philosophy/philosophy.md) — optional, the humanist

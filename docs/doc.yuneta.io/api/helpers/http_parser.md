@@ -32,7 +32,7 @@ GHTTP_PARSER *ghttp_parser_create(
 | `on_header_event` | `gobj_event_t` | The event triggered when HTTP headers are fully received. |
 | `on_body_event` | `gobj_event_t` | The event triggered when a portion of the HTTP body is received. |
 | `on_message_event` | `gobj_event_t` | The event triggered when the entire HTTP message is received. |
-| `send_event` | `BOOL` | If `TRUE`, events are sent using [`gobj_send_event()`](<#gobj_send_event>); otherwise, they are published using [`gobj_publish_event()`](<#gobj_publish_event>). |
+| `send_event` | `BOOL` | If `TRUE`, events are sent using [`gobj_send_event()`](<#gobj_send_event>). Otherwise, they are published using [`gobj_publish_event()`](<#gobj_publish_event>). |
 
 **Returns**
 
@@ -44,7 +44,7 @@ The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_dest
 
 ---
 
-**API break (7.3.0):** `ghttp_parser_reset()` has been **removed** from the public API. Calling it from inside an llhttp callback (for example, `on_message_complete`) corrupted llhttp's internal state machine and silently swallowed pipelined HTTP/1.1 messages. Callers that need a fresh parser for a new connection should destroy the current parser and create a new one via [`ghttp_parser_create()`](#ghttp_parser_create) — see `c_prot_http_sr::ac_connected`, `c_prot_http_cl::ac_connected` and `c_websocket::ac_connected` for the canonical pattern.
+**API break (7.3.0):** `ghttp_parser_reset()` was **removed** from the public API. Calling it from inside an llhttp callback (for example, `on_message_complete`) corrupted llhttp's internal state machine and silently swallowed pipelined HTTP/1.1 messages. Callers that need a fresh parser for a new connection must destroy the current parser and create a new one via [`ghttp_parser_create()`](#ghttp_parser_create) — see `c_prot_http_sr::ac_connected`, `c_prot_http_cl::ac_connected` and `c_websocket::ac_connected` for the canonical pattern.
 
 ---
 
@@ -69,7 +69,7 @@ This function does not return a value.
 
 **Notes**
 
-After calling `ghttp_parser_destroy()`, the `parser` pointer should not be used as it becomes invalid.
+After calling `ghttp_parser_destroy()`, the `parser` pointer must not be used as it becomes invalid.
 
 ---
 
@@ -107,7 +107,7 @@ Returns the number of bytes successfully parsed. Returns `-1` if an error occurs
 (ghttp_parser_finish)=
 ## [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/ghttp_parser.c#L198)
 
-Signals end-of-stream to the underlying llhttp parser (the TCP peer closed the socket). Required to complete HTTP messages whose terminator is the connection close itself — HTTP/1.0 responses without `Content-Length`, and HTTP/1.1 responses with neither `Content-Length` nor `Transfer-Encoding: chunked`. Without this call, `on_message_complete` would never fire for such messages and the subscriber would miss `EV_ON_MESSAGE`.
+Signals end-of-stream to the underlying llhttp parser (the TCP peer closed the socket). Required to complete HTTP messages whose terminator is the connection close itself — HTTP/1.0 responses without `Content-Length`, and HTTP/1.1 responses with neither `Content-Length` nor `Transfer-Encoding: chunked`. Without this call, `on_message_complete` will never fire for such messages and the subscriber will miss `EV_ON_MESSAGE`.
 
 ```C
 int ghttp_parser_finish(GHTTP_PARSER *parser);
@@ -121,7 +121,7 @@ int ghttp_parser_finish(GHTTP_PARSER *parser);
 
 **Returns**
 
-`0` on success, `-1` on protocol error (e.g. a partial message was in flight when the peer closed).
+`0` on success, `-1` on protocol error (for example a partial message was in flight when the peer closed).
 
 **Notes**
 

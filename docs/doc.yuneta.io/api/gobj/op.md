@@ -10,7 +10,7 @@ Source code:
 (gobj_bottom_gobj)=
 ## [`gobj_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L5070)
 
-Returns the next bottom `gobj` of the given `gobj`. This function is useful for navigating hierarchical `gobj` structures where attributes may be inherited from a lower-level `gobj`.
+Returns the next bottom `gobj` of the given `gobj`. This function is useful for navigating hierarchical `gobj` structures where attributes can be inherited from a lower-level `gobj`.
 
 ```C
 hgobj gobj_bottom_gobj(
@@ -55,11 +55,11 @@ int gobj_change_parent(
 
 **Returns**
 
-Returns `0` on success, or `-1` if an error occurs (e.g., if `gobj` or `gobj_new_parent` is `NULL`).
+Returns `0` on success, or `-1` if an error occurs (for example if `gobj` or `gobj_new_parent` is `NULL`).
 
 **Notes**
 
-This function ensures that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
+This function makes sure that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
 
 ---
 
@@ -238,7 +238,7 @@ The default service is typically set using [`gobj_create_default_service()`](<#g
 (gobj_disable)=
 ## [`gobj_disable()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4768)
 
-Disables the given `hgobj` instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed; otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
+Disables the given `hgobj` instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed. Otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
 
 ```C
 int gobj_disable(hgobj gobj);
@@ -263,7 +263,7 @@ If the object is already disabled, a warning is logged, and no action is taken.
 (gobj_enable)=
 ## [`gobj_enable()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4800)
 
-Enables the specified `hgobj` by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked; otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
+Enables the specified `hgobj` by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked. Otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
 
 ```C
 int gobj_enable(hgobj gobj);
@@ -420,7 +420,7 @@ Returns the first child `hgobj` of the given parent. If the parent has no childr
 
 **Notes**
 
-This function does not modify the object hierarchy; it only retrieves the first child.
+This function does not modify the object hierarchy. It only retrieves the first child.
 
 ---
 
@@ -474,7 +474,7 @@ Returns the last bottom `gobj` in the hierarchy if it exists, otherwise returns 
 
 **Notes**
 
-This function is useful when dealing with a stack of `gobj` instances that act as a unit, ensuring that operations are performed on the deepest `gobj` in the hierarchy.
+This function is useful when dealing with a stack of `gobj` instances that act as a unit. This makes sure that operations are performed on the deepest `gobj` in the hierarchy.
 
 ---
 
@@ -700,7 +700,7 @@ Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-['If the GObj is already playing, a warning is logged.', 'If the GObj is disabled, it cannot be played.', 'If the GObj is not running, it will be started unless `gcflag_required_start_to_play` is set.', "If the GObj's `mt_play` method is defined, it will be invoked."]
+['If the GObj is already playing, a warning is logged.', 'If the GObj is disabled, it cannot be played.', 'If the GObj is not running, it will be started unless `gcflag_required_start_to_play` is set.', "If the GObj's  281  method is defined, it will be invoked."]
 
 ---
 
@@ -781,14 +781,14 @@ A JSON array of strings, where each string represents the name of a registered s
 
 **Notes**
 
-This function provides a list of services that have been registered using [`gobj_create_service()`](<#gobj_create_service>) or similar functions.
+This function provides a list of services that were registered using [`gobj_create_service()`](<#gobj_create_service>) or similar functions.
 
 ---
 
 (gobj_set_bottom_gobj)=
 ## [`gobj_set_bottom_gobj()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4995)
 
-Sets the bottom gobj of a given gobj, allowing attribute inheritance from the specified bottom gobj.
+Sets the bottom gobj of a given gobj. This allows attribute inheritance from the specified bottom gobj.
 
 ```C
 hgobj gobj_set_bottom_gobj(
@@ -801,7 +801,7 @@ hgobj gobj_set_bottom_gobj(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | The gobj whose bottom gobj is being set. |
+| `gobj` | `hgobj` | The gobj whose bottom gobj is set. |
 | `bottom_gobj` | `hgobj` | The gobj to be set as the bottom gobj. |
 
 **Returns**
@@ -901,7 +901,7 @@ If a child object has the `gcflag_manual_start` flag set, it will not be started
 (gobj_stop)=
 ## [`gobj_stop()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4478)
 
-Stops the execution of the given `gobj` instance, ensuring it is no longer running. If the `gobj` is playing, it will be paused before stopping.
+Stops the execution of the given `gobj` instance. This makes sure of it is no longer running. If the `gobj` is playing, it will be paused before stopping.
 
 ```C
 int gobj_stop(
@@ -944,7 +944,7 @@ int gobj_stop_children(
 
 **Returns**
 
-Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is `NULL` or being destroyed).
+Returns 0 on success, or -1 if an error occurs (for example if `gobj` is `NULL` or being destroyed).
 
 **Notes**
 
@@ -971,7 +971,7 @@ int gobj_stop_tree(
 
 **Returns**
 
-Returns 0 on success, or -1 if an error occurs (e.g., `gobj` is NULL or being destroyed).
+Returns 0 on success, or -1 if an error occurs (for example `gobj` is NULL or being destroyed).
 
 **Notes**
 
@@ -1049,7 +1049,7 @@ Returns 0 on success or a negative value if an error occurs.
 
 **Notes**
 
-The callback function should return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
+The callback function must return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
 
 ---
 
@@ -1070,7 +1070,7 @@ hgobj gobj_find_child_by_tree(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The root gobj whose subtree will be searched. |
-| `jn_filter` | `json_t *` | A JSON object with filter conditions (e.g., `{"__gclass_name__": "...", "__gobj_name__": "..."}`). Ownership is transferred to the function. |
+| `jn_filter` | `json_t *` | A JSON object with filter conditions (for example `{"__gclass_name__": "...", "__gobj_name__": "..."}`). Ownership is transferred to the function. |
 
 **Returns**
 

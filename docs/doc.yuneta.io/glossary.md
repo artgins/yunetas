@@ -20,7 +20,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   Verification of a user's identity through credentials (JWT tokens, user/password). See [Authorization guide](guide/guide_authz.md).
 
 **Authorization**
-:   Access control that determines whether an authenticated user may perform a specific action. Defined per GClass in the `authz_table`. See [Authorization guide](guide/guide_authz.md).
+:   Access control that determines whether an authenticated user can perform a specific action. Defined per GClass in the `authz_table`. See [Authorization guide](guide/guide_authz.md).
 
 (glossary-bottom-gobj)=
 **Bottom gobj**
@@ -59,7 +59,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   A blueprint defining the structure and behavior of gobjs: FSM (states + events), attributes, commands, authorization rules, and lifecycle methods (GMethods). See [GClass guide](guide/guide_gclass.md).
 
 **GMethod**
-:   A lifecycle or behavioral callback in the GClass `GMETHODS` table (`mt_create`, `mt_destroy`, `mt_start`, `mt_stop`, `mt_play`, `mt_pause`, etc.). See [GClass guide](guide/guide_gclass.md).
+:   A lifecycle or behavioral callback in the GClass `GMETHODS` table (`mt_create`, `mt_destroy`, `mt_start`, `mt_stop`, `mt_play` and `mt_pause`). See [GClass guide](guide/guide_gclass.md).
 
 (glossary-gobj)=
 **gobj** (GObject)
@@ -111,7 +111,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (node)=
 **Node**
-:   A JSON object in [TreeDB](#glossary-treedb) identified by a primary key (`id`). Contains `__md_treedb__` metadata with `g_rowid`, `i_rowid`, `topic_name`, etc.
+:   A JSON object in [TreeDB](#glossary-treedb) identified by a primary key (`id`). Contains `__md_treedb__` metadata with `g_rowid`, `i_rowid` and `topic_name`.
 
 **Parent / Child**
 :   Gobjs form a hierarchical tree. Every gobj has exactly one parent (except the root yuno). Parents create and manage their children.
@@ -151,7 +151,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   A named stage in a gobj's [FSM](#fsm). Predefined states: `ST_STOPPED`, `ST_IDLE`, `ST_DISCONNECTED`, `ST_CONNECTED`, `ST_OPENED`, `ST_CLOSED`.
 
 **Stats**
-:   Operational metrics exposed by every gobj (byte counters, message rates, connection counts, etc.). Attributes flagged `SDF_STATS` or `SDF_RSTATS`. Query with `gobj_stats()` or `ystats`.
+:   Operational metrics exposed by every gobj (byte counters, message rates, connection counts). Attributes flagged `SDF_STATS` or `SDF_RSTATS`. Query with `gobj_stats()` or `ystats`.
 
 **Subscriber**
 :   A gobj that has subscribed to receive published events from another gobj.

@@ -34,7 +34,7 @@ single layer is required for the others.
 |---|---|---|---|
 | 1. Deploy hook (fast path) | certbot success | Hook copies certs, invokes [`reload-certs`](#reload-certs-yuno) on every yuno | Immediate |
 | 2. Agent auto-sync (self-healing) | Timer inside `c_agent` (default 15 min) | Detects cert file changes under `/yuneta/store/certs/` and broadcasts `reload-certs` | ≤15 min |
-| 3. Expiry monitor (alerting) | Timer inside `c_yuno` (default 1 h) | Reads `not_after` of every TLS listener; logs warning / critical | Independent of renewal path |
+| 3. Expiry monitor (alerting) | Timer inside `c_yuno` (default 1 h) | Reads `not_after` of every TLS listener. Logs warning / critical | Independent of renewal path |
 
 No single layer is required for the others. Layer 2 covers layer 1
 failing. Layer 3 covers **both** failing.
@@ -50,9 +50,9 @@ certbot `deploy-hook` at
    mirrored copies into `/yuneta/store/certs/` owned by
    `yuneta:yuneta`. The script resolves the `live/*.pem` symlinks with
    `readlink -f` and copies with `install -C -o yuneta -g yuneta`, so the
-   `.crt` mtime only bumps when the content actually changes — both are
+ `.crt` mtime only bumps when the content changes — both are
    required: `install -C` never skips a symlink source, and a trailing
-   `chown` would leave a root/yuneta owner mismatch that re-triggers the
+ `chown` will leave a root/yuneta owner mismatch that re-triggers the
    copy on every run (spurious `reload-certs` broadcast each cert-sync
    tick).
 2. Reload the web server (`nginx -s reload` or `openresty -s reload`).
@@ -81,7 +81,7 @@ command. Each listener:
    on its `ytls` handle.
 3. The ytls layer builds a fresh `SSL_CTX` (or mbed-TLS state),
    validates it, and atomically swaps it in. Live sessions keep the
-   old context alive via refcount; new sessions use the fresh one.
+ old context alive via refcount. New sessions use the fresh one.
 
 ## Layer 2 — agent auto-sync (self-healing)
 
@@ -206,7 +206,7 @@ This is the core correctness property — documented here because it is
 the easiest thing to break when touching the reload path.
 
 **OpenSSL backend.** `SSL_new(ctx)` increments the `SSL_CTX` refcount
-automatically; `SSL_free(ssl)` decrements it. When
+automatically. `SSL_free(ssl)` decrements it. When
 [`ytls_reload_certificates()`](../api/ytls/ytls.md#ytls_reload_certificates)
 runs:
 
@@ -222,7 +222,7 @@ uses `new_ctx`.
 **mbed-TLS backend.** The ytls layer maintains an explicit
 `mbedtls_state_t` bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` +
 `mbedtls_pk_context`) with a refcount. Each `hsskt` takes a ref on
-creation and releases it on [`ytls_free_secure_filter()`](#ytls_free_secure_filter); the swap drops
+creation and releases it on [`ytls_free_secure_filter()`](#ytls_free_secure_filter). The swap drops
 the ytls handle's ref. Same end result: live sessions stay valid.
 
 ## Troubleshooting
@@ -259,7 +259,7 @@ Five tests ship in-tree to protect the feature:
 - [`tests/c/ytls/test_cert_reload_mem.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/ytls/test_cert_reload_mem.c) — 1000 reloads with no live
   session, asserts `get_cur_system_memory() == 0`.
 - [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/yev_loop/yev_events_tls/test_yevent_reload_live.c) — one
-  reload while a TCP session is live; the session keeps working.
+ reload while a TCP session is live. The session keeps working.
 - [`tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/yev_loop/yev_events_tls/test_yevent_reload_stress.c) — 50
   reloads with a live session, one echo message per iteration.
 

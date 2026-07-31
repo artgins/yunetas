@@ -5,7 +5,7 @@ realms, entities, relationships, messages, and the CRUDLU operations
 on them. It is the concrete counterpart to the
 [Design Principles](design_principles.md) (*why* the framework is
 built this way) and to the [Inspiration](philosophy.md) page (*where
-the words come from*).
+the words are from*).
 
 In Yuneta we seek models (patterns) that allow us to represent and
 visualize all kinds of realities.
@@ -23,8 +23,8 @@ The abstract terms below have direct equivalents in the framework:
 | **Message** | An event name + a [`kw`](#kw) JSON payload sent with [`gobj_send_event()`](#gobj_send_event) |
 | **Persisted record** | A row in a [`timeranger2`](#timeranger2) topic, or a node in a [`tr_treedb`](#glossary-treedb) graph |
 
-Read the next sections as *the words we use*; the reference to *what
-the code actually calls them* is always in this table.
+Read the next sections as *the words we use*. The reference to *what
+the code calls them* is always in this table.
 :::
 
 ---
@@ -216,4 +216,4 @@ paired with an `fkey` on the child — see
 - [Basic Concepts](../guide/guide_basic_concepts.md) — the same concepts
   from the implementation side.
 - [Timeranger2 Guide](../guide/guide_timeranger2.md) — how CRUDLU
-  actually works on disk and in memory.
+ works on disk and in memory.

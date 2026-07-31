@@ -19,7 +19,7 @@ There are two ways to install Yunetas, depending on what you want to do:
 
 > ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
 > management/build CLI (currently 0.18.0), **not** the C framework runtime
-> (currently 7.x). The `.deb` bundles both; building from source uses
+> (currently 7.x). The `.deb` bundles both. A build from source uses
 > the CLI to drive the build.
 
 ---
@@ -61,16 +61,16 @@ glibc warning below. It does not affect running the shipped binaries.
 
 The script does everything in one run, no second step to remember:
 
-- detects the distro (`apt` vs `dnf`) and architecture;
+- detects the distro (`apt` vs `dnf`) and the architecture.
 - **on RHEL/Rocky/Alma**, enables **EPEL + CRB** first (mercurial, ninja-build,
   pipx and the `-devel`/`-static` packages live there, and `dnf` cannot pull
-  from a repo it enables in the same transaction);
+  from a repo that it enables in the same transaction).
 - pulls the matching package (`.deb` / `.rpm`) from the latest
   [GitHub Release](https://github.com/artgins/yunetas/releases) and installs it
-  so dependencies resolve cleanly;
+  so that the dependencies resolve cleanly.
 - then installs the **full developer toolchain** (git, mercurial, clang, gcc,
   cmake, ninja, wget, pipx, …) so the box can build yunos right away. No
-  prompts, no stops — it runs straight through; pass `--runtime-only`
+  prompts and no stops. It runs from start to end. Pass `--runtime-only`
   (`… | sudo sh -s -- --runtime-only`) to skip the toolchain on a pure
   deployment box.
 
@@ -125,7 +125,7 @@ Full inventory in
 > against them on a node with a *different* glibc produces a binary that
 > corrupts the heap at run time — SIGABRT deep in `_int_malloc` seconds after
 > start, no framework error first, stack blaming unrelated code. The **shipped
-> binaries keep working** (they are self-contained); it is *compiling* that
+> binaries keep working** (they are self-contained). It is the *build* that
 > breaks. Check before building anything on a node:
 >
 > ```bash
@@ -135,7 +135,7 @@ Full inventory in
 >
 > If they differ, that node is **runtime-only**: build elsewhere and push
 > binaries with `yunetas sync-binaries`. `tools/cmake/libc_guard.cmake` enforces
-> this at configure time; `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
+> this at configure time. `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
 > message, it does not make the link safe.
 >
 > In practice, each package is built in a container of its own target distro,
@@ -148,7 +148,7 @@ Full inventory in
 >
 > So **Ubuntu nodes are runtime-only** — 24.04 (2.39) and 26.04 (2.43) both
 > differ from 2.41 — as is Debian 12. Build those elsewhere and push binaries.
-> The `.deb` came off an `ubuntu-22.04` runner (glibc 2.35) until **7.8.6-3**;
+> The `.deb` came from an `ubuntu-22.04` runner (glibc 2.35) until **7.8.6-3**.
 > if you are on an older package, check its stamp rather than this table.
 
 > ℹ️ **Build options of the published `.deb`.** The release asset is
@@ -157,14 +157,14 @@ Full inventory in
 > backend (mbedTLS off), and every module enabled (console, mqtt,
 > postgres, test, modbus). The exact configuration is installed at
 > `/yuneta/development/yunetas/.config` — inspect it to confirm what a given
-> package was built with. Need a different combination (e.g. mbedTLS
+> package was built with. Need a different combination (for example mbedTLS
 > for smaller binaries, or a leaner module set)? Build from source and
 > pick your options with [`menuconfig`](#configure-menuconfig).
 
 > ⚠️ **The agent is a SysV service — manage it with the agent binary's own
 > `--start` / `--stop`, NOT `systemctl`/systemd.** Yuneta runs its own
 > daemon + watchdog, so `systemctl restart yuneta_agent` is effectively a
-> **no-op** (the process keeps its old PID and binary — it is not actually
+> **no-op** (the process keeps its old PID and binary, so it is not
 > restarted). To start/stop/restart the agent:
 >
 > ```bash
@@ -184,7 +184,7 @@ Full inventory in
 ### Verify a fresh install
 
 Five checks, both families. Run them right after the one-liner finishes — they
-catch everything that has actually gone wrong on a new node:
+catch everything that went wrong on a new node:
 
 ```bash
 # 1. The three processes are up (agent, agent22, bundled web server)
@@ -462,7 +462,7 @@ plus `$YUNETAS_BASE/scripts` to `PATH`:
 > source checkout on dev nodes or as the sparse SDK (`outputs/`,
 > `outputs_ext/`, `tools/`, `.config` — no sources) staged by the
 > `.deb`/`.rpm` on runtime-only nodes. Your own project repos can live
-> anywhere; register them with `yunetas register-project` (below).
+> anywhere. Register them with `yunetas register-project` (below).
 
 > ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
 > to source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.9.4/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
@@ -539,7 +539,7 @@ cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
 ```
 
 Then build, install and test yunetas with the **`yunetas` CLI** — this is
-the standard build interface (`init` / `build` / `clean` / `test`); prefer
+the standard build interface (`init`, `build`, `clean`, `test`). Prefer
 it over calling `cmake` directly, so the install to `$YUNETAS_OUTPUTS/lib`
 and the per-yuno relinks happen in the right order:
 
@@ -573,7 +573,7 @@ The registry is machine-local user state (`~/.yuneta/projects.json`), kept
 outside the source tree.
 
 Deploy is **two steps: push the artifacts, then promote them.** The helpers
-below wrap `tools/agent/`; shared arguments are forwarded verbatim (`-n`
+below wrap `tools/agent/`. Shared arguments are forwarded verbatim (`-n`
 dry-run, `-a` all, OAuth2 options…). The full CLI reference, including the
 build and project-management commands, is on [The `yunetas` CLI](yunetas-cli.md):
 
@@ -603,13 +603,13 @@ yunetas sync-configs -n --host my.host.com   # or target one batches dir explici
 Without `--host` it queries the local agent (`*list-realms`) and syncs every
 `batches/<host>/` whose name is a realm_id the agent manages — a node running
 several realms deploys all the relevant ones in one pass (a batches dir is
-named after its realm_id, the deploy FQDN). If the agent can't be reached it
-falls back to a single hostname match.
+named after its realm_id, the deploy FQDN). If the agent cannot be reached it
+uses a single hostname match instead.
 
 `upgrade-yunos` takes an optional rollback snapshot (idempotent by name,
-default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip; if a snap is already
+default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip. If a snap is already
 active it reuses that one instead of shooting another), lists the new yuno
-rows `find-new-yunos` would create and asks for confirmation (`--yes` to
+rows that `find-new-yunos` creates and asks for confirmation (`--yes` to
 skip), registers them (`find-new-yunos create=1`), then runs `deactivate-snap`
 — which triggers the agent's `restart_nodes()` (SIGKILL + treedb reload),
 promoting the newest release of every yuno. For a same-version hot-patch (no

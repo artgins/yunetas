@@ -72,7 +72,7 @@ Returns `0` on success, or `-1` if an error occurs.
 If `gobj` is `NULL` or destroyed, an error is logged and `-1` is returned.
 If `record` is `NULL`, an error is logged and `-1` is returned.
 If the `gobj`'s class does not implement `mt_delete_resource`, an error is logged and `-1` is returned.
-The function ensures that `record` and `jn_options` are properly freed before returning.
+The function makes sure that `record` and `jn_options` are properly freed before returning.
 
 ---
 
@@ -101,7 +101,7 @@ json_t *gobj_get_resource(
 
 **Returns**
 
-A JSON object representing the requested resource. The returned object is not owned by the caller and should not be modified or freed.
+A JSON object representing the requested resource. The returned object is not owned by the caller and must not be modified or freed.
 
 **Notes**
 

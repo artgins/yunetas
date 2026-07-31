@@ -86,7 +86,7 @@ needs the layers that consume it rebuilt — not the whole stack.
 
 ## `modules`
 
-Contains additional protocol and functionality modules.
+Contains additional protocol and function modules.
 
 - `C`:
     - `console`: C_CONSOLE support (terminal/CLI interface).
@@ -219,7 +219,7 @@ Utility scripts and CLI tools for Yuneta.
     - [`ylist`](#util-ylist): Lists yunos.
     - `ymake-skeleton`: Generates project skeletons.
     - [`yscapec`](#util-yscapec): Escapes C strings.
-    - [`yshutdown`](#util-yshutdown): Shuts down yunos.
+ - [`yshutdown`](#util-yshutdown): Stops yunos.
     - [`ystats`](#util-ystats): Retrieves yuno statistics.
     - [`ytestconfig`](#util-ytestconfig): Tests configuration files.
     - [`ytests`](#util-ytests): Test runner.

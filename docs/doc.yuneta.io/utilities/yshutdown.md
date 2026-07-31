@@ -12,7 +12,7 @@ yshutdown --agent-only    # only the agent
 yshutdown --keep-agent    # stop the yunos, leave the agent running
 ```
 
-Run `yshutdown --help` for the full flag list (verbose logging, etc.).
+Run `yshutdown --help` for the full flag list (verbose logging and more.).
 
 ```{note}
 For a controlled redeploy of a single yuno, prefer the agent flow

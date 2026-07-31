@@ -42,14 +42,14 @@ Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure rep
 
 **Notes**
 
-The created watcher event must be started using [`fs_start_watcher_event()`](<#fs_start_watcher_event>) to begin monitoring. When no longer needed, it should be stopped using [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>), which will also free the associated resources.
+The created watcher event must be started using [`fs_start_watcher_event()`](<#fs_start_watcher_event>) to begin monitoring. When no longer needed, it must be stopped using [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>), which will also free the associated resources.
 
 ---
 
 (fs_start_watcher_event)=
 ## [`fs_start_watcher_event()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/fs_watcher.c#L215)
 
-`fs_start_watcher_event()` starts monitoring the specified file system event, enabling notifications for file and directory changes.
+`fs_start_watcher_event()` starts monitoring the specified file system event. This enables notifications for file and directory changes.
 
 ```C
 int fs_start_watcher_event(
@@ -96,7 +96,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_event_t` instance is destroyed and should not be used again.
+Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_event_t` instance is destroyed and must not be used again.
 
 ---
 
@@ -104,7 +104,7 @@ Once [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) is called, the `fs_ev
 
 Each watcher owns one inotify instance with a bounded kernel event queue
 (`fs.inotify.max_queued_events`). Under a burst the kernel can drop events and
-signal a single `IN_Q_OVERFLOW`; from that point the watcher can no longer
+signal a single `IN_Q_OVERFLOW`. From that point the watcher can no longer
 guarantee it saw every change.
 
 `fs_watcher` treats this as unrecoverable in place: it logs `critical` with
@@ -112,4 +112,4 @@ guarantee it saw every change.
 reload re-establishes every watch and feed from disk — the proven recovery
 path, chosen over a hard-to-test in-place resync. This is rare in practice
 because the deb/rpm packagers size `fs.inotify.max_queued_events` (65536) well
-above the kernel default; raise it further if overflow-driven restarts recur.
+above the kernel default. Raise it further if overflow-driven restarts recur.

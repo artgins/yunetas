@@ -36,7 +36,7 @@ int kw_add_binary_type(
 
 **Returns**
 
-Returns `0` on success, or `-1` if the maximum number of serialized fields has been reached.
+Returns `0` on success, or `-1` if the maximum number of serialized fields was reached.
 
 **Notes**
 
@@ -223,9 +223,9 @@ int kw_delete(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | A handle to the gobj (generic object) that may be used for logging or context. |
+| `gobj` | `hgobj` | A handle to the gobj (generic object) that can be used for logging or context. |
 | `kw` | `json_t *` | A JSON dictionary from which the value will be deleted. |
-| `path` | `const char *` | The path to the value that should be removed from the dictionary. |
+| `path` | `const char *` | The path to the value that must be removed from the dictionary. |
 
 **Returns**
 
@@ -342,7 +342,7 @@ json_t *kw_deserialize(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | ``hgobj`` | A handle to the gobj (generic object) that may be used for logging or context. |
+| `gobj` | ``hgobj`` | A handle to the gobj (generic object) that can be used for logging or context. |
 | `kw` | ``json_t *`` | A JSON object containing serialized fields that need to be deserialized. |
 
 **Returns**
@@ -358,7 +358,7 @@ The function iterates over predefined serialized fields and applies the correspo
 (kw_duplicate)=
 ## [`kw_duplicate()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/kwid.c#L2381)
 
-`kw_duplicate()` creates a deep copy of a JSON object or array, processing serialized fields to ensure proper duplication.
+`kw_duplicate()` creates a deep copy of a JSON object or array, processing serialized fields to make sure that proper duplication.
 
 ```C
 json_t *kw_duplicate(
@@ -380,7 +380,7 @@ A new JSON object or array that is a deep copy of `kw`, with serialized fields p
 
 **Notes**
 
-Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialized fields to ensure correct duplication of binary data.
+Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialized fields to make sure that correct duplication of binary data.
 
 ---
 
@@ -813,7 +813,7 @@ Returns the string value associated with `path` in `kw`. If the key does not exi
 
 **Notes**
 
-If the value at `path` is not a string, an error is logged, and `default_value` is returned. The function does not duplicate the returned string, so it should not be modified.
+If the value at `path` is not a string, an error is logged, and `default_value` is returned. The function does not duplicate the returned string, so it must not be modified.
 
 ---
 
@@ -931,7 +931,7 @@ json_t *kw_incref(
 
 | Key | Type | Description |
 |---|---|---|
-| `kw` | `json_t *` | A pointer to the JSON object whose reference count should be incremented. |
+| `kw` | `json_t *` | A pointer to the JSON object whose reference count must be incremented. |
 
 **Returns**
 
@@ -1035,7 +1035,7 @@ A new JSON array containing **duplicated** objects that match the filter criteri
 
 If `kw` is an array, each element is checked against `jn_filter`, and matching elements are duplicated into the returned list.
 If `kw` is an object, it is checked against `jn_filter`, and if it matches, it is duplicated into the returned list.
-The returned JSON array contains **duplicated** objects, meaning they have new references and must be freed by the caller.
+The returned JSON array contains **duplicated** objects. This means they have new references and must be freed by the caller.
 
 ---
 
@@ -1093,7 +1093,7 @@ int kw_set_dict_value(
 
 **Returns**
 
-Returns `0` on success, or `-1` if an error occurs (e.g., if `kw` is not a dictionary).
+Returns `0` on success, or `-1` if an error occurs (for example if `kw` is not a dictionary).
 
 **Notes**
 
@@ -1147,7 +1147,7 @@ int kw_set_subdict_value(
 
 | Key | Type | Description |
 |---|---|---|
-| `gobj` | `hgobj` | A handle to the gobj (generic object) that may be used for logging or context. |
+| `gobj` | `hgobj` | A handle to the gobj (generic object) that can be used for logging or context. |
 | `kw` | `json_t *` | A JSON object where the subdictionary is located. |
 | `path` | `const char *` | The path to the subdictionary within `kw`. The last segment of the path is the subdictionary name. |
 | `key` | `const char *` | The key to be set inside the subdictionary. |
@@ -1155,7 +1155,7 @@ int kw_set_subdict_value(
 
 **Returns**
 
-Returns `0` on success, or `-1` if an error occurs (e.g., if `kw` is not a valid JSON object).
+Returns `0` on success, or `-1` if an error occurs (for example if `kw` is not a valid JSON object).
 
 **Notes**
 
@@ -1184,7 +1184,7 @@ void kw_update_except(
 | `gobj` | `hgobj` | Handle to the gobj (generic object) system. |
 | `kw` | `json_t *` | The target JSON dictionary to be updated. This parameter is not owned by the function. |
 | `other` | `json_t *` | The source JSON dictionary containing key-value pairs to update `kw`. This parameter is owned by the function. |
-| `except_keys` | `const char **` | A NULL-terminated array of keys that should be excluded from the update. |
+| `except_keys` | `const char **` | A NULL-terminated array of keys that must be excluded from the update. |
 
 **Returns**
 
@@ -1199,7 +1199,7 @@ Only the first level of `kw` is updated. Keys in `except_keys` are ignored durin
 (kwid_compare_lists)=
 ## [`kwid_compare_lists()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/kwid.c#L1692)
 
-Compare two JSON lists of records, allowing for unordered comparison. The function checks if both lists contain the same elements, considering optional metadata and private key exclusions.
+Compare two JSON lists of records. This allows for unordered comparison. The function checks if both lists contain the same elements, considering optional metadata and private key exclusions.
 
 ```C
 BOOL kwid_compare_lists(
@@ -1230,14 +1230,14 @@ Returns TRUE if both lists contain the same elements, considering the specified 
 
 **Notes**
 
-This function performs a deep comparison of JSON lists, allowing for unordered elements. It internally calls [`kwid_compare_records()`](#kwid_compare_records) for record-level comparison.
+This function performs a deep comparison of JSON lists. This allows for unordered elements. It internally calls [`kwid_compare_records()`](#kwid_compare_records) for record-level comparison.
 
 ---
 
 (kwid_compare_records)=
 ## [`kwid_compare_records()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/kwid.c#L1671)
 
-Compares two JSON records deeply, allowing for unordered elements. The function checks for structural and value equivalence, optionally ignoring metadata and private fields.
+Compares two JSON records deeply. This allows for unordered elements. The function checks for structural and value equivalence, optionally ignoring metadata and private fields.
 
 ```C
 BOOL kwid_compare_records(
@@ -1575,7 +1575,7 @@ Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-The callback is invoked once per key-value pair in the object. If the callback returns a non-zero value, iteration may stop early.
+The callback is invoked once per key-value pair in the object. If the callback returns a non-zero value, iteration can stop early.
 
 ---
 

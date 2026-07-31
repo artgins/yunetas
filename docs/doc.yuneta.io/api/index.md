@@ -1,7 +1,7 @@
 # API Reference
 
 The complete C API surface of the Yuneta kernel, plus the JavaScript port.
-The C reference is grouped by subsystem; the JavaScript section mirrors the
+The C reference is grouped by subsystem. The JavaScript section mirrors the
 same API for the browser and Node.js.
 
 ## In this section

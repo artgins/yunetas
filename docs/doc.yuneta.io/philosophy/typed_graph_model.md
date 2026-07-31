@@ -7,7 +7,7 @@ in [Design Principles](design_principles.md) and the vocabulary in
 
 The short version: **Yuneta treats data and behavior as two views of
 the same typed graph**. Most stacks have a database for "what is" and
-a separate process model for "what happens"; Yuneta unifies them under
+a separate process model for "what happens". Yuneta unifies them under
 one set of primitives. Everything you build — a node in a topic, a
 running service, a TCP socket, a subscription, an authorization rule —
 is an instance of a typed class connected to other instances by typed
@@ -18,7 +18,7 @@ whole before learning its surface area. None of it is required to
 write working code, but it explains why the surface area is shaped the
 way it is.
 
-## The unit is not "node + edge"; it is "typed instance with typed bindings"
+## The unit is not "node + edge". It is "typed instance with typed bindings"
 
 A graph in mathematics has nodes and edges. The distinctive choice in
 Yuneta is that **every edge carries a contract**:
@@ -90,10 +90,10 @@ the concrete APIs on each plane.
 ## What this lets you model
 
 Because both planes share primitives, you can express almost any kind
-of organisation as some combination of typed nodes and typed links:
+of organization as some combination of typed nodes and typed links:
 
 - **Strict hierarchies** — a single parent hook. The gobj-tree itself
-  is built this way; so is any topic that links back to a parent of
+ is built this way. So is any topic that links back to a parent of
   the same type.
 - **Matrix or many-to-many** — multiple [`fkey`](#fkey) fields on a child node,
   each pointing to a different parent topic. Bipartite (users ↔ roles)
@@ -109,7 +109,7 @@ of organisation as some combination of typed nodes and typed links:
   what to whom, with delivery semantics (sync command vs. published
   event vs. queued message) baked into the binding type.
 - **Versioned relations over time** — every treedb write appends a new
-  record with a fresh [`g_rowid`](#g_rowid) and a timestamp; the current view is a
+ record with a fresh [`g_rowid`](#g_rowid) and a timestamp. The current view is a
   projection of the latest non-deleted row per `id`. Historical
   reconstruction is a matter of choosing a different cut-off.
 
@@ -125,7 +125,7 @@ a durable delete must tombstone **every** row of the id, and why unlink
 must find the right version — the two fixes shipped in 7.5.1.
 ```
 
-## What this *doesn't* let you model cleanly
+## What this *does not* let you model cleanly
 
 The same constraint that gives you uniform composition also has costs.
 Worth being honest about where the model strains:
@@ -149,9 +149,9 @@ Worth being honest about where the model strains:
   need transparent multi-master replication, that is a layer you
   build *on top of* Yuneta, not something the framework gives you.
 - **Truly opaque payloads** — anything that genuinely cannot be typed
-  ends up as a `json_t *` blob or a base64 string in a `user_data`
+  becomes a `json_t *` blob or a base64 string in a `user_data`
   field. Those are the cracks where the model lets through what it
-  could not classify, and they are worth treating as design smells
+ cannot classify, and they are worth treating as design smells
   when they appear in new code.
 
 ## The implicit axiom
@@ -181,17 +181,17 @@ the leak explicitly — is the running design discipline.
 
 The payoffs that justify the upfront typing cost:
 
-- **Uniform composition at every scale.** A TCP socket is a gobj; a
-  protocol on top is a gobj that owns the socket as `bottom_gobj`; a
-  service is a gobj that owns the protocol; a yuno is a gobj that
-  owns services; the agent is a gobj that owns yunos. The same
+- **Uniform composition at every scale.** A TCP socket is a gobj. A
+ protocol on top is a gobj that owns the socket as `bottom_gobj`. A
+ service is a gobj that owns the protocol. A yuno is a gobj that
+ owns services. The agent is a gobj that owns yunos. The same
   primitive ([`gobj_subscribe_event`](#gobj_subscribe_event),
   [`gobj_send_event`](#gobj_send_event)) works at every level.
 - **Substitution by contract.** Swap [OpenSSL](https://www.openssl.org/) ↔
   [mbedTLS](https://github.com/Mbed-TLS/mbedtls) under [`C_YTLS`](#ytls)
   and the layers above do not notice. Swap [`c_tcp`](#gclass-c-tcp) for
   `c_unix_socket` and the protocols stay blind. The contract is the
-  gclass signature; the implementation behind it is interchangeable.
+ gclass signature. The implementation behind it is interchangeable.
 - **Structural traceability.** [`gobj_short_name(g)`](#gobj_short_name) returns the full
   path through the tree
   (`C_YUNO^...^C_AUTH_BFF^auth_bff^C_HTTPS_CL^...^C_TCP^...`). You
@@ -206,11 +206,11 @@ The payoffs that justify the upfront typing cost:
 ## The empirical justification
 
 The implicit bet of Yuneta is that **paying to type everything
-amortises over many years of production**. The bet has been honoured:
-the same model (under earlier names — v2, v6) has been running at
+amortises over many years of production**. The bet was honoured:
+the same model (under earlier names — v2, v6) was running at
 industrial scale for over fifteen years in deployments where downtime
 is expensive and operator turnover is real. The current v7 codebase
-inherits from that empirical history; consequently, when a design
+inherits from that empirical history. Consequently, when a design
 choice looks strange, the answer is more often "this was learned in
 production" than "this is theory".
 

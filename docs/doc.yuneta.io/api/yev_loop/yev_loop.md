@@ -12,7 +12,7 @@ zero-syscall-per-op submission/completion.
   - Timers (one-shot and periodic)
   - Signal handlers
   - Filesystem events (delegated to `fs_watcher` in `timeranger2`)
-- Submit → callback pattern: every call returns immediately; the callback
+- Submit → callback pattern: every call returns immediately. The callback
   runs when the kernel reports completion.
 - Cross-loop messaging primitives used by multi-yuno deployments.
 
@@ -69,11 +69,11 @@ yev_event_h yev_create_accept_event(
 |---|---|---|
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the accept event will be created. |
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
-| `listen_url` | `const char *` | The URL to listen on (e.g., `"tcp://0.0.0.0:7000"`). |
+| `listen_url` | `const char *` | The URL to listen on (for example `"tcp://0.0.0.0:7000"`). |
 | `backlog` | `int` | Queue size of pending connections for socket listening. |
 | `shared` | `BOOL` | Whether to open the socket as shared (`SO_REUSEPORT`). |
-| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
-| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
+| `ai_family` | `int` | Address family (for example `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (for example `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 | `gobj` | `hgobj` | The associated `hgobj` object for event handling. |
 
 **Returns**
@@ -105,10 +105,10 @@ yev_event_h yev_create_connect_event(
 |---|---|---|
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the connect event will be created. |
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
-| `dst_url` | `const char *` | Destination URL to connect to (e.g., `"tcp://host:port"`). |
+| `dst_url` | `const char *` | Destination URL to connect to (for example `"tcp://host:port"`). |
 | `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
-| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
-| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
+| `ai_family` | `int` | Address family (for example `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (for example `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
 
 **Returns**
@@ -221,7 +221,7 @@ The write event monitors the specified file descriptor for write readiness. Use 
 (yev_destroy_event)=
 ## [`yev_destroy_event()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/yev_loop/src/yev_loop.c#L2012)
 
-`yev_destroy_event()` releases the resources associated with a given event, ensuring proper cleanup.
+`yev_destroy_event()` releases the resources associated with a given event. This makes sure of proper cleanup.
 
 ```C
 void yev_destroy_event(
@@ -268,7 +268,7 @@ A pointer to a constant string representing the event type name.
 
 **Notes**
 
-The returned string is statically allocated and should not be modified or freed by the caller.
+The returned string is statically allocated and must not be modified or freed by the caller.
 
 ---
 
@@ -347,7 +347,7 @@ Returns the `hgobj` object associated with the specified event loop.
 
 **Notes**
 
-The returned `hgobj` may be `NULL` if the event loop is not properly initialized.
+The returned `hgobj` can be `NULL` if the event loop is not properly initialized.
 
 ---
 
@@ -372,8 +372,8 @@ int yev_loop_create(
 |---|---|---|
 | `yuno` | `hgobj` | The `hgobj` instance associated with the event loop. |
 | `entries` | `unsigned` | The maximum number of event entries the loop can handle. |
-| `keep_alive` | `int` | Specifies whether the loop should persist after processing events. |
-| `callback` | `yev_callback_t` | A callback function invoked for each event; returning `-1` will break [`yev_loop_run()`](<#yev_loop_run>). |
+| `keep_alive` | `int` | Specifies whether the loop must persist after processing events. |
+| `callback` | `yev_callback_t` | A callback function invoked for each event. Returning `-1` will break [`yev_loop_run()`](<#yev_loop_run>). |
 | `yev_loop` | `yev_loop_h *` | Pointer to store the created event loop handle. |
 
 **Returns**
@@ -409,7 +409,7 @@ This function does not return a value.
 
 **Notes**
 
-After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and should not be used.
+After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and must not be used.
 
 ---
 
@@ -436,7 +436,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`yev_loop_reset_running()`](<#yev_loop_reset_running>) to ensure the event loop is reset before restarting it.
+Use [`yev_loop_reset_running()`](<#yev_loop_reset_running>) to make sure that the event loop is reset before restarting it.
 
 ---
 
@@ -538,7 +538,7 @@ int yev_protocol_set_protocol_fill_hints_fn(
 
 | Key | Type | Description |
 |---|---|---|
-| `yev_protocol_fill_hints_fn` | `yev_protocol_fill_hints_fn_t` | A function pointer that defines how protocol hints should be filled based on the schema. |
+| `yev_protocol_fill_hints_fn` | `yev_protocol_fill_hints_fn_t` | A function pointer that defines how protocol hints must be filled based on the schema. |
 
 **Returns**
 
@@ -594,7 +594,7 @@ int yev_start_event(
 
 | Key | Type | Description |
 |---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event that should be started. |
+| `yev_event` | `yev_event_h` | Handle to the event that must be started. |
 
 **Returns**
 
@@ -625,7 +625,7 @@ int yev_start_timer_event(
 |---|---|---|
 | `yev_event` | `yev_event_h` | Handle to the event that will be started as a timer. |
 | `timeout_ms` | `time_t` | Timeout in milliseconds. A value of `timeout_ms <= 0` is equivalent to calling [`yev_stop_event()`](<#yev_stop_event>). |
-| `periodic` | `BOOL` | If `TRUE`, the timer will be periodic; otherwise, it will be a one-shot timer. |
+| `periodic` | `BOOL` | If `TRUE`, the timer will be periodic. Otherwise, it will be a one-shot timer. |
 
 **Returns**
 
@@ -641,7 +641,7 @@ If the timer is in the `IDLE` state, it can be reused. If it is `STOPPED`, a new
 (yev_stop_event)=
 ## [`yev_stop_event()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/yev_loop/src/yev_loop.c#L1865)
 
-`yev_stop_event()` stops the specified event, ensuring that its associated file descriptor is closed if applicable. This operation is idempotent, meaning it can be called multiple times without adverse effects.
+`yev_stop_event()` stops the specified event. This makes sure that its associated file descriptor is closed if applicable. This operation is idempotent. This means it can be called multiple times without adverse effects.
 
 ```C
 int yev_stop_event(
@@ -653,7 +653,7 @@ int yev_stop_event(
 
 | Key | Type | Description |
 |---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event that should be stopped. |
+| `yev_event` | `yev_event_h` | Handle to the event that must be stopped. |
 
 **Returns**
 
@@ -662,7 +662,7 @@ Returns `0` on success, or `-1` if an error occurs.
 **Notes**
 
 If the event is a `connect`, `timer`, or `accept` event, the associated socket will be closed.
-If the event is in an idle state, it can be reused; otherwise, a new event must be created.
+If the event is in an idle state, it can be reused. Otherwise, a new event must be created.
 
 ---
 
@@ -689,7 +689,7 @@ yev_event_h yev_create_poll_event(
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
 | `fd` | `int` | The file descriptor to monitor. |
-| `poll_mask` | `unsigned` | Bitmask specifying the poll conditions to monitor (e.g., `POLLIN`, `POLLOUT`). |
+| `poll_mask` | `unsigned` | Bitmask specifying the poll conditions to monitor (for example `POLLIN`, `POLLOUT`). |
 
 **Returns**
 
@@ -749,7 +749,7 @@ yev_event_h yev_create_sendmsg_event(
 | Key | Type | Description |
 |---|---|---|
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the sendmsg event will be created. |
-| `callback` | `yev_callback_t` | The callback function to be invoked when the message has been sent. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `callback` | `yev_callback_t` | The callback function to be invoked when the message was sent. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
 | `fd` | `int` | The socket file descriptor to send messages on. |
 | `gbuf` | `gbuffer_t *` | The buffer containing the data to be sent. |
@@ -837,10 +837,10 @@ int yev_rearm_connect_event(
 | Key | Type | Description |
 |---|---|---|
 | `yev_event` | `yev_event_h` | Handle to the connect event to rearm. |
-| `dst_url` | `const char *` | Destination URL to connect to (e.g., `"tcp://host:port"`). |
+| `dst_url` | `const char *` | Destination URL to connect to (for example `"tcp://host:port"`). |
 | `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
-| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
-| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
+| `ai_family` | `int` | Address family (for example `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (for example `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 
 **Returns**
 

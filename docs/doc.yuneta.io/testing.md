@@ -25,7 +25,7 @@ Low-level tests for the io_uring event loop, without the GObj layer.
 | Binary | Description |
 |--------|-------------|
 | **`test_yevent_listen1–4`** | Server creates a listen socket and accepts one client connection. |
-| **`test_yevent_connect1–2`** | Client connects to a listening server; verifies the connection succeeds. |
+| **`test_yevent_connect1–2`** | Client connects to a listening server, then makes sure that the connection succeeds. |
 | **`test_yevent_traffic1–6`** | Client ↔ server message echo over plain TCP (multiple variants). |
 | **`test_yevent_udp_traffic1`** | UDP message echo. |
 | **`test_yevent_traffic_secure1`** | TLS-encrypted TCP message echo. |
@@ -64,10 +64,10 @@ dropping live sessions and rolls back cleanly on invalid material.
 
 | Binary | Description |
 |--------|-------------|
-| **`test_cert_reload`** | Swap cert A → B and confirm `view-cert` reflects the new subject/not_after; feed an invalid cert and verify the previous context is kept intact (rollback). |
+| **`test_cert_reload`** | Swap cert A → B and make sure that `view-cert` shows the new subject and not_after. Then feed an invalid cert and make sure that the previous context stays intact (rollback). |
 | **`test_cert_info`** | [`ytls_get_cert_info()`](#ytls_get_cert_info) edge cases: short / long validity, self-signed invariant, serial shape, client-side `NULL`, already-expired cert. |
 | **`test_cert_reload_mem`** | 1000 reloads without any live session and asserts `get_cur_system_memory() == 0` (leak gate, run under [valgrind](https://valgrind.org/) for exhaustive checking). |
-| **`test_yevent_reload_live`** | One reload while a TCP session is live; the session keeps working end-to-end. |
+| **`test_yevent_reload_live`** | One reload while a TCP session is live. The session keeps working end-to-end. |
 | **`test_yevent_reload_stress`** | 50 reloads with a live session, one echo message per iteration. |
 
 **Source:** `tests/c/ytls/`, `tests/c/yev_loop/yev_events_tls/`
@@ -91,15 +91,15 @@ crash or leak cannot mask neighbours.
 | Binary | Description |
 |--------|-------------|
 | **`test1_login`** | Happy-path login round-trip through the BFF. |
-| **`test2_kc_401`** | IdP returns 401; BFF must surface a stable `error_code` and not poison its `kc_ok` counter. |
+| **`test2_kc_401`** | IdP returns 401. BFF must give a stable `error_code`, and it must not corrupt its `kc_ok` counter. |
 | **`test3_callback`** | `/auth/callback` code-for-token exchange. |
 | **`test4_refresh`** | Proactive refresh-token round-trip. |
 | **`test5_logout`** | Logout clears cookies and drives the IdP revoke endpoint. |
 | **`test6_invalid_body`** | Malformed JSON body → 4xx with `error_code` mapped for the GUI. |
-| **`test7_slow_login`** | IdP replies slowly; the BFF keeps the browser waiting without timing out early. |
+| **`test7_slow_login`** | IdP replies slowly. The BFF makes the browser wait, and it does not time out early. |
 | **`test8_queue_full`** | Pipeline 4 POSTs + overflow: `dl_list` pending queue drops the overflow in order and reports the configured `pending_queue_size`. |
-| **`test9_browser_cancel`** | Browser disconnects mid-round-trip; the BFF drops the stale IdP reply (`responses_dropped` counter) instead of forwarding it. |
-| **`test10_kc_silence`** | IdP goes totally silent; `kc_timeout_ms` watchdog fires, responds 504 to the browser and drains the task (`kc_timeouts` counter). |
+| **`test9_browser_cancel`** | Browser disconnects in the middle of the round-trip. The BFF drops the stale IdP reply (`responses_dropped` counter) and does not forward it. |
+| **`test10_kc_silence`** | IdP gives no answer. The `kc_timeout_ms` watchdog fires, answers 504 to the browser, and drains the task (`kc_timeouts` counter). |
 | **`test11_cancel_retry`** | Cancel-then-retry: state cleanup between two back-to-back logins on the same browser. |
 | **`test12_stale_reply`** | Per-task browser generation blocks cross-user token leak races. |
 | **`test13_refresh_expired`** | Expired refresh token → mapped error, no silent `kc_error`. |
@@ -190,5 +190,5 @@ Toggle with `menuconfig` or pass `-DENABLE_TESTS=OFF` to CMake.
 
 ## Related
 
-- **Performance benchmarks** live under `performance/c/` — `perf_c_tcp`, `perf_c_tcps`, `perf_yev_ping_pong`, `perf_yev_ping_pong2` and the new **`perf_auth_bff`** (ping-pong-style live throughput over the BFF; default 10 s runs, ~180 000 ops on the reference box).
+- **Performance benchmarks** live under `performance/c/` — `perf_c_tcp`, `perf_c_tcps`, `perf_yev_ping_pong`, `perf_yev_ping_pong2` and the new **`perf_auth_bff`**. That one measures live throughput over the BFF in the ping-pong style. A run is 10 s by default, and it does about 180 000 ops on the reference box.
 - **Stress runners** live under `stress/c/` — `stress/auth_bff` drives concurrent BFF login / refresh / logout cycles to expose races between the pending queue, the watchdog and the flush-on-disconnect path.

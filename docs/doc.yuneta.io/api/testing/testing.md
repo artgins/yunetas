@@ -32,7 +32,7 @@ int capture_log_write(
 
 **Returns**
 
-Returns `-1` to indicate that the log message has been processed internally.
+Returns `-1` to indicate that the log message was processed internally.
 
 **Notes**
 
@@ -63,7 +63,7 @@ void set_expected_results(
 | `errors_list` | `json_t *` | A JSON array containing expected error messages. |
 | `expected` | `json_t *` | A JSON object representing the expected test output. |
 | `ignore_keys` | `const char **` | An array of keys to be ignored during JSON comparison. |
-| `verbose` | `BOOL` | Flag indicating whether verbose output should be enabled. |
+| `verbose` | `BOOL` | Flag indicating whether verbose output must be enabled. |
 
 **Returns**
 
@@ -224,7 +224,7 @@ Returns `0` if all elements match. Returns a negative value (accumulated `-1` pe
 
 **Notes**
 
-Only keys present in the `expected` objects are checked; extra keys in `found` objects are ignored.
+Only keys present in the `expected` objects are checked. Extra keys in `found` objects are ignored.
 On mismatch, error details are printed to stdout with the formatted message, the mismatched key, index, and both expected and found values.
 
 ---

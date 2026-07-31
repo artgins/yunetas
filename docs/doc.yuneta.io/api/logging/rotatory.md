@@ -83,7 +83,7 @@ This function does not return a value.
 
 **Notes**
 
-Flushing ensures that all buffered log data is written to disk, reducing the risk of data loss in case of a crash.
+Flushing makes sure that all buffered log data is written to disk, reducing the risk of data loss in case of a crash.
 
 ---
 
@@ -142,12 +142,12 @@ hrotatory_h rotatory_open(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The file path for the rotatory log. |
-| `bf_size` | `size_t` | The buffer size for writing logs; `0` defaults to `64K`. |
-| `max_megas_rotatoryfile_size` | `size_t` | The maximum size of a rotatory log file in megabytes; `0` defaults to `8MB`. |
-| `min_free_disk_percentage` | `size_t` | The minimum free disk space percentage before stopping logging; `0` defaults to `10%`. |
+| `bf_size` | `size_t` | The buffer size for writing logs. `0` defaults to `64K`. |
+| `max_megas_rotatoryfile_size` | `size_t` | The maximum size of a rotatory log file in megabytes. `0` defaults to `8MB`. |
+| `min_free_disk_percentage` | `size_t` | The minimum free disk space percentage before stopping logging. `0` defaults to `10%`. |
 | `xpermission` | `int` | The permission mode for directories and executable files. |
 | `rpermission` | `int` | The permission mode for regular log files. |
-| `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure; otherwise, logs an error. |
+| `exit_on_fail` | `BOOL` | If `TRUE`, the process exits on failure. Otherwise, logs an error. |
 
 **Returns**
 
@@ -184,14 +184,14 @@ Returns a pointer to the file path string associated with the given rotatory log
 
 **Notes**
 
-The returned pointer is managed internally and should not be modified or freed by the caller.
+The returned pointer is managed internally and must not be modified or freed by the caller.
 
 ---
 
 (rotatory_start_up)=
 ## [`rotatory_start_up()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/rotatory.c#L91)
 
-`rotatory_start_up()` initializes the rotatory logging system, ensuring it is only initialized once and registering cleanup functions.
+`rotatory_start_up()` initializes the rotatory logging system. This makes sure of it is only initialized once and registering cleanup functions.
 
 ```C
 int rotatory_start_up(void);
@@ -209,7 +209,7 @@ Returns `0` on success, or `-1` if the rotatory system is already initialized.
 
 **Notes**
 
-This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ensure proper cleanup.
+This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to make sure that proper cleanup.
 
 ---
 

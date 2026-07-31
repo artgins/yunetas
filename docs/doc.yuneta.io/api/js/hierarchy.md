@@ -50,6 +50,6 @@ gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)
 gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)
 ```
 
-`walk_type` controls the traversal order (pre-order, post-order, etc.).
+`walk_type` controls the traversal order (pre-order, post-order and more.).
 The callback `cb_walking(gobj, user_data, user_data2)` is invoked for
-each visited node; return a non-zero value to stop walking early.
+each visited node. Return a non-zero value to stop walking early.

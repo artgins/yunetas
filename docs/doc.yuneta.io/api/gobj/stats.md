@@ -37,7 +37,7 @@ json_t *gobj_stats(
 |---|---|---|
 | `gobj`  | `hgobj`        | The gobj being queried. |
 | `stats` | `const char *` | Filter / control string. `NULL` or `""` returns every metric. A non-empty string filters by `strstr` match against each metric name. The reserved value `"__reset__"` resets all resettable counters and then returns the post-reset snapshot. |
-| `kw`    | `json_t *`     | Owned. Optional parameters; passed through to the gclass's `mt_stats` if any. |
+| `kw`    | `json_t *`     | Owned. Optional parameters. Passed through to the gclass's `mt_stats` if any. |
 | `src`   | `hgobj`        | The gobj making the call (used for tracing and authorization). |
 
 **Returns**
@@ -165,7 +165,7 @@ The internal `jn_stats` dict. The returned JSON object is **not owned** by the c
 
 **Notes**
 
-The returned JSON object is the live internal `jn_stats`. Modifying it directly may lead to undefined behaviour. Use [`gobj_set_stat()`](#gobj_set_stat) / [`gobj_incr_stat()`](#gobj_incr_stat) / [`gobj_decr_stat()`](#gobj_decr_stat) to mutate it safely.
+The returned JSON object is the live internal `jn_stats`. Modifying it directly can lead to undefined behavior. Use [`gobj_set_stat()`](#gobj_set_stat) / [`gobj_incr_stat()`](#gobj_incr_stat) / [`gobj_decr_stat()`](#gobj_decr_stat) to mutate it safely.
 
 ---
 

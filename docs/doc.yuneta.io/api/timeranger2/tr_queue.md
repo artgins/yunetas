@@ -24,7 +24,7 @@ json_t *trq_answer(
 | Key | Type | Description |
 |---|---|---|
 | `jn_message` | `json_t *` | A JSON object representing the original message. The ownership of this object is not transferred. |
-| `result` | `int` | An integer result code that may be included in the returned metadata. |
+| `result` | `int` | An integer result code that can be included in the returned metadata. |
 
 **Returns**
 
@@ -59,7 +59,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function ensures that the queue's backup mechanism is triggered when required.
+This function makes sure that the queue's backup mechanism is triggered when required.
 
 ---
 
@@ -97,7 +97,7 @@ This function provides a low-level check for message status in the queue.
 (trq_close)=
 ## [`trq_close()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_queue.c#L106)
 
-Closes the given `tr_queue`, releasing associated resources. After calling `trq_close()`, ensure to invoke [`tranger2_shutdown()`](<#tranger2_shutdown>) if no other queues are in use.
+Closes the given `tr_queue`, releasing associated resources. After calling `trq_close()`, make sure that to invoke [`tranger2_shutdown()`](<#tranger2_shutdown>) if no other queues are in use.
 
 ```C
 void trq_close(
@@ -117,7 +117,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`trq_close()`](<#trq_close>) is called before shutting down the underlying TimeRanger instance with [`tranger2_shutdown()`](<#tranger2_shutdown>).
+Make sure that [`trq_close()`](<#trq_close>) is called before shutting down the underlying TimeRanger instance with [`tranger2_shutdown()`](<#tranger2_shutdown>).
 
 ---
 
@@ -146,7 +146,7 @@ Returns a `q_msg_t *` handle to the retrieved message, or `NULL` if the message 
 
 **Notes**
 
-The returned message remains owned by the queue and should not be freed manually.
+The returned message remains owned by the queue and must not be freed manually.
 
 ---
 
@@ -169,11 +169,11 @@ json_t *trq_get_metadata(
 
 **Returns**
 
-A pointer to a JSON object containing the metadata. The returned JSON object is not owned by the caller and should not be modified or freed.
+A pointer to a JSON object containing the metadata. The returned JSON object is not owned by the caller and must not be modified or freed.
 
 **Notes**
 
-The returned JSON object is a reference and should not be altered or deallocated by the caller.
+The returned JSON object is a reference and must not be altered or deallocated by the caller.
 
 ---
 
@@ -293,14 +293,14 @@ Returns a `tr_queue_t *` handle representing the opened queue, or `NULL` on fail
 
 **Notes**
 
-Ensure that [`tranger2_startup()`](<#tranger2_startup>) is called before invoking [`trq_open()`](<#trq_open>).
+Make sure that [`tranger2_startup()`](<#tranger2_startup>) is called before invoking [`trq_open()`](<#trq_open>).
 
 ---
 
 (trq_set_hard_flag)=
 ## [`trq_set_hard_flag()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_queue.c#L481)
 
-`trq_set_hard_flag()` marks a message with a hard flag, allowing it to be recovered in the next queue open if the flag is used in [`trq_load()`](<#trq_load>).
+`trq_set_hard_flag()` marks a message with a hard flag. This allows it to be recovered in the next queue open if the flag is used in [`trq_load()`](<#trq_load>).
 
 ```C
 int trq_set_hard_flag(
@@ -316,7 +316,7 @@ int trq_set_hard_flag(
 |---|---|---|
 | `msg` | `q_msg_t *` | The message to be marked. |
 | `hard_mark` | `uint16_t` | The hard flag to set on the message. |
-| `set` | `BOOL` | If `TRUE`, the flag is set; if `FALSE`, the flag is cleared. |
+| `set` | `BOOL` | If `TRUE`, the flag is set. If `FALSE`, the flag is cleared. |
 
 **Returns**
 
@@ -355,7 +355,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-The caller must ensure that `kw` is a valid JSON object before calling [`trq_set_metadata()`](<#trq_set_metadata>).
+The caller must make sure that `kw` is a valid JSON object before calling [`trq_set_metadata()`](<#trq_set_metadata>).
 
 ---
 
@@ -378,7 +378,7 @@ uint64_t trq_set_soft_mark(
 |---|---|---|
 | `msg` | `q_msg_t *` | The queue message on which the soft mark is to be set or cleared. |
 | `soft_mark` | `uint64_t` | The soft mark value to be applied to the message. |
-| `set` | `BOOL` | If `TRUE`, the soft mark is set; if `FALSE`, the soft mark is cleared. |
+| `set` | `BOOL` | If `TRUE`, the soft mark is set. If `FALSE`, the soft mark is cleared. |
 
 **Returns**
 

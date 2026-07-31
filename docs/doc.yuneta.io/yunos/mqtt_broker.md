@@ -19,7 +19,7 @@ C_MQTT_BROKER (default service)  <- broker: sessions, subscriptions, queues, ret
 
 `mqtt_broker` is a **citizen yuno**: it does not open its own listening socket.
 MQTT client connections arrive through the node's public gateway and are
-delivered to the broker's `__input_side__` as channels; each channel runs a
+delivered to the broker's `__input_side__` as channels. Each channel runs a
 `C_PROT_MQTT2` instance. The same `C_PROT_MQTT2` gclass also works as an MQTT
 *client* (it carries client-side attrs like `mqtt_client_id`, `mqtt_protocol`,
 will/keepalive).
@@ -31,7 +31,7 @@ will/keepalive).
 - Retained messages (`retain_available`), Last Will & Testament (incl. v5
   will-delay / message-expiry properties).
 - Keepalive / PING, clean vs persistent sessions, **session expiry interval**
-  (v5; also enforced for v3.x via `mqtt_session_expiry_interval`).
+  (v5, and also enforced for v3.x through `mqtt_session_expiry_interval`).
 - Normal and **shared subscriptions** (`$share`).
 - Flow control: in-flight and queued-message limits, `message_size_limit`,
   `max_packet_size`.
@@ -46,7 +46,7 @@ queues:
 - **retained messages** — TreeDB topic `retained_msgs`.
 - **inflight / queued messages** — TimeRanger2 queues (per client).
 
-Persistent sessions survive broker restarts; `clean_session` clients are
+Persistent sessions survive broker restarts. `clean_session` clients are
 transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 
 ## Configuration
@@ -64,7 +64,7 @@ transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 | `use_internal_schema` | `true` | Use the hardcoded TreeDB schema |
 | `on_critical_error` | `2` | `LOG_OPT_EXIT_ZERO` (exit, no auto-restart) on error |
 
-Session limits come from [`C_AUTHZ`](#gclass-c-authz) (e.g. `Authz.max_sessions_per_user`,
+Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,
 default 4 in `main.c`).
 
 Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
@@ -73,19 +73,19 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 |-----------|---------|---------|
 | `max_qos` | `2` | Max QoS allowed for connecting clients |
 | `retain_available` | `true` | Allow retained messages (else RETAIN clients are dropped) |
-| `max_inflight_messages` | `20` | Outgoing QoS 1/2 in flight (1 = strict in-order; 0 = unlimited) |
+| `max_inflight_messages` | `20` | Outgoing QoS 1/2 in flight (1 = strict in-order, 0 = unlimited) |
 | `max_inflight_bytes` | `0` | Byte cap on in-flight messages (0 = no limit) |
 | `max_queued_messages` | `1000` | Per-client queue depth above in-flight (0 = unlimited) |
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
-| `max_packet_size` | `0` | Max MQTT packet (v5 advertises it; 0 = no limit) |
+| `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
 
 (mqtt-acl)=
 ## Authorization (publish/subscribe ACL)
 
 Authentication (who the client is) is handled by [`C_AUTHZ`](#gclass-c-authz) —
-see [Authentication, authorisation, and TLS](../../../yunos/c/yuno_agent/YUNO_AUTH.md). Authorization of
-*which topics a client may use* is a separate, broker-local mechanism: a
+see [Authentication, authorization, and TLS](../../../yunos/c/yuno_agent/YUNO_AUTH.md). Authorization of
+*which topics a client can use* is a separate, broker-local mechanism: a
 **per-group topic ACL** stored in the broker's own TreeDB.
 
 The model (model A — group-based ACL in the treedb):
@@ -103,9 +103,9 @@ The model (model A — group-based ACL in the treedb):
 Enforcement is gated by the `enable_acl` attr on `C_MQTT_BROKER` (default
 `false`). The ACL helper allows when:
 
-- `enable_acl` is **off** (default) — no enforcement, allow-all; OR
+- `enable_acl` is **off** (default) — no enforcement, allow-all. OR
 - the client's groups define **no patterns** for that access — allow-all
-  (so adding the columns doesn't break an existing broker until ACLs are
+ (so adding the columns does not break an existing broker until ACLs are
   authored).
 
 With `enable_acl` **on** and patterns authored, a topic must match one of the
@@ -120,14 +120,14 @@ through the same `mqtt_acl_check()` helper:
 - **PUBLISH** — `C_PROT_MQTT2` decides the publish outcome, so it asks the broker
   over a **direct** `EV_MQTT_ACL_CHECK` event (`0` = allowed / `-1` = denied) —
   a direct `gobj_send_event`, not a publish (the published path runs through the
-  intermediate `C_CHANNEL` / `C_IOGATE`, which don't carry the event). A denied
+ intermediate `C_CHANNEL` / `C_IOGATE`, which do not carry the event). A denied
   publish is rejected with `MQTT_RC_NOT_AUTHORIZED`. If no `C_MQTT_BROKER`
   service is found the protocol **fails open** (allows) with a warning.
 - **SUBSCRIBE** — the per-topic SUBACK reason is built in the broker's
   `ac_mqtt_subscribe`, so the check lives there (alongside the existing
   `deny_subscribes` gate), calling `mqtt_acl_check(..., "read")` directly per
   requested filter. A denied filter is **not** added and its SUBACK reason is
-  `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x); the rest of the SUBSCRIBE
+ `MQTT_RC_NOT_AUTHORIZED` (v5) / `0x80` (v3.x). The rest of the SUBSCRIBE
   succeeds (per-topic, as MQTT requires).
 
 ```{note}

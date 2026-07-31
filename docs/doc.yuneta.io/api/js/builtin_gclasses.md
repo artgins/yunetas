@@ -73,4 +73,4 @@ const remote = gobj_create_service("backend", "C_IEVENT_CLI", {
 
 Once connected, `C_IEVENT_CLI` republishes every event that arrives
 from the remote side as a local event on itself — subscribe to it the
-same way you would to any local GObject.
+same way you will to any local GObject.

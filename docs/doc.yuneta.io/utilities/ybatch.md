@@ -5,7 +5,7 @@
 each waiting for the previous response. It is the unattended, file-driven member
 of the control-plane family — use it for automation, provisioning, and smoke
 tests. For interactive use or one-off commands reach for [`ycommand`](ycommand.md)
-instead; `ybatch` is what you point at a checked-in script.
+instead. `ybatch` is what you point at a checked-in script.
 
 ## Usage
 
@@ -35,7 +35,7 @@ Run `ybatch --help` for the full flag list.
 
 The file is a sequence of relaxed-JSON objects (single quotes and unquoted keys
 are accepted), each with a `command` key. Objects are read by brace matching, so
-they may span multiple lines and any text outside a `{ ... }` block is ignored
+they can span multiple lines and any text outside a `{ ... }` block is ignored
 (handy for free-form comments between commands).
 
 ```text
@@ -54,11 +54,11 @@ they may span multiple lines and any text outside a `{ ... }` block is ignored
 
 | Field | Meaning |
 |-------|---------|
-| `command` | The command string, exactly as you would type it in [`ycommand`](#util-ycommand) (with `arg=val`, `service=…`, etc.). Required. |
+| `command` | The command string, exactly as you will type it in [`ycommand`](#util-ycommand) (with `arg=val`, `service=…` and more.). Required. |
 | `ignore_fail` | If `true`, a failure of this command does not abort the batch. |
 | `-` prefix | A leading `-` on the command value is shorthand for `ignore_fail: true` (the same convention `ycommand` uses). |
 
-By default the first failing command stops the batch; mark the commands that are
+By default the first failing command stops the batch. Mark the commands that are
 allowed to fail with the `-` prefix or `ignore_fail`.
 
 ## Options
@@ -80,7 +80,7 @@ Authentication uses the same OAuth2 / OIDC flags as `ycommand`
 
 ## See also
 
-- [`ycommand`](ycommand.md) — interactive / single-command control plane; it can
+- [`ycommand`](ycommand.md) — interactive / single-command control plane. It can
   also run inline batches with `;` chaining, `!source`, or stdin piping.
 - Repository README (for code navigators):
   [`utils/c/ybatch/README.md`](https://github.com/artgins/yunetas/blob/7.9.4/utils/c/ybatch/README.md).

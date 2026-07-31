@@ -71,11 +71,11 @@ int walk_dir_tree(
 
 **Returns**
 
-Returns 0 on success, or -1 if an error occurs (e.g., if `root_dir` does not exist or `pattern` is invalid).
+Returns 0 on success, or -1 if an error occurs (for example if `root_dir` does not exist or `pattern` is invalid).
 
 **Notes**
 
-The callback function `cb` should return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names.
+The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names.
 
 ---
 
@@ -145,7 +145,7 @@ int find_files_with_suffix_array(
 |---|---|---|
 | `gobj` | `hgobj` | A handle to the GObj instance, used for logging and error reporting. |
 | `directory` | `const char *` | The directory to search in. |
-| `suffix` | `const char *` | The file suffix to match (e.g., `".json"`). |
+| `suffix` | `const char *` | The file suffix to match (for example `".json"`). |
 | `da` | `dir_array_t *` | Pointer to a `dir_array_t` structure that will receive the results. |
 
 **Returns**

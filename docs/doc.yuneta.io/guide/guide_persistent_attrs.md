@@ -1,7 +1,7 @@
 (persistent_attrs)=
 # **Persistent Attributes**
 
-Persistent attributes are attributes defined in a GClass that retain their values across restarts or state transitions. They are automatically loaded during Yuno startup and can be explicitly saved as needed. Persistent attributes ensure that critical configuration data and operational settings are preserved, enabling seamless continuity in operations.
+Persistent attributes are attributes defined in a GClass that retain their values across restarts or state transitions. They are automatically loaded during Yuno startup and can be explicitly saved as needed. Persistent attributes make sure that critical configuration data and operational settings are preserved. This enables seamless continuity in operations.
 
 ---
 
@@ -39,7 +39,7 @@ The behavior for saving and loading persistent attributes can be customized by p
 
 | Flag | Description |
 |---|---|
-| `SDF_PERSIST` | Marks the attribute as persistent, enabling it to be saved and loaded. |
+| `SDF_PERSIST` | Marks the attribute as persistent. This enables it to be saved and loaded. |
 | `SDF_RD` | Makes the attribute readable by other Yunos. |
 | `SDF_WR` | Indicates that the attribute is writable (modifiable during runtime). |
 

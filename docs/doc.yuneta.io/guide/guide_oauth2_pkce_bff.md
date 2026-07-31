@@ -17,11 +17,11 @@ BFF code names everything as *IdP* (`idp_calls`, `idp_timeouts`,
 |-------|-----------|------|------|
 | **Frontend (JS)** | `C_LOGIN` GClass | [`yunos/js/gui_treedb/src/c_login.js`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/js/gui_treedb/src/c_login.js) | Initiates PKCE flow, handles redirect callback, schedules token refresh |
 | **Config** | Per-hostname settings | [`yunos/js/gui_treedb/src/conf/backend_config.js`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/js/gui_treedb/src/conf/backend_config.js) | BFF URLs, Keycloak realm/client configuration |
-| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) GClass | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c) | HTTP server on port 1801; exchanges codes for tokens, manages cookies |
+| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) GClass | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c) | HTTP server on port 1801. Exchanges codes for tokens, manages cookies |
 | **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_websocket.c) | Captures `Cookie` header from HTTP Upgrade request |
 | **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c) | Extracts `access_token` from cookie, injects into IDENTITY_CARD |
 | **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c) | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
-| **JWT Library** | `libjwt` | `kernel/c/libjwt/src/` | Cryptographic JWT verification (RS256, ES256, EdDSA, etc.) |
+| **JWT Library** | `libjwt` | `kernel/c/libjwt/src/` | Cryptographic JWT verification (RS256, ES256, EdDSA and more.) |
 
 ---
 
@@ -40,7 +40,7 @@ PKCE prevents authorization code interception attacks. Before redirecting to Key
 4. Later, the BFF sends the original `code_verifier` when exchanging the code
 5. Keycloak verifies that `SHA-256(code_verifier) == code_challenge`
 
-An attacker who intercepts the authorization code cannot use it because they don't have the `code_verifier`.
+An attacker who intercepts the authorization code cannot use it because they do not have the `code_verifier`.
 
 ### 3. BFF (Backend-For-Frontend)
 
@@ -257,13 +257,13 @@ c_login.js: do_bff_logout()
 
 ## Security Properties
 
-| Property | How it's achieved |
+| Property | How it is achieved |
 |----------|-------------------|
 | **JWTs never in JavaScript** | Tokens stored as `httpOnly` cookies — `document.cookie` cannot read them |
 | **No password in the SPA** | OAuth2 Authorization Code flow — login happens at Keycloak's page |
 | **Code interception protection** | PKCE S256 — intercepted authorization codes are useless without `code_verifier` |
-| **CSRF protection** | `state` nonce verified on callback; `SameSite=Strict` cookies |
-| **Token theft protection** | `Secure` flag (HTTPS only); `SameSite=Strict` (no cross-site requests) |
+| **CSRF protection** | `state` nonce verified on callback. `SameSite=Strict` cookies |
+| **Token theft protection** | `Secure` flag (HTTPS only). `SameSite=Strict` (no cross-site requests) |
 | **Server-side JWT validation** | `C_AUTHZ` verifies signature via JWKS, checks expiry, issuer, claims |
 | **URL cleanup** | `history.replaceState()` removes `?code=` from URL bar after callback |
 | **Token refresh** | Proactive refresh via BFF before access token expires |
@@ -307,11 +307,11 @@ The `Domain` attribute is critical: it allows the cookie set by the BFF on port 
 
 | Attr | Default | Purpose |
 |------|---------|---------|
-| `issuer` | — (required) | OIDC issuer URL (e.g. `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
+| `issuer` | — (required) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for public PKCE clients). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Cross-checked against the request `Host` header — never trust a mismatched `Host`. |
 | `allowed_origin`, `allowed_redirect_uri` | `""` | CORS origin and the prefix a callback's `redirect_uri` must start with. |
-| `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store out of the box. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_authz` `kc_crypto` attribute mirrors this for its Keycloak outbound calls.) |
+| `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_authz` `kc_crypto` attribute mirrors this for its Keycloak outbound calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |
 | `idp_timeout_ms` | `30000` (0 disables) | Outbound IdP watchdog. If a round-trip exceeds this, the BFF replies `504 Gateway Timeout` to the browser and drains the task. |
 
@@ -322,7 +322,7 @@ in production:
 
 - **Per-channel pending queue.** Every browser channel has its own
   `dl_list` of pending IdP requests (depth `pending_queue_size`). One job
-  is in flight at a time; the rest wait FIFO. Overflows bump the
+ is in flight at a time. The rest wait FIFO. Overflows bump the
   `q_full_drops` stat and the browser sees a mapped `error_code`.
 - **Flush-on-disconnect.** When a browser closes mid-round-trip the BFF
   flushes its queue for that channel and, if a reply from the IdP later
@@ -335,9 +335,9 @@ in production:
   browser, drains the task and bumps `idp_timeouts`. Closes the
   "silent IdP → channel wedged forever" deadlock.
 - **Stable error_code for GUI i18n.** Every error response carries a
-  stable `error_code` (snake_case, e.g. `invalid_refresh_token`,
+ stable `error_code` (snake_case, for example `invalid_refresh_token`,
   `idp_unreachable`, `queue_full`). The human `error` message is
-  localisable in the GUI; `error_code` is the i18n translation key and
+ localisable in the GUI. `error_code` is the i18n translation key and
   never changes between releases.
 - **Log hygiene.** 4xx IdP replies are logged as `INFO`, not `ERROR` —
   a wrong password is not a server error. All secrets (cookies,
@@ -352,7 +352,7 @@ in production:
   `"<stat>"` or `"<prefix>_"` and is case-insensitive.
 - **Trace levels.** `messages` and `traffic` trace levels dump the full
   BFF↔IdP and BFF↔browser exchanges, with 👤 BFF prefix and ⏩/⏪
-  direction arrows; both honour the redaction rules above.
+ direction arrows. Both honour the redaction rules above.
 
 ### Frontend (backend_config.js)
 
@@ -382,7 +382,7 @@ keycloak_configs = {
 
 ## Why BFF Instead of Direct Token Exchange?
 
-Without a BFF, the browser would call Keycloak's token endpoint directly and receive the JWT in a JavaScript-accessible response. This exposes tokens to:
+Without a BFF, the browser will call Keycloak's token endpoint directly and receive the JWT in a JavaScript-accessible response. This exposes tokens to:
 - XSS attacks (malicious scripts can steal them)
 - Browser extensions
 - `localStorage`/`sessionStorage` persistence (survives page reload, accessible to any JS)
@@ -393,7 +393,7 @@ With the BFF pattern, the token exchange happens server-to-server. The browser o
 
 ## Social Login Support
 
-Keycloak Identity Providers (Google, GitHub, etc.) are supported via the `kc_idp_hint` parameter. When set, Keycloak skips its own login page and redirects directly to the social provider. The rest of the PKCE/BFF flow is identical — the BFF doesn't know or care which identity provider authenticated the user.
+Keycloak Identity Providers (Google, GitHub and more.) are supported via the `kc_idp_hint` parameter. When set, Keycloak skips its own login page and redirects directly to the social provider. The rest of the PKCE/BFF flow is identical — the BFF does not know or care which identity provider authenticated the user.
 
 ```javascript
 // c_login.js — social login adds kc_idp_hint to the authorization URL

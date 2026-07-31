@@ -99,7 +99,7 @@ This function does not return a value.
 ## [`is_ip_allowed()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c#L5728)
 
 Checks whether an IP address is in the allowed-IPs list.
-If the string contains a port (e.g. `"192.168.1.1:8080"`), the port part
+If the string contains a port (for example `"192.168.1.1:8080"`), the port part
 is stripped before lookup.
 
 ```C

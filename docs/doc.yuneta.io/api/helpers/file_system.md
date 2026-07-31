@@ -136,7 +136,7 @@ Returns the size of the file in bytes. If the file does not exist or an error oc
 
 **Notes**
 
-This function relies on `stat()`, which may fail if the file does not exist or if there are insufficient permissions.
+This function relies on `stat()`, which can fail if the file does not exist or if there are insufficient permissions.
 
 ---
 
@@ -236,7 +236,7 @@ Returns 0 on success. On failure, returns -1 and sets `errno` to indicate the er
 
 **Notes**
 
-This function uses `fcntl` with `F_SETLKW` to apply a blocking write lock. Ensure that the file descriptor is valid before calling this function.
+This function uses `fcntl` with `F_SETLKW` to apply a blocking write lock. Make sure that the file descriptor is valid before calling this function.
 
 ---
 
@@ -265,14 +265,14 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-If a directory in the path already exists, it is not modified. The function ensures that all parent directories are created as needed.
+If a directory in the path already exists, it is not modified. The function makes sure that all parent directories are created as needed.
 
 ---
 
 (newdir)=
 ## [`newdir()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L119)
 
-`newdir()` creates a new directory with the specified permissions, ensuring that the umask is set to zero for controlled permission handling.
+`newdir()` creates a new directory with the specified permissions. This makes sure that the umask is set to zero for controlled permission handling.
 
 ```C
 int newdir(
@@ -294,7 +294,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-This function ensures that the umask is cleared before creating the directory to allow precise permission control.
+This function makes sure that the umask is cleared before creating the directory to allow precise permission control.
 
 ---
 
@@ -316,8 +316,8 @@ int newfile(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The file path to create. |
-| `permission` | `int` | The file permission mode (e.g., 0660). |
-| `overwrite` | `BOOL` | If `TRUE`, an existing file will be truncated; otherwise, creation fails if the file exists. |
+| `permission` | `int` | The file permission mode (for example 0660). |
+| `overwrite` | `BOOL` | If `TRUE`, an existing file will be truncated. Otherwise, creation fails if the file exists. |
 
 **Returns**
 
@@ -325,14 +325,14 @@ Returns a file descriptor on success, or `-1` on failure.
 
 **Notes**
 
-This function sets `umask(0)` to ensure the specified permissions are applied.
+This function sets `umask(0)` to make sure that the specified permissions are applied.
 
 ---
 
 (open_exclusive)=
 ## [`open_exclusive()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/helpers.c#L157)
 
-`open_exclusive()` opens a file with exclusive access, ensuring that no other process can lock it simultaneously.
+`open_exclusive()` opens a file with exclusive access. This makes sure that no other process can lock it simultaneously.
 
 ```C
 int open_exclusive(
@@ -356,7 +356,7 @@ Returns a file descriptor on success, or -1 on failure.
 
 **Notes**
 
-This function applies an exclusive lock (`LOCK_EX | LOCK_NB`) to the file, ensuring that no other process can acquire a lock on it.
+This function applies an exclusive lock (`LOCK_EX | LOCK_NB`) to the file. This makes sure that no other process can acquire a lock on it.
 
 ---
 
@@ -373,7 +373,7 @@ int rmrcontentdir(const char *root_dir);
 
 | Key | Type | Description |
 |---|---|---|
-| `root_dir` | `const char *` | Path to the directory whose contents should be removed. |
+| `root_dir` | `const char *` | Path to the directory whose contents must be removed. |
 
 **Returns**
 
@@ -487,7 +487,7 @@ int copyfile(
 | `source` | `const char *` | Path to the source file. |
 | `destination` | `const char *` | Path to the destination file. |
 | `permission` | `int` | The permission mode for the destination file. |
-| `overwrite` | `BOOL` | If `TRUE`, an existing destination file will be overwritten; otherwise, the copy fails if the file exists. |
+| `overwrite` | `BOOL` | If `TRUE`, an existing destination file will be overwritten. Otherwise, the copy fails if the file exists. |
 
 **Returns**
 

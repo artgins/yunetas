@@ -1,6 +1,6 @@
 # Startup
 
-Initialize and shut down the gobj runtime and control the process exit code. Call `gobj_start_up()` once before any other gobj function and `gobj_end()` on termination.
+Initialize and stop the gobj runtime and control the process exit code. Call `gobj_start_up()` once before any other gobj function and `gobj_end()` on termination.
 
 Source code:
 
@@ -78,7 +78,7 @@ Returns `TRUE` if the system is shutting down, otherwise returns `FALSE`.
 
 **Notes**
 
-This function is useful for determining whether the system is in the process of shutting down, allowing components to take appropriate actions.
+This function is useful for determining whether the system is in the process of shutting down. This allows components to take appropriate actions.
 
 ---
 
@@ -161,7 +161,7 @@ If `global_authentication_parser` is `NULL`, authentication is bypassed.
 (gobj_set_shutdown)=
 ## [`gobj_set_shutdown()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L578)
 
-Marks the gobj system as shutting down. Once called, `gobj_is_shutdowning()` will return `TRUE`. This flag is used throughout the framework to signal that the yuno is in the process of shutting down, allowing GClasses to perform cleanup and stop accepting new work.
+Marks the gobj system as shutting down. Once called, `gobj_is_shutdowning()` will return `TRUE`. This flag is used throughout the framework to signal that the yuno is in the process of shutting down. This allows GClasses to perform cleanup and stop accepting new work.
 
 ```C
 void gobj_set_shutdown(void);
