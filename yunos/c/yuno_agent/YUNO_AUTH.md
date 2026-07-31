@@ -926,6 +926,23 @@ The admin client needs a service account. That service account needs the
 `manage-users` role of the `realm-management` client of the same realm. Without
 this role, Keycloak refuses the call that creates the user.
 
+CAUTION: Give this client only to a consumer that you trust with the realm. The
+`manage-users` role is realm-wide. The service account can create, change and
+delete every user of the realm, and not the users of one application only. In
+Keycloak a user belongs to the realm, and not to a client.
+
+An account that `register-idp-user` creates can therefore authenticate against
+every client of the realm. The authorization does not travel with it. Each
+`C_AUTHZ` refuses a JWT when its username has no node in the local `users`
+topic, and it answers *"User does not exist"*. `register-idp-user` writes that
+local node only in the yuno that runs the command.
+
+Give one client to each consumer, and name it `user-provisioner-<consumer>`.
+The name starts with the function, because the scope is the realm. The suffix
+names the holder of the secret. Then one node that leaks its secret costs one
+disabled client, and the admin events of Keycloak name the service account that
+created each account.
+
 `C_AUTHZ` makes three calls to Keycloak, always in this order:
 
 1. `POST /realms/<realm>/protocol/openid-connect/token`, with
@@ -953,14 +970,14 @@ attrs that you pass, and `view-kc-config` reads them back with the secret
 masked. The defaults are empty on purpose: no identity is in the code, and none
 is in a committed config.
 
-| attr                     | Example                     | Note                                                        |
-|--------------------------|-----------------------------|-------------------------------------------------------------|
-| `kc_base_url`            | `https://auth.example.com`  | Keycloak 17 and later have no `/auth` prefix                 |
-| `kc_realm`               | `example`                   | The realm where the accounts are created                     |
-| `kc_admin_client_id`     | `example-provisioner`       | The confidential client                                      |
-| `kc_admin_client_secret` | (the secret)                | Persistent, and masked in `view-kc-config`                   |
-| `kc_email_client_id`     | `app.example.com`           | The SPA client that the invitation email links to            |
-| `kc_redirect_uri`        | `https://app.example.com/`  | Where the invitation sends the user after the password change |
+| attr                     | Example                      | Note                                                          |
+|--------------------------|------------------------------|---------------------------------------------------------------|
+| `kc_base_url`            | `https://auth.example.com`   | Keycloak 17 and later have no `/auth` prefix                   |
+| `kc_realm`               | `example`                    | The realm where the accounts are created                       |
+| `kc_admin_client_id`     | `user-provisioner-example`   | The confidential client                                        |
+| `kc_admin_client_secret` | (the secret)                 | Persistent, and masked in `view-kc-config`                     |
+| `kc_email_client_id`     | `app.example.com`            | The SPA client that the invitation email links to              |
+| `kc_redirect_uri`        | `https://app.example.com/`   | Where the invitation sends the user after the password change  |
 
 `kc_crypto` holds the TLS configuration of these outbound calls. By default it
 verifies the certificate against the system CA. For a private CA, or for
@@ -1288,7 +1305,7 @@ leaves Keycloak.
 ```bash
 KC=https://auth.example.com
 REALM=<realm>
-CLIENT=<project>-provisioner
+CLIENT=user-provisioner-<consumer>
 
 read -r -s -p "Keycloak admin password: " KCPASS; echo
 TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
@@ -1325,7 +1342,7 @@ CAUTION: The secret travels on the command line. After the command, clear the
 history of the shell.
 
 ```bash
-ycommand -c 'command-yuno id=<yuno> service=authz command=set-kc-config kc_base_url=https://auth.example.com kc_realm=<realm> kc_admin_client_id=<project>-provisioner kc_admin_client_secret=<secret> kc_email_client_id=<spa-client> kc_redirect_uri=https://<spa-host>/'
+ycommand -c 'command-yuno id=<yuno> service=authz command=set-kc-config kc_base_url=https://auth.example.com kc_realm=<realm> kc_admin_client_id=user-provisioner-<consumer> kc_admin_client_secret=<secret> kc_email_client_id=<spa-client> kc_redirect_uri=https://<spa-host>/'
 ```
 
 **3. Do a test.**
