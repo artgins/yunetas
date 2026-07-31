@@ -907,6 +907,94 @@ The convention from
 5. `install-binary` + `create-config` + `create-yuno` for the auth_bff
    (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1, [`SCAFFOLDING.md`](SCAFFOLDING.md)
    §10.1).
+6. If the project registers its users from the GUI, provision the IdP admin
+   client too (§7.3). This client is a second one, and the checklist above does
+   not create it.
+
+### 7.3 The IdP admin client (`register-idp-user`)
+
+`C_AUTHZ` creates a user in Keycloak and in the local `authzs` treedb with one
+command: `register-idp-user`. The command needs a **second** Keycloak client.
+The client of the SPA is not enough:
+
+| Client       | Type              | Used by            | Grant                |
+|--------------|-------------------|--------------------|----------------------|
+| SPA client   | public, with PKCE | auth_bff + browser | `authorization_code` |
+| admin client | confidential      | `C_AUTHZ`          | `client_credentials` |
+
+The admin client needs a service account. That service account needs the
+`manage-users` role of the `realm-management` client of the same realm. Without
+this role, Keycloak refuses the call that creates the user.
+
+`C_AUTHZ` makes three calls to Keycloak, always in this order:
+
+1. `POST /realms/<realm>/protocol/openid-connect/token`, with
+   `grant_type=client_credentials`. The token stays in memory until it expires.
+2. `POST /admin/realms/<realm>/users`, with the required actions
+   `UPDATE_PASSWORD` and `VERIFY_EMAIL`. The new account has no password. After
+   status 201, the gclass writes the local authz user too, with the role that
+   the caller gave.
+3. `PUT /admin/realms/<realm>/users/<id>/execute-actions-email`, with
+   `client_id=<kc_email_client_id>` and `redirect_uri=<kc_redirect_uri>`.
+   Keycloak sends the invitation email, and the user sets the password there.
+
+The realm must have an SMTP server. If the realm has no SMTP server, call 3
+fails. Then the answer carries the warning `email_send_failed`: the account
+exists, but nobody receives the invitation.
+
+The redirect URI must be a valid redirect URI of `kc_email_client_id`. Keycloak
+refuses call 3 when that URI is not registered in that client.
+
+One connection to Keycloak is shared, and the requests are serialized. A
+request waits in a queue of 32 places.
+
+**The configuration.** Six persistent attrs hold it. `set-kc-config` writes the
+attrs that you pass, and `view-kc-config` reads them back with the secret
+masked. The defaults are empty on purpose: no identity is in the code, and none
+is in a committed config.
+
+| attr                     | Example                     | Note                                                        |
+|--------------------------|-----------------------------|-------------------------------------------------------------|
+| `kc_base_url`            | `https://auth.example.com`  | Keycloak 17 and later have no `/auth` prefix                 |
+| `kc_realm`               | `example`                   | The realm where the accounts are created                     |
+| `kc_admin_client_id`     | `example-provisioner`       | The confidential client                                      |
+| `kc_admin_client_secret` | (the secret)                | Persistent, and masked in `view-kc-config`                   |
+| `kc_email_client_id`     | `app.example.com`           | The SPA client that the invitation email links to            |
+| `kc_redirect_uri`        | `https://app.example.com/`  | Where the invitation sends the user after the password change |
+
+`kc_crypto` holds the TLS configuration of these outbound calls. By default it
+verifies the certificate against the system CA. For a private CA, or for
+mbedTLS, give it `ssl_trusted_certificate`. `kc_timeout_ms` (30000) is the
+watchdog of one round trip.
+
+**The authz gates.** These three commands call `gobj_user_has_authz`
+themselves, so they are enforced with `enable_command_authz` OFF (§4.5):
+`configure-kc` for `set-kc-config` and `view-kc-config`, and
+`register-idp-user` for the registration. A role with permission `*` on service
+`*` passes both gates.
+
+**The error codes.** The answer carries a stable `error_code`:
+
+| `error_code`          | Cause                                                                             |
+|-----------------------|-----------------------------------------------------------------------------------|
+| `no_permission`       | The caller has no `configure-kc` or no `register-idp-user` authz                   |
+| `invalid_email`       | The `email` parameter is empty, or it has no `@`                                   |
+| `kc_unavailable`      | No configuration, or Keycloak is unreachable, or Keycloak answered 5xx             |
+| `kc_token_refused`    | Keycloak refused the client credentials (401 or 403): wrong secret, or no `manage-users` role |
+| `user_already_exists` | Keycloak answered 409                                                              |
+| `kc_validation_error` | Keycloak refused the data (4xx). The comment carries the Keycloak `errorMessage`   |
+| `kc_timeout`          | The round trip was longer than `kc_timeout_ms`                                     |
+| `kc_busy`             | More than 32 requests are in the queue                                             |
+
+An unconfigured `C_AUTHZ` answers `kc_unavailable` with the comment
+*"Keycloak admin is not configured (run set-kc-config)"*. The queue drains
+without a call to the network.
+
+When the account is created, the result is 0. Then a `warning` field can carry
+`email_send_failed` or `authz_write_failed`. Both warnings tell you the same
+thing: the Keycloak account exists, but the second half is incomplete.
+
+The recipe is §9.7.
 
 ---
 
@@ -1063,24 +1151,56 @@ Verify the issuer URL with curl against
 ### 9.3 Add a user via `C_AUTHZ` commands
 
 ```bash
-# create
-ycommand -c 'command-yuno id=<yuno> service=authz command=create-user id=alice'
+# create (the role parameter has the format roles^<role_id>^users)
+ycommand -c 'command-yuno id=<yuno> service=authz command=create-user username=alice@example.com role=roles^operator^users'
 
-# assign roles (the user must already have an empty roles[] field)
-ycommand -c 'command-yuno id=<yuno> service=authz command=add-user-role user_id=alice role_id=operator'
-
-# set password (if using ROPC)
-ycommand -c 'command-yuno id=<yuno> service=authz command=set-user-pwd user_id=alice pwd=<...>'
+# password: for an MQTT device only. A human account authenticates by JWT.
+ycommand -c 'command-yuno id=<yuno> service=authz command=set-user-pwd username=alice@example.com password=<...>'
 
 # inspect
-ycommand -c 'command-yuno id=<yuno> service=authz command=user-authzs user_id=alice'
+ycommand -c 'command-yuno id=<yuno> service=authz command=users'
+ycommand -c 'command-yuno id=<yuno> service=authz command=user-roles username=alice@example.com'
+ycommand -c 'command-yuno id=<yuno> service=authz command=user-authzs username=alice@example.com'
+
+# disable, or delete (force=1 also deletes a user that holds roles)
+ycommand -c 'command-yuno id=<yuno> service=authz command=disable-user username=alice@example.com'
+ycommand -c 'command-yuno id=<yuno> service=authz command=delete-user username=alice@example.com force=1'
 ```
+
+There is no `add-user-role` command. `create-user` and `update-user` carry the
+role in their `role` parameter. `create-user` makes a local account only. To
+create the account in Keycloak and in the local treedb with one call, use
+`register-idp-user` (§7.3).
+
+The `credentials` field of a user is **hidden** in the topic schema. A normal
+read answers `null` for it, and that is the filter, not an empty password.
 
 ### 9.4 Add a role with limited authzs
 
+`C_AUTHZ` has no create-role command. A role is a node of the `roles` topic of
+the `authzs` treedb (§4.1). There are two ways to create one.
+
+At the first start, the service reads its `initial_load` attr:
+
+```json
+"initial_load": {
+    "roles": [
+        {"id": "root", "description": "Super-Owner of system", "realm_id": "*",
+         "parent_role_id": "", "service": "*", "permission": "*", "disabled": false}
+    ],
+    "users": [
+        {"id": "yuneta", "roles": ["roles^root^users"]}
+    ]
+}
+```
+
+At run time, the treedb service of the same yuno creates the node. The topic
+requires `id`, `description`, `realm_id`, `service` and `permission`. The JSON
+of `record` must have no spaces:
+
 ```bash
-ycommand -c 'command-yuno id=<yuno> service=authz command=create-role id=read_only service=__yuno__ permission=__read_attribute__'
-ycommand -c 'command-yuno id=<yuno> service=authz command=user-roles user_id=alice'
+ycommand -c 'command-yuno id=<yuno> service=treedb_authzs command=create-node topic_name=roles record={"id":"read_only","description":"Read-only","realm_id":"*","service":"__yuno__","permission":"__read_attribute__"}'
+ycommand -c 'command-yuno id=<yuno> service=authz command=roles'
 ```
 
 Remember §8.3 — role assignments restrict command execution only on a yuno that
@@ -1155,6 +1275,70 @@ still rejects, the rejection is from a different gate (cookie domain
 mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 `C_AUTHZ` logs.
 
+### 9.7 Provision the Keycloak admin client for `register-idp-user`
+
+Read §7.3 first. This recipe creates the confidential client, gives it the
+`manage-users` role, and configures `C_AUTHZ`. Before you start, configure SMTP
+in the realm (Realm settings → Email). Without SMTP the invitation email never
+leaves Keycloak.
+
+**1. Create the client, and read its secret.** Run this from a shell with
+`curl` and `python3`:
+
+```bash
+KC=https://auth.example.com
+REALM=<realm>
+CLIENT=<project>-provisioner
+
+read -r -s -p "Keycloak admin password: " KCPASS; echo
+TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=admin-cli -d username=admin \
+    --data-urlencode "password=$KCPASS" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+#   The client: confidential, with a service account, and no browser flow.
+curl -s -X POST "$KC/admin/realms/$REALM/clients" \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+    -d "{\"clientId\":\"$CLIENT\",
+         \"description\":\"C_AUTHZ register-idp-user\",
+         \"publicClient\":false,
+         \"serviceAccountsEnabled\":true,
+         \"standardFlowEnabled\":false,
+         \"directAccessGrantsEnabled\":false}"
+
+#   The manage-users role of realm-management, on its service account.
+get_id() { python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["id"] if isinstance(d,list) else d["id"])'; }
+CID=$(curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients?clientId=$CLIENT" | get_id)
+SA=$(curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients/$CID/service-account-user" | get_id)
+RM=$(curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients?clientId=realm-management" | get_id)
+ROLE=$(curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients/$RM/roles/manage-users")
+curl -s -X POST "$KC/admin/realms/$REALM/users/$SA/role-mappings/clients/$RM" \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "[$ROLE]"
+
+#   The secret.
+curl -s -H "Authorization: Bearer $TOKEN" "$KC/admin/realms/$REALM/clients/$CID/client-secret"
+```
+
+**2. Configure the `authz` service of the yuno.**
+
+CAUTION: The secret travels on the command line. After the command, clear the
+history of the shell.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=authz command=set-kc-config kc_base_url=https://auth.example.com kc_realm=<realm> kc_admin_client_id=<project>-provisioner kc_admin_client_secret=<secret> kc_email_client_id=<spa-client> kc_redirect_uri=https://<spa-host>/'
+```
+
+**3. Do a test.**
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=authz command=view-kc-config'
+ycommand -c 'command-yuno id=<yuno> service=authz command=register-idp-user email=alice@example.com role=<role_id>'
+```
+
+A good registration answers `User registered: alice@example.com`, plus the
+Keycloak `id` of the account. If the answer carries an `error_code` or a
+`warning`, read the two tables of §7.3.
+
 ---
 
 ## 10. Code pointers
@@ -1170,6 +1354,8 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 | libjwt entry point                                | [`kernel/c/libjwt/src/jwt-verify.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/libjwt/src/jwt-verify.c)                                  |
 | `C_AUTHZ` gclass                                  | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c)                                    |
 | `authzs` treedb schema                            | [`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/treedb_schema_authzs.c)                |
+| `register-idp-user` + the three Keycloak calls    | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c) (`kc_get_token`, `kc_create_user`, `kc_send_email`) |
+| `kc_*` attrs, `set-kc-config` / `view-kc-config`  | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c)                                                    |
 | Role inheritance walk                             | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c) (`get_user_roles`)                               |
 | `yuneta` super-user bypass                        | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c)                                                    |
 | `__username__` write-side                         | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/root-linux/src/c_authz.c)                                             |
