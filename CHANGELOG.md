@@ -69,6 +69,19 @@
 
 ### Documentation
 
+- **`/guide-folders`: the `tools` entry linked to the CHANGELOG.** The list of
+  top folders links each name to its section below, and `[tools](#tools)`
+  resolved to `/changelog#tools` instead — a reader who clicked `tools` left
+  the guide entirely. `#tools` had no owner on the page as far as myst was
+  concerned, so it matched an implicit heading elsewhere in the site and took
+  the first one it found.
+
+  The file already carried the answer: its `yunos` entry is `(folders-yunos)=`,
+  renamed at some point for the same reason. `tools` is now `(folders-tools)=`
+  and resolves on the page. myst had been reporting this as *"Linking 'tools'
+  to an implicit heading reference"*, which reads like a style note and is why
+  it survived so long.
+
 - **The whole documentation set is rewritten in Simplified Technical English**
   — 194 files: `docs/doc.yuneta.io/**` and the eleven onboarding chapters under
   `yunos/c/yuno_agent/`. The content did not change. Every fact of the previous
