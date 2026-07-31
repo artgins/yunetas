@@ -27,7 +27,7 @@ understand the lifecycle.
 | Concept   | Role                                                                     |
 |-----------|--------------------------------------------------------------------------|
 | **gclass** | The *class* (in the OO sense). Static, registered once at process start. Declares attrs, FSM (states + events + actions), command table, methods. Examples: [`C_TIMER`](#gclass-c-timer), [`C_TCP_S`](#gclass-c-tcp-s), [`C_AUTH_BFF`](#gclass-c-auth-bff). |
-| **gobj**   | A *runtime instance*. Created by `gobj_create*`, lives in a tree, holds a `priv` data pointer, has an FSM state, a `running`/`playing` flag, subscriptions, etc. |
+| **gobj**   | A *runtime instance*. Created by `gobj_create*`, lives in a tree, holds a `priv` data pointer, has an FSM state, a `running`/`playing` flag, subscriptions, and more |
 
 A gclass declares `mt_*` framework methods (next section). A gobj is the
 object on which those methods get called. The gclass struct lives in
@@ -105,18 +105,18 @@ These are the most useful ones, in the order in which you write them:
 
 | Method                       | When the framework calls it                                       | What you typically do                                   |
 |------------------------------|-------------------------------------------------------------------|---------------------------------------------------------|
-| `mt_create(gobj)`            | After the gobj is allocated, attrs initialised, but **before** mt_child_added on the parent | Cache attrs into `priv`, set up the CHILD/SERVICE subscription block (see [`SCAFFOLDING.md`](SCAFFOLDING.md) §6) |
+| `mt_create(gobj)`            | After the gobj is allocated, attrs initialized, but **before** mt_child_added on the parent | Cache attrs into `priv`, configure the CHILD/SERVICE subscription block (see [`SCAFFOLDING.md`](SCAFFOLDING.md) §6) |
 | `mt_create2(gobj, kw)`       | Alt to `mt_create` when you need the raw `kw` of the creation call | Same as above, plus `kw`-driven config                  |
 | `mt_destroy(gobj)`           | After the gobj is stopped, paused, and **all children are already destroyed** | Free resources not owned by children                    |
 | `mt_start(gobj)`             | `gobj_start()` flips `running=TRUE` ([gobj.c:4311](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L4311)) then calls this  | Start timers, subscribe to peers, open sockets          |
 | `mt_stop(gobj)`              | `gobj_stop()` flips `running=FALSE` then calls this                | Stop timers, unsubscribe, close sockets                 |
 | `mt_play(gobj)` / `mt_pause(gobj)` | `gobj_play()` / `gobj_pause()`                              | Gate input processing (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.4) |
-| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds                     | Sync `priv->field` from the attr; validate; react       |
+| `mt_writing(gobj, name)`     | After `gobj_write_*_attr()` succeeds                     | Sync `priv->field` from the attr, validate it, and react       |
 | `mt_reading(gobj, name)`     | Inside `gobj_read_*_attr()`                              | Return a *computed* value — **required for `SDF_RSTATS` counters** |
 | `mt_child_added` / `mt_child_removed` | When children are created/destroyed                       | Track child references, wire subscriptions              |
 | `mt_subscription_added` / `mt_subscription_deleted` | When someone subscribes to your events            | Send initial state, clean up per-subscriber resources   |
 | `mt_inject_event(gobj, ev, kw, src)` | When `gobj_send_event` finds no row in the state table     | The escape hatch — handle the event yourself, or fail   |
-| `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
+| `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare. Only the agent uses this for `command-yuno` forwarding) |
 | `mt_authz_checker`           | Inside [`gobj_user_has_authz`](#gobj_user_has_authz) if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
 The full table is in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h). It has more than 28 slots, among them
@@ -248,7 +248,7 @@ The ones that matter most often:
 
 | Flag             | Effect                                                                |
 |------------------|-----------------------------------------------------------------------|
-| `SDF_RD`         | Reads allowed; writes denied.                                          |
+| `SDF_RD`         | Reads allowed. Writes denied.                                          |
 | `SDF_WR`         | Writes allowed (implies `SDF_RD`).                                    |
 | `SDF_REQUIRED`   | Must not be null at creation time.                                    |
 | `SDF_PERSIST`    | Survives a yuno restart. Loaded on `mt_create` if persistence backend is installed. |
@@ -347,7 +347,7 @@ Navigation helpers ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/ker
 | `gobj_first_child(gobj)` / `gobj_next_child(child)` | Iterate linearly.                       |
 | `gobj_child_size(gobj)`             | Count.                                                  |
 | `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | Tree walk with callback.       |
-| `gobj_find_gobj(path)`              | Lookup by full path, e.g. `"__yuno__\`auth\`bff"`.      |
+| `gobj_find_gobj(path)`              | Lookup by full path, for example `"__yuno__\`auth\`bff"`.      |
 | `gobj_bottom_gobj(gobj)` / `gobj_set_bottom_gobj` | The downward layering pointer (see [`IPC.md`](IPC.md) §6.5). |
 
 Identification helpers ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c)):

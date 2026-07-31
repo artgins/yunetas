@@ -60,7 +60,7 @@ Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/b
 
 | Column     | Role                                                    |
 |------------|---------------------------------------------------------|
-| `id`       | pkey, equals the yuno **role** (e.g. `mqtt_broker`)     |
+| `id`       | pkey, equals the yuno **role** (for example `mqtt_broker`)     |
 | `version`  | pkey2, semver string extracted from the binary itself   |
 | `size`     | file size, computed at install time                     |
 | `date`     | timestamp                                               |
@@ -86,7 +86,7 @@ Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/b
 
 | Column      | Role                                                                |
 |-------------|---------------------------------------------------------------------|
-| `id`        | pkey, format `<role>.<name>` (e.g. `mqtt_broker.broker_01`)         |
+| `id`        | pkey, format `<role>.<name>` (for example `mqtt_broker.broker_01`)         |
 | `version`   | pkey2                                                               |
 | `zcontent`  | compressed JSON payload — the actual config                         |
 
@@ -174,7 +174,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | Same as install but **overwrites** the existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
+| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -184,23 +184,23 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-----------------|-----------------------------------------------------------------|
 | `create-config` (alias `install-config`) | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
 | `update-config` | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
-| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). `force=1` overrides. |
+| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete). Without it, the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). `force=1` overrides. |
 | `list-configs`  | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
 | `list-configs-instances` | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
-| `view-config`   | A ycommand console helper (not an agent command): reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
+| `view-config`   | A ycommand console helper, not an agent command. It reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno sees. For that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
 
 ### Yunos
 
 | Command            | Effect                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
 | `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (e.g. a superseded/higher release), or `whole=1` for the yuno and all its releases; the bare form is **refused**. Refuse if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or `tagged` (unless `force=1`); delete row. |
+| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. |
 | `enable-yuno`      | `yuno_disabled := false`.                                                 |
 | `disable-yuno`     | `yuno_disabled := true`. Does **not** stop a running yuno.                |
 | `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
 | `kill-yuno`        | Orderly shutdown of matching running yunos. Sends `signal2kill` (SIGQUIT by default). See §4. |
-| `play-yuno`        | Send `EV_PLAY_YUNO` event over the yuno's channel; flip `must_play=true`. |
-| `pause-yuno`       | Send `EV_PAUSE_YUNO` event over the yuno's channel; flip `must_play=false`. |
+| `play-yuno`        | Send `EV_PLAY_YUNO` event over the yuno's channel. Flip `must_play=true`. |
+| `pause-yuno`       | Send `EV_PAUSE_YUNO` event over the yuno's channel. Flip `must_play=false`. |
 | `command-yuno`     | Wildcard: forward an arbitrary command to a running yuno's service.       |
 | `list-yunos`       | All `yunos` rows with current pid + state.                                |
 | `view-yuno-config` | The stored configs attached to a yuno (still not the effective merged one). |

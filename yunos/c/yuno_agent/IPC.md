@@ -82,9 +82,9 @@ Flags at [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-
 | `EVF_PUBLIC_EVENT`      | Part of the gclass's public API (subscribers from other gclasses can subscribe to it). |
 | `EVF_SYSTEM_EVENT`      | Yuneta-internal event. Used by the framework, not user code.       |
 | `EVF_NO_WARN_SUBS`      | Silence the *"Publish event WITHOUT subscribers"* warning for optional subscribers. |
-| `EVF_AUTHZ_INJECT`      | Requires `__inject_event__` authorisation to send to this gobj.    |
-| `EVF_AUTHZ_SUBSCRIBE`   | Requires `__subscribe_event__` authorisation to subscribe.         |
-| `EVF_KW_WRITING`        | The action is allowed to modify `kw` in place (not just consume).  |
+| `EVF_AUTHZ_INJECT`      | Requires `__inject_event__` authorization to send to this gobj.    |
+| `EVF_AUTHZ_SUBSCRIBE`   | Requires `__subscribe_event__` authorization to subscribe.         |
+| `EVF_KW_WRITING`        | The action is allowed to modify `kw` in place, and not only consume it.  |
 
 Example, the minimal gclass [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c) declaration (paraphrased):
 
@@ -301,8 +301,8 @@ Do not use it to hide missing event declarations. That hides real bugs.
 
 | End                | File                                              | Role                                                     |
 |--------------------|---------------------------------------------------|----------------------------------------------------------|
-| [`C_IEVENT_SRV`](#gclass-c-ievent-srv)     | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c)          | Listens; receives connections from clients.              |
-| [`C_IEVENT_CLI`](#gclass-c-ievent-cli)     | [`kernel/c/root-linux/src/c_ievent_cli.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_cli.c)          | Initiates; connects to a remote `C_IEVENT_SRV`.          |
+| [`C_IEVENT_SRV`](#gclass-c-ievent-srv)     | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c)          | Listens, and receives connections from clients.              |
+| [`C_IEVENT_CLI`](#gclass-c-ievent-cli)     | [`kernel/c/root-linux/src/c_ievent_cli.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_cli.c)          | Initiates, and connects to a remote `C_IEVENT_SRV`.          |
 
 Both sit on top of a WebSocket gclass ([`C_WEBSOCKET`](#gclass-c-websocket)), which sits on top
 of TCP ([`C_TCP`](#gclass-c-tcp) or [`C_TCP_S`](#gclass-c-tcp-s)):
@@ -717,7 +717,7 @@ Headline events:
 |------------------------|-----------|--------------------------------------------------------|
 | `EV_CONNECTED`         | out (up)  | TLS handshake done (or plain TCP open if not TLS)      |
 | `EV_DISCONNECTED`      | out       | Connection closed                                      |
-| `EV_RX_DATA`           | out       | Bytes arrived; payload in `kw["data"]`                 |
+| `EV_RX_DATA`           | out       | Bytes arrived. The payload is in `kw["data"]`                 |
 | `EV_TX_READY`          | out       | OK to send more (flow control)                         |
 | `EV_TX_DATA`           | in (down) | Send these bytes                                       |
 | `EV_DROP`              | in        | Close the connection                                   |

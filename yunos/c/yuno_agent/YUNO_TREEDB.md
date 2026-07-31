@@ -157,7 +157,7 @@ the work of the framework.
 
 Both timestamps, but semantically distinct:
 
-| Field    | What it means                                                  | When it's set                          |
+| Field    | What it means                                                  | When it is set                          |
 |----------|----------------------------------------------------------------|----------------------------------------|
 | `__t__`  | When timeranger2 wrote the record to disk                      | At append time. Defaults to "now".     |
 | `__tm__` | When the underlying event happened (from the record's `tkey` field) | Caller-controlled via `tkey` config.   |
@@ -240,7 +240,7 @@ see §4.5.
 
 Every record carries **two** timestamps, and they are independent:
 
-| Axis | Meaning | Where it comes from |
+| Axis | Meaning | Its source |
 |------|---------|---------------------|
 | `t`  | **Persistence** time — when the record was appended | the `__t__` argument of `tranger2_append_record` (now, if 0) |
 | `tm` | **Message** time — when the event it carries happened | the record's **tkey** field (usually `tm`), set by the producer |
@@ -448,7 +448,7 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `pkey2`      | Marks a secondary key.                                                  |
 | `tkey`       | Marks the time-key column.                                              |
 | `password`   | Treated as opaque secret on inspection.                                 |
-| `email`/`url`/`enum`/`wild` | Semantic types; mostly informational.                    |
+| `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
 | `inherit`    | Inherits a value from a related node.                                   |
 
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —

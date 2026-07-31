@@ -198,8 +198,8 @@ Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins
 
 | Attribute              | Status              | Purpose                                              |
 |------------------------|---------------------|------------------------------------------------------|
-| `issuer`               | preferred           | OIDC issuer URL, e.g. `https://auth.example.com/realms/foo/`. Triggers discovery via `/.well-known/openid-configuration`. |
-| `token_endpoint`       | explicit override   | Bypass discovery; force the token URL.               |
+| `issuer`               | preferred           | OIDC issuer URL, for example `https://auth.example.com/realms/foo/`. Triggers discovery via `/.well-known/openid-configuration`. |
+| `token_endpoint`       | explicit override   | Bypass discovery. force the token URL.               |
 | `end_session_endpoint` | explicit override   | Same, for logout.                                    |
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
@@ -730,7 +730,7 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9
 | `create-user`      | Create a user row                                             |
 | `enable-user`      | Flip `disabled=false`                                         |
 | `disable-user`     | Flip `disabled=true`                                          |
-| `delete-user`      | Remove a user row (`force=1` to delete one holding roles; immutable users are never deleted) |
+| `delete-user`      | Remove a user row (`force=1` to delete one that holds roles. Immutable users are never deleted) |
 | `check-user-pwd`   | Verify a password against credentials                         |
 | `set-user-pwd`     | Set a user's password                                         |
 | `roles`            | List roles                                                    |

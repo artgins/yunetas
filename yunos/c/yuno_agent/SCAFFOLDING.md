@@ -45,7 +45,7 @@ service  child     citizen     standalone
 | `gclass_service`  | New service-level gclass — addressable by name, optional `subscriber` attr, public-event publication. Goes inside an existing yuno. |
 | `gclass_child`    | New child-level gclass — created with a parent (`gobj_create_pure_child` or similar), parent is the natural audience. |
 | `js_gclass`       | JS equivalent of a gclass, intended for the browser/SPA gobj framework.   |
-| `c_h_file`        | Standalone `.c` + `.h` pair, no gobj framework. Just a helper module.     |
+| `c_h_file`        | Standalone `.c` + `.h` pair, no gobj framework. Only a helper module.     |
 | `c_project`       | Pure C project, only `argp-standalone.h` as a dep. No Yuneta runtime.     |
 
 The CLAUDE.md rule is non-negotiable: **every gclass and every yuno

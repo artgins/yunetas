@@ -54,9 +54,9 @@ strings unless noted):
 |------------------|------------------------------------------------------------------|
 | `id`             | **pkey**. Format: `<realm_name>.<realm_role>.<realm_env>` — composed at create time, never edited. |
 | `realm_owner`    | Tenant identifier. Used in the on-disk path. Immutable.          |
-| `realm_role`     | Logical "role" of the realm (e.g. `prod`, `api`). Immutable.     |
+| `realm_role`     | Logical "role" of the realm (for example `prod`, `api`). Immutable.     |
 | `realm_name`     | Human-readable name. Immutable.                                  |
-| `realm_env`      | Environment label (e.g. `prod`, `staging`, `dev`). Immutable.    |
+| `realm_env`      | Environment label (for example `prod`, `staging`, `dev`). Immutable.    |
 
 Optional fields:
 

@@ -18,8 +18,9 @@ controlcenter.**
 A provisioned node is a **black box**: no operator can reach it by SSH. The only
 way in is *inward-out* — the agent (and its redundant twin, `yuneta_agent22`)
 hold an outbound connection to a controlcenter, and the controlcenter opens an
-interactive **PTY** back down that connection. The forward door (SSH) is closed;
-the reverse door (PTY over the agent's outbound link) is the only door.
+interactive **PTY** back down that connection. The forward door (SSH) is
+closed. The reverse door, a PTY over the outbound link of the agent, is the
+only door.
 
 The break-glass of last resort is **the hosting provider's out-of-band console**
 (OVH rescue mode / KVM / IPMI / serial). There is deliberately **no automatic
@@ -59,16 +60,16 @@ re-applies on each boot:
 | 1 · stop SSH | `systemctl disable --now ssh` | systemd will not start it on boot |
 | 2 · firewall :22 | nftables rule dropping inbound `:22`, saved | survives reboot |
 | 3 · keys | move every `~/.ssh/authorized_keys` → `…/authorized_keys.sealed`, `passwd -l` the bootstrap user | on-disk, survives reboot |
-| 4 · agent port | nftables rule dropping inbound `:1993` (the agent's wss+OAuth2 listener, bound `0.0.0.0` today), saved | forces every operation through the reverse channel; survives reboot |
+| 4 · agent port | nftables rule dropping inbound `:1993` (the agent's wss+OAuth2 listener, bound `0.0.0.0` today), saved | forces every operation through the reverse channel, and survives reboot |
 
 None of these depend on a running agent. The agent is needed **only to
 un-seal in-band** (over the reverse PTY). If the agent crashes, is SIGKILLed,
 or fails to start, the box **stays sealed**. Step 1 (`disable sshd`) is the
-primary lever — it cuts every user at once, not key by key; the key-move is
-secondary defence in depth.
+primary lever, because it cuts every user at one time and not key by key. The
+key-move is a second layer of defense.
 
 Corollary: sealing is durable across reboot *by construction*. The agent does
-**not** re-seal on startup; the OS already holds the line.
+**not** re-seal on startup, because the OS already holds the line.
 
 ### 2.1 The access doors: three SSH-less paths, and the mutual-update rule
 
@@ -80,7 +81,7 @@ reachable **three** ways, and they are **not** equivalent:
 |---|------|----------|---------|---------|
 | 1 | Direct to the agent | `wss://<node>:1993` (OAuth2) — **inbound** | the node's own `yuneta_agent` | full `C_AGENT` |
 | 2 | Controlcenter, agent plane | `wss://<cc>.com:1996` → `command-agent agent_id=<node> cmd2agent=…` | `yuneta_agent` (`C_AGENT`) | **full**: deploy, lifecycle, realms, configs, snaps, `command-yuno`, `dir-*`, `read-*`, cert-sync, `open-console`, … |
-| 3 | Controlcenter, agent22 plane | `wss://<cc>.ovh:1997` → `command-agent …` | `yuneta_agent22` (`C_AGENT22`) | **minimal**: `help`, `list/open/close-console`, `write-tty` — essentially **just the root shell** |
+| 3 | Controlcenter, agent22 plane | `wss://<cc>.ovh:1997` → `command-agent …` | `yuneta_agent22` (`C_AGENT22`) | **minimal**: `help`, `list/open/close-console`, `write-tty` — in practice **only the root shell** |
 
 - **Door 1 (`:1993`) is inbound** and open to `0.0.0.0` today — it is the one
   the seal must close (step 4 in the table above). Doors 2 and 3 are the node's
@@ -88,11 +89,11 @@ reachable **three** ways, and they are **not** equivalent:
   seal: you never connect *to* a sealed node, it reaches out and you ride its
   channel back down through the controlcenter.
 - **The two controlcenter planes reach different agents with different
-  surfaces.** `.com`/`agent` is full node management; `.ovh`/`agent22` is a
+  surfaces.** `.com` with `agent` is full node management. `.ovh` with `agent22` is a
   deliberately minimal escape hatch that offers **only the console**. So the
   redundancy is "a full agent + a bare-shell twin", not two equal copies. (On
   our 7.8.x nodes the homing is clean: `.com`→`yuneta_agent`,
-  `.ovh`→`yuneta_agent22`; legacy 6.x nodes may home differently.)
+  `.ovh`→`yuneta_agent22`. Legacy 6.x nodes can home differently.)
 - **The controlcenter is a multi-tenant hub.** One CC (artgins) is the
   reverse-channel endpoint for *many* independent fleets (start-fleet, the
   normedan hospital nodes, a CESGA cluster of ~15, raspz, …). Any operator it
@@ -156,11 +157,11 @@ through the door that replaces it.
 1. `node_owner != "none"`.
 2. `controlcenter.jwt` present and **not expired** (the agent introspects its
    own `exp` claim).
-3. The agent's own controlcenter link is established (connected session, not
-   just configured).
+3. The controlcenter link of the agent is established. The session is
+   connected, not only configured.
 4. **agent22 is also connected** to its controlcenter — redundancy is present.
-   See the heartbeat in [§5.2](#52-the-agent22agent-heartbeat); this is the one
-   piece of new plumbing the gate needs.
+   See the heartbeat in [§5.2](#52-the-agent22agent-heartbeat). This is the one
+   new piece that the gate needs.
 5. `authz.jwks` present and the `tcps` client certs present.
 6. A recent PTY self-test round-trip succeeded (or the live PTY session the
    command was issued from).
@@ -184,7 +185,7 @@ For a black box this asymmetry is dangerous: if a provisioning mistake clears
 **Fix:** agent22 must behave like the primary — fall back to standalone
 `"none"` mode (quiet, no controlcenter) and **stay alive**. The escape hatch
 never exits on a config value it can default. This is self-contained and
-low-risk; it is the prerequisite for everything else here.
+low-risk, and it is the prerequisite for everything else here.
 
 ### 5.2 The agent22↔agent heartbeat
 
@@ -209,7 +210,7 @@ channel dies on expiry and the only way back is the console. Design rule for a
 sealed node: **`controlcenter.jwt` and the `tcps` certs must be long-lived or
 auto-renewed**, never short. (Today's agent JWT carries `exp` in 2038 —
 effectively perpetual — and `cert_sync_*` already auto-renews the Let's Encrypt
-path; keep it that way. See [`YUNO_AUTH.md`](YUNO_AUTH.md).)
+path. Keep it that way. See [`YUNO_AUTH.md`](YUNO_AUTH.md).)
 
 ### 5.4 The SSH-dependency ledger
 
@@ -230,7 +231,8 @@ wattyzer agent:
   ("Command sent to 1 nodes" + the table). So **every Tier-1 command runs for
   any operator the controlcenter authenticates** — because the per-command
   `SDF_AUTHZ_X` gate is **off** on the node (`enable_command_authz` absent), so
-  authentication alone suffices; the node's authz list is not consulted.
+  authentication alone is enough. The agent does not read the authz list of
+  the node.
 - `command-agent … cmd2agent=open-console` → **`No permission to 'open-console'
   in service 'agent'`**. The *only* command that refused, because
   `cmd_open_console` calls `gobj_user_has_authz` unconditionally and claudia is
@@ -241,7 +243,7 @@ security boundary of a sealed node collapses to *"who can authenticate to the
 controlcenter"* plus *"who is in the node authz for `open-console`"* — the node
 authz list governs the kitchen and nothing else. (2) To give a principal full
 "to-the-kitchen" access you must add them to **each node's** authz (see the
-identity model in [`IPC.md`](IPC.md) §4.7); `yuneta_admin@artgins.com`, a seed
+identity model in [`IPC.md`](IPC.md) §4.7). `yuneta_admin@artgins.com`, a seed
 immutable admin on every node, already has it, so it is today's working
 full-access operator over the reverse channel.
 
@@ -284,7 +286,7 @@ but as free-form shell text: no schema, no authz granularity beyond the
 here is a candidate for promotion to Tier 1:
 
 - Writing an **arbitrary file** to the node. There is `read-file` but **no
-  `write-file`**; only binaries and configs have structured write commands. So
+  `write-file`**. Only binaries and configs have structured write commands. So
   certs, `/etc/security/limits.d/*.conf`, `resolv.conf`, nginx vhosts, secret
   overlays all fall here.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
@@ -316,7 +318,7 @@ seal it is the only door, and that door is total. Two consequences:
   `write-file`, a package-upgrade command — because each promotion is one
   fewer reason to hand out root.
 
-Verified on `e.com` only; confirm per node before sealing, especially the uid
+Verified on `e.com` only. Confirm it per node before you seal, especially the uid
 the agent runs as (the local dev node, for one, runs the primary agent as the
 developer's own user).
 
@@ -372,9 +374,10 @@ tooled procedure — not folklore:
   `authorized_keys.sealed` and `systemctl enable ssh` by hand.
 
 There is **no** dead-man's-switch and **no** auto-unseal watchdog. A sustained
-controlcenter outage does **not** reopen SSH. The box stays black; the console
-is the only fallback. (The alternative — auto-unseal after N hours offline —
-was considered and rejected for OVH nodes: it trades the brick risk for a
+controlcenter outage does **not** reopen SSH. The box stays black, and the
+console is the only fallback. (The alternative, an auto-unseal after N hours
+offline, was considered and rejected for OVH nodes: it trades the brick risk
+for a
 recurring SSH-reopen security window, and the OVH console is trusted.)
 
 ---
@@ -392,9 +395,9 @@ bootstrapped  →  provisioned  →  verified  →  sealed
 ```
 
 Record: `{ state, sealed_at, sealed_by, steps_applied, last_verify }`.
-`seal-node` is the `verified → sealed` transition; the controlcenter should only
-issue it once it has independently seen **both** agents registered and a PTY
-round-trip succeed. The human never decides "is it safe to close SSH" — the
+`seal-node` is the `verified → sealed` transition. The controlcenter must issue
+it only after it saw independently that **both** agents are registered and that
+a PTY round-trip succeeded. The human never decides "is it safe to close SSH" — the
 controlcenter proves it, then seals.
 
 ---

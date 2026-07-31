@@ -19,7 +19,7 @@ first source of frustration:
 | Layer                  | Question it answers                        | How you turn it on        |
 |------------------------|--------------------------------------------|---------------------------|
 | **Log (severity)**     | "Did something bad happen?"                | Always on. Filter by severity in the log file. |
-| **Trace (categories)** | "What was the system *doing* just now?"    | `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` — off by default. |
+| **Trace (categories)** | "What was the system *doing* a moment ago?"    | `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` — off by default. |
 | **Audit**              | "What commands did operators run on this yuno?" | Always written when `use_audit_command_file=true`. |
 
 You configure four destinations per yuno, with `daemon_log_handlers` in the

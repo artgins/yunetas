@@ -403,12 +403,12 @@ Quick decoder:
 
 | Status | Meaning | What happens |
 |---|---|---|
-| `BUMP` | local version > agent's | `install-binary` / `create-config` (new slot/record; needs promote) |
+| `BUMP` | local version > agent's | `install-binary` or `create-config`. It makes a new slot or record, and it needs a promote |
 | `REBUILD` / `UPDATE` | same version, content differs | `update-binary` (kill→write→restore) / `update-config` (in place) |
 | `INSTALLED` | new version already pushed, not yet primary | nothing — run `yunetas upgrade-yunos` |
 | `UP-TO-DATE` | nothing to do | skipped |
-| `DOWNGRADE` | local is OLDER than the agent's | binaries: offered but flagged red; configs: never pushed |
-| `no-build` / `agent-only` | exists on one side only | skipped (informational). A missing local build is fine; a missing agent role means [Recipe D](#dy-recipe-new-yuno) |
+| `DOWNGRADE` | local is OLDER than the agent's | binaries: offered but marked red. Configs: never pushed |
+| `no-build` / `agent-only` | exists on one side only | skipped (informational). A missing local build is correct. A missing agent role means [Recipe D](#dy-recipe-new-yuno) |
 
 `REBUILD` with `Δsize 0` and note `newer build` is real: a rebuild can keep
 the byte count identical (one-char string edit, relink), so file times are
@@ -419,15 +419,15 @@ compared too.
 | Symptom | Cause | Fix |
 |---|---|---|
 | After `sync`, the yuno still runs the OLD version | You pushed a version bump but never promoted | `yunetas upgrade-yunos` ([Recipe B](#dy-recipe-bump), step 3) |
-| `update-binary` fails with *text-file-busy* | The running process is mapped to the slot being overwritten | Let the tool do the kill/restart (don't pass `--no-restart`), or `kill-yuno` first and wait until `list-yunos` shows `yuno_running=false` |
-| `... already exists` answers during a re-run | A prior interrupted run already pushed that artifact | Nothing — it prints `ALREADY PRESENT (idempotent)` and continues; just finish with `upgrade-yunos` |
+| `update-binary` fails with *text-file-busy* | The running process is mapped to the slot being overwritten | Let the tool do the kill and the restart. Do not pass `--no-restart`. Or `kill-yuno` first and wait until `list-yunos` shows `yuno_running=false` |
+| `... already exists` answers during a re-run | A prior interrupted run already pushed that artifact | Nothing. It prints `ALREADY PRESENT (idempotent)` and continues. Finish with `upgrade-yunos` |
 | `INSTALLED` rows, "pending promote" | New versions staged but a snap / missing promote pins the old primary | `yunetas upgrade-yunos` |
-| `sync-configs`: *Skipping \<project\>: no batches for host* | `batches/<dir>` name doesn't match any realm_id of the local agent | Name the directory after the realm_id (deploy FQDN), or pass `--host <dir>` |
+| `sync-configs`: *Skipping \<project\>: no batches for host* | `batches/<dir>` name does not match any realm_id of the local agent | Name the directory after the realm_id (deploy FQDN), or pass `--host <dir>` |
 | `sync-configs`: *no `__version__` field, skipped* | The JSON is not a deployable config under the agent contract | Add `"__version__": "<n>"` (and `__description__`) to the file |
-| Config pushed but behaviour unchanged | A yuno reads config only at (re)start | Re-run with `-r`, or `kill-yuno` + `run-yuno` + `play-yuno` the affected ids |
+| Config pushed but behavior unchanged | A yuno reads config only at (re)start | Re-run with `-r`, or `kill-yuno` + `run-yuno` + `play-yuno` the affected ids |
 | *ERROR: '\*list-binaries' did not return JSON. Is the agent up?* | No agent listening at the url | Check the agent, or pass `-u` (remote: see the wss/OAuth2 section) |
-| `run-yuno` fails *primary binary not found* | Yuno rows registered without their binary (e.g. `find-new-yunos create=1` before the push) | Push the binary (`yunetas sync-binaries`), then `upgrade-yunos` again |
-| Sync proposes nothing for a yuno you just built | The agent doesn't manage that role on this node | [Recipe D](#dy-recipe-new-yuno) — first-time onboarding is manual |
+| `run-yuno` fails *primary binary not found* | Yuno rows registered without their binary, for example `find-new-yunos create=1` before the push | Push the binary (`yunetas sync-binaries`), then `upgrade-yunos` again |
+| Sync proposes nothing for a yuno you just built | The agent does not manage that role on this node | [Recipe D](#dy-recipe-new-yuno) — first-time onboarding is manual |
 
 ## Where the full detail lives
 
