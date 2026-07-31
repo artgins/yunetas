@@ -3,7 +3,7 @@
 This document covers how things talk to each other in Yuneta: events flowing
 between gobjs in the same yuno, events crossing yuno boundaries over the
 network, the gates that turn external traffic (TCP/HTTP/WebSocket/MQTT) into
-events, and how a browser SPA fits in.
+events, and the part that a browser SPA plays.
 
 Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) and [`DEBUGGING.md`](DEBUGGING.md).
 Same conventions: every claim cites `file:line`, ASCII diagrams are inline,
@@ -40,7 +40,7 @@ WebSocket frame) enters through a **gate** — a tree of protocol/transport
 gclasses — and becomes an event for the service to handle. Outgoing traffic
 takes the reverse path.
 
-![A message climbs the gate stack: external bytes to the C_TCP_S transport, to the protocol gclass, to C_IEVENT_SRV, to the service action; the response retraces the path back out. Each layer has its own trace level.](../../../docs/doc.yuneta.io/_static/message_pipeline.svg)
+![A message climbs the gate stack: external bytes to the C_TCP_S transport, to the protocol gclass, to C_IEVENT_SRV, to the service action. The response follows the same path in the opposite direction. Each layer has its own trace level.](../../../docs/doc.yuneta.io/_static/message_pipeline.svg)
 
 The same path in text:
 
@@ -142,12 +142,13 @@ Macros at [`kwid.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj
 #define KW_INCREF(ptr) if(ptr) { kw_incref(ptr); }
 ```
 
-Action functions always receive ownership; they either `KW_DECREF(kw)` at
-the end, or hand `kw` to another consuming API (e.g. `gobj_publish_event`,
-`gobj_send_event`, [`msg_iev_build_response`](#msg_iev_build_response)). Failure to consume = leak.
-Double consumption = use-after-free.
+Action functions always receive ownership. They call `KW_DECREF(kw)` at the
+end, or they give `kw` to another API that consumes it, for example
+`gobj_publish_event`, `gobj_send_event` or
+[`msg_iev_build_response`](#msg_iev_build_response). A `kw` that nothing consumes is a leak. A `kw` that
+two things consume is a use-after-free.
 
-The framework itself calls `KW_DECREF(kw)` at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c) when there's no
+The framework itself calls `KW_DECREF(kw)` at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c) when there is no
 action declared, so a missing action does not leak.
 
 ---
@@ -210,7 +211,7 @@ see §3.5).
 If there are no subscribers, [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c) logs
 *"Publish event WITHOUT subscribers"* at `LOG_WARNING` — unless the
 `event_type_t` declared `EVF_NO_WARN_SUBS`. This is the canonical "I tried
-to publish to nobody" warning; if you're seeing it spuriously, the fix is
+to publish to nobody" warning. If you see it without a cause, the correction is
 **not** to silence with `EVF_NO_WARN_SUBS` indiscriminately (see CLAUDE.md
 "Optional-subscriber events"), but to confirm the gclass is the right
 flavour (SERVICE vs CHILD) and that its subscriber chain is correct.
@@ -233,8 +234,8 @@ Both lists are kept in sync. Destroying a gobj unsubscribes it from
 everyone automatically (subscriptions are not gobj-life-extending — the
 framework cleans up).
 
-`event = NULL` means "any event". `kw` is not a payload — it's a
-configuration dict accepting these keys:
+`event = NULL` means "any event". `kw` is not a payload. It is a
+configuration dict that accepts these keys:
 
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
@@ -285,13 +286,12 @@ generally.
 ### 3.6 `mt_inject_event`: the escape hatch
 
 A gclass can set `gmt->mt_inject_event` to bypass the static FSM table.
-When `gobj_send_event` can't find the event in the current state, it
-delegates to this method. Used for wildcard routing, dynamic
-dispatch, gateways that don't know events ahead of time. The method must
-consume `kw` like a normal action.
+When `gobj_send_event` cannot find the event in the current state, it
+delegates to this method. Three cases use it: wildcard routing, dynamic
+dispatch, and gateways that do not know the events in advance. The method
+must consume `kw` like a normal action.
 
-Don't use it as a band-aid for missing event declarations — that hides
-real bugs.
+Do not use it to hide missing event declarations. That hides real bugs.
 
 ---
 
@@ -307,7 +307,7 @@ real bugs.
 Both sit on top of a WebSocket gclass ([`C_WEBSOCKET`](#gclass-c-websocket)), which sits on top
 of TCP ([`C_TCP`](#gclass-c-tcp) or [`C_TCP_S`](#gclass-c-tcp-s)):
 
-![Two yunos over a WebSocket: yuno A stacks C_IEVENT_CLI over C_WEBSOCKET over C_TCP (client); yuno B stacks C_IEVENT_SRV over C_WEBSOCKET over C_TCP (clisrv). JSON-over-WS frames flow between the ievent layers, TCP/TLS between the transport layers; C_TCP_S is the listener that accepted the connection and spawned the clisrv child.](../../../docs/doc.yuneta.io/_static/ievent_stack.svg)
+![Two yunos over a WebSocket: yuno A stacks C_IEVENT_CLI over C_WEBSOCKET over C_TCP (client). Yuno B stacks C_IEVENT_SRV over C_WEBSOCKET over C_TCP (clisrv). JSON-over-WS frames flow between the ievent layers, and TCP or TLS between the transport layers. C_TCP_S is the listener that accepted the connection and forked the clisrv child.](../../../docs/doc.yuneta.io/_static/ievent_stack.svg)
 
 The same stack in text:
 
@@ -335,7 +335,7 @@ wire format" header in the WS payload — each frame is a JSON object with
 
 ### 4.2 The wire frame
 
-Serialised in [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c):
+Serialized in [`kernel/c/root-linux/src/msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c):
 
 ```c
 json_pack("{s:s, s:o}",
@@ -427,8 +427,8 @@ Authentication also returns a `services_roles` dict — one entry per service
 the user holds a role in (the primary `dst_service` plus any `required_services`
 the user is authorized for, computed from real treedb roles, not from the
 client-supplied list). Since 7.6.0 the server captures its **keys** into the
-channel's `authorized_services` attr: the set of services this channel may
-reach. The no-treedb path yields just `{dst_service:[]}`, so the set degrades to
+channel's `authorized_services` attr: the set of services that this channel can
+reach. The no-treedb path yields `{dst_service:[]}`, so the set degrades to
 the single primary service. This realizes the long-standing `available_services`
 design — one authentication can legitimately grant several services (the GUI
 frontends authenticate against `db_history_wz` and reach `treedb_wattyzer`,
@@ -436,7 +436,7 @@ frontends authenticate against `db_history_wz` and reach `treedb_wattyzer`,
 
 Since 7.6.1 the authenticate response also carries a `superuser` flag, captured
 into the channel's `is_superuser` attr. It is TRUE when the user holds an
-effective wildcard role (`service="*"`, i.e. `root`), computed from the wildcard
+effective wildcard role (`service="*"`, that is, `root`), computed from the wildcard
 itself, not from a literal role name. The local trusted `yuneta` user (admitted
 only over localhost) now goes through the **same** `get_user_roles()` filter as
 any user instead of a hardcoded empty role set, so it picks up its real `root`
@@ -466,16 +466,16 @@ either way.
    `authorized_services` set (captured at identity-card time, §4.4). A peer
    authenticated for service A cannot reach a service B it holds no role in, even
    by naming B in its own routing stack. **Since 7.6.1 a superuser channel
-   (`is_superuser`, §4.4) bypasses this gate** — `root` means any
-   realm/service/permission, so it reaches `__yuno__` and any sibling service;
-   that is not a cross-service escalation. What a command may actually DO is
+   (`is_superuser`, §4.4) bypasses this gate** — `root` means any realm, any
+   service and any permission, so it reaches `__yuno__` and any sibling
+   service. That is not a cross-service escalation. What a command can DO is
    still governed by the additional default-off per-command authz gate, see
    [`YUNO_AUTH.md`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/YUNO_AUTH.md) §4.5.
 
    A refused message never strands the channel: `reject_unrouted_iev()` answers
    `command` / `stats` with a negative `EV_MT_*_ANSWER` (re-arming the read) and
-   `drop()`s the channel for the no-answer types — never a silent `return -1`
-   that would leave the socket connected but deaf (a zombie).
+   `drop()`s the channel for the no-answer types. It never does a silent
+   `return -1`, which leaves the socket connected but deaf (a zombie).
 6. Dispatch by `__msg_type__` (all gated by `authorized_services`, superuser
    bypassing as in step 5):
 
@@ -492,31 +492,32 @@ A `__command__` / `__stats__` reply is sent to the requester recorded in the
 ievent stack (`dst_service` of the top frame). But the ievent *serializer* for a
 link is not always in the same place. On a **server-accepted** link the
 serializer is the `C_IEVENT_SRV` *below* the `C_CHANNEL`, so
-`C_CHANNEL.ac_send_iev` just pushes the inner event down to it. On a
-**client-initiated** link — a `C_IEVENT_CLI` that connects *out* (e.g. an
-agent's `controlcenter` link) — the serializer is the `C_IEVENT_CLI` at the
-*top* of the stack; below the channel is a raw `C_PROT_TCP4H`. So an answer
-going back **up a client link** must be handed to the `C_IEVENT_CLI` itself
-(its `EV_SEND_IEV` action unwraps and serialises the inner event), not to the
-channel/iogate — routing it as if the serializer were below the channel puts a
-bare `EV_SEND_IEV` / `EV_MT_*_ANSWER` on the wire and the peer rejects it. This
+`C_CHANNEL.ac_send_iev` pushes the inner event down to it. On a
+**client-initiated** link, for example the `controlcenter` link of an agent, a
+`C_IEVENT_CLI` connects *out*. There the serializer is the `C_IEVENT_CLI` at
+the *top* of the stack, and below the channel is a raw `C_PROT_TCP4H`. So you
+must give an answer that goes back **up a client link** to the
+`C_IEVENT_CLI` itself, not to the channel or the iogate. Its `EV_SEND_IEV`
+action unwraps and serializes the inner event. If you route the answer as if
+the serializer were below the channel, a bare `EV_SEND_IEV` or
+`EV_MT_*_ANSWER` goes on the wire, and the peer rejects it. This
 is how a command cascaded controlcenter → agent → managed-yuno gets its answer
 back to the SPA (since 7.6.8).
 
 ### 4.6 Subscribing across yunos
 
-A remote subscription is just a `__subscribing__` ievent. The receiver
+A remote subscription is only a `__subscribing__` ievent. The receiver
 calls `gobj_subscribe_event` *locally*, with the `C_IEVENT_SRV` (or a
 proxy gobj on its side) standing in as `subscriber`. When the local
 service publishes the event later, the framework calls `gobj_send_event`
 on that proxy, which marshals the event back over the WS frame to the
 remote subscriber.
 
-The remote side does **not** need to keep the connection idle while
-waiting — events can fire whenever the publisher decides. From the
-subscriber's point of view, remote events look just like local ones.
+The remote side does **not** need to keep the connection idle while it
+waits. Events can fire when the publisher decides. From the point of view of
+the subscriber, remote events look the same as local ones.
 
-### 4.7 Two identities travel on a channel — don't confuse them
+### 4.7 Two identities travel on a channel — do not confuse them
 
 A command crossing an ievent link carries **two** different identities, and
 they authorize different things. Getting them mixed up leads to the wrong
@@ -542,7 +543,7 @@ operator drives a node *through* the controlcenter, the operator's
    `__username__` is **not** in that list, so it survives.
 3. The kw goes down the reverse channel unchanged.
 4. On the agent, `authz_checker` reads `kw`__username__`` **first**, and only
-   falls back to `gobj_read_str_attr(src, "__username__")` when the kw has
+   reads `gobj_read_str_attr(src, "__username__")` only when the kw has
    none.
 
 So a principal that must run authz-gated commands on a node needs to exist in
@@ -570,11 +571,11 @@ Higher-level API on top of the event machinery.
 
 ### 5.0 Addressing a command: every command goes to a *service*
 
-A yuno is a **hierarchical tree of gobjs**; some of them are **services**
-(named, externally addressable — registered via `gobj_create_service` /
-`gobj_create_default_service`). **Every command is directed to a service.**
-If you don't name one, it goes to the default. This is the single rule that
-trips up newcomers, so state it explicitly:
+A yuno is a **hierarchical tree of gobjs**, and some of them are **services**.
+A service is named and externally addressable, and `gobj_create_service` or
+`gobj_create_default_service` registers it. **Every command goes to a
+service.** If you do not name one, the command goes to the default service.
+This is the single rule that newcomers miss, so it is stated explicitly here:
 
 [`gobj_find_service()`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L5090)
 resolves the destination service name (case-insensitive). Two names are
@@ -584,8 +585,8 @@ special:
   created with `gobj_create_default_service`). **This is the target when no
   service is specified.**
 - **`__yuno__`** (alias **`__root__`**) — the top-level `C_YUNO` root gobj,
-  common to every yuno. Use it to reach the yuno itself (e.g. `services`,
-  `view-config`, trace commands).
+  common to every yuno. Use it to reach the yuno itself, for example
+  `services`, `view-config` and the trace commands.
 - any other string → looked up among the yuno's registered services.
 
 **From `ycommand`** (the destination service is a connection key, not a
@@ -646,9 +647,9 @@ the caller passed an async pattern, the response arrives as a callback.)
 | `EV_MT_COMMAND_ANSWER` | Wire event for the response                         |
 | `EV_ON_COMMAND`      | Local event a service publishes when its command result is ready (mostly for async commands) |
 
-Constants in [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.h) / [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c). Don't conflate them:
-`SDATACM` is a static declaration, `EV_MT_*` are runtime events that ride
-the wire.
+The constants are in [`msg_ievent.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.h) and [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c). Do not confuse
+the two: `SDATACM` is a static declaration, and `EV_MT_*` are runtime events
+that travel on the wire.
 
 ### 5.4 `msg_iev_build_response`
 
@@ -667,10 +668,10 @@ json_t *msg_iev_build_response(
 ```
 
 Note the comment in the source: `// OLD msg_iev_build_webix()`. Legacy
-codebases still mention the old name; treat both as the same thing.
+codebases still mention the old name. Both names mean the same thing.
 
 The agent's `YUNO_LIFECYCLE.md` shows the [`gobj_yuno_role_plus_name()`](#gobj_yuno_role_plus_name) prefix
-convention for `jn_comment`; see `feedback_build_command_response_yuno_prefix`.
+convention for `jn_comment`. See `feedback_build_command_response_yuno_prefix`.
 
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
 
@@ -702,10 +703,10 @@ A gate is a stack of gclasses, each handling a layer of the protocol:
      external client
 ```
 
-Each layer is a separate gobj, chained with `gobj_set_bottom_gobj()` /
-`gobj_bottom_gobj()`. The transport publishes `EV_RX_DATA` upward; the
-protocol parses it and publishes its own event (`EV_ON_MESSAGE`, etc.)
-upward; the service handles it.
+Each layer is a separate gobj, chained with `gobj_set_bottom_gobj()` and
+`gobj_bottom_gobj()`. The transport publishes `EV_RX_DATA` upward. The
+protocol parses it and publishes its own event upward, for example
+`EV_ON_MESSAGE`. Then the service handles it.
 
 ### 6.2 Transport layer essentials
 
@@ -731,8 +732,8 @@ the `child_tree_filter` attribute ([`c_tcp_s.c`](https://github.com/artgins/yune
 ### 6.3 HTTP server example: [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) → `C_TCP_S`
 
 [`c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_prot_http_sr.c): builds a `ghttp_parser` (a wrapper around
-**llhttp** — note that yuneta swapped out the older `http_parser` library;
-see memory note `project_llhttp_integration`). Output event:
+**llhttp**. Yuneta replaced the older `http_parser` library with it. See the
+memory note `project_llhttp_integration`.) Output event:
 `EV_ON_MESSAGE` with parsed headers, method, URL, body in `kw`.
 
 Service gclass subscribes to that and dispatches by URL or method.
@@ -754,10 +755,10 @@ upward direction is not pointered explicitly — events publish to
 subscribers, and the parent is the natural subscriber for CHILD-pattern
 gclasses.
 
-You'll also see `__top_side__` / `__bottom_side__` as keys inside `kw`
-for some cross-yuno scenarios (e.g. master/non-master treedb access — see
-memory `feedback_cross_yuno_via_store_not_command`). Those are routing
-markers in the `kw`, not the same as the gobj-tree convention.
+You also see `__top_side__` and `__bottom_side__` as keys inside `kw` in some
+cross-yuno cases, for example master and non-master treedb access (see the
+memory note `feedback_cross_yuno_via_store_not_command`). Those are routing
+markers in the `kw`. They are not the same as the gobj-tree convention.
 
 ### 6.6 TLS
 
@@ -796,14 +797,14 @@ exposure.
 
 ## 7. The SPA case
 
-A browser SPA is just another `C_IEVENT_CLI` — only that the runtime is
-JavaScript ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/c_ievent_cli.js)) instead of C, and the
-transport is the browser's native WebSocket. From the yuno's point of
-view it's indistinguishable from another yuno.
+A browser SPA is one more `C_IEVENT_CLI`. Only two things change: the
+runtime is JavaScript ([`kernel/js/gobj-js/src/c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/js/gobj-js/src/c_ievent_cli.js)) instead of
+C, and the transport is the native WebSocket of the browser. From the point
+of view of the yuno, a SPA and another yuno are the same.
 
 ### 7.1 Handshake
 
-The SPA sends `EV_IDENTITY_CARD` over the WS just like a C client. The
+The SPA sends `EV_IDENTITY_CARD` over the WS like a C client. The
 `jwt` field is typically read from the browser session ([Keycloak](https://www.keycloak.org/) token,
 see auth memory notes). The server's identity card validation is the
 same code path as for C clients ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c)).
@@ -816,8 +817,8 @@ Anything a C client can. Concretely:
   in JS marshals an `EV_MT_COMMAND` ievent and awaits the answer.
 - **Query stats**: same with `gobj_stats`.
 - **Subscribe to events**: `gobj_subscribe_event` on the client-side
-  `C_IEVENT_CLI` registers a `__subscribing__` ievent; the publisher
-  yuno calls back via `EV_ON_*` events delivered over the WS.
+  `C_IEVENT_CLI` registers a `__subscribing__` ievent. The publisher
+  yuno answers with `EV_ON_*` events that travel over the WS.
 
 ### 7.3 Live log + dev panel
 
@@ -843,15 +844,14 @@ When a CHILD-pattern gobj publishes an event, the **parent's FSM** must
 declare it. The error originates in `gobj_send_event` on the parent, but
 the stack trace mentions the child. Always inspect the parent's
 `event_action_list` and `event_types[]`. CLAUDE.md's "GClass
-subscription model" section spells out the rule; the diagnostic emoji is
-`📛`.
+subscription model" section gives the rule. The diagnostic emoji is `📛`.
 
 ### 8.3 `EVF_NO_WARN_SUBS` is not a noise suppressor
 
-It's the explicit *"missing subscriber is not a bug for this event"*
-annotation. Using it to silence a noisy warning often hides a real
-SERVICE/CHILD pattern mismatch. CLAUDE.md is unambiguous on this; see
-`feedback_gclass_visual_layout`.
+It is the explicit *"missing subscriber is not a bug for this event"*
+annotation. If you use it to silence a noisy warning, it often hides a real
+mismatch between the SERVICE pattern and the CHILD pattern. CLAUDE.md is
+clear on this. See `feedback_gclass_visual_layout`.
 
 ### 8.4 Subscription lists are in **both** gobjs
 
@@ -870,8 +870,8 @@ crashes immediately. The rule:
 - Calling `msg_iev_build_response(g, r, c, s, d, kw)`: the last `kw`
   parameter is consumed.
 
-If you need to keep `kw` around (e.g. publish it then publish a derived
-event), use `KW_INCREF` or `json_incref` first.
+If you must keep `kw`, for example to publish it and then publish a derived
+event, use `KW_INCREF` or `json_incref` first.
 
 ### 8.6 `__temp__` is stripped at the yuno boundary
 
@@ -883,17 +883,18 @@ put it under `__md_iev__` or use the stack.
 ### 8.7 `msg_iev_build_webix` is the same as `msg_iev_build_response`
 
 The old name lingers in comments ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/msg_ievent.c)) and possibly in
-some test fixtures. They are aliases; use the new name in new code.
+some test fixtures. They are aliases. Use the new name in new code.
 
 ### 8.8 `__default_service__` resolution is case-insensitive
 
 `gobj_find_service` lowercases ([`gobj.c:5076`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L5076)). `"My_Service"` and
-`"my_service"` are the same service. Don't rely on case to disambiguate.
+`"my_service"` are the same service. Do not use case to make two names
+different.
 
 ### 8.9 SPAs see only `public_services`
 
-A common confusion: "I added the command but the SPA can't call it." Check
-the yuno config — the service must be listed in `public_services`
+A common confusion is "I added the command but the SPA cannot call it."
+Read the yuno config. The service must be in `public_services`
 ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c)).
 
 ---
@@ -913,16 +914,16 @@ the yuno config — the service must be listed in `public_services`
    ```
 
 2. Add it to the gclass's `event_types[]` with the right flag
-   (`EVF_OUTPUT_EVENT` if you'll publish it; add `EVF_PUBLIC_EVENT` if
-   subscribers from other gclasses will subscribe to it).
+   (`EVF_OUTPUT_EVENT` if you publish it. Add `EVF_PUBLIC_EVENT` if
+   subscribers from other gclasses subscribe to it).
 
 3. If the gclass *receives* it, add an `ev_action_t` row to the relevant
    states' `ev_action_list`s and write the action function.
 
 4. If the gclass *publishes* and the consumer is a parent (CHILD pattern),
    add `EV_MY_THING` to the parent's `event_types[]` and an action row in
-   the parent's relevant states. Otherwise you'll get *"Event NOT DEFINED
-   in state"* on first publish.
+   the parent's relevant states. Without them you get *"Event NOT DEFINED
+   in state"* on the first publish.
 
 ### 9.2 Subscribe locally to another gobj's events
 
@@ -935,8 +936,8 @@ gobj_subscribe_event(
 );
 ```
 
-Don't forget to unsubscribe in `mt_stop` / `mt_destroy` if the publisher
-might outlive the subscriber.
+If the publisher can live longer than the subscriber, do not forget to
+unsubscribe in `mt_stop` or `mt_destroy`.
 
 ### 9.3 Subscribe to events from a remote yuno
 
@@ -966,7 +967,7 @@ json_t *resp = gobj_command(
 ```
 
 `resp` is the same shape `msg_iev_build_response` builds locally. If you
-need the async pattern (don't block), pass a subscriber-style kw and
+need the async pattern, which does not block, pass a subscriber-style kw and
 listen for `EV_MT_COMMAND_ANSWER`.
 
 ### 9.5 Expose a new command to the SPA
@@ -979,8 +980,8 @@ listen for `EV_MT_COMMAND_ANSWER`.
 
 2. Write `cmd_my_cmd()` returning a `msg_iev_build_response`.
 
-3. Register the service publicly: ensure the service name is in the yuno's
-   `public_services` array.
+3. Register the service publicly. Make sure that the service name is in the
+   `public_services` array of the yuno.
 
 4. From the SPA:
 

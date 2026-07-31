@@ -1,8 +1,8 @@
 # Yuno lifecycle under the agent
 
-This document describes what the Yuneta agent (`yuno_agent`) actually does when
-a yuno is created, started, paused, killed, updated or deleted on a host. It is
-the on-disk + in-memory + on-the-wire picture, not the marketing one.
+This document describes what the Yuneta agent (`yuno_agent`) does when you
+create, start, pause, kill, update or delete a yuno on a host. It gives the
+picture on disk, in memory and on the wire, not the marketing picture.
 
 > **Yuno = binary + configuration.** Those two halves are stored independently,
 > versioned independently, and linked by the yuno record. Understanding that is
@@ -11,7 +11,7 @@ the on-disk + in-memory + on-the-wire picture, not the marketing one.
 The agent's authoritative source is
 [`src/c_agent.c`](src/c_agent.c) (~11k lines) and its treedb schema
 [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c). Every
-claim below cites the file:line it comes from.
+claim below cites its source file and line.
 
 ---
 
@@ -46,8 +46,9 @@ claim below cites the file:line it comes from.
    <role>/<version>/<role>                        <realm>/<yuno>/{bin,data,logs}
 ```
 
-The agent is the **only** thing that should touch those directories. Manual
-edits create drift with treedb that won't show up until the next start fails.
+The agent is the **only** thing that must touch those directories. Manual
+edits create a drift with treedb, and you see it only when the next start
+fails.
 
 ---
 
@@ -77,7 +78,7 @@ used (see §2.3).
 <yuneta_root_dir>/repos/<tags>/<role>/<version>/<role>
 ```
 
-The file inside is the executable; the filename is the role again.
+The file inside is the executable, and the filename is the role again.
 
 ### 2.2 The `configurations` topic
 
@@ -124,14 +125,15 @@ columns:
 A yuno record without a matching `binaries` row or `configurations` row fails at
 create time, not at start time:
 [`cmd_create_yuno()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L4666)
-rejects the request as soon as either lookup comes back empty.
+rejects the request as soon as one of the two lookups returns empty.
 
-`start_priority` / `sched_priority` / `cpu_core` are node placement decisions:
-they live with the agent (this node), not in the binary or its config that
-travel across nodes. They were added with `topic_version` 19→20 +
-`schema_version` 22→23; the bump only refreshes the col schema (it does **not**
-touch record data), so existing yunos keep their data and read the defaults
-until set with `update-node`.
+`start_priority`, `sched_priority` and `cpu_core` are node placement
+decisions. They live with the agent, which is this node. They do not live in
+the binary or in its config, because those travel across nodes. They arrived
+with `topic_version` 19→20 and `schema_version` 22→23. The bump only
+refreshes the col schema and does **not** touch record data. Existing yunos
+therefore keep their data and read the defaults until you set them with
+`update-node`.
 
 ### 2.4 Realm and per-yuno layout
 
@@ -151,13 +153,13 @@ The `data/` directory holds the [**persistent attributes**](#persistent_attrs)
 of the yuno's services — `SDF_PERSIST` attrs that a service changed and saved at run-time,
 one `<GClass>-<name>-persistent-attrs.json` per service
 ([`db_save_persistent_attrs()`](#db_save_persistent_attrs)). It is created
-**lazily**: it does not exist until the first attr is actually saved — a load
+**lazily**: it does not exist until the framework saves the first attr. A load
 never creates it ([`db_load_persistent_attrs()`](#db_load_persistent_attrs)
-reports "nothing saved" when the file is absent). At startup each service is
-seeded from its merged config and **then** these saved values are written on
-top — so **a persisted attr takes precedence over the same key in any
-configuration file**. Only services (and `__root__`) load them; pure children
-do not.
+reports "nothing saved" when the file is absent). At startup the framework
+seeds each service from its merged config, and **then** it writes these saved
+values on top. So **a persisted attr has precedence over the same key in any
+configuration file**. Only services and `__root__` load them. Pure children do
+not.
 
 ---
 
@@ -172,7 +174,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
 | `update-binary`   | Same as install but **overwrites** the existing `(role, version)` row and file in place. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs don't block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
+| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete); else the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`); `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -182,7 +184,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-----------------|-----------------------------------------------------------------|
 | `create-config` (alias `install-config`) | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
 | `update-config` | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
-| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs don't block); `force=1` overrides. |
+| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete); else the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). `force=1` overrides. |
 | `list-configs`  | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
 | `list-configs-instances` | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
 | `view-config`   | A ycommand console helper (not an agent command): reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno actually sees — for that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
@@ -212,7 +214,7 @@ Permission gating is per-command via `pm_<name>` schemas.
 
 ### 4.1 State machine of a single yuno (as the agent sees it)
 
-![Yuno lifecycle state machine: create-yuno registers a STOPPED yuno; run-yuno forks it to STARTING; EV_ON_OPEN reaches RUNNING (paused); play-yuno and pause-yuno toggle paused and playing; kill-yuno (SIGQUIT) returns it to STOPPED; delete-yuno (only if stopped) reaches DELETED.](../../../docs/doc.yuneta.io/_static/yuno_lifecycle_fsm.svg)
+![Yuno lifecycle state machine: create-yuno registers a STOPPED yuno. run-yuno forks it to STARTING. EV_ON_OPEN reaches RUNNING (paused). play-yuno and pause-yuno change between paused and playing. kill-yuno (SIGQUIT) returns it to STOPPED. delete-yuno, only if stopped, reaches DELETED.](../../../docs/doc.yuneta.io/_static/yuno_lifecycle_fsm.svg)
 
 The same machine in text (the precise transitions the agent drives on the
 per-yuno record fields):
@@ -304,7 +306,7 @@ after the launch loop, exactly mirroring the other three commands.
 The implicit auto-play of step 7, however, is inherently per-yuno and async
 (each yuno connects at its own time), so in the default `play=1` mode the
 caller also sees one extra `play-yuno` answer per `must_play` yuno. Scripts
-that need exactly one answer per command should split the two phases:
+that need exactly one answer per command must split the two phases:
 
 ```bash
 ycommand -c 'run-yuno play=0'   # launch only → 1 answer ("N yunos found to run")
@@ -313,7 +315,7 @@ ycommand -c 'play-yuno'         # play already-running yunos → 1 aggregated an
 
 `play=0` (default `1`, backward-compatible) suppresses the auto-play for that
 launch only. The agent records the `launch_id` in an in-memory set
-(`priv->no_play_launches`); `ac_on_open()` consumes it by matching the
+(`priv->no_play_launches`). `ac_on_open()` consumes it by matching the
 connecting yuno's `identity_card`launch_id` and deletes it on first connect.
 It is not a treedb column and does not touch `must_play`, so a watcher crash
 relaunch (which reuses the same `launch_id`, now absent) still reconciles
@@ -329,8 +331,9 @@ yuno's open channel:
 - `pause-yuno` → `EV_PAUSE_YUNO` → … → `EV_PAUSE_YUNO_ACK` → agent sets
   `yuno_playing=false`.
 
-Most yunos use the play/paused gate to enable/disable I/O processing without
-exiting. The process never stops; only its inputs are gated.
+Most yunos use the play and paused gate to enable or disable the I/O
+processing without an exit. The process never stops. Only its inputs are
+gated.
 
 ### 4.5 Stop: `kill-yuno`
 
@@ -340,9 +343,9 @@ An **orderly shutdown**, not a SIGKILL, performed by
 1. Read the `signal2kill` attribute (default `SIGQUIT`).
 2. `kill(yuno_pid, signal2kill)`.
 3. If the chosen signal is `SIGKILL`, the watcher is killed too.
-4. **No timer-based escalation in code**. The agent trusts the yuno's signal
-   handler to actually shut down. If it doesn't, the yuno stays "running"
-   from the agent's record forever (see §5).
+4. **No timer-based escalation in code**. The agent trusts the signal handler
+   of the yuno to shut it down. If the handler does not shut it down, the
+   record of the agent keeps the yuno as "running" forever (see §5).
 5. When the channel closes, [`ac_on_close()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L11316)
    flips `yuno_running=false`, `yuno_playing=false`, `yuno_pid=0`.
 
@@ -357,43 +360,44 @@ not poll pids. It does not know "exited normally" from "segfaulted".
 started with `--start` runs under a per-yuno watcher process (the
 first-fork survivor in [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/ydaemon.c)). When the yuno child dies abnormally
 (any signal other than `SIGKILL`, or any non-zero exit code), the watcher
-sleeps 2s and re-execs the same binary — and it does so **regardless of
-whether the agent is running**. A yuno is an autonomous machine; the
-watcher is what makes that concrete. See
+sleeps 2s and re-execs the same binary. It does this **whether the agent runs
+or not**. A yuno is an autonomous machine, and the watcher is what makes that
+concrete. See
 [`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-watcher) §4
 for the full decision matrix.
 
 What the agent contributes on top:
 
-- It logs the closed channel and clears `yuno_pid`/`yuno_playing`. A
-  fresh `run-yuno` is **not** needed; the watcher has already spawned
-  a new child with a new pid that will reconnect to the agent on its own
-  (it goes through the normal `EV_ON_OPEN` handshake).
+- It logs the closed channel and clears `yuno_pid` and `yuno_playing`. A
+  new `run-yuno` is **not** necessary. The watcher already forked a new
+  child with a new pid, and that child connects to the agent on its own
+  through the normal `EV_ON_OPEN` handshake.
 - At agent boot the timer `ac_timeout()` ([c_agent.c:11393](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L11393)) runs:
     1. [`run_util_yunos()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L9044) ([c_agent.c:9044](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L9044)) — yunos tagged `util`,
        ignoring `disabled`.
     2. [`run_enabled_yunos()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L8980) ([c_agent.c:8980](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L8980)) — every row with
        `disabled=false ∧ running=false`.
 
-   This reconciliation matters only for yunos that **don't** have a live
-   watcher (e.g. the agent itself was killed and brought back; any yunos
-   whose own watchers happened to die too).
+   This reconciliation matters only for yunos that have **no** live
+   watcher. Two examples: someone killed the agent itself and started it
+   again, or the watchers of some yunos died too.
 
    **The agent launches a yuno once, and there its responsibility ends.**
-   `running` comes from `ac_on_open()`, so between the two sweeps a yuno is
-   launched but not yet registered — `run_yuno()` marks it as launching and
-   both sweeps skip a marked yuno, `ac_on_open()` clearing the mark. Without
-   that, anything slower than `timerStBoot` to open (a yuno loading a treedb,
-   on the cold machine a real boot gives you) was launched a second time. The
-   `run-yuno` command honors the same mark, so an operator can't land a second
-   instance on a yuno that is still coming up either. The agent must not retry
-   a yuno that died before opening: an abnormal death is the watcher's job, and
-   a clean `exit 0` is the yuno deciding to stay down.
+   `ac_on_open()` sets `running`. So between the two sweeps a yuno is
+   launched but not yet registered. `run_yuno()` marks it as launching, both
+   sweeps skip a marked yuno, and `ac_on_open()` clears the mark. Without
+   that mark, the agent launched a second time anything that opened slower
+   than `timerStBoot`, for example a yuno that loads a treedb on the cold
+   machine of a real boot. The `run-yuno` command honors the same mark, so an
+   operator cannot start a second instance on a yuno that is still starting.
+   The agent must not try a yuno again after it died before it opened. An
+   abnormal death is the work of the watcher, and a clean `exit 0` is the
+   decision of the yuno to stay down.
 
    The mark carries its launch time and **expires after `timeout_expiration`**
-   (30s). A yuno that dies before opening never clears its mark, and the agent
-   watches no pids: without the expiry, one failed launch would block `run-yuno`
-   for that yuno until the agent restarted.
+   (30s). A yuno that dies before it opens never clears its mark, and the
+   agent watches no pids. Without the expiry, one failed launch blocks
+   `run-yuno` for that yuno until the agent restarts.
 
 Forensics: a crashed yuno also dumps a core at `/var/crash/core.<role>`
 (sysctl + PAM limits configured by the `.deb`, see
@@ -404,8 +408,8 @@ The watcher emits a `Daemon relaunched` log line on every relaunch
 ### 4.7 Deletion: `delete-yuno`
 
 Refuses if `yuno_running=true`. Optionally refuses on tagged yunos unless
-`force=1`. Removes the treedb row; the on-disk `bin/` directory is cleaned by
-treedb cascade.
+`force=1`. It removes the treedb row, and the treedb cascade cleans the
+`bin/` directory on disk.
 
 **You must say WHICH of the two deletions you mean.** The command refuses the
 bare form:
@@ -426,8 +430,8 @@ prunes that one instance — useful to drop a superseded or mistakenly-created
 **higher** release without a snap rollback. This rides the treedb per-instance
 delete ([`treedb_delete_instance`](#treedb_delete_instance)), which tombstones **every** md2 row of the
 `(id, yuno_release)` — a treedb instance spans several rows (create + each
-link/save re-appends one), so a partial tombstone would let an earlier row
-resurrect the release on reload. The running-guard consults the primary (the
+link/save re-appends one). With a partial tombstone, an earlier row therefore
+restores the release on reload. The running-guard consults the primary (the
 per-instance row carries a stale `yuno_running`). `delete-config`/`delete-binary`
 gained the symmetric `version=` form for config/binary versions.
 
@@ -443,23 +447,23 @@ Three planes share the word "priority" — keep them apart:
 
 **Launch order.** [`cmd_run_yuno`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L5113) sorts the matched yunos by `start_priority`
 **ascending** before spawning ([`sort_yunos_by_start_priority`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L8392), c_agent.c). Lower
-goes first: utilities (logcenter / emailsender / auth_bff) → gates → dba. Use a
-low number for infrastructure a node can't work without. The same ascending sort
+goes first: utilities (logcenter, emailsender, auth_bff) → gates → dba. Use a
+low number for infrastructure that a node needs. The same ascending sort
 is applied by `run_enabled_yunos`, so a node bounce ([`restart_nodes`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L9456) /
 `deactivate-snap`) and the at-startup relaunch honour the tiers too. (The force
 SIGKILL pass inside `restart_nodes` is left unordered on purpose: SIGKILL has no
 graceful drain to sequence.)
 
 **Shutdown order.** `kill-yuno` and `pause-yuno` sort **descending**, so the
-utilities die **last** — e.g. logcenter stays up long enough to capture
-everyone else's shutdown logs. Within one priority, treedb order is preserved
-(stable). Single-target commands (by `id`) are unaffected.
+utilities die **last**. For example, logcenter stays alive long enough to
+capture the shutdown logs of all the others. Within one priority, the treedb
+order is preserved (stable). Single-target commands, by `id`, do not change.
 
 **Default on creation.** `create-yuno` seeds `start_priority = 1` for a yuno
 carrying the `util` tag — the same set `run_util_yunos` starts first — so
 framework utilities are born at the top tier without operator action. A
 genuinely new yuno otherwise takes the column default (5). No app role names are
-hard-coded in the agent; assign app tiers per node with
+hard-coded in the agent. Assign the app tiers per node with
 [`tools/agent/set_start_priorities.py`](https://github.com/artgins/yunetas/blob/7.9.4/tools/agent/set_start_priorities.py).
 
 **Inherited across version bumps.** A version-bump deploy (`find-new-yunos
@@ -475,7 +479,7 @@ agent-built config file #1 as the yuno's `sched_priority` / `cpu_core` attrs
 (`build_yuno_running_script`). They are **defaults only**: the user config file
 is merged after #1, so an explicit value in the yuno's own config still wins
 (precedence stays with the deployer). `cpu_core=0` (the default) means no
-affinity boost, i.e. unchanged behaviour.
+affinity boost, that is, unchanged behavior.
 
 Set any of the three live, no redeploy. The `record=` inline form is NOT
 coerced from text by the ycommand CLI ("What record?"), so pass the node as a
@@ -487,8 +491,8 @@ printf '{"id":"<yuno_id>","start_priority":1,"cpu_core":2,"sched_priority":10}' 
 ycommand -c "command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos content64=\$\$(/tmp/rec.json)"
 ```
 
-(Over the websocket/JSON API the `record` field is a real dict and works
-directly; the file form is only needed for the text CLI.)
+(Over the websocket and the JSON API the `record` field is a real dict and works
+directly. Only the text CLI needs the file form.)
 
 ---
 
@@ -507,7 +511,7 @@ ERROR -1: Cannot copy '/yuneta/realms/agent/agent/temp/<role>'
           to '/yuneta/repos/.../<version>/<role>'
 ```
 
-It does **not** corrupt the live process — Linux simply won't let you overwrite
+It does **not** corrupt the live process. Linux does not let you overwrite
 a busy executable. The command's description still says *"WARNING: Don't use in
 production!"*.
 
@@ -533,29 +537,28 @@ If the yuno dies in a way that leaves the channel open (rare, but
 record keeps `yuno_running=true` and `yuno_pid=<old-pid>`.
 
 On the next `run-yuno`, `ac_on_open()` checks `getpgid(_pid) >= 0`.
-If the old pid happens to have been reused, the agent
-**kills the new occupant**. This is the worst flavour of
-flapping. If you suspect a stale pid, manually clear `yuno_running` and
-`yuno_pid` in treedb before retrying.
+If another process took the old pid, the agent **kills that new process**.
+This is the worst form of flapping. If you suspect a stale pid, clear
+`yuno_running` and `yuno_pid` in treedb by hand before you try again.
 
 ### 5.3 No SIGKILL escalation, and the watcher gotcha
 
-`kill-yuno` sends one signal and waits. There's no "after 30 seconds, try
-SIGKILL". A yuno that swallows `SIGQUIT` (or whose signalfd handler is
-wedged) stays alive and the agent's record stays stuck in `running`.
+`kill-yuno` sends one signal and waits. There is no "after 30 seconds, try
+SIGKILL". A yuno that discards `SIGQUIT`, or whose signalfd handler is
+blocked, stays alive, and the record of the agent stays at `running`.
 
-Worse, a naive `kill -9 <yuno_pid>` from the shell **does not** kill the
-yuno permanently: the watcher classifies SIGKILL on the child as
-"abnormal" and relaunches after 2s. You need to kill **both** the child
-and its watcher, or — better — use `kill-yuno force=1` /
-`set-quick-kill`, which sends SIGKILL to both pids and is the only way
-the agent can actually take down an uncooperative yuno
+A `kill -9 <yuno_pid>` from the shell is worse: it **does not** kill the
+yuno permanently. The watcher classifies a SIGKILL on the child as
+"abnormal" and relaunches it after 2s. You must kill **both** the child and
+its watcher. It is better to use `kill-yuno force=1` or `set-quick-kill`,
+which send SIGKILL to both pids. That is the only way for the agent to stop
+a yuno that does not cooperate
 ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c), and [`ENTRY_POINT.md §7`](ENTRY_POINT.md#entry-point-kill-yuno)).
 
 ### 5.4 `pause` ≠ `SIGSTOP`, `play` ≠ `SIGCONT`
 
-Pause/Play are channel events. The process is never frozen at the kernel
-level. If you actually want the process suspended (e.g. for `gdb attach`),
+Pause and Play are channel events. The kernel never freezes the process. If
+you want the process suspended, for example for `gdb attach`,
 the agent gives you nothing — use the shell.
 
 ### 5.5 `update-config` does not hot-reload
@@ -588,11 +591,12 @@ All examples assume [`ycommand`](#util-ycommand) is talking to the local agent.
 
 > **Bulk reconciliation.** To compare every binary the agent has installed
 > against the freshly built ones in `outputs/yunos` and push the differences in
-> one pass, use [`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.9.4/tools/agent/sync_binaries.py) (drives from the agent's
-> installed set; proposes `install-binary` for version bumps and `update-binary`
-> for same-version rebuilds; `-n` for a dry run). For a same-version rebuild it
-> also runs the per-role hot-patch cycle below (kill → poll → update → restore
-> run/play state, scoped by `yuno_role`); `--no-restart` keeps it print-only.
+> one pass, use [`tools/agent/sync_binaries.py`](https://github.com/artgins/yunetas/blob/7.9.4/tools/agent/sync_binaries.py). It drives from the agent's
+> installed set. It proposes `install-binary` for version bumps, and
+> `update-binary` for same-version rebuilds. `-n` does a dry run. For a
+> same-version rebuild it also runs the per-role hot-patch cycle below (kill →
+> poll → update → restore run and play state, scoped by `yuno_role`).
+> `--no-restart` keeps it print-only.
 > The recipes below are the manual, per-yuno equivalents.
 
 ### 6.1 Onboard a brand-new yuno
@@ -620,12 +624,12 @@ ycommand -c 'list-yunos'
 ### 6.2 Hot-patch the binary at the same version (`update-binary`)
 
 Use this when the version number in `main.c` (`APP_VERSION`) is
-**unchanged** — e.g. a `RelWithDebInfo` rebuild for a quick fix
-during a debugging session. `update-binary` overwrites the existing
+**unchanged**, for example a `RelWithDebInfo` rebuild for a quick fix
+during a debug session. `update-binary` overwrites the existing
 `{role}/{version}/` slot in `/yuneta/repos/...` and the matching
-treedb row. There is no rollback path; the previous bytes are gone.
+treedb row. There is no rollback path, and the previous bytes are gone.
 
-Always **orderly shutdown first**; never `update-binary` over a live
+Always do an **orderly shutdown first**. Never `update-binary` over a live
 mmap. The command itself does NOT refuse if a yuno using the binary
 is running (see §5.1).
 
@@ -655,9 +659,10 @@ in `command-yuno` help applies precisely to that misuse.
 
 ### 6.3 Change a yuno's configuration
 
-`update-config` does not hot-reload — the yuno must be restarted. It overwrites
-an existing config (version is read from the `__version__` field in the file);
-to install a NEW version use `create-config` (alias `install-config`) instead.
+`update-config` does not hot-reload, so you must restart the yuno. It
+overwrites an existing config, and the `__version__` field in the file gives
+the version. To install a NEW version, use `create-config` instead (alias
+`install-config`).
 
 ```bash
 ycommand -c 'update-config id=<role>.<name> content64=$$(<file>.json)'
@@ -732,19 +737,19 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
 > rollback snap (idempotent by name, default `pre-upgrade-<YYYYMMDD>`,
 > `--no-snap` to skip), runs `find-new-yunos` as a preview and asks before
 > `create=1`, then `deactivate-snap`. Steps 1–2 (build + `install-binary`, or a
-> `yunetas sync-binaries` push) still run first; `--dry-run` prints the agent
-> commands without executing them. The raw `ycommand` sequence above remains the
+> `yunetas sync-binaries` push) still run first. `--dry-run` prints the agent
+> commands and does not run them. The raw `ycommand` sequence above remains the
 > manual equivalent.
 
 #### Caveats
 
-- **Node-wide bounce.** `restart_nodes()` SIGKILLs every running
-  yuno on the node, not just the one being upgraded. Tolerable for
-  kernel-yuno rotations (`auth_bff`, `emailsender`, `logcenter`);
-  worth flagging before doing it during a busy window on a realm
-  with many citizen yunos. (The version-promotion half of the old
+- **Node-wide restart.** `restart_nodes()` sends SIGKILL to every running
+  yuno on the node, not only to the one that you upgrade. This is
+  acceptable for kernel-yuno rotations (`auth_bff`, `emailsender`,
+  `logcenter`). On a realm with many citizen yunos, tell the team before
+  you do it during a busy window. (The version-promotion half of the old
   "force volatil" TODO is now handled by
-  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L8908); what remains is making the
+  [`promote_highest_release_yunos()`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L8908). What remains is making the
   bounce per-role instead of node-wide.)
 
 - **No orderly shutdown.** The SIGKILL means yunos do NOT run their
@@ -783,16 +788,16 @@ ycommand -c 'deactivate-snap'
 > A binary the snap tagged must survive for `activate-snap` to roll back to it —
 > otherwise the treedb pointer is restored but the file is gone and `run-yuno`
 > fails with *"primary binary not found"*. So `delete-binary` refuses to remove
-> a snap-tagged binary (the kernel's `treedb_delete_node` enforces it; the agent
-> also reports it clearly and never reaches the `rmrdir`). Pass `force=1` to
-> delete anyway — that **breaks** the rollback the snap was protecting.
+> a snap-tagged binary. The kernel enforces this in `treedb_delete_node`, and
+> the agent reports it clearly and never reaches the `rmrdir`. `force=1`
+> deletes it, and that **breaks** the rollback that the snap protected.
 
 ### 6.7 Inspecting a snap (`snaps` / `snap-content`)
 
 A snap is a point-in-time tag (a numeric `user_flag`, `1..65534`) applied
 to the treedb records that were current when it was shot. `snaps` lists
-them; `snap-content` shows what a given snap captured — useful to see what
-a rollback snap (§6.6) would restore *before* you `activate-snap` it.
+them. `snap-content` shows what a snap captured, which lets you see what a
+rollback snap (§6.6) restores *before* you `activate-snap` it.
 
 ```bash
 # List the snaps (id, name, date, active, description)

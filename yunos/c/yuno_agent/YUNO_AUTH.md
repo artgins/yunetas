@@ -1,9 +1,8 @@
-# Authentication, authorisation, and TLS
+# Authentication, authorization, and TLS
 
 This document covers the three intertwined operational concerns nobody can
 afford to misunderstand on a Yuneta host: **who is calling** (authn),
-**what they're allowed to do** (authz), and **the TLS that protects the
-wire**.
+**what they can do** (authz), and **the TLS that protects the wire**.
 
 Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
 [`IPC.md`](IPC.md), [`REALMS.md`](REALMS.md), [`SCAFFOLDING.md`](SCAFFOLDING.md).
@@ -11,9 +10,9 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.
 > ⚠️ **Read §4.5 and §8.3 before assuming anything about authz enforcement.**
 > The per-command authz check is **re-armed but gated** in the framework
 > ([`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/command_parser.c)). It runs only when the yuno
-> sets the `enable_command_authz` attr TRUE; **by default it is OFF**, so a
-> stock deployment is still authenticated-but-not-authorised at the command
-> boundary. The difference from the old "commented out" state: the `SDF_AUTHZ_X`
+> sets the `enable_command_authz` attr TRUE. **By default it is OFF**, so a
+> stock deployment is still authenticated-but-not-authorized at the command
+> boundary. This is the difference from the old "commented out" state: the `SDF_AUTHZ_X`
 > flag is now **consulted** — turning the gate on enforces every `pm_*`/authz
 > declaration without a code change. Event-level authz (`EVF_AUTHZ_*`) is still
 > unenforced (§4.6, §8.4).
@@ -32,7 +31,7 @@ Three independent pieces, often confused:
                                                    │
                                                    ▼
   ┌─────────────────────────────────────────────────────────────────┐
-  │  authorisation = "is the caller allowed to do X"                │
+  │  authorization = "is the caller allowed to do X"                │
   │     (C_AUTHZ gclass + authzs treedb + pm_* schemas)             │
   │     ⚠️  Per-command check is GATED OFF by default               │
   │         (enable_command_authz; see §4.5, §8.3)                  │
@@ -47,7 +46,7 @@ Three independent pieces, often confused:
 
 End-to-end request flow on a real production yuno:
 
-![OIDC/PKCE auth sequence. Login (PKCE): the browser computes a verifier and challenge, redirects to Keycloak, gets a code, posts it with the verifier to auth_bff, which exchanges it server-to-server for tokens and sets an HttpOnly cookie. Per request: the browser opens a WebSocket carrying the cookie; C_IEVENT_SRV hands it to C_AUTHZ which verifies the JWT via JWKS and extracts the username; the per-command authz check then runs only if the yuno has enable_command_authz set (off by default), otherwise the handler runs regardless.](../../../docs/doc.yuneta.io/_static/auth_flow.svg)
+![OIDC/PKCE auth sequence. Login (PKCE): the browser computes a verifier and challenge, redirects to Keycloak, gets a code, and posts it with the verifier to auth_bff. auth_bff exchanges it server-to-server for tokens and sets an HttpOnly cookie. Per request: the browser opens a WebSocket that carries the cookie. C_IEVENT_SRV gives it to C_AUTHZ, which verifies the JWT through JWKS and extracts the username. The per-command authz check then runs only if the yuno has enable_command_authz set, which is off by default. If it is off, the handler runs anyway.](../../../docs/doc.yuneta.io/_static/auth_flow.svg)
 
 The same flow in text:
 
@@ -91,7 +90,7 @@ The same flow in text:
 
 A standalone Yuneta yuno that runs the [`C_AUTH_BFF`](#gclass-c-auth-bff) kernel gclass. It is
 the **only** thing on the system that talks [OAuth2](https://oauth.net/2/) to the IdP. The SPA
-never sees a token — it just carries the cookie.
+never sees a token. It only carries the cookie.
 
 :::{tip} Writing the GUI side? Watch the exchange run.
 [**The login, gobj by gobj**](https://doc.yuneta.io/login-flow) draws this
@@ -99,13 +98,13 @@ dialogue as a running graph of the real gobjs — which event travels from
 `C_AUTH_BFF` to `C_TASK` to `C_PROT_HTTP_CL` and back — with the browser's
 cookie jar and the client FSM updating at every step. Five scenarios: login,
 restore, silent refresh, **transient failure** and logout. It carries the
-checklist a new GUI has to implement; this chapter is the prose behind it.
+checklist that a new GUI must implement. This chapter is the prose behind it.
 :::
 
 ### 2.1 Why a BFF (and not the SPA talking to Keycloak)
 
 Tokens live in **HttpOnly cookies**, scoped by domain (no port). JavaScript
-cannot read them; XSS attacks cannot exfiltrate them. The SPA only knows
+cannot read them, and XSS attacks cannot extract them. The SPA only knows
 "am I authenticated" by the response code of API calls. This is the
 SEC-04/-06/-07/-09 hardening Yuneta deployments require.
 
@@ -117,7 +116,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | Endpoint           | Method | Purpose                                              | Sets cookies?       |
 |--------------------|--------|------------------------------------------------------|---------------------|
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant) | yes              |
-| `/auth/callback`   | POST   | PKCE code exchange (authorisation_code grant)        | yes                 |
+| `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant)        | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is | yes |
 | `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies     | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding) | no |
@@ -128,10 +127,10 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 By default the SPA never sees a raw token (SEC-06): tokens live only in
 HttpOnly cookies scoped to the BFF host, so they cannot be forwarded to a
 backend on a **different** host. When a single SPA must open WebSockets to
-Yuneta backends on *other* hosts (e.g. the `gui_treedb` browser served at
-`artgins.ytreedb.com` connecting to `wss://app.wattyzer.com:1602`), it
+Yuneta backends on *other* hosts, for example the `gui_treedb` browser served
+at `artgins.ytreedb.com` that connects to `wss://app.wattyzer.com:1602`, it
 forwards the access_token itself in the `C_IEVENT_CLI` identity_card `jwt`
-field; the remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
+field. The remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
 over the (absent) cookie, and `C_AUTHZ` validates it against the issuer JWKS
 exactly as a cookie token — so each remote backend must have the issuer's
 JWKS provisioned (`add-jwk`) and a role for the target service.
@@ -145,16 +144,17 @@ relaxation** and is disabled by default. Two guards keep it safe:
   is invisible (`404 unknown_endpoint`), so every other BFF keeps tokens
   unreadable by JS. Enable it **only** on the BFF whose SPA needs forwarding.
 - **Origin pinning (fail-closed)** — even when enabled, the token is emitted
-  only when the request `Origin` exactly matches `allowed_origin`; if that
+  only when the request `Origin` matches `allowed_origin` exactly. If that
   origin is unset or does not match, the BFF answers `403 origin_not_allowed`
-  and never the token. Exposing the token therefore *requires* pinning the
-  single SPA origin allowed to read it.
+  and never the token. To expose the token you therefore *must* pin the
+  single SPA origin that can read it.
 
-Residual risk: an XSS running **on the pinned origin itself** could read the
-token (it is same-origin then). Mitigate with a short access_token TTL and a
-strict CSP on that SPA. Keep the flag off on every BFF that does not need it.
+Residual risk: an XSS on **the pinned origin itself** can read the token,
+because it is then same-origin. Reduce the risk with a short access_token TTL
+and a strict CSP on that SPA. Keep the flag off on every BFF that does not
+need it.
 
-### 2.3 PKCE authorisation-code flow
+### 2.3 PKCE authorization-code flow
 
 [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c). The flow:
 
@@ -214,11 +214,11 @@ explicit endpoints. The legacy Keycloak `idp_url` + `realm` pair was
 deprecated then and **removed** after 7.5.4 — configure `issuer` (or the
 explicit `token_endpoint` + `end_session_endpoint`) only.
 
-### 2.6 When the IdP is unreachable (a node that just rebooted)
+### 2.6 When the IdP is unreachable (a node immediately after a reboot)
 
 The yuno starts before the network is usable, so the first OIDC discovery
-fails. Since 7.9.1 that is bounded and recoverable; before it, the login hung
-forever with nothing logged.
+fails. Since 7.9.1 that failure is bounded and recoverable. Before 7.9.1 the
+login hung forever and wrote nothing to the log.
 
 Two different things are timed, and conflating them is a bug:
 
@@ -276,7 +276,7 @@ Two issues are tracked but not fixed (per
 
 - **HTTP_CL chain leak** ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)). Under rapid
   browser-disconnect during a `/token` call, the outbound
-  [`C_PROT_HTTP_CL`](#gclass-c-prot-http-cl) chain to Keycloak isn't always reclaimed cleanly.
+  [`C_PROT_HTTP_CL`](#gclass-c-prot-http-cl) chain to Keycloak is not always released cleanly.
 - **No real-IdP smoke tests.** The auth_bff test suite at
   `tests/c/c_auth_bff/` runs against [`c_mock_keycloak.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/c_auth_bff/c_mock_keycloak.c) only. Live
   Keycloak regressions are caught manually.
@@ -324,9 +324,9 @@ The JWT's `azp` (authorized party) claim must match the configured
 ```
 
 Before the 2026-04-30 migration the check string was hard-coded as
-`"azp"`; after the migration the BFF reads the configured `client_id`
-and validates against it. New deployments should rely on the configured
-attribute, not on the literal `azp` name.
+`"azp"`. After the migration the BFF reads the configured `client_id`
+and validates against it. New deployments must use the configured
+attribute, not the literal `azp` name.
 
 Other validated claims: `iss` (must match `issuer`), `exp` (expiry),
 `nbf` if present.
@@ -340,7 +340,7 @@ all six callers (`ycli`, `ycommand`, `ystats`, `ytests`, `ybatch`, `mqtt_tui`)
 are headless or TTY with no browser, so the interactive authorization-code +
 loopback flow does not apply. The real path — **device-flow** (RFC 8628) for
 interactive use plus **client-credentials** for headless CI — is deferred until
-a non-Keycloak IdP is actually adopted. Until then, do not point a CLI at a
+a non-Keycloak IdP is adopted. Until then, do not point a CLI at a
 ROPC-disabled IdP. Full analysis in `TODO.md`.
 
 ### 3.5 The `__username__` attribute
@@ -354,14 +354,14 @@ gobj_write_str_attr(src, "__username__", username);
 
 Every later authz check pulls `__username__` from there. Code calling
 into the framework on behalf of a user can populate this attribute
-manually for test fixtures; in production it always comes from a JWT.
+manually for test fixtures. In production a JWT always gives this value.
 
 ---
 
-## 4. Authorisation: `C_AUTHZ`
+## 4. Authorization: `C_AUTHZ`
 
 The `C_AUTHZ` gclass ([`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c), 4114 lines)
-is the singleton authorisation service. One instance per yuno (created
+is the singleton authorization service. One instance per yuno (created
 as the default `authz` service in the `yuno_citizen` template, see
 [`SCAFFOLDING.md`](SCAFFOLDING.md) §5.1). Other gobjs find it with
 `gobj_find_service_by_gclass(C_AUTHZ, TRUE)` ([`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c)).
@@ -398,21 +398,21 @@ to `"yuneta"` ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos
 its local CLI calls.
 
 If a check is enforced (see §4.5), `yuneta` does *not* automatically
-pass. The authz check is a separate lookup; `yuneta` happens to typically
-own every role in production deployments.
+pass. The authz check is a separate lookup. In production deployments
+`yuneta` usually owns every role.
 
 **The seed cannot be deleted.** On every master start, `C_AUTHZ` `mt_start`
-runs an idempotent ensure-loop over `Authz.initial_load` (the seed `root`
-role + `yuneta` user, [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c) `main.c`): it creates any missing
-seed record and stamps it **immutable** via `treedb_set_node_immutable()`,
-so the local trusted user can never silently lose its powers through CRUD.
-`delete-node` refuses an immutable record and **`force` does not override**;
-deployed stores get protected on their next restart with no schema change
-and no wipe (the mark is md2 metadata, not a column — see
-[`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10). Only the two seed **records** are
-frozen; the `roles` / `users` **topics** stay ordinary (editable, and other
-roles/users delete normally). agent22 shares the store as non-master and
-does not run the loop.
+runs an idempotent loop over `Authz.initial_load`, which holds the seed
+`root` role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c) `main.c`). The loop creates
+any missing seed record and marks it **immutable** with
+`treedb_set_node_immutable()`. CRUD operations can therefore never remove the
+powers of the local trusted user. `delete-node` refuses an immutable record,
+and **`force` does not override it**. Deployed stores become protected on
+their next restart, with no schema change and no wipe, because the mark is
+md2 metadata and not a column (see [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10).
+Only the two seed **records** are frozen. The `roles` and `users` **topics**
+stay ordinary: they are editable, and other roles and users delete normally.
+agent22 shares the store as non-master and does not run the loop.
 
 ### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 
@@ -497,55 +497,57 @@ The three pieces that make it safe:
   principal that [`c_ievent_srv`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_ievent_srv.c)
   injects (`kw_set_dict_value`, overwrite — a wire client cannot spoof it) on
   every dispatched wire command. **Internal `gobj_command()` calls carry no kw
-  `__username__` and are never gated** — otherwise a yuno would deny its own
-  startup commands (e.g. the agent's `open-treedb`) and exit. (Found by the
-  2026-06-08 pilot; see `TODO.md`.)
-- **The self-bypass — `src == gobj`.** Belt-and-suspenders: a command a gobj
-  issues to itself (e.g. the `c_yuno` cert-reload walk `gobj_command(child, …,
-  child)`) is bypassed too.
+  `__username__` and are never gated**. Without that rule a yuno denies its own
+  startup commands, for example the agent's `open-treedb`, and then it exits.
+  (The 2026-06-08 pilot found this. See `TODO.md`.)
+- **The self-bypass — `src == gobj`.** This is a second guard. A command that
+  a gobj issues to itself is also bypassed, for example the `c_yuno`
+  cert-reload walk `gobj_command(child, …, child)`.
 - **Deny is logged, not silent** (`MSGSET_AUTH`), and returns `-403` via
   `build_command_response` (gobj-c), not the old root-linux
   `msg_iev_build_response` the commented block referenced.
 
-Effects with the gate **OFF (default):** identical to the old commented state —
-every authenticated caller runs every command; the `SDF_AUTHZ_X` flag is read
-but short-circuits to allow.
+Effects with the gate **OFF (default):** the same as the old commented state.
+Every authenticated caller runs every command. The framework reads the
+`SDF_AUTHZ_X` flag, then allows the command immediately.
 
 Effects with the gate **ON:** every `SDF_AUTHZ_X` command requires
 `__execute_command__`, resolved through the global `authz_checker` against the
 `c_authz` role model. **This needs a running `C_AUTHZ` service** — the default
-checker is fail-closed (denies when it can't find one), so turning the gate on
-in a yuno *without* a `C_AUTHZ` role model denies all ~133 `SDF_AUTHZ_X`
-commands. Enable it only where a role model exists, and validate on staging
-first (it is a breaking change for deployments that have not assigned roles).
+checker is fail-closed and denies when it cannot find one. If you enable the
+gate in a yuno *without* a `C_AUTHZ` role model, it denies all 133
+`SDF_AUTHZ_X` commands. Enable it only where a role model exists, and test it
+on staging first. It is a breaking change for deployments that assigned no
+roles.
 
-> Implemented 2026-06-07 (gated opt-in posture); **redesigned 2026-06-08** after
-> the agent pilot: the check is now external-only (kw `__username__` marker) and
-> a global authz resolves on any gobj (`authzs_list` global fallback), so the
-> gate no longer denies a yuno's own internal startup commands. The
-> fail-open-without-`C_AUTHZ` and strict-always-enforce postures remain available
-> — see `TODO.md` § *Security: re-enable per-command authorization*. Regression
-> test: [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/command_authz/test_command_authz.c)
-> (gate-off runs; external+deny → -403; internal-command bypass; self-bypass;
-> external+granted runs; global authz resolves).
+> Implemented 2026-06-07 with a gated opt-in posture. **Redesigned 2026-06-08**
+> after the agent pilot: the check is now external-only, with the kw
+> `__username__` marker, and a global authz resolves on any gobj through the
+> `authzs_list` global fallback. The gate therefore no longer denies the
+> internal startup commands of a yuno. The fail-open-without-`C_AUTHZ` posture
+> and the strict-always-enforce posture are still available. See `TODO.md`
+> § *Security: re-enable per-command authorization*. The regression test is
+> [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/tests/c/command_authz/test_command_authz.c). It covers six cases:
+> gate-off runs, external+deny → -403, internal-command bypass, self-bypass,
+> external+granted runs, and global authz resolves.
 
 ### 4.6 `EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`
 
-[`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h) declares the flags; [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c) declares the
+[`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h) declares the flags. [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c) declares the
 matching global authzs (`__inject_event__`, `__subscribe_event__`). The
 **enforcement** for these flags is not found in the dispatcher
 (`gobj_send_event`, `gobj_subscribe_event`). Unlike the command check (§4.5,
 now re-armed behind a gate), event-level authz is still **declared, not
 enforced** — there is no `enable_event_authz` equivalent yet.
 
-### 4.7 Where authz **is** actually enforced today
+### 4.7 Where authz **is** enforced today
 
 Two paths, in priority order:
 
 1. **The framework command gate** — when the yuno sets
    `enable_command_authz` TRUE (§4.5), every `SDF_AUTHZ_X` command from an
-   external `src` is checked. This is the canonical path; prefer it over
-   per-handler checks for new services that have a `C_AUTHZ` role model.
+   external `src` is checked. This is the canonical path. For new services
+   with a `C_AUTHZ` role model, use it instead of per-handler checks.
 2. **Custom code inside specific gclasses** that calls `gobj_user_has_authz`
    directly. Examples worth knowing about:
    - Inside `C_AUTHZ`'s own commands (you cannot list users without
@@ -602,12 +604,12 @@ users reaching it, and they are the **only** hook it gets on the login path:
 
 **`EV_AUTHZ_USER_LOGIN` is not a notification — it is a veto point.**
 `mt_authenticate()` checks what `gobj_publish_event()` returns, and answers
-`result: -1` ("Some subscriber refusing user") when it comes back negative. A
-subscriber that cannot accept the user therefore **denies the login**; the
-identity card is NAK'd and the peer is dropped. The publish used to be
-fire-and-forget with the return discarded, so a service with no way to register
-the user had no way to say so and the user got in anyway (see the CHANGELOG for
-the release that changed it).
+`result: -1` ("Some subscriber refusing user") when the return is negative. A
+subscriber that cannot accept the user therefore **denies the login**. The
+framework NAKs the identity card and drops the peer. Before this change the
+publish discarded its return value. A service that cannot register the user
+had no way to say so, and the user entered anyway. See the CHANGELOG for the
+release that changed it.
 
 Consequences worth knowing before you write an action for this event:
 
@@ -620,9 +622,9 @@ Consequences worth knowing before you write an action for this event:
 - **A subscriber holding `__own_event__` short-circuits** the accumulation
   ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L9204) breaks before `ret += ret_`), so its refusal is never seen.
 - **Refusing is safe for the peer.** `c_ievent_cli` drops the transport on the
-  NAK and `c_tcp` reconnects with its backoff, so a refused agent simply comes
-  back. That is what makes "refuse until I can register the user" a valid
-  answer rather than an outage.
+  NAK, and `c_tcp` reconnects with its backoff, so a refused agent returns.
+  That is what makes "refuse until I can register the user" a valid answer
+  and not an outage.
 
 The canonical refuser is `c_controlcenter`'s `ac_user_login()`: its
 `treedb_controlcenter` only opens in `mt_play()`, while the `authz` service is
@@ -634,13 +636,14 @@ window is refused rather than let through unregistered.
 ### 4.10 Role/permission hardening backlog (final phase)
 
 **Status: deferred by decision (2026-07-24).** The fleet runs today with
-authorisation almost entirely *off* — authentication decides who gets in,
-almost nothing decides what they may do. Turning it on is a **single final
+authorization almost entirely *off*. Authentication decides who enters, and
+almost nothing decides what they can do. To enable it is a **single final
 phase**: define a role→permission matrix, create users with those roles, then
-flip the gates. Until then this is a **living inventory** — every place that
-needs a role/permission check gets recorded here as it is found, so the final
-phase has a complete punch list. Do **not** enable the gates piecemeal (a
-half-applied matrix locks out working operators); land the whole matrix at once.
+enable the gates. Until then this is a **living inventory**. Record here every
+place that needs a role or permission check, as you find it, so that the final
+phase has a complete punch list. Do **not** enable the gates one by one,
+because a half-applied matrix locks out working operators. Land the whole
+matrix at one time.
 
 Points found so far (verified this session unless noted):
 
@@ -657,21 +660,22 @@ Points found so far (verified this session unless noted):
 
 2. **The controlcenter's `command-agent` is not scoped per node/tenant.**
    `cmd_command_agent` ([`c_controlcenter.c`](src/c_controlcenter.c)) checks
-   only the flat `command-agent` permission on the CC; a holder can then address
-   **every agent registered on that CC**. The artgins CC is a **multi-tenant
-   hub** (start-fleet, normedan hospital nodes, a ~15-node CESGA cluster, raspz,
-   …), so one CC-root operator reaches every node of every tenant. Needs a
-   role/permission model that scopes *which agents/tenants* a CC role may
-   `command-agent`, and *which cmd2agent verbs* it may forward.
+   only the flat `command-agent` permission on the CC. A holder can then
+   address **every agent registered on that CC**. The artgins CC is a
+   **multi-tenant hub**: start-fleet, normedan hospital nodes, a CESGA cluster
+   of about 15 nodes, raspz and more. One CC-root operator therefore reaches
+   every node of every tenant. This needs a role and permission model that
+   scopes which agents and tenants a CC role can `command-agent`, and which
+   cmd2agent verbs it can forward.
 
 3. **Seed admins are god-mode and immutable.** `yuneta`,
    `yuneta_admin@artgins.com` (and the CC's `owner`) carry
    `realm_id:* service:* permission:*`. The matrix needs granular roles *below*
-   root — e.g. read-only/observer, deploy-only, console-only (kitchen),
-   lifecycle-only — so day-to-day operators are not root. `claudia@artgins.com`
-   is the concrete test case: CC-root but not in node authz, so today (gate off)
-   she has full node management minus `open-console`; the matrix must decide
-   what she *should* have per node.
+   root, for example read-only observer, deploy-only, console-only (kitchen)
+   and lifecycle-only, so that day-to-day operators are not root.
+   `claudia@artgins.com` is the concrete test case. They are CC-root but not in
+   the node authz, so today, with the gate off, they have full node management
+   without `open-console`. The matrix must decide what they get per node.
 
 4. **`ac_mt_command` on the client side trusts the peer's asserted identity**
    (empty `Check AUTHZ` banner in
@@ -679,14 +683,14 @@ Points found so far (verified this session unless noted):
    [`IPC.md`](IPC.md) §4.7). A node therefore fully trusts whatever
    `__username__` the controlcenter it dialled asserts. That is load-bearing:
    the CC's authentication must be airtight, because every node delegates
-   authorisation of the operator to it. Under a seal the CC is the only door, so
+   authorization of the operator to it. Under a seal the CC is the only door, so
    this trust is the fleet's whole perimeter.
 
 5. **`command-agent` / `command-yuno` forward unchecked keys** ("WARNING:
    parameter's keys are not checked"). Once the gate is on, the forwarded
    `cmd2agent`/inner command is authz-checked at the destination — but confirm
    nested `command-agent … cmd2agent="command-agent …"` chains re-evaluate authz
-   at each hop, not just the first.
+   at each hop, not only at the first.
 
 6. **`seal-node` / `unseal-node` / `node-seal-status`** (proposed, see
    [`NODE_SEALING.md`](NODE_SEALING.md) §3) must be authz-gated to a dedicated
@@ -694,11 +698,11 @@ Points found so far (verified this session unless noted):
 
 7. **`C_IEVENT_SRV` cross-service gate** already checks `dst_service` against the
    `services_roles` SET, but a test gap was noted (see the project memory /
-   `c_ievent_srv`); the final phase should close it and fold service-level roles
-   into the same matrix.
+   `c_ievent_srv`). The final phase must close it and add the service-level
+   roles to the same matrix.
 
 8. **`open-console` is currently the whole per-node boundary** and it is a
-   single flat permission (root shell / nothing). The matrix may want to split
+   single flat permission: a root shell, or nothing. The matrix can split
    console access from full node management, since agent22's *entire* surface is
    the console — a "console-only / break-glass" role is the natural unit.
 
@@ -706,13 +710,13 @@ When the final phase runs: author the matrix (roles × permissions ×
 realm/service scope), provision users, set `enable_command_authz` on the agents
 and scope `command-agent` on the controlcenters, then re-verify the
 [§2.1 access doors](NODE_SEALING.md) with a *non-root* role to
-confirm the boundary actually bites.
+confirm that the boundary works.
 
 ---
 
 ## 5. `C_AUTHZ` commands (user / role CRUD)
 
-Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c). Just the names:
+The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c) declares them. These are the names:
 
 | Command            | Purpose                                                       |
 |--------------------|---------------------------------------------------------------|
@@ -735,7 +739,8 @@ Declared in the `command_table` at [`c_authz.c`](https://github.com/artgins/yune
 | `set-max-sessions` | Bound concurrent sessions for a user                          |
 
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
-only when the broker yuno sets `enable_command_authz` (§4.5); off by default.
+only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
+default.
 
 Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L6307) ([`c_agent.c:6307`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L6307), registered as
 `authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
@@ -821,7 +826,7 @@ cp /etc/letsencrypt/live/example.com/privkey.pem   /yuneta/store/certs/private/e
 chown yuneta:yuneta /yuneta/store/certs/*.crt /yuneta/store/certs/private/*
 ```
 
-The `sudo -n` requires NOPASSWD in sudoers — a wide grant; see §8.10.
+The `sudo -n` needs NOPASSWD in sudoers. That is a wide grant. See §8.10.
 
 ### 6.4 The reload broadcast
 
@@ -855,10 +860,10 @@ Direct from disk via its config. Example from
 }
 ```
 
-The yuno does **not** know about cert-sync. It just re-reads these
-paths when `reload-certs` arrives. Cert-sync is the producer; the
-yuno's `crypto` block is the consumer; they communicate only via the
-filesystem and the reload event.
+The yuno does **not** know about cert-sync. It only reads these paths again
+when `reload-certs` arrives. Cert-sync is the producer, and the `crypto` block
+of the yuno is the consumer. They communicate only through the filesystem and
+the reload event.
 
 ---
 
@@ -928,15 +933,16 @@ also lives in the agent's treedb at runtime.
 
 [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/command_parser.c). The most important thing in this document.
 The check is re-armed (§4.5) but **gated behind `enable_command_authz`, default
-OFF**. So out of the box `gobj_user_has_authz` is **not invoked** for commands
-and every authenticated user can run every command — same effective posture as
-the old commented-out state. Plan accordingly:
+OFF**. By default the framework therefore **does not call**
+`gobj_user_has_authz` for commands, and every authenticated user can run every
+command. The effective posture is the same as the old commented-out state.
+Plan for this:
 
-- On a stock yuno, don't rely on `pm_*`/`SDF_AUTHZ_X` for security — the gate is
-  off.
-- Turning the gate **on** requires a running `C_AUTHZ` role model in that yuno;
-  the global checker is **fail-closed**, so enabling it without a role model
-  denies all `SDF_AUTHZ_X` commands. Validate on staging first.
+- On a stock yuno, do not use `pm_*` or `SDF_AUTHZ_X` for security. The gate
+  is off.
+- To enable the gate you need a running `C_AUTHZ` role model in that yuno.
+  The global checker is **fail-closed**, so the gate without a role model
+  denies all `SDF_AUTHZ_X` commands. Test it on staging first.
 - For commands that **must** be gated on a yuno with no role model, call
   `gobj_user_has_authz` explicitly at the top of the handler instead.
 
@@ -960,7 +966,7 @@ inside individual gclasses. The default is open.
 
 [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_authz.c) permits the `yuneta` user to authenticate without
 JWT/password. It does **not** give `yuneta` automatic authz over
-everything; the user still has to own roles. In practice the agent's
+everything. The user must still own roles. In practice the agent's
 `yuneta` user owns every role in production, but a fresh deployment
 can authenticate as `yuneta` and still hit "no permission" on a
 custom-gated operation.
@@ -968,15 +974,15 @@ custom-gated operation.
 ### 8.7 Legacy `idp_url` + `realm` still works
 
 The deprecation warning is logged but the BFF accepts the legacy shape
-and constructs the URL automatically ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)). Don't rely
-on this — migrate the batches.
+and constructs the URL automatically ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c)). Do not depend
+on this. Migrate the batches.
 
 ### 8.8 HTTP_CL chain leak on rapid disconnect
 
 [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_auth_bff.c). During load testing with aggressive
-client disconnects mid-`/token`, the outbound HTTP client chain isn't
-always cleaned up. Watch the process's open-fd count when load is
-unusual.
+client disconnects in the middle of `/token`, the outbound HTTP client chain
+is not always released. Watch the open-fd count of the process when the load
+is unusual.
 
 ### 8.9 No real-IdP smoke tests
 
@@ -1003,24 +1009,23 @@ config.
 ### 8.12 Cookie Domain is shared across all yunos on the host
 
 The BFF sets `Domain=<host>` with no port. A cookie set by the BFF on
-:1801 is automatically sent to the WebSocket on :1800, :1600, etc. on
-the same hostname. This is by design (lets the SPA hop between
-services) but it means any yuno on the same hostname can read the
-cookie if it chooses to. Don't run an untrusted yuno on the same
-hostname as the BFF.
+:1801 goes automatically to the WebSocket on :1800, on :1600 and on the other
+ports of the same hostname. This is deliberate, because it lets the SPA move
+between services. But it means that any yuno on the same hostname can read the
+cookie. Do not run an untrusted yuno on the same hostname as the BFF.
 
 ### 8.13 `reload-certs` is broadcast unconditionally
 
-Every running yuno receives the event. Yunos that don't use TLS just
-no-op the handler. If a yuno's `reload-certs` handler has a bug, the
-cert change cascades into a noisy error in every log — but the cert
-itself does propagate. The broadcast is best-effort, not transactional.
+Every running yuno receives the event. A yuno without TLS does nothing in the
+handler. If the `reload-certs` handler of a yuno has a bug, the cert change
+produces a noisy error in every log, but the cert still propagates. The
+broadcast is best-effort, not transactional.
 
 ---
 
 ## 9. Recipes
 
-### 9.1 Set up auth_bff for a new project (with Keycloak)
+### 9.1 Configure auth_bff for a new project (with Keycloak)
 
 ```bash
 # 1. realm + client in Keycloak first
@@ -1051,7 +1056,7 @@ EOF
 + "issuer":   "https://auth.example.com/realms/yunetas.com/",
 ```
 
-That's it — the deprecation warning will stop firing on next start.
+That is all. The deprecation warning stops on the next start.
 Verify the issuer URL with curl against
 `<issuer>.well-known/openid-configuration`.
 
@@ -1097,7 +1102,7 @@ ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=view-config' | grep
 ycommand -c 'command-yuno id=<yuno> service=authz command=user-authzs user_id=<me>'
 
 # Then restart the yuno so the new config is read, and smoke-test a gated
-# command as a low-privilege user (expect -403) and as an authorised one.
+# command as a low-privilege user (expect -403) and as an authorized one.
 ```
 
 ### 9.5 Rotate TLS certs
@@ -1127,10 +1132,10 @@ openssl s_client -connect <host>:<port> -showcerts </dev/null 2>/dev/null \
 ### 9.6 Diagnose "no permission" failures
 
 With the command gate **off** (default), "no permission" only fires from
-explicit `gobj_user_has_authz` calls inside specific gclasses (e.g. `C_AUTHZ`'s
-own self-management commands). With `enable_command_authz` **on**, a `-403 No
-permission to execute command` from the dispatcher itself is also possible —
-check the yuno's `enable_command_authz` first to know which path denied you.
+explicit `gobj_user_has_authz` calls inside specific gclasses, for example the
+self-management commands of `C_AUTHZ`. With `enable_command_authz` **on**, the
+dispatcher itself can also answer `-403 No permission to execute command`.
+Read `enable_command_authz` of the yuno first, to know which path denied you.
 
 ```bash
 # 1. who am I, according to the yuno?

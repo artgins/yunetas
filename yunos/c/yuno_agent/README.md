@@ -38,7 +38,7 @@ to by default.
 
 ## Where to go next
 
-- **What every yuno's `main()` actually does** → [`ENTRY_POINT.md`](ENTRY_POINT.md)
+- **What the `main()` of every yuno does** → [`ENTRY_POINT.md`](ENTRY_POINT.md)
   is the "minute 0" read. It explains `yuneta_entry_point()` step by step
   (argp, the [`gbmem_setup`](#gbmem_setup) + [`json_set_alloc_funcs`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_set_alloc_funcs) switch that load-bears
   every test allocator rule, the `fixed + variable + --config-file +
@@ -49,11 +49,11 @@ to by default.
   the `waitpid` decision matrix, and [`daemon_shutdown()`](#daemon_shutdown)'s SIGQUIT-then-
   SIGKILL pair. Then signals inside the yuno child (signalfd, SIGQUIT
   semantics, SIGUSR1/2 as trace toggles). Then how the agent's
-  `kill-yuno` interacts with the watcher and why the default doesn't
+  `kill-yuno` interacts with the watcher and why the default does not
   touch it. Then `/var/crash/core.%e` post-mortem: the sysctl + PAM
   limits + `/var/crash` group ownership wired by the `.deb`, the no-PID
-  pattern, the `Daemon relaunched` log line that's your only silent-crash
-  alarm.
+  pattern, and the `Daemon relaunched` log line, which is your only alarm
+  for a silent crash.
 - **Operating a yuno (deploy / update / kill / pause)** → [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
   has the full command inventory, the on-disk + treedb layout, the
   `EV_ON_OPEN` / `EV_ON_CLOSE` handshake, the sharp edges (`update-binary`
@@ -120,7 +120,7 @@ to by default.
   contract (OVH rescue mode — deliberately no auto-unseal).
 - **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
   used by `controlcenter` for PTY-based remote admin. It is **not** the
-  primary lifecycle manager; enable only on hosts that should be reachable
+  primary lifecycle manager. Enable it only on hosts that must be reachable
   from a control center. Two practical uses:
   1. *PTY backdoor for ops*: the controlcenter operator can drop into a
      shell on the host without touching the primary agent.

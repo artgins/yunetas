@@ -1,7 +1,7 @@
 # timeranger2 + treedb, in 30 minutes
 
-This is the crash course on Yuneta's persistence layer. By the end you
-should know the difference between **timeranger2** (the append-only
+This is the crash course on Yuneta's persistence layer. At the end you
+know the difference between **timeranger2** (the append-only
 time-series log) and **treedb** (the graph database on top), how
 schemas are declared, how nodes link to each other, and which rules
 will ruin your day if you ignore them.
@@ -63,8 +63,8 @@ Two distinct things:
 
 If you want raw time-series, you go straight to timeranger2. If you want
 a graph of typed nodes, you use treedb. The agent uses treedb for
-everything (realms, yunos, binaries, configurations, users, roles); the
-`logcenter` yuno uses raw timeranger2 to dump records.
+everything: realms, yunos, binaries, configurations, users and roles. The
+`logcenter` yuno uses raw timeranger2 to write records.
 
 ---
 
@@ -74,7 +74,7 @@ everything (realms, yunos, binaries, configurations, users, roles); the
 
 For each opened database (a top-level directory):
 
-![timeranger2 on-disk layout: a database holds __timeranger2__.json and per-topic files; records live under keys/<key>/<date>.json paired with a 32-byte <date>.md2 index; the disks/<rt_id>/ tree holds hardlinks back into the keys/ files, which is how non-master and cross-yuno readers see the same data.](../../../docs/doc.yuneta.io/_static/treedb_ondisk.svg)
+![timeranger2 on-disk layout: a database holds __timeranger2__.json and per-topic files. Records live under keys/<key>/<date>.json, paired with a 32-byte <date>.md2 index. The disks/<rt_id>/ tree holds hardlinks back into the keys/ files, which is how non-master and cross-yuno readers see the same data.](../../../docs/doc.yuneta.io/_static/treedb_ondisk.svg)
 
 The same layout in text:
 
@@ -114,7 +114,7 @@ Each `.md2` file is an array of fixed 32-byte records in big-endian
 order. The struct ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c), in-memory shape
 `md2_record_ex_t` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.h)):
 
-![A md2 record is 32 bytes: four uint64 fields __t__, __tm__, __offset__, __size__. The .md2 file is an array of these indexed by rowid; lookup multiplies rowid by 32, seeks the .md2, reads offset and size, then seeks the paired .json. O(1).](../../../docs/doc.yuneta.io/_static/md2_record.svg)
+![A md2 record is 32 bytes: four uint64 fields __t__, __tm__, __offset__, __size__. The .md2 file is an array of these, indexed by rowid. A lookup multiplies rowid by 32, seeks the .md2, reads offset and size, then seeks the paired .json. O(1).](../../../docs/doc.yuneta.io/_static/md2_record.svg)
 
 ```c
 typedef struct {
@@ -133,7 +133,7 @@ The high 16 bits of `__t__` and `__tm__` are reserved for flags. Macros
 at [`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c) extract and pack them. Lookup by rowid is
 O(1) — multiply by 32, seek the `.md2`, read offset+size, seek the
 `.json`. Lookup by time range is O(N) over `.md2` records, which is
-still fast because they're 32 bytes apiece.
+still fast, because each record is 32 bytes.
 
 ### 2.3 `g_rowid` vs `i_rowid` — the rule
 
@@ -150,8 +150,8 @@ never set them.** For topics with `sf_rowid_key`, timeranger2 also
 asserts `g_rowid == i_rowid` ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c)) — a mismatch is
 a data-corruption indicator.
 
-If you're writing test fixtures and you find yourself populating
-`g_rowid` by hand, stop. That's the framework's job.
+If you write test fixtures and you fill `g_rowid` by hand, stop. That is
+the work of the framework.
 
 ### 2.4 `__t__` vs `__tm__`
 
@@ -162,7 +162,7 @@ Both timestamps, but semantically distinct:
 | `__t__`  | When timeranger2 wrote the record to disk                      | At append time. Defaults to "now".     |
 | `__tm__` | When the underlying event happened (from the record's `tkey` field) | Caller-controlled via `tkey` config.   |
 
-`__t__` partitions files. `__tm__` is the event-time you'd query by.
+`__t__` partitions files. `__tm__` is the event-time for your queries.
 For records that are events as they happen, the two are usually
 identical (within milliseconds). For batch imports of historical data
 the two diverge — `__tm__` is the original event, `__t__` is "now I
@@ -250,8 +250,9 @@ Both are in the **topic's** unit: seconds, or **milliseconds** when the topic
 sets `sf_t_ms` / `sf_tm_ms` (read `system_flag` from the topic desc — over the
 wire, `topics expanded=1`).
 
-An iterator's `match_cond` takes a range on each axis (`from_t`/`to_t`,
-`from_tm`/`to_tm`) plus `from_rowid`/`to_rowid` and the `user_flag` conditions,
+The `match_cond` of an iterator takes a range on each axis (`from_t` and
+`to_t`, `from_tm` and `to_tm`), the `from_rowid` and `to_rowid` pair, and
+the `user_flag` conditions,
 and **ANDs** them. Every condition is honored **per record**: a filtered paging
 iterator builds its row **index** when it opens, so `tranger2_iterator_size()`,
 `pages` and the pages themselves count only matching records — and
@@ -261,21 +262,21 @@ regardless of key size) and its positions are the global rowids.
 
 `list-keys` reports, per key, `records` plus the key's span on both axes
 (`fr_t`/`to_t`, `fr_tm`/`to_tm`), read from the topic's in-memory cache totals —
-so a client can bound a time picker to what the key actually holds without
-reading a single record.
+so a client can bound a time picker to the content of the key, and it reads
+no record.
 
 > **Note (in the md2 record, times carry flags).** On disk the 16 high bits of
 > `__t__` hold the `user_flag` and those of `__tm__` the `system_flag`. Always
-> read them through `get_time_t()` / `get_time_tm()`; taking the raw field
-> yields a timestamp with the flags baked in.
+> read them through `get_time_t()` or `get_time_tm()`. The raw field gives
+> you a timestamp that still contains the flags.
 
 ### 2.7 Master / non-master
 
 [`tranger2_startup`](#tranger2_startup) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
 lock** on `__timeranger2__.json`. Whoever gets it is the master:
 
-- The master can **read AND write**. Only the master may
-  `tranger2_append_record`, [`tranger2_delete_topic`](#tranger2_delete_topic), etc.
+- The master can **read AND write**. Only the master can
+  call `tranger2_append_record`, [`tranger2_delete_topic`](#tranger2_delete_topic) and the other write functions.
 - Non-masters can only read. They are expected to use
   `tranger2_open_rt_disk` so the master can push updates to them via
   hardlinks in the `disks/<rt_id>/` directory.
@@ -298,7 +299,7 @@ Two granularities, both implemented in v7 as of 2026-05-26.
 
 - **Whole record** (= a primary key + every instance under it).
   **[`tranger2_delete_key()`](#tranger2_delete_key)** (renamed from `tranger2_delete_record`
-  on 2026-05-25; legacy alias kept as a `#define` in [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.h)).
+  on 2026-05-25. A `#define` in [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.h) keeps the legacy alias).
   Removes `keys/<key>/` and drops the key from `topic_cache`.
   Irrecoverable. Used today by `treedb_delete_node`.
 - **One instance** (one row in the `.md2` file).
@@ -333,9 +334,9 @@ the deleted key. Two paths:
   serves non-watcher subscribers, the inotify branch serves the
   fs-watcher followers — each subscriber fires exactly once. No new
   IPC channel, no new file convention. (The inotify branch firing
-  the fs-watcher callbacks was completed 2026-05-28; before that the
-  shared fan-out skipped them and live deletes were silently
-  dropped — see CHANGELOG.)
+  the fs-watcher callbacks was completed 2026-05-28. Before that date the
+  shared distribution skipped them, and live deletes were dropped with no
+  message. See the CHANGELOG.)
 
 Register with:
 
@@ -353,7 +354,7 @@ Memory: `project_tranger2_delete_record_deferred`.
 
 `tranger2_append_record` performs the write but **does not `fsync`**
 ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.c)). Durability is whatever the OS gives you —
-on [EXT4](https://en.wikipedia.org/wiki/Ext4) with the default journal, that's "data on disk within the
+on [EXT4](https://en.wikipedia.org/wiki/Ext4) with the default journal, that is "data on disk within the
 journal commit interval, usually 5 s". If you need stronger guarantees,
 add an explicit `fsync` in the wrapping code, but understand the
 throughput cost.
@@ -409,18 +410,18 @@ Six things to notice:
 1. **`pkey`** — column name that serves as the primary key. Maps to
    `topic_desc_t.pkey`.
 2. **`pkey2s`** — optional secondary key (composite). Allows multiple
-   records per primary key (e.g. multiple versions of a binary).
-   Queried via [`treedb_get_instance()`](#treedb_get_instance) / [`treedb_list_instances()`](#treedb_list_instances) and the
-   agent's `instances` command. **Invariant (since dbf532ec9):** the pkey2
-   secondary index shares the SAME node object as the primary index;
-   [`treedb_save_node()`](#treedb_save_node) re-points it on every runtime save. Before that fix
-   it held a separate object only filled at disk-load, so a runtime
-   `update-node` was invisible through `list_instances` until the next
-   reload — the bug behind `list-binaries` showing a stale binary right
-   after `update-binary`.
-3. **`schema_version`** + **`topic_version`** — different. Schema is
-   the overall layout; topic is per-topic. **Bump `topic_version`
-   whenever you change `cols`** — §3.5.
+   records per primary key, for example several versions of a binary.
+   [`treedb_get_instance()`](#treedb_get_instance), [`treedb_list_instances()`](#treedb_list_instances) and the agent's
+   `instances` command query them. **Invariant (since dbf532ec9):** the pkey2
+   secondary index shares the SAME node object as the primary index, and
+   [`treedb_save_node()`](#treedb_save_node) points it again on every runtime save. Before that
+   correction it held a separate object that only the disk-load filled. A
+   runtime `update-node` was therefore invisible through `list_instances`
+   until the next reload. That was the bug behind `list-binaries`, which
+   showed a stale binary immediately after `update-binary`.
+3. **`schema_version`** and **`topic_version`** — these are different.
+   Schema is the overall layout. Topic is per-topic. **Raise
+   `topic_version` every time you change `cols`** — §3.5.
 4. **`cols`** declares typed columns. Type + flag list (next section).
 5. **`fkey` field on the child** points at *(parent topic, hook name)*.
    Persisted.
@@ -476,8 +477,8 @@ attached at [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel
 - `tag` — user_flag from md2, used for snapshots (§3.7).
 - `immutable` — present **only when set** (omitted on ordinary nodes).
   `true` means the record carries the `sf_immutable_record` md2 bit and
-  cannot be deleted; see §3.10.
-- `pure_node` — true for ordinary nodes; the metadata you look at.
+  cannot be deleted. See §3.10.
+- `pure_node` — true for ordinary nodes. This is the metadata that you read.
 
 A node that appears in multiple places in a JSON dump (once under the
 topic's `id` index, once nested inside its parent's hook) carries the
@@ -488,9 +489,9 @@ topic's `id` index, once nested inside its parent's hook) carries the
 Memory
 `feedback_treedb_schema_versioning`:
 
-> Any `cols` change needs a `topic_version` bump or the persisted
-> `topic_cols.json` keeps masking the new schema; wipe `store/` when
-> reproducing.
+> Any `cols` change needs a higher `topic_version`. If you do not raise it,
+> the persisted `topic_cols.json` continues to mask the new schema. Delete
+> `store/` when you reproduce the problem.
 
 What happens: [`treedb_open_db()`](#treedb_open_db) ([`tr_treedb.c:485`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/tr_treedb.c#L485)) reads the
 persisted `topic_cols.json` and compares its `topic_version` against
@@ -546,8 +547,9 @@ int     gobj_unlink_nodes(hgobj, const char *hook,
                           const char *child_topic,  json_t *child_rec, hgobj src);
 ```
 
-Most production code calls `gobj_*node` — they route to the right
-treedb based on the gobj's `priv` and integrate authzs, traces, etc.
+Most production code calls `gobj_*node`. Those functions route to the right
+treedb from the `priv` of the gobj, and they integrate the authzs and the
+traces.
 
 ### 3.7 The link/unlink-saves-child rule
 
@@ -593,8 +595,8 @@ Memory
 in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
 queries from the SPA go through `db_history_wz` reading B+ yunos'
 stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c#L6187) does not
-work** for B+ yunos because they don't publish their service via
-`__top_side__` — the store path is the right one.
+work** for B+ yunos, because they do not publish their service through
+`__top_side__`. The store path is the correct one.
 
 Code: `tranger2_open_rt_disk` at [`timeranger2.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/timeranger2/src/timeranger2.h). The
 mechanism is purely filesystem-mediated — no socket between the master
@@ -619,7 +621,7 @@ json_t *treedb_list_snaps   (json_t *tranger, const char *treedb_name,
 Snapshots are how the agent picks which binary version to run when
 multiple are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
-([`gobj_list_snaps`](#gobj_list_snaps), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)), then falls back to a
+([`gobj_list_snaps`](#gobj_list_snaps), [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)). If that fails, it does a
 direct `(role, role_version)` lookup.
 
 ### 3.10 Immutable nodes and non-deletable topics
@@ -669,40 +671,37 @@ the realm — "only a full store wipe removes them". Regression coverage:
 ### 4.1 `g_rowid` and `i_rowid` are read-only to user code
 
 (§2.3, §3.4.) Never set them in test fixtures, code that calls
-`treedb_create_node`, or anywhere else. They're computed by
-timeranger2 and surfaced in `__md_treedb__` for inspection only.
+`treedb_create_node`, or anywhere else. timeranger2 computes them and
+shows them in `__md_treedb__` for inspection only.
 
 ### 4.2 link/unlink saves the child, not the parent
 
-(§3.7.) If you're inspecting `g_rowid` on the parent after a link
-operation and it hasn't changed, that's expected. Look at the
-child's `g_rowid` instead.
+(§3.7.) If you read `g_rowid` on the parent after a link operation and it
+did not change, that is correct. Read the `g_rowid` of the child instead.
 
-### 4.3 Schema changes need `topic_version` bumps
+### 4.3 Schema changes need a higher `topic_version`
 
-(§3.5.) Stale `topic_cols.json` silently overrides new code. The
-trap is doubly nasty because the yuno still **works** — the new
-columns simply don't exist as far as treedb is concerned. Always
-bump.
+(§3.5.) A stale `topic_cols.json` overrides new code, and it gives no
+message. The trap is worse because the yuno still **works**. For treedb
+the new columns do not exist. Always raise the version.
 
 ### 4.4 Master-only writes
 
-(§2.7.) `tranger2_append_record` is a no-op (returning -1) on
-non-master. If you find yourself writing in a yuno that's the
-non-master, you have a deployment bug — two yunos opened the same
-store.
+(§2.7.) `tranger2_append_record` does nothing on a non-master and returns
+-1. If you write in a yuno that is the non-master, you have a deployment
+bug: two yunos opened the same store.
 
 ### 4.5 timeranger2 is append-only — with two scoped deletes
 
-(§2.9.) The `.json` data log itself is **never rewritten**: appends
-go to the end, that's it. What is mutable is the `.md2` index, and
+(§2.9.) Nothing **ever rewrites** the `.json` data log itself. Appends go
+to the end, and nothing else changes. What is mutable is the `.md2` index, and
 two delete primitives operate on it:
 
 - `tranger2_delete_key()` removes a key's directory wholesale (every
   instance with it) and propagates the deletion to in-process and
   cross-process subscribers via inotify + callback fan-out.
 - [`tranger2_delete_instance()`](#tranger2_delete_instance) tombstones one row of the `.md2` index
-  in place (bit `sf_deleted_instance = 0x0400`); readers skip it,
+  in place (bit `sf_deleted_instance = 0x0400`). Readers skip it, and
   rowids do not renumber. Opt-in `zero_payload` overwrites the
   matching bytes in the `.json` for [GDPR](https://en.wikipedia.org/wiki/General_Data_Protection_Regulation)-style wipes.
 
@@ -715,7 +714,7 @@ still holds at the data-log level — only the index is mutated.
 a crash window of a few seconds is unacceptable, add an explicit
 `fsync` — but understand the throughput cost.
 
-### 4.7 Don't open the same store twice in the same process
+### 4.7 Do not open the same store twice in the same process
 
 `tranger2_startup` caches by path. Two starts of the same path return
 the same tranger handle, but two distinct yunos in the same process
@@ -732,30 +731,30 @@ column.
 
 A node listed under `topic.id_index[id]` and also nested inside a
 parent's `hook` array is the same record. They share the
-`__md_treedb__.g_rowid`. Don't double-count when computing stats from
+`__md_treedb__.g_rowid`. Do not count it twice when you compute stats from
 a dump.
 
 ### 4.10 Hooks rebuild on load — only fkeys persist
 
-(§3.7.) If you imagine the on-disk database as a binary blob, you'll
-find the children's fkeys but **not** the parents' hooks. Hooks are
-purely in-memory pointers reconstructed by scanning children. This is
-why a corrupt fkey on a child makes its parent's hook look short;
-look at the child first.
+(§3.7.) In the database on disk you find the fkeys of the children but
+**not** the hooks of the parents. Hooks are in-memory pointers only, and
+treedb builds them again when it scans the children. This is why a corrupt
+fkey on a child makes the hook of its parent look short. Read the child
+first.
 
 ### 4.11 No raw `malloc` / `free` for treedb-allocated [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_t)
 
 CLAUDE.md hard rule. `gbmem_*` everywhere. Jansson is routed through
-`gbmem_*`, so all `json_*` APIs are safe; never `free()` a `json_t`
+`gbmem_*`, so all `json_*` APIs are safe. Never `free()` a `json_t`
 yourself.
 
-### 4.12 Don't cache `json_t *` returned by [`treedb_get_node`](#treedb_get_node) past a
+### 4.12 Do not cache a `json_t *` from [`treedb_get_node`](#treedb_get_node) across a
 restart
 
-The pointer is valid for the lifetime of the loaded tranger. After a
-[`tranger2_stop`](#tranger2_stop) + `tranger2_startup` cycle the pointer is stale. If
-you keep references across stops, the framework won't notice — your
-crash will.
+The pointer is valid for the life of the loaded tranger. After a
+[`tranger2_stop`](#tranger2_stop) and `tranger2_startup` cycle the pointer is stale. If
+you keep references across stops, the framework does not detect it. Your
+crash does.
 
 ### 4.13 Link events are OFF by default — and turning them on REMOVES an event
 
@@ -773,8 +772,8 @@ only when its `with_link_events` attr is set (`SDF_RD`, default
   path announces the **parent** — whose fkeys did not change. A consumer
   that derives edges from fkeys therefore sees "a node was updated" and
   correctly concludes there is nothing to redraw, so its graph shows
-  **stale edges**. That is the whole reason the dedicated link events
-  exist; their kw is the relationship, not a node:
+  **stale edges**. That is the reason for the dedicated link events. Their
+  kw is the relationship, not a node:
   `{hook_name, parent_topic_name, child_topic_name, parent_id, child_id,
   treedb_name}` — note there is **no `topic_name`**, so a per-topic
   subscription filter matches nothing (filter by `treedb_name`).
@@ -816,7 +815,7 @@ Without the `topic_version` bump the field will be silently ignored
 on load. With it, treedb migrates: every existing node gets the
 column with its default value on first save.
 
-For a hot rollout where you can't bounce yunos:
+For a hot rollout in which you cannot restart the yunos:
 
 1. Update the schema file in source. Bump `topic_version`.
 2. Build + redeploy (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.2).
@@ -857,7 +856,7 @@ gobj_link_nodes(gobj, "users",
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=list-snaps'
 ```
 
-Snapshots are global to a treedb — you'll see one entry per "tag".
+Snapshots are global to a treedb. You see one entry per "tag".
 
 ### 5.5 Recover from a botched schema change
 

@@ -1,6 +1,6 @@
 # The gobj framework, in 30 minutes
 
-This is the crash course on Yuneta's runtime. By the end you should know
+This is the crash course on Yuneta's runtime. At the end you know
 what a gobj is, what a gclass is, how to declare one, how the framework
 calls into it, how the runtime tree is laid out, and where the sharp
 edges are.
@@ -31,7 +31,7 @@ understand the lifecycle.
 
 A gclass declares `mt_*` framework methods (next section). A gobj is the
 object on which those methods get called. The gclass struct lives in
-read-only data; one gobj instance per `gobj_create*` call lives on the
+read-only data. One gobj instance per `gobj_create*` call lives on the
 heap with its own `priv`.
 
 In source files, by convention:
@@ -89,19 +89,19 @@ the order they appear in a file:
         └─────────────────────────────────────┘
 ```
 
-Empty sections still get their banner. Don't reorder.
+Empty sections still get their banner. Do not reorder them.
 
 ---
 
 ## 3. The framework method table (`GMETHODS`)
 
 Declared in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h) as `gobj_method_t`. The framework calls
-these on your gclass at fixed points in the lifecycle. None is required —
-a gclass with **zero** methods is technically valid (it would just be a
-data bag). In practice you always implement `mt_create` and `mt_destroy`
-at minimum, plus `mt_start`/`mt_stop` if you have any runtime resources.
+these on your gclass at fixed points in the lifecycle. None is required. A
+gclass with **zero** methods is valid, and it is a data bag. In practice you
+always implement `mt_create` and `mt_destroy` at minimum. Add `mt_start` and
+`mt_stop` if you have runtime resources.
 
-Most useful ones, in roughly the order you'll write them:
+These are the most useful ones, in the order in which you write them:
 
 | Method                       | When the framework calls it                                       | What you typically do                                   |
 |------------------------------|-------------------------------------------------------------------|---------------------------------------------------------|
@@ -119,9 +119,9 @@ Most useful ones, in roughly the order you'll write them:
 | `mt_command_parser`          | When a command is invoked but **not** in `command_table`           | Custom command dispatch (rare; only the agent uses this for `command-yuno` forwarding) |
 | `mt_authz_checker`           | Inside [`gobj_user_has_authz`](#gobj_user_has_authz) if installed ([gobj.c:9400](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c#L9400))       | Per-gclass authz hook — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.3   |
 
-The full table (28+ slots — [`mt_create_resource`](#mt_create_resource), [`mt_save_resource`](#mt_save_resource),
-[`mt_create_node`](#mt_create_node), [`mt_link_nodes`](#mt_link_nodes), etc.) is in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h). Most
-gclasses use < 10 slots.
+The full table is in [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.h). It has more than 28 slots, among them
+[`mt_create_resource`](#mt_create_resource), [`mt_save_resource`](#mt_save_resource), [`mt_create_node`](#mt_create_node) and
+[`mt_link_nodes`](#mt_link_nodes). Most gclasses use less than 10 slots.
 
 ---
 
@@ -173,12 +173,13 @@ Important code points:
   touch resources without checking child state.
 
   The pause/stop happen **before** `obflag_destroying` goes up, and that is
-  deliberate: `gobj_stop()` refuses a gobj that is already destroying — nobody
-  outside may stop something being dismantled — so with the flag up first the
-  rescue would die on that guard and `mt_stop` would never run (it did, until
-  7.9.4). Destroying a live gobj still logs *"Destroying a RUNNING gobj"* with
-  a stack trace, because it remains **your** bug: call `gobj_stop_tree()`
-  before `gobj_destroy()`. The framework repairs it; it does not bless it.
+  deliberate. `gobj_stop()` refuses a gobj that is already destroying, because
+  nothing outside can stop a gobj that the framework dismantles. With the flag
+  up first, the rescue therefore dies on that guard and `mt_stop` never runs.
+  That is what happened until 7.9.4. A destroy of a live gobj still logs
+  *"Destroying a RUNNING gobj"* with a stack trace, because it remains **your**
+  bug: call `gobj_stop_tree()` before `gobj_destroy()`. The framework repairs
+  the error. It does not accept it.
 
 ### 4.1 `gobj_start_tree` vs `gobj_start`
 
@@ -316,7 +317,7 @@ SDATA(DTP_STRING,  "realm_id",    SDF_RD,      "",  "Realm id"),
 A process is one yuno = one root gobj = `__yuno__`. Everything else
 descends from it. The structure looks like this in production:
 
-![The gobj runtime tree rooted at __yuno__: children authz (C_AUTHZ), the default service, gates (C_TCP_S, C_PROT_HTTP_SR, C_WEBSOCKET, C_IEVENT_SRV) and helpers; gates own per-connection pure children. Below, the bottom chain: a gobj resolves a missing attribute by walking down its bottom links.](../../../docs/doc.yuneta.io/_static/gobj_tree.svg)
+![The gobj runtime tree rooted at __yuno__: children authz (C_AUTHZ), the default service, gates (C_TCP_S, C_PROT_HTTP_SR, C_WEBSOCKET, C_IEVENT_SRV) and helpers. Gates own per-connection pure children. Below is the bottom chain: a gobj resolves a missing attribute when it walks down its bottom links.](../../../docs/doc.yuneta.io/_static/gobj_tree.svg)
 
 The same tree in text:
 
@@ -403,8 +404,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 ```
 
-You don't have to allocate it — the framework does, sized by the
-`priv_size` argument to `create_gclass()`.
+You do not allocate it. The framework allocates it, with the size that the
+`priv_size` argument of `create_gclass()` gives.
 
 ### 6.3 The `obflag` lifecycle bits
 
@@ -413,11 +414,11 @@ You don't have to allocate it — the framework does, sized by the
 | Bit                  | Meaning                                                  |
 |----------------------|----------------------------------------------------------|
 | `obflag_created`     | `mt_create` returned. Object usable.                     |
-| `obflag_destroying`  | `gobj_destroy` started. Don't subscribe / send.          |
+| `obflag_destroying`  | `gobj_destroy` started. Do not subscribe or send.        |
 | `obflag_destroyed`   | `mt_destroy` returned. Object inert.                     |
 
-Check with `gobj->obflag & obflag_destroyed` if you're holding a raw
-pointer and need to be safe — but the better answer is *don't hold raw
+If you hold a raw pointer and you need safety, check
+`gobj->obflag & obflag_destroyed`. The better answer is *do not hold raw
 pointers across lifecycle boundaries*. See §8.5.
 
 ---
@@ -425,13 +426,13 @@ pointers across lifecycle boundaries*. See §8.5.
 ## 7. Worked example: [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c)
 
 The minimal canonical gclass per CLAUDE.md. 426 lines, single state, two
-events, one action. Open the file alongside this — every Yuneta C
-developer should be able to read it cold.
+events, one action. Open the file next to this text. Every Yuneta C
+developer must be able to read it without preparation.
 
 ### 7.1 What it does
 
 [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c) is a periodic / one-shot timer. The subscriber sets the
-`msec` and `periodic` attrs, then starts it; the gclass listens to the
+`msec` and `periodic` attrs, then starts it. The gclass listens to the
 yuno's global `EV_TIMEOUT_PERIODIC` heartbeat and republishes its own
 `EV_TIMEOUT` (one-shot, then auto-stop) or `EV_TIMEOUT_PERIODIC` (every
 `msec`).
@@ -458,7 +459,7 @@ PRIVATE void mt_create(hgobj gobj)
 
 The first block is the verbatim **SERVICE** subscription pattern from
 [`SCAFFOLDING.md`](SCAFFOLDING.md) §6.1. The second block caches attrs
-into `priv` so the runtime hot path doesn't need to walk the attr table.
+into `priv`, so that the runtime hot path does not walk the attr table.
 
 ### 7.3 `mt_writing`
 
@@ -520,7 +521,7 @@ Single state. Single transition. Two output events. The
 `EVF_NO_WARN_SUBS` on `EV_TIMEOUT_PERIODIC` is the *"missing subscriber
 is not a bug"* annotation (CLAUDE.md, [`IPC.md`](IPC.md) §3.3).
 
-That's the entire FSM machinery of a real, shipping gclass.
+That is the entire FSM machinery of a real gclass in production.
 
 ---
 
@@ -542,16 +543,15 @@ this leaks JSON memory. Double-decref crashes.
 ### 8.3 `mt_destroy` runs after children are destroyed
 
 ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/gobj-c/src/gobj.c)). You can free shared resources without checking
-child state. **Conversely**: don't free a resource in `mt_destroy` that
-a child might still be using — children get `mt_destroy`'d first, so
-they release their use of the resource before the parent's `mt_destroy`
-runs.
+child state. **The opposite case**: do not free a resource in `mt_destroy`
+that a child can still use. The framework destroys the children first, so
+they release the resource before the `mt_destroy` of the parent runs.
 
 ### 8.4 SDF_RSTATS counters need `mt_reading` wired
 
 The framework returns the **stored** value of an attr unless the gclass
 provides `mt_reading`. For counters that auto-reset on read (`SDF_RSTATS`),
-this means you'll always see `0` if you forgot the method. See
+this means that you always see `0` if you forgot the method. See
 `feedback_mt_reading_for_rstats`
 and `project_gobj_read_attrs_fix`
 for the bulk-read variant (fixed 2026-05-22).
@@ -575,11 +575,11 @@ You must call `gobj_start(child)` or rely on `gobj_start_tree(parent)`.
 
 Memory
 `feedback_no_sync_read_in_yev_cb`:
-interactive sub-modes (completion prompts, etc.) must use an ncurses
-overlay + an in-mode flag + FSM transitions, **never** a blocking
-`read(STDIN_FILENO)` from inside a `yev_loop` callback. Same applies to
-any blocking syscall — the loop is single-threaded; blocking it kills
-the yuno.
+interactive sub-modes, for example completion prompts, must use an ncurses
+overlay, an in-mode flag and FSM transitions. They must **never** use a
+blocking `read(STDIN_FILENO)` from inside a `yev_loop` callback. The same
+applies to any blocking syscall. The loop has one thread, and a block on
+that thread kills the yuno.
 
 ### 8.8 No sync stop in a published-event callback
 
@@ -616,14 +616,14 @@ braced, even single-statement ones. See `CLAUDE.md` for the rationale.
 
 ### 8.13 `gobj_publish_event` is synchronous — guard post-publish state resets
 
-`gobj_publish_event` delivers to every subscriber **synchronously**;
-when the call returns, every subscriber has fully processed the event,
-including any cascades they triggered. Under [io_uring](#io-uring) this is
-unforgiving: a single publish can travel up the chain, react with
-`EV_DROP` going down, hit `C_TCP::set_disconnected`, which publishes
-`EV_DISCONNECTED` back up, etc. — your gobj can re-enter `ac_disconnected`
-and end up in `ST_DISCONNECTED` **before** the line after your publish
-runs.
+`gobj_publish_event` delivers to every subscriber **synchronously**. When
+the call returns, every subscriber processed the event completely, with
+every cascade that it started. Under [io_uring](#io-uring) this is
+unforgiving. One publish can travel up the chain, react with `EV_DROP` on
+the way down, and reach `C_TCP::set_disconnected`, which publishes
+`EV_DISCONNECTED` back up. Your gobj can therefore re-enter
+`ac_disconnected` and reach `ST_DISCONNECTED` **before** the line after
+your publish runs.
 
 Concretely, this pattern in a frame-oriented protocol is wrong:
 
@@ -658,12 +658,12 @@ Sites with this guard today: [`c_websocket.c`](https://github.com/artgins/yuneta
 `EV_ON_MESSAGE` publish does not have an upstream authz NAK path that
 re-enters `ac_disconnected`, so the cascade pattern does not arise.
 Leave the `RESET_MACHINE()` + `gobj_change_state(ST_CONNECTED)` pair
-unguarded there; do not re-add the guard from a "consistency" grep
-without first reproducing an actual cascade.
+unguarded there. Do not add the guard again from a "consistency" grep
+before you reproduce a real cascade.
 
-**Rule of thumb:** after any synchronous `gobj_publish_event` that
-could plausibly produce a disconnect upstream (`EV_ON_MESSAGE`,
-`EV_ON_ID`, etc.), read the current state before mutating it.
+**Rule:** after any synchronous `gobj_publish_event` that can produce a
+disconnect upstream, for example `EV_ON_MESSAGE` or `EV_ON_ID`, read the
+current state before you change it.
 
 ---
 

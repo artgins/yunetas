@@ -13,7 +13,7 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) (deploying yunos),
 
 ## 1. Which template to pick
 
-![Template decision tree: a gclass splits into SERVICE (gclass_service) or CHILD (gclass_child); a yuno into citizen (yuno_citizen) or standalone (yuno_standalone); a generic file or pure C project into c_h_file or c_project; a JS gclass uses js_gclass.](../../../docs/doc.yuneta.io/_static/scaffolding_tree.svg)
+![Template decision tree: a gclass splits into SERVICE (gclass_service) or CHILD (gclass_child). A yuno splits into citizen (yuno_citizen) or standalone (yuno_standalone). A generic file or a pure C project splits into c_h_file or c_project. A JS gclass uses js_gclass.](../../../docs/doc.yuneta.io/_static/scaffolding_tree.svg)
 
 The same decision in text:
 
@@ -50,8 +50,8 @@ service  child     citizen     standalone
 
 The CLAUDE.md rule is non-negotiable: **every gclass and every yuno
 must match the structure of the matching template, even when sections
-are empty.** New gclasses → copy the template. Legacy gclasses → don't
-reorder, just merge new code into the existing layout.
+are empty.** New gclasses → copy the template. Legacy gclasses → do not
+reorder them. Merge the new code into the existing layout.
 
 ---
 
@@ -82,7 +82,7 @@ The tool walks you through the catalog's per-template `vars` (description,
 author, license, …) interactively. The `<name>` you pass becomes the
 `rootname` variable used everywhere.
 
-If you don't see what you expect: confirm the catalog path
+If you do not see what you expect, make sure that the catalog path
 (`__skeletons__.json`) and the templates live where `--skeletons-path`
 points.
 
@@ -116,8 +116,8 @@ Current entries (by line range in the JSON):
 | 103-133  | `yuno_standalone`   | Yuno    | Standalone yuno project                          |
 | 135-165  | `yuno_citizen`      | Yuno    | Realm's citizen yuno project                     |
 
-If you're adding a new template, follow the same shape; the runner
-parses this file at startup to populate the prompts.
+If you add a new template, follow the same shape. The runner parses this
+file at startup to fill the prompts.
 
 ---
 
@@ -130,7 +130,8 @@ parses this file at startup to populate the prompts.
 
 [`tmpl_dir.c`](https://github.com/artgins/yunetas/blob/7.9.4/utils/c/yuno-skeleton/tmpl_dir.c). Pattern `(\{\{.+?\}\})`. Every `{{var}}` block in a
 file whose name ends in `_tmpl` is replaced by the matching value from
-`jn_values`. Used inside `main.c_tmpl`, `c_+rootname+.c_tmpl`, etc.
+`jn_values`. The templates use it inside `main.c_tmpl`,
+`c_+rootname+.c_tmpl` and the other `_tmpl` files.
 
 ### 4.2 Filename placeholders: `+varname+`
 
@@ -189,7 +190,7 @@ main service. The structural difference is in `main.c_tmpl`.
 
 Talks to its local `yuno_agent` over an `ievent` channel (the identity
 card handshake — see [`IPC.md`](IPC.md) §4.4). Logs ship via UDP to
-logcenter by default. Suitable for everything you'd deploy with
+logcenter by default. Use it for everything that you deploy with
 `run-yuno`.
 
 ### 5.2 `yuno_standalone` (CLI / test / edge)
@@ -198,13 +199,13 @@ logcenter by default. Suitable for everything you'd deploy with
 
 - Has its own `argp` CLI parser — accepts `-f <config>`
   and `-V`/`--version`.
-- No `authz` service; no agent connection.
+- No `authz` service, and no agent connection.
 - `fixed_config` + `variable_config` simpler — only the app service.
 - Memory tuning aimed at "one process owns the host" (~1G blocks).
 
-Use when the binary needs to run independently of any agent — for
-example: a CLI tool, a test harness, an edge device that doesn't ship
-with a full agent.
+Use it when the binary must run independently of any agent, for example a
+CLI tool, a test harness, or an edge device that does not ship with a full
+agent.
 
 ---
 
@@ -233,8 +234,8 @@ Reads:
 
 - The standard case: a SERVICE has its `subscriber` set explicitly by
   whoever wires it.
-- The fallback: if the gobj happens to have been created as a pure
-  child anyway, fall back to subscribing the parent.
+- The fallback: if something created the gobj as a pure child, the gobj
+  subscribes the parent instead.
 
 Service templates also include `help` and `authzs` commands in their
 `command_table`.
@@ -262,7 +263,8 @@ Reads:
 - There is **no else** — every child gets a subscriber.
 
 The CHILD pattern assumes the gobj is always created with a parent
-(`gobj_create_pure_child`, `gobj_create_volatil`, etc.). The parent's
+(`gobj_create_pure_child`, `gobj_create_volatil` and the other create
+functions). The parent's
 FSM **must** declare every event the child can publish (see
 [`IPC.md`](IPC.md) §3.5 — this is the canonical *"Event NOT DEFINED in
 state"* source).
@@ -275,9 +277,9 @@ that always have a parent**.
 ## 7. The banner convention
 
 CLAUDE.md ("GClass templates and skeletons"): *every banner from the
-skeleton must be present, even when its section is empty. Don't add
-extra banners outside the skeleton set. Don't reorder sections in legacy
-gclasses; merge new code into the existing layout to keep `git blame`
+skeleton must be present, even when its section is empty. Do not add
+extra banners outside the skeleton set. Do not reorder sections in legacy
+gclasses. Merge new code into the existing layout, to keep `git blame`
 clean. Greenfield gclasses follow the skeleton order.*
 
 The banner blocks the templates ship (example from
@@ -301,16 +303,16 @@ The banner blocks the templates ship (example from
                      ***************************/
 ```
 
-Plus the canonical headers for `Attributes`, `PRIVATE DATA`, `Event types`,
-`States`, etc. — see [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c) (large reference example) and [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c)
-(minimal reference example).
+The templates also carry the canonical headers for `Attributes`,
+`PRIVATE DATA`, `Event types` and `States`. See [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_yuno.c) (large
+reference example) and [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.4/kernel/c/root-linux/src/c_timer.c) (minimal reference example).
 
 Important consequences:
 
-- Don't delete a banner just because its section has no entries.
-- Don't insert a section between two banners.
-- Don't rename a banner (the formatting is exact — count blank lines and
-  asterisks).
+- Do not delete a banner because its section has no entries.
+- Do not insert a section between two banners.
+- Do not rename a banner. The format is exact, so count the blank lines
+  and the asterisks.
 
 ---
 
@@ -326,17 +328,17 @@ cmake ..
 make
 ```
 
-For a citizen yuno you'll also need to:
+For a citizen yuno you must also do these steps:
 
 1. **Create a binary record** in the agent: `install-binary content64=$$(<role>)`
    (see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §6.1).
 2. **Create a configuration**: `create-config id=<role>.<name>
-   content64=$$(<role>_<name>.json)` (alias `install-config`; the version is
-   read from the `__version__` field inside the file).
-3. **Create the yuno record** linking realm + binary + config.
-4. **Enable + run**.
+   content64=$$(<role>_<name>.json)`. The alias is `install-config`, and the
+   `__version__` field inside the file gives the version.
+3. **Create the yuno record** that links realm, binary and config.
+4. **Enable the yuno, then run it**.
 
-For a standalone yuno you just run the binary with `-f <config.json>`.
+For a standalone yuno, run the binary with `-f <config.json>`.
 
 If you scaffolded a new gclass, you also need to:
 
@@ -349,21 +351,21 @@ If you scaffolded a new gclass, you also need to:
 
 ## 9. Sharp edges
 
-### 9.1 Don't refactor away the `mt_create` subscription block
+### 9.1 Do not refactor away the `mt_create` subscription block
 
-The exact two patterns in §6.1 and §6.2 are CLAUDE.md hard rules. They
-look ugly (an inverted-condition `else if(gobj_is_pure_child(gobj))` in
-the SERVICE case looks like a smell). It isn't — it's a deliberate
-fallback that prevents *"Publish event WITHOUT subscribers"* in mixed
-deployments. Copy it verbatim.
+The exact two patterns in §6.1 and §6.2 are CLAUDE.md hard rules. They look
+strange, because the inverted condition `else if(gobj_is_pure_child(gobj))`
+in the SERVICE case looks like a defect. It is not a defect. It is a
+deliberate fallback that prevents *"Publish event WITHOUT subscribers"* in
+mixed deployments. Copy it exactly.
 
 ### 9.2 The `_tmpl` suffix is the opt-in
 
 A file without `_tmpl` is **not rendered**, even if it contains
 `{{var}}` markers. If you write your own template and forget the suffix,
-you'll get the literal `{{rootname}}` in the output.
+you get the literal `{{rootname}}` in the output.
 
-### 9.3 `+varname+` only renames; `{{varname}}` only fills content
+### 9.3 `+varname+` only renames, `{{varname}}` only fills content
 
 The two syntaxes are not interchangeable. If you want a file named after
 a variable, use `+var+`. If you want the variable's value inside the

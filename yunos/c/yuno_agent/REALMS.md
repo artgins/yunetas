@@ -5,8 +5,8 @@ and manages them, how they partition the on-disk layout, and what is *not*
 scoped per realm (which surprises people).
 
 Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.md),
-[`IPC.md`](IPC.md). The unit of deployment (the yuno) is documented there;
-the unit of *tenancy* (the realm) is documented here.
+[`IPC.md`](IPC.md). Those documents cover the unit of deployment, which is
+the yuno. This document covers the unit of *tenancy*, which is the realm.
 
 ---
 
@@ -36,9 +36,8 @@ A realm is a **logical partition** of a Yuneta host:
 ```
 
 Three things live inside a realm: yunos, their working directories, and a
-`bind_ip`. Things that look like they should be per-realm but **aren't**:
-the port pool, the cert sync directory, and most authzs. Section 7 has the
-full list.
+`bind_ip`. Three things look per-realm but **are not**: the port pool, the
+cert sync directory, and most authzs. Section 7 has the full list.
 
 The classic deployment pattern: one realm per project/customer (`wattyzer`,
 `estadodelaire`…), all sharing the same agent on a
@@ -86,13 +85,13 @@ Hooks (relations to other topics):
 
 ## 3. The composed URL is the identity
 
-The `id` is **not just a label** — it is constructed at create time as
+The `id` is **more than a label**. The agent constructs it at create time as
 
 ```
 <realm_name>.<realm_role>.<realm_env>
 ```
 
-and used as the realm's URL. Where you'll see it:
+and uses it as the URL of the realm. You see it in these places:
 
 - [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c) — builds the URL when computing a yuno's working
   directory:
@@ -166,9 +165,9 @@ No on-disk directory is created. No bootstrap of a "default" realm exists
 Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c). Schema `pm_update_realm`.
 
 **The only mutable field is `bind_ip`.** The four pkey components are
-not in the param schema; you cannot mutate them. To "rename" a realm,
-you must delete and re-create — which is messy because yunos reference
-it by `realm_id` (the immutable composed URL).
+not in the param schema, so you cannot mutate them. To "rename" a realm,
+you must delete it and create it again. That is difficult, because the
+yunos refer to it by `realm_id`, the immutable composed URL.
 
 ### 5.3 `delete-realm`
 
@@ -191,7 +190,7 @@ realm deletion. Clean up by hand if it matters.
 
 The link is the `yunos.realm_id` fkey
 ([`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)). One realm has N yunos
-(`realms.yunos` hook); one yuno belongs to exactly one realm.
+(`realms.yunos` hook), and one yuno belongs to exactly one realm.
 
 At `run-yuno` time the agent reads the realm record to compute the
 working directory ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)):
@@ -233,7 +232,7 @@ asking for an automatic port get adjacent ports from the same range,
 period.
 
 The deprecated `range_ports`/`last_port` columns still listed in the
-realms schema (see §2) are vestigial — the runtime ignores them. Don't
+realms schema (see §2) are vestigial, and the runtime ignores them. Do not
 write code that reads them.
 
 ### 7.2 Cert sync directory
@@ -252,9 +251,9 @@ each yuno's config and skip cert-sync.
 The agent has one `__username__` attribute ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)) with
 "permission for all" semantics. Per-command `pm_<name>` schemas gate
 access, but the gating is against the *caller's* user, not against the
-realm. There is no built-in *"user X may read realm R but not realm S"*
-predicate in the agent itself. If you need that, the `auth_bff` yuno is
-the place to enforce it (see the upcoming YUNO_AUTH.md).
+realm. The agent itself has no built-in *"user X can read realm R but not
+realm S"* predicate. If you need that, enforce it in the `auth_bff` yuno
+(see the upcoming YUNO_AUTH.md).
 
 ### 7.4 The binary repository
 
@@ -273,7 +272,7 @@ attributes — one audit file per host, not per realm.
 
 The one truly per-realm operational knob. Default `127.0.0.1`
 (loopback only). On production hosts you almost always want this changed
-to the public/internal IP that the realm should listen on.
+to the public IP or the internal IP where the realm must listen.
 
 `bind_ip` is the IP **for the yunos in this realm to bind their
 listening sockets to**, not a routing rule. Each yuno reads it from its
@@ -298,11 +297,11 @@ The `realms` topic has a self-fkey `parent_realm_id` and a hook back to
 the same topic. This permits a tree of realms (a parent realm with child
 realms). Current runtime usage is limited — the field is mainly
 informational (`controlcenter` displays the tree). Nothing in
-`build_yuno_private_domain` walks the parent chain when computing paths;
-the working dir uses only the realm's own four immutable fields.
+`build_yuno_private_domain` walks the parent chain when it computes paths.
+The working dir uses only the four immutable fields of the realm itself.
 
-Treat it as metadata. Don't build infrastructure that assumes a child
-realm inherits anything operational from its parent.
+Treat it as metadata. Do not build infrastructure on the assumption that a
+child realm inherits anything operational from its parent.
 
 ---
 
@@ -326,8 +325,8 @@ be confusing the first time.
 
 Both at `delete-realm` and on a host migration, the directory under
 `/yuneta/realms/<owner>/<url>/` is left behind. If you reuse the same
-realm coordinates later, you'll inherit whatever was in there. Sweep by
-hand when retiring a realm.
+realm coordinates later, you inherit the old content. When you retire a
+realm, clean the directory by hand.
 
 ### 10.4 No default realm bootstrap
 
@@ -339,29 +338,29 @@ First action on a new host is always `create-realm`.
 
 The field exists in the schema and you can set it via the treedb tools.
 Nothing in [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)'s start path checks it before running yunos of a
-disabled realm. Don't trust it as a kill switch — it's information for
+disabled realm. Do not trust it as a kill switch. It is information for
 operators, not enforcement.
 
-### 10.6 The deprecated `range_ports`/`last_port` on realms are *traps*
+### 10.6 The deprecated `range_ports` and `last_port` on realms are *traps*
 
-They're still in the schema. Code that "reads the realm's port range"
-will read stale data. The runtime ignores those fields. The real port
-pool is on the agent ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)). If you find code reading
-`realm.range_ports`, that's a bug — fix it to read the agent's.
+They are still in the schema. Code that "reads the port range of the realm"
+reads stale data. The runtime ignores those fields. The real port pool is on
+the agent ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.9.4/yunos/c/yuno_agent/src/c_agent.c)). If you find code that reads
+`realm.range_ports`, that code has a bug. Correct it to read the pool of the
+agent.
 
 ### 10.7 One agent per host means one port pool per host
 
-If you need disjoint port pools for security/audit reasons, you need
-**two agents** on the host (or two hosts). You cannot achieve it through
-realms alone.
+If you need disjoint port pools for security or for audit, you need
+**two agents** on the host, or two hosts. Realms alone cannot give you this.
 
-### 10.8 The cert sync `reload-certs` event is broadcast to all yunos
+### 10.8 The cert sync `reload-certs` event goes to all yunos
 
-A cert change is not silently filtered by realm — every yuno receives
-the reload event and decides what to do with it. Yunos that don't use
-TLS just ignore the event; yunos that do, reload. There's no way to
-scope a cert change to one realm without partitioning yunos differently
-(e.g. shipping cert paths via per-yuno config, bypassing cert sync).
+The agent does not filter a cert change by realm. Every yuno receives the
+reload event and decides what to do with it. A yuno without TLS ignores the
+event. A yuno with TLS reloads. To scope a cert change to one realm, you must
+partition the yunos in another way, for example with cert paths in the
+per-yuno config, which does not use cert sync.
 
 ---
 
