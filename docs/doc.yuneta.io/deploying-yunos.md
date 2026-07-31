@@ -1,23 +1,23 @@
 (deploying-yunos)=
 # Deploying yunos step by step
 
-This is the **hands-on deploy guide**: you built (or edited) something and you
-want it running on a node, without re-deriving the theory. It ties together the
-three tools that do the work —
+This is the **hands-on deploy guide**. You built or edited something, and you
+want it to run on a node. This guide does not repeat the theory. It ties
+together the three tools that do the work:
 
 | Tool | What it is | Where it lives |
 |------|------------|----------------|
-| [`yunetas`](yunetas-cli.md) | The management/build CLI (`pipx install yunetas`). Front-end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.9.4/utils/python/tui_yunetas) (git submodule, published on PyPI) |
-| [`sync_binaries.py`](tools/sync_binaries.md) | Diffs the built binaries against the agent's installed set and pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
-| [`sync_configs.py`](tools/sync_configs.md) | Diffs a directory of `*.json` yuno configs against the agent's installed set and pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
+| [`yunetas`](yunetas-cli.md) | The CLI that manages and builds (`pipx install yunetas`). It is the front end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.9.4/utils/python/tui_yunetas) (git submodule, published on PyPI) |
+| [`sync_binaries.py`](tools/sync_binaries.md) | Compares the built binaries with the agent's installed set, then pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
+| [`sync_configs.py`](tools/sync_configs.md) | Compares a directory of `*.json` yuno configs with the agent's installed set, then pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
 
-You almost never call the two scripts directly: `yunetas sync`,
-`yunetas sync-binaries` and `yunetas sync-configs` wrap them and add the
-project/realm discovery. Everything ultimately talks to the local
+You almost never call the two scripts directly. `yunetas sync`,
+`yunetas sync-binaries` and `yunetas sync-configs` wrap them, and they add the
+discovery of projects and realms. Every command goes to the local
 `yuneta_agent` through [`ycommand`](utilities/ycommand.md).
 
-If a term below is unfamiliar (yuno, role, realm, slot, snap), read the
-[mental model](#dy-mental-model) first — it is five paragraphs.
+If you do not know a term below (yuno, role, realm, slot, snap), read the
+[mental model](#dy-mental-model) first. It is five paragraphs.
 
 ## TL;DR
 
@@ -29,8 +29,8 @@ yunetas sync                  # push it for real
 yunetas upgrade-yunos         # ONLY if a version was bumped: promote + restart
 ```
 
-Those commands target the **local** agent. To deploy to another machine,
-register it once and add `--node`:
+Those commands target the **local** agent. If you deploy to another machine,
+register it one time and add `--node`:
 
 ```bash
 # Agent reachable from here (wss:// on 1993, OAuth2):
@@ -43,19 +43,20 @@ yunetas sync -n --node prod   # same flow, remote target
 ```
 
 The registry (`~/.yuneta/nodes.json`) stores **where** a node is and **which
-identity** you present — never a password. Supply the credential at call time
-via `$YUNETA_OAUTH_PASSW` (or `$YUNETA_OAUTH_JWT` to reuse a token).
+identity** you present. It never stores a password. Give the credential at call
+time in `$YUNETA_OAUTH_PASSW`. To use a token again, give it in
+`$YUNETA_OAUTH_JWT`.
 
-- **Same-version rebuild (hot-patch)?** `yunetas sync` is enough — it
-  kill/restarts the affected yunos itself. Skip `upgrade-yunos`.
-- **Version bump (`APP_VERSION` changed)?** `yunetas sync` then
-  `yunetas upgrade-yunos`. Without the second step **the old version keeps
-  running** — pushing installs the new release next to the old one, it does not
+- **Same-version rebuild (hot-patch)?** `yunetas sync` is enough. It stops and
+  restarts the affected yunos itself. Do not run `upgrade-yunos`.
+- **Version bump (`APP_VERSION` changed)?** Run `yunetas sync`, then
+  `yunetas upgrade-yunos`. Without the second command, **the node keeps the old
+  version**. The push installs the new release next to the old one. It does not
   activate it.
-- **Config-only change?** `yunetas sync-configs -r` (the `-r` restarts the
-  yunos that use it; without it the push lands but the running yuno keeps its
-  old config until its next restart).
-- **Brand-new yuno on this node?** The sync tools will NOT propose it — see
+- **Config-only change?** Run `yunetas sync-configs -r`. The `-r` flag restarts
+  the yunos that use the config. Without `-r`, the push succeeds, but the yuno
+  keeps its old config until its next restart.
+- **Brand-new yuno on this node?** The sync tools do not propose it. See
   [Recipe D](#dy-recipe-new-yuno).
 
 (dy-mental-model)=
@@ -153,15 +154,15 @@ find its `yunos/batches/<host>/` directories. The registry is machine-local
 | Code edit, **same** `APP_VERSION` (debug fix, rebuild) | [A — hot-patch](#dy-recipe-hotpatch) | `yunetas build` + `yunetas sync` |
 | `APP_VERSION` **bumped** in `main.c` | [B — version bump](#dy-recipe-bump) | `yunetas build` + `yunetas sync` + `yunetas upgrade-yunos` |
 | Only a config `*.json` changed | [C — config-only](#dy-recipe-config) | `yunetas sync-configs -r` |
-| Yuno never installed on this node before | [D — new yuno](#dy-recipe-new-yuno) | manual `ycommand` onboarding |
-| New release misbehaves, go back | [E — rollback](#dy-recipe-rollback) | `ycommand -c 'activate-snap ...'` |
+| Yuno never installed on this node before | [D — new yuno](#dy-recipe-new-yuno) | manual `ycommand` sequence |
+| New release is not correct, go back | [E — rollback](#dy-recipe-rollback) | `ycommand -c 'activate-snap ...'` |
 
-If both binaries and configs changed (the normal case for a release), always
-push them **together** with `yunetas sync` — a new binary against a stale
-config is the classic footgun (a fail-closed runtime reading an old config
-breaks in ways neither artifact would alone). `sync` runs binaries first and
-refuses to continue to configs if the binary push failed, so a half-deploy
-cannot happen silently.
+If both the binaries and the configs changed, push them **together** with
+`yunetas sync`. This is the normal case for a release. A new binary with a
+stale config is a known cause of incidents: a fail-closed runtime that reads an
+old config breaks in ways that neither artifact breaks alone. `sync` pushes the
+binaries first. If the binary push fails, `sync` does not continue to the
+configs, so a half deploy cannot happen without a message.
 
 (dy-recipe-hotpatch)=
 ## Recipe A — hot-patch (same version)
