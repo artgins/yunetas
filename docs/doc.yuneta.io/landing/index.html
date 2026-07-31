@@ -1376,12 +1376,25 @@ h1.hero-title {
         return value;
     }
 
+    /*  The demo runs on its own host, so it cannot read this preference:
+     *  localStorage is per origin. Carry the choice in the url instead, and
+     *  keep it in step with every toggle rather than stamping it once at
+     *  load. demo.yuneta.io reads ?theme= before its first paint.
+     */
+    function stampDemoLink(theme) {
+        var links = document.querySelectorAll('a[href^="https://demo.yuneta.io"]');
+        for (var i = 0; i < links.length; i++) {
+            links[i].href = "https://demo.yuneta.io/?theme=" + theme;
+        }
+    }
+
     function apply(theme) {
         root.setAttribute("data-theme", theme);
         var next = theme === "dark" ? "light" : "dark";
         var label = "Switch to " + next + " theme";
         button.setAttribute("aria-label", label);
         button.setAttribute("title", label);
+        stampDemoLink(theme);
     }
 
     apply(root.getAttribute("data-theme") === "dark" ? "dark" : "light");
