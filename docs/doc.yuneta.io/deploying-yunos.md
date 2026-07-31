@@ -17,7 +17,7 @@ discovery of projects and realms. Every command goes to the local
 `yuneta_agent` through [`ycommand`](utilities/ycommand.md).
 
 If you do not know a term below (yuno, role, realm, slot, snap), read the
-[mental model](#dy-mental-model) first. It is five paragraphs.
+[mental model](#dy-mental-model) first. It is seven paragraphs.
 
 ## TL;DR
 
@@ -60,59 +60,63 @@ time in `$YUNETA_OAUTH_PASSW`. To use a token again, give it in
   [Recipe D](#dy-recipe-new-yuno).
 
 (dy-mental-model)=
-## The mental model in five paragraphs
+## The mental model in seven paragraphs
 
-**A node runs one `yuneta_agent`**, and the agent owns every yuno on that node:
-it stores their binaries and configs, launches them, watches them, restarts
-them. You never copy files into place or kill processes by hand — you send
-commands to the agent with [`ycommand`](utilities/ycommand.md) (default url
-`ws://127.0.0.1:1991`), and the deploy tools in this guide are automation on
-top of exactly those commands.
+**A node runs one `yuneta_agent`**, and the agent owns every yuno on that node.
+It stores their binaries and configs. It launches them, watches them, and
+restarts them. You never copy files into place, and you never kill processes by
+hand. You send commands to the agent with [`ycommand`](utilities/ycommand.md),
+whose default url is `ws://127.0.0.1:1991`. The deploy tools in this guide are
+automation on top of exactly those commands.
 
-**A yuno is (binary, config, realm) glued by a registration row.** The binary
-is identified by its **role** (the executable's filename, e.g. `auth_bff`) and
-a **version** (the `APP_VERSION` compiled into it). Each `(role, version)` pair
-is a separate **slot** in the agent's repository — installing version 1.2.1
-does not touch the 1.2.0 slot. The config is a JSON file identified by an
-**id** (by convention `<role>.<name>`, e.g. `auth_bff.1801`) and a version read
-from the `__version__` field *inside* the file. A **realm** is the tenant the
-yuno instance runs in.
+**A yuno is a binary, a config and a realm, joined by a registration row.** Two
+things identify the binary: its **role** (the filename of the executable, for
+example `auth_bff`) and its **version** (the `APP_VERSION` compiled into it).
+Each `(role, version)` pair is a separate **slot** in the agent's repository.
+If you install version 1.2.1, the 1.2.0 slot does not change. The config is a
+JSON file. An **id** identifies it (by convention `<role>.<name>`, for example
+`auth_bff.1801`), and the `__version__` field *inside* the file gives its
+version. A **realm** is the tenant that the yuno instance runs in.
 
-**Deploy is two phases: push, then promote.** Pushing (`yunetas sync`) uploads
-new binaries and configs into the agent's store; nothing running changes yet.
-Promoting (`yunetas upgrade-yunos`) makes the freshly installed versions the
-**primary** ones and restarts the yunos onto them. Only same-version changes
-(a rebuilt binary, an edited config) skip the promote phase, because they
-overwrite the slot that is already primary.
+**Deploy is two phases: push, then promote.** The push phase (`yunetas sync`)
+uploads new binaries and configs into the agent's store. Nothing that runs
+changes yet. The promote phase (`yunetas upgrade-yunos`) makes the newly
+installed versions the **primary** ones, and restarts the yunos onto them. Only
+same-version changes skip the promote phase, because they overwrite the slot
+that is already primary. A rebuilt binary and an edited config are such
+changes.
 
-**Where the artifacts come from.** Binaries: every built yuno lands in
-`$YUNETAS_BASE/outputs/yunos/` (that is what `make install` / `yunetas build`
-does), and that directory is exactly where the agent's `$$(<role>)` upload
-macro reads from. Configs: each project keeps per-node config sets under
-`yunos/batches/<host>/*.json`, where `<host>` is the **realm_id** of the target
-node (its deploy FQDN, e.g. `batches/app.wattyzer.com/`).
+**Where the artifacts are.** Binaries: `make install` and `yunetas build` put
+every built yuno in `$YUNETAS_BASE/outputs/yunos/`. The agent's `$$(<role>)`
+upload macro reads that same directory. Configs: each project keeps one config
+set per node under `yunos/batches/<host>/*.json`. The `<host>` part is the
+**realm_id** of the target node, which is its deploy FQDN, for example
+`batches/app.wattyzer.com/`.
 
-**Build where the SDK was built — not on the target node.** Yunos are linked
-fully static, and the prebuilt archives shipped in the `.deb`/`.rpm`
-(`outputs/lib`, `outputs_ext/lib`) are tied to the glibc that produced them.
-A node that happens to have a compiler and your project sources *can* compile
-its own yunos against those archives, and the link succeeds — but it mixes them
-with the **node's** glibc, and the resulting binary corrupts its heap at run
-time: it dies inside `malloc` seconds after start, with no Yuneta error logged
-and a stack trace blaming unrelated code. Since 7.8.4 the build refuses this at
-`cmake` time instead (`glibc mismatch. REFUSING to build.`). If you see that,
-build on the machine where the SDK itself was built and push binaries from
-there — which is what this guide does anyway. Building on a node is only safe
-when that node built the whole SDK from source, or runs a package made for its
-own distribution.
+**CAUTION: build where the SDK was built, not on the target node.** Yunos are
+linked fully static, and the prebuilt archives in the `.deb` and the `.rpm`
+(`outputs/lib`, `outputs_ext/lib`) are tied to the glibc that produced them. A
+node that has a compiler and your project sources *can* compile its own yunos
+against those archives, and the link succeeds. But the link mixes the archives
+with the **node's** glibc, and the binary then corrupts its heap at run time.
+It dies inside `malloc` seconds after start. It writes no Yuneta error, and its
+stack trace points at unrelated code.
 
-**Safety nets.** Every push tool shows you a classification table and asks
-before touching anything (`-n` dry-runs, `-a` skips the questions);
-`upgrade-yunos` shoots a rollback **snap** first, so a bad release is one
-`activate-snap` away from being undone ([Recipe E](#dy-recipe-rollback)). The
-whole flow is idempotent: re-running `sync` + `upgrade-yunos` after an
-interrupted deploy finishes the job instead of failing ("already exists"
-answers are treated as already-done, not as errors).
+Since 7.8.4 the build refuses this at `cmake` time instead
+(`glibc mismatch. REFUSING to build.`). If you see that message, build on the
+machine that built the SDK. Then push the binaries from there, which is what
+this guide does anyway. A build on a node is safe in two cases only: that node
+built the whole SDK from source, or it runs a package made for its own
+distribution.
+
+**Safety nets.** Every push tool shows you a classification table, and it asks
+you before it changes anything. `-n` does a dry run, and `-a` skips the
+questions. `upgrade-yunos` shoots a rollback **snap** first, so one
+`activate-snap` command undoes a bad release
+([Recipe E](#dy-recipe-rollback)). The whole flow is idempotent. If a deploy
+stops in the middle, run `sync` and `upgrade-yunos` again, and they finish the
+job instead of failing. The tools read "already exists" answers as already-done,
+not as errors.
 
 ```
  build                    push                      promote                verify
