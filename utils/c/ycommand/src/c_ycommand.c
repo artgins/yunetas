@@ -222,6 +222,7 @@ SDATA (DTP_STRING,      "display_mode",     0,          "table",        "Display
 SDATA (DTP_STRING,      "editor",           0,          "vim",          "Editor"),
 SDATA (DTP_BOOLEAN,     "ssl_use_system_ca",0,          "1",            "Validate server cert against the OS CA store (default on)"),
 SDATA (DTP_STRING,      "ssl_trusted_certificate",0,    "",             "PEM file/dir of trusted CA(s) for server-cert validation"),
+SDATA (DTP_STRING,      "ssl_server_name",  0,          "",             "Name to check the server cert against (SNI too). Empty: the host of the url"),
 SDATA (DTP_BOOLEAN,     "ssl_allow_insecure_client",0,  "0",            "Connect WITHOUT validating the server cert (MITM risk)"),
 SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
@@ -935,8 +936,13 @@ PRIVATE int yev_stdin_callback(yev_event_h yev_event)
  *  Build the TLS client crypto config from the ssl_* attrs.
  *  Returns a new json object (owned by caller); empty {} when nothing set
  *  (which is correct for plain ws:// — C_TCP ignores crypto without TLS).
+ *
+ *  Two different peers use this: the IdP and the agent. pin_server_name
+ *  tells the agent from the IdP, because ssl_server_name names ONE peer's
+ *  certificate. Applied to the IdP too, it rejects the token endpoint for
+ *  a hostname mismatch, and the login dies before the agent is dialed.
  ***************************************************************************/
-PRIVATE json_t *build_client_crypto(hgobj gobj)
+PRIVATE json_t *build_client_crypto(hgobj gobj, BOOL pin_server_name)
 {
     json_t *jn_crypto = json_object();
     if(gobj_read_bool_attr(gobj, "ssl_allow_insecure_client")) {
@@ -946,6 +952,16 @@ PRIVATE json_t *build_client_crypto(hgobj gobj)
     const char *trusted = gobj_read_str_attr(gobj, "ssl_trusted_certificate");
     if(!empty_string(trusted)) {
         json_object_set_new(jn_crypto, "ssl_trusted_certificate", json_string(trusted));
+    }
+    /*
+     *  Cert pinning: the agent serves one long-life certificate of its own
+     *  (CN yuneta_agent.yuneta.io) on every node, so the name never matches
+     *  the host dialed. Given here, C_TCP keeps it instead of deriving the
+     *  name from the url, and the chain still gets validated.
+     */
+    const char *server_name = gobj_read_str_attr(gobj, "ssl_server_name");
+    if(pin_server_name && !empty_string(server_name)) {
+        json_object_set_new(jn_crypto, "ssl_server_name", json_string(server_name));
     }
     if(gobj_read_bool_attr(gobj, "ssl_use_system_ca")) {
         json_object_set_new(jn_crypto, "ssl_use_system_ca", json_true());
@@ -968,7 +984,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         "user_id", gobj_read_str_attr(gobj, "user_id"),
         "user_passw", gobj_read_str_attr(gobj, "user_passw"),
         "client_id", gobj_read_str_attr(gobj, "client_id"),
-        "crypto", build_client_crypto(gobj)
+        "crypto", build_client_crypto(gobj, FALSE)
     );
 
     hgobj gobj_task = gobj_create_service(
@@ -1086,7 +1102,7 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  The crypto config is a JSON object: it cannot travel through the
      *  (^^var^^) substitution (string-only), so embed it as JSON text.
      */
-    json_t *jn_crypto = build_client_crypto(gobj);
+    json_t *jn_crypto = build_client_crypto(gobj, TRUE);
     char *crypto_str = json_dumps(jn_crypto, JSON_COMPACT|JSON_ENCODE_ANY);
     JSON_DECREF(jn_crypto)
 

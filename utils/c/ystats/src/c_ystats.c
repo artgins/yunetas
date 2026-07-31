@@ -53,6 +53,10 @@ SDATA (DTP_STRING,      "user_id",          0,          "",             "OAuth2 
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
 SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
+SDATA (DTP_BOOLEAN,     "ssl_use_system_ca",0,          "1",            "Validate server cert against the OS CA store (default on)"),
+SDATA (DTP_STRING,      "ssl_trusted_certificate",0,    "",             "PEM file/dir of trusted CA(s) for server-cert validation"),
+SDATA (DTP_STRING,      "ssl_server_name",  0,          "",             "Name to check the server cert against (SNI too). Empty: the host of the url"),
+SDATA (DTP_BOOLEAN,     "ssl_allow_insecure_client",0,  "0",            "Connect WITHOUT validating the server cert (MITM risk)"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
 SDATA (DTP_STRING,      "yuno_role",        0,          "",             "Yuno role (No direct connection, all through agent)"),
 SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service__", "Yuno service"),
@@ -177,6 +181,43 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 /***************************************************************************
+ *  Build the TLS client crypto config from the ssl_* attrs.
+ *  Returns a new json object (owned by caller); empty {} when nothing set
+ *  (which is correct for plain ws:// — C_TCP ignores crypto without TLS).
+ *
+ *  Two different peers use this: the IdP and the agent. pin_server_name
+ *  tells the agent from the IdP, because ssl_server_name names ONE peer's
+ *  certificate. Applied to the IdP too, it rejects the token endpoint for
+ *  a hostname mismatch, and the login dies before the agent is dialed.
+ ***************************************************************************/
+PRIVATE json_t *build_client_crypto(hgobj gobj, BOOL pin_server_name)
+{
+    json_t *jn_crypto = json_object();
+    if(gobj_read_bool_attr(gobj, "ssl_allow_insecure_client")) {
+        json_object_set_new(jn_crypto, "ssl_allow_insecure_client", json_true());
+        return jn_crypto;
+    }
+    const char *trusted = gobj_read_str_attr(gobj, "ssl_trusted_certificate");
+    if(!empty_string(trusted)) {
+        json_object_set_new(jn_crypto, "ssl_trusted_certificate", json_string(trusted));
+    }
+    /*
+     *  Cert pinning: the agent serves one long-life certificate of its own
+     *  (CN yuneta_agent.yuneta.io) on every node, so the name never matches
+     *  the host dialed. Given here, C_TCP keeps it instead of deriving the
+     *  name from the url, and the chain still gets validated.
+     */
+    const char *server_name = gobj_read_str_attr(gobj, "ssl_server_name");
+    if(pin_server_name && !empty_string(server_name)) {
+        json_object_set_new(jn_crypto, "ssl_server_name", json_string(server_name));
+    }
+    if(gobj_read_bool_attr(gobj, "ssl_use_system_ca")) {
+        json_object_set_new(jn_crypto, "ssl_use_system_ca", json_true());
+    }
+    return jn_crypto;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_authenticate_task(hgobj gobj)
@@ -191,7 +232,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         "user_id", gobj_read_str_attr(gobj, "user_id"),
         "user_passw", gobj_read_str_attr(gobj, "user_passw"),
         "client_id", gobj_read_str_attr(gobj, "client_id"),
-        "crypto", json_pack("{s:b}", "ssl_use_system_ca", 1)
+        "crypto", build_client_crypto(gobj, FALSE)
     );
 
     hgobj gobj_task = gobj_create_service(
@@ -219,6 +260,7 @@ PRIVATE char agent_config[]= "\
     'priority': 2,                              \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
+        'jwt': '(^^__jwt__^^)',                         \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
@@ -245,7 +287,7 @@ PRIVATE char agent_config[]= "\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
                                         'url':'(^^__url__^^)',      \n\
-                                        'crypto': {'ssl_use_system_ca': true} \n\
+                                        'crypto': %s                \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -267,12 +309,28 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
+    /*
+     *  -o/-O/-S filled these attrs and nothing read them: the connection
+     *  went to yuneta_agent/__default_service__ whatever the caller asked.
+     *  A remote agent NAKs the open when the identity has no role for the
+     *  service, and the tool then retried forever without a word.
+     */
+    const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
+    const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
+    const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
+    if(empty_string(yuno_role)) {
+        yuno_role = "yuneta_agent";
+    }
+    if(empty_string(yuno_service)) {
+        yuno_service = "__default_service__";
+    }
+
     json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
-        "__yuno_name__", "",
-        "__yuno_role__", "yuneta_agent",
-        "__yuno_service__", "__default_service__"
+        "__yuno_name__", yuno_name,
+        "__yuno_role__", yuno_role,
+        "__yuno_service__", yuno_service
     );
 
     /*
@@ -299,9 +357,23 @@ PRIVATE int cmd_connect(hgobj gobj)
         );
     }
 
+    /*
+     *  The crypto config is a JSON object: it cannot travel through the
+     *  (^^var^^) substitution (string-only), so embed it as JSON text.
+     */
+    json_t *jn_crypto = build_client_crypto(gobj, TRUE);
+    char *crypto_str = json_dumps(jn_crypto, JSON_COMPACT|JSON_ENCODE_ANY);
+    JSON_DECREF(jn_crypto)
+
+    char agent_config_built[4*1024];
+    snprintf(agent_config_built, sizeof(agent_config_built),
+        agent_config, crypto_str? crypto_str : "{}"
+    );
+    GBMEM_FREE(crypto_str)
+
     hgobj gobj_remote_agent = gobj_create_tree(
         gobj,
-        agent_config,
+        agent_config_built,
         jn_config_variables // owned
     );
 
@@ -620,6 +692,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_TOKEN,           ac_on_token,                0},
         {EV_ON_OPEN,            ac_on_open,                 ST_CONNECTED},
         {EV_ON_CLOSE,           ac_on_close,                0},
+        {EV_ON_ID_NAK,          ac_on_close,                0},
+        {EV_ON_OPEN_ERROR,      ac_on_close,                0}, // cannot connect / id NAK drop
         {EV_STOPPED,            0,                          0},
         {0,0,0}
     };
@@ -650,6 +724,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_TOKEN,           0},
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
+        {EV_ON_ID_NAK,          0},
+        {EV_ON_OPEN_ERROR,      0},
         {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
         {NULL, 0}

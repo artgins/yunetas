@@ -43,6 +43,11 @@ struct arguments
     char *user_passw;
     char *jwt;
 
+    int ssl_use_system_ca;
+    char *ssl_trusted_certificate;
+    char *ssl_server_name;
+    int ssl_allow_insecure_client;
+
     int verbose;                /* verbose */
     int print;
     int print_version;
@@ -167,6 +172,12 @@ static struct argp_option options[] = {
 {"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
 {"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30},
 
+{0,                 0,      0,          0,      "TLS / crypto keys (used only for wss:// / https:// connections)", 40},
+{"ssl-use-system-ca",       0x801, "BOOL", OPTION_ARG_OPTIONAL, "Validate the server certificate against the OS CA store. Default: 1 (enabled). Pass --ssl-use-system-ca=0 to disable.", 40},
+{"ssl-trusted-certificate", 0x802, "FILE", 0, "PEM file (or dir) of trusted CA(s) to validate the server certificate (private CA).", 40},
+{"ssl-server-name",         0x804, "NAME", 0, "Name to check the server certificate against (used for SNI too). Default: the host of the url. Give it when the pinned certificate carries a name of its own, as the agent's does.", 40},
+{"ssl-allow-insecure-client", 0x803, 0,    0, "Connect WITHOUT validating the server certificate (MITM risk). Off by default.", 40},
+
 {0,                 0,      0,          0,      "Local keys.", 50},
 {"print",           'p',    0,          0,      "Print configuration.", 50},
 {"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 50},
@@ -219,6 +230,19 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'j':
         arguments->jwt = arg;
+        break;
+
+    case 0x801:
+        arguments->ssl_use_system_ca = arg? atoi(arg) : 1;
+        break;
+    case 0x802:
+        arguments->ssl_trusted_certificate = arg;
+        break;
+    case 0x803:
+        arguments->ssl_allow_insecure_client = 1;
+        break;
+    case 0x804:
+        arguments->ssl_server_name = arg;
         break;
 
     case 't':
@@ -370,6 +394,10 @@ int main(int argc, char *argv[])
     arguments.user_id = "";
     arguments.user_passw = "";
     arguments.jwt = "";
+    arguments.ssl_use_system_ca = 1;
+    arguments.ssl_trusted_certificate = "";
+    arguments.ssl_server_name = "";
+    arguments.ssl_allow_insecure_client = 0;
 
     /*
      *  Save args
@@ -407,7 +435,7 @@ int main(int argc, char *argv[])
         argvs[idx++] = param2;
     } else {
         json_t *kw_utility = json_pack(
-            "{s:{s:i, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:i, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:s, s:s, s:b}}",
             "global",
             "C_YSTATS.refresh_time", arguments.refresh_time,
             "C_YSTATS.verbose", arguments.verbose,
@@ -424,7 +452,11 @@ int main(int argc, char *argv[])
             "C_YSTATS.jwt", arguments.jwt,
             "C_YSTATS.url", arguments.url,
             "C_YSTATS.yuno_service", arguments.yuno_service,
-            "C_YSTATS.print_with_metadata", arguments.print_with_metadata
+            "C_YSTATS.print_with_metadata", arguments.print_with_metadata,
+            "C_YSTATS.ssl_use_system_ca", arguments.ssl_use_system_ca,
+            "C_YSTATS.ssl_trusted_certificate", arguments.ssl_trusted_certificate,
+            "C_YSTATS.ssl_server_name", arguments.ssl_server_name,
+            "C_YSTATS.ssl_allow_insecure_client", arguments.ssl_allow_insecure_client
         );
         json_t *jn_ystats = kw_get_dict_value(0, kw_utility, "global", 0, 0);
         if(arguments.yuno_role) {

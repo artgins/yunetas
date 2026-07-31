@@ -233,6 +233,10 @@ SDATAPM (DTP_STRING,    "url",          0,              "ws://127.0.0.1:1991",  
 SDATAPM (DTP_STRING,    "yuno_name",    0,              "",                     "Yuno name"),
 SDATAPM (DTP_STRING,    "yuno_role",    0,              "yuneta_agent",         "Yuno role"),
 SDATAPM (DTP_STRING,    "service",      0,              "agent",                "Yuno service"),
+SDATAPM (DTP_BOOLEAN,   "ssl_use_system_ca",0,          "1",                    "Validate server cert against the OS CA store (default on)"),
+SDATAPM (DTP_STRING,    "ssl_trusted_certificate",0,    "",                     "PEM file/dir of trusted CA(s) for server-cert validation"),
+SDATAPM (DTP_STRING,    "ssl_server_name",0,            "",                     "Name to check the server cert against (SNI too). Empty: the host of the url"),
+SDATAPM (DTP_BOOLEAN,   "ssl_allow_insecure_client",0,  "0",                    "Connect WITHOUT validating the server cert (MITM risk)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_log[] = {
@@ -1158,7 +1162,7 @@ PRIVATE char agent_config[]= "\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
                                         'url':'(^^__url__^^)',      \n\
-                                        'crypto': {'ssl_use_system_ca': true} \n\
+                                        'crypto': %s                \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -1229,9 +1233,43 @@ PRIVATE json_t *cmd_connect(hgobj gobj, const char *command, json_t *kw, hgobj s
         );
     }
 
+    /*
+     *  The crypto config is a JSON object: it cannot travel through the
+     *  (^^var^^) substitution (string-only), so embed it as JSON text.
+     *
+     *  ssl_server_name is for the agent, which serves one long-life
+     *  certificate of its own (CN yuneta_agent.yuneta.io) on every node:
+     *  without it, the name never matches the host dialed and the
+     *  handshake is rejected.
+     */
+    json_t *jn_crypto = json_object();
+    if(kw_get_bool(gobj, kw, "ssl_allow_insecure_client", 0, 0)) {
+        json_object_set_new(jn_crypto, "ssl_allow_insecure_client", json_true());
+    } else {
+        const char *trusted = kw_get_str(gobj, kw, "ssl_trusted_certificate", "", 0);
+        if(!empty_string(trusted)) {
+            json_object_set_new(jn_crypto, "ssl_trusted_certificate", json_string(trusted));
+        }
+        const char *server_name = kw_get_str(gobj, kw, "ssl_server_name", "", 0);
+        if(!empty_string(server_name)) {
+            json_object_set_new(jn_crypto, "ssl_server_name", json_string(server_name));
+        }
+        if(kw_get_bool(gobj, kw, "ssl_use_system_ca", 1, 0)) {
+            json_object_set_new(jn_crypto, "ssl_use_system_ca", json_true());
+        }
+    }
+    char *crypto_str = json_dumps(jn_crypto, JSON_COMPACT|JSON_ENCODE_ANY);
+    JSON_DECREF(jn_crypto)
+
+    char agent_config_built[8*1024];
+    snprintf(agent_config_built, sizeof(agent_config_built),
+        agent_config, crypto_str? crypto_str : "{}"
+    );
+    GBMEM_FREE(crypto_str)
+
     hgobj gobj_remote_agent = gobj_create_tree(
         gobj,
-        agent_config,
+        agent_config_built,
         jn_config_variables
     );
 

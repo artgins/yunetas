@@ -47,6 +47,7 @@ struct arguments
 
     int ssl_use_system_ca;
     char *ssl_trusted_certificate;
+    char *ssl_server_name;
     int ssl_allow_insecure_client;
 
     int verbose;                /* verbose */
@@ -178,6 +179,7 @@ static struct argp_option options[] = {
 {0,                 0,      0,          0,      "TLS / crypto keys (used only for wss:// / https:// connections)", 40},
 {"ssl-use-system-ca",       0x801, "BOOL", OPTION_ARG_OPTIONAL, "Validate the server certificate against the OS CA store. Default: 1 (enabled). Pass --ssl-use-system-ca=0 to disable.", 40},
 {"ssl-trusted-certificate", 0x802, "FILE", 0, "PEM file (or dir) of trusted CA(s) to validate the server certificate (private CA).", 40},
+{"ssl-server-name",         0x804, "NAME", 0, "Name to check the server certificate against (used for SNI too). Default: the host of the url. Give it when the pinned certificate carries a name of its own, as the agent's does.", 40},
 {"ssl-allow-insecure-client", 0x803, 0,    0, "Connect WITHOUT validating the server certificate (MITM risk). Off by default.", 40},
 
 {0,                 0,      0,          0,      "Local keys.", 50},
@@ -273,6 +275,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 0x803:
         arguments->ssl_allow_insecure_client = 1;
+        break;
+    case 0x804:
+        arguments->ssl_server_name = arg;
         break;
 
     case 'v':
@@ -404,6 +409,7 @@ int main(int argc, char *argv[])
     arguments.editor = "vim";
     arguments.ssl_use_system_ca = 1;
     arguments.ssl_trusted_certificate = "";
+    arguments.ssl_server_name = "";
     arguments.ssl_allow_insecure_client = 0;
     arguments.wait = 1;
 
@@ -465,7 +471,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:s, s:b}}",
+            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:s, s:s, s:b}}",
             "global",
             "C_YCOMMAND.verbose", arguments.verbose,
             "C_YCOMMAND.command", arguments.command,
@@ -486,6 +492,7 @@ int main(int argc, char *argv[])
             "C_YCOMMAND.print_with_metadata", arguments.print_with_metadata,
             "C_YCOMMAND.ssl_use_system_ca", arguments.ssl_use_system_ca,
             "C_YCOMMAND.ssl_trusted_certificate", arguments.ssl_trusted_certificate,
+            "C_YCOMMAND.ssl_server_name", arguments.ssl_server_name,
             "C_YCOMMAND.ssl_allow_insecure_client", arguments.ssl_allow_insecure_client
         );
 

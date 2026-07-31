@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+### Added
+
+- **`--ssl-server-name` in `ycommand`, `ybatch` and `ystats`, and as a
+  parameter of `connect` in `ycli`.** The name to check the server certificate
+  against, used for SNI too. It travels to `ytls` as `ssl_server_name`, which
+  both TLS backends already implemented and `c_tcp` already honored ("a
+  config-supplied ssl_server_name wins"); no tool exposed it.
+
+  This is what a pinned certificate needs. The agent serves one long-life
+  certificate of its own on every node (`CN=yuneta_agent.yuneta.io`), so its
+  name never matches the host dialed, and every tool rejected the handshake
+  for a hostname mismatch and then retried in silence. Nothing is weakened:
+  the chain is still validated, against the PEM given in
+  `--ssl-trusted-certificate`.
+
+- **`ybatch` and `ystats` take the whole TLS family**
+  (`--ssl-use-system-ca`, `--ssl-trusted-certificate`, `--ssl-server-name`,
+  `--ssl-allow-insecure-client`). Their crypto was a literal
+  `{"ssl_use_system_ca": true}` in the code, so a private CA was out of reach
+  and a `wss://` agent answered *"unknown CA"*. `ycli` takes the same four as
+  parameters of its `connect` command, next to the url they belong to.
+
+### Fixed
+
+- **`ystats` never sent its token.** Its gobj tree defined `__jwt__` and no
+  field used it, so every remote connection went out anonymous and the agent
+  refused it with *"Without JWT/passw only localhost is allowed"*. The `jwt`
+  field is now in the `C_IEVENT_CLI` kw, as in `ycommand` and `ybatch`.
+
+- **`ystats` swallowed a failed open.** Its FSM declared neither
+  `EV_ON_OPEN_ERROR` nor `EV_ON_ID_NAK`, so a refused connection was lost in
+  *"Event NOT DEFINED in state"* and the tool retried for ever without a
+  word. Both now reach `ac_on_close`, which is what `ycommand` does.
+
+- **`ystats` ignored `-o`, `-O` and `-S`.** The connection was built with
+  literals (`yuneta_agent`, `__default_service__`), so the three options
+  existed and changed nothing.
+
+- **`ycommand` applied the pinned name to the IdP too.** `build_client_crypto()`
+  serves two different peers, and `ssl_server_name` names ONE certificate:
+  given to the token endpoint as well, the login died with a hostname mismatch
+  before the agent was ever dialed. The builder now takes `pin_server_name`,
+  true only for the agent.
+
 ### Fixed
 
 - **`C_AUTHZ`: `register-idp-user` could never work.** The outbound client to
