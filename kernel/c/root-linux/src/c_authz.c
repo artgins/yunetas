@@ -4845,8 +4845,13 @@ PRIVATE json_t *cmd_set_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     gobj_save_persistent_attrs(gobj, jn_save);  // owned
 
     /*  Drop the cached client + token so the new endpoint/credentials take
-     *  effect on the next register-idp-user (skip if a round-trip is live). */
+     *  effect on the next register-idp-user (skip if a round-trip is live).
+     *  Stop before destroy: the client can be running (it holds the socket to
+     *  the IdP), and destroying it running logs "Destroying a RUNNING gobj". */
     if(priv->gobj_kc && !priv->kc_processing) {
+        if(gobj_is_running(priv->gobj_kc)) {
+            gobj_stop(priv->gobj_kc);
+        }
         gobj_destroy(priv->gobj_kc);
         priv->gobj_kc = 0;
     }
@@ -4962,13 +4967,29 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         GBMEM_FREE(p)
     }
 
-    if(result == -2 && priv->gobj_kc &&
-            gobj_read_bool_attr(priv->gobj_kc, "connected")) {
+    /*
+     *  A timed-out round trip leaves the connection poisoned: the late answer
+     *  would arrive while the NEXT task owns the client. Drop it here, before
+     *  that task starts.
+     */
+    if(result == -2 && priv->gobj_kc && gobj_is_running(priv->gobj_kc)) {
         gobj_stop(priv->gobj_kc);
     }
 
     KW_DECREF(kw)
     process_next_kc(gobj);
+
+    /*
+     *  Idle: close the connection to Keycloak. C_TCP retries for ever, so a
+     *  client left running reconnects once a minute with no request behind
+     *  it — hundreds of round trips against the IdP per run of the yuno, all
+     *  of them publishing to nobody. process_next_kc() starts it again when
+     *  a request arrives, and each request then gets a fresh connection.
+     */
+    if(!priv->kc_processing && priv->gobj_kc && gobj_is_running(priv->gobj_kc)) {
+        gobj_stop(priv->gobj_kc);
+    }
+
     return 0;
 }
 

@@ -26,6 +26,26 @@
 
 ### Fixed
 
+- **`C_AUTHZ` hammered the IdP with a connection nobody asked for.** The
+  outbound client to Keycloak is created with manual start, `process_next_kc()`
+  starts it, and nothing stopped it: `C_TCP` retries for ever, so the yuno
+  reconnected once a minute for its whole life. One run of a deployed yuno had
+  759 of those round trips, every one publishing to nobody.
+
+  `ac_end_task()` now stops the client when no request is left, and
+  `process_next_kc()` starts it again for the next one. Beyond the noise, this
+  gives **each registration a fresh connection**, so a late answer can no
+  longer land on the following task. The stop on a timed-out round trip stays
+  where it was — before the next task starts — because there the connection is
+  poisoned even when more requests are queued.
+
+  Measured against a stub of the IdP: three idle minutes, zero connections,
+  where the same window used to open three.
+
+- **`set-kc-config` destroyed a running gobj.** It dropped the cached client
+  without stopping it first, which the framework reports as *"Destroying a
+  RUNNING gobj"*. It stops it now.
+
 - **`gobj_local_method()` matched a prefix, not the name.** The dispatcher
   compared with `strncasecmp()` over the length of the TABLE entry, so a
   gclass whose `LMETHOD` table held `do_it` and `do_it_result` answered BOTH
