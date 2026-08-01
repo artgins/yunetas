@@ -26,6 +26,28 @@
 
 ### Fixed
 
+- **`gobj_local_method()` matched a prefix, not the name.** The dispatcher
+  compared with `strncasecmp()` over the length of the TABLE entry, so a
+  gclass whose `LMETHOD` table held `do_it` and `do_it_result` answered BOTH
+  lookups with `do_it`: the second method was unreachable, and the job that
+  asked for it silently ran the first one again. It now compares the whole
+  name.
+
+  This is what kept `register-idp-user` from ever working. `C_AUTHZ` names its
+  jobs `kc_create_user` / `kc_create_user_result` and `kc_send_email` /
+  `kc_send_email_result`, so the create-user request went out twice and the
+  handler that reads the answer of Keycloak — the status, and the `Location`
+  header that carries the id of the new user — never ran. The task then failed
+  on an empty user id and answered the catch-all `kc_unavailable`, which reads
+  as an unreachable IdP. Verified end to end against a stub of the Keycloak
+  admin API: token, then 201 with `Location`, then `execute-actions-email`,
+  and the caller reads *"User registered"*.
+
+  BREAKING for a gclass that leaned on the prefix behavior: a lookup that used
+  to reach a shorter entry now answers *"internal method NOT EXIST"*. A sweep
+  of every `LMETHOD` table in this repo found exactly two prefix pairs, both in
+  `C_AUTHZ`, and both were the bug.
+
 - **A scalar answer was invisible in `ycommand` and `ybatch`.** Their display
   handled `data` only as an array or an object, so a command that answers with
   a string, a number or a boolean printed nothing at all — legal JSON, read by

@@ -4298,7 +4298,13 @@ PUBLIC json_t *gobj_local_method(
 
     lmt = gobj->gclass->lmt;
     while(lmt && lmt->lname != 0) {
-        if(strncasecmp(lmt->lname, lmethod, strlen(lmt->lname))==0) {
+        /*
+         *  Exact name, NOT a prefix. With strncasecmp() over the length of
+         *  the TABLE entry, a table holding "do_it" and "do_it_result"
+         *  answered both lookups with the first one: the second method was
+         *  unreachable and its job silently ran the first one again.
+         */
+        if(strcasecmp(lmt->lname, lmethod)==0) {
             if(lmt->lm) {
                 return (*lmt->lm)(gobj, lmethod, kw, src);
             }
