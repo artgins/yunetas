@@ -10,7 +10,7 @@ title: Yuneta Simplified
 
 ## *An Asynchronous Development Framework*
 
-**Current version: [7.9.6](https://github.com/artgins/yunetas/tree/7.9.6)**
+**Current version: [7.9.7](https://github.com/artgins/yunetas/tree/7.9.7)**
 
 *Documentation updated: 2026-08-01*
 :::
@@ -77,6 +77,6 @@ declared in one JSON file, and the shell materializes it.
 
 Open it on a phone as well as a desktop. The layouts change per breakpoint,
 which is the part that a screenshot cannot show. The source is
-[`kernel/js/gobj-ui/test-app/`](https://github.com/artgins/yunetas/tree/7.9.6/kernel/js/gobj-ui/test-app),
+[`kernel/js/gobj-ui/test-app/`](https://github.com/artgins/yunetas/tree/7.9.7/kernel/js/gobj-ui/test-app),
 and the design it demonstrates is in
 [SHELL.md](https://github.com/artgins/gobj-ui.js/blob/main/SHELL.md).

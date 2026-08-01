@@ -1357,8 +1357,12 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
         json_object_set_new(query, "data", jn_data);
     }
 
+    /*  The method and the resource, and nothing else.  The query carries
+     *  the `Authorization: Bearer <admin token>` header, and that token
+     *  opens manage-users over the whole realm until it expires: a trace
+     *  that is turned on to debug a request must not leave it in the log. */
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, query, "idp request: %s", p->op);
+        gobj_trace_msg(gobj, "idp request: %s %s %s", p->op, method, resource);
     }
 
     gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
@@ -1378,8 +1382,13 @@ PRIVATE json_t *kc_request_result(hgobj gobj, const char *lmethod, json_t *kw, h
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IDP_PENDING *p = dl_first(&priv->dl_pending);
 
+    /*  The status, and nothing else.  The body of a read is the account
+     *  data of the realm -- emails and names of people -- and a trace is
+     *  not the place for it. */
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, kw, "idp answer: %s", p? p->op : "?");
+        gobj_trace_msg(gobj, "idp answer: %s status %d",
+            p? p->op : "?",
+            (int)kw_get_int(gobj, kw, "response_status_code", -1, 0));
     }
 
     BOOL is_read = p && (strcmp(p->op, IDP_OP_LIST)==0 || strcmp(p->op, IDP_OP_GET)==0);

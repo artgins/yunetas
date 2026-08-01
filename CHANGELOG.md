@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.7
 
 ### Added
 
@@ -33,8 +33,12 @@
   checked before use: a `default_role` that does not exist creates the user
   with no role and logs an error, instead of failing in silence for ever.
 
-- **A `messages` trace level in `C_IDP_KEYCLOAK`**, which dumps the request and
-  the answer of each admin round trip.
+- **A `messages` trace level in `C_IDP_KEYCLOAK`**: the operation, the method,
+  the resource, and the status of the answer. Deliberately not the request and
+  not the body — the request carries the `Authorization: Bearer <admin token>`
+  header, which opens `manage-users` over the whole realm until it expires, and
+  the body of a read is the account data of the realm. A trace turned on to
+  debug a request must not leave either in the log.
 
 ### Changed
 
@@ -73,10 +77,13 @@
 
   **What operators must do.** Persistent attrs live in
   `<GCLASS>-<service>-persistent-attrs.json`, so what `set-kc-config` wrote for
-  `C_AUTHZ-authz` is not found by `C_IDP_KEYCLOAK-idp`. **Re-run
-  `set-kc-config` on every node after the upgrade**, or the first
-  `register-idp-user` answers `kc_unavailable`. The two permissions
-  (`register-idp-user`, `configure-kc`) moved with their commands and are now
+  `C_AUTHZ-authz` is not found by `C_IDP_KEYCLOAK-idp`, and the first
+  `register-idp-user` answers `kc_unavailable`. **Move the six `kc_*` keys to
+  the new file with the yuno stopped** — move, not copy: `C_AUTHZ` no longer
+  declares those attrs, so a key left behind logs *"GClass Attribute NOT
+  FOUND"* at every start. The recipe is in `YUNO_AUTH.md` §7.3; running
+  `set-kc-config` again also works, at the cost of the client secret on a
+  command line. The permissions moved with their commands and are now
   permissions of the `idp` service.
 
 - **New event `EV_IDP_USER_CREATED`, the seam between the two planes.** The
