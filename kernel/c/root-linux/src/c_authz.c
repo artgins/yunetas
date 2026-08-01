@@ -322,6 +322,13 @@ SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
 
+/*  Role linked to a user created from EV_IDP_USER_CREATED when the event
+ *  carries none.  Empty on purpose: the user then enters and can do
+ *  nothing, which is visible and safe.  No role can be hardcoded, because
+ *  the roles come from the initial_load of each realm and none is
+ *  guaranteed to exist.  Set it with `write-attr`, which persists it. */
+SDATA (DTP_STRING,  "default_role",     SDF_WR|SDF_PERSIST, "", "Role linked to a user provisioned from an IdP when none is given. Empty: no role"),
+
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber of output-events. Not a child gobj."),
@@ -4362,6 +4369,31 @@ PRIVATE int ac_idp_user_created(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         );
         KW_DECREF(kw)
         return -1;
+    }
+
+    /*  A caller that names no role gets the configured default, if any.
+     *  An unknown default is not silently ignored: it would create users
+     *  with no permission for ever and nobody would see why. */
+    if(empty_string(role)) {
+        const char *default_role = gobj_read_str_attr(gobj, "default_role");
+        if(!empty_string(default_role)) {
+            json_t *r = priv->gobj_treedb?
+                gobj_get_node(priv->gobj_treedb, "roles",
+                    json_pack("{s:s}", "id", default_role), 0, gobj) : NULL;
+            if(r) {
+                role = default_role;
+                JSON_DECREF(r)
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "default_role does not exist, user created without role",
+                    "default_role", "%s", default_role,
+                    "username",     "%s", username,
+                    NULL
+                );
+            }
+        }
     }
 
     /*  id=email, chosen role, NO local credentials — the IdP authenticates. */

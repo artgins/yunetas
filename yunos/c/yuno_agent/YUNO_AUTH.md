@@ -1044,21 +1044,32 @@ verifies the certificate against the system CA. For a private CA, or for
 mbedTLS, give it `ssl_trusted_certificate`. `kc_timeout_ms` (30000) is the
 watchdog of one round trip.
 
-**The authz gates.** These three commands call `gobj_user_has_authz`
-themselves, so they are enforced with `enable_command_authz` OFF (§4.5):
-`configure-kc` for `set-kc-config` and `view-kc-config`, and
-`register-idp-user` for the registration. The two permissions moved with the
-commands, so they belong to the service `idp` now. A role with permission `*`
-on service `*` passes both gates.
+**The authz gates.** Every command calls `gobj_user_has_authz` itself, so all
+of them are enforced with `enable_command_authz` OFF (§4.5). There are three
+permissions, and they belong to the service `idp`:
+
+| permission          | Gates                                                        |
+|---------------------|--------------------------------------------------------------|
+| `configure-kc`      | `set-kc-config`, `view-kc-config`                             |
+| `register-idp-user` | `register-idp-user`                                           |
+| `manage-idp-users`  | `list-idp-users`, `get-idp-user`, `update-idp-user`, `delete-idp-user`, `send-idp-user-actions` |
+
+Creating an account and deleting one are different permissions on purpose: an
+operator who registers people does not have to be able to delete them. A role
+with permission `*` on service `*` passes all three.
 
 **The error codes.** The answer carries a stable `error_code`:
 
 | `error_code`          | Cause                                                                             |
 |-----------------------|-----------------------------------------------------------------------------------|
-| `no_permission`       | The caller has no `configure-kc` or no `register-idp-user` authz                   |
+| `no_permission`       | The caller does not hold the permission the command needs                          |
 | `invalid_email`       | The `email` parameter is empty, or it has no `@`                                   |
+| `invalid_user_id`     | The command needs `user_id` and it is empty                                        |
+| `nothing_to_update`   | `update-idp-user` was called with no field to change                               |
+| `unknown_role`        | The `role` of `register-idp-user` is not in `treedb_authzs`                        |
 | `kc_unavailable`      | No configuration, or Keycloak is unreachable, or Keycloak answered 5xx             |
 | `kc_token_refused`    | Keycloak refused the client credentials (401 or 403): wrong secret, or no `manage-users` role |
+| `user_not_found`      | Keycloak answered 404: no account with that `user_id`                              |
 | `user_already_exists` | Keycloak answered 409                                                              |
 | `kc_validation_error` | Keycloak refused the data (4xx). The comment carries the Keycloak `errorMessage`   |
 | `kc_timeout`          | The round trip was longer than `kc_timeout_ms`                                     |
@@ -1073,6 +1084,82 @@ When the account is created, the result is 0. Then a `warning` field can carry
 thing: the Keycloak account exists, but the second half is incomplete.
 
 The recipe is §9.7.
+
+### 7.4 Manage the accounts
+
+`register-idp-user` creates one account. These five read and change what is
+already in the realm, so an operator does not have to open the Keycloak web
+console. All of them need the `manage-idp-users` permission, all of them answer
+asynchronously, and all of them go through the same queue and the same shared
+connection as the registration.
+
+| Command                 | Keycloak call                                             | Answers                          |
+|-------------------------|-----------------------------------------------------------|----------------------------------|
+| `list-idp-users`        | `GET /admin/realms/<realm>/users`                          | The page, as a list              |
+| `get-idp-user`          | `GET /admin/realms/<realm>/users/<id>`                     | One account                      |
+| `update-idp-user`       | `PUT /admin/realms/<realm>/users/<id>`                     | `{id}`                           |
+| `delete-idp-user`       | `DELETE /admin/realms/<realm>/users/<id>`                  | `{id}`                           |
+| `send-idp-user-actions` | `PUT .../users/<id>/execute-actions-email`                 | `{id}`                           |
+
+**`user_id` is the Keycloak uuid, and not the email.** Read it from
+`list-idp-users`, or from the `id` of the answer of `register-idp-user`. The
+parameter is `user_id` and not `id` because `command-yuno` reserves `id` for
+the yuno filter.
+
+The value is validated before it is used, and not only read: it goes into the
+path of the admin API, where a space breaks the request line and a `/` or a
+`..` walks to another endpoint of the realm. Only the unreserved characters of
+RFC 3986 are accepted, which is all a uuid needs; anything else answers
+`invalid_user_id`. The `search` of `list-idp-users` is percent-encoded for the
+same reason.
+
+**`list-idp-users` pages, and the page is bounded.** `first` and `max` are the
+Keycloak paging (default 50, ceiling 500), and `search` matches the username,
+the first and last name and the email. The ceiling is there because the realm
+is shared with every other product of the same organization: one call must not
+be able to pull all of it. `brief=0` asks for the full representation.
+
+**`update-idp-user` changes only what you pass.** `firstName`, `lastName`,
+`enabled`, `emailVerified` and `requiredActions`; a field you do not pass stays
+as it is. The booleans accept `true`/`false` from a SPA and `1`/`0` from
+`command-yuno`, which forwards parameters without coercing them. Send
+`requiredActions=[]` to clear the pending actions of an account.
+
+**`delete-idp-user` deletes in the IdP only.** The `treedb_authzs` record stays
+where it is. The two planes are deleted one by one on purpose, so nobody loses
+an authorization record to a cascade they did not ask for; use `delete-user` of
+the `authz` service for the other half.
+
+**`send-idp-user-actions` is the invitation email again**, with the actions you
+choose. The default is `UPDATE_PASSWORD`; `VERIFY_EMAIL` is the other common
+one. It needs the same `kc_email_client_id` and `kc_redirect_uri` as the
+registration, and the realm needs SMTP.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=idp command=list-idp-users search=alice max=10'
+ycommand -c 'command-yuno id=<yuno> service=idp command=update-idp-user user_id=<uuid> enabled=0'
+ycommand -c 'command-yuno id=<yuno> service=idp command=send-idp-user-actions user_id=<uuid> actions=VERIFY_EMAIL'
+```
+
+### 7.5 The default role of a provisioned user
+
+`C_AUTHZ` has the persistent attr `default_role`. When it reacts to
+`EV_IDP_USER_CREATED` and the event carries no role, it links this one. Empty
+is the default, and then the user enters and can do nothing, which is visible
+and safe.
+
+No role can be hardcoded, because the roles come from the `initial_load` of
+each realm and none is guaranteed to exist. For the same reason the attr is
+checked before it is used: a `default_role` that is not in `treedb_authzs`
+creates the user with no role and logs an error, instead of failing in silence
+for ever.
+
+`write-attr` belongs to the yuno, not to the authz service, so it is addressed
+to `__yuno__` and names the gobj to write. It persists what it writes.
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=write-attr gobj=authz attribute=default_role value=<role_id>'
+```
 
 ---
 

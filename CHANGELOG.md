@@ -2,7 +2,49 @@
 
 ## Unreleased
 
+### Added
+
+- **Five commands to manage the accounts of the IdP**, so an operator does not
+  have to open the Keycloak web console: `list-idp-users` (search + paging),
+  `get-idp-user`, `update-idp-user` (name, `enabled`, `emailVerified`,
+  `requiredActions`), `delete-idp-user` and `send-idp-user-actions` (the
+  invitation email again, with the actions you choose). All on the `idp`
+  service, all asynchronous, all through the same bounded queue and the same
+  shared connection as the registration.
+
+  They share one gated permission, **`manage-idp-users`**, kept apart from
+  `register-idp-user` on purpose: an operator who registers people does not
+  have to be able to delete them.
+
+  **`delete-idp-user` deletes in the IdP only.** The `treedb_authzs` record
+  stays. The two planes are deleted one by one so nobody loses an
+  authorization record to a cascade they did not ask for; `delete-user` of the
+  `authz` service is the other half.
+
+  **The page is bounded** (default 50, ceiling 500). The realm is shared with
+  every other product of the organization, so one call must not be able to pull
+  all of it.
+
+- **`default_role` in `C_AUTHZ`** (persistent, writable). When it reacts to
+  `EV_IDP_USER_CREATED` and the event carries no role, it links this one. Empty
+  by default, so the user enters and can do nothing, which is visible and safe.
+  No role is hardcoded, because the roles come from the `initial_load` of each
+  realm and none is guaranteed to exist — and for the same reason the attr is
+  checked before use: a `default_role` that does not exist creates the user
+  with no role and logs an error, instead of failing in silence for ever.
+
+- **A `messages` trace level in `C_IDP_KEYCLOAK`**, which dumps the request and
+  the answer of each admin round trip.
+
 ### Changed
+
+- **The IdP request queue is generic.** `KC_PENDING` carried the fields of the
+  registration in the struct (`email`, `first_name`, `last_name`, `role`);
+  adding five operations that way would have been five copies of the same
+  shape. It is now `IDP_PENDING` with `{op, params}`, the job list is chosen
+  from `op`, and the five one-round-trip operations share one job pair instead
+  of five near-identical ones. A new operation is a case in two functions and
+  nothing else.
 
 - **BREAKING: IdP account provisioning leaves `C_AUTHZ` for `C_IDP_KEYCLOAK`.**
   `C_AUTHZ` answers one question — does this user hold this permission, against

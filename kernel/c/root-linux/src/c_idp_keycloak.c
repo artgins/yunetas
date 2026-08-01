@@ -2,11 +2,11 @@
  *          c_idp_keycloak.c
  *          IdpKeycloak GClass.
  *
- *          Provision accounts in a Keycloak identity provider.
+ *          Manage accounts in a Keycloak identity provider.
  *
  *          WHY THIS IS NOT IN C_AUTHZ.  C_AUTHZ answers one question:
  *          does this user hold this permission, against treedb_authzs.
- *          Creating accounts in an external identity provider is another
+ *          Managing accounts in an external identity provider is another
  *          responsibility, with other credentials (a confidential admin
  *          client with manage-users), another transport (C_PROT_HTTP_CL
  *          over C_TASK with its own queue) and other failure modes (the
@@ -14,7 +14,7 @@
  *          accident of how it was written, not by design.
  *
  *          ONE GCLASS PER IdP, COMMON VOCABULARY.  The commands are
- *          neutral (`register-idp-user`, not `register-kc-user`) and the
+ *          neutral (`list-idp-users`, not `list-kc-users`) and the
  *          service is instantiated as `idp`.  A second provider enters as
  *          a sibling gclass serving the same commands, chosen in
  *          configuration -- the ytls pattern with OpenSSL / mbedTLS.  No
@@ -27,6 +27,13 @@
  *          way -- the provisioner knows there is an authz plane to
  *          notify, and the authz plane knows of no provider.
  *
+ *          ONE REQUEST AT A TIME.  Every command becomes an IDP_PENDING
+ *          in a single queue, and one volatile C_TASK at a time drives it
+ *          through the one shared HTTP client.  The admin token is job 0
+ *          and is skipped while the cached one is fresh.  The queue is
+ *          bounded: a caller beyond IDP_MAX_PENDING is refused, it is
+ *          never made to wait without an answer.
+ *
  *          The deploy-specific values are configured at run time with
  *          set-kc-config (persistent attrs), never in code or in
  *          committed configuration.
@@ -37,6 +44,7 @@
 #include <string.h>
 #include <limits.h>
 #include <time.h>
+#include <ctype.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -54,29 +62,44 @@
  *              Constants
  ***************************************************************************/
 #define KC_TOKEN_SKEW_S         30      /* refresh the admin token this many seconds before expiry */
-#define KC_MAX_PENDING          32      /* reject register-idp-user beyond this queue depth */
+#define IDP_MAX_PENDING         32      /* refuse a request beyond this queue depth */
+#define IDP_DEFAULT_PAGE        50      /* users per page when the caller gives no max */
+#define IDP_MAX_PAGE            500     /* ceiling, so one call cannot pull a whole realm */
+
+/*
+ *  The operations.  Every command becomes one of these; the job list and
+ *  the request are chosen from it.
+ */
+#define IDP_OP_CREATE   "create"
+#define IDP_OP_LIST     "list"
+#define IDP_OP_GET      "get"
+#define IDP_OP_UPDATE   "update"
+#define IDP_OP_DELETE   "delete"
+#define IDP_OP_ACTIONS  "actions"
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
 /*
- *  One queued register-idp-user request waiting for its Keycloak
- *  round-trips.  The requester is re-resolved by name at answer time so
- *  a client that disconnected mid-flight is never dereferenced.
+ *  One queued request waiting for its Keycloak round-trips.  The
+ *  requester is re-resolved by name at answer time so a client that
+ *  disconnected mid-flight is never dereferenced.
+ *
+ *  `params` carries whatever the operation needs, so a new operation adds
+ *  a job list and a case, never a field to this struct.
  */
-typedef struct _KC_PENDING {
+typedef struct _IDP_PENDING {
     DL_ITEM_FIELDS
-    char    email[256];
-    char    first_name[128];
-    char    last_name[128];
-    char    role[128];          /* legacy role id, forwarded to the authz plane ("" = none) */
-    char    user_id[128];       /* KC user id, from the 201 Location header */
+    char    op[32];             /* IDP_OP_* */
+    json_t *params;             /* operation parameters (owned) */
+    char    user_id[128];       /* IdP user id: given by the caller, or read from a 201 */
     char    req_service[80];    /* input gate service of the requester */
     char    req_channel[80];    /* requester channel name */
     json_t *kw_request;         /* original request kw (incref), for answer metadata */
-    BOOL    authz_ok;           /* the authz plane recorded the user */
+    json_t *result_data;        /* payload of the answer (owned), for the read operations */
+    BOOL    authz_ok;           /* every plane recorded the created user */
     BOOL    answered;           /* answer already sent */
-} KC_PENDING;
+} IDP_PENDING;
 
 /***************************************************************************
  *              Prototypes
@@ -84,8 +107,16 @@ typedef struct _KC_PENDING {
 PRIVATE json_t *kc_config_snapshot(hgobj gobj);
 PRIVATE BOOL ensure_kc_client(hgobj gobj);
 PRIVATE void process_next_kc(hgobj gobj);
-PRIVATE void kc_answer(hgobj gobj, KC_PENDING *p, int result,
+PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
     json_t *jn_comment, json_t *jn_data, const char *warning);
+PRIVATE json_t *queue_request(hgobj gobj, const char *op, const char *user_id,
+    json_t *params, json_t *kw, hgobj src);
+PRIVATE void free_pending(IDP_PENDING *p);
+PRIVATE BOOL kc_http_failed(hgobj gobj, IDP_PENDING *p, json_t *kw, int expected);
+PRIVATE void url_encode(const char *src, char *bf, int bflen);
+PRIVATE int param_tribool(hgobj gobj, json_t *kw, const char *name);
+PRIVATE json_t *param_array(hgobj gobj, json_t *kw, const char *name);
+PRIVATE const char *param_user_id(hgobj gobj, json_t *kw);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -95,6 +126,11 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_register_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_idp_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_get_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_update_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_send_idp_user_actions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
 PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
@@ -102,6 +138,8 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
 PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
 PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
 PRIVATE json_t *kc_send_email_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
+PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
+PRIVATE json_t *kc_request_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
 
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
@@ -135,7 +173,47 @@ PRIVATE sdata_desc_t pm_register_idp_user[] = {
 SDATAPM (DTP_STRING,    "email",        SDF_REQUIRED,   0,      "Email (used as username)"),
 SDATAPM (DTP_STRING,    "firstName",    0,              "",     "First name"),
 SDATAPM (DTP_STRING,    "lastName",     0,              "",     "Last name"),
-SDATAPM (DTP_STRING,    "role",         0,              "",     "LEGACY: role id to link in treedb_authzs. Roles belong to the authorization plane; new callers do not send it"),
+SDATAPM (DTP_STRING,    "role",         0,              "",     "LEGACY: role id to link in treedb_authzs. Roles belong to the authorization plane; new callers leave it empty and the authz plane applies its default_role"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_list_idp_users[] = {
+/*-PM----type-----------name------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "search",       0,      "",     "Match against username, first/last name and email. Empty lists all"),
+SDATAPM (DTP_INTEGER,   "first",        0,      "0",    "Index of the first result (paging)"),
+SDATAPM (DTP_INTEGER,   "max",          0,      "0",    "Results per page (default 50, ceiling 500)"),
+SDATAPM (DTP_STRING,    "brief",        0,      "1",    "1: the short representation (no attributes/credentials). 0: the full one"),
+SDATA_END()
+};
+
+/*  No SDF_REQUIRED on `user_id`: through `ycommand command-yuno` a
+ *  required parameter is forwarded without type coercion, so the handler
+ *  validates it. And it is `user_id` and not `id` because `command-yuno`
+ *  reserves `id` for the yuno filter. */
+PRIVATE sdata_desc_t pm_idp_user[] = {
+/*-PM----type-----------name------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "user_id",      0,      "",     "IdP user id (the uuid Keycloak gives, not the email)"),
+SDATAPM (DTP_STRING,    "id",           0,      "",     "Alias of user_id. Unusable through `command-yuno`, which reserves id"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_update_idp_user[] = {
+/*-PM----type-------------name---------------flag--default-description---------- */
+SDATAPM (DTP_STRING,    "user_id",          0,      "",     "IdP user id (the uuid Keycloak gives, not the email)"),
+SDATAPM (DTP_STRING,    "id",               0,      "",     "Alias of user_id. Unusable through `command-yuno`, which reserves id"),
+SDATAPM (DTP_STRING,    "firstName",        0,      0,      "First name. Absent leaves it unchanged"),
+SDATAPM (DTP_STRING,    "lastName",         0,      0,      "Last name. Absent leaves it unchanged"),
+SDATAPM (DTP_STRING,    "enabled",          0,      0,      "1/0. Absent leaves it unchanged. A disabled account cannot log in"),
+SDATAPM (DTP_STRING,    "emailVerified",    0,      0,      "1/0. Absent leaves it unchanged"),
+SDATAPM (DTP_STRING,    "requiredActions",  0,      0,      "JSON list, or one action. Absent leaves it unchanged; [] clears the pending actions"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_send_actions[] = {
+/*-PM----type-----------name------------flag----default-description---------- */
+SDATAPM (DTP_STRING,    "user_id",      0,      "",     "IdP user id (the uuid Keycloak gives, not the email)"),
+SDATAPM (DTP_STRING,    "id",           0,      "",     "Alias of user_id. Unusable through `command-yuno`, which reserves id"),
+SDATAPM (DTP_STRING,    "actions",      0,      0,      "JSON list, or one action. Default ['UPDATE_PASSWORD']. E.g. VERIFY_EMAIL"),
 SDATA_END()
 };
 
@@ -146,9 +224,15 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,            cmd_help,             "Command's help"),
 SDATACM (DTP_SCHEMA,    "authzs",           0,      pm_authzs,          cmd_authzs,           "Authorization's help"),
 
-SDATACM2(DTP_SCHEMA,    "set-kc-config",  SDF_AUTHZ_X,  0,  pm_set_kc_config,    cmd_set_kc_config,    "Configure & persist the Keycloak admin connection. Only the params you pass are updated."),
-SDATACM2(DTP_SCHEMA,    "view-kc-config", SDF_AUTHZ_X,  0,  0,                   cmd_view_kc_config,   "Show the persisted Keycloak admin config (secret masked)."),
-SDATACM2(DTP_SCHEMA,    "register-idp-user", SDF_AUTHZ_X,0, pm_register_idp_user,cmd_register_idp_user,"Register a user in the IdP; the user gets an email to set their password. Publishes EV_IDP_USER_CREATED so each plane records it."),
+/*-CMD2--type-----------name-------------------flag---------alias-items----------------json_fn---------------------description--*/
+SDATACM2(DTP_SCHEMA,    "set-kc-config",        SDF_AUTHZ_X, 0,   pm_set_kc_config,      cmd_set_kc_config,        "Configure & persist the Keycloak admin connection. Only the params you pass are updated."),
+SDATACM2(DTP_SCHEMA,    "view-kc-config",       SDF_AUTHZ_X, 0,   0,                     cmd_view_kc_config,       "Show the persisted Keycloak admin config (secret masked)."),
+SDATACM2(DTP_SCHEMA,    "register-idp-user",    SDF_AUTHZ_X, 0,   pm_register_idp_user,  cmd_register_idp_user,    "Create an account in the IdP; the user gets an email to set their password. Publishes EV_IDP_USER_CREATED so each plane records it."),
+SDATACM2(DTP_SCHEMA,    "list-idp-users",       SDF_AUTHZ_X, 0,   pm_list_idp_users,     cmd_list_idp_users,       "List the accounts of the realm, with search and paging."),
+SDATACM2(DTP_SCHEMA,    "get-idp-user",         SDF_AUTHZ_X, 0,   pm_idp_user,           cmd_get_idp_user,         "Read one account of the realm."),
+SDATACM2(DTP_SCHEMA,    "update-idp-user",      SDF_AUTHZ_X, 0,   pm_update_idp_user,    cmd_update_idp_user,      "Change name, enabled, emailVerified or the pending actions of an account."),
+SDATACM2(DTP_SCHEMA,    "delete-idp-user",      SDF_AUTHZ_X, 0,   pm_idp_user,           cmd_delete_idp_user,      "Delete an account from the IdP. The local authz record is NOT touched."),
+SDATACM2(DTP_SCHEMA,    "send-idp-user-actions",SDF_AUTHZ_X, 0,   pm_send_actions,       cmd_send_idp_user_actions,"Email the user a link to run required actions (set the password, verify the email)."),
 SDATA_END()
 };
 
@@ -158,7 +242,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR---type---------name---------------------flag---------default--description---------- */
 SDATA (DTP_STRING,  "kc_base_url",           SDF_PERSIST, "",   "Keycloak base URL for the admin REST API (set via set-kc-config)"),
-SDATA (DTP_STRING,  "kc_realm",              SDF_PERSIST, "",   "Keycloak realm where users are created"),
+SDATA (DTP_STRING,  "kc_realm",              SDF_PERSIST, "",   "Keycloak realm where the accounts live"),
 SDATA (DTP_STRING,  "kc_admin_client_id",    SDF_PERSIST, "",   "Confidential admin client_id (client_credentials, role manage-users)"),
 SDATA (DTP_STRING,  "kc_admin_client_secret",SDF_PERSIST, "",   "Admin client secret (persisted; never in code or committed config)"),
 SDATA (DTP_STRING,  "kc_redirect_uri",       SDF_PERSIST, "",   "redirect_uri for the set-password invite email"),
@@ -174,6 +258,13 @@ SDATA_END()
 /*---------------------------------------------*
  *      GClass trace levels
  *---------------------------------------------*/
+enum {
+    TRACE_MESSAGES  = 0x0001,
+};
+PRIVATE const trace_level_t s_user_trace_level[16] = {
+{"messages",    "Trace the requests and answers of the IdP admin API"},
+{0, 0},
+};
 
 /*---------------------------------------------*
  *      GClass authz levels
@@ -182,7 +273,8 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
-SDATAAUTHZ (DTP_SCHEMA, "register-idp-user", 0,      0,      0,  "Permission to register a user in the IdP"),
+SDATAAUTHZ (DTP_SCHEMA, "register-idp-user", 0,      0,      0,  "Permission to create an account in the IdP"),
+SDATAAUTHZ (DTP_SCHEMA, "manage-idp-users",  0,      0,      0,  "Permission to list, read, change and delete accounts of the IdP"),
 SDATAAUTHZ (DTP_SCHEMA, "configure-kc",      0,      0,      0,  "Permission to read/change the Keycloak admin config"),
 SDATA_END()
 };
@@ -192,14 +284,14 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     /*  One shared outbound HTTP client to Keycloak, serialized through
-     *  dl_kc_pending and driven by a volatile multi-job C_TASK. */
+     *  dl_pending and driven by a volatile multi-job C_TASK. */
     hgobj       gobj_kc;                /* C_PROT_HTTP_CL to kc_base_url */
     char        kc_name[NAME_MAX];      /* base name for kc gobjs */
     char        kc_token[8192];         /* cached admin bearer token ("" = none) */
     time_t      kc_token_expiry;        /* epoch s; refresh when now >= expiry - skew */
     BOOL        kc_processing;          /* one KC round-trip task in flight */
     hgobj       gobj_kc_task;           /* current volatile C_TASK */
-    dl_list_t   dl_kc_pending;          /* queued KC_PENDING requests */
+    dl_list_t   dl_pending;             /* queued IDP_PENDING requests */
 } PRIVATE_DATA;
 
 
@@ -220,9 +312,9 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*  The outbound HTTP client is created lazily by ensure_kc_client() on
-     *  the first register-idp-user, so it picks up the kc_base_url
-     *  configured at run time (set-kc-config, persistent). */
-    dl_init(&priv->dl_kc_pending, gobj);
+     *  the first request, so it picks up the kc_base_url configured at run
+     *  time (set-kc-config, persistent). */
+    dl_init(&priv->dl_pending, gobj);
     snprintf(priv->kc_name, sizeof(priv->kc_name), "%s-kc", gobj_name(gobj));
 
     /*
@@ -245,12 +337,11 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*  Drain any never-answered register-idp-user requests. */
-    KC_PENDING *p;
-    while((p = dl_first(&priv->dl_kc_pending))) {
-        dl_delete(&priv->dl_kc_pending, p, 0);
-        JSON_DECREF(p->kw_request)
-        GBMEM_FREE(p)
+    /*  Drain any never-answered request. */
+    IDP_PENDING *p;
+    while((p = dl_first(&priv->dl_pending))) {
+        dl_delete(&priv->dl_pending, p, 0);
+        free_pending(p);
     }
 }
 
@@ -361,7 +452,7 @@ PRIVATE json_t *cmd_set_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     gobj_save_persistent_attrs(gobj, jn_save);  // owned
 
     /*  Drop the cached client + token so the new endpoint/credentials take
-     *  effect on the next register-idp-user (skip if a round-trip is live).
+     *  effect on the next request (skip if a round-trip is live).
      *  Stop before destroy: the client can be running (it holds the socket to
      *  the IdP), and destroying it running logs "Destroying a RUNNING gobj". */
     if(priv->gobj_kc && !priv->kc_processing) {
@@ -393,8 +484,8 @@ PRIVATE json_t *cmd_view_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgob
 }
 
 /***************************************************************************
- *  cmd register-idp-user — create the user in the IdP and let every plane
- *  record it (deferred async answer).
+ *  cmd register-idp-user — create the account and let every plane record
+ *  it (deferred async answer).
  *
  *  The legacy `role` is validated by asking the authorization plane, which
  *  owns the roles: keeping the check here means an unknown role is refused
@@ -402,8 +493,6 @@ PRIVATE json_t *cmd_view_kc_config(hgobj gobj, const char *cmd, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE json_t *cmd_register_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(!gobj_user_has_authz(gobj, "register-idp-user", kw_incref(kw), src)) {
         return msg_iev_build_response(gobj, -403,
             json_sprintf("No permission to 'register-idp-user'"),
@@ -429,35 +518,172 @@ PRIVATE json_t *cmd_register_idp_user(hgobj gobj, const char *cmd, json_t *kw, h
                 0, json_pack("{s:s}", "error_code", "unknown_role"), kw);
         }
     }
-    if((int)dl_size(&priv->dl_kc_pending) >= KC_MAX_PENDING) {
+
+    json_t *params = json_pack("{s:s, s:s, s:s, s:s}",
+        "email",      email,
+        "first_name", kw_get_str(gobj, kw, "firstName", "", 0),
+        "last_name",  kw_get_str(gobj, kw, "lastName", "", 0),
+        "role",       role
+    );
+    return queue_request(gobj, IDP_OP_CREATE, "", params, kw, src);
+}
+
+/***************************************************************************
+ *  cmd list-idp-users — one page of the realm accounts.
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_idp_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!gobj_user_has_authz(gobj, "manage-idp-users", kw_incref(kw), src)) {
+        return msg_iev_build_response(gobj, -403,
+            json_sprintf("No permission to 'manage-idp-users'"),
+            0, json_pack("{s:s}", "error_code", "no_permission"), kw);
+    }
+
+    /*  Paging is bounded on purpose: the realm is shared with every other
+     *  product, so one call must not be able to pull all of it. */
+    json_int_t first = kw_get_int(gobj, kw, "first", 0, KW_WILD_NUMBER);
+    json_int_t max   = kw_get_int(gobj, kw, "max", 0, KW_WILD_NUMBER);
+    if(first < 0) {
+        first = 0;
+    }
+    if(max <= 0) {
+        max = IDP_DEFAULT_PAGE;
+    }
+    if(max > IDP_MAX_PAGE) {
+        max = IDP_MAX_PAGE;
+    }
+    int brief = param_tribool(gobj, kw, "brief");
+
+    json_t *params = json_pack("{s:s, s:I, s:I, s:b}",
+        "search", kw_get_str(gobj, kw, "search", "", 0),
+        "first",  (json_int_t)first,
+        "max",    (json_int_t)max,
+        "brief",  (brief != 0)? 1 : 0   /* absent (-1) means brief */
+    );
+    return queue_request(gobj, IDP_OP_LIST, "", params, kw, src);
+}
+
+/***************************************************************************
+ *  cmd get-idp-user — one account.
+ ***************************************************************************/
+PRIVATE json_t *cmd_get_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!gobj_user_has_authz(gobj, "manage-idp-users", kw_incref(kw), src)) {
+        return msg_iev_build_response(gobj, -403,
+            json_sprintf("No permission to 'manage-idp-users'"),
+            0, json_pack("{s:s}", "error_code", "no_permission"), kw);
+    }
+
+    const char *user_id = param_user_id(gobj, kw);
+    if(empty_string(user_id)) {
+        return msg_iev_build_response(gobj, -1, json_sprintf("What user_id?"),
+            0, json_pack("{s:s}", "error_code", "invalid_user_id"), kw);
+    }
+    return queue_request(gobj, IDP_OP_GET, user_id, json_object(), kw, src);
+}
+
+/***************************************************************************
+ *  cmd update-idp-user — change what an operator can change.
+ *
+ *  Only the fields the caller passed travel, so an absent field leaves the
+ *  account as it is.  Booleans arrive as a JSON boolean from a SPA and as
+ *  a string through `command-yuno`, which coerces nothing; param_tribool()
+ *  reads both and tells "absent" from "false".
+ ***************************************************************************/
+PRIVATE json_t *cmd_update_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!gobj_user_has_authz(gobj, "manage-idp-users", kw_incref(kw), src)) {
+        return msg_iev_build_response(gobj, -403,
+            json_sprintf("No permission to 'manage-idp-users'"),
+            0, json_pack("{s:s}", "error_code", "no_permission"), kw);
+    }
+
+    const char *user_id = param_user_id(gobj, kw);
+    if(empty_string(user_id)) {
+        return msg_iev_build_response(gobj, -1, json_sprintf("What user_id?"),
+            0, json_pack("{s:s}", "error_code", "invalid_user_id"), kw);
+    }
+
+    json_t *body = json_object();
+    const char *first_name = kw_get_str(gobj, kw, "firstName", 0, 0);
+    if(first_name) {
+        json_object_set_new(body, "firstName", json_string(first_name));
+    }
+    const char *last_name = kw_get_str(gobj, kw, "lastName", 0, 0);
+    if(last_name) {
+        json_object_set_new(body, "lastName", json_string(last_name));
+    }
+    int enabled = param_tribool(gobj, kw, "enabled");
+    if(enabled >= 0) {
+        json_object_set_new(body, "enabled", json_boolean(enabled));
+    }
+    int email_verified = param_tribool(gobj, kw, "emailVerified");
+    if(email_verified >= 0) {
+        json_object_set_new(body, "emailVerified", json_boolean(email_verified));
+    }
+    json_t *required = param_array(gobj, kw, "requiredActions");
+    if(required) {
+        json_object_set_new(body, "requiredActions", required);
+    }
+
+    if(json_object_size(body) == 0) {
+        JSON_DECREF(body)
         return msg_iev_build_response(gobj, -1,
-            json_sprintf("Server busy, retry in a moment"),
-            0, json_pack("{s:s}", "error_code", "kc_busy"), kw);
+            json_sprintf("Nothing to update"),
+            0, json_pack("{s:s}", "error_code", "nothing_to_update"), kw);
     }
 
-    KC_PENDING *p = GBMEM_MALLOC(sizeof(KC_PENDING));
-    if(!p) {
-        return msg_iev_build_response(gobj, -1, json_sprintf("Out of memory"),
-            0, json_pack("{s:s}", "error_code", "kc_unavailable"), kw);
+    return queue_request(gobj, IDP_OP_UPDATE, user_id,
+        json_pack("{s:o}", "body", body), kw, src);
+}
+
+/***************************************************************************
+ *  cmd delete-idp-user — remove the account from the IdP.
+ *
+ *  The local authz record is NOT touched: the two planes are deleted on
+ *  purpose one by one, so nobody loses an authorization record to a
+ *  cascade they did not ask for.  Use `delete-user` of the authz service
+ *  for the other half.
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_idp_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!gobj_user_has_authz(gobj, "manage-idp-users", kw_incref(kw), src)) {
+        return msg_iev_build_response(gobj, -403,
+            json_sprintf("No permission to 'manage-idp-users'"),
+            0, json_pack("{s:s}", "error_code", "no_permission"), kw);
     }
-    memset(p, 0, sizeof(*p));
-    snprintf(p->email,      sizeof(p->email),      "%s", email);
-    snprintf(p->first_name, sizeof(p->first_name), "%s", kw_get_str(gobj, kw, "firstName", "", 0));
-    snprintf(p->last_name,  sizeof(p->last_name),  "%s", kw_get_str(gobj, kw, "lastName", "", 0));
-    snprintf(p->role,       sizeof(p->role),       "%s", role);
 
-    json_t *iev_stack = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
-    snprintf(p->req_service, sizeof(p->req_service), "%s",
-        iev_stack? kw_get_str(gobj, iev_stack, "input_service", "", 0) : "");
-    snprintf(p->req_channel, sizeof(p->req_channel), "%s",
-        iev_stack? kw_get_str(gobj, iev_stack, "input_channel", "", 0) : "");
+    const char *user_id = param_user_id(gobj, kw);
+    if(empty_string(user_id)) {
+        return msg_iev_build_response(gobj, -1, json_sprintf("What user_id?"),
+            0, json_pack("{s:s}", "error_code", "invalid_user_id"), kw);
+    }
+    return queue_request(gobj, IDP_OP_DELETE, user_id, json_object(), kw, src);
+}
 
-    p->kw_request = json_incref(kw);
-    dl_add(&priv->dl_kc_pending, p);
-    process_next_kc(gobj);
+/***************************************************************************
+ *  cmd send-idp-user-actions — email the user a link to run the actions.
+ ***************************************************************************/
+PRIVATE json_t *cmd_send_idp_user_actions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!gobj_user_has_authz(gobj, "manage-idp-users", kw_incref(kw), src)) {
+        return msg_iev_build_response(gobj, -403,
+            json_sprintf("No permission to 'manage-idp-users'"),
+            0, json_pack("{s:s}", "error_code", "no_permission"), kw);
+    }
 
-    KW_DECREF(kw)
-    return 0;  /* async — answered later by kc_answer */
+    const char *user_id = param_user_id(gobj, kw);
+    if(empty_string(user_id)) {
+        return msg_iev_build_response(gobj, -1, json_sprintf("What user_id?"),
+            0, json_pack("{s:s}", "error_code", "invalid_user_id"), kw);
+    }
+
+    json_t *actions = param_array(gobj, kw, "actions");
+    if(!actions) {
+        actions = json_pack("[s]", "UPDATE_PASSWORD");
+    }
+    return queue_request(gobj, IDP_OP_ACTIONS, user_id,
+        json_pack("{s:o}", "actions", actions), kw, src);
 }
 
 
@@ -469,6 +695,184 @@ PRIVATE json_t *cmd_register_idp_user(hgobj gobj, const char *cmd, json_t *kw, h
 
 
 
+
+/***************************************************************************
+ *  Free one pending and everything it owns.
+ ***************************************************************************/
+PRIVATE void free_pending(IDP_PENDING *p)
+{
+    JSON_DECREF(p->params)
+    JSON_DECREF(p->kw_request)
+    JSON_DECREF(p->result_data)
+    GBMEM_FREE(p)
+}
+
+/***************************************************************************
+ *  Percent-encode one query value.
+ *
+ *  The search text is typed by an operator: a space in it breaks the
+ *  request line, and an `&` adds a query parameter of its own.  The
+ *  framework has no encoder yet, so this one is local and minimal —
+ *  everything that is not unreserved (RFC 3986) is escaped.
+ ***************************************************************************/
+PRIVATE void url_encode(const char *src, char *bf, int bflen)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    int j = 0;
+
+    for(int i = 0; src && src[i] && j < bflen - 4; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if(isalnum(c) || c=='-' || c=='_' || c=='.' || c=='~') {
+            bf[j++] = (char)c;
+        } else {
+            bf[j++] = '%';
+            bf[j++] = hex[(c >> 4) & 0xF];
+            bf[j++] = hex[c & 0xF];
+        }
+    }
+    bf[j] = 0;
+}
+
+/***************************************************************************
+ *  The `user_id` of a command, with `id` as the alias.
+ *
+ *  `command-yuno` reserves `id` for the yuno filter, so a caller that goes
+ *  through it can only use `user_id`; the alias is for a direct caller.
+ *
+ *  It is VALIDATED, and not only read: this value is written into the path
+ *  of the admin API.  A space breaks the request line, and a `/` or a `..`
+ *  walks to another admin endpoint of the realm -- the caller already
+ *  holds manage-idp-users, but that permission is over accounts, not over
+ *  the whole admin API.  A Keycloak id is a uuid, so the unreserved set of
+ *  RFC 3986 is all it ever needs.  Returns "" when it is not usable, and
+ *  the command then answers invalid_user_id.
+ ***************************************************************************/
+PRIVATE const char *param_user_id(hgobj gobj, json_t *kw)
+{
+    const char *user_id = kw_get_str(gobj, kw, "user_id", "", 0);
+    if(empty_string(user_id)) {
+        user_id = kw_get_str(gobj, kw, "id", "", 0);
+    }
+    if(empty_string(user_id)) {
+        return "";
+    }
+    if(strlen(user_id) >= 128) {
+        return "";
+    }
+    for(const char *pc = user_id; *pc; pc++) {
+        unsigned char c = (unsigned char)*pc;
+        if(!isalnum(c) && c!='-' && c!='_' && c!='.' && c!='~') {
+            return "";
+        }
+    }
+    return user_id;
+}
+
+/***************************************************************************
+ *  A parameter that is true, false, or absent.
+ *
+ *  Returns 1, 0 or -1.  A SPA sends a JSON boolean and `command-yuno`
+ *  sends a string, because it forwards parameters without coercing them;
+ *  both have to work, and "absent" must not read as "false".
+ ***************************************************************************/
+PRIVATE int param_tribool(hgobj gobj, json_t *kw, const char *name)
+{
+    json_t *v = kw_get_dict_value(gobj, kw, name, NULL, 0);
+    if(!v || json_is_null(v)) {
+        return -1;
+    }
+    if(json_is_boolean(v)) {
+        return json_is_true(v)? 1 : 0;
+    }
+    if(json_is_integer(v)) {
+        return json_integer_value(v)? 1 : 0;
+    }
+    if(json_is_string(v)) {
+        const char *s = json_string_value(v);
+        if(empty_string(s)) {
+            return -1;
+        }
+        return (strcasecmp(s, "1")==0 ||
+                strcasecmp(s, "true")==0 ||
+                strcasecmp(s, "yes")==0)? 1 : 0;
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  A list parameter, returned owned, or NULL when absent.
+ *
+ *  Accepts a real JSON list, a JSON list written as a string (that is what
+ *  `command-yuno` forwards), and a bare word, which becomes a one-element
+ *  list so `actions=VERIFY_EMAIL` works from the command line.
+ ***************************************************************************/
+PRIVATE json_t *param_array(hgobj gobj, json_t *kw, const char *name)
+{
+    json_t *v = kw_get_dict_value(gobj, kw, name, NULL, 0);
+    if(!v || json_is_null(v)) {
+        return NULL;
+    }
+    if(json_is_array(v)) {
+        return json_incref(v);
+    }
+    if(json_is_string(v)) {
+        const char *s = json_string_value(v);
+        if(empty_string(s)) {
+            return NULL;
+        }
+        json_t *jn = anystring2json(s, strlen(s), FALSE);
+        if(jn && json_is_array(jn)) {
+            return jn;
+        }
+        JSON_DECREF(jn)
+        return json_pack("[s]", s);
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Queue one request and kick the pipeline.  `params` is owned.
+ *
+ *  Returns 0, which means "answered later": every command of this gclass
+ *  is asynchronous, and kc_answer() delivers the answer.  A full queue is
+ *  refused right here instead of making the caller wait with no answer.
+ ***************************************************************************/
+PRIVATE json_t *queue_request(hgobj gobj, const char *op, const char *user_id,
+    json_t *params, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if((int)dl_size(&priv->dl_pending) >= IDP_MAX_PENDING) {
+        JSON_DECREF(params)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("Server busy, retry in a moment"),
+            0, json_pack("{s:s}", "error_code", "kc_busy"), kw);
+    }
+
+    IDP_PENDING *p = GBMEM_MALLOC(sizeof(IDP_PENDING));
+    if(!p) {
+        JSON_DECREF(params)
+        return msg_iev_build_response(gobj, -1, json_sprintf("Out of memory"),
+            0, json_pack("{s:s}", "error_code", "kc_unavailable"), kw);
+    }
+    memset(p, 0, sizeof(*p));
+    snprintf(p->op, sizeof(p->op), "%s", op);
+    snprintf(p->user_id, sizeof(p->user_id), "%s", user_id? user_id : "");
+    p->params = params;
+
+    json_t *iev_stack = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
+    snprintf(p->req_service, sizeof(p->req_service), "%s",
+        iev_stack? kw_get_str(gobj, iev_stack, "input_service", "", 0) : "");
+    snprintf(p->req_channel, sizeof(p->req_channel), "%s",
+        iev_stack? kw_get_str(gobj, iev_stack, "input_channel", "", 0) : "");
+
+    p->kw_request = json_incref(kw);
+    dl_add(&priv->dl_pending, p);
+    process_next_kc(gobj);
+
+    KW_DECREF(kw)
+    return 0;  /* async — answered later by kc_answer */
+}
 
 /***************************************************************************
  *  Lazily create the shared outbound HTTP client to Keycloak, reading the
@@ -536,11 +940,11 @@ PRIVATE json_t *kc_config_snapshot(hgobj gobj)
 }
 
 /***************************************************************************
- *  Deliver the deferred answer of a register-idp-user command.  The
- *  requester channel is re-resolved by name so a client that disconnected
- *  mid-flight is never dereferenced (mirrors the agent's async answers).
+ *  Deliver the deferred answer of a command.  The requester channel is
+ *  re-resolved by name so a client that disconnected mid-flight is never
+ *  dereferenced (mirrors the agent's async answers).
  ***************************************************************************/
-PRIVATE void kc_answer(hgobj gobj, KC_PENDING *p, int result,
+PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
     json_t *jn_comment, json_t *jn_data, const char *warning)
 {
     if(p->answered) {
@@ -571,7 +975,70 @@ PRIVATE void kc_answer(hgobj gobj, KC_PENDING *p, int result,
 }
 
 /***************************************************************************
- *  Job 1 action: request an admin access_token (client_credentials).
+ *  Map a non-expected HTTP status to a stable error_code and answer.
+ *
+ *  `expected` 0 accepts any 2xx, which is what the generic operations
+ *  want: Keycloak answers 204 to the writes, but the exact code of a
+ *  successful write is not a contract worth pinning.  A caller that does
+ *  need one code passes it — the registration needs exactly 201, because
+ *  it reads the new id from the Location header of that answer.
+ *
+ *  Returns TRUE when it answered, so the caller stops the task.  A 401
+ *  also drops the cached token, so the next request asks for a fresh one
+ *  instead of replaying the refused one.
+ ***************************************************************************/
+PRIVATE BOOL kc_http_failed(hgobj gobj, IDP_PENDING *p, json_t *kw, int expected)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    if(expected > 0) {
+        if(status == expected) {
+            return FALSE;
+        }
+    } else if(status >= 200 && status < 300) {
+        return FALSE;
+    }
+
+    if(status == 401 || status == 403) {
+        priv->kc_token[0] = 0;
+        priv->kc_token_expiry = 0;
+        if(p) {
+            kc_answer(gobj, p, -1, json_sprintf("Keycloak rejected the admin token"),
+                json_pack("{s:s}", "error_code", "kc_token_refused"), NULL);
+        }
+        return TRUE;
+    }
+    if(status == 404) {
+        if(p) {
+            kc_answer(gobj, p, -1, json_sprintf("User not found: %s", p->user_id),
+                json_pack("{s:s}", "error_code", "user_not_found"), NULL);
+        }
+        return TRUE;
+    }
+    if(status == 409) {
+        if(p) {
+            kc_answer(gobj, p, -1, json_sprintf("Conflict in the IdP"),
+                json_pack("{s:s}", "error_code", "user_already_exists"), NULL);
+        }
+        return TRUE;
+    }
+
+    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+    const char *kc_msg = jn_body? kw_get_str(gobj, jn_body, "errorMessage", "", 0) : "";
+    const char *code = (status>=400 && status<500)? "kc_validation_error" : "kc_unavailable";
+    if(p) {
+        kc_answer(gobj, p, -1,
+            empty_string(kc_msg)?
+                json_sprintf("Keycloak %s failed (status %d)", p->op, status) :
+                json_sprintf("%s", kc_msg),
+            json_pack("{s:s}", "error_code", code), NULL);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Job 0 action: request an admin access_token (client_credentials).
  ***************************************************************************/
 PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
@@ -598,12 +1065,12 @@ PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
 }
 
 /***************************************************************************
- *  Job 1 result: cache the admin token (or answer error and stop).
+ *  Job 0 result: cache the admin token (or answer error and stop).
  ***************************************************************************/
 PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(status != 200) {
@@ -639,16 +1106,17 @@ PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj
 }
 
 /***************************************************************************
- *  Job 2 action: POST /admin/realms/<realm>/users.
+ *  Create job 1 action: POST /admin/realms/<realm>/users.
  ***************************************************************************/
 PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
     if(!p) {
         KW_DECREF(kw)
         STOP_TASK()
     }
+    const char *email = kw_get_str(gobj, p->params, "email", "", 0);
 
     char resource[256];
     snprintf(resource, sizeof(resource), "/admin/realms/%s/users",
@@ -660,11 +1128,11 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
         "Content-Type", "application/json", "Authorization", bearer);
     json_t *jn_data = json_pack(
         "{s:s, s:s, s:b, s:s, s:s, s:b, s:[s,s]}",
-        "username",        p->email,
-        "email",           p->email,
+        "username",        email,
+        "email",           email,
         "enabled",         1,
-        "firstName",       p->first_name,
-        "lastName",        p->last_name,
+        "firstName",       kw_get_str(gobj, p->params, "first_name", "", 0),
+        "lastName",        kw_get_str(gobj, p->params, "last_name", "", 0),
         "emailVerified",   0,
         "requiredActions", "UPDATE_PASSWORD", "VERIFY_EMAIL");
     json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
@@ -677,9 +1145,8 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
 }
 
 /***************************************************************************
- *  Job 2 result: on 201, read user id from Location and publish
- *  EV_IDP_USER_CREATED so every plane records the user; map every other
- *  status to a stable error_code.
+ *  Create job 1 result: on 201, read the user id from Location and publish
+ *  EV_IDP_USER_CREATED so every plane records the user.
  *
  *  gobj_publish_event() returns the sum of the subscriber returns, and an
  *  action returns 0 when it succeeded: a negative sum therefore means a
@@ -689,39 +1156,20 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
 PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
-
-    if(status == 401) {
-        priv->kc_token[0] = 0;
-        priv->kc_token_expiry = 0;
-        if(p) {
-            kc_answer(gobj, p, -1, json_sprintf("Keycloak rejected the admin token"),
-                json_pack("{s:s}", "error_code", "kc_token_refused"), NULL);
-        }
-        KW_DECREF(kw)
-        STOP_TASK()
-    }
     if(status == 409) {
         if(p) {
-            kc_answer(gobj, p, -1, json_sprintf("User already exists: %s", p->email),
+            kc_answer(gobj, p, -1,
+                json_sprintf("User already exists: %s",
+                    kw_get_str(gobj, p->params, "email", "", 0)),
                 json_pack("{s:s}", "error_code", "user_already_exists"), NULL);
         }
         KW_DECREF(kw)
         STOP_TASK()
     }
-    if(status != 201) {
-        json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-        const char *kc_msg = jn_body? kw_get_str(gobj, jn_body, "errorMessage", "", 0) : "";
-        const char *code = (status>=400 && status<500)? "kc_validation_error" : "kc_unavailable";
-        if(p) {
-            kc_answer(gobj, p, -1,
-                empty_string(kc_msg)?
-                    json_sprintf("Keycloak create-user failed (status %d)", status) :
-                    json_sprintf("%s", kc_msg),
-                json_pack("{s:s}", "error_code", code), NULL);
-        }
+    if(kc_http_failed(gobj, p, kw, 201)) {
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -739,10 +1187,10 @@ PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *k
             gobj,
             EV_IDP_USER_CREATED,
             json_pack("{s:s, s:s, s:s, s:s, s:s}",
-                "username",    p->email,
-                "first_name",  p->first_name,
-                "last_name",   p->last_name,
-                "role",        p->role,
+                "username",    kw_get_str(gobj, p->params, "email", "", 0),
+                "first_name",  kw_get_str(gobj, p->params, "first_name", "", 0),
+                "last_name",   kw_get_str(gobj, p->params, "last_name", "", 0),
+                "role",        kw_get_str(gobj, p->params, "role", "", 0),
                 "idp_user_id", p->user_id
             )
         );
@@ -754,12 +1202,12 @@ PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *k
 }
 
 /***************************************************************************
- *  Job 3 action: PUT execute-actions-email (set-password invite).
+ *  Create job 2 action: PUT execute-actions-email (set-password invite).
  ***************************************************************************/
 PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
     if(!p || empty_string(p->user_id)) {
         KW_DECREF(kw)
         STOP_TASK()
@@ -791,17 +1239,18 @@ PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj
 }
 
 /***************************************************************************
- *  Job 3 result (final): answer the caller.  The user already exists in
- *  the IdP, so this is always result 0 — a failed invite or a plane that
- *  could not record the user is reported as a non-fatal `warning`.
+ *  Create job 2 result (final): answer the caller.  The account already
+ *  exists in the IdP, so this is always result 0 — a failed invite or a
+ *  plane that could not record the user is a non-fatal `warning`.
  ***************************************************************************/
 PRIVATE json_t *kc_send_email_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(p) {
+        const char *email = kw_get_str(gobj, p->params, "email", "", 0);
         const char *warning = NULL;
         if(!p->authz_ok) {
             warning = "authz_write_failed";
@@ -809,8 +1258,8 @@ PRIVATE json_t *kc_send_email_result(hgobj gobj, const char *lmethod, json_t *kw
             warning = "email_send_failed";
         }
         kc_answer(gobj, p, 0,
-            json_sprintf("User registered: %s", p->email),
-            json_pack("{s:s, s:s}", "id", p->user_id, "email", p->email),
+            json_sprintf("User registered: %s", email),
+            json_pack("{s:s, s:s}", "id", p->user_id, "email", email),
             warning);
     }
 
@@ -819,29 +1268,191 @@ PRIVATE json_t *kc_send_email_result(hgobj gobj, const char *lmethod, json_t *kw
 }
 
 /***************************************************************************
- *  Launch the next queued register-idp-user (serialized through the one
- *  shared KC connection).  Token job is skipped when a fresh token cached.
+ *  The one-round-trip operations: list, get, update, delete, actions.
+ *
+ *  They differ only in method, resource and body, so they share one job
+ *  pair instead of five near-identical ones.  A new operation is a case
+ *  here and a case in kc_request_result(), and nothing else.
+ ***************************************************************************/
+PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
+    if(!p) {
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    const char *realm = gobj_read_str_attr(gobj, "kc_realm");
+    char bearer[8300];
+    snprintf(bearer, sizeof(bearer), "Bearer %s", priv->kc_token);
+    json_t *jn_headers = json_pack("{s:s, s:s}",
+        "Content-Type", "application/json", "Authorization", bearer);
+
+    char resource[1024];
+    const char *method = "GET";
+    json_t *jn_data = NULL;     /* no body: C_PROT_HTTP_CL omits it and its header */
+
+    if(strcmp(p->op, IDP_OP_LIST)==0) {
+        /*  Query params go in the resource, like every JSON-bodied call
+         *  here: the `query` field is only appended for form-urlencoded. */
+        const char *search = kw_get_str(gobj, p->params, "search", "", 0);
+        char escaped[512];
+        escaped[0] = 0;
+        if(!empty_string(search)) {
+            char encoded[384];
+            url_encode(search, encoded, sizeof(encoded));
+            snprintf(escaped, sizeof(escaped), "&search=%s", encoded);
+        }
+        snprintf(resource, sizeof(resource),
+            "/admin/realms/%s/users?briefRepresentation=%s&first=%d&max=%d%s",
+            realm,
+            kw_get_bool(gobj, p->params, "brief", 1, 0)? "true" : "false",
+            (int)kw_get_int(gobj, p->params, "first", 0, 0),
+            (int)kw_get_int(gobj, p->params, "max", IDP_DEFAULT_PAGE, 0),
+            escaped);
+
+    } else if(strcmp(p->op, IDP_OP_GET)==0) {
+        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
+            realm, p->user_id);
+
+    } else if(strcmp(p->op, IDP_OP_UPDATE)==0) {
+        method = "PUT";
+        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
+            realm, p->user_id);
+        jn_data = json_incref(kw_get_dict(gobj, p->params, "body", NULL, 0));
+
+    } else if(strcmp(p->op, IDP_OP_DELETE)==0) {
+        method = "DELETE";
+        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
+            realm, p->user_id);
+
+    } else if(strcmp(p->op, IDP_OP_ACTIONS)==0) {
+        method = "PUT";
+        snprintf(resource, sizeof(resource),
+            "/admin/realms/%s/users/%s/execute-actions-email"
+            "?client_id=%s&redirect_uri=%s&lifespan=43200",
+            realm, p->user_id,
+            gobj_read_str_attr(gobj, "kc_email_client_id"),
+            gobj_read_str_attr(gobj, "kc_redirect_uri"));
+        jn_data = json_incref(kw_get_list(gobj, p->params, "actions", NULL, 0));
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Unknown IdP operation",
+            "op",           "%s", p->op,
+            NULL
+        );
+        JSON_DECREF(jn_headers)
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    json_t *query = json_pack("{s:s, s:s, s:s, s:o}",
+        "method", method, "resource", resource, "query", "",
+        "headers", jn_headers);
+    if(jn_data) {
+        json_object_set_new(query, "data", jn_data);
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, query, "idp request: %s", p->op);
+    }
+
+    gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
+ *  Result of the one-round-trip operations.
+ *
+ *  Keycloak answers 200 with a body for the reads and 204 with no body for
+ *  the writes, so the expected status comes from the operation.
+ ***************************************************************************/
+PRIVATE json_t *kc_request_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, kw, "idp answer: %s", p? p->op : "?");
+    }
+
+    BOOL is_read = p && (strcmp(p->op, IDP_OP_LIST)==0 || strcmp(p->op, IDP_OP_GET)==0);
+    if(kc_http_failed(gobj, p, kw, 0)) {
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+    if(!p) {
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    if(is_read) {
+        /*  The body is already parsed: ghttp_parser turns an
+         *  application/json answer into a json value, list or object. */
+        json_t *jn_body = kw_get_dict_value(gobj, kw, "body", NULL, 0);
+        p->result_data = json_incref(jn_body);
+    }
+
+    if(strcmp(p->op, IDP_OP_LIST)==0) {
+        kc_answer(gobj, p, 0, 0,
+            p->result_data? json_incref(p->result_data) : json_array(), NULL);
+
+    } else if(strcmp(p->op, IDP_OP_GET)==0) {
+        kc_answer(gobj, p, 0, 0,
+            p->result_data? json_incref(p->result_data) : json_object(), NULL);
+
+    } else if(strcmp(p->op, IDP_OP_UPDATE)==0) {
+        kc_answer(gobj, p, 0,
+            json_sprintf("%s: Account updated", gobj_yuno_role_plus_name()),
+            json_pack("{s:s}", "id", p->user_id), NULL);
+
+    } else if(strcmp(p->op, IDP_OP_DELETE)==0) {
+        kc_answer(gobj, p, 0,
+            json_sprintf("%s: Account deleted from the IdP. The local authz "
+                "record, if any, is still there", gobj_yuno_role_plus_name()),
+            json_pack("{s:s}", "id", p->user_id), NULL);
+
+    } else {    /* IDP_OP_ACTIONS */
+        kc_answer(gobj, p, 0,
+            json_sprintf("%s: Email sent", gobj_yuno_role_plus_name()),
+            json_pack("{s:s}", "id", p->user_id), NULL);
+    }
+
+    KW_DECREF(kw)
+    CONTINUE_TASK()
+}
+
+/***************************************************************************
+ *  Launch the next queued request (serialized through the one shared KC
+ *  connection).  The token job is skipped while the cached token is fresh,
+ *  and the rest of the job list comes from the operation.
  ***************************************************************************/
 PRIVATE void process_next_kc(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->kc_processing || dl_size(&priv->dl_kc_pending) == 0) {
+    if(priv->kc_processing || dl_size(&priv->dl_pending) == 0) {
         return;
     }
     if(!ensure_kc_client(gobj)) {
         /*  Not configured yet (no kc_base_url): drain with errors. */
-        KC_PENDING *p = dl_first(&priv->dl_kc_pending);
-        dl_delete(&priv->dl_kc_pending, p, 0);
+        IDP_PENDING *p = dl_first(&priv->dl_pending);
+        dl_delete(&priv->dl_pending, p, 0);
         kc_answer(gobj, p, -1,
             json_sprintf("Keycloak admin is not configured (run set-kc-config)"),
             json_pack("{s:s}", "error_code", "kc_unavailable"), NULL);
-        JSON_DECREF(p->kw_request)
-        GBMEM_FREE(p)
+        free_pending(p);
         process_next_kc(gobj);
         return;
     }
 
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
     priv->kc_processing = TRUE;
 
     BOOL have_token = !empty_string(priv->kc_token) &&
@@ -858,12 +1469,18 @@ PRIVATE void process_next_kc(hgobj gobj)
             "exec_action", "kc_get_token", "exec_result", "kc_save_token",
             "exec_timeout", timeout_ms));
     }
-    json_array_append_new(jobs, json_pack("{s:s, s:s, s:I}",
-        "exec_action", "kc_create_user", "exec_result", "kc_create_user_result",
-        "exec_timeout", timeout_ms));
-    json_array_append_new(jobs, json_pack("{s:s, s:s, s:I}",
-        "exec_action", "kc_send_email", "exec_result", "kc_send_email_result",
-        "exec_timeout", timeout_ms));
+    if(strcmp(p->op, IDP_OP_CREATE)==0) {
+        json_array_append_new(jobs, json_pack("{s:s, s:s, s:I}",
+            "exec_action", "kc_create_user", "exec_result", "kc_create_user_result",
+            "exec_timeout", timeout_ms));
+        json_array_append_new(jobs, json_pack("{s:s, s:s, s:I}",
+            "exec_action", "kc_send_email", "exec_result", "kc_send_email_result",
+            "exec_timeout", timeout_ms));
+    } else {
+        json_array_append_new(jobs, json_pack("{s:s, s:s, s:I}",
+            "exec_action", "kc_request", "exec_result", "kc_request_result",
+            "exec_timeout", timeout_ms));
+    }
 
     json_t *kw_task = json_pack("{s:I, s:I, s:o, s:o}",
         "gobj_jobs",    (json_int_t)(uintptr_t)gobj,
@@ -892,8 +1509,8 @@ PRIVATE void process_next_kc(hgobj gobj)
 
 
 /***************************************************************************
- *  A register-idp-user task finished: answer if not already, free the
- *  pending, drain the next queued request.
+ *  A task finished: answer if not already, free the pending, drain the
+ *  next queued request.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -904,20 +1521,19 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
 
-    KC_PENDING *p = dl_first(&priv->dl_kc_pending);
+    IDP_PENDING *p = dl_first(&priv->dl_pending);
     if(p) {
-        dl_delete(&priv->dl_kc_pending, p, 0);
+        dl_delete(&priv->dl_pending, p, 0);
         if(!p->answered) {
             kc_answer(gobj, p, -1,
                 json_sprintf(result==-2?
                     "Keycloak did not respond in time" :
-                    "Keycloak register-idp-user failed"),
+                    "Keycloak %s failed", p->op),
                 json_pack("{s:s}", "error_code",
                     result==-2? "kc_timeout" : "kc_unavailable"),
                 NULL);
         }
-        JSON_DECREF(p->kw_request)
-        GBMEM_FREE(p)
+        free_pending(p);
     }
 
     /*
@@ -986,7 +1602,7 @@ GOBJ_DEFINE_GCLASS(C_IDP_KEYCLOAK);
  *------------------------*/
 
 /*------------------------*
- *      Local methods (register-idp-user C_TASK jobs)
+ *      Local methods (the C_TASK jobs)
  *------------------------*/
 PRIVATE LMETHOD lmt[] = {
     {"kc_get_token",            kc_get_token,           0},
@@ -995,6 +1611,8 @@ PRIVATE LMETHOD lmt[] = {
     {"kc_create_user_result",   kc_create_user_result,  0},
     {"kc_send_email",           kc_send_email,          0},
     {"kc_send_email_result",    kc_send_email_result,   0},
+    {"kc_request",              kc_request,             0},
+    {"kc_request_result",       kc_request_result,      0},
     {0, 0, 0}
 };
 
@@ -1050,7 +1668,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         sizeof(PRIVATE_DATA),
         authz_table,
         command_table,
-        0,  // s_user_trace_level
+        s_user_trace_level,
         0   // gclass_flag
     );
     if(!__gclass__) {
