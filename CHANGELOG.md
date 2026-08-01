@@ -1,5 +1,60 @@
 # **Changelog**
 
+## Unreleased
+
+### Changed
+
+- **BREAKING: IdP account provisioning leaves `C_AUTHZ` for `C_IDP_KEYCLOAK`.**
+  `C_AUTHZ` answers one question — does this user hold this permission, against
+  `treedb_authzs`. Creating accounts in an external identity provider is a
+  different responsibility, with different credentials (a confidential admin
+  client with `manage-users`), a different transport (`C_PROT_HTTP_CL` over
+  `C_TASK` with its own queue) and different failure modes (the IdP down, a
+  409, an expired token). They shared a file by accident of how it was written.
+
+  `set-kc-config`, `view-kc-config` and `register-idp-user` move unchanged to
+  the new gclass, together with the `kc_*` attrs, the pending queue and the
+  three-job Keycloak pipeline — about 600 lines out of `c_authz.c`. The
+  commands and the service name stay **neutral** (`idp`, `register-idp-user`),
+  so a second provider enters as a sibling gclass serving the same vocabulary,
+  selected in configuration: the `ytls` pattern with OpenSSL / mbedTLS, and not
+  an abstraction invented against a single implementation.
+
+  **What callers must change.** Send `register-idp-user`, `set-kc-config` and
+  `view-kc-config` to the service `idp`, not `authz`, and declare the service
+  in the yuno config:
+
+  ```
+  {'name': 'idp', 'gclass': 'C_IDP_KEYCLOAK', 'priority': 0,
+   'default_service': false, 'autostart': true, 'autoplay': false, 'kw': {}}
+  ```
+
+  **What operators must do.** Persistent attrs live in
+  `<GCLASS>-<service>-persistent-attrs.json`, so what `set-kc-config` wrote for
+  `C_AUTHZ-authz` is not found by `C_IDP_KEYCLOAK-idp`. **Re-run
+  `set-kc-config` on every node after the upgrade**, or the first
+  `register-idp-user` answers `kc_unavailable`. The two permissions
+  (`register-idp-user`, `configure-kc`) moved with their commands and are now
+  permissions of the `idp` service.
+
+- **New event `EV_IDP_USER_CREATED`, the seam between the two planes.** The
+  provisioner publishes it after a created account and each plane records its
+  own user: `C_AUTHZ` writes the `treedb_authzs` node it used to write from
+  inside the Keycloak pipeline. The dependency points one way — the provisioner
+  knows there is an authz plane to notify, and the authz plane knows of no
+  provider — so the event is declared in `c_authz.h` and no authz code includes
+  a provider header. A subscriber action returns 0 when it recorded the user; a
+  negative return reaches the caller as the existing `authz_write_failed`
+  warning. Tagged `EVF_NO_WARN_SUBS`: a yuno may provision accounts with no
+  authz plane at all.
+
+- **New local method `has_role` on `C_AUTHZ`.** The roles belong to the authz
+  plane, and the provisioner has to refuse an unknown one *before* it creates
+  anything in the IdP — which is what `register-idp-user` did when both lived
+  in the same gclass. A local method and not a public C function, because a
+  gclass exposes itself through attributes, commands, events, local methods and
+  statistics, and nothing else.
+
 ## 7.9.6
 
 ### Added

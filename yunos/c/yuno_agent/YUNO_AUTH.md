@@ -938,14 +938,47 @@ The convention from
 
 ### 7.3 The IdP admin client (`register-idp-user`)
 
-`C_AUTHZ` creates a user in Keycloak and in the local `authzs` treedb with one
-command: `register-idp-user`. The command needs a **second** Keycloak client.
-The client of the SPA is not enough:
+`C_IDP_KEYCLOAK`
+([`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/root-linux/src/c_idp_keycloak.c))
+creates a user in Keycloak with one command: `register-idp-user`. The local
+`authzs` user is written by `C_AUTHZ`, which subscribes to the event
+`EV_IDP_USER_CREATED` that the command publishes.
+
+NOTE: Before SDK 7.9.7 this command was a command of `C_AUTHZ`, and callers sent
+it to the service `authz`. It is now a command of `C_IDP_KEYCLOAK`, and callers
+send it to the service `idp`. `C_AUTHZ` answers what a user may do; it does not
+provision accounts. Declare the new service in the yuno config:
+
+```
+{
+    'name': 'idp',
+    'gclass': 'C_IDP_KEYCLOAK',
+    'priority': 0,
+    'default_service': false,
+    'autostart': true,
+    'autoplay': false,
+    'kw': {}
+}
+```
+
+The commands are neutral (`register-idp-user`, and not `register-kc-user`), and
+so is the service name. A second identity provider comes as a second gclass
+that serves the same commands. You select it in the configuration.
+
+CAUTION: The `kc_*` attrs are persistent, and a yuno keeps them in the file
+`<GCLASS>-<service>-persistent-attrs.json` of the realm. The gclass and the
+service name are both part of that name, so the values that `set-kc-config`
+wrote for `C_AUTHZ-authz` are not found by `C_IDP_KEYCLOAK-idp`. **Run
+`set-kc-config` again on each node after the upgrade**, or the first
+`register-idp-user` answers `kc_unavailable`.
+
+The command needs a **second** Keycloak client. The client of the SPA is not
+enough:
 
 | Client       | Type              | Used by            | Grant                |
 |--------------|-------------------|--------------------|----------------------|
 | SPA client   | public, with PKCE | auth_bff + browser | `authorization_code` |
-| admin client | confidential      | `C_AUTHZ`          | `client_credentials` |
+| admin client | confidential      | `C_IDP_KEYCLOAK`   | `client_credentials` |
 
 The admin client needs a service account. That service account needs the
 `manage-users` role of the `realm-management` client of the same realm. Without
@@ -968,14 +1001,16 @@ names the holder of the secret. Then one node that leaks its secret costs one
 disabled client, and the admin events of Keycloak name the service account that
 created each account.
 
-`C_AUTHZ` makes three calls to Keycloak, always in this order:
+`C_IDP_KEYCLOAK` makes three calls to Keycloak, always in this order:
 
 1. `POST /realms/<realm>/protocol/openid-connect/token`, with
    `grant_type=client_credentials`. The token stays in memory until it expires.
 2. `POST /admin/realms/<realm>/users`, with the required actions
    `UPDATE_PASSWORD` and `VERIFY_EMAIL`. The new account has no password. After
-   status 201, the gclass writes the local authz user too, with the role that
-   the caller gave.
+   status 201, the gclass publishes `EV_IDP_USER_CREATED`, and `C_AUTHZ` writes
+   the local authz user with the role that the caller gave. A subscriber that
+   returns a negative value makes the answer carry the warning
+   `authz_write_failed`.
 3. `PUT /admin/realms/<realm>/users/<id>/execute-actions-email`, with
    `client_id=<kc_email_client_id>` and `redirect_uri=<kc_redirect_uri>`.
    Keycloak sends the invitation email, and the user sets the password there.
@@ -1012,8 +1047,9 @@ watchdog of one round trip.
 **The authz gates.** These three commands call `gobj_user_has_authz`
 themselves, so they are enforced with `enable_command_authz` OFF (§4.5):
 `configure-kc` for `set-kc-config` and `view-kc-config`, and
-`register-idp-user` for the registration. A role with permission `*` on service
-`*` passes both gates.
+`register-idp-user` for the registration. The two permissions moved with the
+commands, so they belong to the service `idp` now. A role with permission `*`
+on service `*` passes both gates.
 
 **The error codes.** The answer carries a stable `error_code`:
 
@@ -1028,7 +1064,7 @@ themselves, so they are enforced with `enable_command_authz` OFF (§4.5):
 | `kc_timeout`          | The round trip was longer than `kc_timeout_ms`                                     |
 | `kc_busy`             | More than 32 requests are in the queue                                             |
 
-An unconfigured `C_AUTHZ` answers `kc_unavailable` with the comment
+An unconfigured `C_IDP_KEYCLOAK` answers `kc_unavailable` with the comment
 *"Keycloak admin is not configured (run set-kc-config)"*. The queue drains
 without a call to the network.
 
@@ -1320,7 +1356,8 @@ mismatch, JWT expiry, account `disabled=true`). Look at the BFF and
 ### 9.7 Provision the Keycloak admin client for `register-idp-user`
 
 Read §7.3 first. This recipe creates the confidential client, gives it the
-`manage-users` role, and configures `C_AUTHZ`. Before you start, configure SMTP
+`manage-users` role, and configures the `idp` service. Before you start,
+configure SMTP
 in the realm (Realm settings → Email). Without SMTP the invitation email never
 leaves Keycloak.
 
@@ -1342,7 +1379,7 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
 curl -s -X POST "$KC/admin/realms/$REALM/clients" \
     -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
     -d "{\"clientId\":\"$CLIENT\",
-         \"description\":\"C_AUTHZ register-idp-user\",
+         \"description\":\"C_IDP_KEYCLOAK register-idp-user\",
          \"publicClient\":false,
          \"serviceAccountsEnabled\":true,
          \"standardFlowEnabled\":false,
@@ -1366,20 +1403,20 @@ without `-s`. A failed `curl` inside a pipe does not stop the shell, and the
 next command reads zero bytes. Then the message that you read is a Python
 error, and not the answer of Keycloak.
 
-**2. Configure the `authz` service of the yuno.**
+**2. Configure the `idp` service of the yuno.**
 
 CAUTION: The secret travels on the command line. After the command, clear the
 history of the shell.
 
 ```bash
-ycommand -c 'command-yuno id=<yuno> service=authz command=set-kc-config kc_base_url=https://auth.example.com kc_realm=<realm> kc_admin_client_id=user-provisioner-<consumer> kc_admin_client_secret=<secret> kc_email_client_id=<spa-client> kc_redirect_uri=https://<spa-host>/'
+ycommand -c 'command-yuno id=<yuno> service=idp command=set-kc-config kc_base_url=https://auth.example.com kc_realm=<realm> kc_admin_client_id=user-provisioner-<consumer> kc_admin_client_secret=<secret> kc_email_client_id=<spa-client> kc_redirect_uri=https://<spa-host>/'
 ```
 
 **3. Do a test.**
 
 ```bash
-ycommand -c 'command-yuno id=<yuno> service=authz command=view-kc-config'
-ycommand -c 'command-yuno id=<yuno> service=authz command=register-idp-user email=alice@example.com role=<role_id>'
+ycommand -c 'command-yuno id=<yuno> service=idp command=view-kc-config'
+ycommand -c 'command-yuno id=<yuno> service=idp command=register-idp-user email=alice@example.com'
 ```
 
 A good registration answers `User registered: alice@example.com`, plus the
@@ -1392,6 +1429,7 @@ Keycloak `id` of the account. If the answer carries an `error_code` or a
 
 | What                                              | Where                                                                  |
 |---------------------------------------------------|------------------------------------------------------------------------|
+| `C_IDP_KEYCLOAK` gclass                           | [`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/root-linux/src/c_idp_keycloak.c)                             |
 | `C_AUTH_BFF` gclass                               | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/root-linux/src/c_auth_bff.c)                                 |
 | auth_bff yuno wrapper                             | [`yunos/c/auth_bff/src/c_auth_bff_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.6/yunos/c/auth_bff/src/c_auth_bff_yuno.c)                               |
 | auth_bff endpoints dispatcher                     | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/root-linux/src/c_auth_bff.c)                                               |
