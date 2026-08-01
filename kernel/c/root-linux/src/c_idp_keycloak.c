@@ -964,6 +964,21 @@ PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
     hgobj gate = gobj_find_service(p->req_service, FALSE);
     hgobj requester = gate? gobj_child_by_name(gate, p->req_channel) : NULL;
     if(!requester) {
+        /*  The work was done and the caller will never hear about it, so
+         *  say so: silence here is indistinguishable from a request that
+         *  never arrived, and that ambiguity has already cost a debugging
+         *  session. A client that disconnected mid-flight is the normal
+         *  case, hence warning and not error. */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SERVICE,
+            "msg",          "%s", "Requester is gone, answer dropped",
+            "op",           "%s", p->op,
+            "req_service",  "%s", p->req_service,
+            "req_channel",  "%s", p->req_channel,
+            "gate_found",   "%d", gate? 1 : 0,
+            NULL
+        );
         JSON_DECREF(jn_comment)
         JSON_DECREF(jn_data)
         return;

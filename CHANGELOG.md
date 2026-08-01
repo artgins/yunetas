@@ -1,8 +1,28 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.8
 
 ### Fixed
+
+- **A deferred answer never reached a browser: `input_service` did not name a
+  service.** `C_IEVENT_SRV` recorded it as `gobj_name(gobj_parent(gobj))`. That
+  parent IS a service in the agent's topology, and it is the CHANNEL when a SPA
+  connects straight to a yuno through an iogate
+  (`C_IOGATE^__top_side__` → `C_CHANNEL^tcps-N` → `C_IEVENT_SRV^tcps-N`).
+  Anything that read the field back to route a deferred answer then looked the
+  requester up under a name that is not a service, found nothing, and dropped
+  the answer.
+
+  That is why `register-idp-user` answered `command-yuno` and never answered a
+  SPA — the browser sat waiting for ever, with no error anywhere. It is now the
+  nearest **service** ancestor, which is the same value as before wherever the
+  parent already was one.
+
+- **`kc_answer()` dropped an answer in silence** when it could not resolve the
+  requester. Silence there is indistinguishable from a request that never
+  arrived, and that ambiguity is what hid the bug above. It logs a warning with
+  `op`, `req_service` and `req_channel` now — a client that disconnects
+  mid-flight is normal, hence warning and not error.
 
 - **`list-idp-users` and `get-idp-user` asked Keycloak for the user-profile
   schema of every row.** Measured against a real realm: 1.5 kB per account of

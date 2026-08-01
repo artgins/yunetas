@@ -1324,10 +1324,29 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Set channel info
      *------------------------------------*/
+    /*
+     *  The nearest SERVICE ancestor, and not the immediate parent.
+     *
+     *  `input_service` is read back to route a DEFERRED answer, with
+     *  gobj_find_service(), so it has to name a service. The immediate
+     *  parent is one in the agent's topology, and it is the CHANNEL when a
+     *  browser connects straight to this yuno through an iogate
+     *  (C_IOGATE^__top_side__ -> C_CHANNEL^tcps-N -> C_IEVENT_SRV^tcps-N).
+     *  There the answer was looked up under a name that is not a service,
+     *  found nothing, and was dropped -- which is why register-idp-user
+     *  never answered a SPA, while the same command through the agent did.
+     */
+    hgobj input_service_gobj = gobj_parent(gobj);
+    while(input_service_gobj && !gobj_is_service(input_service_gobj)) {
+        input_service_gobj = gobj_parent(input_service_gobj);
+    }
+    if(!input_service_gobj) {
+        input_service_gobj = gobj_parent(gobj);
+    }
     json_object_set_new(
         jn_ievent_id,
         "input_service",
-        json_string(gobj_name(gobj_parent(gobj)))
+        json_string(gobj_name(input_service_gobj))
     );
     json_object_set_new(
         jn_ievent_id,
