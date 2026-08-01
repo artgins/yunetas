@@ -1,5 +1,16 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **`list-idp-users` and `get-idp-user` asked Keycloak for the user-profile
+  schema of every row.** Measured against a real realm: 1.5 kB per account of
+  which 230 bytes are the account, and the same `userProfileMetadata` block
+  repeated for each one — a page of 50 came to ~77 kB instead of ~12 kB.
+  `briefRepresentation=true` does not suppress it; `userProfileMetadata=false`
+  does, and both commands send it now.
+
 ## 7.9.7
 
 ### Added

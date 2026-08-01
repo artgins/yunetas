@@ -1304,8 +1304,14 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
             url_encode(search, encoded, sizeof(encoded));
             snprintf(escaped, sizeof(escaped), "&search=%s", encoded);
         }
+        /*  userProfileMetadata=false: Keycloak adds the whole user-profile
+         *  schema to EVERY row otherwise -- measured against the real
+         *  realm, 1.5 kB per account of which 230 bytes are the account,
+         *  the same block repeated for each one. briefRepresentation does
+         *  not suppress it. */
         snprintf(resource, sizeof(resource),
-            "/admin/realms/%s/users?briefRepresentation=%s&first=%d&max=%d%s",
+            "/admin/realms/%s/users?briefRepresentation=%s"
+            "&userProfileMetadata=false&first=%d&max=%d%s",
             realm,
             kw_get_bool(gobj, p->params, "brief", 1, 0)? "true" : "false",
             (int)kw_get_int(gobj, p->params, "first", 0, 0),
@@ -1313,7 +1319,8 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
             escaped);
 
     } else if(strcmp(p->op, IDP_OP_GET)==0) {
-        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
+        snprintf(resource, sizeof(resource),
+            "/admin/realms/%s/users/%s?userProfileMetadata=false",
             realm, p->user_id);
 
     } else if(strcmp(p->op, IDP_OP_UPDATE)==0) {
