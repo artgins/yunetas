@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.6
 
 ### Added
 
@@ -23,6 +23,14 @@
   `{"ssl_use_system_ca": true}` in the code, so a private CA was out of reach
   and a `wss://` agent answered *"unknown CA"*. `ycli` takes the same four as
   parameters of its `connect` command, next to the url they belong to.
+
+### Changed
+
+- **Submodules.** `kernel/js/gobj-ui` moves to the maplibre-gl floor raise
+  (peer `^6.0.0` → `^6.1.0`, the version this SDK ships), and
+  `utils/python/tui_yunetas` to the yunetas CLI **0.19.1**, which stores the
+  TLS values of a node and carries the node identity on every `ycommand` call
+  it makes.
 
 ### Fixed
 

@@ -12,14 +12,14 @@ The **ytls.h** header file defines the interface for the [TLS](https://en.wikipe
 
 ## **Architecture**
 
-The ytls module uses a **backend-agnostic** design. The public API ([`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/ytls.c)) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
+The ytls module uses a **backend-agnostic** design. The public API ([`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/ytls.c)) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
 
 - **OpenSSL** (`CONFIG_HAVE_OPENSSL`) — default, full-featured TLS backend.
 - **mbed-TLS** (`CONFIG_HAVE_MBEDTLS`) — lightweight alternative that produces ~3x smaller static binaries.
 
 Both backends can be enabled simultaneously. When both are present, OpenSSL is preferred as the default.
 
-[`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/ytls.h) is the **single source of truth** for the backend names:
+[`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/ytls.h) is the **single source of truth** for the backend names:
 
 - `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
 - `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (for example `"openssl+mbedtls"`).
@@ -33,9 +33,9 @@ At runtime, two matching **yuno global variables** are available — `root-linux
 
 | File | Purpose |
 |------|---------|
-| [`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/ytls.c) | Public API and dispatch table |
-| [`tls/openssl.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/tls/openssl.c) / [`openssl.h`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/tls/openssl.h) | OpenSSL backend implementation |
-| [`tls/mbedtls.c`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/tls/mbedtls.c) / [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.9.5/kernel/c/ytls/src/tls/mbedtls.h) | mbed-TLS backend implementation |
+| [`ytls.h`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/ytls.h) / [`ytls.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/ytls.c) | Public API and dispatch table |
+| [`tls/openssl.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/tls/openssl.c) / [`openssl.h`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/tls/openssl.h) | OpenSSL backend implementation |
+| [`tls/mbedtls.c`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/tls/mbedtls.c) / [`mbedtls.h`](https://github.com/artgins/yunetas/blob/7.9.6/kernel/c/ytls/src/tls/mbedtls.h) | mbed-TLS backend implementation |
 
 ### Backend implementations
 
@@ -194,10 +194,10 @@ clients and are unaffected.
 | `ssl_ciphers` | backend default | cipher list (`@SECLEVEL=0` to reach legacy suites) |
 
 Regression coverage:
-[`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.5/tests/c/ytls/test_tls_floor_openssl.c)
+[`test_tls_floor_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.6/tests/c/ytls/test_tls_floor_openssl.c)
 asserts that an explicit sub-TLS1.2 floor is logged and that a real TLS1.0
 ClientHello is rejected by the default floor.
-[`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.5/tests/c/ytls/test_tls_verify_openssl.c)
+[`test_tls_verify_openssl.c`](https://github.com/artgins/yunetas/blob/7.9.6/tests/c/ytls/test_tls_verify_openssl.c)
 drives a real client/server handshake and asserts that a trusted cert with a
 matching host connects, while a hostname mismatch or an unknown CA is rejected.
 
@@ -236,11 +236,30 @@ The bundled CLI tools (`ycommand`, `ystats`, `ybatch`, `ytests`, `ycli`,
 `mqtt_tui`, `emu_device`) already pass `"ssl_use_system_ca": true` on their
 outbound TLS, so a `wss://` / `https://` endpoint with a public CA
 (for example Let's Encrypt) works by default — including `ycommand`'s OIDC `task-authenticate`
-to the issuer. `ycommand` exposes `--ssl-use-system-ca` (default on),
-`--ssl-trusted-certificate` (private CA) and `--ssl-allow-insecure-client`
-(bypass) to override per call. Note that verification checks the **hostname**:
-dial the name the server's certificate is issued for, not just any DNS alias
-that resolves to the same host.
+to the issuer. `ycommand`, `ybatch` and `ystats` expose `--ssl-use-system-ca`
+(default on), `--ssl-trusted-certificate` (private CA), `--ssl-server-name`
+and `--ssl-allow-insecure-client` (bypass) to override per call. `ycli` takes
+the same four as parameters of its `connect` command.
+
+Verification checks the **hostname** too, so dial the name the certificate is
+issued for, not any DNS alias that resolves to the same host. When you cannot
+— a **pinned certificate that carries a name of its own** — give that name in
+`--ssl-server-name`. The agent is the case in point: it serves one long-life
+certificate of its own (`CN=yuneta_agent.yuneta.io`) on every node, so the
+name never matches the host dialed:
+
+```bash
+ycommand -u wss://node.example.com:1993 \
+    --ssl-trusted-certificate=/yuneta/agent/certs/yuneta_agent.crt \
+    --ssl-server-name=yuneta_agent.yuneta.io \
+    -c 'list-yunos'
+```
+
+Nothing is weakened: the chain is still validated against the PEM given, and
+`--ssl-server-name` only says which name to check it against. Without it the
+handshake is rejected for a hostname mismatch, and the tool **retries in
+silence** instead of failing — the flag is the difference between a working
+call and a command that seems to hang.
 
 A **server** doing mutual-TLS (validates the client certificate):
 
