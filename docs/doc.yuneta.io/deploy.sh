@@ -168,14 +168,20 @@ echo "landing page installed at /landing (version ${VERSION})"
 #   through localStorage["myst:theme"].  They do things no markdown page
 #   can, so they ship as raw HTML — myst copies no raw files.
 #
-#   Two kinds, and the difference is real enough to have its own band on
-#   the landing:
+#   Three kinds, and the differences are real enough to have their own
+#   band on the landing:
 #
 #     WALKTHROUGHS  are stepped through — a graph that runs, a harness
 #                   that proves something.  Band "Pages that run",
 #                   carded with class="run-card".
 #     REFERENCES    are read — one decision followed down to the API
 #                   names.  Band "Field guides", class="ref-card".
+#     ESSAYS        argue — what the framework is and what each decision
+#                   costs, for a reader who has not adopted it yet.  Band
+#                   "The idea", class="essay-card".  These are the only
+#                   pages here that are not written in English: they are
+#                   the pitch, and they are written in the reader's
+#                   language.
 #
 #   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
 #   slug to the right list below, and card it in the matching band.  The
@@ -183,8 +189,9 @@ echo "landing page installed at /landing (version ${VERSION})"
 #
 WALKTHROUGHS="login-flow"
 REFERENCES="package-transition navigation"
+ESSAYS="otra-vision"
 
-for _walkthrough in ${WALKTHROUGHS} ${REFERENCES}; do
+for _walkthrough in ${WALKTHROUGHS} ${REFERENCES} ${ESSAYS}; do
     # The whole directory: a page may ship files of its own (a script to
     # download, an image, a runtime), and index.html alone would leave
     # them 404ing.
@@ -249,8 +256,9 @@ check_band()   # <card-class> <band-name> <slug>...
     echo "\"${_band}\" cards match the installed set"
 }
 
-check_band run-card "Pages that run" ${WALKTHROUGHS}
-check_band ref-card "Field guides"   ${REFERENCES}
+check_band run-card   "Pages that run" ${WALKTHROUGHS}
+check_band ref-card   "Field guides"   ${REFERENCES}
+check_band essay-card "The idea"       ${ESSAYS}
 
 # --delete mirrors the build onto the server: pages and content-hashed assets
 # dropped from the build (renamed/moved TOC nodes, stale assets) are removed on

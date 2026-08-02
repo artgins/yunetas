@@ -730,7 +730,7 @@ h1.hero-title {
     so its rule sits still. The distinction is the point of having two
     bands, and it should be visible before reading a word.
 */
-.run-card, .ref-card {
+.run-card, .ref-card, .essay-card {
     position: relative;
     overflow: hidden;
     display: flex;
@@ -761,7 +761,21 @@ h1.hero-title {
     animation: run-sweep 3.4s linear infinite;
 }
 .run-card:nth-child(2)::before { animation-delay: 1.1s; }
-.run-card:hover, .ref-card:hover { border-color: var(--accent); }
+/*
+    Third rule for the third band: an essay does not run and does not
+    span a subject, it makes ONE claim — so its rule is a short mark
+    under the corner, the length of a pull-quote's, and it sits still.
+*/
+.essay-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 3.5rem;
+    height: 2px;
+    background: var(--rule);
+}
+.essay-card:hover::before { background: var(--accent); }
+.run-card:hover, .ref-card:hover, .essay-card:hover { border-color: var(--accent); }
 @keyframes run-sweep {
     from { background-position: -45% 0; }
     to   { background-position: 145% 0; }
@@ -789,7 +803,8 @@ h1.hero-title {
     font-size: var(--t-sm);
     color: var(--text-dim);
 }
-.run-card:hover .run-go, .ref-card:hover .run-go { color: var(--accent); }
+.run-card:hover .run-go, .ref-card:hover .run-go,
+.essay-card:hover .run-go { color: var(--accent); }
 
 /* ============================================================
    Doc map
@@ -1251,6 +1266,39 @@ h1.hero-title {
         </div>
     </section>
 
+    <!-- ============ THE IDEA ============
+         Standalone pages again, but neither run nor reference: they
+         argue. The band exists because a reader who has not adopted
+         Yuneta wants the claim and its price, not an API name — and a
+         card in "Field guides" would never be found by that reader.
+         Their rule is a short mark, not a full one: one claim, not a
+         subject spanned. Written in the reader's language rather than
+         in English, which is the one place on this site that happens.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>The idea</h2>
+            <span class="label">Essays</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">What the
+        framework is, and what each decision costs — for a reader who has not adopted it.</p>
+
+        <div class="runs guides">
+            <a class="essay-card" href="/otra-vision">
+                <span class="run-kick">Essay &middot; Espa&ntilde;ol</span>
+                <span class="run-t">Sem&aacute;ntica alta, lenguaje bajo</span>
+                <span class="run-d">Yuneta in one page: services, roles and messages without
+                the runtime that usually pays for them. The <code>machine</code> trace as it
+                really prints, the same state table in C and in the browser, and a bill next
+                to every decision. In Spanish.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!-- next essay goes here -->
+        </div>
+    </section>
+
     <!-- ============ MAP ============ -->
     <section class="band">
         <div class="band-head">
@@ -1278,6 +1326,7 @@ h1.hero-title {
                     <li><a href="/domain-model">Domain Model</a></li>
                     <li><a href="/philosophy">Inspiration</a></li>
                     <li><a href="/glossary">Glossary</a></li>
+                    <li><a href="/otra-vision">Sem&aacute;ntica alta, lenguaje bajo &nbsp;▸</a></li>
                 </ul>
             </div>
             <div class="map-col">
@@ -1312,6 +1361,7 @@ h1.hero-title {
                 <ul>
                     <li><a href="/shell">The declarative shell</a></li>
                     <li><a href="/routing">Routing &amp; navigation</a></li>
+                    <li><a href="/navigation">Getting back &nbsp;▸</a></li>
                 </ul>
             </div>
             <div class="map-col">
