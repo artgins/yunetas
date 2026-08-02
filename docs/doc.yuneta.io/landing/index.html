@@ -992,7 +992,7 @@ h1.hero-title {
         </div>
     </section>
 
-    <!-- ============ WALKTHROUGHS ============
+    <!-- ============ STANDALONE PAGES ============
 
          Standalone documents, not chapters: myst copies no raw files and
          its sidebar never lists them, so THIS is their index. Adding one
@@ -1014,10 +1014,52 @@ h1.hero-title {
          as not having them. Whatever else grows on this page, they stay
          above it.
 
+         Band order follows how far the reader has come: "The idea"
+         first, for somebody deciding whether this is for them at all,
+         then the walkthroughs, then the field guides you keep open while
+         writing the code. It costs something — the first band after the
+         overview is currently the one page here not written in English —
+         and it is worth it: a reader who bounces at the pitch never
+         reaches an API name anyway.
+
          Keep each list in the order a reader would want them, not in the
          order they were written. No counter in the band-head label: it
          would go stale the first time this grows.
     -->
+    <!-- ============ THE IDEA ============
+         Standalone pages again, but neither run nor reference: they
+         argue. The band exists because a reader who has not adopted
+         Yuneta wants the claim and its price, not an API name — and a
+         card in "Field guides" would never be found by that reader.
+         Their rule is a short mark, not a full one: one claim, not a
+         subject spanned. Written in the reader's language rather than
+         in English, which is the one place on this site that happens.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>The idea</h2>
+            <span class="label">Essays</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">What the
+        framework is, and what each decision costs — for a reader who has not adopted it.</p>
+
+        <div class="runs guides">
+            <a class="essay-card" href="/otra-vision">
+                <span class="run-kick">Essay &middot; Espa&ntilde;ol</span>
+                <span class="run-t">Sem&aacute;ntica alta, lenguaje bajo</span>
+                <span class="run-d">Yuneta in one page: services, roles and messages without
+                the runtime that usually pays for them. The <code>machine</code> trace as it
+                really prints, the same state table in C and in the browser, and a bill next
+                to every decision. In Spanish.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!-- next essay goes here -->
+        </div>
+    </section>
+
+    <!-- ============ WALKTHROUGHS ============ -->
     <section class="band">
         <div class="band-head">
             <h2>Pages that run</h2>
@@ -1096,39 +1138,6 @@ h1.hero-title {
             </a>
 
             <!-- next field guide goes here -->
-        </div>
-    </section>
-
-    <!-- ============ THE IDEA ============
-         Standalone pages again, but neither run nor reference: they
-         argue. The band exists because a reader who has not adopted
-         Yuneta wants the claim and its price, not an API name — and a
-         card in "Field guides" would never be found by that reader.
-         Their rule is a short mark, not a full one: one claim, not a
-         subject spanned. Written in the reader's language rather than
-         in English, which is the one place on this site that happens.
-    -->
-    <section class="band">
-        <div class="band-head">
-            <h2>The idea</h2>
-            <span class="label">Essays</span>
-        </div>
-
-        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">What the
-        framework is, and what each decision costs — for a reader who has not adopted it.</p>
-
-        <div class="runs guides">
-            <a class="essay-card" href="/otra-vision">
-                <span class="run-kick">Essay &middot; Espa&ntilde;ol</span>
-                <span class="run-t">Sem&aacute;ntica alta, lenguaje bajo</span>
-                <span class="run-d">Yuneta in one page: services, roles and messages without
-                the runtime that usually pays for them. The <code>machine</code> trace as it
-                really prints, the same state table in C and in the browser, and a bill next
-                to every decision. In Spanish.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <!-- next essay goes here -->
         </div>
     </section>
 
