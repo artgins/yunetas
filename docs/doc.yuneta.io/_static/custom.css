@@ -91,6 +91,27 @@ article img[data-canonical-url] {
     text-align: center;
 }
 
+/* Top nav ("Home" -> /landing) on narrow screens.
+
+   The book theme wraps the nav items in `hidden ... lg:block`, so below
+   1024px the only link back to the landing page disappears — and the
+   hamburger opens the toc, which never carries nav items. A phone reader
+   would have no way back to the front door. Reveal the wrapper by matching
+   the item it holds; it is the only content of that container. */
+.myst-top-nav div:has(> .myst-top-nav-item) {
+    display: block;
+}
+
+/* The item carries `mx-2` on both the box and its anchor (32px in all), which
+   is what pushes the bar past the viewport on a 320px screen. */
+@media (max-width: 480px) {
+    .myst-top-nav .myst-top-nav-item,
+    .myst-top-nav .myst-top-nav-item > a {
+        margin-left: 0;
+        margin-right: 0;
+    }
+}
+
 .danger {
     color: red;
     font-weight: bold;

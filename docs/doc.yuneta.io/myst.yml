@@ -388,6 +388,16 @@ project:
 
 site:
   template: book-theme
+
+  # The landing page is a raw HTML document installed by deploy.sh at /landing
+  # (it is the front door served at yuneta.io).  It is outside the myst toc, so
+  # nothing in the built site linked back to it: a reader who entered through
+  # doc.yuneta.io had no way to reach it.  Same origin, so the light/dark
+  # choice carries over through localStorage["myst:theme"].
+  nav:
+    - title: Home
+      url: /landing
+
   options:
     base_url: /
     logo: _static/yuneta-label.svg
