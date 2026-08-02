@@ -178,10 +178,7 @@ echo "landing page installed at /landing (version ${VERSION})"
 #                   names.  Band "Field guides", class="ref-card".
 #     ESSAYS        argue — what the framework is and what each decision
 #                   costs, for a reader who has not adopted it yet.  Band
-#                   "The idea", class="essay-card".  These are the only
-#                   pages here that are not written in English: they are
-#                   the pitch, and they are written in the reader's
-#                   language.
+#                   "The idea", class="essay-card".
 #
 #   Adding one: put it at docs/doc.yuneta.io/<slug>/index.html, add its
 #   slug to the right list below, and card it in the matching band.  The
@@ -189,7 +186,7 @@ echo "landing page installed at /landing (version ${VERSION})"
 #
 WALKTHROUGHS="login-flow"
 REFERENCES="package-transition navigation"
-ESSAYS="otra-vision"
+ESSAYS="high-semantics"
 
 for _walkthrough in ${WALKTHROUGHS} ${REFERENCES} ${ESSAYS}; do
     # The whole directory: a page may ship files of its own (a script to

@@ -1,24 +1,22 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Yuneta en una página: semántica de servicios, roles y mensajes escrita en C, con la traza machine, las dos pilas y la factura de cada decisión.">
+<meta name="description" content="Yuneta in one page: services, roles and messages written in C, with the machine trace, the two stacks, and a bill next to every decision.">
 
 <!--
-    Semántica alta, lenguaje bajo — Yuneta en una página.
+    High-level semantics, low-level language — Yuneta in one page.
 
     A standalone document, not a chapter: myst copies no raw files, so
-    deploy.sh installs this directory at /otra-vision and the landing is
-    its only index.
+    deploy.sh installs this directory at /high-semantics and the landing
+    is its only index. It argues rather than instructs, which is why it
+    is carded under "The idea" and not under the field guides.
 
-    Self-contained by requirement — the CSP of the artifact this page is
-    also published as blocks every external host, so the four faces
-    (Archivo variable, IBM Plex Sans variable, IBM Plex Mono 400/500/600)
-    are subset to the ~130 glyphs the page uses and inlined as woff2 data
-    URIs. Re-subset them if the copy changes enough to need a new glyph.
-
-    Written in Spanish on purpose: it is the manifesto, not documentation.
+    Self-contained: the four faces (Archivo variable, IBM Plex Sans
+    variable, IBM Plex Mono 400/500/600) are subset to the ~130 glyphs
+    the page uses and inlined as woff2 data URIs, so it makes no external
+    request. Re-subset them if the copy grows a glyph they lack.
 
     Everything it states is checked against the code it names. The header
     trace is the REAL format of trace_machine with trace_machine_format==1
@@ -50,13 +48,13 @@
 }());
 </script>
 
-<title>Semántica alta, lenguaje bajo — Yuneta en una página</title>
+<title>High-level semantics, low-level language — Yuneta in one page</title>
 </head>
 <body>
 
 <nav class="topbar">
   <a href="/">&larr; Yuneta documentation</a>
-  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Cambiar tema">
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
     <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
       <circle cx="12" cy="12" r="4.2"/>
@@ -98,7 +96,7 @@ html, body {
 </style>
 
 <style>
-/* ── fuentes incrustadas (la CSP del artifact bloquea cualquier host externo) ─ */
+/* ── inlined faces (the artifact CSP blocks every external host) ────────── */
 @font-face{
   font-family:"ArchivoY";
   font-style:normal;
@@ -158,7 +156,7 @@ html, body {
   --display:"ArchivoY","PlexSansY",ui-sans-serif,system-ui,sans-serif;
 }
 
-/* cianotipia: el negativo natural del papel cuadriculado */
+/* cyanotype: the natural negative of the graph paper */
 @media (prefers-color-scheme:dark){
   :root{
     --paper:#0A1826;
@@ -267,7 +265,7 @@ html, body {
 .yn code{font-family:var(--mono);font-size:.88em}
 .band{margin-top:64px;padding-top:34px;border-top:1px solid var(--rule)}
 
-/* ── el contrato ─────────────────────────────────────────────────────────── */
+/* ── the contract ────────────────────────────────────────────────────────── */
 .contract{
   margin:36px 0 0;padding:16px 0 0;border-top:2px solid var(--ink);
   display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 16px;
@@ -283,7 +281,7 @@ html, body {
   letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);
 }
 
-/* ── la traza: una terminal citada, oscura en los dos temas ──────────────── */
+/* ── the trace: a quoted terminal, dark in both themes ───────────────────── */
 .term{
   --term-bg:#08111A;
   --term-fg:#C3D2DE;
@@ -319,7 +317,7 @@ html, body {
 .tfrom{color:var(--term-dim)}
 @keyframes tin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-/* ── cómo se lee ─────────────────────────────────────────────────────────── */
+/* ── how to read it ──────────────────────────────────────────────────────── */
 .legend{
   display:grid;grid-template-columns:repeat(3,1fr);gap:0 22px;
   margin:22px 0 0;padding:0;
@@ -332,7 +330,7 @@ html, body {
 }
 .legend dd{margin:0;font-size:.88rem;line-height:1.4;color:var(--ink-soft)}
 
-/* ── cuadrante ───────────────────────────────────────────────────────────── */
+/* ── quadrant ────────────────────────────────────────────────────────────── */
 .q-fill{fill:var(--teal-wash)}
 .axis{stroke:var(--ink);stroke-width:1.2}
 .divider{stroke:var(--rule);stroke-width:1;stroke-dasharray:3 4}
@@ -345,7 +343,7 @@ html, body {
 .ring{fill:none;stroke:var(--teal);stroke-width:1.6;transform-origin:150px 92px;animation:pulse 3.6s ease-out infinite}
 @keyframes pulse{0%{transform:scale(.55);opacity:.9}70%{transform:scale(1.9);opacity:0}100%{opacity:0}}
 
-/* ── pilas ───────────────────────────────────────────────────────────────── */
+/* ── stacks ──────────────────────────────────────────────────────────────── */
 .stacks{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media (max-width:560px){.stacks{grid-template-columns:1fr;gap:26px}}
 .stack h3{
@@ -366,7 +364,7 @@ html, body {
   font-size:.95rem;max-width:56ch;
 }
 
-/* ── paneles de código ───────────────────────────────────────────────────── */
+/* ── code panels ─────────────────────────────────────────────────────────── */
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 @media (max-width:700px){.pair{grid-template-columns:1fr;gap:20px}}
 .panel{border:1px solid var(--rule);background:var(--panel);overflow:hidden}
@@ -388,7 +386,7 @@ html, body {
 .yn pre .st{color:var(--ink);font-weight:500}
 .yn pre .cm{color:var(--ink-soft)}
 
-/* ── cita ────────────────────────────────────────────────────────────────── */
+/* ── pull quote ──────────────────────────────────────────────────────────── */
 .pull{margin:0;padding:0}
 .pull p{
   font-family:var(--display);
@@ -418,7 +416,7 @@ html, body {
 .pulse.c{animation-delay:-4.1s}
 @keyframes run{from{transform:translateX(0)}to{transform:translateX(348px)}}
 
-/* ── la factura ──────────────────────────────────────────────────────────── */
+/* ── the bill ────────────────────────────────────────────────────────────── */
 .bill{margin:0;display:grid;gap:0}
 .bill>div{
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 20px;
@@ -429,13 +427,13 @@ html, body {
 .bill dt{font-weight:500;font-size:.98rem;line-height:1.35;margin:0}
 .bill dd{margin:0;font-size:.92rem;color:var(--ink-soft);line-height:1.45}
 .bill dd::before{
-  content:"factura";display:block;
+  content:"bill";display:block;
   font-family:var(--mono);font-size:10px;
   letter-spacing:.16em;text-transform:uppercase;color:var(--amber);
   margin-bottom:3px;
 }
 
-/* ── cierre ──────────────────────────────────────────────────────────────── */
+/* ── close ───────────────────────────────────────────────────────────────── */
 .close{margin-top:64px;padding-top:34px;border-top:2px solid var(--ink)}
 .close .kicker{
   font-family:var(--display);
@@ -473,11 +471,11 @@ html, body {
 <div class="wrap">
 
   <header>
-    <p class="eyebrow">Yuneta — la idea, en una página</p>
-    <h1>Semántica alta,<br><span class="low">lenguaje bajo.</span></h1>
-    <p class="deck">Servicios, roles y mensajes sin el runtime que normalmente hace falta para tenerlos. El contrato no es una librería que enlazas: es el mensaje, y por eso entra cualquier extremo que sepa hablarlo.</p>
+    <p class="eyebrow">Yuneta — the idea, in one page</p>
+    <h1>High-level semantics,<br><span class="low">low-level language.</span></h1>
+    <p class="deck">Services, roles and messages without the runtime it usually takes to have them. The contract is not a library you link against: it is the message, which is why any endpoint that speaks it is already in.</p>
 
-    <p class="contract"><b>estado <i>×</i> evento <i>→</i> acción</b> <span>el contrato entero</span></p>
+    <p class="contract"><b>state <i>×</i> event <i>→</i> action</b> <span>the whole contract</span></p>
 
     <div class="term">
       <p class="term-cmd"><span class="pr">$</span> ycommand -c <em>'set-global-trace level=machine set=1'</em></p>
@@ -489,30 +487,30 @@ html, body {
         <div class="tline" style="--i:4"><b class="tm">🔄</b><b class="tev"><span class="chip chip-ev">EV_DROP</span></b><b class="tgo">C_TCP^clisrv-1</b><b class="tst"><span class="chip chip-st">ST_CONNECTED</span></b><b class="tfrom">from C_IOGATE^__top_side__</b></div>
       </div>
     </div>
-    <p class="cap">No es un log que alguien decidió escribir: es la tabla de estados ejecutándose. Cada línea existía ya en el código, antes de que pasara nada.</p>
+    <p class="cap">Not a log somebody decided to write: it is the state table executing. Every line was already in the code before anything happened.</p>
 
     <dl class="legend">
       <div>
         <dt>C_TCP^clisrv-1</dt>
-        <dd>Clase y nombre. La clase trae la tabla; la instancia la ejecuta.</dd>
+        <dd>Class and name. The class carries the table; the instance runs it.</dd>
       </div>
       <div>
         <dt>ST_CONNECTED</dt>
-        <dd>El estado en el que estaba cuando llegó el evento, no el de después.</dd>
+        <dd>The state it was in when the event arrived, not the one after.</dd>
       </div>
       <div>
         <dt>EV_RX_DATA</dt>
-        <dd>El evento. Si ese estado no lo declara, la línea sale marcada como error.</dd>
+        <dd>The event. If that state does not declare it, the line comes out marked as an error.</dd>
       </div>
     </dl>
   </header>
 
   <section class="band rv">
-    <p class="sec-tag">el mapa</p>
-    <h2>El cuadrante vacío</h2>
-    <p class="body-p">Casi todo el software elige un lado del eje: o subes de nivel de lenguaje para ganar semántica de aplicación, o bajas a C y renuncias a ella. Yuneta ocupa la esquina que casi nadie ocupa.</p>
+    <p class="sec-tag">the map</p>
+    <h2>The empty quadrant</h2>
+    <p class="body-p">Almost all software picks a side of the axis: either you move up the language to gain application semantics, or you go down to C and give them up. Yuneta sits in the corner almost nobody occupies.</p>
     <figure>
-      <svg viewBox="0 0 420 310" role="img" aria-label="Gráfico de cuatro cuadrantes: nivel del lenguaje frente a semántica de aplicación. Erlang, Akka y los microservicios ocupan lenguaje alto con semántica alta. C con sockets, epoll y libuv ocupan lenguaje bajo con semántica baja. Flask y Express ocupan lenguaje alto con semántica baja. El cuadrante de lenguaje bajo con semántica alta está vacío salvo por Yuneta.">
+      <svg viewBox="0 0 420 310" role="img" aria-label="A four-quadrant chart: language level against application semantics. Erlang, Akka and microservices sit at high language with high semantics. C with sockets, epoll and libuv sit at low language with low semantics. Flask and Express sit at high language with low semantics. The quadrant of low language with high semantics is empty except for Yuneta.">
         <rect class="q-fill" x="70" y="16" width="160" height="139"></rect>
         <line class="divider" x1="230" y1="16" x2="230" y2="272"></line>
         <line class="divider" x1="70" y1="155" x2="404" y2="155"></line>
@@ -524,7 +522,7 @@ html, body {
         <circle class="dot" cx="372" cy="98" r="4.5"></circle>
         <text class="dot-lbl" x="372" y="116" text-anchor="middle">Akka</text>
         <circle class="dot" cx="256" cy="126" r="4.5"></circle>
-        <text class="dot-lbl" x="256" y="144" text-anchor="middle">microservicios</text>
+        <text class="dot-lbl" x="256" y="144" text-anchor="middle">microservices</text>
 
         <circle class="dot" cx="112" cy="196" r="4.5"></circle>
         <text class="dot-lbl" x="112" y="214" text-anchor="middle">C + sockets</text>
@@ -537,48 +535,48 @@ html, body {
         <circle class="you" cx="150" cy="92" r="6.5"></circle>
         <text class="you-lbl" x="150" y="118" text-anchor="middle">YUNETA</text>
 
-        <text class="ax-lbl" x="70" y="292" text-anchor="start">bajo</text>
-        <text class="ax-lbl ax-title" x="237" y="292" text-anchor="middle">nivel del lenguaje</text>
-        <text class="ax-lbl" x="404" y="292" text-anchor="end">alto</text>
-        <text class="ax-lbl" x="0" y="0" transform="translate(58,272) rotate(-90)" text-anchor="start">poca</text>
-        <text class="ax-lbl ax-title" x="0" y="0" transform="translate(58,144) rotate(-90)" text-anchor="middle">semántica de aplicación</text>
-        <text class="ax-lbl" x="0" y="0" transform="translate(58,16) rotate(-90)" text-anchor="end">mucha</text>
+        <text class="ax-lbl" x="70" y="292" text-anchor="start">low</text>
+        <text class="ax-lbl ax-title" x="237" y="292" text-anchor="middle">language level</text>
+        <text class="ax-lbl" x="404" y="292" text-anchor="end">high</text>
+        <text class="ax-lbl" x="0" y="0" transform="translate(58,272) rotate(-90)" text-anchor="start">low</text>
+        <text class="ax-lbl ax-title" x="0" y="0" transform="translate(58,144) rotate(-90)" text-anchor="middle">application semantics</text>
+        <text class="ax-lbl" x="0" y="0" transform="translate(58,16) rotate(-90)" text-anchor="end">high</text>
       </svg>
-      <figcaption class="cap">Cada punto es una manera habitual de construir servicios. La esquina superior izquierda está vacía porque es cara: hay que escribirse el runtime.</figcaption>
+      <figcaption class="cap">Each dot is a usual way of building services. The top-left corner is empty because it is expensive: you have to write the runtime yourself.</figcaption>
     </figure>
   </section>
 
   <section class="band rv">
-    <p class="sec-tag">la pila</p>
-    <h2>Lo que hay debajo</h2>
-    <p class="body-p">La diferencia no está en lo que la aplicación ve, sino en lo que la sostiene. Donde los demás apoyan la semántica sobre una máquina virtual, yuneta la apoya sobre el sistema operativo.</p>
+    <p class="sec-tag">the stack</p>
+    <h2>What is underneath</h2>
+    <p class="body-p">The difference is not in what the application sees, it is in what holds it up. Where the others rest their semantics on a virtual machine, Yuneta rests them on the operating system.</p>
     <div class="stacks">
       <div class="stack">
-        <h3>Lo habitual</h3>
-        <div class="layer">Aplicación</div>
-        <div class="layer">Framework de actores<small>servicios, roles, mensajes</small></div>
-        <div class="layer heavy">Runtime<small>VM · GC · planificador propio</small></div>
-        <div class="layer os">Sistema operativo</div>
+        <h3>The usual</h3>
+        <div class="layer">Application</div>
+        <div class="layer">Actor framework<small>services, roles, messages</small></div>
+        <div class="layer heavy">Runtime<small>VM · GC · a scheduler of its own</small></div>
+        <div class="layer os">Operating system</div>
       </div>
       <div class="stack">
         <h3>Yuneta</h3>
-        <div class="layer">Aplicación</div>
-        <div class="layer core">gobjs<small>jerarquía · FSM · bus de eventos</small></div>
-        <div class="layer core">C<small>io_uring · un hilo por yuno · sin GC</small></div>
-        <div class="layer os">Sistema operativo</div>
+        <div class="layer">Application</div>
+        <div class="layer core">gobjs<small>hierarchy · FSM · event bus</small></div>
+        <div class="layer core">C<small>io_uring · one thread per yuno · no GC</small></div>
+        <div class="layer os">Operating system</div>
       </div>
     </div>
-    <p class="note">La capa de aplicación no se apoya en un runtime: <strong>es</strong> el runtime, escrito en C. Un <em>yuno</em> es el proceso que resulta: un árbol de gobjs con su bucle de eventos. El binario sale estático; se copia a otra máquina y arranca, sin nada que instalar.</p>
+    <p class="note">The application layer does not rest on a runtime: it <strong>is</strong> the runtime, written in C. A <em>yuno</em> is the process that comes out: a tree of gobjs with its own event loop. The binary is static; copy it to another machine and it runs, with nothing to install.</p>
   </section>
 
   <section class="band rv">
-    <p class="sec-tag">el código</p>
-    <h2>El mismo vocabulario a los dos lados</h2>
-    <p class="body-p">Un gobj no tiene métodos, y no hay manera de llamar a otro objeto. Solo hay eventos con nombre y una tabla que dice qué acepta cada estado. Esa tabla se escribe igual en C que en el navegador, y por eso entre ellos no hace falta pegamento generado.</p>
+    <p class="sec-tag">the code</p>
+    <h2>The same vocabulary on both sides</h2>
+    <p class="body-p">A gobj has no methods, and there is no way to call another object. There are only named events and a table saying what each state accepts. That table is written the same way in C and in the browser, which is why nothing between them needs generated glue.</p>
     <div class="pair">
       <div class="panel">
-        <p class="panel-h">servidor · <b>c_timer.c</b></p>
-<pre><span class="cm">/* lo que acepta ST_IDLE */</span>
+        <p class="panel-h">server · <b>c_timer.c</b></p>
+<pre><span class="cm">/* what ST_IDLE accepts */</span>
 ev_action_t st_idle[] = {
     {<span class="ev">EV_TIMEOUT_PERIODIC</span>, <span class="ac">ac_timeout</span>, 0},
     {0,0,0}
@@ -589,8 +587,8 @@ states_t states[] = {
 };</pre>
       </div>
       <div class="panel">
-        <p class="panel-h">navegador · <b>c_agent_login.js</b></p>
-<pre><span class="cm">/* la sesión de una SPA */</span>
+        <p class="panel-h">browser · <b>c_agent_login.js</b></p>
+<pre><span class="cm">/* a SPA session */</span>
 const states = [
   [<span class="st">"ST_LOGOUT"</span>, [
     [<span class="ev">"EV_DO_LOGIN"</span>,
@@ -606,16 +604,16 @@ const states = [
 ];</pre>
       </div>
     </div>
-    <p class="cap">Un gclass de C y la sesión de una SPA, tal como están escritos. Misma forma, mismos nombres, misma manera de fallar: un evento que llega a un estado que no lo declara es un error visible, no una excepción escondida.</p>
+    <p class="cap">A C gclass and a SPA session, as they are written. Same shape, same names, same way of failing: an event that reaches a state which does not declare it is a visible error, not a hidden exception.</p>
   </section>
 
   <section class="band rv">
-    <p class="sec-tag">el cable</p>
-    <h2>El contrato es el mensaje</h2>
-    <p class="body-p">Si lo que define a un gobj es la tabla de eventos y no su implementación, cualquier extremo que hable ese protocolo entra en el sistema, esté escrito en lo que esté escrito.</p>
+    <p class="sec-tag">the wire</p>
+    <h2>The contract is the message</h2>
+    <p class="body-p">If what defines a gobj is the event table and not its implementation, any endpoint that speaks that protocol is part of the system, whatever it is written in.</p>
     <figure>
-      <svg viewBox="0 0 400 200" role="img" aria-label="Un bus de eventos horizontal con cuatro extremos conectados: un yuno en C, otro yuno en C sobre ESP32, una SPA gobj-ui en JavaScript, un agente en C y, con borde discontinuo, un extremo en cualquier otro lenguaje todavía por escribir. Los mensajes viajan por el bus entre ellos.">
-        <text class="bus-cap" x="200" y="14" text-anchor="middle">mismo modelo de servicios y roles a los dos lados del cable</text>
+      <svg viewBox="0 0 400 200" role="img" aria-label="A horizontal event bus with five endpoints attached: a yuno in C, another yuno in C on ESP32, a gobj-ui SPA in JavaScript, an agent in C and, with a dashed border, an endpoint in some other language still to be written. Messages travel along the bus between them.">
+        <text class="bus-cap" x="200" y="14" text-anchor="middle">the same model of services and roles on both sides of the wire</text>
 
         <rect class="node" x="14" y="34" width="96" height="32" rx="2"></rect>
         <text class="node-lbl" x="62" y="54" text-anchor="middle">yuno · C</text>
@@ -626,7 +624,7 @@ const states = [
         <line class="stem" x1="200" y1="66" x2="200" y2="110"></line>
 
         <rect class="node maybe" x="290" y="34" width="96" height="32" rx="2"></rect>
-        <text class="node-lbl soft" x="338" y="54" text-anchor="middle">otro lenguaje</text>
+        <text class="node-lbl soft" x="338" y="54" text-anchor="middle">another language</text>
         <line class="stem" x1="338" y1="66" x2="338" y2="110"></line>
 
         <line class="bus-line" x1="22" y1="110" x2="378" y2="110"></line>
@@ -640,53 +638,53 @@ const states = [
 
         <line class="stem" x1="276" y1="110" x2="276" y2="152"></line>
         <rect class="node" x="222" y="152" width="108" height="32" rx="2"></rect>
-        <text class="node-lbl" x="276" y="172" text-anchor="middle">agente · C</text>
+        <text class="node-lbl" x="276" y="172" text-anchor="middle">agent · C</text>
       </svg>
-      <figcaption class="cap">C y JavaScript comparten hoy la misma disposición de gclass y la misma API pública: los payloads viajan idénticos byte a byte. El recuadro discontinuo es el hueco que queda abierto — a un extremo nuevo le basta con hablar el protocolo.</figcaption>
+      <figcaption class="cap">C and JavaScript already share the same gclass layout and the same public API: payloads travel identical byte for byte. The dashed box is the gap left open — a new endpoint only has to speak the protocol.</figcaption>
     </figure>
   </section>
 
   <section class="band rv">
     <blockquote class="pull">
-      <p>No hay métodos. No hay forma de <em>llamar</em> a otro objeto.</p>
-      <footer>decisión 01 · eventos y FSM, nada más</footer>
+      <p>No methods. No way to <em>call</em> another object.</p>
+      <footer>decision 01 · events and FSM, nothing else</footer>
     </blockquote>
   </section>
 
   <section class="band rv">
-    <p class="sec-tag">la factura</p>
-    <h2>Lo que cuesta cada decisión</h2>
-    <p class="body-p">Todo framework publica sus ventajas. Estas son las mismas decisiones con el recibo al lado, porque elegir un framework es elegir sus renuncias.</p>
+    <p class="sec-tag">the bill</p>
+    <h2>What each decision costs</h2>
+    <p class="body-p">Every framework publishes its advantages. These are the same decisions with the receipt beside them, because choosing a framework is choosing what it gives up.</p>
     <dl class="bill">
       <div>
-        <dt>Todo es un evento con nombre y su tabla de estados. El comportamiento se puede dibujar, reproducir y recorrer entero.</dt>
-        <dd>Hay que diseñar los estados de antemano. Yuneta no te deja llamar a un método del objeto de al lado.</dd>
+        <dt>Everything is a named event and its state table. Behaviour can be drawn, replayed and walked end to end.</dt>
+        <dd>You have to design the states up front. Yuneta will not let you call a method on the object next door.</dd>
       </div>
       <div>
-        <dt>Un hilo por yuno. Ni cerrojos, ni mutex, ni atómicos en ninguna parte del framework.</dt>
-        <dd>Una operación lenta bloquea su yuno. El trabajo se reparte en procesos, no en hilos.</dd>
+        <dt>One thread per yuno. No locks, no mutexes, no atomics anywhere in the framework.</dt>
+        <dd>A slow operation blocks its yuno. Work is spread across processes, not threads.</dd>
       </div>
       <div>
-        <dt>JSON en todas partes: payloads, registros, logs, comandos y estadísticas. Un serializador, un diff, una aserción de test.</dt>
-        <dd>Parsear no es gratis. El objetivo son miles de mensajes por segundo y núcleo, no decenas de millones.</dd>
+        <dt>JSON everywhere: payloads, records, logs, commands and statistics. One serializer, one diff, one test assertion.</dt>
+        <dd>Parsing is not free. The target is thousands of messages per second per core, not tens of millions.</dd>
       </div>
       <div>
-        <dt>Almacenamiento solo-añadir. De ahí salen la cola durable, el grafo en memoria y la posibilidad de reproducir lo ocurrido.</dt>
-        <dd>Se cambia disco por conservarlo todo. No hay reescritura en sitio.</dd>
+        <dt>Append-only storage. The durable queue, the in-memory graph and the ability to replay what happened all come out of it.</dt>
+        <dd>You trade disk for keeping everything. There is no rewriting in place.</dd>
       </div>
       <div>
-        <dt>Una abstracción que no se parece a nada: ni a objetos, ni a actores, ni a microservicios.</dt>
-        <dd>No tiene de dónde copiarse. Ni un programador nuevo ni un modelo pueden deducir las convenciones, así que hay que escribirlas como se escribe la especificación de un protocolo.</dd>
+        <dt>An abstraction that resembles nothing else: not objects, not actors, not microservices.</dt>
+        <dd>There is nothing to copy from. Neither a new programmer nor a model can infer the conventions, so they have to be written down the way a protocol specification is.</dd>
       </div>
     </dl>
   </section>
 
   <footer class="close rv">
-    <p class="kicker">No pasa nada que no pase por la máquina.</p>
+    <p class="kicker">Nothing happens except through the machine.</p>
     <ul class="links">
-      <li><a href="https://yuneta.io/">yuneta.io — documentación</a></li>
-      <li><a href="https://yuneta.io/design-principles">principios de diseño</a></li>
-      <li><a href="https://yuneta.io/glossary">glosario</a></li>
+      <li><a href="https://yuneta.io/">yuneta.io — documentation</a></li>
+      <li><a href="https://yuneta.io/design-principles">design principles</a></li>
+      <li><a href="https://yuneta.io/glossary">glossary</a></li>
       <li><a href="https://github.com/artgins/yunetas">github.com/artgins/yunetas</a></li>
     </ul>
     <p class="colophon">Yuneta Simplified · MIT · Linux · ArtGins</p>
