@@ -992,6 +992,146 @@ h1.hero-title {
         </div>
     </section>
 
+    <!-- ============ WALKTHROUGHS ============
+
+         Standalone documents, not chapters: myst copies no raw files and
+         its sidebar never lists them, so THIS is their index. Adding one
+         is three steps:
+
+           1. docs/doc.yuneta.io/<slug>/index.html — self-contained, no
+              external requests, theme through localStorage["myst:theme"]
+           2. a slug in the matching list in deploy.sh (WALKTHROUGHS,
+              REFERENCES or ESSAYS), next to the others
+           3. one card below in the matching band — class run-card,
+              ref-card or essay-card — and a line in the site map
+
+         deploy.sh checks step 3 per band and refuses to ship a mismatch.
+
+         The three bands sit HERE, right after the overview and ahead of
+         the argument, because they are the only thing on this page that
+         is not a landing page's usual pitch. They were at the bottom
+         until 2026-08-02: ten screens down on a phone, which is the same
+         as not having them. Whatever else grows on this page, they stay
+         above it.
+
+         Keep each list in the order a reader would want them, not in the
+         order they were written. No counter in the band-head label: it
+         would go stale the first time this grows.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>Pages that run</h2>
+            <span class="label">Walkthroughs</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">Whole documents
+        rather than chapters: a diagram you step through instead of a figure you stare at.</p>
+
+        <div class="runs">
+            <a class="run-card" href="/login-flow">
+                <span class="run-kick">&#9654;&ensp;Interactive</span>
+                <span class="run-t">The login, gobj by gobj</span>
+                <span class="run-d">The auth_bff exchange as a graph that runs, with the real
+                gobjs and the real events on the edges. Five scenarios, from a clean login to
+                the reboot that used to log everyone out.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!--
+                The one absolute href on this page besides GitHub, and it
+                breaks the root-relative rule in the header comment on
+                purpose: the demo is a separate app on its own host, not a
+                page of this tree, so there is nothing to keep on the
+                reader's hostname. It carries no MyST theme either, so the
+                localStorage argument does not apply to it.
+            -->
+            <a class="run-card" href="https://demo.yuneta.io">
+                <span class="run-kick">&#9654;&ensp;Live</span>
+                <span class="run-t">The shell, running</span>
+                <span class="run-d">Not a diagram of the UI library — the library itself, in
+                your browser. Every <code>C_YUI_NAV</code> layout and the per-zone responsive
+                model, declared in one JSON file and materialized by the shell. No backend and
+                no login. Open it on a phone too: the layouts change per breakpoint, which is
+                the part a screenshot cannot show.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!-- next walkthrough goes here -->
+        </div>
+    </section>
+
+    <!-- ============ FIELD GUIDES ============
+         Standalone pages like the walkthroughs above, but read rather
+         than stepped through: one decision explained end to end, with
+         the API names it lands on. Their cards carry a still rule, not
+         the sweeping one — see .ref-card.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>Field guides</h2>
+            <span class="label">Reference</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">One decision,
+        followed all the way down to the names you type. The page you keep open while writing
+        the code, not the chapter you read once.</p>
+
+        <div class="runs guides">
+            <a class="ref-card" href="/package-transition">
+                <span class="run-kick">Reference</span>
+                <span class="run-t">The file that disappears</span>
+                <span class="run-d">Taking a config file out of a package makes dpkg and rpm
+                delete it on upgrade. Where the delete lands, why %post is too early, and a
+                harness that proves it.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="ref-card" href="/navigation">
+                <span class="run-kick">Reference</span>
+                <span class="run-t">Getting back</span>
+                <span class="run-d">Navigation in a gobj-ui app comes down to one decision:
+                where the reader's position lives. The url, the node tree and the pager's
+                stack — and where <code>nav_mode</code> actually fits.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!-- next field guide goes here -->
+        </div>
+    </section>
+
+    <!-- ============ THE IDEA ============
+         Standalone pages again, but neither run nor reference: they
+         argue. The band exists because a reader who has not adopted
+         Yuneta wants the claim and its price, not an API name — and a
+         card in "Field guides" would never be found by that reader.
+         Their rule is a short mark, not a full one: one claim, not a
+         subject spanned. Written in the reader's language rather than
+         in English, which is the one place on this site that happens.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>The idea</h2>
+            <span class="label">Essays</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">What the
+        framework is, and what each decision costs — for a reader who has not adopted it.</p>
+
+        <div class="runs guides">
+            <a class="essay-card" href="/otra-vision">
+                <span class="run-kick">Essay &middot; Espa&ntilde;ol</span>
+                <span class="run-t">Sem&aacute;ntica alta, lenguaje bajo</span>
+                <span class="run-d">Yuneta in one page: services, roles and messages without
+                the runtime that usually pays for them. The <code>machine</code> trace as it
+                really prints, the same state table in C and in the browser, and a bill next
+                to every decision. In Spanish.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <!-- next essay goes here -->
+        </div>
+    </section>
+
     <!-- ============ DECISIONS ============ -->
     <section class="band">
         <div class="band-head">
@@ -1168,135 +1308,6 @@ h1.hero-title {
                 </span>
             </a>
         </nav>
-    </section>
-
-    <!-- ============ WALKTHROUGHS ============
-
-         Standalone interactive documents, not chapters: myst copies no
-         raw files and its sidebar never lists them, so THIS is their
-         index. Adding one is three steps:
-
-           1. docs/doc.yuneta.io/<slug>/index.html — self-contained, no
-              external requests, theme through localStorage["myst:theme"]
-           2. an install line in deploy.sh, next to the others
-           3. one <a class="step"> below, and a line in the site map
-
-         Keep the list in the order a reader would want them, not in the
-         order they were written. No counter in the band-head label: it
-         would go stale the first time this grows.
-    -->
-    <section class="band">
-        <div class="band-head">
-            <h2>Pages that run</h2>
-            <span class="label">Walkthroughs</span>
-        </div>
-
-        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">Whole documents
-        rather than chapters: a diagram you step through instead of a figure you stare at.</p>
-
-        <div class="runs">
-            <a class="run-card" href="/login-flow">
-                <span class="run-kick">&#9654;&ensp;Interactive</span>
-                <span class="run-t">The login, gobj by gobj</span>
-                <span class="run-d">The auth_bff exchange as a graph that runs, with the real
-                gobjs and the real events on the edges. Five scenarios, from a clean login to
-                the reboot that used to log everyone out.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <!--
-                The one absolute href on this page besides GitHub, and it
-                breaks the root-relative rule in the header comment on
-                purpose: the demo is a separate app on its own host, not a
-                page of this tree, so there is nothing to keep on the
-                reader's hostname. It carries no MyST theme either, so the
-                localStorage argument does not apply to it.
-            -->
-            <a class="run-card" href="https://demo.yuneta.io">
-                <span class="run-kick">&#9654;&ensp;Live</span>
-                <span class="run-t">The shell, running</span>
-                <span class="run-d">Not a diagram of the UI library — the library itself, in
-                your browser. Every <code>C_YUI_NAV</code> layout and the per-zone responsive
-                model, declared in one JSON file and materialized by the shell. No backend and
-                no login. Open it on a phone too: the layouts change per breakpoint, which is
-                the part a screenshot cannot show.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <!-- next walkthrough goes here -->
-        </div>
-    </section>
-
-    <!-- ============ FIELD GUIDES ============
-         Standalone pages like the walkthroughs above, but read rather
-         than stepped through: one decision explained end to end, with
-         the API names it lands on. Their cards carry a still rule, not
-         the sweeping one — see .ref-card.
-    -->
-    <section class="band">
-        <div class="band-head">
-            <h2>Field guides</h2>
-            <span class="label">Reference</span>
-        </div>
-
-        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">One decision,
-        followed all the way down to the names you type. The page you keep open while writing
-        the code, not the chapter you read once.</p>
-
-        <div class="runs guides">
-            <a class="ref-card" href="/package-transition">
-                <span class="run-kick">Reference</span>
-                <span class="run-t">The file that disappears</span>
-                <span class="run-d">Taking a config file out of a package makes dpkg and rpm
-                delete it on upgrade. Where the delete lands, why %post is too early, and a
-                harness that proves it.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <a class="ref-card" href="/navigation">
-                <span class="run-kick">Reference</span>
-                <span class="run-t">Getting back</span>
-                <span class="run-d">Navigation in a gobj-ui app comes down to one decision:
-                where the reader's position lives. The url, the node tree and the pager's
-                stack — and where <code>nav_mode</code> actually fits.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <!-- next field guide goes here -->
-        </div>
-    </section>
-
-    <!-- ============ THE IDEA ============
-         Standalone pages again, but neither run nor reference: they
-         argue. The band exists because a reader who has not adopted
-         Yuneta wants the claim and its price, not an API name — and a
-         card in "Field guides" would never be found by that reader.
-         Their rule is a short mark, not a full one: one claim, not a
-         subject spanned. Written in the reader's language rather than
-         in English, which is the one place on this site that happens.
-    -->
-    <section class="band">
-        <div class="band-head">
-            <h2>The idea</h2>
-            <span class="label">Essays</span>
-        </div>
-
-        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">What the
-        framework is, and what each decision costs — for a reader who has not adopted it.</p>
-
-        <div class="runs guides">
-            <a class="essay-card" href="/otra-vision">
-                <span class="run-kick">Essay &middot; Espa&ntilde;ol</span>
-                <span class="run-t">Sem&aacute;ntica alta, lenguaje bajo</span>
-                <span class="run-d">Yuneta in one page: services, roles and messages without
-                the runtime that usually pays for them. The <code>machine</code> trace as it
-                really prints, the same state table in C and in the browser, and a bill next
-                to every decision. In Spanish.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <!-- next essay goes here -->
-        </div>
     </section>
 
     <!-- ============ MAP ============ -->
