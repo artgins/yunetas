@@ -1,5 +1,50 @@
 # **Changelog**
 
+## Unreleased
+
+### Added
+
+- **`@yuneta/gobj-ui` 5.6.0 → 5.8.1** (submodule bump; its own `CHANGELOG.md`
+  carries the detail).
+
+  - **The bottom toolbar of `C_YUI_FORM` is configurable**, and a toolbar with
+    a single group is centred. A button the caller drops no longer breaks the
+    form.
+  - **`yui_shell_confirm_danger()`** — a destructive confirmation whose button
+    is RED. `yui_shell_confirm_yesno()` puts its yes in `is-link`, the right
+    colour for *"do you want to continue"* and the wrong one for *"this deletes
+    an account"*: the two read the same at a glance, and the destructive one is
+    the one that must not be clicked by reflex. The safe answer is the last
+    button, so Escape, the backdrop and the X all resolve to it.
+  - **The treedb table's search stretches on a phone**, where its row used to
+    keep its natural width and leave the most used control the narrowest thing
+    on screen. Its placeholder was the literal `'search...'` — a placeholder is
+    not a text node, so `refresh_language()` could never reach it and it stayed
+    English in every language; it carries `data-i18n-placeholder` now.
+  - **Edit is a mode toggle** in that table, not one more action.
+
+### Documentation
+
+- **doc.yuneta.io links back to the landing page.** The landing is raw HTML
+  installed at `/landing` and is the front door served at `yuneta.io`, but it
+  sits outside the myst toc, so nothing in the built site pointed at it: a
+  reader who entered through `doc.yuneta.io` had no way to reach it. It is a
+  `Home` entry in `site.nav` now. The book theme hides nav items below 1024px
+  and its hamburger only opens the toc, so two rules in `_static/custom.css`
+  keep the link reachable on a phone.
+
+- **A new standalone page at `/high-semantics`** — *"High-level semantics,
+  low-level language"*: Yuneta in one page, with the `machine` trace in the
+  format it really prints, the same state table in C and in the browser, and a
+  bill next to every decision. It argues rather than instructs, so it opens a
+  third band on the landing (**"The idea"**, `essay-card`), with its own
+  `ESSAYS` list and `check_band` guard in `deploy.sh`.
+
+- **The standalone pages moved above the argument on the landing.** They were
+  the last three bands before the site map: ten screens down on a 390×844
+  phone, on a page 13.6 screens long. A card nobody scrolls to is a card that
+  does not exist. `/navigation` was also missing from the site map.
+
 ## 7.9.8
 
 ### Fixed
