@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.9
 
 ### Fixed
 
@@ -31,7 +31,7 @@
 
 ### Added
 
-- **`@yuneta/gobj-ui` 5.6.0 → 5.8.1** (submodule bump; its own `CHANGELOG.md`
+- **`@yuneta/gobj-ui` 5.6.0 → 5.8.2** (submodule bump; its own `CHANGELOG.md`
   carries the detail).
 
   - **The bottom toolbar of `C_YUI_FORM` is configurable**, and a toolbar with
@@ -49,6 +49,11 @@
     not a text node, so `refresh_language()` could never reach it and it stayed
     English in every language; it carries `data-i18n-placeholder` now.
   - **Edit is a mode toggle** in that table, not one more action.
+  - **A toolbar dropdown no longer opens off-screen.** The panel was anchored
+    to one edge of its trigger and only that edge was guarded against the
+    viewport, so a right-aligned panel near the left of the bar hung off the
+    screen — which is what *every* `navbar-end` trigger does under
+    `dir="rtl"`. It is clamped on both edges now; LTR positions are unchanged.
 
 ### Changed
 
@@ -71,7 +76,11 @@
   accept. No service worker is involved — Chrome no longer requires one for
   installability. The manifests declare no `orientation`: `orientation: "any"`
   overrides the device's rotation lock, so the app rotates even when the user
-  locked it.
+  locked it. Both are named `manifest.webmanifest`, the name every SPA in the
+  family uses, so the nginx `location` that declares their MIME type is the
+  same line everywhere — `.webmanifest` is absent from nginx's stock
+  `mime.types`, and without that block a manifest goes out as
+  `application/octet-stream`.
 
 ### Documentation
 

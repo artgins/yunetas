@@ -38,4 +38,4 @@ username/password is used. See [Authentication (OAuth2 / OIDC)](#ycommand-auth).
 ## See also
 
 - [`mqtt_broker`](../yunos/mqtt_broker.md) — the broker side.
-- [`utils/c/mqtt_tui/README.md`](https://github.com/artgins/yunetas/blob/7.9.8/utils/c/mqtt_tui/README.md).
+- [`utils/c/mqtt_tui/README.md`](https://github.com/artgins/yunetas/blob/7.9.9/utils/c/mqtt_tui/README.md).
