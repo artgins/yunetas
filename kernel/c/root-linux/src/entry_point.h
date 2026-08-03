@@ -4,7 +4,7 @@
  *          Entry point for yunos (yuneta daemons).
  *
  *          Copyright (c) 2014-2015 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -50,6 +50,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
  *  For TEST: kill the yuno in `timeout` seconds, only if not running as daemon.
  */
 PUBLIC void set_auto_kill_time(int seconds);
+
+/*
+ *  TRUE when the process was launched with --start, i.e. it runs under the
+ *  ydaemon watcher. FALSE for a plain foreground process: a CLI utility, a
+ *  test, a yuno run by hand. Signal policy depends on it — see the SIGTERM
+ *  case in c_yuno.c.
+ */
+PUBLIC BOOL yuneta_is_daemon(void);
 
 PUBLIC json_t *yuneta_json_config(void); // It's NOT yours
 

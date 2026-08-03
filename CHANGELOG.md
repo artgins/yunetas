@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### Fixed
+
+- **A foreground process honours SIGTERM; a daemon still ignores it.**
+  `c_yuno.c`'s signalfd handler marked SIGTERM `// ignored` for every process
+  built on the framework, because `capture_signals()` runs unconditionally in
+  `mt_start`. For a daemon that is deliberate — its watcher parent is deaf to
+  everything, `--stop` kills with SIGQUIT then SIGKILL, and a stray SIGTERM
+  from `init` at shutdown must not take a node's yunos down. For a CLI it was
+  inherited by accident, and it breaks the Unix contract: `timeout` never
+  escalates to SIGKILL on its own, so `timeout N ycommand …` **hung forever**
+  and left an immortal process behind — two were found alive after two and a
+  half days, with the password still visible in `ps`.
+
+  SIGTERM now takes the same orderly path as SIGQUIT/SIGINT **unless the
+  process runs as a daemon**, reported by the new `yuneta_is_daemon()`
+  (`entry_point.h`), which is true exactly when `--start` was given. The agent
+  launches every managed yuno with `--start` (`c_agent.c`), so no daemon
+  changes behaviour. Verified on both branches: `ycommand` now dies on
+  SIGTERM and `timeout 8` returns in 8 s, while a `--start`ed yuno ignores
+  SIGTERM in both watcher and child and still stops cleanly with `--stop`.
+
+  The standalone timeranger tools (`tr2list`, `tr2keys`, `tr2search`,
+  `tr2migrate`, `treedb_list`, `msg2db_list`, `stats_list`, `fs_watcher`) do
+  not use `yuneta_entry_point`, so they carried their own copy of the same
+  v6-era boilerplate; each now routes SIGTERM to its orderly quit handler
+  instead of ignoring it.
+
 ### Added
 
 - **`@yuneta/gobj-ui` 5.6.0 → 5.8.1** (submodule bump; its own `CHANGELOG.md`

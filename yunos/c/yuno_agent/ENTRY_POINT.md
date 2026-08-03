@@ -330,16 +330,25 @@ The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.9.8/kernel/c
 | SIGQUIT / SIGINT / SIGALRM | `set_yuno_must_die()` → exit code 0 → [`yev_loop_run`](#yev_loop_run) returns → clean shutdown → watcher does **not** relaunch | `_exit(0)` immediately (still exit code 0, still no relaunch) |
 | SIGUSR1              | cycle global trace level (off → L0 → L1 → L2 → off)   | same                         |
 | SIGUSR2              | toggle deep tracing                                   | same                         |
-| SIGTERM / SIGPIPE    | ignored                                               | ignored                      |
+| SIGTERM              | **daemon** (`--start`): ignored — **foreground**: same as SIGQUIT | daemon: ignored — foreground: `_exit(0)` |
+| SIGPIPE              | ignored                                               | ignored                      |
 
-Two consequences:
+Three consequences:
 
   - **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
   stop.** The first SIGQUIT is a request. The second is a hard stop
   that still leaves the watcher satisfied.
-- **SIGTERM is ignored.** `init` can send it on shutdown. The yuno
-  depends on the agent's `kill-yuno` (which sends SIGQUIT), or on the
-  SIGQUIT + SIGKILL chain of the init script.
+- **A daemon ignores SIGTERM.** `init` can send it on shutdown, and a stray
+  `killall` should not take a node's yunos down. A daemon depends on the
+  agent's `kill-yuno` (which sends SIGQUIT), or on the SIGQUIT + SIGKILL
+  chain of the init script. The agent launches every managed yuno with
+  `--start`, so they all get this posture.
+- **A foreground process honours SIGTERM**, since 7.9.9. Without `--start`
+  the process is a CLI utility, a test, or a yuno run by hand, and ignoring
+  the signal that `kill(1)` and `timeout(1)` send breaks the Unix contract:
+  `timeout` never escalates to SIGKILL on its own, so `timeout N ycommand …`
+  hung forever and left an immortal process behind. The switch is
+  `yuneta_is_daemon()`, which reports whether `--start` was given.
 
 ---
 

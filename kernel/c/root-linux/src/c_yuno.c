@@ -570,6 +570,23 @@ typedef struct _PRIVATE_DATA {
 
 
 /***************************************************************************
+ *  Orderly shutdown asked by a signal.
+ *  The second signal is taken as "I said now": exit with 0 so the ydaemon
+ *  watcher does not relaunch us.
+ ***************************************************************************/
+PRIVATE void quit_by_signal(void)
+{
+    static int tries = 0;
+
+    tries++;
+    set_yuno_must_die();
+    if(tries > 1) {
+        // exit with 0 to avoid the watcher to relaunch the daemon
+        _exit(0);
+    }
+}
+
+/***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
 PRIVATE int yev_loop_callback(yev_event_h yev_event)
@@ -629,17 +646,30 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                             case SIGALRM:
                             case SIGQUIT:
                             case SIGINT:
-                                //quit_sighandler(fdsi.ssi_signo);
-                            {
-                                static int tries = 0;
-                                tries++;
-                                set_yuno_must_die();
-                                if(tries > 1) {
-                                    // exit with 0 to avoid the watcher to relaunch the daemon
-                                    _exit(0);
+                                quit_by_signal();
+                                break;
+
+                            case SIGTERM:
+                                /*
+                                 *  A DAEMON ignores SIGTERM on purpose: its
+                                 *  watcher parent ignores every signal, and
+                                 *  `--stop` kills with SIGQUIT then SIGKILL
+                                 *  (ydaemon.c), so SIGTERM is no part of the
+                                 *  stop protocol. Honouring it would let any
+                                 *  stray SIGTERM — init at shutdown, a rogue
+                                 *  `killall` — take a node's yunos down.
+                                 *
+                                 *  A FOREGROUND process is another matter: a
+                                 *  CLI utility that ignores SIGTERM breaks the
+                                 *  Unix contract, and `timeout` never escalates
+                                 *  to SIGKILL on its own, so `timeout N
+                                 *  ycommand …` hangs forever and leaves an
+                                 *  immortal process behind.
+                                 */
+                                if(!yuneta_is_daemon()) {
+                                    quit_by_signal();
                                 }
-                            }
-                            break;
+                                break;
 
                             case SIGUSR1: {
                                 uint32_t global_trace = gobj_global_trace_level2();
@@ -670,7 +700,6 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                             break;
 
                             case SIGPIPE:
-                            case SIGTERM:
                                 // ignored
                             default:
                                 // unexpected signal

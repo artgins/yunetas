@@ -909,7 +909,6 @@ PUBLIC void yuno_catch_signals(void)
     struct sigaction sigIntHandler;
 
     signal(SIGPIPE, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
 
     memset(&sigIntHandler, 0, sizeof(sigIntHandler));
     sigIntHandler.sa_handler = quit_sighandler;
@@ -918,6 +917,9 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+    // A foreground tool must honour SIGTERM: it is what kill(1) and
+    // timeout(1) send, and timeout never escalates to SIGKILL on its own.
+    sigaction(SIGTERM, &sigIntHandler, NULL);
 
     alarm(time2exit);
 }
