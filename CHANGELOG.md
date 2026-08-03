@@ -42,7 +42,9 @@
   a `site.webmanifest` that was never installable: no `display` (so it
   defaulted to `browser`) and an SVG as its only icon, which Chrome does not
   accept. No service worker is involved — Chrome no longer requires one for
-  installability.
+  installability. The manifests declare no `orientation`: `orientation: "any"`
+  overrides the device's rotation lock, so the app rotates even when the user
+  locked it.
 
 ### Documentation
 
