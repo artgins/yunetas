@@ -11,9 +11,17 @@
   on screen. Four views had each grown their own copy code and it had drifted;
   two wrote unindented JSON and two said nothing when the write failed.
 
-- **gui_agent's Nodes and Statistics tables copy as JSON** (`yunos/js`
-  submodule bump). Until now the only way to pass one of those lists to anyone
-  was a screenshot.
+- **gui_agent's tables copy as JSON** (`yunos/js` submodule bump). Until now
+  the only way to pass one of those lists to anyone was a screenshot. Nodes and
+  Statistics get a *Copy JSON* button; the console's copy button — created
+  disabled and only re-enabled for text answers, so it was dead for `top`,
+  `list-yunos` and most commands — now copies table answers too. Each history
+  row also runs its command in one gesture instead of two.
+
+- **`@yuneta/gobj-ui` 5.10.0** — `yui_button_mark_done()` /
+  `yui_button_unmark()`, so a copy button can say "Copied" for a moment. The
+  timing stays in the consumer's FSM (a `C_TIMER` + `EV_TIMEOUT`), not in a
+  `setTimeout` inside the library.
 
 ## 7.9.9
 
