@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+### Added
+
+- **`@yuneta/gobj-ui` 5.9.0 — shared clipboard helpers** (submodule bump).
+  `yui_clipboard.js` gives every table one line to hand its rows over:
+  `yui_copy_table_json()` copies what the user is LOOKING AT — the selected
+  rows when there is a selection, otherwise every row the current filters leave
+  on screen. Four views had each grown their own copy code and it had drifted;
+  two wrote unindented JSON and two said nothing when the write failed.
+
+- **gui_agent's Nodes and Statistics tables copy as JSON** (`yunos/js`
+  submodule bump). Until now the only way to pass one of those lists to anyone
+  was a screenshot.
+
 ## 7.9.9
 
 ### Fixed
