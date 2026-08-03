@@ -4,6 +4,14 @@
 
 ### Added
 
+- **`@yuneta/gobj-js` 7.9.9 — `gobj_set_gclass_no_trace()`** (submodule bump).
+  The C kernel has it; the JS port did not, even though the field was there
+  and already consulted. Without it the idiom every C `main()` uses to keep
+  timers out of a `machine` trace could not be written in JS at all, so the
+  SPAs' machine trace drowned in the yuno's one-second periodic tick. Both JS
+  yunos now carry that block. Also realigns the package with
+  `YUNETA_VERSION`, which had drifted at 7.9.6.
+
 - **`@yuneta/gobj-ui` 5.9.0 — shared clipboard helpers** (submodule bump).
   `yui_clipboard.js` gives every table one line to hand its rows over:
   `yui_copy_table_json()` copies what the user is LOOKING AT — the selected
