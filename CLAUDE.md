@@ -44,14 +44,12 @@ repositories** and is embedded here as **git submodules** (the same model as
   `CHANGELOG.md`.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
-Because each submodule sits at its original path, local `file:` consumers resolve
-unchanged: the yunos' `@yuneta/gobj-js` / `@yuneta/gobj-ui` deps
-(`../../../kernel/js/…` from `yunos/js/<yuno>`) still point at the checked-out
-`kernel/js/*` submodules. (**wattyzer no longer does** — since 2026-07-25 its
-`gui/` consumes both libraries from the **npm registry**, so library work only
-reaches it once published.) To edit a JS yuno: work in
-`yunos/js` directly, commit on `main` in the `yunos-js` repo, then **bump this
-submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
+**Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
+registry** — since 2026-08-03 there are no `file:` consumers left (wattyzer
+moved on 2026-07-25, the in-repo `yunos/js/*` yunos followed). So library work
+reaches an app only once published, and each SPA builds standalone. To edit a
+JS yuno: work in `yunos/js` directly, commit on `main` in the `yunos-js` repo,
+then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
@@ -64,33 +62,31 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   major** (no API moved) that raises the peer floors — gobj-js `>= 7.8.7`,
   `maplibre-gl ^6.0.0` (ESM-only), i18next `^26.3.6`, tom-select `^2.6.2`,
   vanilla-jsoneditor `^3.13.0`.
-  **This submodule tracks `main`/v2.** It is consumed **locally** by the in-repo
-  yunos **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`** as
-  a `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`, exactly
-  like `@yuneta/gobj-js`); they import it by package specifier
-  (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map `"./src/*"`; the
-  source lives under `src/` mirroring v1, with `index.js` and the vite plugin at
-  the package root). **All new gobj-ui work lands on `main`/v2**: edit
-  `kernel/js/gobj-ui` directly, commit on `main` in the standalone repo, then
-  bump this submodule pointer in yunetas.
+  **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
+  **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
+  — all pull it from the **npm registry**, and all import it by package
+  specifier (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map
+  `"./src/*"`; the source lives under `src/` mirroring v1, with `index.js` and
+  the vite plugin at the package root, and the published tarball ships all of
+  it). **All new gobj-ui work lands on `main`/v2**: edit `kernel/js/gobj-ui`
+  directly, commit on `main` in the standalone repo, `npm publish`, then bump
+  this submodule pointer in yunetas **and the range in each consumer**.
 - **`v1` branch** (tag `1.0.1`, npm dist-tag `legacy`) — the **frozen** legacy
   GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
   charts/maps). `v1` is **maintenance-only** — do not land feature work here.
   estadodelaire and hidraulia consume it from the **npm registry** as
   `@yuneta/gobj-ui@^1.0.1` (the **published** package, **not** this local
   checkout). The local `kernel/js/gobj-ui` checkout is **no longer `v1`** — do
-  not point a `file:` dependency at it for a v1 consumer. (The in-repo
-  `yunos/js/gui_treedb` was migrated to **v2** and consumes this local checkout
-  by `file:`, like gui_agent — it is **not** a v1/npm consumer.)
-- **wattyzer** is a **third** case since 2026-07-25: it tracks the **v2** line
-  like the in-repo yunos, but consumes it from the **npm registry**
-  (`@yuneta/gobj-ui@^5.4.0` + `@yuneta/gobj-js@^7.8.7`) instead of by `file:`.
-  So a local edit under `kernel/js/gobj-ui` reaches `gui_agent`/`gui_treedb`
-  immediately and reaches wattyzer **only after `npm publish` + a range bump in
-  `wattyzer/gui/package.json`**. Dropping the `file:` symlink also let
-  wattyzer drop `resolve.preserveSymlinks`, which had been suppressing
-  tree-shaking of the `index.js` barrel (it pulled all of `maplibre-gl` into
-  the bundle for an app with no map — 1.5 MB).
+  not point a dependency at it for a v1 consumer. (The in-repo
+  `yunos/js/gui_treedb` was migrated to **v2** — it is **not** a v1 consumer.)
+
+**A local edit under `kernel/js/**` reaches no app until it is published.**
+That is the whole point of the registry model, and it is the thing to remember
+when a change "does not show up": publish the library, then raise the range in
+the consumer. Dropping the `file:` symlinks also let every consumer drop
+`resolve.preserveSymlinks`, which had been suppressing tree-shaking of the
+`index.js` barrel (in wattyzer it pulled all of `maplibre-gl` into the bundle
+for an app with no map — 1.5 MB).
 
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
@@ -102,11 +98,12 @@ in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
 patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
 `EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
-caught up at the `7.6.7` release.) estadodelaire/
-hidraulia consume it from the registry (estadodelaire on `@yuneta/gobj-js@^7.6.7`,
-hidraulia on `^7.6.6`), and so does **wattyzer** since 2026-07-25
-(`^7.8.7`); the in-repo `yunos/js/*` yunos keep a local `file:` dep on this
-checkout (the path is unchanged, so those `file:` deps still resolve).
+caught up at the `7.6.7` release.) **Every** consumer takes it from the
+registry: estadodelaire (`^7.9.6`), hidraulia (`^7.6.6`), wattyzer (`^7.9.6`,
+since 2026-07-25), the in-repo `yunos/js/*` yunos (`^7.9.6`, since 2026-08-03)
+and yunovatios. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
+unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
+`src/`.
 
 The JS GUI scaffold (declarative-shell yuno template) lives under
 `wattyzer/templates/js_gui/` (see the JS GUI scaffold note below).

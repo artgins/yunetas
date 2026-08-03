@@ -23,6 +23,27 @@
     English in every language; it carries `data-i18n-placeholder` now.
   - **Edit is a mode toggle** in that table, not one more action.
 
+### Changed
+
+- **The JS yunos consume the libraries from npm, not by `file:`** (`yunos/js`
+  submodule bump). `gui_agent` and `gui_treedb` pointed `@yuneta/gobj-js` and
+  `@yuneta/gobj-ui` at the `kernel/js/*` submodule checkouts, which tied a
+  build to the superproject and to whatever those working trees held. They now
+  resolve `^7.9.6` / `^5.8.2` from the registry, like wattyzer — **so there
+  are no `file:` consumers left**, and a local edit under `kernel/js/**`
+  reaches an app only after `npm publish` plus a range bump. The `file:` deps
+  were symlinks and forced `resolve.preserveSymlinks`, which loads duplicate
+  module instances; that flag and the `src/` aliases are gone, and `dedupe`
+  now also lists `@yuneta/gobj-js`.
+
+- **Both JS yunos install as a WebAPK.** Each ships a complete manifest
+  (`display: standalone`, `start_url`, `scope`, 192/512 PNG icons and a
+  maskable 512 variant) rendered from its existing SVG mark. `gui_treedb` had
+  a `site.webmanifest` that was never installable: no `display` (so it
+  defaulted to `browser`) and an SVG as its only icon, which Chrome does not
+  accept. No service worker is involved — Chrome no longer requires one for
+  installability.
+
 ### Documentation
 
 - **doc.yuneta.io links back to the landing page.** The landing is raw HTML
