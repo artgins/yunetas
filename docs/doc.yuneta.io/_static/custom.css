@@ -163,6 +163,41 @@ html.dark .myst-top-nav .myst-top-nav-item > a:hover {
     }
 }
 
+/* The heading permalink -- the little link the theme reveals when the pointer
+   is over a heading -- is a zero-width anchor pushed 10px to the right of the
+   heading text. When a heading fills the line, that push lands its glyph past
+   the viewport, and the whole page could be dragged sideways: 2px at 320px, on
+   a home page whose h2 is "An Asynchronous Development Framework". Found by
+   bisecting the DOM; every other suspect (the top bar, the outline, the skip
+   links) measured clean.
+
+   It is only ever visible on `group-hover`, so on a device that cannot hover
+   it is invisible weight -- which is exactly where the damage was. The width
+   clause covers a desktop window narrowed that far, where the same applies and
+   losing the permalink costs nothing. */
+/* The prev/next links at the foot of every chapter are flex rows: an arrow
+   and the neighbouring chapter's title. A flex item will not shrink below its
+   content unless it is told it may, so a long title ("gobj framework crash
+   course") pushed the row past a 320px viewport and the page went with it --
+   13px on /gobj. min-width:0 lets the title wrap, which is what it should
+   have done. */
+.myst-footer-links,
+.myst-footer-link,
+.myst-footer-link * {
+    min-width: 0;
+}
+
+@media (hover: none), (max-width: 400px) {
+    h1 > a[href^="#"],
+    h2 > a[href^="#"],
+    h3 > a[href^="#"],
+    h4 > a[href^="#"],
+    h5 > a[href^="#"],
+    h6 > a[href^="#"] {
+        display: none;
+    }
+}
+
 .danger {
     color: red;
     font-weight: bold;

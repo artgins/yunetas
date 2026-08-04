@@ -738,10 +738,18 @@ h1.hero-title {
    ============================================================ */
 /* The cards run: a signal sweeps the top edge, which is the whole
    claim of the band. Stopped for a reader who asked for less motion. */
+/*
+    min(19rem, 100%) and not a bare 19rem: a track floor wider than the
+    container does not shrink, it overflows, and the whole PAGE could then
+    be dragged 4px sideways on a 320px phone -- these three bands were the
+    only thing on this page doing it.  The min() keeps the floor while the
+    container is wide enough to honour it, and hands the width back when it
+    is not.  Same reason on every grid below.
+*/
 .runs {
     display: grid;
     gap: clamp(1rem, 2vw, 1.5rem);
-    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
 }
 /*
     auto-FILL, not auto-fit: this band starts with one card, and auto-fit
@@ -749,7 +757,7 @@ h1.hero-title {
     — a single line of prose 1100 px long. The empty columns stay, and
     fill up as guides are added.
 */
-.runs.guides { grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); }
+.runs.guides { grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); }
 /*
     Two bands share one card. What separates them is the rule along the
     top: a walkthrough RUNS, so its rule sweeps; a field guide is read,
@@ -760,7 +768,7 @@ h1.hero-title {
     The manual's own cards: four short ones, so they are narrower and
     four fit on one row of a desktop instead of two.
 */
-.runs.entries { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.runs.entries { grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); }
 /*
     A chapter of the manual is neither a document that runs nor one that
     argues, so its rule does not sweep and is not a short mark: it is the

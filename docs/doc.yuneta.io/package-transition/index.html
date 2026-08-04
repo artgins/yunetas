@@ -141,7 +141,7 @@
   .erase { color: var(--erase); }
   .rule-top { height: 3px; background: var(--ink); max-width: 8rem; }
 
-  .tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: clamp(1.2rem, 3vw, 2.4rem); }
+  .tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); gap: clamp(1.2rem, 3vw, 2.4rem); }
   .track {
     background: var(--raise); border: 1px solid var(--rule); border-radius: 2px;
     box-shadow: var(--shadow); padding: 1.5rem 1.4rem 1.7rem;
