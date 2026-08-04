@@ -46,6 +46,22 @@
   `setTimeout`, so a click and its consequences never reached the `machine`
   trace.
 
+- **doc.yuneta.io reads offline.** `pwa/sw.js` keeps the theme bundles
+  (cache-first — their names are content-hashed) and every page the reader
+  opened (network-first, so a redeployed page never reads stale), and falls
+  back to a `offline.html` for a page that was never read. It does not
+  precache: the build is 28 MB, which is not a cost to put on a mobile
+  connection for pages nobody asked for. `deploy.sh` stamps the deploy version
+  into `sw.js` — the caches are named after it and `activate` drops every
+  other, so a deploy cannot leave a mixture of an old page and new bundles.
+  A page arrives under two urls (`/<slug>`, and `/<slug>?_data=<route>` when
+  the theme routes on the client); this host answers the same bytes to both,
+  so the query is dropped from the cache key and one entry serves both.
+  `pwa/offline-test.mjs` asserts the lot against the deployed site — and does
+  it by relaunching a profile behind a dead proxy, because
+  `context.setOffline()` is a no-op in Playwright's Firefox and passes every
+  assertion without cutting anything.
+
 - **doc.yuneta.io installs as a PWA.** A manifest and its icons ship in
   `docs/doc.yuneta.io/pwa/`, and `deploy.sh` installs them and injects the
   `<link rel="manifest">` into the `<head>` of every built page — the

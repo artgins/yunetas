@@ -166,7 +166,8 @@ import sys, pathlib
 root = pathlib.Path(sys.argv[1])
 marker = 'rel="manifest"'
 links = ('<link rel="manifest" href="/manifest.webmanifest">'
-         '<link rel="apple-touch-icon" href="/pwa/icon-192.png">')
+         '<link rel="apple-touch-icon" href="/pwa/icon-192.png">'
+         '<script src="/pwa/register-sw.js" defer></script>')
 count = 0
 for f in root.rglob('index.html'):
     html = f.read_text(encoding='utf-8')
@@ -194,11 +195,22 @@ if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
 fi
 echo "landing page installed at /landing (version ${VERSION})"
 
-# The manifest and its icons, for the link tags injected above.  myst copies no
-# raw files, and the rsync below deletes what it does not carry, so they are
-# installed here like the landing.  See pwa/README.md.
+# The manifest, its icons and the service worker, for the tags injected above.
+# myst copies no raw files, and the rsync below deletes what it does not carry,
+# so they are installed here like the landing.  See pwa/README.md.
 rsync -a --delete pwa/ "${ORIGIN}pwa/"
-echo "pwa manifest and icons installed at /pwa"
+
+# The service worker names its caches after this stamp, and drops every cache
+# that does not carry it. So the stamp is what makes a deploy reach a reader
+# who already has the old build: a byte-identical sw.js would be considered
+# unchanged by the browser and nothing would be invalidated.
+SW_VERSION="${VERSION}-$(date +%Y%m%d%H%M%S)"
+sed -i "s|__CACHE_VERSION__|${SW_VERSION}|" "${ORIGIN}pwa/sw.js"
+if grep -q "__CACHE_VERSION__" "${ORIGIN}pwa/sw.js"; then
+    echo "ERROR: sw.js still carries an unsubstituted __CACHE_VERSION__" >&2
+    exit 1
+fi
+echo "pwa manifest, icons and service worker installed at /pwa (cache ${SW_VERSION})"
 
 #
 #   Standalone documents with no external requests, sharing the theme

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!--
+    Shown by the service worker when a page is asked for with no network
+    and no cached copy of it.  Self-contained on purpose: it is the one
+    page that must render when nothing else can be fetched.
+
+    It shares the theme with the rest of the site through
+    localStorage["myst:theme"], the key the book-theme writes.
+-->
+<title>Not available offline — Yuneta Simplified</title>
+
+<link rel="icon" href="/favicon.ico">
+
+<script>
+(function () {
+    var theme = null;
+    try {
+        theme = localStorage.getItem("myst:theme");
+    } catch(e) {
+        theme = null;
+    }
+    if(!theme) {
+        theme = window.matchMedia("(prefers-color-scheme: dark)").matches? "dark": "light";
+    }
+    document.documentElement.setAttribute("data-theme", theme);
+}());
+</script>
+
+<style>
+    :root {
+        --ground:     #FFFFFF;
+        --text:       #131D1B;
+        --text-muted: #55635E;
+        --rule:       #C7CFC9;
+        --accent:     #0F6B64;
+        --on-accent:  #F2F4F1;
+    }
+    :root[data-theme="dark"] {
+        --ground:     #0E1417;
+        --text:       #DEE6E2;
+        --text-muted: #94A39D;
+        --rule:       #27332F;
+        --accent:     #6FCCBF;
+        --on-accent:  #0E1417;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1.5rem;
+        background: var(--ground);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                     "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
+    }
+
+    main { max-width: 34rem; }
+
+    h1 {
+        margin: 0 0 1rem;
+        font-size: 1.5rem;
+        line-height: 1.25;
+        font-weight: 650;
+    }
+
+    p { margin: 0 0 1rem; color: var(--text-muted); }
+
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+    }
+
+    button, .home {
+        font: inherit;
+        padding: 0.55rem 1.1rem;
+        border-radius: 0.4rem;
+        border: 1px solid var(--accent);
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    button { background: var(--accent); color: var(--on-accent); }
+
+    .home { background: transparent; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<main>
+    <h1>This page is not available offline</h1>
+    <p>
+        There is no connection, and this page was not read before, so there
+        is no copy of it on this device.
+    </p>
+    <p>
+        The pages you already opened stay available. Open one of them, or
+        come back to this one when you have a connection.
+    </p>
+    <div class="actions">
+        <button type="button" onclick="location.reload();">Try again</button>
+        <a class="home" href="/">Start page</a>
+    </div>
+</main>
+
+</body>
+</html>
