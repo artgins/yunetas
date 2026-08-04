@@ -47,6 +47,14 @@
 <title>Getting back — navigation in gobj-ui</title>
 
 <!--
+    The same favicon the myst pages carry. It is the .ico that mystmd builds
+    from _static/yuneta-y.svg and serves at the site root: the svg itself is
+    copied into the build under a content-hashed name, so it has no stable url
+    a hand-written page could point at.
+-->
+<link rel="icon" href="/favicon.ico">
+
+<!--
     Installable as the documentation PWA. deploy.sh injects these two tags into
     the myst pages, and this page is copied into the build after that, so it
     carries them itself. The manifest resolves on doc.yuneta.io alone; the four
