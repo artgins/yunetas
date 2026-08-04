@@ -394,8 +394,19 @@ site:
   # nothing in the built site linked back to it: a reader who entered through
   # doc.yuneta.io had no way to reach it.  Same origin, so the light/dark
   # choice carries over through localStorage["myst:theme"].
+  #
+  # It said "Home", which on a documentation site reads as "the page you
+  # are already on" -- so nobody clicked it. It is the front door of the
+  # project: what Yuneta is, what it costs, and every standalone page.
+  # Named for its destination, and styled as a button in custom.css.
+  #
+  # "Overview" and not something more inviting because this bar is FULL.
+  # Measured at 360, 390, 640, 820 and 1400: "What is Yuneta?" pushed the
+  # page into horizontal scroll at 360 AND at 640, and "Why Yuneta" / "The
+  # project" broke at 640 too. "Overview" is the longest label that fits
+  # everywhere from 390 up; below that custom.css swaps it for "Yuneta".
   nav:
-    - title: Home
+    - title: Overview
       url: /landing
 
   options:

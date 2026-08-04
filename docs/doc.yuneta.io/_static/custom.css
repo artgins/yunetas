@@ -102,6 +102,39 @@ article img[data-canonical-url] {
     display: block;
 }
 
+/* That one nav item is the only way from the documentation to the front
+   door of the project, and as plain grey text in a bar full of grey text
+   it read as chrome. It is a button now: the accent colour of the landing
+   it leads to, filled on hover. The theme gives the anchor `w-full`, which
+   would stretch the pill across the whole nav container. */
+.myst-top-nav .myst-top-nav-item > a {
+    width: auto;
+    padding: 0.15rem 0.9rem;
+    border: 1px solid #0F6B64;
+    border-radius: 999px;
+    color: #0F6B64;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.myst-top-nav .myst-top-nav-item > a:hover {
+    background: #0F6B64;
+    color: #F2F4F1;
+}
+
+/* The book-theme marks dark mode with a class on <html> (Tailwind), not
+   with a data attribute -- the landing uses data-theme, these pages use
+   the class. The dark pair is the landing's dark accent. */
+html.dark .myst-top-nav .myst-top-nav-item > a {
+    border-color: #6FCCBF;
+    color: #6FCCBF;
+}
+
+html.dark .myst-top-nav .myst-top-nav-item > a:hover {
+    background: #6FCCBF;
+    color: #0E1417;
+}
+
 /* The item carries `mx-2` on both the box and its anchor (32px in all), which
    is what pushes the bar past the viewport on a 320px screen. */
 @media (max-width: 480px) {
@@ -109,6 +142,24 @@ article img[data-canonical-url] {
     .myst-top-nav .myst-top-nav-item > a {
         margin-left: 0;
         margin-right: 0;
+    }
+}
+
+/* Below 390px the bar is saturated -- logo, this item, search and the theme
+   toggle -- and it was already at the millimetre with the old "Home": the
+   page measured exactly the viewport width, no slack. Anything longer sends
+   the whole page into horizontal scroll, so the label is swapped for a short
+   one here. font-size:0 hides the text without removing it, so the link keeps
+   "Overview" as its accessible name. */
+@media (max-width: 389px) {
+    .myst-top-nav .myst-top-nav-item > a {
+        font-size: 0;
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
+    }
+    .myst-top-nav .myst-top-nav-item > a::after {
+        content: "Yuneta";
+        font-size: 0.85rem;
     }
 }
 

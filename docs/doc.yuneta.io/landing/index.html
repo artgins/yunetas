@@ -756,7 +756,28 @@ h1.hero-title {
     so its rule sits still. The distinction is the point of having two
     bands, and it should be visible before reading a word.
 */
-.run-card, .ref-card, .essay-card {
+/*
+    The manual's own cards: four short ones, so they are narrower and
+    four fit on one row of a desktop instead of two.
+*/
+.runs.entries { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+/*
+    A chapter of the manual is neither a document that runs nor one that
+    argues, so its rule does not sweep and is not a short mark: it is the
+    full accent, quietly, because this is the thing the reader came for.
+*/
+.doc-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--rule);
+}
+.doc-card:hover::before { background: var(--accent); }
+.doc-card:hover { border-color: var(--accent); }
+.doc-card:hover .run-go { color: var(--accent); }
+
+.run-card, .ref-card, .essay-card, .doc-card {
     position: relative;
     overflow: hidden;
     display: flex;
@@ -1161,6 +1182,62 @@ h1.hero-title {
             </a>
 
             <!-- next field guide goes here -->
+        </div>
+    </section>
+
+    <!-- ============ THE MANUAL ============
+         The four doors into the documentation, the same four the docs
+         home cards.  They sit BELOW the three standalone bands, which
+         stay on top by the rule above, and above the argument: a reader
+         who already knows they want this should not have to scroll the
+         pitch to find the manual.
+
+         "Operating Yuneta" is here for a reason.  It is the nine
+         chapters on running the thing -- the agent, the lifecycle,
+         traces, realms, auth -- and until this band it appeared nowhere
+         on this page, not even in the seven steps below, which are a
+         reading order and stop at the API reference.
+    -->
+    <section class="band">
+        <div class="band-head">
+            <h2>The manual</h2>
+            <span class="label">Documentation</span>
+        </div>
+
+        <p class="prose" style="margin-bottom:2rem; color:var(--text-muted);">Four doors
+        in. The sidebar of the documentation has the rest.</p>
+
+        <div class="runs entries">
+            <a class="doc-card" href="/installation">
+                <span class="run-kick">Get started</span>
+                <span class="run-t">Installation</span>
+                <span class="run-d">Dependencies, environment and a first build.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="doc-card" href="/guide-basic-concepts">
+                <span class="run-kick">Guide</span>
+                <span class="run-t">Basic concepts</span>
+                <span class="run-d">GClass, gobj, yuno, events. The four words the
+                rest is written in.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="doc-card" href="/design-principles">
+                <span class="run-kick">Philosophy</span>
+                <span class="run-t">Design principles</span>
+                <span class="run-d">The engineering decisions, and what each one
+                buys and costs.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="doc-card" href="/operating-yuneta">
+                <span class="run-kick">Operating</span>
+                <span class="run-t">Running systems</span>
+                <span class="run-d">The agent, the yuno lifecycle, traces, IPC,
+                realms, auth and the treedb.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
         </div>
     </section>
 
