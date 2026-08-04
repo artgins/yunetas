@@ -24,59 +24,111 @@ title: Yuneta Simplified
 :::
 ::::
 
-`Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, based on
-[Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming),
-[Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming)
-and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
-programming paradigms.
-Heavy use of JSON, **time-series**, **key-value**, **flat-files** and **graphs** concepts.
+`Yuneta Simplified` is a **development framework** focused on **messaging** and
+**services**, built on the
+[event-driven](https://en.wikipedia.org/wiki/Event-driven_programming),
+[automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) and
+[object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
+paradigms. Every component is a state machine, every message is JSON, and the
+state machine is where things happen — so the trace of a running system *is*
+its execution log.
 
-[Yuneta Simplified](https://yuneta.io) is a **real-time system** (RTS) that includes **development**, **testing**, and **deployment** features. Built for Linux, and **deployable** on any **bare-metal** server.
+It is a **real-time system** for [Linux](https://en.wikipedia.org/wiki/Linux),
+with development, testing and deployment included. It collects data from
+devices, adapts protocols between systems, and publishes, subscribes and
+queries **messages** in real time, with **historical** storage on
+**time-series**, **key-value**, **flat-file** and **graph** stores. Messages
+travel encrypted or in plain text, and live on disk or only in transit.
 
-Yuneta produces **fully static binaries** by default — no shared libraries, no dynamic linker. A compiled yuno can be copied to any Linux machine of the same CPU architecture and run immediately, with zero dependencies to install.
+Yuneta produces **fully static binaries** by default — no shared libraries, no
+dynamic linker. A compiled yuno is copied to any Linux machine of the same CPU
+architecture and runs there, with nothing to install. There are versions in
+**C** (the reference implementation) and **JavaScript** (browser and Node).
 
-Specialized in IoT data collection, all types of devices, and data exchange and protocol adaptation between systems, including collection, **publication/subscription**, and querying of **messages** in **real time**, with **historical** data storage.
+## Start here
 
-The messages (**encrypted** or plain text) circulating within the Yuneta system can be persistent on disk or exist only while in transit or in the memory of a service. All data in JSON.
+::::{grid} 1 1 2 2
 
-For [Linux](https://en.wikipedia.org/wiki/Linux).
+:::{card} Installation
+:link: ./installation.md
 
-Versions in **C** (reference implementation) and **JavaScript** (browser/Node).
+Dependencies, environment and a first build. Start here to get a working
+tree.
+:::
 
----
+:::{card} Basic concepts
+:link: ./guide/guide_basic_concepts.md
 
-## About this documentation
+GClass, gobj, yuno, events. The four words the rest of the documentation is
+written in.
+:::
 
-This site is built with [mystmd (Jupyter Book 2)](https://mystmd.org). The
-full table of contents is in the left sidebar — use it to browse by
-section.
+:::{card} Design principles
+:link: ./philosophy/design_principles.md
 
-Suggested reading order:
+The engineering decisions behind the framework, and what each one buys and
+costs.
+:::
 
-1. [Design Principles](philosophy/design_principles.md) — the
-   engineering decisions behind Yuneta and what they buy / cost.
-2. [Domain Model](philosophy/domain_model.md) — the vocabulary the
-   framework uses to model reality (realms, entities, messages, CRUDLU).
-3. [Installation](installation.md) — get a working build environment.
-4. [Basic concepts](guide/guide_basic_concepts.md) — GClass, gobj, yuno,
-   events.
-5. [Guides](guide/guide_gclass.md) — how to build with them.
-6. The **API reference** sections in the sidebar — organized by
-   subsystem (GObj, Helpers, Logging, Parsers, Timeranger2, TLS,
-   Event Loop, JavaScript).
-7. [Inspiration](philosophy/philosophy.md) — optional, the humanist
-   angle that shaped the framework's vocabulary.
+:::{card} Operating Yuneta
+:link: ./operating_yuneta.md
 
-## See it run
+Running systems: the agent, the yuno lifecycle, traces, IPC, realms, auth
+and the treedb.
+:::
+::::
 
-[**demo.yuneta.io**](https://demo.yuneta.io) is the declarative shell of
-`gobj-ui`, live. It shows every `C_YUI_NAV` menu layout and the per-zone
-responsive model that renders one menu differently in different zones and
-breakpoints. There is no backend and no login: the whole navigation is
-declared in one JSON file, and the shell materializes it.
+The full table of contents is in the left sidebar. The **API reference** is
+organized there by subsystem: GObj, Helpers, Logging, Parsers, Timeranger2,
+TLS, Event Loop and JavaScript.
 
-Open it on a phone as well as a desktop. The layouts change per breakpoint,
-which is the part that a screenshot cannot show. The source is
-[`kernel/js/gobj-ui/test-app/`](https://github.com/artgins/yunetas/tree/7.9.9/kernel/js/gobj-ui/test-app),
-and the design it demonstrates is in
-[SHELL.md](https://github.com/artgins/gobj-ui.js/blob/main/SHELL.md).
+## Whole documents
+
+Some things do not fit a chapter. These are single pages, each one written to
+be read from top to bottom.
+
+::::{grid} 1 1 2 2
+
+:::{card} Essay — High-level semantics, low-level language
+:link: /high-semantics
+
+Yuneta in one page: services, roles and messages without the runtime that
+usually pays for them, with a bill next to every decision.
+:::
+
+:::{card} Interactive — The login, gobj by gobj
+:link: /login-flow
+
+The auth_bff exchange as a graph that runs, with the real gobjs and the real
+events on the edges. Five scenarios.
+:::
+
+:::{card} Live — The shell, running
+:link: https://demo.yuneta.io
+
+Not a diagram of the UI library, the library itself, in your browser. Open
+it on a phone too: the layouts change per breakpoint.
+:::
+
+:::{card} Field guide — Getting back
+:link: /navigation
+
+What the Back button must do in an application that is one page: history,
+overlays, and never losing the reader.
+:::
+
+:::{card} Field guide — The file that disappears
+:link: /package-transition
+
+Why a package upgrade deletes a file it is supposed to keep, down to the
+`%posttrans` that fixes it.
+:::
+::::
+
+## Then
+
+[Domain Model](philosophy/domain_model.md) gives the vocabulary the framework
+uses to model reality — realms, entities, messages, CRUDLU. The
+[Guides](guide/guide_gclass.md) show how to build with it, and
+[Inspiration](philosophy/philosophy.md) is optional: the humanist angle that
+shaped the vocabulary.
