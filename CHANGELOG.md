@@ -4,7 +4,7 @@
 
 ### Added
 
-- **`@yuneta/gobj-js` 7.9.10 — `C_TIMER`: the two calls are the whole contract**
+- **`@yuneta/gobj-js` 7.9.11 — `C_TIMER`: the two calls are the whole contract**
   (submodule bump). `set_timeout()` arms and `clear_timeout()` disarms, as in C
   (`c_timer.h`); whether the gobj is running stops being the caller's problem.
   The JS port had neither half: every view had to pair its `set_timeout()` with
@@ -23,7 +23,9 @@
   **BREAKING for callers that stop the timer themselves** (`clear_timeout()`
   followed by `gobj_stop()` now logs *"GObj NOT RUNNING"*). Every in-tree
   consumer was migrated in the same release; the `yunos/js` submodule carries
-  its half.
+  its half. 7.9.11 finishes the job inside the runtime itself, where
+  `c_ievent_cli.mt_stop()` still stopped its timer by hand and logged that very
+  complaint on every disconnect.
 
 
 - **`@yuneta/gobj-js` 7.9.9 — `gobj_set_gclass_no_trace()`** (submodule bump).
