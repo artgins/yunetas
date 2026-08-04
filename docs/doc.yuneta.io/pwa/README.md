@@ -17,6 +17,12 @@ mystmd build (content-hashed assets, client-side navigation).
   `<link rel="apple-touch-icon">` into the `<head>` of each built page. The
   book-theme has no hook to add tags to the head.
 
+The standalone pages (`landing/`, `high-semantics/`, `login-flow/`,
+`navigation/`, `package-transition/`) are copied into the build after that
+injection, so each one carries the two tags in its own `<head>`. A new
+standalone page must do the same, or the reader who lands there gets no offer
+to install.
+
 nginx maps the manifest URL to this copy, in the `doc.yuneta.io` server block
 only (artgins ops repo, `tasks/nginx/yuneta.io/nginx.conf`):
 

@@ -52,6 +52,20 @@
 </style>
 <title>Yuneta Simplified — Documentation</title>
 
+<!--
+    Installable as the documentation PWA. deploy.sh injects these two tags into
+    the myst pages, and this page is copied into the build after that, so it
+    carries them itself.
+
+    The manifest resolves on doc.yuneta.io alone, where this page is /landing.
+    On yuneta.io, yuneta.com, yuneta.es and yunetas.com -- where this page IS
+    the front door -- it answers 404 and no install is offered. That is the
+    intent: all five share one docroot, so a manifest they could all reach
+    would offer five installs of a different app under the same name.
+-->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/pwa/icon-192.png">
+
 <style>
 @font-face {
     font-family: "Plex Cond";
