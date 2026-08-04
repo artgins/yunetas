@@ -20,6 +20,14 @@ sed -i "s|management/build CLI (currently [^)]*)|management/build CLI (currently
 # myst build --html spawns a temporary node server that doesn't always exit;
 # snapshot node PIDs before and kill only the new ones after the build.
 export BASE_URL=""
+
+# DEP0169 (url.parse) comes from the book-theme's own bundle -- Remix's server
+# runtime calls it while rendering, on node 24 -- so there is nothing to fix
+# here, and it prints on every build. It is silenced by CODE, not with a blanket
+# --no-deprecation: the build log is grepped for "warning" to validate an edit,
+# and a permanent false hit there is worse than the warning. Any OTHER
+# deprecation still comes through, which is the point.
+export NODE_OPTIONS="${NODE_OPTIONS:-} --disable-warning=DEP0169"
 BEFORE=$(pgrep -x node 2>/dev/null | sort || true)
 myst build --html
 AFTER=$(pgrep -x node 2>/dev/null | sort || true)

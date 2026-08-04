@@ -355,7 +355,12 @@ The site is built with **mystmd** (MyST / Jupyter Book 2), deployed via
 - `myst build --html` does not exit — it boots a dev server, and it writes no
   `_build/html`: it is a **validation** step (`deploy.sh` does the real build).
   Validate edits non-interactively with
-  `timeout 30 myst build --html 2>&1 | grep -iE 'warning|error|⚠|fail'`.
+  `NODE_OPTIONS=--disable-warning=DEP0169 timeout 30 myst build --html 2>&1 |
+  grep -iE 'warning|error|⚠|fail'`. Without that `NODE_OPTIONS` the grep always
+  hits: on node 24 the book-theme's own bundle calls `url.parse()` while
+  rendering and node prints DEP0169 on every build. It is silenced by code, not
+  with `--no-deprecation`, so any other deprecation still shows. `deploy.sh`
+  exports the same thing.
   MyST warning lines start with `⚠`, not with the word "warning" — include `⚠`
   in any grep of build logs.
   **`timeout` is the whole cleanup**: it terminates the server (exit 124) and
