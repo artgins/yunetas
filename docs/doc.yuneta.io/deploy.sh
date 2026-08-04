@@ -198,7 +198,11 @@ echo "landing page installed at /landing (version ${VERSION})"
 # The manifest, its icons and the service worker, for the tags injected above.
 # myst copies no raw files, and the rsync below deletes what it does not carry,
 # so they are installed here like the landing.  See pwa/README.md.
-rsync -a --delete pwa/ "${ORIGIN}pwa/"
+# --exclude: README.md and offline-test.mjs are source for this directory, not
+# content of the site. Nothing links them, but anything under the docroot is
+# fetchable by anyone who guesses -- and by a crawler.
+rsync -a --delete --exclude 'README.md' --exclude 'offline-test.mjs' \
+    pwa/ "${ORIGIN}pwa/"
 
 # The service worker names its caches after this stamp, and drops every cache
 # that does not carry it. So the stamp is what makes a deploy reach a reader
