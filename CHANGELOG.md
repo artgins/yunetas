@@ -45,6 +45,18 @@
   buttons and the console's copy flash were a direct call and a bare
   `setTimeout`, so a click and its consequences never reached the `machine`
   trace.
+
+- **doc.yuneta.io installs as a PWA.** A manifest and its icons ship in
+  `docs/doc.yuneta.io/pwa/`, and `deploy.sh` installs them and injects the
+  `<link rel="manifest">` into the `<head>` of every built page — the
+  book-theme has no hook for the head. There is no service worker, so this
+  buys a window and an icon, not offline reading. The manifest is served at
+  `/manifest.webmanifest` by one `location` in the `doc.yuneta.io` vhost
+  alone, aliased to the `/pwa/` copy: `yuneta.io`, `yuneta.com`, `yuneta.es`
+  and `yunetas.com` share that docroot, but `/` on them is the landing page,
+  so a manifest sitting at the root would offer five installs of a different
+  app under one name.
+
 ## 7.9.9
 
 ### Fixed

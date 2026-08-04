@@ -146,6 +146,37 @@ for f in root.rglob('index.html'):
 print(f"demo theme hand-off injected into {count} pages")
 PYEOF
 
+# PWA manifest: makes the docs installable, so the reader gets them in their
+# own window with their own icon instead of one more tab.  There is no service
+# worker, hence no offline reading -- an installed copy still needs the network.
+#
+# The book-theme has no hook to add anything to <head>, so the two link tags go
+# in here, the same way as the scripts above but before </head>: a <link
+# rel="manifest"> in the body is ignored.
+#
+# The manifest itself is served at /manifest.webmanifest by ONE nginx location,
+# in the doc.yuneta.io vhost alone, aliased to the /pwa/ copy installed below.
+# The docroot is shared with yuneta.io, yuneta.com, yuneta.es and yunetas.com,
+# where "/" is the landing, not these pages -- if the file sat at the root of
+# the docroot, all five domains would offer to install a different app under
+# the same name.  On those four the link 404s and no install is offered, which
+# is the intent.
+python3 - "$ORIGIN" <<'PYEOF'
+import sys, pathlib
+root = pathlib.Path(sys.argv[1])
+marker = 'rel="manifest"'
+links = ('<link rel="manifest" href="/manifest.webmanifest">'
+         '<link rel="apple-touch-icon" href="/pwa/icon-192.png">')
+count = 0
+for f in root.rglob('index.html'):
+    html = f.read_text(encoding='utf-8')
+    if marker in html or '</head>' not in html:
+        continue
+    f.write_text(html.replace('</head>', links + '</head>', 1), encoding='utf-8')
+    count += 1
+print(f"pwa manifest link injected into {count} pages")
+PYEOF
+
 # Landing page: a standalone HTML document (its own inlined fonts and CSS, no
 # external requests) served at /landing.  It shares the theme with the site
 # through localStorage["myst:theme"], same origin.  myst copies no raw files,
@@ -162,6 +193,12 @@ if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
     exit 1
 fi
 echo "landing page installed at /landing (version ${VERSION})"
+
+# The manifest and its icons, for the link tags injected above.  myst copies no
+# raw files, and the rsync below deletes what it does not carry, so they are
+# installed here like the landing.  See pwa/README.md.
+rsync -a --delete pwa/ "${ORIGIN}pwa/"
+echo "pwa manifest and icons installed at /pwa"
 
 #
 #   Standalone documents with no external requests, sharing the theme
