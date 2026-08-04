@@ -31,6 +31,20 @@
   timing stays in the consumer's FSM (a `C_TIMER` + `EV_TIMEOUT`), not in a
   `setTimeout` inside the library.
 
+- **`@yuneta/gobj-ui` 5.11.0 — the PWA install offer** (submodule bump). Chrome
+  advertises its install banner on a heuristic nobody can read, and goes quiet
+  on an origin for months after a dismissal or an uninstall — the app then
+  looks uninstallable when it is only unadvertised. `yui_install.js` refuses
+  the banner, keeps the event and asks once per browser with the family
+  dialog. The event arrives before the bundle is parsed, so each SPA catches
+  it in `public/install-prompt.js` loaded by `<script src>` — never inline,
+  which their `script-src 'self'` drops in silence. Ported from yunomúsica.
+
+- **The JS yunos install as PWAs and their tables copy as JSON** (`yunos/js`
+  submodule bump), and every action in them crosses the FSM: the *Refresh*
+  buttons and the console's copy flash were a direct call and a bare
+  `setTimeout`, so a click and its consequences never reached the `machine`
+  trace.
 ## 7.9.9
 
 ### Fixed
