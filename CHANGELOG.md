@@ -4,6 +4,28 @@
 
 ### Added
 
+- **`@yuneta/gobj-js` 7.9.10 — `C_TIMER`: the two calls are the whole contract**
+  (submodule bump). `set_timeout()` arms and `clear_timeout()` disarms, as in C
+  (`c_timer.h`); whether the gobj is running stops being the caller's problem.
+  The JS port had neither half: every view had to pair its `set_timeout()` with
+  a `gobj_start()` and remember a `gobj_stop()` on the way out, or get
+  *"Destroying a RUNNING gobj"* when its route was left. The running state now
+  follows the timeout in `mt_writing` on the `msec` attribute — not in the
+  helpers, because those three PUBLIC functions are an escape from the gclass
+  interface and must be sugar and nothing else: writing `msec` by hand leaves
+  the timer exactly as `set_timeout()` would.
+
+  A second fix from the same reading: a **periodic cleared from inside its own
+  action** now really stops. The re-arm ran after the action, undoing the clear
+  and re-arming with the `msec` the clear had just written — a negative delay,
+  which `setTimeout()` serves immediately, so the timer became a busy loop.
+
+  **BREAKING for callers that stop the timer themselves** (`clear_timeout()`
+  followed by `gobj_stop()` now logs *"GObj NOT RUNNING"*). Every in-tree
+  consumer was migrated in the same release; the `yunos/js` submodule carries
+  its half.
+
+
 - **`@yuneta/gobj-js` 7.9.9 — `gobj_set_gclass_no_trace()`** (submodule bump).
   The C kernel has it; the JS port did not, even though the field was there
   and already consulted. Without it the idiom every C `main()` uses to keep
