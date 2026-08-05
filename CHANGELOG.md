@@ -4,6 +4,37 @@
 
 ### Changed
 
+- **`c_yuno.h` sheds 4 of its 9 public functions, and the two that stay say why.**
+  `c_yuno` is one of the 4 gclasses in `root-linux` whose header exports PUBLIC
+  C functions. Four of them — `add_allowed_ip()`, `remove_allowed_ip()`,
+  `add_denied_ip()`, `remove_denied_ip()` — had **no caller anywhere**: the
+  add-/remove- commands that use them live in `c_yuno.c` itself, so they are
+  `PRIVATE` now. Nothing outside changes; the operator interface (the
+  `allowed_ips`/`denied_ips` `SDF_PERSIST` attributes plus the six
+  list/add/remove commands) was already complete.
+
+  The rest of the header is kept **on purpose, with the reason written next to
+  it**: `is_ip_allowed()`/`is_ip_denied()` are asked once per accepted
+  connection (`c_tcp_s`) and once per login (`c_authz`), where the canonical
+  local method would cost a `kw` per call; and `yuno_event_loop()` /
+  `set_yuno_must_die()` are process-level, not gclass interface — every caller
+  of the latter is ending its OWN process (a signal handler, a CLI told to
+  quit, a test yuno that finished: 63 call sites across 49 test files), so an
+  event would be a second door to the same thing. A justified escape that is
+  written down is not the same as an oversight.
+
+  `c_authz`'s two — `authz_checker()` / `authentication_parser()` — are not an
+  escape at all: they implement kernel typedefs (`authorization_checker_fn`,
+  `authentication_parser_fn`), are installed as process defaults by
+  `entry_point.c` and swapped through `yuneta_setup()`. The call goes
+  **downwards**, from the kernel into the gclass, which no gclass-interface
+  mechanism can express — `authz_checker()` does not even take a C_AUTHZ
+  instance, it looks the service up itself.
+
+- **`yuno_event_detroy()` → `yuno_event_destroy()`.** The typo had been in the
+  header since the function was written. One in-tree caller
+  (`entry_point.c`), no out-of-tree ones.
+
 - **`C_TIMER` / `C_TIMER0`: the timeout helpers are sugar now, and the
   behaviour lives behind the interface.** `set_timeout()`, `set_timeout_periodic()`
   and `clear_timeout()` are three of the very few PUBLIC C functions a gclass

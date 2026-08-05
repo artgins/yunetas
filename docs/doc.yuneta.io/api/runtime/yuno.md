@@ -51,13 +51,13 @@ Pointer to the `yev_loop` instance (cast to `void *`).
 
 ---
 
-(yuno_event_detroy)=
-## [`yuno_event_detroy()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5727)
+(yuno_event_destroy)=
+## [`yuno_event_destroy()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5727)
 
 Destroys and frees the yuno event loop.
 
 ```C
-void yuno_event_detroy(void);
+void yuno_event_destroy(void);
 ```
 
 **Parameters**
@@ -116,49 +116,13 @@ BOOL is_ip_allowed(const char *peername);
 
 `TRUE` if the IP is allowed, `FALSE` otherwise.
 
----
-
-(add_allowed_ip)=
-## [`add_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5772)
-
-Adds or updates an IP address in the allowed-IPs list and persists
-the change.
-
-```C
-int add_allowed_ip(const char *ip, BOOL allowed);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `ip` | `const char *` | Numeric IP address. |
-| `allowed` | `BOOL` | `TRUE` to allow, `FALSE` to disallow. |
-
-**Returns**
-
-`0` on success, `-1` on failure.
-
----
-
-(remove_allowed_ip)=
-## [`remove_allowed_ip()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5788)
-
-Removes an IP address from the allowed-IPs list and persists the change.
-
-```C
-int remove_allowed_ip(const char *ip);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `ip` | `const char *` | Numeric IP address to remove. |
-
-**Returns**
-
-`0` on success, `-1` on failure.
+:::{note}
+Only the **read** half of the allowed/denied lists is public C API, because
+`c_tcp_s` asks it once per accepted connection and `c_authz` once per login.
+Writing goes through the GClass interface: the `allowed_ips` / `denied_ips`
+attributes (`SDF_PERSIST`) and the `add-allowed-ip`, `remove-allowed-ip`,
+`add-denied-ip`, `remove-denied-ip` commands.
+:::
 
 ---
 
@@ -183,45 +147,3 @@ BOOL is_ip_denied(const char *peername);
 `TRUE` if the IP is denied, `FALSE` otherwise.
 
 ---
-
-(add_denied_ip)=
-## [`add_denied_ip()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5815)
-
-Adds or updates an IP address in the denied-IPs list and persists
-the change.
-
-```C
-int add_denied_ip(const char *ip, BOOL denied);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `ip` | `const char *` | Numeric IP address. |
-| `denied` | `BOOL` | `TRUE` to deny, `FALSE` to allow. |
-
-**Returns**
-
-`0` on success, `-1` on failure.
-
----
-
-(remove_denied_ip)=
-## [`remove_denied_ip()`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_yuno.c#L5831)
-
-Removes an IP address from the denied-IPs list and persists the change.
-
-```C
-int remove_denied_ip(const char *ip);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `ip` | `const char *` | Numeric IP address to remove. |
-
-**Returns**
-
-`0` on success, `-1` on failure.

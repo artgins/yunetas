@@ -2022,7 +2022,7 @@ with links to the API documentation.
 
 1. [**`register_c_websocket`**](runtime/registration.md#register_c_websocket) — `PUBLIC int register_c_websocket(void)`
 
-### `c_yuno.h` — 10 functions
+### `c_yuno.h` — 6 functions
 
 **Source:** `kernel/c/root-linux/src/c_yuno.h`
 
@@ -2030,21 +2030,13 @@ with links to the API documentation.
 
 2. [**`yuno_event_loop`**](runtime/yuno.md#yuno_event_loop) — `PUBLIC void *yuno_event_loop(void)`
 
-3. [**`yuno_event_detroy`**](runtime/yuno.md#yuno_event_detroy) — `PUBLIC void yuno_event_detroy(void)`
+3. [**`yuno_event_destroy`**](runtime/yuno.md#yuno_event_destroy) — `PUBLIC void yuno_event_destroy(void)`
 
 4. [**`set_yuno_must_die`**](runtime/yuno.md#set_yuno_must_die) — `PUBLIC void set_yuno_must_die(void)`
 
 5. [**`is_ip_allowed`**](runtime/yuno.md#is_ip_allowed) — `PUBLIC BOOL is_ip_allowed(const char *peername)`
 
-6. [**`add_allowed_ip`**](runtime/yuno.md#add_allowed_ip) — `PUBLIC int add_allowed_ip(const char *ip, BOOL allowed)`
-
-7. [**`remove_allowed_ip`**](runtime/yuno.md#remove_allowed_ip) — `PUBLIC int remove_allowed_ip(const char *ip)`
-
-8. [**`is_ip_denied`**](runtime/yuno.md#is_ip_denied) — `PUBLIC BOOL is_ip_denied(const char *peername)`
-
-9. [**`add_denied_ip`**](runtime/yuno.md#add_denied_ip) — `PUBLIC int add_denied_ip(const char *ip, BOOL denied)`
-
-10. [**`remove_denied_ip`**](runtime/yuno.md#remove_denied_ip) — `PUBLIC int remove_denied_ip(const char *ip)`
+6. [**`is_ip_denied`**](runtime/yuno.md#is_ip_denied) — `PUBLIC BOOL is_ip_denied(const char *peername)`
 
 ### `dbsimple.h` — 4 functions
 
@@ -2237,8 +2229,6 @@ All **957 functions** sorted alphabetically with their source header.
 |----------|--------|--------|
 | [**`_log_bf`**](logging/log.md#_log_bf) | `glogger.h` | gobj-c (Core Framework) |
 | [**`_treedb_create_topic_cols_desc`**](timeranger2/treedb.md#_treedb_create_topic_cols_desc) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
-| [**`add_allowed_ip`**](runtime/yuno.md#add_allowed_ip) | `c_yuno.h` | root-linux (Runtime GClasses) |
-| [**`add_denied_ip`**](runtime/yuno.md#add_denied_ip) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`add_jtree_path`**](timeranger2/treedb.md#add_jtree_path) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`all_numbers`**](helpers/string_helper.md#all_numbers) | `helpers.h` | gobj-c (Core Framework) |
 | [**`anyfile2json`**](helpers/json_helper.md#anyfile2json) | `helpers.h` | gobj-c (Core Framework) |
@@ -2918,8 +2908,6 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`register_c_websocket`**](runtime/registration.md#register_c_websocket) | `c_websocket.h` | root-linux (Runtime GClasses) |
 | [**`register_c_yuno`**](runtime/yuno.md#register_c_yuno) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`register_yuneta_environment`**](runtime/environment.md#register_yuneta_environment) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
-| [**`remove_allowed_ip`**](runtime/yuno.md#remove_allowed_ip) | `c_yuno.h` | root-linux (Runtime GClasses) |
-| [**`remove_denied_ip`**](runtime/yuno.md#remove_denied_ip) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`replace_cli_vars`**](helpers/string_helper.md#replace_cli_vars) | `helpers.h` | gobj-c (Core Framework) |
 | [**`rmrcontentdir`**](helpers/file_system.md#rmrcontentdir) | `helpers.h` | gobj-c (Core Framework) |
 | [**`rmrdir`**](helpers/file_system.md#rmrdir) | `helpers.h` | gobj-c (Core Framework) |
@@ -3197,6 +3185,6 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`yuneta_store_file`**](runtime/environment.md#yuneta_store_file) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_xpermission`**](runtime/environment.md#yuneta_xpermission) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yunetas_register_c_core`**](runtime/entry_point.md#yunetas_register_c_core) | `yunetas_register.h` | root-linux (Runtime GClasses) |
-| [**`yuno_event_detroy`**](runtime/yuno.md#yuno_event_detroy) | `c_yuno.h` | root-linux (Runtime GClasses) |
+| [**`yuno_event_destroy`**](runtime/yuno.md#yuno_event_destroy) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`yuno_event_loop`**](runtime/yuno.md#yuno_event_loop) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`yuno_shutdown`**](runtime/entry_point.md#yuno_shutdown) | `manage_services.h` | root-linux (Runtime GClasses) |

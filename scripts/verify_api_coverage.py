@@ -110,6 +110,16 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     KERNEL / "timeranger2/src/tr_queue.h":    ["api/timeranger2/tr_queue.md"],
     KERNEL / "timeranger2/src/tr_treedb.h":   ["api/timeranger2/treedb.md"],
 
+    # ---- gclass headers whose landing covers their WHOLE public surface ----
+    # Most gclass headers are out of this map on purpose (see the note on
+    # ALLOWED_EXTRAS below): their register_c_* is documented on the shared
+    # registration page, so adding them would drag in unrelated anchors. These
+    # three are different -- they have a landing of their own that documents
+    # every function they export, so the map catches drift in both directions.
+    KERNEL / "root-linux/src/c_yuno.h":   ["api/runtime/yuno.md"],
+    KERNEL / "root-linux/src/c_timer.h":  ["api/runtime/timer.md"],
+    KERNEL / "root-linux/src/c_timer0.h": ["api/runtime/timer.md"],
+
     # ---- event loop & TLS ----
     KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/yev_loop.md"],
     # ytls.h is the backend-agnostic API; the two backend selectors

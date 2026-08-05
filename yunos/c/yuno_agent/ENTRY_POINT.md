@@ -307,7 +307,7 @@ ceremony is complete.
    stop flag (§6).
 6. [`stop_services()`](#stop_services) → graceful shutdown in reverse order.
 7. [`gobj_end()`](#gobj_end) → destroy yuno, free baseline allocations.
-8. [`yev_loop_stop()`](#yev_loop_stop) + [`yuno_event_detroy()`](#yuno_event_detroy).
+8. [`yev_loop_stop()`](#yev_loop_stop) + [`yuno_event_destroy()`](#yuno_event_destroy).
 9. [`rotatory_end()`](#rotatory_end), `json_decref(__jn_config__)`, optional `cleaning_fn()`.
 10. [`print_track_mem()`](#print_track_mem) — under `CONFIG_DEBUG_TRACK_MEMORY`, dumps any
     surviving blocks. **`gobj_end()` must run before any

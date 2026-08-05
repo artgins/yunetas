@@ -74,6 +74,18 @@ PRIVATE void read_uptime(unsigned long long *uptime);
 PRIVATE json_t *get_process_memory_info(void);
 PRIVATE json_t *get_machine_memory_info(void);
 
+/*
+ *  The write half of the allowed/denied ip lists. PRIVATE on purpose: the
+ *  state is the `allowed_ips`/`denied_ips` attributes and the door for the
+ *  outside is the add-/remove- commands, which call these. Only the read
+ *  half (is_ip_allowed/is_ip_denied) is exported, because c_tcp_s and
+ *  c_authz ask it once per connection.
+ */
+PRIVATE int add_allowed_ip(const char *ip, BOOL allowed);
+PRIVATE int remove_allowed_ip(const char *ip);
+PRIVATE int add_denied_ip(const char *ip, BOOL denied);
+PRIVATE int remove_denied_ip(const char *ip);
+
 PRIVATE int capture_signals(hgobj gobj);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
 PRIVATE void remove_pid_file(void);
@@ -5724,7 +5736,7 @@ PUBLIC void *yuno_event_loop(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yuno_event_detroy(void)
+PUBLIC void yuno_event_destroy(void)
 {
     if(yev_loop) {
         yev_loop_destroy(yev_loop);
@@ -5769,7 +5781,7 @@ PUBLIC BOOL is_ip_allowed(const char *peername)
 /***************************************************************************
  * allowed: TRUE to allow, FALSE to deny
  ***************************************************************************/
-PUBLIC int add_allowed_ip(const char *ip, BOOL allowed)
+PRIVATE int add_allowed_ip(const char *ip, BOOL allowed)
 {
     if(json_object_set_new(
         gobj_read_json_attr(gobj_yuno(), "allowed_ips"),
@@ -5785,7 +5797,7 @@ PUBLIC int add_allowed_ip(const char *ip, BOOL allowed)
 /***************************************************************************
  *  Remove from interna list (dict)
  ***************************************************************************/
-PUBLIC int remove_allowed_ip(const char *ip)
+PRIVATE int remove_allowed_ip(const char *ip)
 {
     if(json_object_del(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip)==0) {
         return gobj_save_persistent_attrs(gobj_yuno(), json_string("allowed_ips"));
@@ -5812,7 +5824,7 @@ PUBLIC BOOL is_ip_denied(const char *peername)
 /***************************************************************************
  * denied: TRUE to deny, FALSE to deny
  ***************************************************************************/
-PUBLIC int add_denied_ip(const char *ip, BOOL denied)
+PRIVATE int add_denied_ip(const char *ip, BOOL denied)
 {
     if(json_object_set_new(
         gobj_read_json_attr(gobj_yuno(), "denied_ips"),
@@ -5828,7 +5840,7 @@ PUBLIC int add_denied_ip(const char *ip, BOOL denied)
 /***************************************************************************
  *  Remove from interna list (dict)
  ***************************************************************************/
-PUBLIC int remove_denied_ip(const char *ip)
+PRIVATE int remove_denied_ip(const char *ip)
 {
     if(json_object_del(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip)==0) {
         return gobj_save_persistent_attrs(gobj_yuno(), json_string("denied_ips"));

@@ -964,7 +964,7 @@ PRIVATE void process(
 
     yev_loop_stop(yuno_event_loop());
     // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-    yuno_event_detroy();
+    yuno_event_destroy();
 
     rotatory_end();
     json_decref(__jn_config__);

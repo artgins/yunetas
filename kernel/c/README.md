@@ -1814,7 +1814,7 @@ int yunetas_register_c_core(void);  // register all built-in GClasses
 
 ```c
 void *yuno_event_loop(void);        // get the yev_loop_h
-void  yuno_event_detroy(void);
+void  yuno_event_destroy(void);
 void  set_yuno_must_die(void);
 
 // IP allow/deny lists
