@@ -369,6 +369,64 @@ and hands it to the `user` of its own config so the workers can write.
 Measured on the openresty nodes: logrotate leaves `root:root`, and after the
 `USR1` the file is `yuneta:root`.
 
+### Intrusion Banning (`/etc/fail2ban/`)
+
+Two files: the filter `filter.d/yuneta-nginx-probe.conf` and the jails
+`jail.d/yuneta-nginx.conf`. `fail2ban` is a `Recommends` (`Requires` on RPM
+would be too strong for a package that also runs on nodes with no web server).
+
+The filter does not ban on 404s. Search engines collect 404s honestly all day,
+and a rate rule would ban Googlebot before it banned anybody worth banning. It
+bans on **what was asked for**: any `.php` path (no node runs PHP), the
+dot-directories that hold source control or credentials (`.env`, `.git`,
+`.aws`, `.ssh`, `.svn`, `.hg`), and the WordPress surface `/wp-*`. Measured
+against 15 days of one node's `access.log`: 52 383 matching lines from 972
+addresses, and not one of them was a real crawler or another node of the fleet.
+
+Several hundred of those lines carry the user agent of Googlebot, GPTBot or
+ClaudeBot. Every one is an impostor — the addresses reverse to
+`googleusercontent.com` and to Cloudflare, and the real Googlebot does not ask
+for `/.env.backup`. Banning them is the point.
+
+**Both jails ship disabled.** If none of a jail's `logpath` globs resolves to a
+file, fail2ban does not skip the jail: it refuses to configure and the whole
+server exits 255, taking every other jail with it, `sshd` included. A node with
+this package whose web server has not run yet is exactly that case. Enable them
+once `access.log` exists:
+
+```bash
+printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\n' \
+    | sudo tee /etc/fail2ban/jail.d/zz-yuneta-nginx-enabled.conf
+sudo systemctl reload fail2ban && sudo fail2ban-client status
+```
+
+A separate file, because `jail.d/yuneta-nginx.conf` is a conffile and editing it
+earns a prompt on every upgrade. `jail.d` is read in alphabetical order.
+
+Two failures worth knowing, because neither says what is wrong:
+
+- **A jail can watch nothing and still report healthy.** If the node's
+  `[DEFAULT]` sets `backend = systemd`, every jail reads the journal and ignores
+  `logpath`. `fail2ban-client status` looks normal; only
+  `fail2ban-client get <jail> logpath` shows *"No file is currently
+  monitored"*. The shipped jails pin `backend = auto` for that reason.
+- **A ban can be recorded and never applied.** `banaction` names a command; if
+  that command is not installed, fail2ban logs the failure to
+  `/var/log/fail2ban.log` and carries on counting bans that do not exist. Check
+  the firewall, not the jail: `nft list table inet f2b-table`, or
+  `iptables -L f2b-<jail> -n`, and confirm the addresses match
+  `fail2ban-client get <jail> banip`.
+
+On a node with **SELinux enforcing** the globs do not work at all: `fail2ban_t`
+cannot list `/yuneta/bin`, the denial is dontaudited so no AVC is written, and
+the only symptom is the fatal *"Have not found any log file"*. There, override
+`logpath` with a literal path in the same `zz-` file and label the directory:
+
+```bash
+semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"
+restorecon -R /yuneta/bin/nginx/logs
+```
+
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 
 - Adds `/yuneta/bin` and `/yuneta/agent` to `PATH`

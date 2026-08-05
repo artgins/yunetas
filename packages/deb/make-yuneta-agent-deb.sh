@@ -107,6 +107,8 @@ mkdir -p "${WORKDIR}/var/crash"
 mkdir -p "${WORKDIR}/etc/sysctl.d"
 mkdir -p "${WORKDIR}/etc/security/limits.d"
 mkdir -p "${WORKDIR}/etc/logrotate.d"
+mkdir -p "${WORKDIR}/etc/fail2ban/filter.d"
+mkdir -p "${WORKDIR}/etc/fail2ban/jail.d"
 
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
@@ -560,6 +562,150 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
 EOF
 chmod 0644 "${WORKDIR}/etc/logrotate.d/yuneta"
 
+# --- fail2ban: filter and jail for the web server of the node ---
+#
+# The stock nginx-botsearch filter looks for webmail, phpMyAdmin, WordPress and
+# cgi-bin. Measured against 15 days of a real node's access.log it matched 1089
+# lines out of 224645, while that log held 95829 refused requests. What arrives
+# is .env, .git/config and a long tail of invented .php names, so the node was
+# being scanned all day with nothing watching.
+cat > "${WORKDIR}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
+# Fail2Ban filter: requests that can only be a probe on a Yuneta node.
+#
+# The signal is not "a 404". Search engines collect 404s all day on pages that
+# moved, and banning them would be worse than the probing. The signal is WHAT
+# was asked for:
+#
+#   - Any .php path. A Yuneta node runs no PHP anywhere: no interpreter, no
+#     handler, no proxy to one. A request for a .php file cannot be a mistake.
+#   - Dot-directories that hold source control or credentials: .env, .git,
+#     .aws, .ssh, .svn, .hg. Nothing serves these on purpose.
+#   - The WordPress surface, /wp-*. No node runs WordPress either.
+#
+# Status is restricted to 404, 403 and 444, so a path that some app does serve
+# one day stops matching here the moment it answers 200.
+#
+# Do not soften this into "ban on N 404s". Measured on the same log, that would
+# have banned Googlebot, Bingbot and Applebot, which collect 404s honestly.
+#
+# It is worth knowing who this catches. Of the lines it matches, several
+# hundred carry the user agent of Googlebot, GPTBot or ClaudeBot -- and every
+# one of them is an impostor: the addresses reverse to googleusercontent.com
+# and to Cloudflare, not to googlebot.com or to OpenAI, and the real Googlebot
+# does not ask for /.env.backup. Banning them is the point, not a side effect:
+# the crawler name is being worn to walk past allowlists that only read it.
+
+[INCLUDES]
+
+before = common.conf
+
+[Definition]
+
+_method = (?:GET|POST|HEAD|PUT|PATCH|DELETE|OPTIONS|PROPFIND)
+_result = (?:404|403|444)
+
+failregex = ^<HOST> \- \S+ \[\] "%(_method)s [^"]*\.php[^"]*" %(_result)s .*$
+            ^<HOST> \- \S+ \[\] "%(_method)s [^"]*/\.(?:env|git|aws|ssh|svn|hg)[^"]*" %(_result)s .*$
+            ^<HOST> \- \S+ \[\] "%(_method)s [^"]*/wp-[^"]*" %(_result)s .*$
+
+ignoreregex =
+
+datepattern = {^LN-BEG}%%ExY(?P<_sep>[-/.])%%m(?P=_sep)%%d[T ]%%H:%%M:%%S(?:[.,]%%f)?(?:\s*%%z)?
+              ^[^\[]*\[({DATE})
+              {^LN-BEG}
+EOF
+chmod 0644 "${WORKDIR}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf"
+
+cat > "${WORKDIR}/etc/fail2ban/jail.d/yuneta-nginx.conf" <<'EOF'
+#
+#   Yuneta: watch the web server of the node for probes.
+#
+#   logpath is written as globs so a node that installs only one of the two
+#   web servers is not an error: an unmatched glob is skipped, while a literal
+#   path that does not exist is fatal.
+#
+#   ON A NODE WITH SELINUX ENFORCING THE GLOBS DO NOT WORK, and they fail in
+#   the least helpful way available. fail2ban_t cannot list /yuneta/bin, which
+#   is default_t, and that particular denial is dontaudited -- it writes no
+#   AVC. The globs expand to nothing, fail2ban calls it a fatal
+#   misconfiguration and the server exits 255, and not one line of the error
+#   names SELinux. Seen on Rocky 9. There, override logpath per node with a
+#   LITERAL path, which never lists a directory, and label the log directory
+#   so the file can be opened:
+#
+#       semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"
+#       restorecon -R /yuneta/bin/nginx/logs
+#
+#   Put the override in the same zz- file that enables the jails.
+#
+#   The globs deliberately do NOT end in a wildcard. access.log* would also
+#   match the rotated access.log.1, and every restart of fail2ban would read
+#   the whole of yesterday again and ban addresses that stopped days ago.
+#
+#   banaction is not set on purpose: the distribution decides. Debian resolves
+#   it to nftables or iptables, and RHEL to firewalld, and each of those is
+#   already configured on its own node.
+#
+#   BOTH JAILS SHIP DISABLED, and that is not timidity. If NONE of the logpath
+#   globs of a jail resolves to a file, fail2ban does not skip the jail: it
+#   refuses to configure and the whole server exits 255, taking every OTHER
+#   jail down with it -- sshd included. A node that has this package but has
+#   not started its web server yet is exactly that case, so an enabled-by
+#   -default jail would turn a fresh install into a node with no fail2ban at
+#   all, quietly.
+#
+#   Turn them on once the web server is running and its access.log exists:
+#
+#       printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\n' \
+#           | sudo tee /etc/fail2ban/jail.d/zz-yuneta-nginx-enabled.conf
+#       sudo systemctl reload fail2ban && sudo fail2ban-client status
+#
+#   A separate file on purpose: this one is a conffile, and a node that edits
+#   it earns a prompt on every upgrade. jail.d is read in alphabetical order,
+#   so a zz- name is the last word.
+#
+[DEFAULT]
+#   The nodes call each other -- the openidc discovery of the web server, the
+#   agents, the deploy tools. None of that asks for a .php, so no ban has ever
+#   been owed to a peer, but a jail that can lock the fleet out of itself is
+#   not worth the risk it removes.
+ignoreip = 127.0.0.1/8 ::1
+
+[yuneta-nginx-probe]
+enabled  = false
+port     = http,https
+filter   = yuneta-nginx-probe
+#   backend is set here and not left to the node. A node whose [DEFAULT]
+#   says `backend = systemd` -- artgins does, in its own
+#   jail.d/defaults-debian.conf -- makes every jail read the journal and
+#   ignore logpath, and the jail then runs forever watching nothing while
+#   `fail2ban-client status` reports it healthy. The only tell is
+#   `get <jail> logpath` answering "No file is currently monitored".
+backend  = auto
+logpath  = /yuneta/bin/*/logs/access.log
+           /yuneta/bin/*/nginx/logs/access.log
+#   Three is not a hair trigger here. The filter matches nothing a person or
+#   an honest crawler sends, so the first request is already the answer; three
+#   only covers a shared address whose neighbour is infected.
+maxretry = 3
+findtime = 10m
+bantime  = 1d
+
+#   Kept alongside for what it covers and this one does not: roundcube, horde,
+#   phpMyAdmin, cgi-bin, mysqladmin.
+[nginx-botsearch]
+enabled  = false
+port     = http,https
+backend  = auto
+logpath  = /yuneta/bin/*/logs/access.log
+           /yuneta/bin/*/nginx/logs/access.log
+maxretry = 3
+findtime = 10m
+bantime  = 1d
+EOF
+chmod 0644 "${WORKDIR}/etc/fail2ban/jail.d/yuneta-nginx.conf"
+
+
 # --- SysV init script (adds hard runtime limits before starting) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
 #!/bin/sh
@@ -812,6 +958,8 @@ cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 /etc/logrotate.d/yuneta
+/etc/fail2ban/filter.d/yuneta-nginx-probe.conf
+/etc/fail2ban/jail.d/yuneta-nginx.conf
 EOF
 
 if [ -f "${WORKDIR}/etc/yuneta/authorized_keys" ]; then

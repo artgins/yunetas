@@ -94,10 +94,17 @@ the packaging metadata and the install/remove logic differ:
 | dev-deps helper    | `install-yuneta-dev-deps.sh` (apt)    | same name, `dnf` + EPEL + CRB                 |
 | PAM limits         | `common-session*`                     | `system-auth` / `password-auth` (default-on) |
 | Log rotation       | `Depends: logrotate`                  | `Requires: logrotate` (base repo, no EPEL)   |
+| Intrusion banning  | `Recommends: fail2ban`, banaction nftables/iptables | `Recommends: fail2ban` (EPEL), banaction firewalld |
 
 The `/etc/logrotate.d/yuneta` drop-in is identical in both packages — same
 paths, same periods, same `postrotate`. See the *Log Rotation* section of
 [`../deb/README.md`](../deb/README.md) for what it rotates and why.
+
+The fail2ban filter and jails are identical in both packages too, and both ship
+the jails **disabled**. See the *Intrusion Banning* section of
+[`../deb/README.md`](../deb/README.md) — and read the SELinux note there before
+enabling them on RHEL, where the `logpath` globs cannot work and fail with no
+message that names SELinux.
 
 ### io_uring (critical on RHEL)
 

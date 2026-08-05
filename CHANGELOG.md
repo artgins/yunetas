@@ -26,6 +26,35 @@
   The **yunos are not touched**: each one writes numbered files under
   `/yuneta/realms/<realm>/<yuno>/logs/` and rotates them itself.
 
+- **The packages ship a fail2ban filter and jails for the web server** —
+  `/etc/fail2ban/filter.d/yuneta-nginx-probe.conf` and
+  `/etc/fail2ban/jail.d/yuneta-nginx.conf`, both conffiles.
+
+  The stock `nginx-botsearch` filter looks for webmail, phpMyAdmin and
+  WordPress. Measured against 15 days of a real node's `access.log` it matched
+  1089 lines out of 224 645, while that log held 95 829 refused requests: the
+  node was scanned all day with nothing watching. The new filter matches 52 383
+  of those lines, from 972 addresses.
+
+  It does not ban on 404s — search engines collect those honestly, and a rate
+  rule bans Googlebot first. It bans on what was asked for: any `.php` path (no
+  node runs PHP), the dot-directories that hold source control or credentials,
+  and `/wp-*`. Several hundred matching lines carry the user agent of Googlebot,
+  GPTBot or ClaudeBot, and every one is an impostor: the addresses reverse to
+  `googleusercontent.com` and to Cloudflare, and the real Googlebot does not ask
+  for `/.env.backup`.
+
+  **Both jails ship disabled**, which is not timidity. If none of a jail's
+  `logpath` globs resolves to a file, fail2ban does not skip the jail — it
+  refuses to configure and the whole server exits 255, taking every other jail
+  down with it, `sshd` included. A node carrying this package whose web server
+  has not run yet is exactly that case. `packages/deb/README.md` carries the
+  two-line command to enable them, and the two ways a jail lies about its own
+  health: watching nothing while reporting healthy (a node whose `[DEFAULT]`
+  sets `backend = systemd`, so the jails now pin `backend = auto`), and
+  recording bans that never reach the firewall (a `banaction` naming a command
+  that is not installed).
+
 - **A 404 page for the documentation site** — `docs/doc.yuneta.io/errors/404.html`,
   installed at the root of the build by `deploy.sh` the same way as the landing
   page, because the `--delete` rsync erases anything dropped straight into the
