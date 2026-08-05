@@ -252,6 +252,7 @@ The `.deb` installs the following tree:
 ├── init.d/yuneta_agent                  <- SysV init script
 ├── sysctl.d/99-yuneta-core.conf         <- kernel tuning
 ├── security/limits.d/99-yuneta-core.conf <- resource limits
+├── logrotate.d/yuneta                   <- rotation of the web server logs
 ├── letsencrypt/renewal-hooks/deploy/
 │   └── reload-certs                     <- certbot deploy hook
 └── yuneta/
@@ -337,6 +338,30 @@ two of them: from the third yuno on, `yev_loop_create()` fails with `ENOMEM`,
 the yuno aborts at startup and the ydaemon watcher relaunches it indefinitely.
 The symptom is a node with gigabytes of free RAM whose yunos die of "out of
 memory" — it is a limit, never a shortage.
+
+### Log Rotation (`/etc/logrotate.d/yuneta`)
+
+nginx has no rotation of its own. It only knows how to reopen its files when it
+gets `USR1`, so without this drop-in `access.log` and `error.log` grow for the
+life of the node. When it was added, no log had ever been rotated on any node;
+the busiest one was writing 3.5 MB a day.
+
+| Path | Period | Keeps |
+|------|--------|-------|
+| `/yuneta/bin/nginx/logs/*.log` | daily | 30, compressed |
+| `/yuneta/bin/openresty/nginx/logs/*.log` | daily | 30, compressed |
+| `/var/log/yuneta/*.log` | monthly | 12, compressed |
+
+Both web server trees are listed. A node runs one or the other — the choice is
+in `/etc/yuneta/webserver` — and `missingok` covers the tree that is absent.
+The `postrotate` reads each `nginx.pid` and sends `USR1` only to a master that
+is alive, so a stale pid file cannot make it signal an unrelated process.
+
+The **yunos do not rotate here**. Each one writes numbered files under
+`/yuneta/realms/<realm>/<yuno>/logs/` and rotates them itself.
+
+The package `Depends` on `logrotate` (`Requires` on RPM) and the drop-in is a
+conffile, so a node that edits it keeps its version across upgrades.
 
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 

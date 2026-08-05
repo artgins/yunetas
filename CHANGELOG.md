@@ -1,5 +1,39 @@
 # **Changelog**
 
+## Unreleased
+
+### Added
+
+- **The packages rotate the web server logs** — `/etc/logrotate.d/yuneta`, a
+  conffile in both the `.deb` and the `.rpm`, with `logrotate` added to
+  `Depends` / `Requires`.
+
+  nginx has no rotation of its own: it only knows how to reopen its files when
+  it gets `USR1`. Nothing was sending that signal, so `access.log` and
+  `error.log` had been growing since the day each node was installed — on all
+  five, none had ever been rotated, and the busiest was writing 3.5 MB a day.
+  Disk was never the problem. A log nobody can open is.
+
+  Both trees are listed (`/yuneta/bin/nginx/logs/`,
+  `/yuneta/bin/openresty/nginx/logs/`): a node runs one or the other, and
+  `missingok` covers the absent one. Daily, 30 kept, compressed with
+  `delaycompress` so the file the master still writes to is not cut. The
+  `postrotate` sends `USR1` only to a pid that is alive, so a stale pid file
+  cannot signal a process the kernel handed to somebody else. The logs of the
+  certbot deploy hook (`/var/log/yuneta/*.log`) rotate monthly in the same
+  file.
+
+  The **yunos are not touched**: each one writes numbered files under
+  `/yuneta/realms/<realm>/<yuno>/logs/` and rotates them itself.
+
+- **A 404 page for the documentation site** — `docs/doc.yuneta.io/errors/404.html`,
+  installed at the root of the build by `deploy.sh` the same way as the landing
+  page, because the `--delete` rsync erases anything dropped straight into the
+  docroot. Five hostnames share that docroot and every one of their server
+  blocks declared `error_page 404 /404.html` for a file that did not exist, so
+  nginx logged a failed open on every 404 and the reader got the built-in page
+  of nginx.
+
 ## 7.9.11
 
 The version skips 7.9.10 on purpose: `@yuneta/gobj-js` shipped 7.9.10 and

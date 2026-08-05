@@ -106,6 +106,7 @@ mkdir -p "${WORKDIR}/etc/yuneta"
 mkdir -p "${WORKDIR}/var/crash"
 mkdir -p "${WORKDIR}/etc/sysctl.d"
 mkdir -p "${WORKDIR}/etc/security/limits.d"
+mkdir -p "${WORKDIR}/etc/logrotate.d"
 
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
@@ -471,6 +472,87 @@ yuneta  hard    memlock unlimited
 EOF
 chmod 0644 "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf"
 
+# --- logrotate drop-in for the web server of the node ---
+#
+# nginx has no rotation of its own: it only knows how to reopen its files when
+# it gets USR1. Without this file access.log and error.log grow for the life of
+# the node. Measured on the five nodes on 2026-08-05, not one log had ever been
+# rotated; the busiest was writing 3.5 MB a day. Nobody noticed, because the
+# failure is not an outage -- it is a file that becomes too big to read.
+cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
+#
+#   Yuneta: rotation for the logs of the node's web server.
+#
+#   nginx has no rotation of its own. It only knows how to reopen its files
+#   when it gets USR1, so without this drop-in access.log and error.log grow
+#   for the life of the node.
+#
+#   Both trees are listed. A node runs nginx OR openresty -- the choice is in
+#   /etc/yuneta/webserver -- but the tree of the other one can be installed and
+#   unused, so missingok covers the one that is not there.
+#
+#   The yunos do NOT rotate here. Each one writes numbered files under
+#   /yuneta/realms/<realm>/<yuno>/logs/ and rotates them itself.
+#
+/yuneta/bin/nginx/logs/*.log
+/yuneta/bin/openresty/nginx/logs/*.log
+{
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+
+    #   The master keeps writing to the renamed file until it gets the signal
+    #   below, so the most recent rotation is compressed one day later. To
+    #   compress it immediately would cut the lines still in flight.
+    delaycompress
+
+    #   One postrotate for the whole set, not one for each file.
+    sharedscripts
+
+    #   Take mode and ownership from the file that is rotated: they are not
+    #   the same on all nodes (root on the openresty nodes, yuneta on the
+    #   others).
+    create
+
+    postrotate
+        for pidfile in /yuneta/bin/nginx/logs/nginx.pid \
+                       /yuneta/bin/openresty/nginx/logs/nginx.pid
+        do
+            if [ -s "$pidfile" ]; then
+                pid=$(cat "$pidfile")
+                #
+                #   Signal only a master that is really alive. A pid file
+                #   outlives a server that was stopped, and USR1 sent to a
+                #   pid the kernel gave to somebody else hits a process
+                #   that has nothing to do with us.
+                #
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -USR1 "$pid"
+                fi
+            fi
+        done
+    endscript
+}
+
+#
+#   The logs of the certbot deploy hook and of copy-certs.sh. They are small,
+#   but they are append-only for the life of the node too.
+#
+/var/log/yuneta/*.log
+{
+    monthly
+    rotate 12
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+}
+EOF
+chmod 0644 "${WORKDIR}/etc/logrotate.d/yuneta"
+
 # --- SysV init script (adds hard runtime limits before starting) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
 #!/bin/sh
@@ -709,7 +791,7 @@ Priority: optional
 Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
-Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers, gdb
+Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers, gdb, logrotate
 Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
 Description: Yuneta's Agent
@@ -722,6 +804,7 @@ cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/sudoers.d/90-yuneta
 /etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
+/etc/logrotate.d/yuneta
 EOF
 
 if [ -f "${WORKDIR}/etc/yuneta/authorized_keys" ]; then

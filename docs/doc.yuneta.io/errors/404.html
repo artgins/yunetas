@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found — Yuneta Simplified</title>
+
+<!--
+    The 404 page of the documentation site.
+
+    deploy.sh installs it at the root of the build output, and nginx serves
+    it through `error_page 404 /404.html` in every server block that uses
+    this docroot. One file answers for five hostnames: doc.yuneta.io,
+    yuneta.io, yuneta.com, yuneta.es and yunetas.com.
+
+    No external request, no font file, no script beyond the theme reader:
+    this page must render when the reader is already lost, which includes
+    the case where the site is half-deployed.
+
+    Every link is root-relative, for the same reason the landing page gives:
+    the theme is kept in localStorage, localStorage is per origin, and this
+    tree answers on five of them. An absolute link to doc.yuneta.io would
+    move the reader to a different origin and silently drop their choice.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<style>
+    /*
+        The tokens are the subset of the landing page's palette that this
+        page uses. The media query comes first and the data-theme rules
+        override it, so a stored choice always wins over the OS.
+    */
+    :root {
+        --ground:     #FFFFFF;
+        --rule:       #C7CFC9;
+        --text:       #131D1B;
+        --text-muted: #55635E;
+        --accent:     #0F6B64;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --ground:     #0E1417;
+            --rule:       #27332F;
+            --text:       #DEE6E2;
+            --text-muted: #94A39D;
+            --accent:     #6FCCBF;
+        }
+    }
+
+    :root[data-theme="light"] {
+        --ground:     #FFFFFF;
+        --rule:       #C7CFC9;
+        --text:       #131D1B;
+        --text-muted: #55635E;
+        --accent:     #0F6B64;
+    }
+
+    :root[data-theme="dark"] {
+        --ground:     #0E1417;
+        --rule:       #27332F;
+        --text:       #DEE6E2;
+        --text-muted: #94A39D;
+        --accent:     #6FCCBF;
+    }
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1.25rem, 5vw, 4.5rem);
+        background: var(--ground);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                     "Helvetica Neue", Arial, sans-serif;
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+        max-width: 40rem;
+    }
+
+    .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.8125rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin: 0 0 0.75rem;
+    }
+
+    h1 {
+        font-size: clamp(1.5rem, 4vw, 2rem);
+        line-height: 1.2;
+        font-weight: 600;
+        margin: 0 0 1rem;
+    }
+
+    p {
+        margin: 0 0 1rem;
+        color: var(--text-muted);
+    }
+
+    ul {
+        list-style: none;
+        margin: 1.75rem 0 0;
+        padding: 1.5rem 0 0;
+        border-top: 1px solid var(--rule);
+    }
+
+    li + li {
+        margin-top: 0.5rem;
+    }
+
+    a {
+        color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+    }
+</style>
+</head>
+<body>
+<main>
+    <p class="code">Error 404</p>
+    <h1>This page does not exist</h1>
+    <p>
+        The address is wrong, or the page moved. Nothing is broken on the
+        server.
+    </p>
+    <ul>
+        <li><a href="/">Go to the front page</a></li>
+        <li><a href="/get-started">Read Get started</a></li>
+        <li><a href="/glossary">Look for a term in the glossary</a></li>
+    </ul>
+</main>
+</body>
+</html>

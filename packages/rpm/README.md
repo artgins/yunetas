@@ -93,6 +93,11 @@ the packaging metadata and the install/remove logic differ:
 | certbot helper     | `install-certbot.sh` (snap)      | `install-certbot.sh` (EPEL `dnf`)            |
 | dev-deps helper    | `install-yuneta-dev-deps.sh` (apt)    | same name, `dnf` + EPEL + CRB                 |
 | PAM limits         | `common-session*`                     | `system-auth` / `password-auth` (default-on) |
+| Log rotation       | `Depends: logrotate`                  | `Requires: logrotate` (base repo, no EPEL)   |
+
+The `/etc/logrotate.d/yuneta` drop-in is identical in both packages — same
+paths, same periods, same `postrotate`. See the *Log Rotation* section of
+[`../deb/README.md`](../deb/README.md) for what it rotates and why.
 
 ### io_uring (critical on RHEL)
 

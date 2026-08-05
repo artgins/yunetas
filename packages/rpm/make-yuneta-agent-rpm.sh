@@ -105,6 +105,7 @@ mkdir -p "${STAGE}/etc/yuneta"
 mkdir -p "${STAGE}/var/crash"
 mkdir -p "${STAGE}/etc/sysctl.d"
 mkdir -p "${STAGE}/etc/security/limits.d"
+mkdir -p "${STAGE}/etc/logrotate.d"
 
 # --- Single-file utilities into /yuneta/bin ---
 BINARIES=(
@@ -405,6 +406,88 @@ yuneta  soft    memlock unlimited
 yuneta  hard    memlock unlimited
 EOF
 chmod 0644 "${STAGE}/etc/security/limits.d/99-yuneta-core.conf"
+
+# --- logrotate drop-in for the web server of the node ---
+#
+# nginx has no rotation of its own: it only knows how to reopen its files when
+# it gets USR1. Without this file access.log and error.log grow for the life of
+# the node. Measured on the five nodes on 2026-08-05, not one log had ever been
+# rotated; the busiest was writing 3.5 MB a day. Nobody noticed, because the
+# failure is not an outage -- it is a file that becomes too big to read.
+cat > "${STAGE}/etc/logrotate.d/yuneta" <<'EOF'
+#
+#   Yuneta: rotation for the logs of the node's web server.
+#
+#   nginx has no rotation of its own. It only knows how to reopen its files
+#   when it gets USR1, so without this drop-in access.log and error.log grow
+#   for the life of the node.
+#
+#   Both trees are listed. A node runs nginx OR openresty -- the choice is in
+#   /etc/yuneta/webserver -- but the tree of the other one can be installed and
+#   unused, so missingok covers the one that is not there.
+#
+#   The yunos do NOT rotate here. Each one writes numbered files under
+#   /yuneta/realms/<realm>/<yuno>/logs/ and rotates them itself.
+#
+/yuneta/bin/nginx/logs/*.log
+/yuneta/bin/openresty/nginx/logs/*.log
+{
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+
+    #   The master keeps writing to the renamed file until it gets the signal
+    #   below, so the most recent rotation is compressed one day later. To
+    #   compress it immediately would cut the lines still in flight.
+    delaycompress
+
+    #   One postrotate for the whole set, not one for each file.
+    sharedscripts
+
+    #   Take mode and ownership from the file that is rotated: they are not
+    #   the same on all nodes (root on the openresty nodes, yuneta on the
+    #   others).
+    create
+
+    postrotate
+        for pidfile in /yuneta/bin/nginx/logs/nginx.pid \
+                       /yuneta/bin/openresty/nginx/logs/nginx.pid
+        do
+            if [ -s "$pidfile" ]; then
+                pid=$(cat "$pidfile")
+                #
+                #   Signal only a master that is really alive. A pid file
+                #   outlives a server that was stopped, and USR1 sent to a
+                #   pid the kernel gave to somebody else hits a process
+                #   that has nothing to do with us.
+                #
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -USR1 "$pid"
+                fi
+            fi
+        done
+    endscript
+}
+
+#
+#   The logs of the certbot deploy hook and of copy-certs.sh. They are small,
+#   but they are append-only for the life of the node too.
+#
+/var/log/yuneta/*.log
+{
+    monthly
+    rotate 12
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+}
+EOF
+chmod 0644 "${STAGE}/etc/logrotate.d/yuneta"
+
 
 # --- SysV init script (with chkconfig header for RHEL) ---
 cat > "${STAGE}/etc/init.d/yuneta_agent" <<'EOF'
@@ -1145,6 +1228,7 @@ BuildArch:      ${ARCHITECTURE}
 AutoReqProv:    no
 
 Requires:       shadow-utils, rsync, rsyslog, chkconfig, initscripts, sudo, gdb
+Requires:       logrotate
 Requires:       glibc-langpack-en, glibc-langpack-es
 Recommends:     vim-enhanced, tree, pipx, fail2ban, net-tools, mlocate, curl, telnet
 
@@ -1172,6 +1256,7 @@ cp -a %{_staging}/. %{buildroot}/
 %attr(0440,root,root) %config(noreplace) /etc/sudoers.d/90-yuneta
 %attr(0755,root,root) %config(noreplace) /etc/init.d/yuneta_agent
 %config(noreplace) /etc/letsencrypt/renewal-hooks/deploy/reload-certs
+%config(noreplace) /etc/logrotate.d/yuneta
 SPEC_EOF
 
 if [ "${BUNDLED_AUTH_KEYS}" -eq 1 ]; then

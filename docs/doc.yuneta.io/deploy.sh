@@ -203,6 +203,17 @@ if grep -q "__YUNETA_VERSION__" "${ORIGIN}landing/index.html"; then
 fi
 echo "landing page installed at /landing (version ${VERSION})"
 
+# The 404 page, for the `error_page 404 /404.html` of every server block that
+# serves this docroot -- five hostnames share it.  Installed here for the same
+# reason as the landing: myst copies no raw files, and the --delete rsync below
+# erases anything dropped straight into the docroot on the server.
+#
+# Until this shipped, nginx failed to open the file on every 404 and wrote a
+# second error line for it, so a missing page cost two log lines and the reader
+# still got the built-in page of nginx.
+cp errors/404.html "${ORIGIN}404.html"
+echo "404 page installed at /404.html"
+
 # The manifest, its icons and the service worker, for the tags injected above.
 # myst copies no raw files, and the rsync below deletes what it does not carry,
 # so they are installed here like the landing.  See pwa/README.md.
