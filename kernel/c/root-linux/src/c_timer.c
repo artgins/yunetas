@@ -6,6 +6,8 @@
  *          ACCURACY IN SECONDS! although the parameter is in milliseconds (msec)
  *
  *          Don't use gobj_start()/gobj_stop(), USE set_timeout..(), clear_timeout()
+ *          Those three are SUGAR: the behaviour lives in mt_writing() on the
+ *          "msec" attribute -- see c_timer.h.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -93,6 +95,29 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
+        /*
+         *  The running state follows the timeout, and it follows it HERE, on
+         *  the attribute write, not in set_timeout()/clear_timeout(). Those
+         *  three PUBLIC functions are an escape from the gclass interface
+         *  (attributes, events, commands, local methods, stats), so they must
+         *  be sugar and nothing else: writing "msec" has to leave the timer
+         *  exactly as they do, or the escape is a second, privileged door.
+         *
+         *  No recursion through gobj_stop(): it clears `running` before
+         *  calling mt_stop(), and mt_stop() writes no attribute.
+         */
+        if(priv->msec > 0) {
+            if(gobj_is_running(gobj)) {
+                priv->t_flush = start_msectimer(priv->msec);
+            } else {
+                gobj_start(gobj); // this does the above start_msectimer()
+            }
+        } else {
+            priv->t_flush = 0;
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj);
+            }
+        }
     END_EQ_SET_PRIV()
 }
 
@@ -294,8 +319,6 @@ PUBLIC int register_c_timer(void)
  ***************************************************************************/
 PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(!gobj_typeof_gclass(gobj, C_TIMER)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -321,21 +344,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     }
 
     gobj_write_bool_attr(gobj, "periodic", FALSE);
-    gobj_write_integer_attr(gobj, "msec", msec);
-
-    if(priv->msec > 0) {
-        if(gobj_is_running(gobj)) {
-            priv->t_flush = start_msectimer(priv->msec);
-        } else {
-            gobj_start(gobj); // this does the above start_msectimer()
-        }
-
-    } else {
-        priv->t_flush = 0;
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj);
-        }
-    }
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write arms the timer
 }
 
 /***************************************************************************
@@ -343,8 +352,6 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(!gobj_typeof_gclass(gobj, C_TIMER)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -370,21 +377,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
     }
 
     gobj_write_bool_attr(gobj, "periodic", TRUE);
-    gobj_write_integer_attr(gobj, "msec", msec);
-
-    if(priv->msec > 0) {
-        if(gobj_is_running(gobj)) {
-            priv->t_flush = start_msectimer(priv->msec);
-        } else {
-            gobj_start(gobj); // this does the above start_msectimer()
-        }
-
-    } else {
-        priv->t_flush = 0;
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj);
-        }
-    }
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write arms the timer
 }
 
 /***************************************************************************
@@ -418,9 +411,5 @@ PUBLIC void clear_timeout(hgobj gobj)
         );
     }
 
-    gobj_write_integer_attr(gobj, "msec", 0);
-    priv->t_flush = 0;
-    if(gobj_is_running(gobj)) {
-        gobj_stop(gobj);
-    }
+    gobj_write_integer_attr(gobj, "msec", 0);       // This write disarms the timer
 }

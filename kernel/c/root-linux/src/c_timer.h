@@ -7,7 +7,18 @@
  *
  *          Don't use gobj_start()/gobj_stop(), USE set_timeout..(), clear_timeout()
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          These three are the whole contract: set_timeout..() arms,
+ *          clear_timeout() disarms, and a one-shot is spent once it fires.
+ *          Whether the gobj is running is INTERNAL -- the caller never has to
+ *          know this gobj exists.
+ *
+ *          They are also an escape from the gclass interface (attributes,
+ *          events, commands, local methods, stats), so they are SUGAR and
+ *          nothing else: the behaviour lives in mt_writing() on the "msec"
+ *          attribute, and writing that attribute leaves the timer exactly as
+ *          these do.
+ *
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

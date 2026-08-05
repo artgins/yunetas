@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Changed
+
+- **`C_TIMER` / `C_TIMER0`: the timeout helpers are sugar now, and the
+  behaviour lives behind the interface.** `set_timeout()`, `set_timeout_periodic()`
+  and `clear_timeout()` are three of the very few PUBLIC C functions a gclass
+  header exports — 4 of the 33 gclasses in `root-linux` do it, and CLAUDE.md
+  says to treat those as defects. The arming therefore moved out of them and
+  into **`mt_writing()` on the `msec` attribute**, which is the real interface:
+  `gobj_write_integer_attr(timer, "msec", 1000)` now leaves the timer exactly
+  as `set_timeout(timer, 1000)` does, where before it armed the countdown and
+  left the gobj stopped. Same for `C_TIMER0` with its io_uring event.
+
+  **No caller changes and no behaviour change** for anyone using the helpers —
+  they write the same two attributes they always did, and every trace line is
+  unchanged. What changes is that the gclass no longer has two doors with
+  different behaviour. `c_timer0`'s helpers had to swap their two writes
+  (`periodic` before `msec`), since the `msec` write is the one that arms.
+
+  This is the C half of the same normalization shipped in `@yuneta/gobj-js`
+  7.9.10/7.9.11, where the split was doing real damage: JS had never started or
+  stopped the gobj at all, so every view paired its `set_timeout()` with a
+  `gobj_start()` and got *"Destroying a RUNNING gobj"* when it forgot the
+  matching stop. The two ports are now the same contract, function for
+  function. `GOBJ.md` §7 (the worked example is `c_timer.c` itself) and the
+  timer API page were rewritten to match.
+
+  Not touched: the **ESP32** `c_timer` (`root-esp32`), which arms with
+  `gobj_play()`/`gobj_pause()` and cannot be built or tested here.
+
 ### Added
 
 - **`@yuneta/gobj-js` 7.9.11 — `C_TIMER`: the two calls are the whole contract**

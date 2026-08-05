@@ -11,6 +11,26 @@ High-level and low-level timer helpers for GObjects.
 `gobj_stop()` internally — use the helper functions below instead of
 calling those directly.
 
+The two calls are the **whole contract**: `set_timeout..()` arms,
+`clear_timeout()` disarms, and a one-shot is spent once it fires. Whether the
+gobj is running is internal, so a caller never pairs a `set_timeout()` with a
+`gobj_start()`, and never stops the timer on the way out.
+
+These helpers are the rare case of a GClass exporting PUBLIC C functions, an
+escape from the [GClass interface](../../../../yunos/c/yuno_agent/GOBJ.md). They are therefore **sugar
+over the `msec` attribute** and hold no behaviour of their own — the arming
+lives in `mt_writing`, so
+
+```C
+gobj_write_integer_attr(timer, "msec", 1000);
+```
+
+leaves the timer exactly as `set_timeout(timer, 1000)` does. Write `periodic`
+**before** `msec`: the `msec` write is what arms.
+
+The JS port (`@yuneta/gobj-js`, `C_TIMER`) carries the same contract, function
+for function.
+
 ---
 
 (register_c_timer)=

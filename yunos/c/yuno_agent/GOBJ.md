@@ -425,17 +425,33 @@ pointers across lifecycle boundaries*. See §8.5.
 
 ## 7. Worked example: [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_timer.c)
 
-The minimal canonical gclass per CLAUDE.md. 426 lines, single state, two
+The minimal canonical gclass per CLAUDE.md. 415 lines, single state, two
 events, one action. Open the file next to this text. Every Yuneta C
 developer must be able to read it without preparation.
 
 ### 7.1 What it does
 
-[`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_timer.c) is a periodic / one-shot timer. The subscriber sets the
-`msec` and `periodic` attrs, then starts it. The gclass listens to the
+[`c_timer.c`](https://github.com/artgins/yunetas/blob/7.9.9/kernel/c/root-linux/src/c_timer.c) is a periodic / one-shot timer. The gclass listens to the
 yuno's global `EV_TIMEOUT_PERIODIC` heartbeat and republishes its own
 `EV_TIMEOUT` (one-shot, then auto-stop) or `EV_TIMEOUT_PERIODIC` (every
 `msec`).
+
+Its whole contract is two calls, and it is worth stating before reading a
+line of it:
+
+```c
+set_timeout(timer, 1000);   // arms
+clear_timeout(timer);       // disarms
+```
+
+**Nobody starts or stops a `C_TIMER`.** Arming starts it, clearing stops it,
+and a one-shot is spent once it fires. `set_timeout()`/`clear_timeout()` are
+also the rare case of a gclass exporting PUBLIC C functions — an escape from
+the interface of §5 and §7.5 — so they are kept as **sugar over the `msec`
+attribute** and hold no behaviour of their own: `gobj_write_integer_attr(timer,
+"msec", 1000)` leaves the timer exactly as `set_timeout()` does. The JS port
+(`kernel/js/gobj-js/src/c_timer.js`) carries the same contract, function for
+function.
 
 ### 7.2 `mt_create`
 
@@ -464,8 +480,8 @@ into `priv`, so that the runtime hot path does not walk the attr table.
 ### 7.3 `mt_writing`
 
 Triggers when someone calls `gobj_write_bool_attr(gobj, "periodic", …)`
-or `gobj_write_integer_attr(gobj, "msec", …)`. Refreshes the priv
-cache:
+or `gobj_write_integer_attr(gobj, "msec", …)`. It refreshes the priv
+cache **and does the work**:
 
 ```c
 PRIVATE void mt_writing(hgobj gobj, const char *name)
@@ -473,13 +489,35 @@ PRIVATE void mt_writing(hgobj gobj, const char *name)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IF_EQ_SET_PRIV(periodic,  gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,    gobj_read_integer_attr)
+        if(priv->msec > 0) {
+            if(gobj_is_running(gobj)) {
+                priv->t_flush = start_msectimer(priv->msec);
+            } else {
+                gobj_start(gobj);       // mt_start() does the start_msectimer()
+            }
+        } else {
+            priv->t_flush = 0;
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj);
+            }
+        }
     END_EQ_SET_PRIV()
 }
 ```
 
-This is the **cache-coherent** pattern. Whenever your `priv` holds
-copies of attrs for performance, `mt_writing` is where you keep them in
-sync.
+Two patterns in one place. The assignment is the **cache-coherent** one:
+whenever your `priv` holds copies of attrs for performance, `mt_writing` is
+where you keep them in sync.
+
+The block after it is why §7.1 can promise that writing the attribute and
+calling the helper are the same thing. Put the behaviour of an attribute
+**here**, never in a public function that writes it, or the gclass ends up
+with two doors and only one of them works. It does not recurse: `gobj_stop()`
+clears `running` before calling `mt_stop()`, and `mt_stop()` writes no
+attribute.
+
+Note the order the helpers write in: `periodic` **first**, then `msec`. The
+`msec` write is what arms, so it must find `periodic` already updated.
 
 ### 7.4 `mt_start` / `mt_stop`
 
@@ -498,6 +536,24 @@ PRIVATE int mt_start(hgobj gobj)
 ```
 
 `mt_stop` is the mirror: clear the timer, unsubscribe.
+
+Neither is called by hand. `mt_start` runs because someone armed the timer,
+and `mt_stop` because someone cleared it or because the one-shot spent itself
+in `ac_timeout`:
+
+```c
+gobj_publish_event(gobj, ev, kw_incref(kw));
+
+if(!priv->periodic && priv->t_flush == 0) {
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    }
+}
+```
+
+The `t_flush == 0` guard is not decoration: the subscriber may have re-armed
+the timer inside the action it was just handed, and a timer that armed itself
+one line ago must not be stopped.
 
 ### 7.5 The state table
 

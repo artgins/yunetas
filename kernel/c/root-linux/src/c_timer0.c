@@ -100,6 +100,22 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
+        /*
+         *  The timer follows the timeout, and it follows it HERE, on the
+         *  attribute write, not in set_timeout0()/clear_timeout0(). Those are
+         *  an escape from the gclass interface (attributes, events, commands,
+         *  local methods, stats), so they are sugar and nothing else: writing
+         *  "msec" has to leave the timer exactly as they do.
+         *
+         *  WARNING "periodic" must be written BEFORE "msec" -- this reads it.
+         *  The yev_event exists: mt_create() builds it, and mt_writing() never
+         *  runs before mt_create().
+         */
+        if(priv->msec > 0) {
+            yev_start_timer_event(priv->yev_event, priv->msec, priv->periodic);
+        } else {
+            yev_stop_event(priv->yev_event);
+        }
     END_EQ_SET_PRIV()
 }
 
@@ -341,8 +357,8 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
     uint32_t level = TRACE_TIMER;
     BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
 
-    gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", FALSE);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write arms the timer
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
@@ -361,8 +377,6 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
         );
         json_decref(jn_flags);
     }
-
-    yev_start_timer_event(priv->yev_event, msec, FALSE);
 }
 
 /***************************************************************************
@@ -385,8 +399,8 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
     uint32_t level = TRACE_TIMER_PERIODIC;
     BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
 
-    gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", TRUE);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write arms the timer
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
@@ -405,8 +419,6 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
         );
         json_decref(jn_flags);
     }
-
-    yev_start_timer_event(priv->yev_event, msec, TRUE);
 }
 
 /***************************************************************************
@@ -448,5 +460,5 @@ PUBLIC void clear_timeout0(hgobj gobj)
         json_decref(jn_flags);
     }
 
-    yev_stop_event(priv->yev_event);
+    gobj_write_integer_attr(gobj, "msec", 0);       // This write disarms the timer
 }
