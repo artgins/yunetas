@@ -39,6 +39,23 @@ system-wide commands.
 | `truncate-log-file` | Truncate the log file. |
 | `view-log-counters` | Show log event counters. |
 | `add-log-handler` / `del-log-handler` / `list-log-handlers` | Log handler management. |
+| `shutdown` | Stop this yuno, orderly. |
+
+:::{note}
+`shutdown` answers first and dies after: the response travels over the very
+event loop the shutdown stops, so the handler only arms a timer and the
+periodic action does the dying (up to one `timeout_periodic`, 1 s by default).
+
+It exits with code **0**, so the ydaemon watcher does **not** relaunch the
+yuno — asking for a shutdown and getting a restart would be a surprise. To
+start it again, use the agent (`run-yuno`).
+
+This is not a replacement for [`kill-yuno`](../../deploying-yunos.md), which
+is the deploy path: `kill-yuno` is asked of the **agent**, which knows the
+yuno and deregisters it. `shutdown` is asked of the **yuno itself**, which is
+what you have when the yuno answers and the agent does not, or when the yuno
+runs under no agent at all.
+:::
 
 See also the [Yuno API](../runtime/yuno.md) for C helper functions.
 

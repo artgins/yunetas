@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Added
+
+- **`shutdown` command on `C_YUNO`** — the control plane can now ask a yuno to
+  stop itself, orderly. It **answers first and dies after**: the response
+  travels over the very event loop the shutdown stops, so a handler that called
+  `set_yuno_must_die()` on the spot would take the socket down with the answer
+  still in it. The handler arms a timer and `ac_timeout_periodic()` does the
+  dying — the same shape `timeout_restart` has always used, so the wait is at
+  most one `timeout_periodic` (1 s by default). Measured end to end: asked at
+  `t`, dead at `t+999 ms`.
+
+  It exits with code **0**, so the ydaemon watcher does not relaunch the yuno.
+  It does not replace `kill-yuno`, which stays the deploy path: that one is
+  asked of the **agent**, which knows the yuno and deregisters it; this one is
+  asked of the **yuno**, which is what you have when the yuno answers and the
+  agent does not, or when the yuno runs under no agent.
+
+  Pinned by `tests/c/command_shutdown/`, which asserts the order that matters:
+  the command answers `result=0`, the yuno is still running when the answer
+  comes back, and it dies on its own afterwards (a watchdog turns "it never
+  died" into a failed check instead of a ctest timeout).
+
 ### Changed
 
 - **`c_yuno.h` sheds 4 of its 9 public functions, and the two that stay say why.**

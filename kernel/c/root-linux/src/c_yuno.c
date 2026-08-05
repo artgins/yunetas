@@ -108,6 +108,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_shutdown(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -351,6 +352,15 @@ SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: se
 SDATA_END()
 };
 
+/*
+ *  Grace between answering `shutdown` and leaving the event loop. The answer
+ *  travels over the same loop that is about to stop, so dying inside the
+ *  command handler would take the socket down with the response still in it.
+ *  The wait is served by the periodic tick, so anything below one period is
+ *  the same "next tick" -- this only has to be > 0 to arm the timer.
+ */
+#define MUST_DIE_GRACE_MS   200
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_read_attrs[] = {"read-attrs", 0};
 PRIVATE const char *a_read_attrs2[] = {"read-attrs2", 0};
@@ -364,6 +374,7 @@ SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view
 SDATACM (DTP_SCHEMA,    "print-role",               0,      0,          cmd_print_role,             "Basic yuno info at runtime (role, version, yuneta_version, ...) — runtime equivalent of the CLI --print-role"),
 
 /*-CMD2---type----------name------------------------flag---------alias---items-------json_fn-------------description--*/
+SDATACM2(DTP_SCHEMA,    "shutdown",                 SDF_AUTHZ_X, 0,      0,          cmd_shutdown,               "Shutdown this yuno, orderly. It exits with code 0, so the ydaemon watcher does NOT relaunch it"),
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
@@ -558,6 +569,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_stats;
     uint64_t t_cert_check;
     time_t t_restart;
+    uint64_t t_must_die;    // armed by the shutdown command, served by the periodic
     json_int_t timeout_flush;
     json_int_t timeout_stats;
     json_int_t timeout_restart;
@@ -1123,6 +1135,54 @@ PRIVATE json_t *cmd_print_role(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         ),
         0,
         jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Shutdown this yuno, orderly.
+ *
+ *  The dying is NOT done here: the answer travels over the same event loop
+ *  that is about to stop, so leaving it inside this handler would take the
+ *  socket down with the response still in it. This arms the timer and the
+ *  periodic action does the shutdown, the same way `timeout_restart` has
+ *  always deferred its exit.
+ *
+ *  It exits with code 0, so the ydaemon watcher does not relaunch the yuno:
+ *  asking for a shutdown and getting a restart would be a surprise.
+ ***************************************************************************/
+PRIVATE json_t *cmd_shutdown(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->t_must_die) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: shutdown already asked for, dying",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", "Shutdown asked by command",
+        "src",          "%s", gobj_short_name(src),
+        NULL
+    );
+
+    priv->t_must_die = start_msectimer(MUST_DIE_GRACE_MS);
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: shutting down", gobj_yuno_role_plus_name()),
+        0,
+        0,
         kw  // owned
     );
 }
@@ -5591,6 +5651,18 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
         yuno_shutdown();
+        return 0;
+    }
+
+    /*
+     *  Somebody asked for a shutdown and the answer has had its tick to
+     *  leave. Same shape as the restart above: the dying happens HERE, in
+     *  the periodic, never inside the command handler.
+     */
+    if(test_msectimer(priv->t_must_die)) {
+        priv->t_must_die = 0;
+        JSON_DECREF(kw)
+        set_yuno_must_die();
         return 0;
     }
 
