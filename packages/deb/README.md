@@ -363,6 +363,12 @@ The **yunos do not rotate here**. Each one writes numbered files under
 The package `Depends` on `logrotate` (`Requires` on RPM) and the drop-in is a
 conffile, so a node that edits it keeps its version across upgrades.
 
+The owner of the log can change on the first rotation, and that is correct.
+`create` gives the new file the owner of the old one, and then nginx reopens it
+and hands it to the `user` of its own config so the workers can write.
+Measured on the openresty nodes: logrotate leaves `root:root`, and after the
+`USR1` the file is `yuneta:root`.
+
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 
 - Adds `/yuneta/bin` and `/yuneta/agent` to `PATH`

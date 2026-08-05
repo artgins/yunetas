@@ -514,6 +514,13 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
     #   Take mode and ownership from the file that is rotated: they are not
     #   the same on all nodes (root on the openresty nodes, yuneta on the
     #   others).
+    #
+    #   Do not be surprised if the owner changes on the first rotation. The
+    #   file logrotate creates here inherits the old owner, and then nginx
+    #   reopens it and gives it to the `user` of its own config, so that the
+    #   workers can write. Measured: logrotate leaves root:root, and after
+    #   the USR1 the file is yuneta:root. That is nginx doing its job, not a
+    #   rotation that went wrong.
     create
 
     postrotate
