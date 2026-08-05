@@ -50,6 +50,13 @@ It exits with code **0**, so the ydaemon watcher does **not** relaunch the
 yuno — asking for a shutdown and getting a restart would be a surprise. To
 start it again, use the agent (`run-yuno`).
 
+Like every `SDF_AUTHZ_X` command, its per-command authz check only runs where
+`enable_command_authz` is on, and that is **off by default** (see
+[`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md) §4.5). That is
+not a new exposure — whoever can send commands to a yuno can already
+`disable-gobj` its whole tree — but do not read the flag as a lock that is
+already closed.
+
 This is not a replacement for [`kill-yuno`](../../deploying-yunos.md), which
 is the deploy path: `kill-yuno` is asked of the **agent**, which knows the
 yuno and deregisters it. `shutdown` is asked of the **yuno itself**, which is

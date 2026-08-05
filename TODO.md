@@ -6,6 +6,28 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
+## Tests: `test_c_timer0` asserts a 10 ms window on a 5 s measurement
+
+`c_test_timer0.c` fails the run when five ticks of a 1 s periodic timer do not
+land between 5000 and 5009 ms of wall clock:
+
+```c
+if(!(tm >= 5000 && tm < 5010)) {   // -> gobj_log_error("bad time")
+```
+
+The error is not in the `set_expected_results` list, so the test fails. Its
+sibling `c_test_timer.c` measures the same thing and allows
+`5000 .. 5500 + yuno_periodic`, which is where the asymmetry looks like an
+oversight rather than a precision requirement: io_uring timers are precise, the
+OS scheduler under load is not.
+
+Measured on 2026-08-05: 20/20 passes on an idle machine, and one failure in
+four full-suite runs on a busy one. A slow box (the yunovatios-central Rocky VM
+is kept deliberately slow) would fail it routinely.
+
+Raise the upper bound. Keep the lower one at 5000 — a periodic timer firing
+EARLY is a real defect and that half of the assert earns its place.
+
 ## gui_treedb: leftovers from the 2026-07-13 audit
 
 The four gclasses whose runtime lived outside the automaton are done

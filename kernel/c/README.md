@@ -1815,15 +1815,13 @@ int yunetas_register_c_core(void);  // register all built-in GClasses
 ```c
 void *yuno_event_loop(void);        // get the yev_loop_h
 void  yuno_event_destroy(void);
-void  set_yuno_must_die(void);
+void  set_yuno_must_die(void);      // end THIS process, orderly
 
-// IP allow/deny lists
+// IP allow/deny lists: only the read half is C API, because it is asked
+// once per accepted connection. Writing goes through the interface --
+// the allowed_ips/denied_ips attributes and the add-/remove- commands.
 BOOL is_ip_allowed(const char *peername);
-int  add_allowed_ip(const char *ip, BOOL allowed);
-int  remove_allowed_ip(const char *ip);
 BOOL is_ip_denied(const char *peername);
-int  add_denied_ip(const char *ip, BOOL denied);
-int  remove_denied_ip(const char *ip);
 ```
 
 ### GClass Reference
