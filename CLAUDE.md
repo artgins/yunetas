@@ -289,6 +289,15 @@ Corollaries:
 
 ### C API footguns
 
+- **`gclass_create()` with a NULL `attrs_table` segfaults at the first
+  instance.** A gclass with no attributes still needs a table holding
+  `SDATA_END()`. Passing `0` compiles and registers fine, and then
+  `gobj_sdata_create()` (`gobj.c`) walks it with `while(it->name != 0)` and no
+  NULL guard, so the crash lands on the first `gobj_create` of that gclass —
+  far from the call that caused it, and with a stack that blames the framework.
+  Every gclass in the tree passes a real table. Keep it that way, especially in
+  the throwaway driver gclasses that tests define.
+
 - **`jwt_checker_verify2()` returns claims even on FAILED verification**
   (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —
   never treat a non-NULL payload as "verified" (that accepts forged tokens),
@@ -473,6 +482,21 @@ stale binaries in `outputs/yunos/` — always verify the staged binary
 unified root `build/` tree is built by `yunetas test` (or `cmake --build
 build`), not by `yunetas build`. A raw ctest after per-module builds executes
 stale binaries.
+
+**`yunetas test` builds first and runs ctest second, so "is ctest running?" is
+not "is it finished?".** Never start a second run while the first is still in
+its build phase: ctest then walks a half-built tree and reports the missing
+binaries as *"Not Run"* — 118 of 120 in one real case, which reads exactly like
+a catastrophic regression and is not one. Wait for the invocation itself to
+exit.
+
+**When you wait for one, match the process by NAME, not by command line.**
+`pgrep -f "ctest"` (or `-f "cmake --build"`) matches the **shell running the
+wait loop**, because its own command line contains the pattern — so the loop
+never ends and nothing tells you why. `pgrep -x ctest` matches the executable
+name and behaves. This is the same mechanism as the `pkill -f "myst build"`
+trap in *Documentation site* above, in its waiting form rather than its killing
+one. The `[c]test` bracket trick does not save either of them.
 
 ### External projects (registered in the CLI)
 
