@@ -1,0 +1,50 @@
+# https://www.robotstxt.org/robotstxt.html
+#
+# deploy.sh installs this file and it REPLACES the one mystmd builds.
+#
+# myst has no absolute address for the site -- site.options.base_url is "/"
+# -- so the Sitemap line it wrote named the address of its own development
+# server, http://localhost:3000/sitemap.xml. Every crawler that read it had
+# to discard it, and the sitemap myst does build was reachable by nobody.
+#
+# One docroot answers on five names: doc.yuneta.io, yuneta.io, yuneta.com,
+# yuneta.es and yunetas.com. So one file serves all five, and the sitemap
+# can only name one of them. It names doc.yuneta.io, which is where the
+# pages belong; on the other four "/" is the landing page.
+
+#
+#   Backlink and rank crawlers.
+#
+#   They read the whole site to sell the numbers back, they bring no
+#   readers, and over 15 days they were about 14000 requests. A crawler
+#   uses the most specific group that names it and ignores the wildcard
+#   below, so these six are refused and everything else is not.
+#
+#   Search engines and the assistants are deliberately NOT in this list.
+#   Those are how somebody finds Yuneta in the first place.
+#
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: dotbot
+Disallow: /
+
+User-agent: DataForSeoBot
+Disallow: /
+
+User-agent: SERankingBacklinksBot
+Disallow: /
+
+#
+#   Everybody else, which is the point of a documentation site.
+#
+User-agent: *
+Allow: /
+
+Sitemap: https://doc.yuneta.io/sitemap.xml

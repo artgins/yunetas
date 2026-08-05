@@ -214,6 +214,25 @@ echo "landing page installed at /landing (version ${VERSION})"
 cp errors/404.html "${ORIGIN}404.html"
 echo "404 page installed at /404.html"
 
+# robots.txt, overwriting the one myst just built.  myst has no absolute
+# address for the site, so its Sitemap line named its own development server
+# (http://localhost:3000/sitemap.xml) and every crawler had to discard it --
+# which left the sitemap myst does build reachable by nobody.  Ours names the
+# real one and refuses the backlink crawlers.  Copied AFTER the build for that
+# reason, and before the --delete rsync so the mirror keeps it.
+cp robots.txt "${ORIGIN}robots.txt"
+# Only the Sitemap line, not the whole file: the comments in robots.txt name
+# the localhost address on purpose, to say what this replaced.
+if grep -E '^[[:space:]]*Sitemap:' "${ORIGIN}robots.txt" | grep -q localhost; then
+    echo "ERROR: the Sitemap line of robots.txt still points a crawler at localhost" >&2
+    exit 1
+fi
+if ! grep -qE '^[[:space:]]*Sitemap:' "${ORIGIN}robots.txt"; then
+    echo "ERROR: robots.txt carries no Sitemap line" >&2
+    exit 1
+fi
+echo "robots.txt installed at /robots.txt"
+
 # The manifest, its icons and the service worker, for the tags injected above.
 # myst copies no raw files, and the rsync below deletes what it does not carry,
 # so they are installed here like the landing.  See pwa/README.md.
