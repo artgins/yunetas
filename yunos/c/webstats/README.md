@@ -1,8 +1,8 @@
 # webstats — design
 
-Status: **working**, minus the store and the HTML body. It reads the logs of a
-day and makes the full record of section 7. Section 13 says what is done and
-what is not.
+Status: **working**, minus the HTML body. It reads the logs of a day, makes
+the full record of section 7, keeps it in TimeRanger2 and compares the day
+against its own history. Section 13 says what is done and what is not.
 
 Yuno that reads the logs of the node's web server (nginx or openresty), makes
 a daily report of traffic, errors and probes, and sends the report by email
@@ -248,10 +248,34 @@ original request. It is one event, not two. Do not count it as two.
 
 TimeRanger2, one topic.
 
-- Topic `daily_stats`, pkey `date` (`YYYY-MM-DD`), one record per day, a few
-  kilobytes each. `keep_days` bounds it.
+- Topic `daily_stats`, pkey `date` (`YYYY-MM-DD`), `sf_string_key`, one record
+  per day, a few kilobytes each. `keep_days` bounds it: at every play and at
+  the end of every run, the keys that sort before `today - keep_days` are
+  dropped. An ISO date sorts the same as it reads, which is why the key has
+  that shape.
 
 Raw lines are never stored.
+
+**A day reported twice has two records under the same key**, and the newest
+one is the answer. That is what makes `report-day` repeatable with no delete
+first: a day rebuilt after a fix wins.
+
+⚠️ **Reading the newest is not `(from_rowid=1, limit=1, backward=TRUE)`.**
+`from_rowid` is a position among the rows the iterator returns, and `backward`
+does not turn it into a position from the end, so that call hands back row 1 —
+the **oldest**. Ask `tranger2_iterator_size()` for the row count and read that
+rowid forward. With the wrong call `get-report` answered for ever with the
+first version of a day, and a re-run to correct a day changed nothing that
+anybody can read. Found by rebuilding one day twice and looking at the store.
+
+### 8.4 What changed
+
+The record carries a `changed` block: the previous day's headline numbers, the
+median of the last seven days, and today's. That is the whole reason to keep a
+history — a number with nothing to compare it to carries no information.
+
+A day with no history says `days_of_history: 0` instead of comparing against
+zero. Against zero, the first morning reads as *everything doubled*.
 
 ### 8.1 Record shape (version 1)
 
@@ -392,14 +416,20 @@ showing zeros.
 | Command | What it does |
 |---|---|
 | `analyze-now` | build the report for yesterday, now |
-| `report-day date=YYYY-MM-DD [send=1]` | rebuild any day still on disk. Sends only with `send=1` |
-| `get-report date=YYYY-MM-DD` | the stored aggregate record |
+| `report-day report_date=YYYY-MM-DD [send=1]` | rebuild any day still on disk. Sends only with `send=1` |
+| `get-report report_date=YYYY-MM-DD` | the stored aggregate record, newest version of that day |
 | `list-reports` | the dates held in `daily_stats` |
 | `list-sources` | the files it will read, and whether each is readable now |
 
-Naming note: a command reached through `ycommand command-yuno` cannot use a
-parameter called `id`, and `SDF_REQUIRED` with `DTP_JSON`/`DTP_INTEGER` is
-forwarded without coercion. Nothing here needs either.
+⚠️ **The day parameter is `report_date`, not `date`.** `command-yuno` hands its
+WHOLE kw to the node query that picks the yuno, so a parameter named like a
+field of the yuno record becomes a filter on that field. The yuno record has a
+`date` (when it was created), so `command-yuno id=91 command=report-day
+date=2026-08-05` matches no yuno and answers **"Yuno not found"** — naming the
+yuno, never the parameter. This is the documented `id=` collision, and it is
+not limited to `id`: check the columns of `list-yunos` before naming a
+parameter. The handlers still read a plain `date` as a fallback, for a caller
+that reaches the gclass directly.
 
 ## 12. Trace levels
 
@@ -428,12 +458,21 @@ It counted 8 requests of 9 kept from 10 lines, 5 distinct clients of 6, the
 2xx/4xx/5xx split, 2 probes from 2 clients, and 2 signatures from 3 error
 lines. No error, no warning, no leak on shutdown.
 
-**Not done.** The `daily_stats` topic of section 8, the HTML body of section
-9 with the comparison against the previous days, and the store behind
-`get-report` / `list-reports`. The mail still carries the record as JSON.
+**Store: done.** The `daily_stats` topic, the pruning by `keep_days`, the
+`changed` block against the previous day and the median of the week, and
+`get-report` / `list-reports` on top of it.
 
-**Phase 1** — what is left of the above, plus the `log_format` change on the
-five nodes.
+Verified under a real agent on the dev node, against the 126861 lines of its
+own access.log: three days built with `report-day`, listed by `list-reports`,
+read back by `get-report`, and one day rebuilt a second time to prove the
+newest version wins and that the rebuild finds its two days of history.
+Orderly shutdown with no error and no leak.
+
+**Not done.** The HTML body of section 9. The mail still carries the record as
+JSON.
+
+**Phase 1** — the HTML body. The `log_format` change is deployed on the five
+nodes.
 
 **Phase 2**
 

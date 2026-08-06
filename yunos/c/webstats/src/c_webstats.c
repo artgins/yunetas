@@ -103,12 +103,20 @@ PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
 PRIVATE int count_keyn(hgobj gobj, json_t *jn_map, const char *key, size_t len, const char *map_name);
 PRIVATE json_t *top_of(json_t *jn_map, int top_n);
+PRIVATE json_t *sorted_strings(json_t *jn_list);
 PRIVATE void note_truncated(hgobj gobj, const char *map_name);
 PRIVATE json_t *new_latency(void);
 PRIVATE void add_latency(json_t *jn_latency, double seconds);
 PRIVATE json_t *latency_percentiles(json_t *jn_latency);
 PRIVATE int error_signature(const char *line, char *bf, size_t bfsize);
 PRIVATE void close_report(hgobj gobj);
+PRIVATE int open_store(hgobj gobj);
+PRIVATE int close_store(hgobj gobj);
+PRIVATE int store_report(hgobj gobj);
+PRIVATE json_t *load_report(hgobj gobj, const char *date);
+PRIVATE int prune_store(hgobj gobj);
+PRIVATE void compare_with_history(hgobj gobj);
+PRIVATE json_t *headline_of(hgobj gobj, json_t *record);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -133,15 +141,29 @@ SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission 
 SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
+/*
+ *  The day parameter is NOT called "date".
+ *
+ *  `command-yuno` hands its WHOLE kw to gobj_list_nodes() as the filter that
+ *  picks the yuno, so any parameter named like a field of the yuno record
+ *  becomes a filter on that field. The yuno record has a "date" (when it was
+ *  created), so `command-yuno id=91 command=report-day date=2026-08-05`
+ *  matches no yuno and answers "Yuno not found" -- naming the yuno, never
+ *  the parameter. It is the same trap as the documented `id=`, and it is not
+ *  limited to `id`.
+ *
+ *  The handler still reads a plain "date" as a fallback, for a caller that
+ *  reaches the gclass directly.
+ */
 PRIVATE sdata_desc_t pm_report_day[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "date",         0,              0,          "Day to report, YYYY-MM-DD"),
+SDATAPM (DTP_STRING,    "report_date",  0,              0,          "Day to report, YYYY-MM-DD"),
 SDATAPM (DTP_BOOLEAN,   "send",         0,              0,          "Send the report by email too"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_get_report[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "date",         0,              0,          "Day to get, YYYY-MM-DD"),
+SDATAPM (DTP_STRING,    "report_date",  0,              0,          "Day to get, YYYY-MM-DD"),
 SDATA_END()
 };
 
@@ -177,6 +199,9 @@ SDATA (DTP_INTEGER, "max_distinct_keys",SDF_RD,             "200000",   "Cap of 
 SDATA (DTP_LIST,    "probe_patterns",   SDF_RD,             "[]",       "What counts as a probe. Empty: the same set as the fail2ban filter"),
 SDATA (DTP_LIST,    "internal_networks",SDF_RD,             "[]",       "Address prefixes not counted as clients"),
 SDATA (DTP_INTEGER, "keep_days",        SDF_RD,             "400",      "Days of aggregates kept"),
+SDATA (DTP_STRING,  "tranger_path",     SDF_RD,             "/yuneta/store/webstats", "Where the daily records live"),
+SDATA (DTP_STRING,  "tranger_database", SDF_RD,             "webstats", "TimeRanger2 database"),
+SDATA (DTP_STRING,  "topic_daily",      SDF_RD,             "daily_stats", "Topic of the daily records"),
 SDATA (DTP_POINTER, "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
@@ -229,6 +254,10 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_signatures;          // signature -> {count, first, last, sample}
     json_t *jn_vhosts;              // host -> {requests, bytes, status, latency}
     json_t *jn_probe_list;          // the patterns in use
+
+    hgobj gobj_tranger;             // the C_TRANGER service
+    json_t *tranger;                // its handle, NOT ours
+    const char *topic_daily;
 
     char target_date[DATE_SIZE];    // the day of this run
     BOOL send_when_done;
@@ -283,6 +312,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(report_minute,         gobj_read_integer_attr)
     SET_PRIV(top_n,                 gobj_read_integer_attr)
     SET_PRIV(max_distinct_keys,     gobj_read_integer_attr)
+    SET_PRIV(topic_daily,           gobj_read_str_attr)
     SET_PRIV(send_email,            gobj_read_bool_attr)
 }
 
@@ -364,6 +394,16 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
+    if(open_store(gobj) < 0) {
+        /*
+         *  Error already logged. The run still goes: a node that cannot
+         *  write the history must still send today's mail, and saying so is
+         *  more use than staying quiet until somebody fixes the disk.
+         */
+    }
+
+    prune_store(gobj);      // Error already logged
+
     arm_schedule(gobj);
 
     return 0;
@@ -377,6 +417,8 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+
+    close_store(gobj);
 
     return 0;
 }
@@ -467,14 +509,16 @@ PRIVATE json_t *cmd_analyze_now(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *date = kw_get_str(gobj, kw, "date", "", 0);
+    const char *date = kw_get_str(gobj, kw, "report_date",
+        kw_get_str(gobj, kw, "date", "", 0), 0
+    );
     BOOL send = kw_get_bool(gobj, kw, "send", 0, KW_WILD_NUMBER);
 
     if(strlen(date) != DATE_SIZE-1) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: 'date' must be YYYY-MM-DD",
+            json_sprintf("%s: 'report_date' must be YYYY-MM-DD",
                 gobj_yuno_role_plus_name()
             ),
             0,
@@ -513,34 +557,30 @@ PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_get_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    /*
-     *  TODO the store is not written yet. Until it is, only the report of
-     *  the run held in memory can be answered, and the command says so
-     *  instead of answering an empty record.
-     */
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *date = kw_get_str(gobj, kw, "report_date",
+        kw_get_str(gobj, kw, "date", "", 0), 0
+    );
 
-    const char *date = kw_get_str(gobj, kw, "date", "", 0);
-
-    if(priv->jn_report && strcmp(date, priv->target_date)==0) {
+    json_t *record = load_report(gobj, date);
+    if(!record) {
         return msg_iev_build_response(
             gobj,
+            -1,
+            json_sprintf("%s: no report stored for '%s'",
+                gobj_yuno_role_plus_name(), date
+            ),
             0,
             0,
-            0,
-            json_incref(priv->jn_report),
             kw  // owned
         );
     }
 
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("%s: no report of '%s' in memory, and the store is not written yet",
-            gobj_yuno_role_plus_name(), date
-        ),
         0,
         0,
+        0,
+        record,     // owned
         kw  // owned
     );
 }
@@ -550,17 +590,32 @@ PRIVATE json_t *cmd_get_report(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the store is not open",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     /*
-     *  TODO answer the dates of the 'daily_stats' topic once it exists.
+     *  The keys ARE the dates, and an ISO date sorts the same as it reads.
      */
+    json_t *jn_keys = sorted_strings(tranger2_list_keys(priv->tranger, priv->topic_daily));
+
     return msg_iev_build_response(
         gobj,
-        -1,
-        json_sprintf("%s: the store is not written yet",
-            gobj_yuno_role_plus_name()
-        ),
         0,
         0,
+        0,
+        jn_keys,    // owned
         kw  // owned
     );
 }
@@ -944,6 +999,47 @@ PRIVATE json_t *top_of(json_t *jn_map, int top_n)
     GBMEM_FREE(rows)
 
     return jn_top;
+}
+
+/***************************************************************************
+ *  A json array of strings, sorted. jansson has no sort of its own.
+ ***************************************************************************/
+PRIVATE int cmp_strings(const void *a, const void *b)
+{
+    const char *sa = json_string_value(*(json_t * const *)a);
+    const char *sb = json_string_value(*(json_t * const *)b);
+
+    return strcmp(sa?sa:"", sb?sb:"");
+}
+
+PRIVATE json_t *sorted_strings(json_t *jn_list)     // owned
+{
+    size_t size = json_array_size(jn_list);
+    if(size < 2) {
+        return jn_list;
+    }
+
+    json_t **rows = gbmem_malloc(size * sizeof(json_t *));
+    if(!rows) {
+        // Error already logged
+        return jn_list;
+    }
+
+    for(size_t i=0; i<size; i++) {
+        rows[i] = json_incref(json_array_get(jn_list, i));
+    }
+
+    qsort(rows, size, sizeof(json_t *), cmp_strings);
+
+    json_t *jn_sorted = json_array();
+    for(size_t i=0; i<size; i++) {
+        json_array_append_new(jn_sorted, rows[i]);
+    }
+
+    GBMEM_FREE(rows)
+    JSON_DECREF(jn_list)
+
+    return jn_sorted;
 }
 
 /***************************************************************************
@@ -1485,6 +1581,399 @@ PRIVATE int accumulate_error_line(hgobj gobj, const char *line)
 }
 
 /***************************************************************************
+ *  Open the store: one topic, one record per day, keyed by the date.
+ *
+ *  The raw lines never come here. The rotated .gz files are the archive for
+ *  30 days; what this keeps is the handful of numbers that let a report say
+ *  what CHANGED, which is the only thing that makes a daily mail worth
+ *  opening.
+ ***************************************************************************/
+PRIVATE int open_store(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_tranger) {
+        return 0;                   // already open
+    }
+
+    const char *path = gobj_read_str_attr(gobj, "tranger_path");
+    const char *database = gobj_read_str_attr(gobj, "tranger_database");
+    if(empty_string(path) || empty_string(database) || empty_string(priv->topic_daily)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "tranger_path, tranger_database or topic_daily is empty",
+            "path",         "%s", path,
+            "database",     "%s", database,
+            "topic",        "%s", priv->topic_daily,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I}",
+        "path", path,
+        "database", database,
+        "master", 1,
+        "subscriber", (json_int_t)(uintptr_t)gobj
+    );
+
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
+    priv->gobj_tranger = gobj_create_service(name, C_TRANGER, kw_tranger, gobj);
+    if(!priv->gobj_tranger) {
+        // Error already logged
+        return -1;
+    }
+    gobj_start(priv->gobj_tranger);
+
+    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger, "tranger");
+    if(!priv->tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "C_TRANGER gave no tranger handle",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The primary key is the date, so a re-run of a day appends a second
+     *  record under the same key and the newest one is the answer. That is
+     *  what makes report-day repeatable without a delete first.
+     *
+     *  tranger2_create_topic is idempotent: with the topic already on disk
+     *  it just opens it.
+     */
+    json_t *topic = tranger2_create_topic(
+        priv->tranger,
+        priv->topic_daily,
+        "date",                 // pkey
+        "",                     // tkey, the append time is enough
+        0,                      // jn_topic_ext
+        sf_string_key,
+        0,                      // jn_cols
+        0                       // jn_var
+    );
+    if(!topic) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Close the store.
+ ***************************************************************************/
+PRIVATE int close_store(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_tranger) {
+        return 0;
+    }
+
+    gobj_stop(priv->gobj_tranger);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger);
+    priv->tranger = 0;
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Append the record of the run to the topic.
+ ***************************************************************************/
+PRIVATE int store_report(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger || !priv->jn_report) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "No store or no report, the day was not saved",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return -1;
+    }
+
+    md2_record_ex_t md_record_ex;
+    int ret = tranger2_append_record(
+        priv->tranger,
+        priv->topic_daily,
+        0,                      // __t__, now
+        0,                      // user_flag
+        &md_record_ex,
+        json_incref(priv->jn_report)    // owned
+    );
+    if(ret < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  The stored record of a day, or NULL.
+ *
+ *  Read backward and take one: a day reported more than once has more than
+ *  one record under its key, and the newest is the answer.
+ ***************************************************************************/
+PRIVATE json_t *load_report(hgobj gobj, const char *date)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger || empty_string(date)) {
+        return NULL;
+    }
+
+    json_t *iterator = tranger2_open_iterator(
+        priv->tranger,
+        priv->topic_daily,
+        date,
+        0,          // match_cond
+        NULL,       // load_record_callback
+        "",         // iterator_id
+        gobj_name(gobj),
+        NULL,       // data
+        0           // extra
+    );
+    if(!iterator) {
+        return NULL;            // the key does not exist
+    }
+
+    /*
+     *  Take the LAST row by asking for its rowid, not by asking for the
+     *  first row backward: from_rowid is a position among the rows the
+     *  iterator returns and `backward` does not turn it into a position
+     *  from the end. (1, 1, TRUE) hands back row 1 -- the OLDEST -- so a
+     *  day reported twice answered for ever with its first version, and a
+     *  re-run to correct a day changed nothing that anybody could read.
+     */
+    size_t rows = tranger2_iterator_size(iterator);
+    json_t *record = NULL;
+
+    if(rows > 0) {
+        json_t *page = tranger2_iterator_get_page(
+            priv->tranger, iterator, (json_int_t)rows, 1, FALSE
+        );
+        record = json_incref(json_array_get(json_object_get(page, "data"), 0));
+        JSON_DECREF(page)
+    }
+
+    tranger2_close_iterator(priv->tranger, iterator);
+
+    return record;
+}
+
+/***************************************************************************
+ *  Drop the days older than keep_days.
+ *
+ *  Compared as strings: an ISO date sorts the same as it reads, which is
+ *  the reason the key has that shape.
+ ***************************************************************************/
+PRIVATE int prune_store(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger) {
+        return -1;              // Error already logged where it was opened
+    }
+
+    json_int_t keep_days = gobj_read_integer_attr(gobj, "keep_days");
+    if(keep_days <= 0) {
+        return 0;               // keeping everything is a valid choice
+    }
+
+    char oldest[DATE_SIZE];
+    if(date_of(gobj, time(NULL) - keep_days*24*60*60, oldest, sizeof(oldest)) < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    json_t *jn_keys = tranger2_list_keys(priv->tranger, priv->topic_daily);
+
+    int dropped = 0;
+    size_t idx;
+    json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(empty_string(key)) {
+            continue;
+        }
+        if(strcmp(key, oldest) < 0) {
+            if(tranger2_delete_key(priv->tranger, priv->topic_daily, key) == 0) {
+                dropped++;
+            }
+            // Error already logged
+        }
+    }
+    JSON_DECREF(jn_keys)
+
+    if(dropped > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Dropped days older than keep_days",
+            "dropped",      "%d", dropped,
+            "oldest",       "%s", oldest,
+            NULL
+        );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  The handful of numbers a reader compares from one day to the next.
+ ***************************************************************************/
+PRIVATE json_t *headline_of(hgobj gobj, json_t *record)
+{
+    if(!record) {
+        return NULL;
+    }
+
+    json_t *totals = json_object_get(record, "totals");
+    json_t *status = totals? json_object_get(totals, "status") : NULL;
+    json_t *probes = json_object_get(record, "probes");
+    json_t *errors = json_object_get(record, "errors");
+    json_t *summary = json_object_get(record, "latency_summary");
+
+    return json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:f}",
+        "requests", kw_get_int(gobj, totals, "requests", 0, 0),
+        "bytes", kw_get_int(gobj, totals, "bytes", 0, 0),
+        "clients", kw_get_int(gobj, totals, "clients", 0, 0),
+        "4xx", kw_get_int(gobj, status, "4xx", 0, 0),
+        "5xx", kw_get_int(gobj, status, "5xx", 0, 0),
+        "probes", kw_get_int(gobj, probes, "requests", 0, 0),
+        "errors", kw_get_int(gobj, errors, "total", 0, 0),
+        "p95", summary? json_number_value(json_object_get(summary, "p95")) : 0.0
+    );
+}
+
+/***************************************************************************
+ *  The median of a list of numbers.
+ ***************************************************************************/
+PRIVATE int cmp_doubles(const void *a, const void *b)
+{
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+
+    if(da < db) {
+        return -1;
+    }
+    if(da > db) {
+        return 1;
+    }
+
+    return 0;
+}
+
+PRIVATE double median_of(double *v, size_t n)
+{
+    if(n == 0) {
+        return 0;
+    }
+
+    qsort(v, n, sizeof(double), cmp_doubles);
+
+    if(n % 2) {
+        return v[n/2];
+    }
+
+    return (v[n/2 - 1] + v[n/2]) / 2.0;
+}
+
+/***************************************************************************
+ *  Put the previous day and the median of the week beside today's numbers.
+ *
+ *  This is what the store is FOR. A number with nothing to compare it to
+ *  carries no information, and a daily mail of bare totals is one nobody
+ *  opens twice.
+ *
+ *  A day with no history says so instead of comparing against zero, which
+ *  would read as "everything doubled" on the first morning.
+ ***************************************************************************/
+PRIVATE void compare_with_history(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    if(!strptime(priv->target_date, "%Y-%m-%d", &tm)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot read back the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return;
+    }
+    tm.tm_hour = 12;                // noon, so a DST day cannot shift the date
+    tm.tm_isdst = -1;
+    time_t target = mktime(&tm);
+    if(target == (time_t)-1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "mktime() FAILED on the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return;
+    }
+
+    json_t *jn_changed = json_object();
+
+    double requests[7], errors[7], p95[7];
+    size_t n = 0;
+
+    for(int back=1; back<=7; back++) {
+        char date[DATE_SIZE];
+        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+            continue;               // Error already logged
+        }
+
+        json_t *record = load_report(gobj, date);
+        if(!record) {
+            continue;               // a day with no report is not an error
+        }
+
+        json_t *headline = headline_of(gobj, record);
+        if(back == 1) {
+            json_object_set(jn_changed, "previous", headline);
+        }
+
+        requests[n] = (double)kw_get_int(gobj, headline, "requests", 0, 0);
+        errors[n] = (double)kw_get_int(gobj, headline, "errors", 0, 0);
+        p95[n] = json_number_value(json_object_get(headline, "p95"));
+        n++;
+
+        JSON_DECREF(headline)
+        JSON_DECREF(record)
+    }
+
+    json_object_set_new(jn_changed, "days_of_history", json_integer((json_int_t)n));
+
+    if(n > 0) {
+        json_object_set_new(jn_changed, "median_7d", json_pack("{s:I, s:I, s:f}",
+            "requests", (json_int_t)median_of(requests, n),
+            "errors", (json_int_t)median_of(errors, n),
+            "p95", median_of(p95, n)
+        ));
+    }
+
+    json_object_set_new(jn_changed, "today", headline_of(gobj, priv->jn_report));
+
+    json_object_set_new(priv->jn_report, "changed", jn_changed);
+}
+
+/***************************************************************************
  *  Fold the counter maps of the run into the record.
  *
  *  Only the top of each map goes in. The maps themselves are dropped with
@@ -1730,15 +2219,14 @@ PRIVATE int finish_run(hgobj gobj)
     gobj_change_state(gobj, ST_REPORTING);
 
     close_report(gobj);
+    compare_with_history(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_REPORT) {
         gobj_trace_json(gobj, priv->jn_report, "webstats: report of %s", priv->target_date);
     }
 
-    /*
-     *  TODO Phase 1: append the record to the 'daily_stats' topic, and drop
-     *  the records older than keep_days.
-     */
+    store_report(gobj);     // Error already logged
+    prune_store(gobj);      // Error already logged
 
     if(priv->send_when_done) {
         send_report(gobj);      // Error already logged
