@@ -275,9 +275,16 @@ Corollaries:
   readers consult `mt_reading` first; the stored attr is never written). Keep
   attr name and priv field name identical.
 - **Commands callable via `ycommand command-yuno`** hit two parser quirks:
-  (1) `id=` is reserved by `command-yuno` as the yuno filter — name inner
-  parameters `<thing>_id` (keep `id` as a legacy alias read as fallback in the
-  handler); (2) `SDF_REQUIRED` + `DTP_JSON`/`DTP_INTEGER` parameters are
+  (1) **`command-yuno` passes its WHOLE kw as the filter that selects the
+  yuno** (`gobj_list_nodes(..., kw, ...)` in `cmd_command_yuno`), so **any**
+  parameter named like a field of the yuno record silently becomes a filter on
+  that field and the command answers *"Yuno not found"* — naming the yuno,
+  never the parameter. `id` is only the best-known case: `date`, `global`,
+  `binary`, `configurations`, `traced` and the rest of the `list-yunos`
+  columns collide the same way. Check those columns before naming a parameter,
+  and prefix yours (`report_date`, `<thing>_id`), keeping the bare name as a
+  fallback the handler reads for direct callers.
+  (2) `SDF_REQUIRED` + `DTP_JSON`/`DTP_INTEGER` parameters are
   forwarded from kw **without** type coercion — drop `SDF_REQUIRED` and
   validate in the handler, or defensively accept the string form
   (`anystring2json`).
