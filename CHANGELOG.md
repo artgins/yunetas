@@ -1,6 +1,16 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.11-3
+
+A packaging revision, like the one before it: nothing under `kernel/`,
+`modules/`, `utils/`, `yunos/` or `tests/` changed, so `YUNETA_VERSION` stays at
+7.9.11 and only the `RELEASE` counter moves. The packages are rebuilt as
+`yuneta-agent-7.9.11-3` and attached to the existing 7.9.11 tag.
+
+It exists for one reason: the fail2ban filter shipped in 7.9.11-2 could not ban
+anybody on a single-page app, and a package is the only way that fix reaches a
+node that installs from scratch. It was found by doing exactly that — imaging
+two nodes, installing 7.9.11-2 on them and probing them end to end.
 
 ### Fixed
 
