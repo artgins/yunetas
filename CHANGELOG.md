@@ -1,5 +1,32 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **The fail2ban probe filter never fired on a SPA vhost.** It matched only
+  responses 404, 403 and 444, on the reasoning that a path some app really
+  serves would stop matching once it answered 200. That holds for a static site
+  and collapses on a single-page app: with `try_files $uri $uri/ /index.html`
+  every unknown path answers **200** with `index.html`, so `/wp-login.php` came
+  back 200 and the filter matched nothing. Both yunovatios consoles were
+  running the jail blind — enabled, healthy, watching the right file, and
+  incapable of ever banning anybody.
+
+  Found by installing 7.9.11-2 on a freshly imaged node and probing it end to
+  end, which is the only way it could have been found: on the nodes it was
+  developed against, every unknown path 404s.
+
+  The status is gone from the three patterns. It costs nothing, because the
+  paths cannot be legitimate on a Yuneta node — no PHP, no WordPress, nothing
+  serving `.env` or `.git`. On one day of real traffic the restriction was also
+  hiding 606 further lines on a mixed node: probes answered 301 by the
+  http→https redirect and probes answered 200 by a SPA. Of all of them, none
+  came from another node of the fleet and none from a real crawler.
+
+  The path is now matched up to the query string, so a `.php` appearing only in
+  a parameter is not a match.
+
 ## 7.9.11-2
 
 A packaging revision, not a new version of Yuneta: nothing under `kernel/`,

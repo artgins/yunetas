@@ -582,11 +582,27 @@ cat > "${WORKDIR}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
 #     .aws, .ssh, .svn, .hg. Nothing serves these on purpose.
 #   - The WordPress surface, /wp-*. No node runs WordPress either.
 #
-# Status is restricted to 404, 403 and 444, so a path that some app does serve
-# one day stops matching here the moment it answers 200.
+# The status is NOT looked at, and that took a fresh node to learn. The first
+# version of this filter matched only 404, 403 and 444, on the reasoning that a
+# path some app really serves would stop matching the moment it answered 200.
+# That reasoning holds for a static site and collapses on a SPA: with
+# `try_files $uri $uri/ /index.html` every unknown path answers 200 with
+# index.html, so /wp-login.php came back 200 and the filter never fired. Both
+# yunovatios consoles were running it blind. On a node that also serves static
+# sites the same restriction hid 606 more lines in one day -- probes answered
+# 301 by the http->https redirect, and probes answered 200 by a SPA.
+#
+# Dropping the status costs nothing here because the paths cannot be
+# legitimate: no Yuneta node runs PHP or WordPress, and nothing serves .env or
+# .git. Verified on a day of real traffic -- of the lines the status
+# restriction used to hide, none came from another node of the fleet and none
+# from a real crawler.
 #
 # Do not soften this into "ban on N 404s". Measured on the same log, that would
 # have banned Googlebot, Bingbot and Applebot, which collect 404s honestly.
+#
+# The path is matched up to the query string ([^"?]*), so a `.php` appearing
+# only in a parameter is not a match.
 #
 # It is worth knowing who this catches. Of the lines it matches, several
 # hundred carry the user agent of Googlebot, GPTBot or ClaudeBot -- and every
@@ -602,11 +618,11 @@ before = common.conf
 [Definition]
 
 _method = (?:GET|POST|HEAD|PUT|PATCH|DELETE|OPTIONS|PROPFIND)
-_result = (?:404|403|444)
+_path   = [^"?]*
 
-failregex = ^<HOST> \- \S+ \[\] "%(_method)s [^"]*\.php[^"]*" %(_result)s .*$
-            ^<HOST> \- \S+ \[\] "%(_method)s [^"]*/\.(?:env|git|aws|ssh|svn|hg)[^"]*" %(_result)s .*$
-            ^<HOST> \- \S+ \[\] "%(_method)s [^"]*/wp-[^"]*" %(_result)s .*$
+failregex = ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s\.php[^"]*" \d+ .*$
+            ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s/\.(?:env|git|aws|ssh|svn|hg)[^"]*" \d+ .*$
+            ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s/wp-[^"]*" \d+ .*$
 
 ignoreregex =
 
