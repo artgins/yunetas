@@ -1333,6 +1333,17 @@ equivalent.
   `__version__` and rewrites `__description__` as **that version's changelog
   entry** (what it changes + rollback caveat) — operators read it in
   `list-configs`; rollback is config-row reassignment, not file reverts.
+  ⚠️ **A bumped version does not reach the yuno on its own.** `create-config`
+  appends a row and the primary does **not** move: `list-configs-instances`
+  shows both, `list-configs` still shows the old one, and even `kill-yuno` +
+  `run-yuno` materialises the old one. It is the same primary-index trap as
+  binaries, and only a node-wide `deactivate-snap` promotes it. So bump the
+  version when the change ships with a bounce anyway (provisioning, a release);
+  for a single-yuno config fix, **overwrite the row in use** with
+  `update-config` — which matches by `(id, __version__)`, so the file must
+  carry the version already installed — and restart just that yuno. Do not
+  bounce a whole node to change one yuno's config. (`delete-config` refuses a
+  version still in use unless `force=1`.)
 - **The agent itself is a standalone daemon, not a managed yuno** —
   `kill-yuno` / `update-binary` / `run-yuno` do nothing to it. Deploy it with
   `yuneta_agent --config-file=<its json> --stop` then `--start` (it
