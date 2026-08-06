@@ -42,8 +42,8 @@ The command above is exercised end-to-end, on a freshly installed OS, on:
 
 | Distro | Package | Verified |
 |---|---|---|
-| **Rocky Linux 9** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.8.6-4 · 2026-07-21 |
-| **Debian 13** (trixie) | `.deb` (amd64) | 7.8.6-4 · 2026-07-21 |
+| **Rocky Linux 9** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.9.11-3 · 2026-08-06 |
+| **Debian 13** (trixie) | `.deb` (amd64) | 7.9.11-3 · 2026-08-06 |
 
 Debian 13 was exercised on **both a VM and a dedicated server**, deliberately:
 the faster machine loses a start-up race the slower one wins, which is exactly
@@ -53,6 +53,12 @@ come up on its own.
 
 Other releases of the same families are expected to work — the script branches
 on `apt` vs `dnf`, not on the version — but they are not exercised.
+
+The 7.9.11-3 pass reimaged both nodes and probed them end to end, which is the
+only reason two defects were found at all: the installer was fetching the
+**oldest** package of a release rather than the newest, and the fail2ban filter
+could not match anything on a node whose vhost is a single-page app. Neither
+shows up on a node that is already configured.
 
 Each package is built in a container of its own target distro: **`debian:13`**
 (`.deb`, glibc 2.41) and **`rockylinux:9`** (`.rpm`, glibc 2.34). That build
@@ -210,6 +216,53 @@ Two things that look wrong and are not: `systemctl is-active yuneta_agent22`
 and `nginx` report `inactive`/`not-found` (neither has a systemd unit — the
 init script owns them), and on RHEL `certbot-renew.timer` is `enabled` but
 `inactive` until the next boot.
+
+### Logs and banning
+
+The package also configures what happens to the web server's logs, because
+nginx does neither on its own.
+
+**Rotation is automatic.** `/etc/logrotate.d/yuneta` rotates the access and
+error logs of whichever web server the node runs, daily, keeping 30 compressed.
+Without it those files grow for the life of the node — nginx has no rotation of
+its own, it only knows how to reopen its files when it is signalled.
+
+**Banning is installed but OFF.** `/etc/fail2ban/jail.d/yuneta-nginx.conf`
+carries two jails that ban whoever probes the node for `.php` paths, `.env`,
+`.git` or the WordPress surface — none of which a Yuneta node serves, so a
+request for them cannot be a mistake. They ship **disabled** on purpose: if a
+jail's log path resolves to nothing, fail2ban does not skip that jail, it
+refuses to start at all and takes every other jail down with it, `sshd`
+included. A node that has the package but has not started its web server yet is
+exactly that case.
+
+Turn them on once `access.log` exists:
+
+```bash
+printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\n' \
+    | sudo tee /etc/fail2ban/jail.d/zz-yuneta-nginx-enabled.conf
+sudo systemctl reload fail2ban && sudo fail2ban-client status
+```
+
+Then check the **firewall**, not the jail. A jail reports itself healthy while
+banning into thin air if `banaction` names a command the node does not have —
+on Debian that is `nft`, which `nftables` provides and a minimal install does
+not:
+
+```bash
+sudo nft list table inet f2b-table     # or: sudo iptables -L f2b-yuneta-nginx-probe -n
+```
+
+> ⚠️ **On SELinux (`Enforcing`) the shipped log paths do not work.** They are
+> globs, and `fail2ban_t` cannot list `/yuneta/bin` — a denial that is
+> *dontaudited*, so it writes no AVC. fail2ban then reports *"Have not found any
+> log file"* and exits, with nothing naming SELinux. Give the jails a literal
+> path in the same `zz-` file and label the directory:
+> `semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"` followed by
+> `restorecon -R /yuneta/bin/nginx/logs`.
+
+Full detail, including what the filter deliberately does *not* match, is in
+[`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/main/packages/deb/README.md).
 
 ---
 
