@@ -172,7 +172,18 @@ JSON=$(curl -fsSL "$API_URL") || {
     exit 1
 }
 
-ASSET_URL=$(printf '%s' "$JSON" | grep -o "$ASSET_RE" | head -n1)
+# Highest packaging revision, not the first one the API happens to return.
+#
+# One release tag can carry several packages: a packaging revision bumps only
+# RELEASE, so yuneta-agent-7.9.11-1 and -2 hang off the same 7.9.11 tag. The
+# API lists assets in UPLOAD order, so `head -n1` picked the OLDEST -- this
+# installer fetched 7.9.11-1 the morning after -2 was published, and reported
+# success while installing a package without the logrotate and fail2ban config
+# that was the whole point of the revision.
+#
+# sort -V compares the numbers as numbers, so revision 10 sorts after 2 the way
+# a plain sort would not.
+ASSET_URL=$(printf '%s' "$JSON" | grep -o "$ASSET_RE" | sort -V | tail -n1)
 if [ -z "$ASSET_URL" ]; then
     echo "ERROR: no '${PKGARCH}' ${EXT} asset found in release '${TAG}'." >&2
     echo "       See https://github.com/${REPO}/releases for what's published." >&2

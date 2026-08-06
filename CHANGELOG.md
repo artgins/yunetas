@@ -91,6 +91,22 @@ watching any of it.
   nginx logged a failed open on every 404 and the reader got the built-in page
   of nginx.
 
+### Fixed
+
+- **`install.sh` fetched the OLDEST package of a release, not the newest.** It
+  picked the asset with `head -n1`, and the GitHub API lists assets in upload
+  order — so on a release carrying more than one packaging revision it chose
+  the first one uploaded. Caught the morning after this revision shipped: the
+  installer downloaded `yuneta-agent-7.9.11-1` while `-2` sat next to it, and
+  reported a clean install of a package with none of the logrotate or fail2ban
+  configuration the revision exists to deliver.
+
+  Now `sort -V | tail -n1`, which compares the numbers as numbers: revision 10
+  sorts after 2, where a plain `sort` would not.
+
+  `install.sh` is served from `main`, not from any package, so this needs no
+  rebuild and no new revision — it takes effect on the next `curl | sh`.
+
 ## 7.9.11
 
 The version skips 7.9.10 on purpose: `@yuneta/gobj-js` shipped 7.9.10 and
