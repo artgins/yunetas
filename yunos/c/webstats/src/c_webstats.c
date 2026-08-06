@@ -98,6 +98,7 @@ PRIVATE BOOL error_line_is_of_day(const char *line, const char *date);
 PRIVATE int accumulate_access_line(hgobj gobj, const char *line);
 PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
+PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
 PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
@@ -128,6 +129,7 @@ PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_get_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_sources(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_preview_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -178,6 +180,7 @@ SDATACM (DTP_SCHEMA,    "report-day",       0,                  pm_report_day,  
 SDATACM (DTP_SCHEMA,    "get-report",       0,                  pm_get_report,  cmd_get_report, "Get a stored report"),
 SDATACM (DTP_SCHEMA,    "list-reports",     0,                  0,              cmd_list_reports, "List the days already reported"),
 SDATACM (DTP_SCHEMA,    "list-sources",     0,                  0,              cmd_list_sources, "List the log files, and say if they can be read"),
+SDATACM (DTP_SCHEMA,    "preview-report",   0,                  pm_get_report,  cmd_preview_report, "The mail body of a stored day, as HTML"),
 SDATA_END()
 };
 
@@ -527,6 +530,34 @@ PRIVATE json_t *cmd_report_day(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
+    /*
+     *  Refuse a day the store will not keep, instead of reading the logs and
+     *  writing a record that the pruning of this same run then drops. Doing
+     *  the work and throwing it away is worse than saying no: the command
+     *  answers "reading the logs", the mail arrives, and get-report then
+     *  says the day does not exist.
+     */
+    json_int_t keep_days = gobj_read_integer_attr(gobj, "keep_days");
+    if(keep_days > 0) {
+        char oldest[DATE_SIZE];
+        if(date_of(gobj, time(NULL) - keep_days*24*60*60, oldest, sizeof(oldest)) == 0) {
+            if(strcmp(date, oldest) < 0) {
+                return msg_iev_build_response(
+                    gobj,
+                    -1,
+                    json_sprintf(
+                        "%s: '%s' is older than keep_days (%d, oldest kept is %s). "
+                        "Raise keep_days to report it.",
+                        gobj_yuno_role_plus_name(), date, (int)keep_days, oldest
+                    ),
+                    0,
+                    0,
+                    kw  // owned
+                );
+            }
+        }
+    }
+
     if(start_run(gobj, date, send) < 0) {
         return msg_iev_build_response(
             gobj,
@@ -651,6 +682,64 @@ PRIVATE json_t *cmd_list_sources(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         0,
         jn_list,
+        kw  // owned
+    );
+}
+
+
+
+
+/***************************************************************************
+ *  The mail body of a stored day, without sending anything.
+ *
+ *  What the operator sees here is byte for byte what the mail carries, so a
+ *  change to the report can be looked at before it lands in a mailbox.
+ ***************************************************************************/
+PRIVATE json_t *cmd_preview_report(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *date = kw_get_str(gobj, kw, "report_date",
+        kw_get_str(gobj, kw, "date", "", 0), 0
+    );
+
+    json_t *record = load_report(gobj, date);
+    if(!record) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: no report stored for '%s'",
+                gobj_yuno_role_plus_name(), date
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gbuffer_t *gbuf = build_html_report(gobj, record);
+    JSON_DECREF(record)
+    if(!gbuf) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the report of '%s'",
+                gobj_yuno_role_plus_name(), date
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *jn_html = json_stringn(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
+    GBUFFER_DECREF(gbuf)
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_html,    // owned
         kw  // owned
     );
 }
@@ -2242,6 +2331,532 @@ PRIVATE int finish_run(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Escape a string that came out of the log before it goes into HTML.
+ *
+ *  MANDATORY, not decoration: the path, the referer and the user agent are
+ *  written by whoever made the request. A probe that asks for
+ *  "/<img src=x onerror=...>" would otherwise arrive as live markup inside
+ *  our own mailbox, which is a way of letting the scanned node script the
+ *  reader of the report about the scan.
+ ***************************************************************************/
+PRIVATE const char *html_escape(const char *s, char *bf, size_t bfsize)
+{
+    size_t out = 0;
+
+    if(!s) {
+        s = "";
+    }
+
+    for(; *s && out < bfsize-7; s++) {
+        switch(*s) {
+            case '&':
+                out += (size_t)snprintf(bf+out, bfsize-out, "%s", "&amp;");
+                break;
+            case '<':
+                out += (size_t)snprintf(bf+out, bfsize-out, "%s", "&lt;");
+                break;
+            case '>':
+                out += (size_t)snprintf(bf+out, bfsize-out, "%s", "&gt;");
+                break;
+            case '"':
+                out += (size_t)snprintf(bf+out, bfsize-out, "%s", "&quot;");
+                break;
+            case '\'':
+                out += (size_t)snprintf(bf+out, bfsize-out, "%s", "&#39;");
+                break;
+            default:
+                if((unsigned char)*s < 0x20) {
+                    bf[out++] = ' ';        // a control byte is not text
+                } else {
+                    bf[out++] = *s;
+                }
+                break;
+        }
+    }
+    bf[out] = 0;
+
+    return bf;
+}
+
+/***************************************************************************
+ *  "+12%" against a previous value, or an empty string when there is
+ *  nothing to compare against.
+ ***************************************************************************/
+PRIVATE const char *delta_of(json_int_t now, json_int_t before, char *bf, size_t bfsize)
+{
+    if(before <= 0) {
+        snprintf(bf, bfsize, "%s", (now > 0)? "new":"");
+        return bf;
+    }
+
+    long pct = (long)(((double)now - (double)before) * 100.0 / (double)before);
+    snprintf(bf, bfsize, "%+ld%%", pct);
+
+    return bf;
+}
+
+/***************************************************************************
+ *  One row of the "what changed" table.
+ ***************************************************************************/
+PRIVATE void changed_row(
+    gbuffer_t *gbuf,
+    const char *label,
+    json_int_t today,
+    json_t *previous,
+    json_t *median,
+    const char *key
+) {
+    json_int_t before = previous? json_integer_value(json_object_get(previous, key)) : 0;
+    json_int_t med = median? json_integer_value(json_object_get(median, key)) : 0;
+
+    char delta[32];
+    delta_of(today, before, delta, sizeof(delta));
+
+    gbuffer_printf(gbuf,
+        "<tr>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee\">%s</td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right\"><b>%lld</b></td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%lld</td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%lld</td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
+        "</tr>",
+        label, (long long)today, (long long)before, (long long)med, delta
+    );
+}
+
+/***************************************************************************
+ *  A table of the top rows of one counter.
+ ***************************************************************************/
+PRIVATE void top_table(gbuffer_t *gbuf, const char *title, json_t *jn_top, int limit)
+{
+    if(json_array_size(jn_top) == 0) {
+        return;
+    }
+
+    gbuffer_printf(gbuf,
+        "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">%s</h3>"
+        "<table style=\"border-collapse:collapse;font:12px monospace\">",
+        title
+    );
+
+    char bf[2048];
+    size_t idx;
+    json_t *jn_row;
+    json_array_foreach(jn_top, idx, jn_row) {
+        if((int)idx >= limit) {
+            break;
+        }
+        gbuffer_printf(gbuf,
+            "<tr>"
+            "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
+            "<td style=\"padding:2px 0;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+            "</tr>",
+            html_escape(json_string_value(json_object_get(jn_row, "key")), bf, sizeof(bf)),
+            (long long)json_integer_value(json_object_get(jn_row, "count"))
+        );
+    }
+
+    gbuffer_printf(gbuf, "%s", "</table>");
+}
+
+/***************************************************************************
+ *  The report as HTML, self contained: no image, no external stylesheet,
+ *  styles inline because a mail client throws a <style> block away.
+ *
+ *  Ordered by what needs a decision, not by what is easy to print. A daily
+ *  mail is read by somebody who is busy, and the day it becomes a wall of
+ *  numbers is the day it stops being read.
+ ***************************************************************************/
+PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
+{
+    if(!report) {
+        return NULL;
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(32*1024, 8*1024*1024);
+    if(!gbuf) {
+        // Error already logged
+        return NULL;
+    }
+
+    json_t *totals = json_object_get(report, "totals");
+    json_t *status = json_object_get(totals, "status");
+    json_t *errors = json_object_get(report, "errors");
+    json_t *probes = json_object_get(report, "probes");
+    json_t *changed = json_object_get(report, "changed");
+    json_t *previous = changed? json_object_get(changed, "previous") : NULL;
+    json_t *median = changed? json_object_get(changed, "median_7d") : NULL;
+    json_t *summary = json_object_get(report, "latency_summary");
+
+    json_int_t requests = json_integer_value(json_object_get(totals, "requests"));
+    json_int_t s5xx = json_integer_value(json_object_get(status, "5xx"));
+
+    char bf[2048];
+
+    gbuffer_printf(gbuf,
+        "<div style=\"font:14px sans-serif;color:#222;max-width:820px\">"
+        "<h2 style=\"font:600 17px sans-serif;margin:0 0 2px\">%s &middot; %s</h2>"
+        "<div style=\"color:#777;font-size:12px;margin-bottom:14px\">"
+        "%lld requests &middot; %lld errors &middot; %lld probes</div>",
+        html_escape(json_string_value(json_object_get(report, "node")), bf, sizeof(bf)),
+        json_string_value(json_object_get(report, "date")),
+        (long long)requests,
+        (long long)json_integer_value(json_object_get(errors, "total")),
+        (long long)json_integer_value(json_object_get(probes, "requests"))
+    );
+
+    /*-----------------------------------------------*
+     *      1. Needs attention
+     *-----------------------------------------------*/
+    gbuffer_t *attention = gbuffer_create(4*1024, 1024*1024);
+
+    if(requests == 0 && json_integer_value(json_object_get(errors, "total")) == 0) {
+        gbuffer_printf(attention, "%s",
+            "<li>Nothing was read for this day. Either the node served nothing, "
+            "or the yuno cannot see the log. Run <code>list-sources</code>.</li>"
+        );
+    }
+
+    if(s5xx > 0) {
+        gbuffer_printf(attention,
+            "<li><b>%lld server errors (5xx)</b>, listed below.</li>",
+            (long long)s5xx
+        );
+    }
+
+    size_t idx;
+    json_t *jn_source;
+    json_array_foreach(json_object_get(report, "sources"), idx, jn_source) {
+        const char *error = json_string_value(json_object_get(jn_source, "error"));
+        if(!empty_string(error)) {
+            continue;   // a missing tree of the other web server is not news
+        }
+        json_int_t unparsed = json_integer_value(json_object_get(jn_source, "unparsed"));
+        if(unparsed > 0) {
+            gbuffer_printf(attention,
+                "<li>%lld lines of <code>%s</code> could not be read by the parser.</li>",
+                (long long)unparsed,
+                html_escape(json_string_value(json_object_get(jn_source, "file")), bf, sizeof(bf))
+            );
+        }
+    }
+
+    json_t *jn_truncated = json_object_get(report, "truncated");
+    if(json_array_size(jn_truncated) > 0) {
+        json_t *jn_entry;
+        json_array_foreach(jn_truncated, idx, jn_entry) {
+            gbuffer_printf(attention,
+                "<li>The counter <code>%s</code> hit its cap; %lld keys were dropped.</li>",
+                html_escape(json_string_value(json_object_get(jn_entry, "counter")), bf, sizeof(bf)),
+                (long long)json_integer_value(json_object_get(jn_entry, "dropped"))
+            );
+        }
+    }
+
+    /*
+     *  A signature that is not among the previous day's is worth a line: it
+     *  is the shape of a failure that was not happening yesterday.
+     */
+    json_t *prev_record = NULL;
+    if(previous) {
+        char yesterday[DATE_SIZE];
+        struct tm tm;
+        memset(&tm, 0, sizeof(tm));
+        if(strptime(json_string_value(json_object_get(report, "date")), "%Y-%m-%d", &tm)) {
+            tm.tm_hour = 12;
+            tm.tm_isdst = -1;
+            time_t t = mktime(&tm);
+            if(t != (time_t)-1) {
+                if(date_of(gobj, t - 24*60*60, yesterday, sizeof(yesterday)) == 0) {
+                    prev_record = load_report(gobj, yesterday);
+                }
+            }
+        }
+    }
+    if(prev_record) {
+        json_t *prev_sigs = json_object_get(json_object_get(prev_record, "errors"), "by_signature");
+        json_t *jn_sig;
+        json_array_foreach(json_object_get(errors, "by_signature"), idx, jn_sig) {
+            const char *signature = json_string_value(json_object_get(jn_sig, "signature"));
+            BOOL seen = FALSE;
+            size_t j;
+            json_t *jn_prev;
+            json_array_foreach(prev_sigs, j, jn_prev) {
+                if(strcmp(signature, json_string_value(json_object_get(jn_prev, "signature")))==0) {
+                    seen = TRUE;
+                    break;
+                }
+            }
+            if(!seen) {
+                gbuffer_printf(attention,
+                    "<li>New error, not among yesterday's: <code>%s</code> (&times;%lld)</li>",
+                    html_escape(signature, bf, sizeof(bf)),
+                    (long long)json_integer_value(json_object_get(jn_sig, "count"))
+                );
+            }
+        }
+        JSON_DECREF(prev_record)
+    }
+
+    if(gbuffer_leftbytes(attention) > 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<h3 style=\"font:600 13px sans-serif;margin:0 0 6px;color:#a00\">Needs attention</h3>"
+            "<ul style=\"margin:0 0 16px;padding-left:20px;font-size:13px\">"
+        );
+        gbuffer_printf(gbuf, "%.*s",
+            (int)gbuffer_leftbytes(attention), (char *)gbuffer_cur_rd_pointer(attention)
+        );
+        gbuffer_printf(gbuf, "%s", "</ul>");
+    } else {
+        gbuffer_printf(gbuf, "%s",
+            "<div style=\"margin:0 0 16px;font-size:13px;color:#380\">"
+            "Nothing needs attention.</div>"
+        );
+    }
+    GBUFFER_DECREF(attention)
+
+    /*-----------------------------------------------*
+     *      2. What changed
+     *-----------------------------------------------*/
+    gbuffer_printf(gbuf,
+        "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">What changed</h3>"
+        "<table style=\"border-collapse:collapse;font:12px sans-serif\">"
+        "<tr style=\"color:#777;font-size:11px\">"
+        "<th style=\"text-align:left;padding:0 10px\"></th>"
+        "<th style=\"text-align:right;padding:0 10px\">today</th>"
+        "<th style=\"text-align:right;padding:0 10px\">yesterday</th>"
+        "<th style=\"text-align:right;padding:0 10px\">median 7d</th>"
+        "<th style=\"text-align:right;padding:0 10px\">&Delta;</th>"
+        "</tr>%s", ""
+    );
+
+    changed_row(gbuf, "requests", requests, previous, median, "requests");
+    changed_row(gbuf, "bytes", json_integer_value(json_object_get(totals, "bytes")),
+        previous, NULL, "bytes");
+    changed_row(gbuf, "clients", json_integer_value(json_object_get(totals, "clients")),
+        previous, NULL, "clients");
+    changed_row(gbuf, "4xx", json_integer_value(json_object_get(status, "4xx")),
+        previous, NULL, "4xx");
+    changed_row(gbuf, "5xx", s5xx, previous, NULL, "5xx");
+    changed_row(gbuf, "probes", json_integer_value(json_object_get(probes, "requests")),
+        previous, NULL, "probes");
+    changed_row(gbuf, "errors", json_integer_value(json_object_get(errors, "total")),
+        previous, median, "errors");
+
+    gbuffer_printf(gbuf, "%s", "</table>");
+
+    json_int_t history = changed? json_integer_value(json_object_get(changed, "days_of_history")) : 0;
+    if(history == 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<div style=\"font-size:11px;color:#777;margin-top:4px\">"
+            "No earlier day is stored yet, so there is nothing to compare against.</div>"
+        );
+    }
+
+    if(summary && json_object_size(summary) > 0) {
+        gbuffer_printf(gbuf,
+            "<div style=\"font-size:12px;color:#444;margin-top:10px\">"
+            "latency: avg %.3fs &middot; p50 %.3fs &middot; p95 %.3fs &middot; p99 %.3fs</div>",
+            json_number_value(json_object_get(summary, "avg")),
+            json_number_value(json_object_get(summary, "p50")),
+            json_number_value(json_object_get(summary, "p95")),
+            json_number_value(json_object_get(summary, "p99"))
+        );
+    }
+
+    /*-----------------------------------------------*
+     *      3. Traffic
+     *-----------------------------------------------*/
+    json_t *by_vhost = json_object_get(report, "by_vhost");
+    if(json_object_size(by_vhost) > 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">By vhost</h3>"
+            "<table style=\"border-collapse:collapse;font:12px monospace\">"
+            "<tr style=\"color:#777;font-size:11px\">"
+            "<th style=\"text-align:left;padding:0 10px 0 0\">host</th>"
+            "<th style=\"text-align:right;padding:0 10px\">requests</th>"
+            "<th style=\"text-align:right;padding:0 10px\">bytes</th>"
+            "<th style=\"text-align:right;padding:0 10px\">4xx</th>"
+            "<th style=\"text-align:right;padding:0 10px\">5xx</th>"
+            "<th style=\"text-align:right;padding:0 0 0 10px\">p95</th>"
+            "</tr>"
+        );
+
+        const char *host;
+        json_t *jn_vhost;
+        json_object_foreach(by_vhost, host, jn_vhost) {
+            json_t *vstatus = json_object_get(jn_vhost, "status");
+            json_t *vsummary = json_object_get(jn_vhost, "latency_summary");
+            gbuffer_printf(gbuf,
+                "<tr>"
+                "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%.3f</td>"
+                "</tr>",
+                html_escape(host, bf, sizeof(bf)),
+                (long long)json_integer_value(json_object_get(jn_vhost, "requests")),
+                (long long)json_integer_value(json_object_get(jn_vhost, "bytes")),
+                (long long)json_integer_value(json_object_get(vstatus, "4xx")),
+                (long long)json_integer_value(json_object_get(vstatus, "5xx")),
+                vsummary? json_number_value(json_object_get(vsummary, "p95")) : 0.0
+            );
+        }
+        gbuffer_printf(gbuf, "%s", "</table>");
+    }
+
+    /*
+     *  By hour, as a bar of text. A picture would need an image, and an
+     *  image in a mail is a request to a server, which this report does not
+     *  make.
+     */
+    json_t *by_hour = json_object_get(report, "by_hour");
+    json_int_t peak = 0;
+    json_array_foreach(by_hour, idx, jn_source) {
+        if(json_integer_value(jn_source) > peak) {
+            peak = json_integer_value(jn_source);
+        }
+    }
+    if(peak > 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">By hour</h3>"
+            "<table style=\"border-collapse:collapse;font:11px monospace\">"
+        );
+        json_t *jn_hour;
+        json_array_foreach(by_hour, idx, jn_hour) {
+            json_int_t v = json_integer_value(jn_hour);
+            int width = peak? (int)((v * 260) / peak) : 0;
+            gbuffer_printf(gbuf,
+                "<tr>"
+                "<td style=\"padding:1px 8px 1px 0;color:#777\">%02d</td>"
+                "<td style=\"padding:1px 0\">"
+                "<div style=\"display:inline-block;height:9px;width:%dpx;"
+                "background:#4a7;vertical-align:middle\"></div>"
+                "<span style=\"color:#666;padding-left:6px\">%lld</span></td>"
+                "</tr>",
+                (int)idx, width, (long long)v
+            );
+        }
+        gbuffer_printf(gbuf, "%s", "</table>");
+    }
+
+    json_t *top = json_object_get(report, "top");
+    top_table(gbuf, "Top paths", json_object_get(top, "paths"), 10);
+    top_table(gbuf, "Top 404", json_object_get(top, "not_found"), 10);
+    top_table(gbuf, "Top clients", json_object_get(top, "clients"), 10);
+    top_table(gbuf, "Top user agents", json_object_get(top, "agents"), 10);
+    top_table(gbuf, "Top referrers", json_object_get(top, "referrers"), 10);
+
+    /*-----------------------------------------------*
+     *      4. Server errors, whole
+     *-----------------------------------------------*/
+    json_t *server_errors = json_object_get(report, "server_errors");
+    if(json_array_size(server_errors) > 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px;color:#a00\">"
+            "Server errors</h3>"
+            "<table style=\"border-collapse:collapse;font:12px monospace\">"
+        );
+        json_t *jn_err;
+        json_array_foreach(server_errors, idx, jn_err) {
+            gbuffer_printf(gbuf,
+                "<tr>"
+                "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0;color:#777\">%02lld:00</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0\">%s</td>"
+                "<td style=\"padding:2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
+                "</tr>",
+                (long long)json_integer_value(json_object_get(jn_err, "hour")),
+                (long long)json_integer_value(json_object_get(jn_err, "status")),
+                html_escape(json_string_value(json_object_get(jn_err, "host")), bf, sizeof(bf)),
+                html_escape(json_string_value(json_object_get(jn_err, "path")), bf, sizeof(bf))
+            );
+        }
+        gbuffer_printf(gbuf, "%s", "</table>");
+    }
+
+    /*-----------------------------------------------*
+     *      5. Error log
+     *-----------------------------------------------*/
+    json_t *by_signature = json_object_get(errors, "by_signature");
+    if(json_array_size(by_signature) > 0) {
+        gbuffer_printf(gbuf, "%s",
+            "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">Error log</h3>"
+            "<table style=\"border-collapse:collapse;font:12px monospace;width:100%\">"
+        );
+        json_t *jn_sig;
+        json_array_foreach(by_signature, idx, jn_sig) {
+            gbuffer_printf(gbuf,
+                "<tr>"
+                "<td style=\"padding:4px 10px 4px 0;border-bottom:1px solid #f0f0f0;"
+                "text-align:right;vertical-align:top\"><b>%lld</b></td>"
+                "<td style=\"padding:4px 0;border-bottom:1px solid #f0f0f0\">%s"
+                "<div style=\"color:#777;font-size:11px;padding-top:2px\">%s &rarr; %s</div>"
+                "</td></tr>",
+                (long long)json_integer_value(json_object_get(jn_sig, "count")),
+                html_escape(json_string_value(json_object_get(jn_sig, "signature")), bf, sizeof(bf)),
+                json_string_value(json_object_get(jn_sig, "first")),
+                json_string_value(json_object_get(jn_sig, "last"))
+            );
+        }
+        gbuffer_printf(gbuf, "%s", "</table>");
+    }
+
+    /*-----------------------------------------------*
+     *      6. Probes
+     *-----------------------------------------------*/
+    if(json_integer_value(json_object_get(probes, "requests")) > 0) {
+        gbuffer_printf(gbuf,
+            "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">Probes</h3>"
+            "<div style=\"font-size:12px;color:#444\">%lld requests from %lld clients. "
+            "Banning is fail2ban's job, not this yuno's.</div>",
+            (long long)json_integer_value(json_object_get(probes, "requests")),
+            (long long)json_integer_value(json_object_get(probes, "clients"))
+        );
+        top_table(gbuf, "By pattern", json_object_get(probes, "top_patterns"), 10);
+        top_table(gbuf, "Top offenders", json_object_get(probes, "top_clients"), 10);
+    }
+
+    /*-----------------------------------------------*
+     *      Sources
+     *-----------------------------------------------*/
+    gbuffer_printf(gbuf, "%s",
+        "<h3 style=\"font:600 13px sans-serif;margin:18px 0 6px\">Sources</h3>"
+        "<table style=\"border-collapse:collapse;font:11px monospace;color:#555\">"
+    );
+    json_array_foreach(json_object_get(report, "sources"), idx, jn_source) {
+        const char *error = json_string_value(json_object_get(jn_source, "error"));
+        gbuffer_printf(gbuf,
+            "<tr><td style=\"padding:1px 10px 1px 0\">%s</td><td style=\"padding:1px 0\">%s</td></tr>",
+            html_escape(json_string_value(json_object_get(jn_source, "file")), bf, sizeof(bf)),
+            error? "not read":"read"
+        );
+        if(!error) {
+            gbuffer_printf(gbuf,
+                "<tr><td></td><td style=\"padding:0 0 3px;color:#888\">"
+                "%lld lines, %lld of this day, %lld unparsed</td></tr>",
+                (long long)json_integer_value(json_object_get(jn_source, "lines")),
+                (long long)json_integer_value(json_object_get(jn_source, "kept")),
+                (long long)json_integer_value(json_object_get(jn_source, "unparsed"))
+            );
+        }
+    }
+    gbuffer_printf(gbuf, "%s", "</table>");
+
+    gbuffer_printf(gbuf,
+        "<div style=\"color:#999;font-size:11px;margin-top:20px;"
+        "border-top:1px solid #eee;padding-top:8px\">"
+        "webstats &middot; the whole record is in <code>get-report "
+        "report_date=%s</code></div></div>",
+        json_string_value(json_object_get(report, "date"))
+    );
+
+    return gbuf;
+}
+
+/***************************************************************************
  *  Hand the report to the email service.
  *
  *  The body travels as a string and not as a gbuffer: emailsender turns a
@@ -2278,35 +2893,68 @@ PRIVATE int send_report(hgobj gobj)
         return -1;
     }
 
-    /*
-     *  TODO Phase 1: the HTML report, led by what needs a decision.
-     *  Until then the mail carries the record, so a run that reads nothing
-     *  still says so instead of being silent.
-     */
-    char *body = json_dumps(priv->jn_report, JSON_INDENT(4));
-    if(!body) {
+    gbuffer_t *gbuf_body = build_html_report(gobj, priv->jn_report);
+    if(!gbuf_body) {
+        // Error already logged
+        return -1;
+    }
+
+    json_t *jn_body = json_stringn(
+        gbuffer_cur_rd_pointer(gbuf_body),
+        gbuffer_leftbytes(gbuf_body)
+    );
+    GBUFFER_DECREF(gbuf_body)
+    if(!jn_body) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
-            "msg",          "%s", "Cannot dump the report, it was not sent",
+            "msg",          "%s", "The report is not valid UTF-8, it was not sent",
             "date",         "%s", priv->target_date,
             NULL
         );
         return -1;
     }
 
-    char subject[NAME_MAX];
-    snprintf(subject, sizeof(subject), "%s: web report of %s",
-        get_hostname(), priv->target_date
+    /*
+     *  The subject carries the day's verdict. A subject that is the same
+     *  every morning trains the reader to leave it unopened, which is the
+     *  end of a daily report.
+     */
+    json_t *totals = json_object_get(priv->jn_report, "totals");
+    json_t *status = json_object_get(totals, "status");
+    json_int_t requests = kw_get_int(gobj, totals, "requests", 0, 0);
+    json_int_t s5xx = kw_get_int(gobj, status, "5xx", 0, 0);
+    json_int_t nerrors = kw_get_int(gobj,
+        json_object_get(priv->jn_report, "errors"), "total", 0, 0
     );
 
-    json_t *kw_email = json_pack("{s:s, s:s, s:s, s:b}",
+    char subject[NAME_MAX];
+    if(requests == 0 && nerrors == 0) {
+        /*
+         *  Silence is a failure. A run that read nothing still sends, and
+         *  says so in the subject: a report generator that goes quiet when
+         *  it breaks cannot be told from a quiet day.
+         */
+        snprintf(subject, sizeof(subject), "%s %s: NO DATA",
+            get_hostname(), priv->target_date
+        );
+    } else if(s5xx > 0) {
+        snprintf(subject, sizeof(subject), "%s %s: %lld 5xx, %lld requests",
+            get_hostname(), priv->target_date, (long long)s5xx, (long long)requests
+        );
+    } else {
+        snprintf(subject, sizeof(subject), "%s %s: %lld requests, %lld errors",
+            get_hostname(), priv->target_date,
+            (long long)requests, (long long)nerrors
+        );
+    }
+
+    json_t *kw_email = json_pack("{s:s, s:s, s:o, s:b}",
         "to", email_to,
         "subject", subject,
-        "body", body,
-        "is_html", 0
+        "body", jn_body,        // owned
+        "is_html", 1
     );
-    GBMEM_FREE(body)
 
     return gobj_send_event(gobj_emailsender, EV_SEND_EMAIL, kw_email, gobj);
 }

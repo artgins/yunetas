@@ -1,8 +1,8 @@
 # webstats — design
 
-Status: **working**, minus the HTML body. It reads the logs of a day, makes
-the full record of section 7, keeps it in TimeRanger2 and compares the day
-against its own history. Section 13 says what is done and what is not.
+Status: **working**. It reads the logs of a day, makes the full record of
+section 7, keeps it in TimeRanger2, compares the day against its own history
+and mails the result as HTML.
 
 Yuno that reads the logs of the node's web server (nginx or openresty), makes
 a daily report of traffic, errors and probes, and sends the report by email
@@ -343,8 +343,24 @@ busy. So it is short and it is ordered by what needs a decision.
 4. **Errors.** Signatures with counts and one sample.
 5. **Probes.** Count, clients, top offenders.
 
-Body is HTML, self contained, no external images. `emailsender` builds the MIME
-part from `body` with `is_html`.
+Body is HTML, self contained: no image and no external stylesheet, and the
+styles are inline because a mail client throws a `<style>` block away. The
+hour histogram is drawn with `div` widths, so the mail asks no server for
+anything when it is opened. `emailsender` builds the MIME part from `body`
+with `is_html`.
+
+⚠️ **Every string that came out of the log is HTML-escaped**, and that is not
+decoration. The path, the referer and the user agent are written by whoever
+made the request. Without escaping, a probe for `/<img src=x onerror=…>`
+arrives as live markup inside our own mailbox — the scanned node scripting the
+reader of the report about the scan. Verified by putting exactly that request
+and a `<script>` user agent through a real run: both come out as `&lt;img` and
+`&lt;script`.
+
+**The subject carries the day's verdict**, never the same text twice in a row:
+`NO DATA`, or `N 5xx, M requests`, or `M requests, N errors`. A subject that
+reads the same every morning trains the reader to leave it unopened, which is
+the end of a daily report.
 
 ⚠️ **No attachment by default.** `emailsender` reads `attachment` as a path in
 **its own** process. If the node's `emailsender` is reached through the agent
@@ -420,6 +436,7 @@ showing zeros.
 | `get-report report_date=YYYY-MM-DD` | the stored aggregate record, newest version of that day |
 | `list-reports` | the dates held in `daily_stats` |
 | `list-sources` | the files it will read, and whether each is readable now |
+| `preview-report report_date=YYYY-MM-DD` | the mail body of a stored day, as HTML, without sending it |
 
 ⚠️ **The day parameter is `report_date`, not `date`.** `command-yuno` hands its
 WHOLE kw to the node query that picks the yuno, so a parameter named like a
@@ -468,11 +485,22 @@ read back by `get-report`, and one day rebuilt a second time to prove the
 newest version wins and that the rebuild finds its two days of history.
 Orderly shutdown with no error and no leak.
 
-**Not done.** The HTML body of section 9. The mail still carries the record as
-JSON.
+**Report: done.** The HTML body of section 9, ordered by what needs a
+decision, and the subject that says the day's verdict. `preview-report` shows
+the body of a stored day without sending anything, so a change to the report
+can be looked at before it reaches a mailbox.
 
-**Phase 1** — the HTML body. The `log_format` change is deployed on the five
-nodes.
+`report-day` **refuses a day older than `keep_days`** instead of reading the
+logs and writing a record that the pruning of that same run then drops. Doing
+the work and throwing it away is worse than saying no: the command answered
+*"reading the logs"*, the mail arrived, and `get-report` then said the day did
+not exist. Found by asking for a day from January.
+
+**Phase 1 is complete.** What is left is phase 2 (§13 below).
+
+**Not done, by design:** the mail carries no attachment (§9), and the store
+keeps only the top of each counter, so *"new error signature"* means *not
+among yesterday's top signatures*.
 
 **Phase 2**
 
