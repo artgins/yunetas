@@ -1,7 +1,8 @@
 # webstats — design
 
-Status: **design, not implemented**. This file is the contract to review before
-any code is written.
+Status: **skeleton**. The pipeline runs end to end — schedule, read, day
+window, record, mail — and the two halves that turn a line into numbers are
+stubs. Section 13 says what is done and what is not.
 
 Yuno that reads the logs of the node's web server (nginx or openresty), makes
 a daily report of traffic, errors and probes, and sends the report by email
@@ -132,10 +133,17 @@ Work starts in `mt_play`, not in `mt_create`. `mt_create` creates the timer.
 
 Turns one file into events. It knows nothing about nginx.
 
-- Opens the file and reads it in chunks with `yev_create_read_event()`, one
-  chunk one event, so the loop keeps breathing. A synchronous read of a
-  multi-megabyte file inside an action blocks the loop and hides the work from
-  the `machine` trace.
+- Opens the file and reads it in bounded chunks, one chunk one action, so the
+  loop keeps breathing. A single read of a multi-megabyte file inside one
+  action blocks the loop and hides the work from the `machine` trace.
+- ⚠️ **io_uring is not used for this, and cannot be yet.**
+  `yev_create_read_event()` submits its reads with **offset 0**, which is what
+  a socket wants and is wrong for a regular file: every chunk reads the head
+  of the file again. No gclass in the tree reads a regular file this way,
+  so nothing had shown it. The reader uses `read(2)` and continues on a 1 ms
+  `C_TIMER0`. Giving yev a read offset is the proper fix, and it is a kernel
+  change that needs its own decision. The events this gclass publishes do not
+  depend on which of the two it uses.
 - Splits chunks into lines and publishes `EV_LOG_LINES` with an array of
   complete lines.
 - ⚠️ **A line crosses the chunk boundary.** The tail of a chunk that has no
@@ -384,6 +392,19 @@ forwarded without coercion. Nothing here needs either.
 the parser silently tolerates.
 
 ## 13. Phases
+
+**Done (skeleton).** The pipeline runs: the schedule fires, the files of the
+day are read one by one, the day window is applied from the timestamp of each
+line, the record is built with its sources, and the mail is handed to
+`emailsender`. Verified against a log holding the three generations of format,
+a rotated `.1` file with no trailing newline, and lines of three different
+days: it counted the four requests and the two errors of the target day and
+nothing else, with no error, no warning and no leak on shutdown.
+
+**Not done.** `accumulate_access_line()` and `accumulate_error_line()` only
+count. Everything in section 7 past the count, the `daily_stats` topic of
+section 8, the HTML of section 9, and the store behind `get-report` /
+`list-reports` are the work of phase 1.
 
 **Phase 1** — what is described above: access and error log of the previous
 day, aggregates in TimeRanger2, HTML mail per node, the five commands, and the
