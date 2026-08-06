@@ -1,8 +1,8 @@
 # webstats — design
 
-Status: **skeleton**. The pipeline runs end to end — schedule, read, day
-window, record, mail — and the two halves that turn a line into numbers are
-stubs. Section 13 says what is done and what is not.
+Status: **working**, minus the store and the HTML body. It reads the logs of a
+day and makes the full record of section 7. Section 13 says what is done and
+what is not.
 
 Yuno that reads the logs of the node's web server (nginx or openresty), makes
 a daily report of traffic, errors and probes, and sends the report by email
@@ -158,8 +158,9 @@ Turns one file into events. It knows nothing about nginx.
 
 The framework forbids a timer that re-issues the same query to see if
 something changed. This timer is a **schedule**: it fires once a day because
-the report is defined per day, and no producer can publish the event instead. The code carries this comment, so nobody removes it later as a
-discarded pattern.
+the report is defined per day, and no producer can publish the event instead.
+The code carries this comment, so nobody removes it later as a discarded
+pattern.
 
 ## 6. Configuration
 
@@ -193,9 +194,14 @@ table is the suite talking to itself.
 ### 7.1 Access log
 
 - Totals: requests, bytes, distinct clients, status classes 2xx/3xx/4xx/5xx.
-- Per hour: 24 counters. Peak hour and peak minute.
-- **Per vhost** (`$host`): the same totals per name. This is what `$host` was
-  added for.
+- Per hour: 24 counters.
+- **Per vhost** (`$host`): requests, bytes, status classes and its own latency
+  histogram. This is what `$host` was added for.
+  Distinct clients are counted **once, globally**, and not per vhost: a set of
+  addresses per name multiplies the worst case by the number of vhosts, and
+  the number that gets read is the total.
+  A line of the first generation has no `$host`, so it lands under `-`. That
+  name is the mark of a node whose config is not updated yet.
 - **Every 5xx in full**, with time, vhost, request, status and client. Not a
   counter — the lines. Capped, and the cap is reported (§8.3).
 - Top paths, top 404 paths, top referrers, top user agents, top clients.
@@ -213,7 +219,13 @@ table is the suite talking to itself.
   `0.005 0.01 0.025 0.05 0.1 0.25 0.5 1 2.5 5 10 +inf`.
   A histogram and not a list of samples: bounded memory whatever the traffic,
   and the buckets of two days can be added, so the weekly view is free.
-  p50/p95/p99 are interpolated inside the bucket.
+  p50/p95/p99 are the **upper edge of the bucket** the percentile falls in,
+  not an interpolation. "p95 is at most 0.5 s" is true. A number invented
+  between two edges is not. A percentile above the last edge is reported as
+  `-1`, which reads as *slower than 10 s*.
+  ⚠️ The bucket index is a **ceiling** division. Truncating puts the p95 of
+  two measures on the first bucket, so a day where one of two requests took
+  half a second reports as a fast day.
 
 ### 7.2 Error log
 
@@ -250,21 +262,30 @@ Raw lines are never stored.
     "node": "wattyzer",
     "generated_at": 1754400000,
     "sources": [
-        {"file": "/yuneta/bin/nginx/logs/access.log.1", "lines": 14321, "unparsed": 3}
+        {"file": ".../access.log", "lines": 14321, "kept": 9812,
+         "unparsed": 3, "bytes": 3500000, "too_long": 0}
     ],
     "totals": {"requests": 0, "bytes": 0, "clients": 0,
                "status": {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0}},
     "by_hour": [0],
-    "by_vhost": {"doc.yuneta.io": {"requests": 0, "bytes": 0, "clients": 0,
-                                   "status": {}, "latency": {}}},
+    "by_vhost": {"doc.yuneta.io": {"requests": 0, "bytes": 0, "status": {},
+                                   "latency": {}, "latency_summary": {}}},
     "latency": {"count": 0, "sum": 0.0, "max": 0.0, "buckets": [0]},
+    "latency_summary": {"avg": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0},
     "top": {"paths": [], "not_found": [], "referrers": [], "agents": [], "clients": []},
-    "server_errors": [],
+    "server_errors": [{"host": "", "client": "", "status": 500, "path": "", "hour": 0}],
     "probes": {"requests": 0, "clients": 0, "top_patterns": [], "top_clients": []},
-    "errors": {"total": 0, "by_signature": []},
-    "truncated": []
+    "errors": {"total": 0, "distinct": 0, "by_signature": [
+        {"signature": "", "count": 0, "first": "", "last": "", "sample": ""}
+    ]},
+    "truncated": [{"counter": "paths", "dropped": 0}]
 }
 ```
+
+Every `top` row is `{"key": …, "count": …}`. `latency` keeps the raw buckets
+so two days can be added. `latency_summary` is what a reader looks at.
+`sources[].lines` is what the file holds, `kept` is what fell inside the day,
+and `unparsed` is what the parser did not understand.
 
 `version` is in the record because the shape will grow. A reader that finds a
 version it does not know says so. It does not guess.
@@ -393,22 +414,26 @@ the parser silently tolerates.
 
 ## 13. Phases
 
-**Done (skeleton).** The pipeline runs: the schedule fires, the files of the
-day are read one by one, the day window is applied from the timestamp of each
-line, the record is built with its sources, and the mail is handed to
-`emailsender`. Verified against a log holding the three generations of format,
-a rotated `.1` file with no trailing newline, and lines of three different
-days: it counted the four requests and the two errors of the target day and
-nothing else, with no error, no warning and no leak on shutdown.
+**Done.** The pipeline and every aggregate of section 7: the tolerant parser
+of the three generations, totals, per hour, per vhost, the tops, all 5xx
+whole, the probes, the latency histogram with its percentiles, and the error
+signatures. Caps and unparsed lines are reported in the record.
 
-**Not done.** `accumulate_access_line()` and `accumulate_error_line()` only
-count. Everything in section 7 past the count, the `daily_stats` topic of
-section 8, the HTML of section 9, and the store behind `get-report` /
-`list-reports` are the work of phase 1.
+Verified against a log of ten lines built to hit each one: the three
+generations of format, a query string that must be cut off the path, a probe
+answered with **200** on a SPA vhost, a client of `internal_networks`, a
+malformed line, lines of two other days, and two `connect() failed` lines with
+different pid, connection and client that have to fold into one signature.
+It counted 8 requests of 9 kept from 10 lines, 5 distinct clients of 6, the
+2xx/4xx/5xx split, 2 probes from 2 clients, and 2 signatures from 3 error
+lines. No error, no warning, no leak on shutdown.
 
-**Phase 1** — what is described above: access and error log of the previous
-day, aggregates in TimeRanger2, HTML mail per node, the five commands, and the
-`log_format` change on the five nodes.
+**Not done.** The `daily_stats` topic of section 8, the HTML body of section
+9 with the comparison against the previous days, and the store behind
+`get-report` / `list-reports`. The mail still carries the record as JSON.
+
+**Phase 1** — what is left of the above, plus the `log_format` change on the
+five nodes.
 
 **Phase 2**
 
