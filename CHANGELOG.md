@@ -1,6 +1,19 @@
 # **Changelog**
 
-## Unreleased
+## 7.9.11-2
+
+A packaging revision, not a new version of Yuneta: nothing under `kernel/`,
+`modules/`, `utils/`, `yunos/` or `tests/` changed, so `YUNETA_VERSION` stays
+at 7.9.11 and only the `RELEASE` counter moves. The packages are rebuilt as
+`yuneta-agent-7.9.11-2` and attached to the existing 7.9.11 tag.
+
+What it ships is the answer to a question nobody had asked of these nodes:
+what is in their logs. nginx has no rotation of its own, so `access.log` and
+`error.log` had been growing since the day each node was installed — on all
+five, none had ever been rotated. Reading them for the first time turned up
+that 99.9% of one node's `error.log` was scanner noise, that 43% of all
+requests were probes for `/.env` and `/wp-login.php`, and that nothing was
+watching any of it.
 
 ### Added
 
@@ -54,6 +67,21 @@
   sets `backend = systemd`, so the jails now pin `backend = auto`), and
   recording bans that never reach the firewall (a `banaction` naming a command
   that is not installed).
+
+- **The documentation site owns its `robots.txt`** — `docs/doc.yuneta.io/robots.txt`,
+  installed by `deploy.sh` over the one mystmd builds.
+
+  myst has no absolute address for the site (`site.options.base_url` is `/`),
+  so the `Sitemap:` line it wrote named the address of its own development
+  server, `http://localhost:3000/sitemap.xml`. Every crawler had to discard
+  that line, which left the sitemap myst does build — 12 KB of it — reachable
+  by nobody.
+
+  It also refuses six backlink and rank crawlers (Semrush, Ahrefs, MJ12,
+  dotbot, DataForSeo, SERanking), which read the whole site to sell the numbers
+  back and brought about 14 000 requests in 15 days. Search engines and the
+  assistants are deliberately not on that list: those are how somebody finds
+  Yuneta.
 
 - **A 404 page for the documentation site** — `docs/doc.yuneta.io/errors/404.html`,
   installed at the root of the build by `deploy.sh` the same way as the landing
