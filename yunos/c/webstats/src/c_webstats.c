@@ -101,6 +101,7 @@ PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
 PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
+PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
 PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
@@ -2452,6 +2453,29 @@ PRIVATE const char *delta_of(json_int_t now, json_int_t before, char *bf, size_t
 }
 
 /***************************************************************************
+ *  A byte count, as somebody reads it.
+ *
+ *  "145695002" is a number the reader has to count digits on. Powers of
+ *  1024, like every other tool that prints sizes.
+ ***************************************************************************/
+PRIVATE const char *human_bytes(json_int_t n, char *bf, size_t bfsize)
+{
+    double v = (double)n;
+
+    if(n < 1024) {
+        snprintf(bf, bfsize, "%lld B", (long long)n);
+    } else if(n < 1024LL*1024) {
+        snprintf(bf, bfsize, "%.1f KB", v/1024);
+    } else if(n < 1024LL*1024*1024) {
+        snprintf(bf, bfsize, "%.1f MB", v/(1024*1024));
+    } else {
+        snprintf(bf, bfsize, "%.2f GB", v/(1024.0*1024*1024));
+    }
+
+    return bf;
+}
+
+/***************************************************************************
  *  A percentile, as text.
  *
  *  percentile_of() answers -1 when the value is past the last bucket edge,
@@ -2479,7 +2503,8 @@ PRIVATE void changed_row(
     json_int_t today,
     json_t *previous,
     json_t *median,
-    const char *key
+    const char *key,
+    BOOL as_bytes
 ) {
     /*
      *  An absent number prints empty, never 0. A 0 in the median column
@@ -2488,13 +2513,26 @@ PRIVATE void changed_row(
     json_t *jn_before = previous? json_object_get(previous, key) : NULL;
     json_t *jn_med = median? json_object_get(median, key) : NULL;
 
+    char today_s[32];
     char before_s[32] = "";
-    if(jn_before) {
-        snprintf(before_s, sizeof(before_s), "%lld", (long long)json_integer_value(jn_before));
-    }
     char med_s[32] = "";
-    if(jn_med) {
-        snprintf(med_s, sizeof(med_s), "%lld", (long long)json_integer_value(jn_med));
+
+    if(as_bytes) {
+        human_bytes(today, today_s, sizeof(today_s));
+        if(jn_before) {
+            human_bytes(json_integer_value(jn_before), before_s, sizeof(before_s));
+        }
+        if(jn_med) {
+            human_bytes(json_integer_value(jn_med), med_s, sizeof(med_s));
+        }
+    } else {
+        snprintf(today_s, sizeof(today_s), "%lld", (long long)today);
+        if(jn_before) {
+            snprintf(before_s, sizeof(before_s), "%lld", (long long)json_integer_value(jn_before));
+        }
+        if(jn_med) {
+            snprintf(med_s, sizeof(med_s), "%lld", (long long)json_integer_value(jn_med));
+        }
     }
 
     char delta[32];
@@ -2503,12 +2541,12 @@ PRIVATE void changed_row(
     gbuffer_printf(gbuf,
         "<tr>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee\">%s</td>"
-        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right\"><b>%lld</b></td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right\"><b>%s</b></td>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
         "</tr>",
-        label, (long long)today, before_s, med_s, delta
+        label, today_s, before_s, med_s, delta
     );
 }
 
@@ -2720,18 +2758,18 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         "</tr>%s", ""
     );
 
-    changed_row(gbuf, "requests", requests, previous, median, "requests");
+    changed_row(gbuf, "requests", requests, previous, median, "requests", FALSE);
     changed_row(gbuf, "bytes", json_integer_value(json_object_get(totals, "bytes")),
-        previous, median, "bytes");
+        previous, median, "bytes", TRUE);
     changed_row(gbuf, "clients", json_integer_value(json_object_get(totals, "clients")),
-        previous, median, "clients");
+        previous, median, "clients", FALSE);
     changed_row(gbuf, "4xx", json_integer_value(json_object_get(status, "4xx")),
-        previous, median, "4xx");
-    changed_row(gbuf, "5xx", s5xx, previous, median, "5xx");
+        previous, median, "4xx", FALSE);
+    changed_row(gbuf, "5xx", s5xx, previous, median, "5xx", FALSE);
     changed_row(gbuf, "probes", json_integer_value(json_object_get(probes, "requests")),
-        previous, median, "probes");
+        previous, median, "probes", FALSE);
     changed_row(gbuf, "errors", json_integer_value(json_object_get(errors, "total")),
-        previous, median, "errors");
+        previous, median, "errors", FALSE);
 
     gbuffer_printf(gbuf, "%s", "</table>");
 
@@ -2781,9 +2819,10 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             "<tr style=\"color:#777;font-size:11px\">"
             "<th style=\"text-align:left;padding:0 10px 0 0\">host</th>"
             "<th style=\"text-align:right;padding:0 10px\">requests</th>"
-            "<th style=\"text-align:right;padding:0 10px\">bytes</th>"
+            "<th style=\"text-align:right;padding:0 10px\">2xx</th>"
             "<th style=\"text-align:right;padding:0 10px\">4xx</th>"
             "<th style=\"text-align:right;padding:0 10px\">5xx</th>"
+            "<th style=\"text-align:right;padding:0 10px\">bytes</th>"
             "<th style=\"text-align:right;padding:0 0 0 10px\">p95</th>"
             "</tr>"
         );
@@ -2805,6 +2844,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         JSON_DECREF(jn_order)
 
         char vp95[32];
+        char vbytes[32];
         size_t shown = 0;
         json_t *jn_rank;
         json_array_foreach(jn_ranked, shown, jn_rank) {
@@ -2819,16 +2859,19 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
                 "<tr>"
                 "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#380\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
-                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%s</td>"
                 "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%s</td>"
                 "</tr>",
                 html_escape(host, bf, sizeof(bf)),
                 (long long)json_integer_value(json_object_get(jn_vhost, "requests")),
-                (long long)json_integer_value(json_object_get(jn_vhost, "bytes")),
+                (long long)json_integer_value(json_object_get(vstatus, "2xx")),
                 (long long)json_integer_value(json_object_get(vstatus, "4xx")),
                 (long long)json_integer_value(json_object_get(vstatus, "5xx")),
+                human_bytes(json_integer_value(json_object_get(jn_vhost, "bytes")),
+                    vbytes, sizeof(vbytes)),
                 latency_str(
                     vsummary? json_number_value(json_object_get(vsummary, "p95")) : 0.0,
                     vp95, sizeof(vp95)

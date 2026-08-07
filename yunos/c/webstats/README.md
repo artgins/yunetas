@@ -195,8 +195,13 @@ table is the suite talking to itself.
 
 - Totals: requests, bytes, distinct clients, status classes 2xx/3xx/4xx/5xx.
 - Per hour: 24 counters.
-- **Per vhost** (`$host`): requests, bytes, status classes and its own latency
-  histogram. This is what `$host` was added for.
+- **Per vhost** (`$host`): requests, the 2xx / 4xx / 5xx split, bytes and its
+  own latency histogram. This is what `$host` was added for.
+  The 2xx column answers the question the other two cannot: how much of the
+  traffic was somebody being served. A vhost with 205 requests and 205 of them
+  4xx is not a site with visitors, it is a name being scanned.
+  Byte counts print in KB/MB/GB. `145695002` is a number the reader has to
+  count digits on.
   The mail shows the busiest `top_n` and says how many more answered. The name
   is the Host header, so anybody can invent one: the first mail from e.com
   listed 52 rows, half of them forged names with one request each.
