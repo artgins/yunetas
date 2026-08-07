@@ -11,7 +11,7 @@ A sealed node has no SSH, so a tool you must log in to run is a task that stops
 working the day the node is sealed. This one runs inside the node and sends the
 answer out.
 
-**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.9.11/yunos/c/webstats/README.md)
+**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.9.12/yunos/c/webstats/README.md)
 
 ## Architecture
 
@@ -69,6 +69,30 @@ signature.
 | `new_visitor_days` | 30 | History that decides whether a visitor is new |
 | `visitor_salt` | — | Salt of the visitor fingerprint |
 | `keep_days` | 400 | Days of aggregates kept |
+
+## Installing it on a node
+
+`webstats` goes in the **utilities batch of the node's operations repo**, next
+to [`emailsender`](#yuno-emailsender) and [`logcenter`](#yuno-logcenter) — the
+same realm the node's `create-*.sh` script builds. That is what makes a node
+rebuilt from zero come up reporting instead of waiting for somebody to remember
+it:
+
+```
+{"command": "-install-binary id=webstats content64=$$(webstats)"}
+{"command": "-create-config id=webstats.<node> content64=$$(./webstats.<node>.json)"}
+{"command": "-create-yuno id=3 realm_id=<utilities realm> yuno_role=webstats yuno_name=<node> must_play=1 yuno_tag=util"}
+```
+
+The binary comes from the package: the `.deb` and the `.rpm` ship
+`outputs/yunos/` whole, so `install-binary` finds it even on a node that
+carries no SDK sources.
+
+**Name the tree the node really serves with.** The default reads both the nginx
+and the openresty tree. A node runs one of them, and the other is usually a
+leftover whose rotated files are read whole every day to contribute nothing —
+on one node that was 111000 lines a day for zero rows. Set `access_log_paths`
+and `error_log_paths` to the live tree.
 
 ## Commands
 

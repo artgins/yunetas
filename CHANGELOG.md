@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+
+## 7.9.12
+
+A release with one reason to exist: **to put the `webstats` binary in the
+packages**, so the other four nodes can run it. The yuno was written and proved
+on one node, and a yuno that lives only in a build tree reaches nobody — the
+`.deb` and the `.rpm` ship `outputs/yunos/` whole, and that is the road to a
+node that carries no SDK sources.
+
+Nothing under `kernel/`, `modules/` or `utils/` moved, so no running yuno needs
+a rebuild for this. `@yuneta/gobj-js` stays at 7.9.11 on npm: this release
+carries no JavaScript.
+
 ### Added
 
 - **`webstats`, a new yuno: the daily report of the node's web server logs.**
