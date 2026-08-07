@@ -197,6 +197,9 @@ table is the suite talking to itself.
 - Per hour: 24 counters.
 - **Per vhost** (`$host`): requests, bytes, status classes and its own latency
   histogram. This is what `$host` was added for.
+  The mail shows the busiest `top_n` and says how many more answered. The name
+  comes from the Host header, so anybody can invent one: the first mail from
+  e.com listed 52 rows, half of them forged names with one request each.
   Distinct clients are counted **once, globally**, and not per vhost: a set of
   addresses per name multiplies the worst case by the number of vhosts, and
   the number that gets read is the total.
@@ -344,7 +347,17 @@ busy. So it is short and it is ordered by what needs a decision.
 5. **Probes.** Count, clients, top offenders.
 
 Body is HTML, self contained: no image and no external stylesheet, and the
-styles are inline because a mail client throws a `<style>` block away. The
+styles are inline because a mail client throws a `<style>` block away.
+
+⚠️ **The body must be broken into lines.** SMTP allows at most 1000 octets per
+line (RFC 5321), and this report is one single line of 40 KB. A relay is
+entitled to fold it, and OVH does: it inserts CRLF+space every ~1000 bytes, in
+the middle of whatever is there. The first mail from e.com arrived with
+`&Delta;` split into `& Delta;`, a row label reading `cl ients`, a path
+reading `ac cess.log`, and a `<td` cut in half — which stops being a tag and
+prints as text in the middle of a table. A newline goes between every pair of
+adjacent tags: it can never split a word, because the text of the report holds
+no raw `>` after escaping, and HTML collapses the whitespace. The
 hour histogram is drawn with `div` widths, so the mail asks no server for
 anything when it is opened. `emailsender` builds the MIME part from `body`
 with `is_html`.

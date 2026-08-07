@@ -99,6 +99,7 @@ PRIVATE int accumulate_access_line(hgobj gobj, const char *line);
 PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
+PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
 PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
@@ -2019,7 +2020,17 @@ PRIVATE void compare_with_history(hgobj gobj)
 
     json_t *jn_changed = json_object();
 
-    double requests[7], errors[7], p95[7];
+    /*
+     *  A median per headline number, not only for a couple of them. The
+     *  first mail printed a bare 0 in the "median 7d" column of bytes,
+     *  clients, 4xx, 5xx and probes, which reads as "the median is zero"
+     *  and not as "this was never computed".
+     */
+    static const char *keys[] = {
+        "requests", "bytes", "clients", "4xx", "5xx", "probes", "errors", 0
+    };
+    double values[8][7];
+    double p95[7];
     size_t n = 0;
 
     for(int back=1; back<=7; back++) {
@@ -2038,8 +2049,9 @@ PRIVATE void compare_with_history(hgobj gobj)
             json_object_set(jn_changed, "previous", headline);
         }
 
-        requests[n] = (double)kw_get_int(gobj, headline, "requests", 0, 0);
-        errors[n] = (double)kw_get_int(gobj, headline, "errors", 0, 0);
+        for(int k=0; keys[k]; k++) {
+            values[k][n] = (double)kw_get_int(gobj, headline, keys[k], 0, 0);
+        }
         p95[n] = json_number_value(json_object_get(headline, "p95"));
         n++;
 
@@ -2050,11 +2062,14 @@ PRIVATE void compare_with_history(hgobj gobj)
     json_object_set_new(jn_changed, "days_of_history", json_integer((json_int_t)n));
 
     if(n > 0) {
-        json_object_set_new(jn_changed, "median_7d", json_pack("{s:I, s:I, s:f}",
-            "requests", (json_int_t)median_of(requests, n),
-            "errors", (json_int_t)median_of(errors, n),
-            "p95", median_of(p95, n)
-        ));
+        json_t *jn_median = json_object();
+        for(int k=0; keys[k]; k++) {
+            json_object_set_new(jn_median, keys[k],
+                json_integer((json_int_t)median_of(values[k], n))
+            );
+        }
+        json_object_set_new(jn_median, "p95", json_real(median_of(p95, n)));
+        json_object_set_new(jn_changed, "median_7d", jn_median);
     }
 
     json_object_set_new(jn_changed, "today", headline_of(gobj, priv->jn_report));
@@ -2331,6 +2346,46 @@ PRIVATE int finish_run(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Put a newline between every pair of adjacent tags.
+ *
+ *  MANDATORY for a mail body. SMTP allows at most 1000 octets per line
+ *  (RFC 5321), and this report is one single line of 40 KB. A relay is
+ *  entitled to fold it, and OVH does: it inserts CRLF+space every ~1000
+ *  bytes, in the middle of whatever is there. The first mail sent from
+ *  e.com arrived with "&Delta;" split into "& Delta;", a row label reading
+ *  "cl ients", a path reading "ac cess.log", and a "<td" cut in half, which
+ *  stops being a tag and prints as text in the middle of a table.
+ *
+ *  Breaking only between '>' and '<' can never split a word: the text of
+ *  the report never holds a raw '>' because html_escape() turns it into
+ *  &gt;. HTML collapses the whitespace, so nothing renders differently.
+ ***************************************************************************/
+PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src)
+{
+    if(!src) {
+        return NULL;
+    }
+
+    char *p = gbuffer_cur_rd_pointer(src);
+    size_t len = gbuffer_leftbytes(src);
+
+    gbuffer_t *dst = gbuffer_create(len + len/8 + 1024, 16*1024*1024);
+    if(!dst) {
+        // Error already logged
+        return NULL;
+    }
+
+    for(size_t i=0; i<len; i++) {
+        gbuffer_append(dst, p+i, 1);
+        if(p[i] == '>' && i+1 < len && p[i+1] == '<') {
+            gbuffer_append(dst, "\n", 1);
+        }
+    }
+
+    return dst;
+}
+
+/***************************************************************************
  *  Escape a string that came out of the log before it goes into HTML.
  *
  *  MANDATORY, not decoration: the path, the referer and the user agent are
@@ -2406,21 +2461,34 @@ PRIVATE void changed_row(
     json_t *median,
     const char *key
 ) {
-    json_int_t before = previous? json_integer_value(json_object_get(previous, key)) : 0;
-    json_int_t med = median? json_integer_value(json_object_get(median, key)) : 0;
+    /*
+     *  An absent number prints empty, never 0. A 0 in the median column
+     *  reads as a measured zero, which is a different claim.
+     */
+    json_t *jn_before = previous? json_object_get(previous, key) : NULL;
+    json_t *jn_med = median? json_object_get(median, key) : NULL;
+
+    char before_s[32] = "";
+    if(jn_before) {
+        snprintf(before_s, sizeof(before_s), "%lld", (long long)json_integer_value(jn_before));
+    }
+    char med_s[32] = "";
+    if(jn_med) {
+        snprintf(med_s, sizeof(med_s), "%lld", (long long)json_integer_value(jn_med));
+    }
 
     char delta[32];
-    delta_of(today, before, delta, sizeof(delta));
+    delta_of(today, jn_before? json_integer_value(jn_before):0, delta, sizeof(delta));
 
     gbuffer_printf(gbuf,
         "<tr>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee\">%s</td>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right\"><b>%lld</b></td>"
-        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%lld</td>"
-        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%lld</td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
+        "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
         "<td style=\"padding:4px 10px;border-bottom:1px solid #eee;text-align:right;color:#666\">%s</td>"
         "</tr>",
-        label, (long long)today, (long long)before, (long long)med, delta
+        label, (long long)today, before_s, med_s, delta
     );
 }
 
@@ -2472,6 +2540,8 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     if(!report) {
         return NULL;
     }
+
+    int priv_top_n = (int)gobj_read_integer_attr(gobj, "top_n");
 
     gbuffer_t *gbuf = gbuffer_create(32*1024, 8*1024*1024);
     if(!gbuf) {
@@ -2632,14 +2702,14 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
 
     changed_row(gbuf, "requests", requests, previous, median, "requests");
     changed_row(gbuf, "bytes", json_integer_value(json_object_get(totals, "bytes")),
-        previous, NULL, "bytes");
+        previous, median, "bytes");
     changed_row(gbuf, "clients", json_integer_value(json_object_get(totals, "clients")),
-        previous, NULL, "clients");
+        previous, median, "clients");
     changed_row(gbuf, "4xx", json_integer_value(json_object_get(status, "4xx")),
-        previous, NULL, "4xx");
-    changed_row(gbuf, "5xx", s5xx, previous, NULL, "5xx");
+        previous, median, "4xx");
+    changed_row(gbuf, "5xx", s5xx, previous, median, "5xx");
     changed_row(gbuf, "probes", json_integer_value(json_object_get(probes, "requests")),
-        previous, NULL, "probes");
+        previous, median, "probes");
     changed_row(gbuf, "errors", json_integer_value(json_object_get(errors, "total")),
         previous, median, "errors");
 
@@ -2682,9 +2752,30 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             "</tr>"
         );
 
+        /*
+         *  Most traffic first, and capped. The names come from the Host
+         *  header, so anybody can invent one: the first mail from e.com
+         *  listed 52 rows in hash order, half of them forged names with one
+         *  request each, and the vhosts that matter were scattered among
+         *  them.
+         */
+        json_t *jn_order = json_object();
         const char *host;
         json_t *jn_vhost;
         json_object_foreach(by_vhost, host, jn_vhost) {
+            json_object_set(jn_order, host, json_object_get(jn_vhost, "requests"));
+        }
+        json_t *jn_ranked = top_of(jn_order, priv_top_n);
+        JSON_DECREF(jn_order)
+
+        size_t shown = 0;
+        json_t *jn_rank;
+        json_array_foreach(jn_ranked, shown, jn_rank) {
+            host = json_string_value(json_object_get(jn_rank, "key"));
+            jn_vhost = json_object_get(by_vhost, host);
+            if(!jn_vhost) {
+                continue;
+            }
             json_t *vstatus = json_object_get(jn_vhost, "status");
             json_t *vsummary = json_object_get(jn_vhost, "latency_summary");
             gbuffer_printf(gbuf,
@@ -2705,6 +2796,17 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             );
         }
         gbuffer_printf(gbuf, "%s", "</table>");
+
+        size_t total_vhosts = json_object_size(by_vhost);
+        if(total_vhosts > json_array_size(jn_ranked)) {
+            gbuffer_printf(gbuf,
+                "<div style=\"font-size:11px;color:#777;margin-top:4px\">"
+                "%d more names answered, each with less traffic. The whole list "
+                "is in the record.</div>",
+                (int)(total_vhosts - json_array_size(jn_ranked))
+            );
+        }
+        JSON_DECREF(jn_ranked)
     }
 
     /*
@@ -2853,7 +2955,10 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         json_string_value(json_object_get(report, "date"))
     );
 
-    return gbuf;
+    gbuffer_t *wrapped = break_tag_lines(gbuf);
+    GBUFFER_DECREF(gbuf)
+
+    return wrapped;
 }
 
 /***************************************************************************
