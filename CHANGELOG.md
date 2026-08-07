@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+
+## 7.9.13
+
+A release to carry one agent fix to the nodes. `yuno_agent` changed, so this is
+a version bump and not a packaging revision.
+
+It is a **version** bump for a reason worth stating: the agent is not a managed
+yuno, so no `install-binary` reaches it. On a node with no SDK sources the
+package is the only road to its binary — the same argument that cut 7.9.12.
+
+`yuneta_agent22` is untouched and needs no update: the escape hatch exposes tty
+and consoles only, no config commands. That is what lets a node take the new
+agent with its second agent still running.
+
 ### Fixed
 
 - **`update-config` never refreshed the `description` column**, so a config row
