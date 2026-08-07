@@ -15,6 +15,7 @@ The baseline services every node runs.
 - [`yuneta_agent22`](yunos/yuneta_agent22.md)
 - [`logcenter`](yunos/logcenter.md)
 - [`emailsender`](yunos/emailsender.md)
+- [`webstats`](yunos/webstats.md)
 
 ## Remote Control
 

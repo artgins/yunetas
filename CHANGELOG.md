@@ -1,5 +1,61 @@
 # **Changelog**
 
+## Unreleased
+
+### Added
+
+- **`webstats`, a new yuno: the daily report of the node's web server logs.**
+  It reads the nginx (or openresty) access and error logs of a day, counts what
+  they hold, keeps the numbers in TimeRanger2 and mails the result through
+  `emailsender`. One yuno per node.
+
+  It exists because a sealed node has no SSH, and reading a log by logging in
+  is a task that stops working the day the node is sealed. The five nodes had
+  never had their logs read until somebody went looking.
+
+  The decision that keeps it small: **the day of a line comes from the
+  timestamp the line carries, never from the file it sits in.** No read offset,
+  no hook into `logrotate`, so the report of any day still on disk can be
+  rebuilt at will and a yuno that was down loses nothing.
+
+  What the report leads with is **visitors, and how many are new** — an address
+  that asked for a piece of the page and got it, whose user agent carries no
+  crawler mark. Counting requests answers a different question: on the first
+  real day the top user agent was one `curl` making 3015 requests from a single
+  address, and 1346 addresses claimed to be a browser while 71 ever fetched a
+  script. Fingerprints are stored, never addresses.
+
+  Then: totals and status classes, per hour, per vhost, the top paths, 404s,
+  clients, agents and referrers, every 5xx whole, probes counted (banning stays
+  `fail2ban`'s job), a latency histogram with percentiles, and the error log
+  grouped by signature — the half where the real findings were.
+
+  Documented at [`/yunos/webstats`](https://doc.yuneta.io/yunos/webstats) and in
+  `yunos/c/webstats/README.md`, which carries the design and the traps.
+
+### Changed
+
+- **`log_format vhost` gained `$request_time` and `"$upstream_response_time"`**,
+  appended last, under the same rule as `$host`: everything before them stays
+  byte for byte `combined`, so `awk` column positions, goaccess and the stock
+  fail2ban filters keep working. The count of quotes now says which generation
+  a line belongs to — 6, 8 or 10 — and the rotated files hold all three for 30
+  days, so any reader of these logs has to accept all three. Deployed on the
+  five nodes; the configs live in their own operations repos.
+
+- **`CLAUDE.md`: the `command-yuno` name collision is not only `id`.**
+  `cmd_command_yuno` passes its whole kw as the filter that selects the yuno,
+  so every field of the yuno record is a reserved parameter name. A command
+  with a `date` parameter answers *"Yuno not found"* and names the yuno, never
+  the parameter.
+
+- **`CLAUDE.md`: a bumped config version does not reach the yuno on its own.**
+  `create-config` appends a row and the primary does not move — not even a
+  restart of the yuno picks it up. Only a node-wide `deactivate-snap` promotes
+  it. The note now says when to bump and when to overwrite the row in use with
+  `update-config` instead of bouncing a node to change one yuno's config.
+
+
 ## 7.9.11-3
 
 A packaging revision, like the one before it: nothing under `kernel/`,
