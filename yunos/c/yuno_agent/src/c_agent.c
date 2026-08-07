@@ -4018,7 +4018,13 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*
+     *  Read both before the content is handed over below: the `zcontent`
+     *  assignment takes ownership of jn_config, and reading through a pointer
+     *  whose ownership has moved is a trap waiting for the next edit.
+     */
     const char *version = kw_get_str(gobj, jn_config, "__version__", "", 0);
+    const char *description = kw_get_str(gobj, jn_config, "__description__", "", 0);
 
     json_t *kw_find = json_pack("{s:s, s:s}",
         "id", id,
@@ -4048,6 +4054,21 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     json_t *node = json_array_get(iter, 0);
     json_object_set_new(node, "zcontent", jn_config);
+
+    /*
+     *  The description travels with the content, so it has to be rewritten
+     *  with it. Only create-config used to write this column, so a row kept
+     *  the description of its FIRST version for the rest of its life while
+     *  its content changed underneath -- and `list-configs` shows that column,
+     *  which is where an operator reads what a config row is for. Found on
+     *  e.com, where the webstats row still announced "1: initial load" after
+     *  its content had stopped reading the openresty tree.
+     *
+     *  Set unconditionally, exactly as create-config does: a content with no
+     *  `__description__` leaves the column empty. Keeping the old text there
+     *  would describe content that no longer exists, which is the defect.
+     */
+    json_object_set_new(node, "description", json_string(description));
 
     char current_date[22];
     current_timestamp(current_date, sizeof(current_date));  // "CCYY/MM/DD hh:mm:ss"

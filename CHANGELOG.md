@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`update-config` never refreshed the `description` column**, so a config row
+  kept the description of its **first** version for the rest of its life while
+  its content changed underneath. `cmd_create_config` wrote the column from the
+  content's `__description__`; `cmd_update_config` wrote only `zcontent` and
+  `date` and left the column alone.
+
+  That column is not decoration. `list-configs` is where an operator reads what
+  a config row is for, and the batch convention exists to feed it: every edit
+  rewrites `__description__` as that version's changelog entry. The convention
+  was resting on a field the update command did not maintain — and
+  `sync-configs` drives its whole `UPDATE` path through that command, so every
+  same-version push since the beginning left the row describing something else.
+
+  Found on `e.com`: the `webstats` row still announced *"1: initial load"* long
+  after its content had stopped reading the dead openresty tree. The content
+  was right, the label was two edits stale, and nothing anywhere said so.
+
+  An update now writes the description with the content, unconditionally, as
+  `create-config` does — a content with no `__description__` leaves the column
+  empty rather than keeping a text that describes content that no longer
+  exists. Exercised on a live agent: changed, restored, and emptied.
+
 
 ## 7.9.12
 
