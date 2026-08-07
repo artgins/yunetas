@@ -27,13 +27,21 @@ agent with its second agent still running.
   That column is not decoration. `list-configs` is where an operator reads what
   a config row is for, and the batch convention exists to feed it: every edit
   rewrites `__description__` as that version's changelog entry. The convention
-  was resting on a field the update command did not maintain — and
-  `sync-configs` drives its whole `UPDATE` path through that command, so every
-  same-version push since the beginning left the row describing something else.
+  was resting on a field the update command did not maintain, and `sync-configs`
+  drives its whole `UPDATE` path through that command.
 
   Found on `e.com`: the `webstats` row still announced *"1: initial load"* long
   after its content had stopped reading the dead openresty tree. The content
   was right, the label was two edits stale, and nothing anywhere said so.
+
+  **How far it had spread: one row.** The five nodes were swept afterwards,
+  comparing every config row's column against the `__description__` its own
+  content carries — 51 rows over 546 stored records — and the `e.com` one was
+  the only mismatch. The reason is the convention itself: an edit normally
+  **bumps `__version__`**, which takes the `create-config` path and writes the
+  column correctly. `update-config` overwrites the row in use, which is the
+  deliberate exception for changing one yuno without bouncing a node, and it is
+  rare. The defect was real and silent; its blast radius was not wide.
 
   An update now writes the description with the content, unconditionally, as
   `create-config` does — a content with no `__description__` leaves the column
