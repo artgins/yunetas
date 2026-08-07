@@ -305,6 +305,14 @@ Raw lines are never stored.
 one is the answer. That is what makes `report-day` repeatable with no delete
 first: a day rebuilt after a fix wins.
 
+⚠️ **A run that reads nothing does not replace a run that read something.**
+Rebuilding a day whose log has already rotated away reads zero lines, and
+storing that overwrites a good record with an empty one — silently, because
+the newest record is the one that answers. Found by rebuilding 2026-08-05 on
+the 7th: the day was gone from disk, the report came back empty, and every
+visitor of the day after looked new because the day before held nobody. Such
+a run is abandoned, with a warning in the log, and it sends no mail.
+
 ⚠️ **Reading the newest is not `(from_rowid=1, limit=1, backward=TRUE)`.**
 `from_rowid` is a position among the rows the iterator returns, and `backward`
 does not turn it into a position from the end, so that call hands back row 1 —

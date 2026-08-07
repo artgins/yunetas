@@ -2604,10 +2604,52 @@ PRIVATE int finish_run(hgobj gobj)
         gobj_trace_json(gobj, priv->jn_report, "webstats: report of %s", priv->target_date);
     }
 
-    store_report(gobj);     // Error already logged
-    prune_store(gobj);      // Error already logged
+    /*
+     *  A run that read nothing must not replace a run that read something.
+     *
+     *  Rebuilding a day whose log has already rotated away reads zero lines,
+     *  and storing that would overwrite a good record with an empty one --
+     *  silently, because the newest record under a key is the one that
+     *  answers. Found by rebuilding 2026-08-05 on the 7th: the day was gone
+     *  from disk, the report came back empty, and every visitor of the day
+     *  after looked new because the day before had nobody in it.
+     */
+    json_int_t kept = 0;
+    size_t idx;
+    json_t *jn_source;
+    json_array_foreach(kw_get_list(gobj, priv->jn_report, "sources", 0, KW_REQUIRED), idx, jn_source) {
+        kept += kw_get_int(gobj, jn_source, "kept", 0, 0);
+    }
 
-    if(priv->send_when_done) {
+    BOOL abandon = FALSE;
+    if(kept == 0) {
+        json_t *stored = load_report(gobj, priv->target_date);
+        if(stored) {
+            json_int_t had = kw_get_int(gobj,
+                json_object_get(stored, "totals"), "requests", 0, 0
+            );
+            had += kw_get_int(gobj, json_object_get(stored, "errors"), "total", 0, 0);
+            if(had > 0) {
+                abandon = TRUE;
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPERATIONAL,
+                    "msg",          "%s", "Read nothing for a day already stored with data, keeping the stored one",
+                    "date",         "%s", priv->target_date,
+                    "stored",       "%ld", (long)had,
+                    NULL
+                );
+            }
+            JSON_DECREF(stored)
+        }
+    }
+
+    if(!abandon) {
+        store_report(gobj);     // Error already logged
+        prune_store(gobj);      // Error already logged
+    }
+
+    if(priv->send_when_done && !abandon) {
         send_report(gobj);      // Error already logged
     }
 
