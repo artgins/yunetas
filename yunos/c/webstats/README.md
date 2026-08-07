@@ -180,6 +180,10 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 | `probe_patterns` | list | mirrors the fail2ban filter | what counts as a probe |
 | `internal_networks` | list | — | prefixes not counted as clients |
 | `keep_days` | int | 400 | days of aggregates kept |
+| `asset_extensions` | list | `.js`, `.css` | what a browser fetches to draw a page |
+| `bot_agents` | list | the usual marks | a user agent that says it is a crawler |
+| `new_visitor_days` | int | 30 | days of history that decide whether a visitor is new |
+| `visitor_salt` | str | — | salt of the visitor fingerprint (§8.5) |
 
 `report_hour` defaults to 06:00 and not to 00:05 on purpose: the window comes
 from the timestamps, so there is no reason to race `logrotate`, and a report
@@ -193,6 +197,26 @@ table is the suite talking to itself.
 
 ### 7.1 Access log
 
+- **Visitors, and how many are new.** The number the report exists to answer:
+  how many people used the site, not how much traffic arrived.
+  A **visitor** is an address that asked for a piece of the page — an
+  extension of `asset_extensions`, `.js` or `.css` by default — **and got it**
+  (2xx), and whose user agent carries no mark of `bot_agents`. That is the
+  honest signal: a browser fetches the page and its sub-resources, while a
+  scanner wearing a browser user agent asks for one URL and leaves. Measured
+  on 2026-08-06 on e.com: **1346 addresses claimed to be a browser and 71 ever
+  fetched a script.** A declared crawler is excluded even though Googlebot
+  does run JavaScript.
+  `full_page` counts the visitors that fetched five pieces or more, which is
+  what drawing a whole page costs.
+  **New** is a visitor whose fingerprint is in none of the last
+  `new_visitor_days` (30) days that are **stored**. The record says over how
+  many days it was compared: a day that is not in the store cannot say
+  somebody was there, so on a fresh install everybody is new.
+  ⚠️ **It is a floor, not a census.** Several people behind one NAT count as
+  one, a returning reader with a warm cache fetches no asset at all, and a
+  site with no JavaScript or CSS has no visitors by this measure. It answers
+  "did anybody use this today" and it does not answer "how many people".
 - Totals: requests, bytes, distinct clients, status classes 2xx/3xx/4xx/5xx.
 - Per hour: 24 counters.
 - **Per vhost** (`$host`): requests, the 2xx / 4xx / 5xx split, bytes and its
@@ -288,6 +312,18 @@ the **oldest**. Ask `tranger2_iterator_size()` for the row count and read that
 rowid forward. With the wrong call `get-report` answered for ever with the
 first version of a day, and a re-run to correct a day changed nothing that
 anybody can read. Found by rebuilding one day twice and looking at the store.
+
+### 8.5 Visitor fingerprints
+
+The record keeps a fingerprint per visitor, never the address. The store lives
+400 days, and a 400-day list of the addresses of the people who read the site
+is not something this yuno must hold. A fingerprint compares and counts exactly
+as well.
+
+⚠️ **It is not a security measure and does not pretend to be.** IPv4 is small
+enough to walk the whole space against a plain hash. Set `visitor_salt` where
+that matters. Changing the salt makes every earlier day look like strangers,
+so set it once and leave it.
 
 ### 8.4 What changed
 

@@ -65,6 +65,24 @@ PRIVATE const char *default_probe_patterns[] = {
     ".php", ".env", "/.git", "/.aws", "/.ssh", "/.svn", "/.hg", "/wp-", 0
 };
 
+/*
+ *  What a browser fetches to draw a page. Asking for one of these, and
+ *  getting it, is the honest mark of somebody who rendered the site: a
+ *  scanner wearing a browser user agent asks for one URL and leaves.
+ */
+PRIVATE const char *default_asset_extensions[] = {
+    ".js", ".css", 0
+};
+
+/*
+ *  A crawler that says so. Googlebot renders JavaScript, so without this
+ *  the search engines would be counted as visitors.
+ */
+PRIVATE const char *default_bot_agents[] = {
+    "bot", "Bot", "spider", "Spider", "crawl", "Crawl",
+    "Bytespider", "PetalBot", "GPTBot", "ClaudeBot", "facebookexternal", 0
+};
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -120,6 +138,8 @@ PRIVATE int store_report(hgobj gobj);
 PRIVATE json_t *load_report(hgobj gobj, const char *date);
 PRIVATE int prune_store(hgobj gobj);
 PRIVATE void compare_with_history(hgobj gobj);
+PRIVATE void count_new_visitors(hgobj gobj);
+PRIVATE const char *visitor_key(hgobj gobj, const char *client, char *bf, size_t bfsize);
 PRIVATE json_t *headline_of(hgobj gobj, json_t *record);
 
 /***************************************************************************
@@ -204,6 +224,10 @@ SDATA (DTP_INTEGER, "top_n",            SDF_WR|SDF_PERSIST, "20",       "Rows pe
 SDATA (DTP_INTEGER, "max_distinct_keys",SDF_RD,             "200000",   "Cap of keys per counter map"),
 SDATA (DTP_LIST,    "probe_patterns",   SDF_RD,             "[]",       "What counts as a probe. Empty: the same set as the fail2ban filter"),
 SDATA (DTP_LIST,    "internal_networks",SDF_RD,             "[]",       "Address prefixes not counted as clients"),
+SDATA (DTP_LIST,    "asset_extensions", SDF_RD,             "[]",       "What a browser fetches to render. Empty: js, css"),
+SDATA (DTP_LIST,    "bot_agents",       SDF_RD,             "[]",       "User agent marks of a declared crawler. Empty: the usual set"),
+SDATA (DTP_INTEGER, "new_visitor_days", SDF_WR|SDF_PERSIST, "30",       "Days of history that decide whether a visitor is new"),
+SDATA (DTP_STRING,  "visitor_salt",     SDF_RD,             "",         "Salt of the visitor fingerprint. Empty: none, see README"),
 SDATA (DTP_INTEGER, "keep_days",        SDF_RD,             "400",      "Days of aggregates kept"),
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,             "/yuneta/store/webstats", "Where the daily records live"),
 SDATA (DTP_STRING,  "tranger_database", SDF_RD,             "webstats", "TimeRanger2 database"),
@@ -260,6 +284,9 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_signatures;          // signature -> {count, first, last, sample}
     json_t *jn_vhosts;              // host -> {requests, bytes, status, latency}
     json_t *jn_probe_list;          // the patterns in use
+    json_t *jn_asset_list;          // extensions that mean "a page was drawn"
+    json_t *jn_bot_list;            // user agent marks of a declared crawler
+    json_t *jn_visitors;            // client -> assets it fetched
 
     hgobj gobj_tranger;             // the C_TRANGER service
     json_t *tranger;                // its handle, NOT ours
@@ -357,6 +384,9 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_signatures)
     JSON_DECREF(priv->jn_vhosts)
     JSON_DECREF(priv->jn_probe_list)
+    JSON_DECREF(priv->jn_asset_list)
+    JSON_DECREF(priv->jn_bot_list)
+    JSON_DECREF(priv->jn_visitors)
 }
 
 /***************************************************************************
@@ -1468,6 +1498,49 @@ PRIVATE int accumulate_access_line(hgobj gobj, const char *line)
     }
 
     /*
+     *  A visitor: somebody whose browser asked for a piece of the page and
+     *  got it. Everything else that claims to be a browser asks for one URL
+     *  and leaves -- on 2026-08-06 there were 1346 addresses wearing a
+     *  browser user agent and 71 that ever fetched a script.
+     *
+     *  A declared crawler is not a visitor even though Googlebot does run
+     *  the JavaScript.
+     */
+    if(al.status >= 200 && al.status < 300) {
+        char agent[512];
+        snprintf(agent, sizeof(agent), "%.*s", (int)al.agent_len, al.agent);
+
+        BOOL is_bot = FALSE;
+        json_t *jn_mark;
+        json_array_foreach(priv->jn_bot_list, idx, jn_mark) {
+            const char *mark = json_string_value(jn_mark);
+            if(!empty_string(mark) && strstr(agent, mark)) {
+                is_bot = TRUE;
+                break;
+            }
+        }
+
+        if(!is_bot) {
+            json_t *jn_ext;
+            json_array_foreach(priv->jn_asset_list, idx, jn_ext) {
+                const char *ext = json_string_value(jn_ext);
+                size_t ext_len = ext? strlen(ext):0;
+                if(ext_len == 0 || al.path_len < ext_len) {
+                    continue;
+                }
+                if(strncasecmp(al.path + al.path_len - ext_len, ext, ext_len)==0) {
+                    count_key(gobj, priv->jn_visitors, client, "visitors");
+                    if(jn_vhost) {
+                        json_t *jn_vv = kw_get_dict(gobj, jn_vhost, "__visitors__", json_object(), KW_CREATE);
+                        count_key(gobj, jn_vv, client, "visitors_by_vhost");
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /*
      *  Tops
      */
     count_keyn(gobj, priv->jn_paths, al.path, al.path_len, "paths");
@@ -1934,8 +2007,11 @@ PRIVATE json_t *headline_of(hgobj gobj, json_t *record)
     json_t *probes = json_object_get(record, "probes");
     json_t *errors = json_object_get(record, "errors");
     json_t *summary = json_object_get(record, "latency_summary");
+    json_t *visitors = json_object_get(record, "visitors");
 
-    return json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:f}",
+    return json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:f}",
+        "visitors", kw_get_int(gobj, visitors, "count", 0, 0),
+        "new_visitors", kw_get_int(gobj, visitors, "new", 0, 0),
         "requests", kw_get_int(gobj, totals, "requests", 0, 0),
         "bytes", kw_get_int(gobj, totals, "bytes", 0, 0),
         "clients", kw_get_int(gobj, totals, "clients", 0, 0),
@@ -2029,9 +2105,10 @@ PRIVATE void compare_with_history(hgobj gobj)
      *  and not as "this was never computed".
      */
     static const char *keys[] = {
+        "visitors", "new_visitors",
         "requests", "bytes", "clients", "4xx", "5xx", "probes", "errors", 0
     };
-    double values[8][7];
+    double values[10][7];
     double p95[7];
     size_t n = 0;
 
@@ -2080,6 +2157,132 @@ PRIVATE void compare_with_history(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The fingerprint of a visitor.
+ *
+ *  The store keeps 400 days, and a 400-day list of the addresses of the
+ *  people who read the site is not something this yuno should be holding.
+ *  A fingerprint compares and counts exactly as well as the address does,
+ *  and carries none of it forward.
+ *
+ *  It is NOT a security measure and does not pretend to be: IPv4 is small
+ *  enough to walk the whole space against a plain hash. Set `visitor_salt`
+ *  when that matters. Changing the salt makes every earlier day look like
+ *  strangers, so it is read once and left alone.
+ ***************************************************************************/
+PRIVATE const char *visitor_key(hgobj gobj, const char *client, char *bf, size_t bfsize)
+{
+    const char *salt = gobj_read_str_attr(gobj, "visitor_salt");
+
+    uint64_t h = 1469598103934665603ULL;        // FNV-1a offset basis
+    for(const char *p = salt; p && *p; p++) {
+        h = (h ^ (unsigned char)*p) * 1099511628211ULL;
+    }
+    for(const char *p = client; p && *p; p++) {
+        h = (h ^ (unsigned char)*p) * 1099511628211ULL;
+    }
+
+    snprintf(bf, bfsize, "%012llx", (unsigned long long)(h & 0xffffffffffffULL));
+
+    return bf;
+}
+
+/***************************************************************************
+ *  How many of today's visitors were not here before.
+ *
+ *  "New" is measured against the fingerprints of the last
+ *  `new_visitor_days` days that are stored. A day that is missing from the
+ *  store cannot say anybody was there, so its visitors count as new, and
+ *  the record says over how many days the answer was computed.
+ ***************************************************************************/
+PRIVATE void count_new_visitors(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_visitors_block = kw_get_dict(gobj, priv->jn_report, "visitors", 0, KW_REQUIRED);
+    json_t *jn_keys = kw_get_list(gobj, priv->jn_report, "visitor_keys", 0, KW_REQUIRED);
+
+    if(json_array_size(jn_keys) == 0) {
+        json_object_set_new(jn_visitors_block, "new", json_integer(0));
+        json_object_set_new(jn_visitors_block, "returning", json_integer(0));
+        json_object_set_new(jn_visitors_block, "compared_days", json_integer(0));
+        return;
+    }
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    if(!strptime(priv->target_date, "%Y-%m-%d", &tm)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot read back the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return;
+    }
+    tm.tm_hour = 12;
+    tm.tm_isdst = -1;
+    time_t target = mktime(&tm);
+    if(target == (time_t)-1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "mktime() FAILED on the target date",
+            "date",         "%s", priv->target_date,
+            NULL
+        );
+        return;
+    }
+
+    json_int_t window = gobj_read_integer_attr(gobj, "new_visitor_days");
+    if(window <= 0) {
+        window = 30;
+    }
+
+    json_t *jn_seen = json_object();
+    json_int_t compared = 0;
+
+    for(json_int_t back=1; back<=window; back++) {
+        char date[DATE_SIZE];
+        if(date_of(gobj, target - back*24*60*60, date, sizeof(date)) < 0) {
+            continue;               // Error already logged
+        }
+
+        json_t *record = load_report(gobj, date);
+        if(!record) {
+            continue;               // a day with no report is not an error
+        }
+        compared++;
+
+        size_t idx;
+        json_t *jn_key;
+        json_array_foreach(json_object_get(record, "visitor_keys"), idx, jn_key) {
+            const char *key = json_string_value(jn_key);
+            if(!empty_string(key)) {
+                json_object_set_new(jn_seen, key, json_true());
+            }
+        }
+        JSON_DECREF(record)
+    }
+
+    json_int_t fresh = 0;
+    size_t idx;
+    json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        if(!json_object_get(jn_seen, json_string_value(jn_key))) {
+            fresh++;
+        }
+    }
+    JSON_DECREF(jn_seen)
+
+    json_object_set_new(jn_visitors_block, "new", json_integer(fresh));
+    json_object_set_new(jn_visitors_block, "returning",
+        json_integer((json_int_t)json_array_size(jn_keys) - fresh)
+    );
+    json_object_set_new(jn_visitors_block, "compared_days", json_integer(compared));
+}
+
+/***************************************************************************
  *  Fold the counter maps of the run into the record.
  *
  *  Only the top of each map goes in. The maps themselves are dropped with
@@ -2098,6 +2301,32 @@ PRIVATE void close_report(hgobj gobj)
     json_object_set_new(jn_totals, "clients",
         json_integer((json_int_t)json_object_size(priv->jn_clients))
     );
+
+    /*
+     *  Visitors. `full_page` are the ones that fetched enough pieces to
+     *  have drawn a whole page, not just one stray script.
+     */
+    json_int_t full_page = 0;
+    const char *vkey;
+    json_t *jn_vcount;
+    json_object_foreach(priv->jn_visitors, vkey, jn_vcount) {
+        if(json_integer_value(jn_vcount) >= 5) {
+            full_page++;
+        }
+    }
+
+    json_t *jn_visitors_block = kw_get_dict(gobj, priv->jn_report, "visitors", 0, KW_REQUIRED);
+    json_object_set_new(jn_visitors_block, "count",
+        json_integer((json_int_t)json_object_size(priv->jn_visitors))
+    );
+    json_object_set_new(jn_visitors_block, "full_page", json_integer(full_page));
+
+    json_t *jn_keys = json_array();
+    json_object_foreach(priv->jn_visitors, vkey, jn_vcount) {
+        char key[32];
+        json_array_append_new(jn_keys, json_string(visitor_key(gobj, vkey, key, sizeof(key))));
+    }
+    json_object_set_new(priv->jn_report, "visitor_keys", sorted_strings(jn_keys));
 
     json_t *jn_top = kw_get_dict(gobj, priv->jn_report, "top", 0, KW_REQUIRED);
     json_object_set_new(jn_top, "paths", top_of(priv->jn_paths, priv->top_n));
@@ -2126,6 +2355,13 @@ PRIVATE void close_report(hgobj gobj)
     json_object_foreach(priv->jn_vhosts, host, jn_vhost) {
         json_t *jn_latency = json_object_get(jn_vhost, "latency");
         json_object_set_new(jn_vhost, "latency_summary", latency_percentiles(jn_latency));
+
+        json_t *jn_vv = json_object_get(jn_vhost, "__visitors__");
+        json_object_set_new(jn_vhost, "visitors",
+            json_integer((json_int_t)json_object_size(jn_vv))
+        );
+        json_object_del(jn_vhost, "__visitors__");      // the set was working state
+
         json_object_set(jn_by_vhost, host, jn_vhost);
     }
     json_object_set_new(priv->jn_report, "by_vhost", jn_by_vhost);
@@ -2233,6 +2469,14 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
         "top_patterns",
         "top_clients"
     ));
+    json_object_set_new(priv->jn_report, "visitors", json_pack("{s:I, s:I, s:I, s:I, s:I}",
+        "count", (json_int_t)0,
+        "full_page", (json_int_t)0,
+        "new", (json_int_t)0,
+        "returning", (json_int_t)0,
+        "compared_days", (json_int_t)0
+    ));
+    json_object_set_new(priv->jn_report, "visitor_keys", json_array());
     json_object_set_new(priv->jn_report, "latency", new_latency());
     json_object_set_new(priv->jn_report, "by_vhost", json_object());
 
@@ -2255,7 +2499,11 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     JSON_DECREF(priv->jn_signatures)
     JSON_DECREF(priv->jn_vhosts)
     JSON_DECREF(priv->jn_probe_list)
+    JSON_DECREF(priv->jn_asset_list)
+    JSON_DECREF(priv->jn_bot_list)
+    JSON_DECREF(priv->jn_visitors)
 
+    priv->jn_visitors = json_object();
     priv->jn_clients = json_object();
     priv->jn_paths = json_object();
     priv->jn_not_found = json_object();
@@ -2274,6 +2522,30 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
         for(int i=0; default_probe_patterns[i]; i++) {
             json_array_append_new(priv->jn_probe_list,
                 json_string(default_probe_patterns[i])
+            );
+        }
+    }
+
+    priv->jn_asset_list = json_array();
+    jn_configured = gobj_read_json_attr(gobj, "asset_extensions");
+    if(json_array_size(jn_configured) > 0) {
+        json_array_extend(priv->jn_asset_list, jn_configured);
+    } else {
+        for(int i=0; default_asset_extensions[i]; i++) {
+            json_array_append_new(priv->jn_asset_list,
+                json_string(default_asset_extensions[i])
+            );
+        }
+    }
+
+    priv->jn_bot_list = json_array();
+    jn_configured = gobj_read_json_attr(gobj, "bot_agents");
+    if(json_array_size(jn_configured) > 0) {
+        json_array_extend(priv->jn_bot_list, jn_configured);
+    } else {
+        for(int i=0; default_bot_agents[i]; i++) {
+            json_array_append_new(priv->jn_bot_list,
+                json_string(default_bot_agents[i])
             );
         }
     }
@@ -2325,6 +2597,7 @@ PRIVATE int finish_run(hgobj gobj)
     gobj_change_state(gobj, ST_REPORTING);
 
     close_report(gobj);
+    count_new_visitors(gobj);
     compare_with_history(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_REPORT) {
@@ -2615,6 +2888,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     json_t *previous = changed? json_object_get(changed, "previous") : NULL;
     json_t *median = changed? json_object_get(changed, "median_7d") : NULL;
     json_t *summary = json_object_get(report, "latency_summary");
+    json_t *visitors = json_object_get(report, "visitors");
 
     json_int_t requests = json_integer_value(json_object_get(totals, "requests"));
     json_int_t s5xx = json_integer_value(json_object_get(status, "5xx"));
@@ -2624,13 +2898,28 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     gbuffer_printf(gbuf,
         "<div style=\"font:14px sans-serif;color:#222;max-width:820px\">"
         "<h2 style=\"font:600 17px sans-serif;margin:0 0 2px\">%s &middot; %s</h2>"
+        "<div style=\"font-size:15px;margin-bottom:2px\">"
+        "<b>%lld visitors</b><span style=\"color:#380\"> &middot; %lld new</span>"
+        "<span style=\"color:#777\"> &middot; %lld of them drew a whole page</span></div>"
         "<div style=\"color:#777;font-size:12px;margin-bottom:14px\">"
         "%lld requests &middot; %lld errors &middot; %lld probes</div>",
         html_escape(json_string_value(json_object_get(report, "node")), bf, sizeof(bf)),
         json_string_value(json_object_get(report, "date")),
+        (long long)json_integer_value(json_object_get(visitors, "count")),
+        (long long)json_integer_value(json_object_get(visitors, "new")),
+        (long long)json_integer_value(json_object_get(visitors, "full_page")),
         (long long)requests,
         (long long)json_integer_value(json_object_get(errors, "total")),
         (long long)json_integer_value(json_object_get(probes, "requests"))
+    );
+
+    json_int_t compared = json_integer_value(json_object_get(visitors, "compared_days"));
+    gbuffer_printf(gbuf,
+        "<div style=\"color:#999;font-size:11px;margin:-10px 0 14px\">"
+        "a visitor is an address that fetched a piece of the page and got it, "
+        "and is not a declared crawler. New is against the last %lld stored "
+        "days.</div>",
+        (long long)compared
     );
 
     /*-----------------------------------------------*
@@ -2758,6 +3047,10 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         "</tr>%s", ""
     );
 
+    changed_row(gbuf, "visitors", json_integer_value(json_object_get(visitors, "count")),
+        previous, median, "visitors", FALSE);
+    changed_row(gbuf, "new visitors", json_integer_value(json_object_get(visitors, "new")),
+        previous, median, "new_visitors", FALSE);
     changed_row(gbuf, "requests", requests, previous, median, "requests", FALSE);
     changed_row(gbuf, "bytes", json_integer_value(json_object_get(totals, "bytes")),
         previous, median, "bytes", TRUE);
@@ -2818,6 +3111,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             "<table style=\"border-collapse:collapse;font:12px monospace\">"
             "<tr style=\"color:#777;font-size:11px\">"
             "<th style=\"text-align:left;padding:0 10px 0 0\">host</th>"
+            "<th style=\"text-align:right;padding:0 10px\">visitors</th>"
             "<th style=\"text-align:right;padding:0 10px\">requests</th>"
             "<th style=\"text-align:right;padding:0 10px\">2xx</th>"
             "<th style=\"text-align:right;padding:0 10px\">4xx</th>"
@@ -2858,6 +3152,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
             gbuffer_printf(gbuf,
                 "<tr>"
                 "<td style=\"padding:2px 10px 2px 0;border-bottom:1px solid #f0f0f0\">%s</td>"
+                "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\"><b>%lld</b></td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#380\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
@@ -2866,6 +3161,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
                 "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%s</td>"
                 "</tr>",
                 html_escape(host, bf, sizeof(bf)),
+                (long long)json_integer_value(json_object_get(jn_vhost, "visitors")),
                 (long long)json_integer_value(json_object_get(jn_vhost, "requests")),
                 (long long)json_integer_value(json_object_get(vstatus, "2xx")),
                 (long long)json_integer_value(json_object_get(vstatus, "4xx")),
