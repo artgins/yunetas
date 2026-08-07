@@ -198,8 +198,8 @@ table is the suite talking to itself.
 - **Per vhost** (`$host`): requests, bytes, status classes and its own latency
   histogram. This is what `$host` was added for.
   The mail shows the busiest `top_n` and says how many more answered. The name
-  comes from the Host header, so anybody can invent one: the first mail from
-  e.com listed 52 rows, half of them forged names with one request each.
+  is the Host header, so anybody can invent one: the first mail from e.com
+  listed 52 rows, half of them forged names with one request each.
   Distinct clients are counted **once, globally**, and not per vhost: a set of
   addresses per name multiplies the worst case by the number of vhosts, and
   the number that gets read is the total.
@@ -224,8 +224,21 @@ table is the suite talking to itself.
   and the buckets of two days can be added, so the weekly view is free.
   p50/p95/p99 are the **upper edge of the bucket** the percentile falls in,
   not an interpolation. "p95 is at most 0.5 s" is true. A number invented
-  between two edges is not. A percentile above the last edge is reported as
-  `-1`, which reads as *slower than 10 s*.
+  between two edges is not. A percentile above the last edge is `-1` in the
+  record and prints as **`>10s`** in the mail: printed as a number it reads
+  like a broken field, not like an answer.
+  The mail also says **over how many requests** the latency was measured.
+  Only the newest `log_format` carries a time, so on the day the format
+  changed it covered 2034 of 8711 requests — and a reader who is not told
+  that reads the p95 as the whole day.
+  ⚠️ **A percentile is not a diagnosis.** On 2026-08-06 `yuneta.io` showed a
+  p95 of 10 s. All 18 slow requests were one client in a two-minute window,
+  fetching static `/build/*.js` over HTTP/2 with no upstream, most of them
+  with **0 bytes delivered**, and their times came in identical clusters
+  (26.789 ×5, 28.312 ×9) — one connection whose multiplexed streams all
+  ended together. `$request_time` counts the client's own read speed, so a
+  stalled browser looks exactly like a slow server. Check `ups=` and the
+  client before believing a tail.
   ⚠️ The bucket index is a **ceiling** division. Truncating puts the p95 of
   two measures on the first bucket, so a day where one of two requests took
   half a second reports as a fast day.

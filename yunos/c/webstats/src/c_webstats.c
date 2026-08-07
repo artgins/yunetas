@@ -100,6 +100,7 @@ PRIVATE int accumulate_error_line(hgobj gobj, const char *line);
 PRIVATE int send_report(hgobj gobj);
 PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report);
 PRIVATE gbuffer_t *break_tag_lines(gbuffer_t *src);
+PRIVATE const char *latency_str(double v, char *bf, size_t bfsize);
 PRIVATE int date_of(hgobj gobj, time_t t, char *bf, size_t bfsize);
 PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al);
 PRIVATE int count_key(hgobj gobj, json_t *jn_map, const char *key, const char *map_name);
@@ -2451,6 +2452,25 @@ PRIVATE const char *delta_of(json_int_t now, json_int_t before, char *bf, size_t
 }
 
 /***************************************************************************
+ *  A percentile, as text.
+ *
+ *  percentile_of() answers -1 when the value is past the last bucket edge,
+ *  which is the honest answer: the histogram knows it is above 10 s and not
+ *  by how much. Printed as a number it reads "-1.000", which looks like a
+ *  broken field and not like an answer.
+ ***************************************************************************/
+PRIVATE const char *latency_str(double v, char *bf, size_t bfsize)
+{
+    if(v < 0) {
+        snprintf(bf, bfsize, "%s", "&gt;10s");
+    } else {
+        snprintf(bf, bfsize, "%.3fs", v);
+    }
+
+    return bf;
+}
+
+/***************************************************************************
  *  One row of the "what changed" table.
  ***************************************************************************/
 PRIVATE void changed_row(
@@ -2724,13 +2744,29 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
     }
 
     if(summary && json_object_size(summary) > 0) {
+        /*
+         *  Say over how many requests. Only the lines of the newest
+         *  log_format carry a time, so on the day the format changed the
+         *  latency covered 2034 of 8711 requests -- and a reader who is not
+         *  told that reads "p95" as the whole day.
+         */
+        json_int_t samples = json_integer_value(
+            json_object_get(json_object_get(report, "latency"), "count")
+        );
+        char p50[32], p95[32], p99[32];
+
         gbuffer_printf(gbuf,
             "<div style=\"font-size:12px;color:#444;margin-top:10px\">"
-            "latency: avg %.3fs &middot; p50 %.3fs &middot; p95 %.3fs &middot; p99 %.3fs</div>",
+            "latency: avg %.3fs &middot; p50 %s &middot; p95 %s &middot; p99 %s"
+            "<span style=\"color:#777\"> &mdash; over %lld of %lld requests "
+            "(%d%%), max %.3fs</span></div>",
             json_number_value(json_object_get(summary, "avg")),
-            json_number_value(json_object_get(summary, "p50")),
-            json_number_value(json_object_get(summary, "p95")),
-            json_number_value(json_object_get(summary, "p99"))
+            latency_str(json_number_value(json_object_get(summary, "p50")), p50, sizeof(p50)),
+            latency_str(json_number_value(json_object_get(summary, "p95")), p95, sizeof(p95)),
+            latency_str(json_number_value(json_object_get(summary, "p99")), p99, sizeof(p99)),
+            (long long)samples, (long long)requests,
+            requests? (int)((samples*100)/requests) : 0,
+            json_number_value(json_object_get(json_object_get(report, "latency"), "max"))
         );
     }
 
@@ -2768,6 +2804,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
         json_t *jn_ranked = top_of(jn_order, priv_top_n);
         JSON_DECREF(jn_order)
 
+        char vp95[32];
         size_t shown = 0;
         json_t *jn_rank;
         json_array_foreach(jn_ranked, shown, jn_rank) {
@@ -2785,14 +2822,17 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
                 "<td style=\"padding:2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%lld</td>"
-                "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%.3f</td>"
+                "<td style=\"padding:2px 0 2px 10px;border-bottom:1px solid #f0f0f0;text-align:right\">%s</td>"
                 "</tr>",
                 html_escape(host, bf, sizeof(bf)),
                 (long long)json_integer_value(json_object_get(jn_vhost, "requests")),
                 (long long)json_integer_value(json_object_get(jn_vhost, "bytes")),
                 (long long)json_integer_value(json_object_get(vstatus, "4xx")),
                 (long long)json_integer_value(json_object_get(vstatus, "5xx")),
-                vsummary? json_number_value(json_object_get(vsummary, "p95")) : 0.0
+                latency_str(
+                    vsummary? json_number_value(json_object_get(vsummary, "p95")) : 0.0,
+                    vp95, sizeof(vp95)
+                )
             );
         }
         gbuffer_printf(gbuf, "%s", "</table>");
