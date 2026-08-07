@@ -30,7 +30,7 @@
   `fail2ban`'s job), a latency histogram with percentiles, and the error log
   grouped by signature — the half where the real findings were.
 
-  Documented at [`/yunos/webstats`](https://doc.yuneta.io/webstats) and in
+  Documented at [`/webstats`](https://doc.yuneta.io/webstats) and in
   `yunos/c/webstats/README.md`, which carries the design and the traps.
 
 ### Changed
