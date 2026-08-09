@@ -11,6 +11,7 @@
   - Signal handlers
   - Filesystem (`fs_watcher` in `timeranger2`)
 - Submit → callback pattern: every call returns immediately; the callback runs when the kernel reports completion
+- Delivery of posted messages: every cycle of `yev_loop_run()` starts by calling `gobj_deliver_posted_messages()`, so an action that used `gobj_post_message()` to leave the stack it was on continues on the next turn. While any are pending the loop does not block on the ring
 - Cross-loop messaging primitives used by multi-yuno deployments
 
 There is **no threading** — scaling is achieved by running one yuno per CPU core and exchanging events between them.

@@ -11,19 +11,25 @@ A sealed node has no SSH, so a tool you must log in to run is a task that stops
 working the day the node is sealed. This one runs inside the node and sends the
 answer out.
 
-**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.9.13/yunos/c/webstats/README.md)
+**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/webstats/README.md)
 
 ## Architecture
 
 ```
 C_WEBSTATS
     C_TIMER         <- the daily schedule
-    C_TIMER0        <- the continuation between files
     C_LOG_READER    <- one per file being read (created, used, destroyed)
 ```
 
 `C_LOG_READER` turns one file into events (`EV_LOG_LINES`, `EV_LOG_EOF`,
-`EV_LOG_ERROR`) and knows nothing about nginx. `C_WEBSTATS` parses the lines,
+`EV_LOG_ERROR`) and knows nothing about nginx.
+
+The two continuations of a run are not timers. A file ends inside the reader's
+own publish stack, so the reader cannot be destroyed there, and the work has to
+cross a cycle of the loop: `C_WEBSTATS` posts `EV_NEXT_FILE` to itself and the
+reader posts `EV_READ_CHUNK` to itself, with
+[`gobj_post_message()`](../api/gobj/events_state.md#gobj_post_message). The only
+timer left is the schedule, which measures a real time. `C_WEBSTATS` parses the lines,
 keeps the counters, writes the daily record and hands the mail over.
 
 ## The line sets the day, not the file

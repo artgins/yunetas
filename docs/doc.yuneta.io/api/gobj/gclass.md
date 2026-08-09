@@ -4,11 +4,11 @@ Register and introspect GClasses — the class descriptors that define a gobj's 
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c)
 
 (gclass2json)=
-## [`gclass2json()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L7169)
+## [`gclass2json()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7229)
 
 Converts a given `hgclass` object into a JSON representation, including its attributes, commands, methods, and trace levels.
 
@@ -35,7 +35,7 @@ This function provides a structured JSON output of a `hgclass`, including its at
 ---
 
 (gclass_add_ev_action)=
-## [`gclass_add_ev_action()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L898)
+## [`gclass_add_ev_action()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L951)
 
 Adds an event-action pair to a specified state in the given `hgclass`. The function associates an event with an action function and a next state transition.
 
@@ -70,7 +70,7 @@ This function makes sure that an event-action pair is uniquely associated with a
 ---
 
 (gclass_add_event_type)=
-## [`gclass_add_event_type()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L979)
+## [`gclass_add_event_type()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1032)
 
 Adds a new event type to the specified `gclass`. The event type is appended to the list of events associated with the `gclass`.
 
@@ -100,7 +100,7 @@ Make sure that the `event_type` does not already exist in the `gclass` before ca
 ---
 
 (gclass_add_state)=
-## [`gclass_add_state()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L817)
+## [`gclass_add_state()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L870)
 
 Adds a new state to the finite state machine of the specified `hgclass`. The state is identified by `state_name` and is used to define event transitions.
 
@@ -129,7 +129,7 @@ This function is used to define states in a gclass's finite state machine. Each 
 ---
 
 (gclass_attr_desc)=
-## [`gclass_attr_desc()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L3347)
+## [`gclass_attr_desc()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L3407)
 
 Retrieves the attribute description of a given `gclass`. If `attr` is NULL, it returns the full attribute table.
 
@@ -160,7 +160,7 @@ If `verbose` is set to TRUE and the attribute is not found, an error message is 
 ---
 
 (gclass_authz_desc)=
-## [`gclass_authz_desc()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L3333)
+## [`gclass_authz_desc()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L3393)
 
 Retrieves the authorization descriptor table for a given `gclass`. The descriptor table defines the access control list (ACL) for the `gclass`.
 
@@ -187,7 +187,7 @@ This function is useful for inspecting the access control definitions of a `gcla
 ---
 
 (gclass_check_fsm)=
-## [`gclass_check_fsm()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1225)
+## [`gclass_check_fsm()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1278)
 
 Checks the finite state machine (FSM) of a given `hgclass` for consistency. This makes sure that all states and events are properly defined.
 
@@ -214,7 +214,7 @@ This function verifies that all states exist, that events are properly defined, 
 ---
 
 (gclass_command_desc)=
-## [`gclass_command_desc()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L6425)
+## [`gclass_command_desc()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L6485)
 
 Retrieves the data description of a command in a given `gclass`. If `name` is NULL, it returns the full command table.
 
@@ -245,7 +245,7 @@ If `verbose` is TRUE and the command is not found, an error message is logged.
 ---
 
 (gclass_create)=
-## [`gclass_create()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L665)
+## [`gclass_create()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L718)
 
 Creates and registers a new `gclass`, defining its event types, states, methods, and attributes.
 
@@ -295,7 +295,7 @@ If the FSM is invalid, the `gclass` is unregistered and `NULL` is returned.
 ---
 
 (gclass_find_by_name)=
-## [`gclass_find_by_name()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1144)
+## [`gclass_find_by_name()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1197)
 
 Searches for a `gclass` by its name and returns a handle to it if found.
 
@@ -322,7 +322,7 @@ If the `gclass` is not found, the function returns `NULL` without logging an err
 ---
 
 (gclass_event_type)=
-## [`gclass_event_type()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1209)
+## [`gclass_event_type()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1262)
 
 Searches for an event in the event list of a given `gclass` and returns its event type if found.
 
@@ -351,7 +351,7 @@ This function does not check system events. It only searches within the event li
 ---
 
 (gclass_find_public_event)=
-## [`gclass_find_public_event()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1023)
+## [`gclass_find_public_event()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1076)
 
 Finds a public event by name in any registered `gclass`. Returns a pointer to the event if found, otherwise returns `NULL`.
 
@@ -380,7 +380,7 @@ This function iterates over all registered `gclass` instances to locate a public
 ---
 
 (gclass_gclass_name)=
-## [`gclass_gclass_name()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1076)
+## [`gclass_gclass_name()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1129)
 
 Returns the name of the given `hgclass` as a string.
 
@@ -405,7 +405,7 @@ This function does not allocate memory. The returned string is managed internall
 ---
 
 (gclass_gclass_register)=
-## [`gclass_gclass_register()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1116)
+## [`gclass_gclass_register()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1169)
 
 Returns a JSON array containing the registered GClasses with their instance counts.
 
@@ -430,7 +430,7 @@ This function is useful for debugging and monitoring the registered GClasses in 
 ---
 
 (gclass_has_attr)=
-## [`gclass_has_attr()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1089)
+## [`gclass_has_attr()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1142)
 
 Checks if the given `gclass` contains an attribute with the specified `name`.
 
@@ -459,7 +459,7 @@ This function performs a case-sensitive search for the attribute name.
 ---
 
 (gclass_unregister)=
-## [`gclass_unregister()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L1035)
+## [`gclass_unregister()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L1088)
 
 Unregisters a `gclass`, freeing its allocated resources if no instances exist.
 

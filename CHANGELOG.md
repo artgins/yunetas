@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+
+## 7.10.0
+
+A minor, not a patch: the framework gets a call it did not have.
+
+`gobj_post_message()` names something every gclass already did and had no way
+to say — *do this, but not on this stack*. Until now that was written as a
+`C_TIMER0` of one millisecond, which is a time for something that is not a
+time, and which cost the name of the event: every deferred continuation
+arrived as `EV_TIMEOUT`, so the `machine` trace, which is the execution log of
+a yuno, said "timeout" instead of what happened.
+
+The call is not new to Yuneta. It existed in the first versions and was cut
+when io_uring came in; what was missing was the wiring, not the design.
+
+Nothing is removed and nothing changes shape: a gclass that does not call it
+behaves exactly as before. `webstats` is the first consumer and the only yuno
+that changed.
+
 ### Added
 
 - **`gobj_post_message()`: an event a gobj sends to itself, delivered on the

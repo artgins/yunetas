@@ -81,6 +81,12 @@ Same as [C_TIMER](#gclass-c-timer).
 - Use [`set_timeout0()`](../runtime/timer.md#set_timeout0),
   [`set_timeout_periodic0()`](../runtime/timer.md#set_timeout_periodic0),
   and [`clear_timeout0()`](../runtime/timer.md#clear_timeout0).
+- **Not for a deferral.** A timer of one millisecond, armed to continue on the
+  next cycle of the loop, is not a time: it costs an io_uring timeout for
+  something with nothing to wait for, and every continuation then arrives as
+  `EV_TIMEOUT`, so the `machine` trace says "timeout" instead of what happened.
+  Use [`gobj_post_message()`](../gobj/events_state.md#gobj_post_message) for
+  that, and a timer when there is a real time to measure.
 
 ---
 
