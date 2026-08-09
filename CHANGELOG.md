@@ -26,10 +26,15 @@
     and destroying the SOURCE clears `src` and keeps the entry, because the
     destination still wants its event and gets it with `src == NULL`.
 
-    The only caller is `webstats`, so nothing outside this tree breaks. What
-    still differs between the three implementations is written down in
-    `TODO.md` — JS defers with `setTimeout(…, 10)`, which is the very thing
-    this call exists to stop writing.
+    The only caller is `webstats`, so nothing outside this tree breaks.
+
+- **`gobj-js` aligned to the same contract** (package `7.10.0`). It deferred
+    with `setTimeout(…, 10)` — one timer per event, and ten milliseconds
+    standing in for "later", which is the very thing this call exists to stop
+    writing. It now keeps a queue drained once per turn, a snapshot at a time,
+    with the same lifetime rules, the same check at post time, the same
+    ceiling and a trace line. Nothing called it, so the change breaks nobody.
+    ESP32 still has its own contract, and what differs is in `TODO.md`.
 
 ## 7.10.0-2
 
