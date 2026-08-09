@@ -40,6 +40,20 @@
     periodic timer: draining the queue until empty instead gives 2.2 million
     links and not one completion seen.
 
+### Fixed
+
+- **`webstats`: a file whose reader could not be built left the report and
+    skipped the next one.** The path recorded nothing in `sources`, so the
+    file vanished from a report that then read as a report of everything —
+    the one thing `sources` exists to prevent. It also dropped the file from
+    the pending list itself, and `ac_next_file()` drops the head too, so the
+    **next** file went with it, unread and unmentioned.
+
+    The second half only became reachable with the change below: before it,
+    the correlator guard abandoned the run before either removal. Found by
+    forcing the path, which had never executed — the fix is that the file is
+    recorded as unread and the list is left to its single owner.
+
 ### Changed
 
 - **`webstats` uses posted messages for its two continuations.** The

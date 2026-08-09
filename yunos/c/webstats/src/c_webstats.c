@@ -2559,8 +2559,25 @@ PRIVATE int start_next_file(hgobj gobj)
         "path", path
     ), gobj);
     if(!priv->reader) {
-        // Error already logged
-        json_array_remove(priv->jn_files, 0);
+        /*
+         *  Error already logged. The file is recorded as unread for the same
+         *  reason ac_log_error() records the ones the reader could not open:
+         *  a report that drops a source without saying so reads as a report
+         *  of everything, and the day it matters nobody can tell the two
+         *  apart. The record goes in BEFORE the file leaves the list, while
+         *  its path is still there to copy.
+         */
+        json_t *jn_sources = kw_get_list(gobj, priv->jn_report, "sources", 0, KW_REQUIRED);
+        json_array_append_new(jn_sources, json_pack("{s:s, s:s}",
+            "file", path,
+            "error", "cannot create the reader"
+        ));
+
+        /*
+         *  The file is NOT dropped here. ac_next_file() owns that, for every
+         *  way a file can end, and doing it in both places drops TWO: this
+         *  one and the next, which then never appears in the report at all.
+         */
         gobj_post_message(gobj, EV_NEXT_FILE, 0);
         return -1;
     }

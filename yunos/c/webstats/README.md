@@ -388,7 +388,11 @@ zero. Against zero, the first morning reads as *everything doubled*.
 Every `top` row is `{"key": …, "count": …}`. `latency` keeps the raw buckets
 so two days can be added. `latency_summary` is what a reader looks at.
 `sources[].lines` is what the file holds, `kept` is what fell inside the day,
-and `unparsed` is what the parser did not understand.
+and `unparsed` is what the parser did not understand. A file that was not read
+appears with `error` instead of the counts, whatever stopped it: the file is
+absent, or the reader for it was not built. **Every file of the run appears
+in `sources`, in one form or the other.** A report that drops a source without
+saying so reads as a report of everything.
 
 `version` is in the record because the shape will grow. A reader that finds a
 version it does not know says so. It does not guess.
