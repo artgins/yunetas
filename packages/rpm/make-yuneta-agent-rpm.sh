@@ -872,12 +872,6 @@ chmod 0755 "${STAGE}/etc/init.d/yuneta_agent"
 # daemonize. Nothing owned it after that: a later `start` found nothing running
 # and tried again, and the new master died with "Address already in use" while
 # the old one kept serving. Measured on yunovatios-central, 2026-08-09.
-#
-# On this distro it also decides the SELinux domain. Started from the SysV
-# script the server lands in initrc_t, and the nightly logrotate -- confined,
-# under systemd -- rotated the files without its USR1 ever reaching it, so
-# nginx kept writing to the renamed file and the new access.log stayed empty
-# for a day. Same drop-in on Debian, no SELinux, no problem.
 mkdir -p "${STAGE}/usr/lib/systemd/system"
 cat > "${STAGE}/usr/lib/systemd/system/yuneta-webserver.service" <<'EOF'
 [Unit]

@@ -24,13 +24,6 @@
     the scriptlet asks that one to finish first and waits for it, then starts
     the unit and says so in the log if it did not come up.
 
-    This also removes the reason the server ran in the `initrc_t` SELinux
-    domain on Rocky, which is where the nightly logrotate rotated the files
-    without its USR1 ever reaching nginx — the server kept writing to the
-    renamed file and `access.log` stayed empty for a day, with nothing in any
-    log to say why. Whether the new domain settles that is a thing to measure
-    on the node, not to assume.
-
 
 ## 7.10.0
 
