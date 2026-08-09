@@ -156,6 +156,24 @@ surprising and un-idiomatic. The kernel tuning is applied live with
 10. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
     on RHEL; only appended if genuinely missing and not authselect-managed).
 
+## Web server service
+
+- Installs `/usr/lib/systemd/system/yuneta-webserver.service` and
+  `/yuneta/bin/yuneta-webserver`, and enables and starts the unit.
+- **The web server is no longer started by the init script.** It used to be:
+  `/etc/init.d/yuneta_agent` ran nginx and let it daemonize, so nothing owned
+  the process afterwards. A later `start` found nothing to look at and tried
+  again, and the second master died with *"Address already in use"* while the
+  first one kept serving.
+- The unit runs the server with `daemon off`, so `$MAINPID` is the real master
+  and stop and reload reach it. `systemctl reload` sends HUP, which reloads the
+  configuration. Reopening the log files is USR1 and stays where it was, in the
+  `postrotate` of `/etc/logrotate.d/yuneta`.
+- On upgrade the scriptlet asks the old, daemonized server to finish before it
+  starts the unit, because the unit cannot take `:80` and `:443` while the old
+  master holds them. **That is a short interruption of the node's web server,
+  at upgrade time only.**
+
 ## What `%pre` and `%posttrans` do (the web server config)
 
 The web server configuration belongs to the **node**, so it is stripped from

@@ -402,6 +402,115 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "${WORKDIR}/usr/lib/systemd/system/yuneta-core-pattern.service"
 
+# --- The node's web server, as its own unit ---
+#
+# It used to be started by /etc/init.d/yuneta_agent, which ran nginx and let it
+# daemonize. Nothing owned it after that: systemd lost the process the moment
+# it forked, so a second `start` found nothing running and tried again, and the
+# new master died with "Address already in use" while the old one kept serving.
+# Measured on yunovatios-central, 2026-08-09.
+#
+# Type=exec with 'daemon off' (the wrapper adds it) makes systemd supervise the
+# real master, so $MAINPID is the master and stop/reload reach it.
+#
+# ExecReload is HUP -- reload the CONFIGURATION -- because that is what
+# `systemctl reload` means everywhere else. Reopening the log files is USR1 and
+# it is a different thing: logrotate does that itself, from its own postrotate,
+# and must keep doing it.
+mkdir -p "${WORKDIR}/usr/lib/systemd/system"
+cat > "${WORKDIR}/usr/lib/systemd/system/yuneta-webserver.service" <<'EOF'
+[Unit]
+Description=Yuneta node web server (nginx or openresty)
+Documentation=https://doc.yuneta.io/installation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/yuneta/bin/yuneta-webserver run
+ExecReload=/bin/kill -s HUP $MAINPID
+
+#   SIGQUIT is the graceful shutdown of nginx: it finishes the requests in
+#   flight. The default SIGTERM is the fast one, which cuts them.
+KillSignal=SIGQUIT
+KillMode=mixed
+TimeoutStopSec=30
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "${WORKDIR}/usr/lib/systemd/system/yuneta-webserver.service"
+
+# --- The wrapper the unit calls ---
+#
+# The node runs nginx OR openresty and the choice is one word in
+# /etc/yuneta/webserver. A unit file cannot branch on the content of a file,
+# so this is the single place that reads it -- it used to be read in three
+# separate functions of the init script.
+cat > "${WORKDIR}/yuneta/bin/yuneta-webserver" <<'EOF'
+#!/bin/sh
+#######################################################################
+#   yuneta-webserver: run the node's web server in the foreground.
+#
+#   'run'  exec the server with 'daemon off', for yuneta-webserver.service
+#   'quit' ask a server started the old way to finish and go
+#   'type' print which server this node runs
+#
+#           Copyright (c) 2026, ArtGins.
+#           All Rights Reserved.
+#######################################################################
+set -eu
+
+YUNETA_DIR="/yuneta"
+WEBCONF="/etc/yuneta/webserver"
+
+WEBTYPE="nginx"
+if [ -r "$WEBCONF" ]; then
+    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+fi
+
+case "$WEBTYPE" in
+    openresty)
+        BIN="${YUNETA_DIR}/bin/openresty/bin/openresty"
+        ;;
+    nginx|*)
+        BIN="${YUNETA_DIR}/bin/nginx/sbin/nginx"
+        ;;
+esac
+
+case "${1:-}" in
+    run)
+        if [ ! -x "$BIN" ]; then
+            echo "yuneta-webserver: $WEBTYPE binary not found: $BIN" >&2
+            exit 1
+        fi
+        #
+        #   'daemon off' is what makes this supervisable. Without it the
+        #   process forks away and systemd is left holding a pid that exited.
+        #
+        exec "$BIN" -g 'daemon off;'
+        ;;
+    quit)
+        if [ -x "$BIN" ]; then
+            "$BIN" -s quit || true
+        fi
+        ;;
+    type)
+        echo "$WEBTYPE"
+        ;;
+    *)
+        echo "Usage: $0 {run|quit|type}" >&2
+        exit 2
+        ;;
+esac
+
+exit 0
+EOF
+chmod 0755 "${WORKDIR}/yuneta/bin/yuneta-webserver"
+
 # --- Core dump directory ownership, re-asserted at every boot ---
 #
 # /var/crash is not necessarily ours alone (on RHEL/Rocky kdump's kexec-tools
@@ -818,74 +927,36 @@ start_yunos() {
     return 1
 }
 
-# ---------------- Web server selection + control ----------------
-# Default nginx unless /etc/yuneta/webserver says otherwise (openresty)
-WEBCONF="/etc/yuneta/webserver"
-WEBTYPE="nginx"
-if [ -r "$WEBCONF" ]; then
-    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-fi
-
-NGINX_BIN="${YUNETA_DIR}/bin/nginx/sbin/nginx"
-OPENRESTY_BIN="${YUNETA_DIR}/bin/openresty/bin/openresty"
+# ---------------- Web server: owned by systemd ----------------
+#
+#   The web server is NOT started from here any more. It has its own unit,
+#   yuneta-webserver.service, so that systemd supervises the real master
+#   process. Starting it from here as well is how a second master ends up
+#   dying with "Address already in use" while the first one keeps serving.
+#
+#   These wrappers stay so that `service yuneta_agent {start,stop,status}`
+#   still answers for the whole node, which is what an operator expects.
+WEBUNIT="yuneta-webserver.service"
 
 start_web() {
-    case "$WEBTYPE" in
-        openresty)
-            if [ -x "$OPENRESTY_BIN" ]; then
-                log_daemon_msg "Starting OpenResty"
-                "$OPENRESTY_BIN" || true
-                log_end_msg 0
-            else
-                echo "WARN: OpenResty binary not found: $OPENRESTY_BIN" >&2
-            fi
-            ;;
-        nginx|*)
-            if [ -x "$NGINX_BIN" ]; then
-                log_daemon_msg "Starting Nginx"
-                "$NGINX_BIN" || true
-                log_end_msg 0
-            else
-                echo "WARN: Nginx binary not found: $NGINX_BIN" >&2
-            fi
-            ;;
-    esac
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl start "$WEBUNIT" >/dev/null 2>&1 || true
+    fi
 }
 
 stop_web() {
-    case "$WEBTYPE" in
-        openresty)
-            if pidof openresty >/dev/null 2>&1; then
-                log_daemon_msg "Stopping OpenResty"
-                "$OPENRESTY_BIN" -s quit || true
-                log_end_msg 0
-            fi
-            ;;
-        nginx|*)
-            if pidof nginx >/dev/null 2>&1; then
-                log_daemon_msg "Stopping Nginx"
-                "$NGINX_BIN" -s quit || true
-                log_end_msg 0
-            fi
-            ;;
-    esac
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop "$WEBUNIT" >/dev/null 2>&1 || true
+    fi
 }
 
 status_web() {
-    case "$WEBTYPE" in
-        openresty)
-            if pidof openresty >/dev/null 2>&1; then
-                echo "openresty: running;"
-                return 0
-            fi
-            ;;
-        nginx|*)
-            if pidof nginx >/dev/null 2>&1; then
-                echo "nginx: running;"
-                return 0
-            fi
-            ;;
-    esac
+    if command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active --quiet "$WEBUNIT"; then
+            echo "web: running ($(/yuneta/bin/yuneta-webserver type 2>/dev/null));"
+            return 0
+        fi
+    fi
     echo "web: not running;"
     return 3
 }
@@ -1035,6 +1106,7 @@ else
 fi
 if command -v systemctl >/dev/null 2>&1; then
     systemctl disable --now yuneta-core-pattern.service >/dev/null 2>&1 || true
+    systemctl disable --now yuneta-webserver.service >/dev/null 2>&1 || true
 fi
 if [ -x /usr/sbin/update-rc.d ]; then
     /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
@@ -1835,6 +1907,35 @@ if command -v systemctl >/dev/null 2>&1; then
     # the third setting today that a later actor silently took over.
     systemctl enable yuneta-core-pattern.service >/dev/null 2>&1 || true
     systemctl start yuneta-core-pattern.service >/dev/null 2>&1 || true
+
+    # --- hand the web server over to its own unit ---
+    #
+    # TRANSITION, and it is the part that has to be right: before this
+    # version /etc/init.d/yuneta_agent started the web server itself and let
+    # it daemonize, so on upgrade there is a master holding :80 and :443 that
+    # the unit knows nothing about. Ask it to finish first, then start the
+    # unit -- otherwise ExecStart dies with "Address already in use" and the
+    # node is left serving from a process nobody owns, which is the bug this
+    # unit exists to end.
+    #
+    # It is a short interruption of the node's web server, at upgrade only.
+    if ! systemctl is-active --quiet yuneta-webserver.service; then
+        /yuneta/bin/yuneta-webserver quit >/dev/null 2>&1 || true
+        i=0
+        while [ "$i" -lt 20 ]; do
+            if ! pidof nginx >/dev/null 2>&1 && ! pidof openresty >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
+    fi
+    systemctl enable yuneta-webserver.service >/dev/null 2>&1 || true
+    systemctl restart yuneta-webserver.service >/dev/null 2>&1 || true
+    if ! systemctl is-active --quiet yuneta-webserver.service; then
+        logger -t yuneta_agent_deb \
+            "WARNING: yuneta-webserver.service did not start — the node is NOT serving web"
+    fi
 else
     sysctl -p /etc/sysctl.d/99-yuneta-core.conf >/dev/null 2>&1 || true
 fi

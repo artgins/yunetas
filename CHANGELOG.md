@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Changed
+
+- **The node's web server is a systemd unit now, not a side job of the init
+    script.** `/etc/init.d/yuneta_agent` ran nginx and let it daemonize, so
+    nothing owned the process afterwards: a later `start` found nothing to look
+    at and tried again, and the second master died with *"Address already in
+    use"* while the first one kept serving.
+
+    `yuneta-webserver.service` runs it with `daemon off`, so `$MAINPID` is the
+    real master and stop and reload reach it. The unit calls
+    `/yuneta/bin/yuneta-webserver`, which is the one place that reads
+    `/etc/yuneta/webserver` to choose between nginx and openresty — that choice
+    used to be repeated in three functions of the init script, and a unit file
+    cannot branch on the content of a file. `systemctl reload` sends HUP, which
+    reloads the configuration; reopening the log files is USR1 and stays in the
+    `postrotate` of `/etc/logrotate.d/yuneta`, where logrotate does it itself.
+
+    ⚠️ **The upgrade interrupts the node's web server briefly.** The unit
+    cannot take `:80` and `:443` while the old daemonized master holds them, so
+    the scriptlet asks that one to finish first and waits for it, then starts
+    the unit and says so in the log if it did not come up.
+
+    This also removes the reason the server ran in the `initrc_t` SELinux
+    domain on Rocky, which is where the nightly logrotate rotated the files
+    without its USR1 ever reaching nginx — the server kept writing to the
+    renamed file and `access.log` stayed empty for a day, with nothing in any
+    log to say why. Whether the new domain settles that is a thing to measure
+    on the node, not to assume.
+
 
 ## 7.10.0
 
