@@ -23,4 +23,4 @@ under `utils/c/yuno-skeleton/skeletons/`.
 ## See also
 
 - [Scaffolding new yunos](../../../yunos/c/yuno_agent/SCAFFOLDING.md).
-- [`utils/c/yuno-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.10.0/utils/c/yuno-skeleton/README.md).
+- [`utils/c/yuno-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.11.0/utils/c/yuno-skeleton/README.md).

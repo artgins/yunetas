@@ -47,7 +47,7 @@ host.
 
 ## 2. Data model — the `realms` topic
 
-Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Required fields (all
+Defined in [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c). Required fields (all
 strings unless noted):
 
 | Field            | Notes                                                            |
@@ -93,7 +93,7 @@ The `id` is **more than a label**. The agent constructs it at create time as
 
 and uses it as the URL of the realm. You see it in these places:
 
-- [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c) — builds the URL when computing a yuno's working
+- [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c) — builds the URL when computing a yuno's working
   directory:
 
   ```c
@@ -104,7 +104,7 @@ and uses it as the URL of the realm. You see it in these places:
 - In ievent stack entries: `dst_yuno` carries the yuno name, but the realm
   is implied by which `yuno_agent` the request reached.
 
-Because the four parts (`name`, [`role`](https://github.com/artgins/yunetas/blob/7.10.0/utils/c/yuno-skeleton/make_skeleton.c#L195), `env`, plus `owner`) are
+Because the four parts (`name`, [`role`](https://github.com/artgins/yunetas/blob/7.11.0/utils/c/yuno-skeleton/make_skeleton.c#L195), `env`, plus `owner`) are
 immutable and effectively make up the identity, **the only mutable field
 on a realm is `bind_ip`** (see §5).
 
@@ -112,7 +112,7 @@ on a realm is `bind_ip`** (see §5).
 
 ## 4. On-disk layout
 
-Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c#L7575) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c):
+Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L7575) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c):
 
 ```
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
@@ -137,14 +137,14 @@ is shared across all realms on the host.
 
 ## 5. CRUD commands
 
-Registered in the agent's command table at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c). Same
+Registered in the agent's command table at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c). Same
 patterns as the other agent commands (`pm_<name>` permission schemas,
 [`gobj_create_node`](#gobj_create_node) / [`gobj_update_node`](#gobj_update_node) / [`gobj_delete_node`](#gobj_delete_node) against the
 treedb).
 
 ### 5.1 `create-realm`
 
-Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c). Schema `pm_create_realm`.
+Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c). Schema `pm_create_realm`.
 
 Required: `realm_owner`, `realm_role`, `realm_name`, `realm_env`.
 Optional: `bind_ip` (default `127.0.0.1`).
@@ -162,7 +162,7 @@ No on-disk directory is created. No bootstrap of a "default" realm exists
 
 ### 5.2 `update-realm`
 
-Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c). Schema `pm_update_realm`.
+Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c). Schema `pm_update_realm`.
 
 **The only mutable field is `bind_ip`.** The four pkey components are
 not in the param schema, so you cannot mutate them. To "rename" a realm,
@@ -171,7 +171,7 @@ yunos refer to it by `realm_id`, the immutable composed URL.
 
 ### 5.3 `delete-realm`
 
-Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c).
+Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c).
 
 **Refusal conditions**:
 
@@ -189,11 +189,11 @@ realm deletion. Clean up by hand if it matters.
 ## 6. Realm ↔ yunos
 
 The link is the `yunos.realm_id` fkey
-([`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)). One realm has N yunos
+([`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)). One realm has N yunos
 (`realms.yunos` hook), and one yuno belongs to exactly one realm.
 
 At `run-yuno` time the agent reads the realm record to compute the
-working directory ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)):
+working directory ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)):
 
 ```c
 json_t *realm   = get_yuno_realm(gobj, yuno);
@@ -218,14 +218,14 @@ realm-scoped but is not, is the most common cause of surprises.
 
 ### 7.1 Port pool (`range_ports` / `last_port`)
 
-Agent-level attributes ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)):
+Agent-level attributes ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)):
 
 ```
 range_ports = "[[11100,11199]]"   ← default range
 last_port   = 0
 ```
 
-Allocation in [`get_new_service_port()`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c#L9320) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c) reads the
+Allocation in [`get_new_service_port()`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L9320) at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c) reads the
 agent's `range_ports`, advances `last_port` globally, and hands out the
 next port. **All realms on the host share the same pool.** Two realms
 asking for an automatic port get adjacent ports from the same range,
@@ -237,7 +237,7 @@ write code that reads them.
 
 ### 7.2 Cert sync directory
 
-Agent-level ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)): a single
+Agent-level ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)): a single
 `cert_sync_store_dir` (default `/yuneta/store/certs`) is watched.
 Changes broadcast a `reload-certs` event to **every** yuno on the host,
 regardless of realm.
@@ -248,7 +248,7 @@ each yuno's config and skip cert-sync.
 
 ### 7.3 `__username__` / authzs
 
-The agent has one `__username__` attribute ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)) with
+The agent has one `__username__` attribute ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)) with
 "permission for all" semantics. Per-command `pm_<name>` schemas gate
 access, but the gating is against the *caller's* user, not against the
 realm. The agent itself has no built-in *"user X can read realm R but not
@@ -337,7 +337,7 @@ First action on a new host is always `create-realm`.
 ### 10.5 `realm_disabled` is advisory
 
 The field exists in the schema and you can set it via the treedb tools.
-Nothing in [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)'s start path checks it before running yunos of a
+Nothing in [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)'s start path checks it before running yunos of a
 disabled realm. Do not trust it as a kill switch. It is information for
 operators, not enforcement.
 
@@ -345,7 +345,7 @@ operators, not enforcement.
 
 They are still in the schema. Code that "reads the port range of the realm"
 reads stale data. The runtime ignores those fields. The real port pool is on
-the agent ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)). If you find code that reads
+the agent ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)). If you find code that reads
 `realm.range_ports`, that code has a bug. Correct it to read the pool of the
 agent.
 
@@ -425,14 +425,14 @@ ycommand -c 'list-yunos'                                  # all yunos with their
 
 | What                                              | Where                                                              |
 |---------------------------------------------------|--------------------------------------------------------------------|
-| `realms` topic schema                             | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                             |
-| `create-realm` handler                            | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                       |
-| `update-realm` handler                            | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
-| `delete-realm` handler                            | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
-| Realm URL composition (`<name>.<role>.<env>`)     | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
-| Yuno working-dir from realm                       | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c) (`build_yuno_private_domain`)                |
-| Agent's port pool                                 | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                                     |
-| Agent's cert sync attrs                           | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/c_agent.c)                                                |
-| `bind_ip` default                                 | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c) (realms topic, `bind_ip` field)     |
-| `parent_realm_id` self-fkey                       | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                                 |
-| `realms.yunos` hook                               | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.10.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                                 |
+| `realms` topic schema                             | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                             |
+| `create-realm` handler                            | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                       |
+| `update-realm` handler                            | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
+| `delete-realm` handler                            | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
+| Realm URL composition (`<name>.<role>.<env>`)     | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                              |
+| Yuno working-dir from realm                       | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c) (`build_yuno_private_domain`)                |
+| Agent's port pool                                 | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                     |
+| Agent's cert sync attrs                           | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                                |
+| `bind_ip` default                                 | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c) (realms topic, `bind_ip` field)     |
+| `parent_realm_id` self-fkey                       | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                                 |
+| `realms.yunos` hook                               | [`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)                                 |

@@ -122,6 +122,15 @@ while io_uring is enabled, check `getenforce` and the audit log
 (`ausearch -m AVC -ts recent`); a permissive domain or an explicit policy
 allowance may be required.
 
+**SELinux also decides whether the web server unit can start at all.**
+`/yuneta` is outside the policy, so everything under it is labelled
+`default_t`. The SysV script can exec that, because `initrc_t` is allowed to. systemd
+is not, and `yuneta-webserver.service` dies with `203/EXEC` and *"Permission
+denied"* on a file whose Unix mode is `rwxr-xr-x`. `%posttrans` therefore
+labels `/yuneta/bin/yuneta-webserver` as `bin_t`, with `semanage fcontext` +
+`restorecon` and a `chcon` fallback. If a node ever comes up without a web
+server, `ls -Z /yuneta/bin/yuneta-webserver` is the first thing to read.
+
 ### No automatic reboot
 
 The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs

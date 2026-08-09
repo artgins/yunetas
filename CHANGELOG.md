@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+
+## 7.11.0
+
+A minor for one reason: a public call changed its name and its signature, one
+day after it got one.
+
+7.10.0 added `gobj_post_message()` to C. The name was wrong and the shape was
+wrong, and it took the compiler to say so — `gobj_post_event(dst, event, kw,
+src)` already existed in `gobj-js` and in the ESP32 port, and the ESP32
+component includes the Linux `gobj.h`, so the three-argument version did not
+even build. Two implementations already agreed; C is the one that moved.
+`gobj-js` then moved too, off a `setTimeout(…, 10)` and onto the same
+contract.
+
+The rest is the node's web server: it has its own systemd unit now instead of
+being a side job of the init script, and on Rocky it needs a label to be
+allowed to start at all.
+
 ### Fixed
 
 - **The web server unit did not start on Rocky, and the node served nothing.**
