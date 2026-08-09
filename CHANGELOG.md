@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+
+## 7.10.0-2
+
+A packaging revision, not a new version: the tree under `kernel/`, `modules/`,
+`utils/` and `yunos/` is the same one 7.10.0 was cut from. The packages are
+rebuilt as `yuneta-agent-7.10.0-2` and attached to the existing 7.10.0 tag.
+
+Both changes are about the node's web server, and both came out of one daily
+report that arrived empty.
+
+### Fixed
+
+- **The web server logs rotate to `.1` on every node, never to a date.**
+    `/etc/logrotate.conf` on RHEL and Rocky carries a global `dateext`, so the
+    same drop-in was giving `access.log.1` on Debian and `access.log-20260808`
+    on Rocky.
+
+    That is not cosmetic. The `webstats` yuno reads `<path>` and `<path>.1`:
+    the day it reports is the day each LINE carries, and the previous day lives
+    in the `.1` that `delaycompress` leaves uncompressed. With `dateext` there
+    is no `.1`, so the yuno reads today's file alone and reports the previous
+    day as empty, with nothing in any log to say why.
+
+    Found by accident, which is the only reason it was found at all:
+    `logrotate -f /etc/logrotate.d/yuneta` does not read `logrotate.conf`, so
+    forcing a rotation by hand produced a `.1` and the difference showed
+    itself.
+
 ### Changed
 
 - **The node's web server is a systemd unit now, not a side job of the init
