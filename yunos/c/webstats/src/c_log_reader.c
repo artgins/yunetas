@@ -170,14 +170,14 @@ PRIVATE int mt_start(hgobj gobj)
             "chunk_size",   "%d", priv->chunk_size,
             NULL
         );
-        gobj_post_message(gobj, EV_READ_CHUNK, 0);
+        gobj_post_event(gobj, EV_READ_CHUNK, 0, gobj);
         return 0;
     }
 
     ISTREAM_CREATE(priv->istream, gobj, 4*1024, priv->max_line_size);
     if(!priv->istream) {
         // Error already logged
-        gobj_post_message(gobj, EV_READ_CHUNK, 0);
+        gobj_post_event(gobj, EV_READ_CHUNK, 0, gobj);
         return 0;
     }
     istream_read_until_delimiter(priv->istream, "\n", 1, 0);
@@ -193,7 +193,7 @@ PRIVATE int mt_start(hgobj gobj)
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        gobj_post_message(gobj, EV_READ_CHUNK, 0);
+        gobj_post_event(gobj, EV_READ_CHUNK, 0, gobj);
         return 0;
     }
 
@@ -201,7 +201,7 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_trace_msg(gobj, "log_reader: open '%s'", priv->path);
     }
 
-    gobj_post_message(gobj, EV_READ_CHUNK, 0);
+    gobj_post_event(gobj, EV_READ_CHUNK, 0, gobj);
 
     return 0;
 }
@@ -420,7 +420,7 @@ PRIVATE int ac_read_chunk(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(ret == 0) {
-        gobj_post_message(gobj, EV_READ_CHUNK, 0);
+        gobj_post_event(gobj, EV_READ_CHUNK, 0, gobj);
         KW_DECREF(kw)
         return 0;
     }

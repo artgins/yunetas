@@ -666,7 +666,7 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   child gobjs whose create/start/stop/destroy pair with the parent's
   lifecycle; (2) self-destroy at a clear end-of-work point
   (`if(gobj_is_volatil(gobj)) gobj_destroy(gobj)`); (3) last resort, a
-  gclass-local deferred destroy via `gobj_post_message(gobj, EV_X, kw)`, which
+  gclass-local deferred destroy via `gobj_post_event(gobj, EV_X, kw)`, which
   delivers the event to the gobj itself on the next cycle of the loop.
   **Never a `C_TIMER0` of 1 ms for this**: a deferral is not a time, and
   writing it as one costs an io_uring timeout, a child gobj, and the name of

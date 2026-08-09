@@ -6,7 +6,7 @@
 
 - **GClass / GObj**: class + instance model with **finite-state machines** (`states`, `events`, action callbacks)
 - **SData**: typed attribute schema (`SDATA()` macros) used for configuration, stats and authz
-- **Event bus**: publish/subscribe between gobjs, with automatic cleanup on `gobj_destroy()`. Delivery is synchronous; `gobj_post_message()` sends an event to the gobj itself for the next cycle of the event loop, which is how an action leaves the stack it is standing on
+- **Event bus**: publish/subscribe between gobjs, with automatic cleanup on `gobj_destroy()`. Delivery is synchronous; `gobj_post_event()` is the same send, deferred to the next cycle of the event loop, which is how an action leaves the stack it is standing on
 - **Logging**: structured JSON logger (`gobj_log_info/warn/error`), trace levels, log handlers (stdout, file, UDP)
 - **Helpers**: `kw_*` JSON helpers, `gbuffer_t` byte buffer, `dl_list_t` intrusive lists, strings, paths, regex, base64, hashes, …
 - **Memory tracking**: `GBMEM_MALLOC` / `gbmem_malloc` — tracked allocations surface leaks at shutdown when `CONFIG_DEBUG_TRACK_MEMORY` is enabled

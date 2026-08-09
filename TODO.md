@@ -6,7 +6,28 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
-## ESP32: `gobj_post_message()` is not in the port
+## `gobj_post_event()`: C and JS do not agree yet
+
+Three implementations, one name, one signature -- and still not one contract:
+
+| | C (`gobj.c`) | JS (`gobj-js/src/gobj.js`) | ESP32 (`c_esp_yuno.c`) |
+|---|---|---|---|
+| When | next cycle of the loop | `setTimeout(…, 10)` | an `esp_event` loop |
+| Destroyed destination | entry dropped | checked on delivery, `kw` held until the timer fires | not handled |
+| Destroyed source | `src` cleared, event still delivered | not handled | not handled |
+| Undeclared event | refused when posting, so the error names the caller | seen a cycle later | seen later |
+| Ceiling | 10000, and reaching it is an error | none | the esp_event queue |
+| Trace | a `machine` line | none | none |
+
+The JS one has no callers at all — it is only exported — so the cost of
+aligning it is low today and grows with every use.
+
+What to decide: whether the 10 milliseconds of JS become a real "next turn" —
+not cosmetic, since writing "later" as a duration is exactly what this call was
+added to stop — and whether the other two learn to handle a destination or a
+source that dies before the delivery, which today only C does.
+
+## ESP32: `gobj_post_event()` is not in the port
 
 `kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj
 sources, so the call added to `kernel/c/gobj-c/` does not reach it. A gclass

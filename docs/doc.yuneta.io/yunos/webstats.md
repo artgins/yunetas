@@ -28,7 +28,7 @@ The two continuations of a run are not timers. A file ends inside the reader's
 own publish stack, so the reader cannot be destroyed there, and the work has to
 cross a cycle of the loop: `C_WEBSTATS` posts `EV_NEXT_FILE` to itself and the
 reader posts `EV_READ_CHUNK` to itself, with
-[`gobj_post_message()`](../api/gobj/events_state.md#gobj_post_message). The only
+[`gobj_post_event()`](../api/gobj/events_state.md#gobj_post_event). The only
 timer left is the schedule, which measures a real time. `C_WEBSTATS` parses the lines,
 keeps the counters, writes the daily record and hands the mail over.
 

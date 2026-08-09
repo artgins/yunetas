@@ -1,8 +1,8 @@
 /***********************************************************************
  *          C_TEST_POST.C
  *
- *          Test of gobj_post_message(): a gobj sends an event to itself
- *          and it is delivered on the next cycle of the event loop.
+ *          Test of gobj_post_event(): an event sent to a gobj and
+ *          delivered on the next cycle of the event loop.
  *
  *          The test runs as four phases chained one after another, each
  *          one checking a clause of the contract written in gobj.h:
@@ -13,7 +13,7 @@
  *         gobj itself as source. A fourth posted from the first action
  *         arrives after the three, not inside them.
  *
- *      2) A chain of posted messages does not starve the event loop. The
+ *      2) A chain of posted events does not starve the event loop. The
  *         gobj posts itself for 200 milliseconds with a 1 millisecond
  *         periodic timer armed: if delivery drained the queue until empty
  *         instead of taking a snapshot per cycle, not one timeout would
@@ -96,6 +96,7 @@ typedef struct _PRIVATE_DATA {
     int nops;                       // messages of the ceiling delivered
 
     BOOL post_on_destroy;           // only the child armed in phase 3 does it
+    BOOL x_from_dead_child;         // the parent got what the dead child posted here
 } PRIVATE_DATA;
 
 
@@ -139,7 +140,7 @@ PRIVATE void mt_destroy(hgobj gobj)
          *  event for a cycle it will not see. It is refused with an error,
          *  and that error is part of what this test pins down.
          */
-        gobj_post_message(gobj, EV_TEST_X, 0);
+        gobj_post_event(gobj, EV_TEST_X, 0, gobj);
     }
 }
 
@@ -171,22 +172,22 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *      Framework Method play
  *
- *  Phase 1 starts here, BEFORE the event loop is running. A message posted
+ *  Phase 1 starts here, BEFORE the event loop is running. An event posted
  *  now must survive until the first cycle: that is why the loop delivers at
  *  the top of the cycle and not after the completions.
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
-    gobj_post_message(gobj, EV_TEST_A, json_pack("{s:i}", "n", 1));
-    gobj_post_message(gobj, EV_TEST_B, json_pack("{s:i}", "n", 2));
-    gobj_post_message(gobj, EV_TEST_C, json_pack("{s:i}", "n", 3));
+    gobj_post_event(gobj, EV_TEST_A, json_pack("{s:i}", "n", 1), gobj);
+    gobj_post_event(gobj, EV_TEST_B, json_pack("{s:i}", "n", 2), gobj);
+    gobj_post_event(gobj, EV_TEST_C, json_pack("{s:i}", "n", 3), gobj);
 
-    if(gobj_posted_messages_size() != 3) {
+    if(gobj_posted_events_size() != 3) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "A posted message was delivered inline",
-            "pending",      "%d", (int)gobj_posted_messages_size(),
+            "msg",          "%s", "A posted event was delivered inline",
+            "pending",      "%d", (int)gobj_posted_events_size(),
             NULL
         );
     }
@@ -217,7 +218,7 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  A posted message arrives with the gobj itself as source. Self-send is
+ *  A posted event arrives with the gobj itself as source. Self-send is
  *  the whole contract: anything else would mean the queue is holding a
  *  pointer to a gobj that is not the one whose destruction purges it.
  ***************************************************************************/
@@ -230,7 +231,7 @@ PRIVATE int check_source(hgobj gobj, gobj_event_t event, hgobj src)
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "A posted message did not arrive from itself",
+        "msg",          "%s", "A posted event did not arrive from itself",
         "event",        "%s", event,
         "src",          "%s", src?gobj_short_name(src):"(null)",
         NULL
@@ -251,7 +252,7 @@ PRIVATE int note_arrival(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src, 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "The kw of a posted message did not arrive",
+            "msg",          "%s", "The kw of a posted event did not arrive",
             "event",        "%s", event,
             "n",            "%d", (int)kw_get_int(gobj, kw, "n", 0, 0),
             "expected",     "%d", n,
@@ -281,7 +282,7 @@ PRIVATE int start_phase2(hgobj gobj)
 
     gobj_change_state(gobj, ST_CHAIN);
 
-    return gobj_post_message(gobj, EV_TEST_TICK, 0);
+    return gobj_post_event(gobj, EV_TEST_TICK, 0, gobj);
 }
 
 /***************************************************************************
@@ -289,7 +290,7 @@ PRIVATE int start_phase2(hgobj gobj)
  ***************************************************************************/
 PRIVATE int run_phase3(hgobj gobj)
 {
-    size_t before = gobj_posted_messages_size();
+    size_t before = gobj_posted_events_size();
 
     hgobj child = gobj_create("child", C_TEST_POST, 0, gobj);
     if(!child) {
@@ -299,12 +300,15 @@ PRIVATE int run_phase3(hgobj gobj)
 
     gobj_send_event(child, EV_TEST_ARM, 0, gobj);
 
-    if(gobj_posted_messages_size() != before + 1) {
+    /*
+     *  Two: one to itself, one to this gobj.
+     */
+    if(gobj_posted_events_size() != before + 2) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "The child did not leave its message posted",
-            "pending",      "%d", (int)gobj_posted_messages_size(),
+            "msg",          "%s", "The child did not leave its event posted",
+            "pending",      "%d", (int)gobj_posted_events_size(),
             NULL
         );
     }
@@ -314,12 +318,16 @@ PRIVATE int run_phase3(hgobj gobj)
      */
     gobj_destroy(child);
 
-    if(gobj_posted_messages_size() != before) {
+    /*
+     *  One of the two is gone with it -- the one it had posted to itself --
+     *  and the one it left for this gobj is still there, waiting.
+     */
+    if(gobj_posted_events_size() != before + 1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "A destroyed gobj left a message behind",
-            "pending",      "%d", (int)gobj_posted_messages_size(),
+            "msg",          "%s", "The purge of a destroyed gobj took the wrong events",
+            "pending",      "%d", (int)gobj_posted_events_size(),
             NULL
         );
     }
@@ -346,7 +354,7 @@ PRIVATE int run_phase4(hgobj gobj)
     priv->nops = 0;
 
     while(priv->cap_posted < CAP_TRIES) {
-        if(gobj_post_message(gobj, EV_TEST_NOP, 0) < 0) {
+        if(gobj_post_event(gobj, EV_TEST_NOP, 0, gobj) < 0) {
             // Error already logged: that refusal IS the ceiling
             break;
         }
@@ -390,7 +398,7 @@ PRIVATE int ac_test_a(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     note_arrival(gobj, event, kw, src, 'A', 1);
 
-    gobj_post_message(gobj, EV_TEST_D, json_pack("{s:i}", "n", 4));
+    gobj_post_event(gobj, EV_TEST_D, json_pack("{s:i}", "n", 4), gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -431,7 +439,7 @@ PRIVATE int ac_test_d(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Posted messages did not arrive in order",
+            "msg",          "%s", "Posted events did not arrive in order",
             "order",        "%s", priv->order,
             NULL
         );
@@ -459,7 +467,7 @@ PRIVATE int ac_test_tick(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->ticks++;
 
     if(!test_msectimer(priv->t_chain)) {
-        gobj_post_message(gobj, EV_TEST_TICK, 0);
+        gobj_post_event(gobj, EV_TEST_TICK, 0, gobj);
         KW_DECREF(kw)
         return 0;
     }
@@ -476,7 +484,7 @@ PRIVATE int ac_test_tick(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "A chain of posted messages starved the event loop",
+            "msg",          "%s", "A chain of posted events starved the event loop",
             "periodics",    "%d", priv->periodics,
             "ticks",        "%d", priv->ticks,
             NULL
@@ -496,7 +504,7 @@ PRIVATE int ac_test_tick(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Phase 3, in the child: leave a message posted and let itself be killed.
+ *  Phase 3, in the child: leave an event posted and let itself be killed.
  ***************************************************************************/
 PRIVATE int ac_test_arm(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -505,29 +513,45 @@ PRIVATE int ac_test_arm(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->post_on_destroy = TRUE;
 
     /*
-     *  A kw with something allocated in it: if the purge did not decref it,
-     *  the memory check at the end of the test says so.
+     *  To ITSELF, with a kw that allocates: this one is dropped when the
+     *  child is destroyed, and if the purge did not decref the kw the memory
+     *  check at the end of the test says so.
      */
-    gobj_post_message(gobj, EV_TEST_X, json_pack("{s:s}",
-        "payload", "this message is never delivered"
-    ));
+    gobj_post_event(gobj, EV_TEST_X, json_pack("{s:s}",
+        "payload", "this event is never delivered"
+    ), gobj);
+
+    /*
+     *  To its PARENT, with itself as source. The child is destroyed before
+     *  the delivery, so this one must still arrive -- the destination still
+     *  wants its event -- and it must arrive with src cleared.
+     */
+    gobj_post_event(gobj_parent(gobj), EV_TEST_X, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
- *  Never reached: the message that would bring it here is purged when its
- *  gobj is destroyed. It is in the FSM because the post has to be legal.
+ *  Phase 3, in the parent: what the child posted here before it died.
+ *
+ *  The child's own copy, posted to itself, is dropped with it and arrives
+ *  nowhere. This one does arrive, because the destination is alive and still
+ *  wants it -- with src cleared, because the source is gone.
  ***************************************************************************/
 PRIVATE int ac_test_x(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL,
-        "msg",          "%s", "A message of a destroyed gobj was delivered",
-        NULL
-    );
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != NULL) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A destroyed source did not clear src",
+            NULL
+        );
+    }
+    priv->x_from_dead_child = TRUE;
 
     KW_DECREF(kw)
     return 0;
@@ -543,6 +567,14 @@ PRIVATE int ac_test_nop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->nops++;
 
     if(priv->nops == priv->cap_posted) {
+        if(!priv->x_from_dead_child) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The event posted by the dead child never arrived",
+                NULL
+            );
+        }
         set_yuno_must_die();
     }
 
@@ -650,6 +682,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_ceiling[] = {
         {EV_TEST_NOP,               ac_test_nop,            0},
+        {EV_TEST_X,                 ac_test_x,              0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout_periodic,    0},
         {EV_STOPPED,                ac_timer_stopped,       0},
         {0,0,0}

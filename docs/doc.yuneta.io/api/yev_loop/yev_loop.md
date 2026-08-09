@@ -467,7 +467,7 @@ Returns 0 on successful execution, or -1 if an error occurs.
 
 If a callback function returns -1, the loop will break and exit early.
 
-Every cycle begins with [`gobj_deliver_posted_messages()`](../gobj/events_state.md#gobj_deliver_posted_messages), which delivers what the gobjs posted with [`gobj_post_message()`](../gobj/events_state.md#gobj_post_message). It happens before the completions, so a message posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
+Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
 
 ---
 
@@ -496,7 +496,7 @@ Returns 0 on success, or a negative value on failure.
 
 This function processes at most one event and then returns immediately. To continuously process events, use [`yev_loop_run()`](<#yev_loop_run>).
 
-One turn also means one delivery of the posted messages: it calls [`gobj_deliver_posted_messages()`](../gobj/events_state.md#gobj_deliver_posted_messages) before it reads the completions. The callers of this function use it to let pending work settle, and a posted message is pending work.
+One turn also means one delivery of the posted events: it calls [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events) before it reads the completions. The callers of this function use it to let pending work settle, and a posted event is pending work.
 
 ---
 

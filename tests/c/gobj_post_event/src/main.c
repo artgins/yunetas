@@ -1,7 +1,7 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_gobj_post_message
+ *          Main of test_gobj_post_event
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -12,8 +12,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_gobj_post_message"
-#define APP_DOC         "Test gobj_post_message()"
+#define APP_NAME        "test_gobj_post_event"
+#define APP_DOC         "Test gobj_post_event()"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -124,7 +124,7 @@ static int register_yuno_and_more(void)
             "msg", "phase 2 ok",
             "msg", "gobj DESTROYING",
             "msg", "phase 3 ok",
-            "msg", "Too many posted messages, this is NOT a work queue",
+            "msg", "Too many posted events, this is NOT a work queue",
             "msg", "phase 4 ok",
             "msg", "Exit to die",
             "msg", "Pausing yuno",

@@ -520,11 +520,11 @@ with links to the API documentation.
 
 152. [**`gobj_send_event_to_children_tree`**](gobj/events_state.md#gobj_send_event_to_children_tree) — `PUBLIC int gobj_send_event_to_children_tree( hgobj gobj, gobj_event_t event, json_t *kw, hgobj src )`
 
-153. [**`gobj_post_message`**](gobj/events_state.md#gobj_post_message) — `PUBLIC int gobj_post_message( hgobj gobj, gobj_event_t event, json_t *kw )`
+153. [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) — `PUBLIC int gobj_post_event( hgobj gobj, gobj_event_t event, json_t *kw )`
 
-154. [**`gobj_posted_messages_size`**](gobj/events_state.md#gobj_posted_messages_size) — `PUBLIC size_t gobj_posted_messages_size(void)`
+154. [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) — `PUBLIC size_t gobj_posted_events_size(void)`
 
-155. [**`gobj_deliver_posted_messages`**](gobj/events_state.md#gobj_deliver_posted_messages) — `PUBLIC int gobj_deliver_posted_messages(void)`
+155. [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) — `PUBLIC int gobj_deliver_posted_events(void)`
 
 156. [**`gobj_change_state`**](gobj/events_state.md#gobj_change_state) — `PUBLIC BOOL gobj_change_state( hgobj gobj, gobj_state_t state_name )`
 
@@ -2429,7 +2429,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`gobj_default_service`**](gobj/op.md#gobj_default_service) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) | `gobj.h` | gobj-c (Core Framework) |
-| [**`gobj_deliver_posted_messages`**](gobj/events_state.md#gobj_deliver_posted_messages) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_deliver_posted_events`**](gobj/events_state.md#gobj_deliver_posted_events) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_destroy`**](gobj/creation.md#gobj_destroy) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_destroy_children`**](gobj/creation.md#gobj_destroy_children) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_destroy_named_children`**](gobj/creation.md#gobj_destroy_named_children) | `gobj.h` | gobj-c (Core Framework) |
@@ -2537,8 +2537,8 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`gobj_parent`**](gobj/info.md#gobj_parent) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_pause`**](gobj/op.md#gobj_pause) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_play`**](gobj/op.md#gobj_play) | `gobj.h` | gobj-c (Core Framework) |
-| [**`gobj_post_message`**](gobj/events_state.md#gobj_post_message) | `gobj.h` | gobj-c (Core Framework) |
-| [**`gobj_posted_messages_size`**](gobj/events_state.md#gobj_posted_messages_size) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_post_event`**](gobj/events_state.md#gobj_post_event) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_posted_events_size`**](gobj/events_state.md#gobj_posted_events_size) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_prev_child`**](gobj/op.md#gobj_prev_child) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_priv_data`**](gobj/info.md#gobj_priv_data) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) | `gobj.h` | gobj-c (Core Framework) |

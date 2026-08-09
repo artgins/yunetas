@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Changed
+
+- **BREAKING: `gobj_post_message()` is now `gobj_post_event()`**, with
+    `gobj_posted_events_size()` and `gobj_deliver_posted_events()` renamed to
+    match.
+
+    The call it adds to C already existed in JavaScript, and had for years:
+    `gobj_post_event()` in `gobj-js`, under a comment that reads *"post_event,
+    by now only in js"*. 7.10.0 shipped it into C under a third name for the
+    same idea, which is the one thing a framework with two implementations
+    cannot afford.
+
+    The signature changed with the name, and the compiler is what said so:
+    **the ESP32 port declares the same call too**, `gobj_post_event(dst, event,
+    kw, src)` over an `esp_event` loop, and its component includes the Linux
+    `gobj.h`, so the three-argument version did not build. Two implementations
+    already agreed on four arguments, the same four as `gobj_send_event()` —
+    because posting is sending, later. C is the one that had to move.
+
+    So the destination is no longer always the caller. Lifetime is handled
+    both ways instead: destroying the DESTINATION drops what it had pending,
+    and destroying the SOURCE clears `src` and keeps the entry, because the
+    destination still wants its event and gets it with `src == NULL`.
+
+    The only caller is `webstats`, so nothing outside this tree breaks. What
+    still differs between the three implementations is written down in
+    `TODO.md` — JS defers with `setTimeout(…, 10)`, which is the very thing
+    this call exists to stop writing.
 
 ## 7.10.0-2
 
@@ -93,12 +121,12 @@ that changed.
     post time so the error names the caller, a ceiling of 10000 pending
     (it is not a work queue), and delivery as **a snapshot per cycle** — the
     messages queued when a cycle begins are the ones delivered in it, so a
-    chain of posted messages advances one step per turn of the loop and never
+    chain of posted events advances one step per turn of the loop and never
     starves the io_uring completions. `gobj_destroy()` drops what its gobj
     left posted, and `gobj_end()` says how many were never delivered.
 
     `yev_loop_run()` delivers them at the top of each cycle — before the
-    completions, so a message posted in `mt_play()`, with the loop not yet
+    completions, so an event posted in `mt_play()`, with the loop not yet
     running, does not wait for a completion that may never come — and does
     not block on the ring while any are pending. A gclass never calls the
     delivery itself. The ESP32 port carries its own copy of gobj and does not
@@ -125,7 +153,7 @@ that changed.
 
 ### Changed
 
-- **`webstats` uses posted messages for its two continuations.** The
+- **`webstats` uses posted events for its two continuations.** The
     continuation between files is `EV_NEXT_FILE` and the one between chunks of
     a file is `EV_READ_CHUNK`, each named for what it does instead of arriving
     as `EV_TIMEOUT`. Both `C_TIMER0` children are gone; `C_WEBSTATS` keeps its

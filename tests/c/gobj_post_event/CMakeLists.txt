@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(test_gobj_post_message C)
+project(test_gobj_post_event C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE

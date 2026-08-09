@@ -138,23 +138,26 @@ typedef struct gobj_s {
 } gobj_t;
 
 /*
- *  A message posted with gobj_post_message(), waiting for the next cycle
- *  of the event loop. The gobj is destination and source at once: a gobj
- *  posts only to itself, and gobj_destroy() purges what it left pending,
- *  so this pointer is never stale by the time it is read.
+ *  An event posted with gobj_post_event(), waiting for the next cycle of
+ *  the event loop.
+ *
+ *  Both pointers are kept alive by gobj_destroy(): destroying the
+ *  destination drops the entry, and destroying the source clears `src` and
+ *  leaves the entry, because the destination still wants its event.
  */
-typedef struct posted_msg_s {
+typedef struct posted_event_s {
     DL_ITEM_FIELDS
 
-    gobj_t *gobj;
+    gobj_t *dst;
+    gobj_t *src;
     gobj_event_t event;
     json_t *kw;             // owned
-} posted_msg_t;
+} posted_event_t;
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void purge_posted_messages(gobj_t *gobj);
+PRIVATE void purge_posted_events(gobj_t *gobj);
 PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, gobj_t **gobj_found); // Return is NOT YOURS
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
@@ -335,7 +338,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 PRIVATE dl_list_t dl_gclass = {0};
 
 /*
- *  Messages posted with gobj_post_message(), pending for the next cycle.
+ *  Messages posted with gobj_post_event(), pending for the next cycle.
  *
  *  The limit is not a capacity to size: in a healthy yuno the queue holds
  *  none or one. It is there because this call is the natural thing to reach
@@ -343,8 +346,8 @@ PRIVATE dl_list_t dl_gclass = {0};
  *  ceiling turns that misuse into a yuno that swells until the node dies.
  *  Reaching the limit is a design error and says so.
  */
-#define MAX_POSTED_MESSAGES 10000
-PRIVATE dl_list_t dl_posted_messages = {0};
+#define MAX_POSTED_EVENTS 10000
+PRIVATE dl_list_t dl_posted_events = {0};
 
 PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
 PRIVATE json_t *__jn_extra_global_vars__ = 0; // Extra entries merged into gobj_global_variables()
@@ -665,18 +668,18 @@ PUBLIC void gobj_end(void)
      *  are work somebody queued and nobody will do, and silence about it
      *  hides the design error that queued them after the loop.
      */
-    if(dl_size(&dl_posted_messages) > 0) {
+    if(dl_size(&dl_posted_events) > 0) {
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Posted messages DROPPED, never delivered",
-            "pending",      "%d", (int)dl_size(&dl_posted_messages),
+            "msg",          "%s", "Posted events DROPPED, never delivered",
+            "pending",      "%d", (int)dl_size(&dl_posted_events),
             NULL
         );
 
-        posted_msg_t *msg;
-        while((msg = dl_first(&dl_posted_messages))) {
-            dl_delete(&dl_posted_messages, msg, 0);
+        posted_event_t *msg;
+        while((msg = dl_first(&dl_posted_events))) {
+            dl_delete(&dl_posted_events, msg, 0);
             KW_DECREF(msg->kw)
             GBMEM_FREE(msg)
         }
@@ -2409,10 +2412,10 @@ PUBLIC void gobj_destroy(hgobj hgobj)
 
     /*
      *  AFTER the flag, so it also takes what mt_pause()/mt_stop() may have
-     *  posted above: from here on gobj_post_message() refuses this gobj, so
+     *  posted above: from here on gobj_post_event() refuses this gobj, so
      *  what is dropped now cannot come back.
      */
-    purge_posted_messages(gobj);
+    purge_posted_events(gobj);
 
     if(__trace_gobj_create_delete__(gobj)) {
         trace_machine("💔💔⏩ destroying: %s",
@@ -7805,16 +7808,17 @@ PUBLIC int gobj_send_event_to_children_tree(
  *  The contract is written in gobj.h. What matters here: the message is only
  *  queued, and whoever queued it keeps running to the end of its action.
  ***************************************************************************/
-PUBLIC int gobj_post_message(
-    hgobj hgobj_,
+PUBLIC int gobj_post_event(
+    hgobj dst_,
     gobj_event_t event,
-    json_t *kw          // owned
+    json_t *kw,         // owned
+    hgobj src_
 ) {
-    if(hgobj_ == NULL) {
+    if(dst_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "hgobj NULL",
+            "msg",          "%s", "hgobj dst NULL",
             "event",        "%s", event?event:"",
             NULL
         );
@@ -7822,7 +7826,7 @@ PUBLIC int gobj_post_message(
         return -1;
     }
 
-    gobj_t *gobj = (gobj_t *)hgobj_;
+    gobj_t *gobj = (gobj_t *)dst_;
 
     if(gobj->obflag & (obflag_destroyed|obflag_destroying)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -7865,37 +7869,38 @@ PUBLIC int gobj_post_message(
         return -1;
     }
 
-    if(dl_size(&dl_posted_messages) >= MAX_POSTED_MESSAGES) {
+    if(dl_size(&dl_posted_events) >= MAX_POSTED_EVENTS) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Too many posted messages, this is NOT a work queue",
+            "msg",          "%s", "Too many posted events, this is NOT a work queue",
             "event",        "%s", event,
-            "pending",      "%d", (int)dl_size(&dl_posted_messages),
+            "pending",      "%d", (int)dl_size(&dl_posted_events),
             NULL
         );
         KW_DECREF(kw)
         return -1;
     }
 
-    posted_msg_t *msg = gbmem_malloc(sizeof(posted_msg_t));
+    posted_event_t *msg = gbmem_malloc(sizeof(posted_event_t));
     if(!msg) {
         // Error already logged
         KW_DECREF(kw)
         return -1;
     }
-    msg->gobj = gobj;
+    msg->dst = gobj;
+    msg->src = (gobj_t *)src_;
     msg->event = event;
     msg->kw = kw;   // owned
 
-    dl_add(&dl_posted_messages, msg);
+    dl_add(&dl_posted_events, msg);
 
     if(is_machine_tracing(gobj, event) && !is_machine_not_tracing(gobj, event)) {
         trace_machine("📬 posted(%s%s), ev: %s, pending: %d",
             (!gobj->running)?"!!":"",
             gobj_short_name(gobj),
             event,
-            (int)dl_size(&dl_posted_messages)
+            (int)dl_size(&dl_posted_events)
         );
     }
 
@@ -7909,13 +7914,13 @@ PUBLIC int gobj_post_message(
  *  there is work to do and blocking would sit on it until something else
  *  woke the loop up.
  ***************************************************************************/
-PUBLIC size_t gobj_posted_messages_size(void)
+PUBLIC size_t gobj_posted_events_size(void)
 {
-    return dl_size(&dl_posted_messages);
+    return dl_size(&dl_posted_events);
 }
 
 /***************************************************************************
- *  Deliver the posted messages. Called by the event loop, once per cycle.
+ *  Deliver the posted events. Called by the event loop, once per cycle.
  *
  *  A SNAPSHOT of the queue: the messages waiting when this begins are the
  *  ones delivered, and what an action posts while it runs waits for the next
@@ -7925,9 +7930,9 @@ PUBLIC size_t gobj_posted_messages_size(void)
  *
  *  Returns the number of messages delivered.
  ***************************************************************************/
-PUBLIC int gobj_deliver_posted_messages(void)
+PUBLIC int gobj_deliver_posted_events(void)
 {
-    posted_msg_t *last = dl_last(&dl_posted_messages);
+    posted_event_t *last = dl_last(&dl_posted_events);
     if(!last) {
         return 0;
     }
@@ -7944,21 +7949,19 @@ PUBLIC int gobj_deliver_posted_messages(void)
     int delivered = 0;
 
     for(;;) {
-        posted_msg_t *msg = dl_first(&dl_posted_messages);
+        posted_event_t *msg = dl_first(&dl_posted_events);
         if(!msg || msg->__id__ > last_id) {
             break;
         }
-        dl_delete(&dl_posted_messages, msg, 0);
+        dl_delete(&dl_posted_events, msg, 0);
 
-        gobj_t *gobj = msg->gobj;
+        gobj_t *dst = msg->dst;
+        gobj_t *src = msg->src;
         gobj_event_t event = msg->event;
         json_t *kw = msg->kw;
         GBMEM_FREE(msg)
 
-        /*
-         *  Source and destination are the same gobj: it posted it to itself.
-         */
-        gobj_send_event(gobj, event, kw, gobj);
+        gobj_send_event(dst, event, kw, src);
         delivered++;
     }
 
@@ -7966,21 +7969,30 @@ PUBLIC int gobj_deliver_posted_messages(void)
 }
 
 /***************************************************************************
- *  Drop the messages a gobj left pending.
+ *  Take a gobj out of the queue of posted events.
  *
- *  Called from gobj_destroy(). Without it the queue would hold a pointer to
- *  a gobj that no longer exists, and the next cycle would deliver an event
- *  to freed memory.
+ *  Called from gobj_destroy(), and the two halves are not the same thing:
+ *
+ *  - As DESTINATION the entry is dropped. Without this the queue would hold
+ *    a pointer to a gobj that no longer exists, and the next cycle would
+ *    deliver an event to freed memory.
+ *
+ *  - As SOURCE only the pointer is cleared. The destination still wants its
+ *    event; what it cannot have is a `src` that points at freed memory. It
+ *    arrives with src == NULL, which every action already has to accept.
  ***************************************************************************/
-PRIVATE void purge_posted_messages(gobj_t *gobj)
+PRIVATE void purge_posted_events(gobj_t *gobj)
 {
-    posted_msg_t *msg, *next;
+    posted_event_t *msg, *next;
 
-    DL_FOREACH_SAFE(&dl_posted_messages, msg, next) {
-        if(msg->gobj != gobj) {
+    DL_FOREACH_SAFE(&dl_posted_events, msg, next) {
+        if(msg->src == gobj) {
+            msg->src = NULL;
+        }
+        if(msg->dst != gobj) {
             continue;
         }
-        dl_delete(&dl_posted_messages, msg, 0);
+        dl_delete(&dl_posted_events, msg, 0);
         KW_DECREF(msg->kw)
         GBMEM_FREE(msg)
     }

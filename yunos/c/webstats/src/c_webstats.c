@@ -2578,7 +2578,7 @@ PRIVATE int start_next_file(hgobj gobj)
          *  way a file can end, and doing it in both places drops TWO: this
          *  one and the next, which then never appears in the report at all.
          */
-        gobj_post_message(gobj, EV_NEXT_FILE, 0);
+        gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
         return -1;
     }
 
@@ -3572,7 +3572,7 @@ PRIVATE int ac_log_eof(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "too_long", kw_get_int(gobj, kw, "too_long", 0, 0)
     ));
 
-    gobj_post_message(gobj, EV_NEXT_FILE, 0);
+    gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -3595,7 +3595,7 @@ PRIVATE int ac_log_error(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "error", kw_get_str(gobj, kw, "error", "", 0)
     ));
 
-    gobj_post_message(gobj, EV_NEXT_FILE, 0);
+    gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
 
     KW_DECREF(kw)
     return 0;

@@ -643,7 +643,7 @@ Memory
 `feedback_no_sync_stop_in_pub_callback`:
 `gobj_stop_tree(publisher)` from inside an `EV_ON_*` subscriber re-enters
 the publisher mid-iteration. Defer it: post the continuation to yourself
-with [`gobj_post_message`](#post-message)
+with [`gobj_post_event`](#post-message)
 and do the stop in that action.
 
 ### 8.9 A gclass `.h` exposes only `register_*` + `GOBJ_DECLARE_GCLASS`
@@ -724,10 +724,10 @@ disconnect upstream, for example `EV_ON_MESSAGE` or `EV_ON_ID`, read the
 current state before you change it.
 
 (post-message)=
-### 8.14 `gobj_post_message`: leave the stack you are on
+### 8.14 `gobj_post_event`: leave the stack you are on
 
-`gobj_post_message(gobj, EV_X, kw)` sends an event to **the gobj itself**,
-delivered not now but on the next cycle of the event loop.
+`gobj_post_event(dst, EV_X, kw, src)` is `gobj_send_event()` deferred: same
+four arguments, delivered not now but on the next cycle of the event loop.
 
 Use it when the work must not run before the current action returns. The
 usual case is §8.13 turned around: you are inside a subscriber action, which
@@ -742,7 +742,7 @@ PRIVATE int ac_log_eof(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  The reader is NOT destroyed here: this action runs inside the
      *  reader's own publish stack.
      */
-    gobj_post_message(gobj, EV_NEXT_FILE, 0);
+    gobj_post_event(gobj, EV_NEXT_FILE, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -754,11 +754,11 @@ The contract, in full in
 
 | Clause | What it means |
 |---|---|
-| Self-send only | The message arrives at the gobj that posted it, with `src` equal to that same gobj. To act on somebody else, post to yourself and act in the action. |
+| Lifetime, both ways | Destroying the DESTINATION drops what it had pending. Destroying the SOURCE clears `src` and keeps the entry: the destination still wants its event, and it arrives with `src == NULL`. |
 | Post from the loop thread | That is, from an action, a framework method or a command handler. There is no wakeup. The queue is drained because the callback you are in returns. Yuneta does not thread, so this is the house rule already. |
-| A snapshot per cycle | The messages queued when a cycle begins are the ones delivered in it. What an action posts waits for the next cycle, so a chain of posted messages advances one step per turn and never starves the io_uring completions. |
+| A snapshot per cycle | The messages queued when a cycle begins are the ones delivered in it. What an action posts waits for the next cycle, so a chain of posted events advances one step per turn and never starves the io_uring completions. |
 | The `kw` is owned | A message that is dropped, because its gobj was destroyed or the loop is over, decrefs it. |
-| The event must exist | It is checked against the gclass when you post, not when it is delivered, so the error names the caller. |
+| The event must exist | It is checked against the gclass of `dst` when you post, not when it is delivered, so the error names the caller. |
 | There is a ceiling | 10000 pending. It is not a work queue, and reaching the limit is an error. |
 
 **Do not write a `C_TIMER0` of 1 millisecond for this.** That was the old
@@ -773,9 +773,12 @@ A timer is still the right thing when there is a **time**: a schedule, an
 inactivity window, a retry backoff.
 
 The event loop delivers them: `yev_loop_run` calls
-`gobj_deliver_posted_messages()` at the top of each cycle. A gclass never
-calls it. The ESP32 port carries its own copy of gobj and does not have
-this yet.
+`gobj_deliver_posted_events()` at the top of each cycle. A gclass never
+calls it.
+
+The call is not exclusive to C: `gobj-js` has had `gobj_post_event()` for
+years, and so has the ESP32 port, with the same signature. What the three do
+not agree on yet is written down in `TODO.md`.
 
 ---
 

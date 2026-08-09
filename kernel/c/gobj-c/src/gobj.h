@@ -1399,57 +1399,63 @@ PUBLIC int gobj_send_event_to_children_tree( // same as gobj_send_event_to_child
 );
 
 /*--------------------------------------------------------------------------*
- *  Posted messages: an event a gobj sends to ITSELF, delivered not now but
- *  on the next cycle of the event loop.
+ *  Posted events: gobj_send_event(), but on the next cycle of the loop.
  *
- *  It exists to get out of the stack you are standing on. gobj_publish_event()
- *  dispatches synchronously, so a subscriber action runs inside the
- *  publisher's own stack: destroying that publisher there, or stopping its
- *  tree, dismantles what is still iterating. The same holds for any work that
- *  must not run before the current action returns.
+ *  Same four arguments as gobj_send_event() because it is the same thing
+ *  deferred, and it exists to get out of the stack you are standing on.
+ *  gobj_publish_event() dispatches synchronously, so a subscriber action runs
+ *  inside the publisher's own stack: destroying that publisher there, or
+ *  stopping its tree, dismantles what is still iterating. The same holds for
+ *  any work that must not run before the current action returns.
  *
  *  It replaces the idiom of a C_TIMER0 child armed with 1 millisecond. That
  *  timer was never a time: it was "later", written as a duration. Saying it
  *  with a duration costs an io_uring timeout per deferral, and it costs the
  *  name of the event -- every deferred continuation arrives as EV_TIMEOUT and
  *  the machine trace, which is the execution log of a yuno, says "timeout"
- *  instead of what happened. A posted message keeps its own event name.
+ *  instead of what happened. A posted event keeps its own name.
+ *
+ *  The call is not new to Yuneta and not new to C: gobj-js has had
+ *  gobj_post_event() for years, and so has the ESP32 port. This is the same
+ *  contract on Linux. What still differs between the three is written down
+ *  in TODO.md -- align them there, do not fork a fourth meaning here.
  *
  *  Contract:
- *
- *  - SELF-SEND ONLY. The message is delivered to the gobj that posted it, and
- *    it arrives with src == the same gobj. To act on somebody else, post to
- *    yourself and do it in the action, out of the stack you wanted to leave.
- *    The rule is what keeps the queue safe: the only gobj that can hold a
- *    pending message is the one whose destruction purges it.
  *
  *  - POST ONLY FROM THE THREAD OF THE EVENT LOOP, which in a yuno means from
  *    inside an action, a framework method or a command handler. There is no
  *    wakeup: the queue is drained at the top of each cycle, and the loop gets
- *    there because the callback you are running returns. A message posted
- *    from another thread would sit in the queue until something else woke the
- *    loop up. Yuneta does not thread, so this is the house rule, not a new
+ *    there because the callback you are running returns. An event posted from
+ *    another thread would sit in the queue until something else woke the loop
+ *    up. Yuneta does not thread, so this is the house rule, not a new
  *    restriction.
  *
- *  - DELIVERY IS A SNAPSHOT PER CYCLE. The messages queued when the cycle
+ *  - DELIVERY IS A SNAPSHOT PER CYCLE. The events queued when the cycle
  *    begins are the ones delivered in it; anything posted during the delivery
- *    waits for the next one. So a chain of messages that post the next one
+ *    waits for the next one. So a chain of events that post the next one
  *    advances one step per cycle and never starves the io_uring completions.
  *
- *  - The kw is owned, as everywhere else. A message that is dropped -- its
- *    gobj destroyed, the loop over -- decrefs it.
+ *  - LIFETIME IS HANDLED, both ways. Destroying the DESTINATION drops what it
+ *    had pending. Destroying the SOURCE clears `src` and keeps the entry: the
+ *    destination still wants its event, and it arrives with src == NULL.
  *
- *  Delivered by gobj_deliver_posted_messages(), which the event loop calls.
+ *  - The event must be declared in the DESTINATION's gclass, and that is
+ *    checked when you post, not when it is delivered, so the error names the
+ *    caller instead of the loop.
+ *
+ *  - The kw is owned, as everywhere else. An event that is dropped decrefs it.
+ *
+ *  Delivered by gobj_deliver_posted_events(), which the event loop calls.
  *  It is not part of what a gclass needs: only a loop implementation calls it.
- *  The ESP32 port carries its own copy of gobj and does not have this yet.
  *--------------------------------------------------------------------------*/
-PUBLIC int gobj_post_message(
-    hgobj gobj,         // destination AND source: a gobj posts only to itself
+PUBLIC int gobj_post_event(
+    hgobj dst,
     gobj_event_t event,
-    json_t *kw          // owned
+    json_t *kw,         // owned
+    hgobj src
 );
-PUBLIC size_t gobj_posted_messages_size(void);  // pending, for the loop to know if it can block
-PUBLIC int gobj_deliver_posted_messages(void);  // called by the event loop, returns messages delivered
+PUBLIC size_t gobj_posted_events_size(void);  // pending, for the loop to know if it can block
+PUBLIC int gobj_deliver_posted_events(void);  // called by the event loop, returns events delivered  // called by the event loop, returns messages delivered
 
 
 PUBLIC BOOL gobj_change_state(

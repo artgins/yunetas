@@ -274,17 +274,17 @@ Returns 0 on success, -1 if the event is not defined in the current state, or if
 
 If the event is not found in the current state of `dst`, the function checks if `dst` has a custom event injection method (`mt_inject_event`). If defined, it delegates event processing to that method.
 
-Delivery is **synchronous**: when the call returns, the action has run to the end, with every cascade it started. To send an event that must run after the current action returns, use [`gobj_post_message()`](#gobj_post_message).
+Delivery is **synchronous**: when the call returns, the action has run to the end, with every cascade it started. To send an event that must run after the current action returns, use [`gobj_post_event()`](#gobj_post_event).
 
 ---
 
-(gobj_post_message)=
-## [`gobj_post_message()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7808)
+(gobj_post_event)=
+## [`gobj_post_event()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7808)
 
-Posts an event to the gobj itself, to be delivered on the next cycle of the event loop. Use it when an action must leave the stack it is standing on: for example, a subscriber that must destroy or stop the publisher whose synchronous [`gobj_publish_event()`](publish.md#gobj_publish_event) is still below it on the stack.
+Posts an event to `dst`, to be delivered on the next cycle of the event loop. It takes the same four arguments as [`gobj_send_event()`](#gobj_send_event) because it is the same call, deferred. Use it when an action must leave the stack it is standing on: for example, a subscriber that must destroy or stop the publisher whose synchronous [`gobj_publish_event()`](publish.md#gobj_publish_event) is still below it on the stack.
 
 ```C
-int gobj_post_message(
+int gobj_post_event(
     hgobj        gobj,
     gobj_event_t event,
     json_t       *kw
@@ -305,7 +305,7 @@ Returns `0` when the message is queued, or `-1` when it is refused. A refusal de
 
 **Notes**
 
-Delivery is **a snapshot per cycle**. The messages that are in the queue when a cycle begins are the ones delivered in it, and a message posted during that delivery waits for the next cycle. A chain of messages that post the next one therefore advances one step per turn of the loop, and the io_uring completions continue to arrive.
+Delivery is **a snapshot per cycle**. The messages that are in the queue when a cycle begins are the ones delivered in it, and an event posted during that delivery waits for the next cycle. A chain of messages that post the next one therefore advances one step per turn of the loop, and the io_uring completions continue to arrive.
 
 Post only from the thread of the event loop, which is to say from an action, a framework method or a command handler. There is no wakeup: the queue is drained because the callback that you are in returns.
 
@@ -315,13 +315,13 @@ Post only from the thread of the event loop, which is to say from an action, a f
 
 ---
 
-(gobj_posted_messages_size)=
-## [`gobj_posted_messages_size()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7912)
+(gobj_posted_events_size)=
+## [`gobj_posted_events_size()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7912)
 
-Returns how many posted messages wait for delivery.
+Returns how many posted events wait for delivery.
 
 ```C
-size_t gobj_posted_messages_size(void);
+size_t gobj_posted_events_size(void);
 ```
 
 **Returns**
@@ -334,13 +334,13 @@ The event loop reads this before it decides to block on the ring. With messages 
 
 ---
 
-(gobj_deliver_posted_messages)=
-## [`gobj_deliver_posted_messages()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7928)
+(gobj_deliver_posted_events)=
+## [`gobj_deliver_posted_events()`](https://github.com/artgins/yunetas/blob/7.10.0/kernel/c/gobj-c/src/gobj.c#L7928)
 
-Delivers the posted messages that are in the queue. `yev_loop_run()` calls it at the top of each cycle.
+Delivers the posted events that are in the queue. `yev_loop_run()` calls it at the top of each cycle.
 
 ```C
-int gobj_deliver_posted_messages(void);
+int gobj_deliver_posted_events(void);
 ```
 
 **Returns**

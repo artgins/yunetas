@@ -85,7 +85,7 @@ Same as [C_TIMER](#gclass-c-timer).
   next cycle of the loop, is not a time: it costs an io_uring timeout for
   something with nothing to wait for, and every continuation then arrives as
   `EV_TIMEOUT`, so the `machine` trace says "timeout" instead of what happened.
-  Use [`gobj_post_message()`](../gobj/events_state.md#gobj_post_message) for
+  Use [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event) for
   that, and a timer when there is a real time to measure.
 
 ---

@@ -1,7 +1,7 @@
 /****************************************************************************
  *          C_TEST_POST.H
  *
- *          A gclass to test gobj_post_message()
+ *          A gclass to test gobj_post_event()
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

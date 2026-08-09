@@ -109,7 +109,7 @@ webstats (yuno)
 
 The two continuations of a run -- take the next file, read the next chunk --
 are not timers. They are events the gobj posts to itself with
-`gobj_post_message()`, delivered on the next cycle of the event loop.
+`gobj_post_event()`, delivered on the next cycle of the event loop.
 ```
 
 ### 5.1 C_WEBSTATS (service)
