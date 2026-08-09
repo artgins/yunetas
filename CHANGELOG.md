@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The web server unit did not start on Rocky, and the node served nothing.**
+    `/yuneta` is outside the SELinux policy, so everything under it is
+    labelled `default_t`. The SysV script could exec that, because `initrc_t`
+    may; systemd cannot. The unit shipped in 7.10.0-2 died with `203/EXEC`
+    — *"Failed to locate executable /yuneta/bin/yuneta-webserver: Permission
+    denied"* — retried four times, gave up, and `yunovatios-central` stayed
+    two and a half hours with no web server at all.
+
+    The `.rpm` now labels the wrapper `bin_t` (with `semanage fcontext` +
+    `restorecon`, falling back to `chcon` where the policy tools are missing),
+    and the scriptlet that already warned when the unit does not start now
+    says where to look. Only the wrapper needs the label: it is the one file
+    systemd execs, and what it execs in turn is reached from its own domain.
+
+    Debian is untouched by this, which is exactly why it was not seen before
+    shipping: the same revision on `yunovatios-controlador` came up fine.
+
 ### Changed
 
 - **BREAKING: `gobj_post_message()` is now `gobj_post_event()`**, with

@@ -1740,6 +1740,35 @@ if command -v chkconfig >/dev/null 2>&1 && [ -e /etc/init.d/yuneta_agent ]; then
     chkconfig yuneta_agent on    >/dev/null 2>&1 || true
 fi
 
+# --- SELinux: systemd cannot exec a default_t file ---
+#
+# /yuneta is outside the policy, so everything under it is labelled default_t.
+# The SysV script could exec that, because initrc_t may; systemd cannot. The
+# unit died with 203/EXEC -- "Failed to locate executable
+# /yuneta/bin/yuneta-webserver: Permission denied" -- and the node served
+# nothing at all until the label was fixed. Measured on yunovatios-central
+# with 7.10.0-2, which had been up for two and a half hours with no web.
+#
+# Only the wrapper needs it: it is the one file systemd execs. What it execs
+# in turn, nginx or openresty, is reached from the wrapper's own domain and
+# was never the problem.
+if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+    if command -v semanage >/dev/null 2>&1; then
+        semanage fcontext -a -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 ||
+        semanage fcontext -m -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
+    fi
+    if command -v restorecon >/dev/null 2>&1; then
+        restorecon -F /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
+    fi
+    #
+    # Fallback for a node without the policy tools: right now, lost on a full
+    # relabel. A label that may not survive beats a node that does not serve.
+    #
+    if [ "$(stat -c %C /yuneta/bin/yuneta-webserver 2>/dev/null | cut -d: -f3)" != "bin_t" ]; then
+        chcon -t bin_t /yuneta/bin/yuneta-webserver >/dev/null 2>&1 || true
+    fi
+fi
+
 # --- hand the web server over to its own unit ---
 #
 # TRANSITION, and it is the part that has to be right: before this version
@@ -1766,7 +1795,7 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl enable yuneta-webserver.service >/dev/null 2>&1 || true
     systemctl restart yuneta-webserver.service >/dev/null 2>&1 || true
     if ! systemctl is-active --quiet yuneta-webserver.service; then
-        warn "yuneta-webserver.service did NOT start - the node is not serving web. Diagnose: systemctl status yuneta-webserver.service"
+        warn "yuneta-webserver.service did NOT start - the node is not serving web. Diagnose: systemctl status yuneta-webserver.service ; journalctl -xeu yuneta-webserver.service ; ls -Z /yuneta/bin/yuneta-webserver (203/EXEC means SELinux refused the label, see above)"
     fi
 fi
 
