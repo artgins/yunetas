@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+### Added
+
+- **`gobj_post_message()`: an event a gobj sends to itself, delivered on the
+    next cycle of the event loop.** It is the way for an action to leave the
+    stack it is standing on — the usual case being a subscriber that must
+    destroy or stop the publisher whose synchronous `gobj_publish_event()` is
+    still on the stack below it.
+
+    The call replaces the idiom of a `C_TIMER0` child armed with 1
+    millisecond, which was never a time: it was "later", written as a
+    duration. Saying it that way costs an io_uring timeout for something with
+    nothing to wait for, needs a child gobj with its own start/stop, and
+    throws away the name of the event — every deferred continuation arrived
+    as `EV_TIMEOUT`, so the `machine` trace, which is the execution log of a
+    yuno, said "timeout" instead of what happened, and a gclass with two
+    deferrals had to tell them apart with a flag.
+
+    The contract, in full in `gobj.h`: self-send only, posted from the thread
+    of the event loop, `kw` owned, the event checked against the gclass at
+    post time so the error names the caller, a ceiling of 10000 pending
+    (it is not a work queue), and delivery as **a snapshot per cycle** — the
+    messages queued when a cycle begins are the ones delivered in it, so a
+    chain of posted messages advances one step per turn of the loop and never
+    starves the io_uring completions. `gobj_destroy()` drops what its gobj
+    left posted, and `gobj_end()` says how many were never delivered.
+
+    `yev_loop_run()` delivers them at the top of each cycle — before the
+    completions, so a message posted in `mt_play()`, with the loop not yet
+    running, does not wait for a completion that may never come — and does
+    not block on the ring while any are pending. A gclass never calls the
+    delivery itself. The ESP32 port carries its own copy of gobj and does not
+    have this yet.
+
+    Covered by `tests/c/gobj_post_message`, which checks each clause and, for
+    the snapshot, that a chain posting itself for 200 ms still hears a 1 ms
+    periodic timer: draining the queue until empty instead gives 2.2 million
+    links and not one completion seen.
+
+### Changed
+
+- **`webstats` uses posted messages for its two continuations.** The
+    continuation between files is `EV_NEXT_FILE` and the one between chunks of
+    a file is `EV_READ_CHUNK`, each named for what it does instead of arriving
+    as `EV_TIMEOUT`. Both `C_TIMER0` children are gone; `C_WEBSTATS` keeps its
+    `C_TIMER`, which measures a real time — the daily schedule.
+
+    This also removes a way for a run to stall for ever. The reader-creation
+    failure path armed the deferred continuation while the `reader_done` flag
+    that told the two `EV_TIMEOUT`s apart was still false, and the guard that
+    read that flag abandoned the run: `ST_READING` with the schedule already
+    disarmed, so no further report until the yuno was restarted, and every
+    `report-day` answering *"A run is already going"*. With the event named,
+    the flag and its guard have nothing left to do.
+
 
 ## 7.9.13
 

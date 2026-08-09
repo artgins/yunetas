@@ -30,7 +30,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define DEFER_MS            1       // continuation between files
 #define DATE_SIZE           11      // "YYYY-MM-DD" and the zero
 
 #define DEFAULT_ACCESS_LOG_1    "/yuneta/bin/nginx/logs/access.log"
@@ -263,7 +262,6 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;                    // the daily schedule, seconds are accurate enough
-    hgobj timer_defer;              // the continuation between files
     hgobj reader;                   // the file being read, or 0
 
     json_t *jn_files;               // files left in this run
@@ -294,7 +292,6 @@ typedef struct _PRIVATE_DATA {
 
     char target_date[DATE_SIZE];    // the day of this run
     BOOL send_when_done;
-    BOOL reader_done;
 
     uint64_t cur_kept;              // lines of the target day in the file being read
     uint64_t cur_unparsed;          // lines of the file the parser did not understand
@@ -324,7 +321,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->timer_defer = gobj_create_pure_child("defer", C_TIMER0, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -394,16 +390,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  C_TIMER0 must be started by its owner: set_timeout0() only writes
-     *  "msec". A timer0 that is armed without being running answers its
-     *  own yev callback with -1, and that BREAKS THE EVENT LOOP of the
-     *  whole yuno, which exits with no error of its own.
-     */
-    gobj_start(priv->timer_defer);
-
     return 0;
 }
 
@@ -415,9 +401,6 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    clear_timeout0(priv->timer_defer);
-
-    gobj_stop(priv->timer_defer);
 
     return 0;
 }
@@ -2433,9 +2416,10 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     priv->send_when_done = send;
 
     /*
-     *  The schedule is disarmed while a run goes: both timers deliver
-     *  EV_TIMEOUT, and the state is what tells them apart. It is armed
-     *  again when the run ends.
+     *  The schedule is disarmed while a run goes, and armed again when it
+     *  ends: EV_TIMEOUT means "it is the hour" and only ST_IDLE knows what
+     *  to do with it. A run that overran into the next day would otherwise
+     *  find the event in a state that does not accept it.
      */
     clear_timeout(priv->timer);
 
@@ -2569,7 +2553,6 @@ PRIVATE int start_next_file(hgobj gobj)
     json_t *jn_file = json_array_get(priv->jn_files, 0);
     const char *path = kw_get_str(gobj, jn_file, "path", "", 0);
 
-    priv->reader_done = FALSE;
     priv->cur_kept = 0;
     priv->cur_unparsed = 0;
     priv->reader = gobj_create("reader", C_LOG_READER, json_pack("{s:s}",
@@ -2578,7 +2561,7 @@ PRIVATE int start_next_file(hgobj gobj)
     if(!priv->reader) {
         // Error already logged
         json_array_remove(priv->jn_files, 0);
-        set_timeout0(priv->timer_defer, DEFER_MS);
+        gobj_post_message(gobj, EV_NEXT_FILE, 0);
         return -1;
     }
 
@@ -3572,8 +3555,7 @@ PRIVATE int ac_log_eof(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "too_long", kw_get_int(gobj, kw, "too_long", 0, 0)
     ));
 
-    priv->reader_done = TRUE;
-    set_timeout0(priv->timer_defer, DEFER_MS);
+    gobj_post_message(gobj, EV_NEXT_FILE, 0);
 
     KW_DECREF(kw)
     return 0;
@@ -3596,8 +3578,7 @@ PRIVATE int ac_log_error(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "error", kw_get_str(gobj, kw, "error", "", 0)
     ));
 
-    priv->reader_done = TRUE;
-    set_timeout0(priv->timer_defer, DEFER_MS);
+    gobj_post_message(gobj, EV_NEXT_FILE, 0);
 
     KW_DECREF(kw)
     return 0;
@@ -3609,18 +3590,6 @@ PRIVATE int ac_log_error(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_next_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->reader_done) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Deferred continuation with no reader done",
-            "date",         "%s", priv->target_date,
-            NULL
-        );
-        KW_DECREF(kw)
-        return 0;
-    }
 
     if(priv->reader) {
         gobj_stop(priv->reader);
@@ -3634,16 +3603,6 @@ PRIVATE int ac_next_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     start_next_file(gobj);      // Error already logged
 
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  A timer was cancelled. Part of the C_TIMER0 contract: it tells its owner
- *  when the timeout it was holding will not arrive.
- ***************************************************************************/
-PRIVATE int ac_timer_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
     KW_DECREF(kw)
     return 0;
 }
@@ -3679,6 +3638,7 @@ GOBJ_DEFINE_STATE(ST_REPORTING);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_REPORT_READY);
+GOBJ_DEFINE_EVENT(EV_NEXT_FILE);
 
 /***************************************************************************
  *          Create the GClass
@@ -3702,19 +3662,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,                ac_schedule,            0},
-        {EV_STOPPED,                ac_timer_stopped,       0},
         {0,0,0}
     };
     ev_action_t st_reading[] = {
         {EV_LOG_LINES,              ac_log_lines,           0},
         {EV_LOG_EOF,                ac_log_eof,             0},
         {EV_LOG_ERROR,              ac_log_error,           0},
-        {EV_TIMEOUT,                ac_next_file,           0},
-        {EV_STOPPED,                ac_timer_stopped,       0},
+        {EV_NEXT_FILE,              ac_next_file,           0},
         {0,0,0}
     };
     ev_action_t st_reporting[] = {
-        {EV_STOPPED,                ac_timer_stopped,       0},
         {0,0,0}
     };
 
@@ -3730,7 +3687,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_TIMEOUT,                0},
-        {EV_STOPPED,                0},
+        {EV_NEXT_FILE,              0},
         {EV_LOG_LINES,              0},
         {EV_LOG_EOF,                0},
         {EV_LOG_ERROR,              0},

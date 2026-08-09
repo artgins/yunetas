@@ -9,9 +9,11 @@
  *
  *          The file is read in bounded chunks and each chunk is a new
  *          action, so a log of any size cannot hold the event loop. The
- *          continuation is a 1 ms timer: it is not a poll, there is
- *          nothing to wait for, it is the way to give the loop a turn
- *          between chunks.
+ *          continuation is EV_READ_CHUNK posted to itself: there is
+ *          nothing to wait for, so it is not a timer -- it is the way to
+ *          give the loop a turn between chunks. Delivery is a snapshot
+ *          per cycle, so the chain advances one chunk per turn of the
+ *          loop and the completions of everything else keep arriving.
  *
  *          io_uring is not used here on purpose. yev_create_read_event()
  *          submits its reads with offset 0, which is what a socket wants
@@ -34,7 +36,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define DEFER_MS        1       // give the loop a turn between chunks
 
 /***************************************************************************
  *              Structures
@@ -79,7 +80,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj timer;
     istream_h istream;
     char *bf;
     int fd;
@@ -111,8 +111,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->fd = -1;
-
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -155,20 +153,13 @@ PRIVATE void mt_destroy(hgobj gobj)
  *      Framework Method start
  *
  *  The file is opened here, but nothing is published from here: the parent
- *  is inside gobj_start() and must not be re-entered. The first timeout
- *  reports whatever this found.
+ *  is inside gobj_start() and must not be re-entered. Every exit posts
+ *  EV_READ_CHUNK, so whatever this found is reported on the next cycle,
+ *  out of the parent's stack.
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  C_TIMER0 must be started by its owner: set_timeout0() only writes
-     *  "msec". A timer0 that is armed without being running answers its
-     *  own yev callback with -1, and that BREAKS THE EVENT LOOP of the
-     *  whole yuno, which exits with no error of its own.
-     */
-    gobj_start(priv->timer);
 
     priv->bf = gbmem_malloc(priv->chunk_size);
     if(!priv->bf) {
@@ -179,14 +170,14 @@ PRIVATE int mt_start(hgobj gobj)
             "chunk_size",   "%d", priv->chunk_size,
             NULL
         );
-        set_timeout0(priv->timer, DEFER_MS);
+        gobj_post_message(gobj, EV_READ_CHUNK, 0);
         return 0;
     }
 
     ISTREAM_CREATE(priv->istream, gobj, 4*1024, priv->max_line_size);
     if(!priv->istream) {
         // Error already logged
-        set_timeout0(priv->timer, DEFER_MS);
+        gobj_post_message(gobj, EV_READ_CHUNK, 0);
         return 0;
     }
     istream_read_until_delimiter(priv->istream, "\n", 1, 0);
@@ -202,7 +193,7 @@ PRIVATE int mt_start(hgobj gobj)
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        set_timeout0(priv->timer, DEFER_MS);
+        gobj_post_message(gobj, EV_READ_CHUNK, 0);
         return 0;
     }
 
@@ -210,7 +201,7 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_trace_msg(gobj, "log_reader: open '%s'", priv->path);
     }
 
-    set_timeout0(priv->timer, DEFER_MS);
+    gobj_post_message(gobj, EV_READ_CHUNK, 0);
 
     return 0;
 }
@@ -222,8 +213,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout0(priv->timer);
-
     if(priv->fd >= 0) {
         close(priv->fd);
         priv->fd = -1;
@@ -232,8 +221,6 @@ PRIVATE int mt_stop(hgobj gobj)
     ISTREAM_DESTROY(priv->istream)
 
     GBMEM_FREE(priv->bf)
-
-    gobj_stop(priv->timer);
 
     return 0;
 }
@@ -262,8 +249,6 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int publish_error(hgobj gobj, const char *error)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout0(priv->timer);
 
     json_t *kw = json_pack("{s:s, s:s}",
         "path", priv->path,
@@ -417,7 +402,7 @@ PRIVATE int read_chunk(hgobj gobj)
 /***************************************************************************
  *  Read the next chunk, or report what mt_start could not do.
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_read_chunk(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -435,7 +420,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(ret == 0) {
-        set_timeout0(priv->timer, DEFER_MS);
+        gobj_post_message(gobj, EV_READ_CHUNK, 0);
         KW_DECREF(kw)
         return 0;
     }
@@ -455,20 +440,6 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "bytes", (json_int_t)priv->bytes,
             "too_long", (json_int_t)priv->too_long
         ));
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  The timer was cancelled. Part of the C_TIMER0 contract: it tells its
- *  owner when the timeout it was holding will not arrive.
- ***************************************************************************/
-PRIVATE int ac_timer_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    if(gobj_trace_level(gobj) & TRACE_READ) {
-        gobj_trace_msg(gobj, "log_reader: timer stopped, no more chunks");
     }
 
     KW_DECREF(kw)
@@ -504,6 +475,7 @@ GOBJ_DEFINE_GCLASS(C_LOG_READER);
 GOBJ_DEFINE_EVENT(EV_LOG_LINES);
 GOBJ_DEFINE_EVENT(EV_LOG_EOF);
 GOBJ_DEFINE_EVENT(EV_LOG_ERROR);
+GOBJ_DEFINE_EVENT(EV_READ_CHUNK);
 
 /***************************************************************************
  *          Create the GClass
@@ -526,8 +498,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,                ac_timeout,              0},
-        {EV_STOPPED,                ac_timer_stopped,        0},
+        {EV_READ_CHUNK,             ac_read_chunk,           0},
         {0,0,0}
     };
 
@@ -540,8 +511,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_TIMEOUT,                0},
-        {EV_STOPPED,                0},
+        {EV_READ_CHUNK,             0},
         {EV_LOG_LINES,              EVF_OUTPUT_EVENT},
         {EV_LOG_EOF,                EVF_OUTPUT_EVENT},
         {EV_LOG_ERROR,              EVF_OUTPUT_EVENT},

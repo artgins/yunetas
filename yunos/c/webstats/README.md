@@ -106,6 +106,10 @@ webstats (yuno)
 └── webstats  C_WEBSTATS       service, default_service
     ├── timer     C_TIMER      the daily schedule
     └── reader_N  C_LOG_READER one per file being read (created, used, destroyed)
+
+The two continuations of a run -- take the next file, read the next chunk --
+are not timers. They are events the gobj posts to itself with
+`gobj_post_message()`, delivered on the next cycle of the event loop.
 ```
 
 ### 5.1 C_WEBSTATS (service)
@@ -122,12 +126,20 @@ wrong moment fails loudly and names its sender.
 | `ST_REPORTING` | building the report and handing it to `emailsender` |
 
 Events in: `EV_TIMEOUT` (schedule), `EV_LOG_LINES`, `EV_LOG_EOF`,
-`EV_LOG_ERROR` (from the readers).
+`EV_LOG_ERROR` (from the readers), `EV_NEXT_FILE` (posted to itself).
 Events out: `EV_REPORT_READY` (`EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS`) so a
 future consumer — controlcenter, a SPA view — can take the report without
 touching this yuno.
 
 Work starts in `mt_play`, not in `mt_create`. `mt_create` creates the timer.
+
+**Why `EV_NEXT_FILE` and not a deferred `EV_TIMEOUT`.** A file ends inside the
+reader's own publish stack, so the reader cannot be destroyed there. The
+continuation has to cross a cycle of the loop, and it carries its own name:
+the `machine` trace says `EV_NEXT_FILE` instead of `EV_TIMEOUT`, and the FSM
+does not have to tell the schedule and the continuation apart by state. The
+schedule is still disarmed while a run goes, because `EV_TIMEOUT` means "it is
+the hour" and only `ST_IDLE` knows what to do with it.
 
 ### 5.2 C_LOG_READER (child)
 
@@ -140,9 +152,9 @@ Turns one file into events. It knows nothing about nginx.
   `yev_create_read_event()` submits its reads with **offset 0**, which is what
   a socket wants and is wrong for a regular file: every chunk reads the head
   of the file again. No gclass in the tree reads a regular file this way,
-  so nothing had shown it. The reader uses `read(2)` and continues on a 1 ms
-  `C_TIMER0`. Giving yev a read offset is the proper fix, and it is a kernel
-  change that needs its own decision. The events this gclass publishes do not
+  so nothing had shown it. The reader uses `read(2)` and continues by posting
+  `EV_READ_CHUNK` to itself. Giving yev a read offset is the proper fix, and
+  it is a kernel change that needs its own decision. The events this gclass publishes do not
   depend on which of the two it uses.
 - Splits chunks into lines and publishes `EV_LOG_LINES` with an array of
   complete lines.
@@ -154,11 +166,13 @@ Turns one file into events. It knows nothing about nginx.
 - CHILD subscription model: it publishes to its parent, which declares both
   events in its FSM.
 
-### 5.3 Why a timer here is not polling
+### 5.3 Why the one timer left here is not polling
 
 The framework forbids a timer that re-issues the same query to see if
-something changed. This timer is a **schedule**: it fires once a day because
-the report is defined per day, and no producer can publish the event instead.
+something changed. The only timer in this yuno is a **schedule**: it fires
+once a day because the report is defined per day, and no producer can publish
+the event instead. The continuations that used to look like timers are posted
+messages now, which is what they always were.
 The code carries this comment, so nobody removes it later as a discarded
 pattern.
 

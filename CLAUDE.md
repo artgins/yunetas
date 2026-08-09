@@ -666,7 +666,14 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   child gobjs whose create/start/stop/destroy pair with the parent's
   lifecycle; (2) self-destroy at a clear end-of-work point
   (`if(gobj_is_volatil(gobj)) gobj_destroy(gobj)`); (3) last resort, a
-  gclass-local deferred destroy via `set_timeout0(timer, 0)`.
+  gclass-local deferred destroy via `gobj_post_message(gobj, EV_X, kw)`, which
+  delivers the event to the gobj itself on the next cycle of the loop.
+  **Never a `C_TIMER0` of 1 ms for this**: a deferral is not a time, and
+  writing it as one costs an io_uring timeout, a child gobj, and the name of
+  the event — every continuation then arrives as `EV_TIMEOUT` and the
+  `machine` trace stops saying what happened. A timer is for a real time: a
+  schedule, an inactivity window, a backoff. Contract in `gobj.h`, worked
+  example in [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md) §8.14.
 - **No polling.** A timer re-issuing the same query is a discarded pattern in
   Yuneta — remove it when found. Alternatives, in order: on-demand refresh
   from a user action, or have the producer **publish an event** the consumer

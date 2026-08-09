@@ -137,9 +137,24 @@ typedef struct gobj_s {
     uint8_t priority;
 } gobj_t;
 
+/*
+ *  A message posted with gobj_post_message(), waiting for the next cycle
+ *  of the event loop. The gobj is destination and source at once: a gobj
+ *  posts only to itself, and gobj_destroy() purges what it left pending,
+ *  so this pointer is never stale by the time it is read.
+ */
+typedef struct posted_msg_s {
+    DL_ITEM_FIELDS
+
+    gobj_t *gobj;
+    gobj_event_t event;
+    json_t *kw;             // owned
+} posted_msg_t;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE void purge_posted_messages(gobj_t *gobj);
 PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, gobj_t **gobj_found); // Return is NOT YOURS
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
@@ -318,6 +333,19 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass = {0};
+
+/*
+ *  Messages posted with gobj_post_message(), pending for the next cycle.
+ *
+ *  The limit is not a capacity to size: in a healthy yuno the queue holds
+ *  none or one. It is there because this call is the natural thing to reach
+ *  for when somebody wants a work queue, and a queue that grows without a
+ *  ceiling turns that misuse into a yuno that swells until the node dies.
+ *  Reaching the limit is a design error and says so.
+ */
+#define MAX_POSTED_MESSAGES 10000
+PRIVATE dl_list_t dl_posted_messages = {0};
+
 PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
 PRIVATE json_t *__jn_extra_global_vars__ = 0; // Extra entries merged into gobj_global_variables()
 PRIVATE dl_list_t dl_trans_filter = {0};
@@ -627,6 +655,31 @@ PUBLIC void gobj_end(void)
         );
         gobj_destroy(__yuno__);
         __yuno__ = 0;
+    }
+
+    /*
+     *  Messages still posted when the loop is over.
+     *
+     *  Destroying the yuno above purged the tree's own, so anything left
+     *  here belongs to a gobj outside it. Say how many were dropped: they
+     *  are work somebody queued and nobody will do, and silence about it
+     *  hides the design error that queued them after the loop.
+     */
+    if(dl_size(&dl_posted_messages) > 0) {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Posted messages DROPPED, never delivered",
+            "pending",      "%d", (int)dl_size(&dl_posted_messages),
+            NULL
+        );
+
+        posted_msg_t *msg;
+        while((msg = dl_first(&dl_posted_messages))) {
+            dl_delete(&dl_posted_messages, msg, 0);
+            KW_DECREF(msg->kw)
+            GBMEM_FREE(msg)
+        }
     }
 
     gclass_t *gclass;
@@ -2353,6 +2406,13 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     }
 
     gobj->obflag |= obflag_destroying;
+
+    /*
+     *  AFTER the flag, so it also takes what mt_pause()/mt_stop() may have
+     *  posted above: from here on gobj_post_message() refuses this gobj, so
+     *  what is dropped now cannot come back.
+     */
+    purge_posted_messages(gobj);
 
     if(__trace_gobj_create_delete__(gobj)) {
         trace_machine("💔💔⏩ destroying: %s",
@@ -7737,6 +7797,193 @@ PUBLIC int gobj_send_event_to_children_tree(
 
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  Post an event to yourself, to be delivered on the next cycle of the loop.
+ *
+ *  The contract is written in gobj.h. What matters here: the message is only
+ *  queued, and whoever queued it keeps running to the end of its action.
+ ***************************************************************************/
+PUBLIC int gobj_post_message(
+    hgobj hgobj_,
+    gobj_event_t event,
+    json_t *kw          // owned
+) {
+    if(hgobj_ == NULL) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "hgobj NULL",
+            "event",        "%s", event?event:"",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    gobj_t *gobj = (gobj_t *)hgobj_;
+
+    if(gobj->obflag & (obflag_destroyed|obflag_destroying)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", (gobj->obflag & obflag_destroyed)? "gobj DESTROYED":"gobj DESTROYING",
+            "event",        "%s", event?event:"",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(empty_string(event)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "event EMPTY",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    /*
+     *  The event has to exist in the machine now, not when it is delivered.
+     *  Otherwise the "Event NOT DEFINED in state" arrives a cycle later, with
+     *  a stack that points at the loop instead of at whoever posted it.
+     */
+    if(!gobj_has_event(gobj, event, 0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Event NOT DEFINED in gclass",
+            "gclass_name",  "%s", gobj->gclass->gclass_name,
+            "event",        "%s", event,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(dl_size(&dl_posted_messages) >= MAX_POSTED_MESSAGES) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Too many posted messages, this is NOT a work queue",
+            "event",        "%s", event,
+            "pending",      "%d", (int)dl_size(&dl_posted_messages),
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    posted_msg_t *msg = gbmem_malloc(sizeof(posted_msg_t));
+    if(!msg) {
+        // Error already logged
+        KW_DECREF(kw)
+        return -1;
+    }
+    msg->gobj = gobj;
+    msg->event = event;
+    msg->kw = kw;   // owned
+
+    dl_add(&dl_posted_messages, msg);
+
+    if(is_machine_tracing(gobj, event) && !is_machine_not_tracing(gobj, event)) {
+        trace_machine("📬 posted(%s%s), ev: %s, pending: %d",
+            (!gobj->running)?"!!":"",
+            gobj_short_name(gobj),
+            event,
+            (int)dl_size(&dl_posted_messages)
+        );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  How many messages are waiting.
+ *
+ *  The event loop asks before it decides to block: with messages pending
+ *  there is work to do and blocking would sit on it until something else
+ *  woke the loop up.
+ ***************************************************************************/
+PUBLIC size_t gobj_posted_messages_size(void)
+{
+    return dl_size(&dl_posted_messages);
+}
+
+/***************************************************************************
+ *  Deliver the posted messages. Called by the event loop, once per cycle.
+ *
+ *  A SNAPSHOT of the queue: the messages waiting when this begins are the
+ *  ones delivered, and what an action posts while it runs waits for the next
+ *  cycle. Draining until empty instead would let a message that posts the
+ *  next one hold the loop for ever, and no io_uring completion would be seen
+ *  again -- the yuno alive, busy, and deaf.
+ *
+ *  Returns the number of messages delivered.
+ ***************************************************************************/
+PUBLIC int gobj_deliver_posted_messages(void)
+{
+    posted_msg_t *last = dl_last(&dl_posted_messages);
+    if(!last) {
+        return 0;
+    }
+
+    /*
+     *  The snapshot is marked by the id of the last message, not by a count.
+     *  A count would drift: an action that destroys a gobj takes that gobj's
+     *  pending messages out of the middle of the queue, and the count would
+     *  then reach as far as messages posted after this cycle began. dl_add()
+     *  gives every item an id that only grows, so the mark holds whatever
+     *  happens to the queue in between.
+     */
+    size_t last_id = last->__id__;
+    int delivered = 0;
+
+    for(;;) {
+        posted_msg_t *msg = dl_first(&dl_posted_messages);
+        if(!msg || msg->__id__ > last_id) {
+            break;
+        }
+        dl_delete(&dl_posted_messages, msg, 0);
+
+        gobj_t *gobj = msg->gobj;
+        gobj_event_t event = msg->event;
+        json_t *kw = msg->kw;
+        GBMEM_FREE(msg)
+
+        /*
+         *  Source and destination are the same gobj: it posted it to itself.
+         */
+        gobj_send_event(gobj, event, kw, gobj);
+        delivered++;
+    }
+
+    return delivered;
+}
+
+/***************************************************************************
+ *  Drop the messages a gobj left pending.
+ *
+ *  Called from gobj_destroy(). Without it the queue would hold a pointer to
+ *  a gobj that no longer exists, and the next cycle would deliver an event
+ *  to freed memory.
+ ***************************************************************************/
+PRIVATE void purge_posted_messages(gobj_t *gobj)
+{
+    posted_msg_t *msg, *next;
+
+    DL_FOREACH_SAFE(&dl_posted_messages, msg, next) {
+        if(msg->gobj != gobj) {
+            continue;
+        }
+        dl_delete(&dl_posted_messages, msg, 0);
+        KW_DECREF(msg->kw)
+        GBMEM_FREE(msg)
+    }
 }
 
 /***************************************************************************

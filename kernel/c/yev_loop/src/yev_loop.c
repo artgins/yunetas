@@ -828,7 +828,36 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     yev_loop->running = TRUE;
     while(yev_loop->running) {
         int err;
-        if(timeout_in_seconds > 0) {
+
+        /*
+         *  Deliver what was posted with gobj_post_message().
+         *
+         *  Here, at the top of the cycle, and not after the completions: a
+         *  message posted before the loop even started -- in mt_play(), say --
+         *  would otherwise wait for the first completion to arrive, which in
+         *  a yuno with nothing else armed is never.
+         *
+         *  It delivers a snapshot, so an action that posts the next message
+         *  leaves it for the following cycle. That is the whole reason the
+         *  peek below exists.
+         */
+        gobj_deliver_posted_messages();
+        if(!yev_loop->running) {
+            break;
+        }
+
+        if(gobj_posted_messages_size() > 0) {
+            /*
+             *  There is work waiting: do not block on the ring, take a
+             *  completion if one is ready and go back to the queue if not.
+             *  Blocking here is what would turn a posted message into one
+             *  delivered hours later, when some timer happened to fire.
+             */
+            err = io_uring_peek_cqe(&yev_loop->ring, &cqe);
+            if(err == -EAGAIN) {
+                continue;
+            }
+        } else if(timeout_in_seconds > 0) {
             struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
             err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
         } else {
@@ -969,6 +998,13 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
     MT_START_TIME(yev_time_measure)
     MT_SET_COUNT(yev_time_measure, 1)
     #endif
+
+    /*
+     *  One turn of the loop also means one delivery of what was posted:
+     *  the callers of this function (service management, shutdown) use it
+     *  to let pending work settle, and a posted message IS pending work.
+     */
+    gobj_deliver_posted_messages();
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {

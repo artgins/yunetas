@@ -6,6 +6,21 @@ the docs (`yunos/c/yuno_agent/YUNO_AUTH.md`,
 `docs/doc.yuneta.io/yunos/mqtt_broker.md`,
 `docs/doc.yuneta.io/guide/guide_tls.md`) and git history.
 
+## ESP32: `gobj_post_message()` is not in the port
+
+`kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj
+sources, so the call added to `kernel/c/gobj-c/` does not reach it. A gclass
+that uses it does not build for ESP32.
+
+Porting it is two pieces: the queue and its API in the copy of `gobj.c`, and
+the delivery point in whatever drives the ESP-IDF side, which is where the
+decision is. On Linux `yev_loop_run()` owns the cycle and the drain goes at
+the top of it; the ESP32 port has no equivalent single loop to hang it on.
+
+Until then, a deferral there stays a `C_TIMER0`, and the two implementations
+of the same framework differ on a documented call. Nothing uses it on ESP32
+today, which is why this is a note and not a blocker.
+
 ## Tests: `test_c_timer0` asserts a 10 ms window on a 5 s measurement
 
 `c_test_timer0.c` fails the run when five ticks of a 1 s periodic timer do not

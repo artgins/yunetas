@@ -33,6 +33,7 @@ GOBJ_DECLARE_STATE(ST_REPORTING);       // building the report and sending it
  *      Events
  *------------------------*/
 GOBJ_DECLARE_EVENT(EV_REPORT_READY);    // the daily record, for whoever wants it
+GOBJ_DECLARE_EVENT(EV_NEXT_FILE);       // internal: take the next file, next cycle
 
 /***************************************************************
  *              Prototypes

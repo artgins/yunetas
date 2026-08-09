@@ -274,6 +274,85 @@ Returns 0 on success, -1 if the event is not defined in the current state, or if
 
 If the event is not found in the current state of `dst`, the function checks if `dst` has a custom event injection method (`mt_inject_event`). If defined, it delegates event processing to that method.
 
+Delivery is **synchronous**: when the call returns, the action has run to the end, with every cascade it started. To send an event that must run after the current action returns, use [`gobj_post_message()`](#gobj_post_message).
+
+---
+
+(gobj_post_message)=
+## [`gobj_post_message()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L7808)
+
+Posts an event to the gobj itself, to be delivered on the next cycle of the event loop. Use it when an action must leave the stack it is standing on: for example, a subscriber that must destroy or stop the publisher whose synchronous [`gobj_publish_event()`](publish.md#gobj_publish_event) is still below it on the stack.
+
+```C
+int gobj_post_message(
+    hgobj        gobj,
+    gobj_event_t event,
+    json_t       *kw
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that posts the message. It is also the destination and the source. |
+| `event` | `gobj_event_t` | The event to deliver. It must be declared in the event list of the GClass. |
+| `kw` | `json_t *` | A JSON object with the data of the event. The ownership is transferred to the function. |
+
+**Returns**
+
+Returns `0` when the message is queued, or `-1` when it is refused. A refusal decrefs the `kw` and logs the cause: the gobj is under destruction, the event is not declared in the GClass, or the queue is full.
+
+**Notes**
+
+Delivery is **a snapshot per cycle**. The messages that are in the queue when a cycle begins are the ones delivered in it, and a message posted during that delivery waits for the next cycle. A chain of messages that post the next one therefore advances one step per turn of the loop, and the io_uring completions continue to arrive.
+
+Post only from the thread of the event loop, which is to say from an action, a framework method or a command handler. There is no wakeup: the queue is drained because the callback that you are in returns.
+
+[`gobj_destroy()`](creation.md#gobj_destroy) drops the messages that its gobj left in the queue and decrefs their `kw`.
+
+**Do not use a `C_TIMER0` of one millisecond for this.** A deferral is not a time. Written as a time it costs an io_uring timeout, a child gobj with its own start and stop, and the name of the event: every continuation arrives as `EV_TIMEOUT`, so the `machine` trace says "timeout" instead of what happened. Use a timer when there is a real time to measure: a schedule, an inactivity window, a backoff.
+
+---
+
+(gobj_posted_messages_size)=
+## [`gobj_posted_messages_size()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L7912)
+
+Returns how many posted messages wait for delivery.
+
+```C
+size_t gobj_posted_messages_size(void);
+```
+
+**Returns**
+
+The number of messages in the queue.
+
+**Notes**
+
+The event loop reads this before it decides to block on the ring. With messages pending there is work to do, and a block leaves that work in the queue until some other event wakes the loop.
+
+---
+
+(gobj_deliver_posted_messages)=
+## [`gobj_deliver_posted_messages()`](https://github.com/artgins/yunetas/blob/7.9.13/kernel/c/gobj-c/src/gobj.c#L7928)
+
+Delivers the posted messages that are in the queue. `yev_loop_run()` calls it at the top of each cycle.
+
+```C
+int gobj_deliver_posted_messages(void);
+```
+
+**Returns**
+
+The number of messages delivered.
+
+**Notes**
+
+Only an implementation of an event loop calls this function. A GClass never does.
+
+It takes a snapshot: it delivers the messages that were in the queue when it began, and leaves for the next cycle what the actions post while it runs. A drain that continues until the queue is empty lets a message that posts the next one hold the loop for ever, and no completion arrives again.
+
 ---
 
 (gobj_find_event_type)=
