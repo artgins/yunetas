@@ -505,6 +505,18 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
     notifempty
     compress
 
+    #   Rotate to '<name>.1', never to '<name>-YYYYMMDD'.
+    #
+    #   NOT decoration: /etc/logrotate.conf on RHEL and Rocky carries a global
+    #   'dateext', and without this the same drop-in gives 'access.log.1' on
+    #   Debian and 'access.log-20260808' on Rocky. The webstats yuno reads
+    #   '<path>' and '<path>.1' -- the day it reports is the day the LINE
+    #   carries, and the previous day lives in the '.1' that delaycompress
+    #   leaves uncompressed. With dateext there is no '.1', so that yuno reads
+    #   today's file alone and reports the previous day as empty, with nothing
+    #   in any log to say why. Measured on yunovatios-central, 2026-08-09.
+    nodateext
+
     #   The master keeps writing to the renamed file until it gets the signal
     #   below, so the most recent rotation is compressed one day later. To
     #   compress it immediately would cut the lines still in flight.
