@@ -8,6 +8,28 @@ rebuilt as `yuneta-agent-7.12.0-2` and attached to the existing 7.12.0 tag.
 
 ### Fixed
 
+- **Nothing ever restarted the SECOND agent, on either distro.** An upgrade
+    replaces both agent binaries, and only the main one is ever bounced: the
+    init script's `stop_yunos()` stops just that one (start brings up both,
+    stop takes down one), and no package scriptlet touches `yuneta_agent22` at
+    all. *"Do not bounce both at once"* had quietly become *"never bounce the
+    second one"* — it kept running its old inode for as long as the node stayed
+    up. Found on **all five nodes at once**, four of them five days deep, and
+    the code the spare was running was the version-comparison bug this release
+    exists to fix. The escape hatch was the oldest thing on the node, which is
+    the exact opposite of what a second agent is for.
+
+    `install.sh` now refreshes it — but only **after** confirming the main
+    agent is up *and* running the binary that was just installed. If the main
+    agent is unhealthy, the spare is the only way into the node and is left
+    strictly alone, with the manual command printed. A spare that does not come
+    back is reported without failing the install, because the node still has
+    its main agent.
+
+    The staleness test is the process, not the file: `readlink /proc/<pid>/exe`
+    ending in `" (deleted)"`. `rpm -q`, `--version` and the installer's own
+    sign-off all read the file, and all three said everything was fine.
+
 - **An `.rpm` upgrade left the OLD agent running, and every check said it had
     worked.** dpkg stops the agent in `prerm` and starts it again in
     `postinst`, so a `.deb` upgrade lands on the new binary. rpm has no

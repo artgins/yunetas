@@ -386,6 +386,61 @@ while [ "$tries" -lt 10 ]; do
     sleep 1
 done
 
+# ----- The second agent, refreshed only once the first one is healthy -------
+#
+# An upgrade replaces both agent binaries on disk, and nothing restarts the
+# SECOND one: the init script's stop_yunos() deliberately stops only the main
+# agent (start brings up both, stop takes down one), and no package scriptlet
+# touches yuneta_agent22 at all. "Do not bounce both at once" had become "never
+# bounce the second one", so it kept running its old inode for as long as the
+# node stayed up — five days on four nodes when this was found, and the code it
+# was running was the version-comparison bug this very release fixes. The
+# escape hatch was the oldest thing on the node, which is the exact opposite of
+# what a second agent is for.
+#
+# The order is the whole point: the main agent must be up AND running the
+# binary that was just installed before the spare is touched. If the main one
+# is unhealthy, the spare is the only way in and it is left strictly alone.
+running_on_stale_binary() {
+    _p=$(pgrep -x "$1" 2>/dev/null | head -1)
+    if [ -z "$_p" ]; then
+        return 1
+    fi
+    readlink "/proc/$_p/exe" 2>/dev/null | grep -q ' (deleted)$'
+}
+
+# Run a command as the yuneta user (the agents refuse to run as root).
+as_yuneta() {
+    if command -v runuser >/dev/null 2>&1; then
+        runuser -u yuneta -- "$@" >/dev/null 2>&1
+    else
+        su -s /bin/sh -c "$*" yuneta >/dev/null 2>&1
+    fi
+}
+
+A22=/yuneta/agent/yuneta_agent22
+A22_CFG=/yuneta/agent/yuneta_agent22.json
+if running_on_stale_binary yuneta_agent22; then
+    if [ "$AGENT_UP" != "1" ] || running_on_stale_binary yuneta_agent; then
+        echo "[!] yuneta_agent22 is still running the previous binary, and it is NOT being" >&2
+        echo "    restarted: yuneta_agent is not healthy, so the spare is the only agent" >&2
+        echo "    left. Fix the main agent first, then: sudo $A22 --config-file=$A22_CFG --stop && --start" >&2
+    elif [ -x "$A22" ] && [ -e "$A22_CFG" ]; then
+        echo "[i] yuneta_agent is healthy on the new binary; refreshing yuneta_agent22…"
+        as_yuneta "$A22" --config-file="$A22_CFG" --stop
+        sleep 3
+        as_yuneta "$A22" --config-file="$A22_CFG" --start
+        sleep 3
+        if agent_running yuneta_agent22 && ! running_on_stale_binary yuneta_agent22; then
+            echo "[✓] yuneta_agent22 restarted on the installed binary."
+        else
+            echo "[!] yuneta_agent22 did NOT come back on the new binary. The node still has" >&2
+            echo "    yuneta_agent, so it is reachable — but fix the spare:" >&2
+            echo "    sudo $A22 --config-file=$A22_CFG --start" >&2
+        fi
+    fi
+fi
+
 AGENT22_UP=0
 if agent_running yuneta_agent22; then
     AGENT22_UP=1
