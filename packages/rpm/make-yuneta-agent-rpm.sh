@@ -1639,6 +1639,38 @@ WARN
 WARN
 fi
 
+# --- Stop the running agent so the upgrade actually takes ---
+#
+# This is what dpkg's prerm does, and rpm has no equivalent hook: %preun only
+# stops on UNINSTALL ($1 == 0), and %post's `service yuneta_agent start` is a
+# no-op against a process that is already running. So an rpm upgrade laid the
+# new binary on disk and left the OLD process running on the unlinked inode --
+# `readlink /proc/<pid>/exe` ending in " (deleted)" is the whole tell, and
+# `rpm -q`, `--version` and the installer's own "yuneta_agent is running" all
+# read the FILE and report success. 7.12.0 reached a node that way: the fix
+# was installed and not running.
+#
+# Only the MAIN agent, never yuneta_agent22 -- the init script's stop_yunos()
+# is deliberately asymmetric for the same reason (start brings up both, stop
+# takes down one). The two agents exist so each can recover the other, and an
+# upgrade that bounced both at once would throw that away for the seconds it
+# matters most.
+#
+# The yunos are NOT affected: they outlive their agent and the new one adopts
+# them back over the control channel (measured on five nodes -- same yunos,
+# same PIDs, across the stop/start).
+#
+# $1 == 2 is an upgrade; on a fresh install ($1 == 1) there is nothing to stop.
+if [ "$1" = "2" ]; then
+    if [ -x /yuneta/agent/yuneta_agent ] && pgrep -x yuneta_agent >/dev/null 2>&1; then
+        echo "[pre] stopping yuneta_agent for the upgrade (yuneta_agent22 stays up)"
+        runuser -u yuneta -- /yuneta/agent/yuneta_agent \
+            --config-file=/yuneta/agent/yuneta_agent.json --stop >/dev/null 2>&1 \
+            || su -s /bin/sh -c "/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop" yuneta >/dev/null 2>&1 \
+            || echo "[pre] WARNING: could not stop yuneta_agent; %post will start it and the OLD process may survive" >&2
+    fi
+fi
+
 for _web in nginx openresty/nginx; do
     _conf="/yuneta/bin/${_web}/conf"
     if [ -f "${_conf}/nginx.conf" ]; then

@@ -1,5 +1,37 @@
 # **Changelog**
 
+## 7.12.0-2
+
+A packaging revision, not a new version: the tree under `kernel/`, `modules/`,
+`utils/` and `yunos/` is the same one 7.12.0 was cut from. The packages are
+rebuilt as `yuneta-agent-7.12.0-2` and attached to the existing 7.12.0 tag.
+
+### Fixed
+
+- **An `.rpm` upgrade left the OLD agent running, and every check said it had
+    worked.** dpkg stops the agent in `prerm` and starts it again in
+    `postinst`, so a `.deb` upgrade lands on the new binary. rpm has no
+    equivalent hook: `%preun` stops only on **uninstall** (`$1 == 0`), and
+    `%post`'s `service yuneta_agent start` is a no-op against a process that is
+    already running. So the new binary went to disk and the old process kept
+    running on the unlinked inode.
+
+    Nothing reported it. `rpm -q` said `7.12.0-1`, `yuneta_agent --version`
+    said `7.12.0`, and the installer signed off with *"yuneta_agent and
+    yuneta_agent22 are running"* — all three read the **file**. Only
+    `readlink /proc/<pid>/exe`, ending in `" (deleted)"`, read the process.
+    This is how 7.12.0 reached a node installed and not running: the release
+    whose whole point was a fix in the agent.
+
+    `%pre` now stops the main agent on an upgrade (`$1 == 2`), mirroring
+    `prerm`. **Only the main one** — `yuneta_agent22` stays up, the same
+    asymmetry the init script's `stop_yunos()` already has (start brings up
+    both, stop takes down one): the second agent exists so each can recover the
+    other, and an upgrade that bounced both at once would give that up for the
+    seconds it matters most. The yunos are untouched — they outlive their agent
+    and the new one adopts them back over the control channel, measured across
+    five nodes as the same yunos with the same PIDs.
+
 ## 7.12.0
 
 A minor for what was found, not for what was added.
