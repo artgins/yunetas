@@ -952,11 +952,20 @@ case "${1:-}" in
             "$BIN" -s quit || true
         fi
         ;;
+    stop)
+        #
+        #   The fast shutdown. 'quit' waits for the requests in flight, which
+        #   on a node with websockets means for ever.
+        #
+        if [ -x "$BIN" ]; then
+            "$BIN" -s stop || true
+        fi
+        ;;
     type)
         echo "$WEBTYPE"
         ;;
     *)
-        echo "Usage: $0 {run|quit|type}" >&2
+        echo "Usage: $0 {run|quit|stop|type}" >&2
         exit 2
         ;;
 esac
@@ -1782,6 +1791,12 @@ fi
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
     if ! systemctl is-active --quiet yuneta-webserver.service; then
+        # 'quit' is the GRACEFUL shutdown: it waits for the requests in
+        # flight, and on a node with long-lived connections -- websockets --
+        # that wait does not end. Twenty seconds was not enough on artgins,
+        # the old master kept the ports, and the unit went into a restart
+        # loop that failed to bind 17 times. So: ask nicely, wait, and then
+        # stop it for real.
         /yuneta/bin/yuneta-webserver quit >/dev/null 2>&1 || true
         i=0
         while [ "$i" -lt 20 ]; do
@@ -1791,6 +1806,17 @@ if command -v systemctl >/dev/null 2>&1; then
             sleep 1
             i=$((i+1))
         done
+        if pidof nginx >/dev/null 2>&1 || pidof openresty >/dev/null 2>&1; then
+            /yuneta/bin/yuneta-webserver stop >/dev/null 2>&1 || true
+            i=0
+            while [ "$i" -lt 10 ]; do
+                if ! pidof nginx >/dev/null 2>&1 && ! pidof openresty >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 1
+                i=$((i+1))
+            done
+        fi
     fi
     systemctl enable yuneta-webserver.service >/dev/null 2>&1 || true
     systemctl restart yuneta-webserver.service >/dev/null 2>&1 || true

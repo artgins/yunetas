@@ -241,8 +241,15 @@ if [ -f "${WEB_SELECTOR_FILE}" ]; then
     esac
 fi
 echo "[i] Web server selection: ${WEB_CHOICE}"
-install -D -m 0644 /dev/null "${WORKDIR}/etc/yuneta/webserver"
-printf '%s\n' "${WEB_CHOICE}" > "${WORKDIR}/etc/yuneta/webserver"
+# NOT shipped in the package, on purpose. Which web server a node runs is the
+# NODE's choice, not the build machine's -- and the build machine has none, so
+# it would ship "nginx" and dpkg would push that onto every node that runs
+# openresty. It did: on 7.11.0 both openresty nodes came back up serving from
+# the wrong tree, with a default config, until the file was put back by hand.
+#
+# Same lesson as nginx.conf, which stopped being shipped in 7.9.1 for exactly
+# this reason. postinst creates it only when it is absent.
+WEB_CHOICE_DEFAULT="${WEB_CHOICE}"
 
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
 # Binaries are pre-built into /yuneta/agent/ by `yunetas build`.
@@ -498,11 +505,20 @@ case "${1:-}" in
             "$BIN" -s quit || true
         fi
         ;;
+    stop)
+        #
+        #   The fast shutdown. 'quit' waits for the requests in flight, which
+        #   on a node with websockets means for ever.
+        #
+        if [ -x "$BIN" ]; then
+            "$BIN" -s stop || true
+        fi
+        ;;
     type)
         echo "$WEBTYPE"
         ;;
     *)
-        echo "Usage: $0 {run|quit|type}" >&2
+        echo "Usage: $0 {run|quit|stop|type}" >&2
         exit 2
         ;;
 esac
@@ -1063,9 +1079,6 @@ EOF
 
 if [ -f "${WORKDIR}/etc/yuneta/authorized_keys" ]; then
     echo "/etc/yuneta/authorized_keys" >> "${WORKDIR}/DEBIAN/conffiles"
-fi
-if [ -f "${WORKDIR}/etc/yuneta/webserver" ]; then
-    echo "/etc/yuneta/webserver" >> "${WORKDIR}/DEBIAN/conffiles"
 fi
 
 # --- helper scripts (installed under /yuneta/agent/service) ---
@@ -1926,6 +1939,16 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl enable yuneta-core-pattern.service >/dev/null 2>&1 || true
     systemctl start yuneta-core-pattern.service >/dev/null 2>&1 || true
 
+    # --- the node's web server choice, created only when absent ---
+    #
+    # The package does not ship /etc/yuneta/webserver: the choice belongs to
+    # the node. A fresh install has none, so seed it; an existing one is never
+    # touched.
+    if [ ! -e /etc/yuneta/webserver ]; then
+        printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+        chmod 0644 /etc/yuneta/webserver
+    fi
+
     # --- hand the web server over to its own unit ---
     #
     # TRANSITION, and it is the part that has to be right: before this
@@ -1938,6 +1961,12 @@ if command -v systemctl >/dev/null 2>&1; then
     #
     # It is a short interruption of the node's web server, at upgrade only.
     if ! systemctl is-active --quiet yuneta-webserver.service; then
+        # 'quit' is the GRACEFUL shutdown: it waits for the requests in
+        # flight, and on a node with long-lived connections -- websockets --
+        # that wait does not end. Twenty seconds was not enough on artgins,
+        # the old master kept the ports, and the unit went into a restart
+        # loop that failed to bind 17 times. So: ask nicely, wait, and then
+        # stop it for real.
         /yuneta/bin/yuneta-webserver quit >/dev/null 2>&1 || true
         i=0
         while [ "$i" -lt 20 ]; do
@@ -1947,6 +1976,17 @@ if command -v systemctl >/dev/null 2>&1; then
             sleep 1
             i=$((i+1))
         done
+        if pidof nginx >/dev/null 2>&1 || pidof openresty >/dev/null 2>&1; then
+            /yuneta/bin/yuneta-webserver stop >/dev/null 2>&1 || true
+            i=0
+            while [ "$i" -lt 10 ]; do
+                if ! pidof nginx >/dev/null 2>&1 && ! pidof openresty >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 1
+                i=$((i+1))
+            done
+        fi
     fi
     systemctl enable yuneta-webserver.service >/dev/null 2>&1 || true
     systemctl restart yuneta-webserver.service >/dev/null 2>&1 || true

@@ -175,9 +175,13 @@ The `postinst` script runs automatically after file extraction and performs thes
 - Adds `session required pam_limits.so` to `/etc/pam.d/common-session` and `/etc/pam.d/common-session-noninteractive` (if not already present)
 
 #### 2.10. Reboot
-- **Interactive install**: prompts the user to reboot (default: yes)
-- **Non-interactive install** (`DEBIAN_FRONTEND=noninteractive`): reboots automatically
-- Creates `/run/reboot-required` flag
+- **The installer never reboots**, in either mode. The kernel tuning is applied
+  live with `sysctl --system`, so a reboot is not needed to run. It only writes
+  the `/run/reboot-required` flag and recommends one, to verify that the agent
+  comes up at boot.
+- This paragraph used to say a non-interactive install reboots automatically.
+  It has not been true since the auto-reboot was removed, and reading it before
+  installing on a client's node is a bad minute to have.
 
 ### 3. Package Removal
 

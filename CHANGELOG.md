@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The package no longer decides which web server a node runs.** It shipped
+    `/etc/yuneta/webserver` with whatever the build machine chose, and the
+    build machine has no opinion, so it shipped `nginx`. On 7.11.0 both
+    openresty nodes came back serving from the wrong tree with a default
+    configuration — one of them the company server, the other a client's.
+
+    The file is node state, exactly like `nginx.conf`, which stopped being
+    shipped in 7.9.1 for this same reason. It is not in the package any more;
+    the scriptlet creates it only when it is absent.
+
+- **The handover to the web server unit stops the old server for real.** It
+    asked with `-s quit`, which is the graceful shutdown: it waits for the
+    requests in flight, and on a node with websockets that wait does not end.
+    Twenty seconds were not enough, the old master kept `:80` and `:443`, and
+    the unit went into a restart loop that failed to bind 17 times. It now
+    escalates to `-s stop`, and `yuneta-webserver` learned that verb.
+
+- **`packages/deb/README.md` said a non-interactive install reboots the node.**
+    It has not been true since the auto-reboot was removed. Reading that
+    paragraph before installing on a client's node is a bad minute to have.
 
 ## 7.11.0
 
