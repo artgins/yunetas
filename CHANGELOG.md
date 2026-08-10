@@ -35,6 +35,32 @@
 
 ### Changed
 
+- **The package refuses a node that builds from source.** It carries libraries,
+    headers and binaries built on another machine, and it lays them into the very
+    tree `yunetas build` owns — `outputs/` and `outputs_ext/`. From then on fresh
+    objects link against archives built for a **different glibc**: a dynamic link
+    fails loudly, a **static** one resolves them silently and the binary corrupts
+    its heap at run time. This is not hypothetical — it cost a client node a
+    week, and it is why `libc_guard.cmake` exists.
+
+    `preinst` / `%pre` now abort when `/yuneta/development/yunetas` holds
+    `kernel/` and `.git`, and `install.sh` checks first so the refusal is not
+    buried under apt's own error plus two failed fallbacks. Installing is still
+    supported — it just has to be a decision:
+
+    ```bash
+    sudo YUNETAS_FORCE_OVER_SOURCE=1 apt install ./<package>.deb
+    sudo touch /etc/yuneta/allow-package-over-source   # or make it stick
+    ```
+
+    The variable goes **after** `sudo`, which resets the environment; the marker
+    file is there because that footgun is not obvious. Forcing prints what has
+    to happen next: **rebuild everything, external libraries FIRST**. Rebuilding
+    only the SDK leaves the packaged externals in place, which is the same
+    mismatch by a shorter road.
+
+
+
 - **A msg2db says once what it used to say thousands of times.** Every record
     whose `pkey2` value is empty is dropped at load, and each one wrote its own
     error line: a client node was printing **4447 identical lines at every

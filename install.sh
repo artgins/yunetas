@@ -191,6 +191,59 @@ if [ -z "$ASSET_URL" ]; then
     exit 1
 fi
 
+# ----- Refuse a node that builds from source, unless forced ------------------
+#
+# The package's preinst/%pre refuses this on its own; the check is repeated
+# here so the refusal is the LAST thing on screen instead of the first of
+# three. Reaching it through apt means the message is followed by apt's own
+# error, then the `dpkg -i` fallback failing the same way, then `apt-get -f`:
+# by the time it stops, the reason has scrolled away.
+#
+# Fail before downloading anything.
+_yb=/yuneta/development/yunetas
+if [ -d "${_yb}/kernel" ] && [ -e "${_yb}/.git" ] &&
+        [ "${YUNETAS_FORCE_OVER_SOURCE:-0}" != "1" ] &&
+        [ ! -e /etc/yuneta/allow-package-over-source ]; then
+    cat >&2 <<'WARN'
+
+  =====================================================================
+   REFUSED: this node builds Yuneta from source
+  =====================================================================
+
+   /yuneta/development/yunetas holds the sources (kernel/ and .git), so
+   this node builds its own SDK. Installing the package here overwrites
+   outputs/ and outputs_ext/ with artefacts built elsewhere, against a
+   different glibc -- and a static link takes those without complaining
+   and corrupts its heap at run time.
+
+   To install anyway, say so:
+
+       curl -fsSL <url> | sudo YUNETAS_FORCE_OVER_SOURCE=1 sh
+
+   (the variable AFTER sudo -- sudo drops it otherwise), or make it
+   stick for this node:
+
+       sudo touch /etc/yuneta/allow-package-over-source
+
+   and then REBUILD EVERYTHING, external libraries FIRST:
+
+       cd /yuneta/development/yunetas
+       source yunetas-env.sh
+       cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh
+       cd /yuneta/development/yunetas
+       yunetas init
+       yunetas clean && yunetas build
+
+  =====================================================================
+
+WARN
+    exit 1
+fi
+
+# The package scripts read it too, and they run as children of apt/dnf, so it
+# has to be in the environment and not just in this shell.
+export YUNETAS_FORCE_OVER_SOURCE
+
 # ----- Download & install the package ---------------------------------------
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

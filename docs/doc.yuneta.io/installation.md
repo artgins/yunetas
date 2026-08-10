@@ -36,6 +36,57 @@ curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | s
 ```
 :::
 
+(install-on-a-build-node)=
+### Not on a node that builds from source
+
+The install **refuses** a node whose `/yuneta/development/yunetas` holds the
+sources (`kernel/` and `.git`), and so does the package itself if you install
+it by hand.
+
+The package carries libraries, headers and binaries built on another machine,
+and it lays them into the very tree `yunetas build` owns — `outputs/` and
+`outputs_ext/`. From then on the tree is no longer self-consistent: fresh
+objects link against archives built for a **different glibc**. A dynamic link
+fails loudly, which would be a mercy; a **static** link resolves them silently
+and the binary corrupts its heap at run time — SIGABRT deep inside `malloc`,
+seconds after start, with no framework error first and a stack that blames
+unrelated code. That is the same trap
+[`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.11.0/tools/cmake/libc_guard.cmake)
+catches at configure time.
+
+To install anyway — it is supported, it just has to be a decision:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh \
+    | sudo YUNETAS_FORCE_OVER_SOURCE=1 sh
+```
+
+The variable goes **after** `sudo`: `sudo` resets the environment, so
+`VAR=1 sudo …` never reaches the package scripts. To make it stick for a node
+that is deliberately both — a build machine that also tracks the packages —
+drop the marker instead:
+
+```bash
+sudo touch /etc/yuneta/allow-package-over-source
+```
+
+:::{warning}
+After forcing, **rebuild everything on that node, external libraries first**:
+
+```bash
+cd /yuneta/development/yunetas
+source yunetas-env.sh
+cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh
+cd /yuneta/development/yunetas
+yunetas init
+yunetas clean && yunetas build
+```
+
+The external libraries come **first**. Rebuilding only the SDK leaves the
+packaged externals in place, which is the same glibc mismatch by a shorter
+road.
+:::
+
 ### Tested on
 
 The command above is exercised end-to-end, on a freshly installed OS, on:

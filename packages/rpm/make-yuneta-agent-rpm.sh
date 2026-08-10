@@ -1550,6 +1550,95 @@ cat >> "${SPEC}" <<'SPEC_EOF'
 #######################################################################
 set -u
 
+# --- Refuse a node that builds from source, unless forced ---
+#
+# The package carries libraries, headers and binaries built on ANOTHER
+# machine, and it lays them into the very tree `yunetas build` owns
+# (outputs/, outputs_ext/). After that the tree is no longer self-consistent:
+# fresh objects get linked against archives from a different glibc, and a
+# STATIC link resolves those silently and corrupts the heap at run time --
+# SIGABRT deep inside malloc, seconds after start, with nothing in any log to
+# say why. That is the trap tools/cmake/libc_guard.cmake exists to catch.
+#
+# A refusal by default, not a warning: it has to be a decision somebody took,
+# not something a `dnf install` did to a build node on its way past. First
+# thing in %pre, before anything is saved or unpacked.
+_yb=/yuneta/development/yunetas
+if [ -d "${_yb}/kernel" ] && [ -e "${_yb}/.git" ]; then
+    # Two ways to say yes, because `sudo` resets the environment: the variable
+    # only survives as `sudo VAR=1 apt ...`, and the file survives anything.
+    _forced=0
+    if [ "${YUNETAS_FORCE_OVER_SOURCE:-0}" = "1" ]; then
+        _forced=1
+    fi
+    if [ -e /etc/yuneta/allow-package-over-source ]; then
+        _forced=1
+    fi
+    if [ "${_forced}" != "1" ]; then
+        cat >&2 <<'WARN'
+
+  =====================================================================
+   REFUSED: this node builds Yuneta from source
+  =====================================================================
+
+   /yuneta/development/yunetas holds the sources (kernel/ and .git), so
+   this node builds its own SDK. Installing the package here overwrites
+   outputs/ and outputs_ext/ with artefacts built elsewhere, against a
+   different glibc. What follows is not a build error: a static link
+   takes them without complaining and the binary corrupts its heap at
+   run time.
+
+   If that is what you want, say so:
+
+       sudo YUNETAS_FORCE_OVER_SOURCE=1 dnf install ./<package>.rpm
+
+   (the variable BEFORE the command, after sudo -- sudo drops it
+   otherwise), or make it stick for this node:
+
+       sudo touch /etc/yuneta/allow-package-over-source
+
+   and then REBUILD EVERYTHING on this node, in this order:
+
+       cd /yuneta/development/yunetas
+       source yunetas-env.sh
+       cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh
+       cd /yuneta/development/yunetas
+       yunetas init
+       yunetas clean && yunetas build
+
+   The external libraries come FIRST. Rebuilding only the SDK leaves the
+   packaged externals in place, which is the same mismatch by a shorter
+   road.
+
+  =====================================================================
+
+WARN
+        exit 1
+    fi
+    cat >&2 <<'WARN'
+
+  ---------------------------------------------------------------------
+   FORCED: installing over a source tree
+  ---------------------------------------------------------------------
+
+   outputs/ and outputs_ext/ are being replaced with artefacts built on
+   another machine. Until you rebuild, anything you compile here links
+   against a foreign glibc and can corrupt its heap at run time.
+
+   Rebuild everything, external libraries first:
+
+       cd /yuneta/development/yunetas
+       source yunetas-env.sh
+       cd kernel/c/linux-ext-libs && ./extrae.sh && ./configure-libs.sh
+       cd /yuneta/development/yunetas
+       yunetas init
+       yunetas clean && yunetas build
+
+  ---------------------------------------------------------------------
+
+WARN
+fi
+
 for _web in nginx openresty/nginx; do
     _conf="/yuneta/bin/${_web}/conf"
     if [ -f "${_conf}/nginx.conf" ]; then

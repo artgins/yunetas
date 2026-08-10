@@ -161,6 +161,28 @@ The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs
 surprising and un-idiomatic. The kernel tuning is applied live with
 `sysctl --system`; reboot only if your kernel needs it for other reasons.
 
+## It refuses a node that builds from source
+
+`%pre` aborts the install when `/yuneta/development/yunetas` holds the sources
+(`kernel/` and `.git`). The package carries artefacts built on another machine
+and lays them into the tree `yunetas build` owns (`outputs/`, `outputs_ext/`),
+so fresh objects would link against archives from a **different glibc** — and a
+static link takes those silently and corrupts the heap at run time.
+
+It is a refusal, not a warning, so it has to be a decision somebody took rather
+than something an install did to a build node on its way past. To go ahead:
+
+```bash
+sudo YUNETAS_FORCE_OVER_SOURCE=1 dnf install ./<package>.rpm
+# or, to make it stick for this node:
+sudo touch /etc/yuneta/allow-package-over-source
+```
+
+Then **rebuild everything on that node, external libraries first**
+(`kernel/c/linux-ext-libs`: `extrae.sh` + `configure-libs.sh`, then
+`yunetas init` and `yunetas clean && yunetas build`). Rebuilding only the SDK
+leaves the packaged externals in place — the same mismatch by a shorter road.
+
 ## What `%post` does (in order)
 
 1. Creates the `yuneta` login user (locked password) if missing; ensures

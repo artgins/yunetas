@@ -83,6 +83,28 @@ packages/deb/
 - `YUNETAS_BASE` env var must be set (or `/yuneta/development/yunetas` must exist)
 - Wrapper scripts **must be executed from this directory** (`cd packages/deb/`)
 
+## It refuses a node that builds from source
+
+`preinst` aborts the install when `/yuneta/development/yunetas` holds the sources
+(`kernel/` and `.git`). The package carries artefacts built on another machine
+and lays them into the tree `yunetas build` owns (`outputs/`, `outputs_ext/`),
+so fresh objects would link against archives from a **different glibc** — and a
+static link takes those silently and corrupts the heap at run time.
+
+It is a refusal, not a warning, so it has to be a decision somebody took rather
+than something an install did to a build node on its way past. To go ahead:
+
+```bash
+sudo YUNETAS_FORCE_OVER_SOURCE=1 apt install ./<package>
+# or, to make it stick for this node:
+sudo touch /etc/yuneta/allow-package-over-source
+```
+
+Then **rebuild everything on that node, external libraries first**
+(`kernel/c/linux-ext-libs`: `extrae.sh` + `configure-libs.sh`, then
+`yunetas init` and `yunetas clean && yunetas build`). Rebuilding only the SDK
+leaves the packaged externals in place — the same mismatch by a shorter road.
+
 ## What the .deb Installation Does
 
 When you run `sudo apt install ./yuneta-agent-*.deb`, the following happens step by step:
