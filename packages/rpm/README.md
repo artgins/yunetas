@@ -131,6 +131,29 @@ labels `/yuneta/bin/yuneta-webserver` as `bin_t`, with `semanage fcontext` +
 `restorecon` and a `chcon` fallback. If a node ever comes up without a web
 server, `ls -Z /yuneta/bin/yuneta-webserver` is the first thing to read.
 
+### The node's web server choice
+
+`/etc/yuneta/webserver` holds one word, `nginx` or `openresty`, and it is
+**node state, not package content**. Neither package ships it.
+
+The reason is the one nginx.conf taught in 7.9.1: the file the package would
+ship carries the BUILD machine's choice, and the build machine has none, so it
+ships `nginx`. On 7.11.0 that pushed `nginx` onto two nodes that run openresty,
+and both came back up serving from the wrong tree with a default
+configuration.
+
+The handling is the same as nginx.conf, and symmetric between the two
+flavours:
+
+| Step | What happens |
+|---|---|
+| `preinst` / `%pre` | Copies the node's value to `/etc/yuneta/webserver.pkgsave` |
+| unpack | A file the package no longer provides is removed by the package manager |
+| `postinst` / `%posttrans` | Absent → restore from `.pkgsave`; no `.pkgsave` → seed the build default; present → leave it alone |
+
+So a node that already chose keeps its choice, and only a node that never had
+one gets a default.
+
 ### No automatic reboot
 
 The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs

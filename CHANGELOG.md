@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Changed
+
+- **`/etc/yuneta/webserver` is handled the same way in the `.deb` and the
+    `.rpm`, and neither ships it.** 7.11.0-2 fixed the `.deb` by dropping the
+    file from the package; the `.rpm` still shipped it as
+    `%config(noreplace)`. Both worked, differently, which is the kind of
+    asymmetry that is fine until the day it is not.
+
+    They now follow the pattern this packaging already proved for
+    `nginx.conf`: `preinst`/`%pre` saves the node's value to
+    `/etc/yuneta/webserver.pkgsave`, and `postinst`/`%posttrans` puts it back
+    if the transition removed it. A node that already chose keeps its choice;
+    only a node that never had one gets the build default seeded.
+
+    The save matters more than it looks: a file an upgrade no longer provides
+    is a file the package manager removes, which is exactly how 7.9.1 deleted
+    two nodes' `nginx.conf` while fixing the overwrite that preceded it.
 
 ## 7.11.0-2
 

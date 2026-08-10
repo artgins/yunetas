@@ -241,14 +241,16 @@ if [ -f "${WEB_SELECTOR_FILE}" ]; then
     esac
 fi
 echo "[i] Web server selection: ${WEB_CHOICE}"
-# NOT shipped in the package, on purpose. Which web server a node runs is the
-# NODE's choice, not the build machine's -- and the build machine has none, so
-# it would ship "nginx" and dpkg would push that onto every node that runs
-# openresty. It did: on 7.11.0 both openresty nodes came back up serving from
-# the wrong tree, with a default config, until the file was put back by hand.
+# NOT shipped in the package, in either flavour. Which web server a node runs
+# is the NODE's choice, not the build machine's -- and the build machine has
+# none, so it would ship "nginx" and push that onto every node that runs
+# openresty. It did, on 7.11.0: both openresty nodes came back up serving from
+# the wrong tree with a default config, one of them a client's.
 #
-# Same lesson as nginx.conf, which stopped being shipped in 7.9.1 for exactly
-# this reason. postinst creates it only when it is absent.
+# Same class of file as nginx.conf, and handled the same way, which is the
+# pattern this packaging already proved: %pre/preinst saves the node's value,
+# %posttrans/postinst puts it back if the transition removed it, and only a
+# node that never had one gets the default seeded.
 WEB_CHOICE_DEFAULT="${WEB_CHOICE}"
 
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
@@ -1736,6 +1738,16 @@ for _cf in /etc/logrotate.d/yuneta; do
     fi
 done
 
+# --- Save the node's web server choice ---
+#
+# The package stopped shipping /etc/yuneta/webserver, and a file an upgrade no
+# longer provides is a file the package manager removes. Same trap nginx.conf
+# fell into in 7.9.1, so the same net: copy it aside here, postinst puts it
+# back.
+if [ -f /etc/yuneta/webserver ]; then
+    cp -a /etc/yuneta/webserver /etc/yuneta/webserver.pkgsave || true
+fi
+
 for _web in nginx openresty/nginx; do
     _conf="/yuneta/bin/${_web}/conf"
     if [ -f "${_conf}/nginx.conf" ]; then
@@ -1945,7 +1957,15 @@ if command -v systemctl >/dev/null 2>&1; then
     # the node. A fresh install has none, so seed it; an existing one is never
     # touched.
     if [ ! -e /etc/yuneta/webserver ]; then
-        printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+        if [ -e /etc/yuneta/webserver.pkgsave ]; then
+            # The upgrade removed it as an obsolete package file. Put the
+            # NODE's choice back: seeding the build default here would be the
+            # very overwrite this change exists to stop.
+            cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver
+            echo "[postinst] restored /etc/yuneta/webserver from the pre-upgrade copy"
+        else
+            printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+        fi
         chmod 0644 /etc/yuneta/webserver
     fi
 

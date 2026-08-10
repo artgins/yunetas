@@ -231,8 +231,17 @@ if [ -f "${WEB_SELECTOR_FILE}" ]; then
     esac
 fi
 echo "[i] Web server selection: ${WEB_CHOICE}"
-printf '%s\n' "${WEB_CHOICE}" > "${STAGE}/etc/yuneta/webserver"
-chmod 0644 "${STAGE}/etc/yuneta/webserver"
+# NOT shipped in the package, in either flavour. Which web server a node runs
+# is the NODE's choice, not the build machine's -- and the build machine has
+# none, so it would ship "nginx" and push that onto every node that runs
+# openresty. It did, on 7.11.0: both openresty nodes came back up serving from
+# the wrong tree with a default config, one of them a client's.
+#
+# Same class of file as nginx.conf, and handled the same way, which is the
+# pattern this packaging already proved: %pre/preinst saves the node's value,
+# %posttrans/postinst puts it back if the transition removed it, and only a
+# node that never had one gets the default seeded.
+WEB_CHOICE_DEFAULT="${WEB_CHOICE}"
 
 # --- Copy yuneta_agent binaries (required) and config samples ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
@@ -1502,7 +1511,6 @@ cp -a %{_staging}/. %{buildroot}/
 %dir /var/crash
 /usr/lib/tmpfiles.d/yuneta-crash.conf
 %dir /etc/yuneta
-%config(noreplace) /etc/yuneta/webserver
 %config(noreplace) /etc/profile.d/yuneta.sh
 %config(noreplace) /etc/sysctl.d/99-yuneta-core.conf
 %config(noreplace) /etc/security/limits.d/99-yuneta-core.conf
@@ -1549,6 +1557,16 @@ for _web in nginx openresty/nginx; do
         echo "[pre] saved ${_conf}/nginx.conf"
     fi
 done
+
+# --- Save the node's web server choice ---
+#
+# The package stopped shipping /etc/yuneta/webserver, and a file an upgrade no
+# longer provides is a file rpm removes. Same trap nginx.conf fell into, so
+# the same net: copy it aside here, %posttrans puts it back.
+if [ -f /etc/yuneta/webserver ]; then
+    cp -a /etc/yuneta/webserver /etc/yuneta/webserver.pkgsave || true
+    echo "[pre] saved /etc/yuneta/webserver"
+fi
 
 exit 0
 
@@ -1747,6 +1765,18 @@ fi
 if command -v chkconfig >/dev/null 2>&1 && [ -e /etc/init.d/yuneta_agent ]; then
     chkconfig --add yuneta_agent >/dev/null 2>&1 || true
     chkconfig yuneta_agent on    >/dev/null 2>&1 || true
+fi
+
+# --- the node's web server choice, restored or seeded ---
+if [ ! -e /etc/yuneta/webserver ]; then
+    mkdir -p /etc/yuneta
+    if [ -e /etc/yuneta/webserver.pkgsave ]; then
+        cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver
+        info "restored /etc/yuneta/webserver from the pre-upgrade copy"
+    else
+        printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+    fi
+    chmod 0644 /etc/yuneta/webserver
 fi
 
 # --- SELinux: systemd cannot exec a default_t file ---
