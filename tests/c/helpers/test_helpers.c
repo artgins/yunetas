@@ -146,60 +146,91 @@ PRIVATE void test_split_reentrancy(void)
  *
  *  The cases below are that node's real version chain.
  ***************************************************************************/
-PRIVATE void test_version2number(void)
+PRIVATE void test_version_cmp(void)
 {
-    struct { const char *lower; const char *higher; } pairs[] = {
-        /*  The pair that cost eleven days  */
-        {"1.7.1.0-2",   "1.9.0.0-2"},
-        /*  The rest of the same chain, in order  */
-        {"1.5.3.0-2",   "1.5.4.0-2"},
-        {"1.5.4.0-2",   "1.6.5.0-2"},
-        {"1.6.8.0-2",   "1.7.0.0-2"},
-        {"1.7.0.0-2",   "1.7.1.0-2"},
-        {"1.8.0.0-2",   "1.8.1.0-2"},
-        {"1.8.1.0-2",   "1.9.0.0-2"},
+    /*
+     *  Ordered pairs: the right one must compare NEWER than the left one.
+     */
+    struct { const char *older; const char *newer; const char *why; } pairs[] = {
+        /*  The pair that cost eleven days on a client node  */
+        {"1.7.1.0-2",   "1.9.0.0-2",    "four segments plus a revision"},
+        /*  The rest of that same chain, in order  */
+        {"1.5.3.0-2",   "1.5.4.0-2",    "chain"},
+        {"1.5.4.0-2",   "1.6.5.0-2",    "chain"},
+        {"1.6.8.0-2",   "1.7.0.0-2",    "chain"},
+        {"1.7.0.0-2",   "1.7.1.0-2",    "chain"},
+        {"1.8.0.0-2",   "1.8.1.0-2",    "chain"},
+        {"1.8.1.0-2",   "1.9.0.0-2",    "chain"},
         /*  The revision orders within one release  */
-        {"1.9.0.0-1",   "1.9.0.0-2"},
-        /*  Three segments, which used to work by luck  */
-        {"7.9.11",      "7.10.0"},
-        {"7.10.0-1",    "7.11.0-1"},
-        {0, 0}
+        {"1.9.0.0-1",   "1.9.0.0-2",    "revision"},
+        /*  Numbers, not strings: 10 comes after 9  */
+        {"7.9.11",      "7.10.0",       "numeric, not lexicographic"},
+        {"7.10.0-1",    "7.11.0-1",     "SDK chain"},
+        /*  A segment over 999 -- ANY packing that weighs segments by 1000
+            gets this backwards, whatever the width of the accumulator  */
+        {"2.0.0",       "2.1000.0",     "segment above the packing base"},
+        {"1.2000.0",    "2.0.0",        "a big minor is still a minor"},
+        /*  Segments far past what an int64 packing could hold  */
+        {"1.2.3.4.5.6.7.8",  "1.2.3.4.5.6.7.9",  "eight segments"},
+        {0, 0, 0}
     };
 
     int failed = 0;
-    for(int i = 0; pairs[i].lower; i++) {
-        int64_t lo = version2number(pairs[i].lower);
-        int64_t hi = version2number(pairs[i].higher);
-        if(!(hi > lo)) {
-            printf("FAIL %-40s %s (%" PRId64 ") should be > %s (%" PRId64 ")\n",
-                "version2number ordering",
-                pairs[i].higher, hi, pairs[i].lower, lo
+    for(int i = 0; pairs[i].older; i++) {
+        if(!(version_cmp(pairs[i].newer, pairs[i].older) > 0)) {
+            printf("FAIL %-40s %s should be NEWER than %s (%s)\n",
+                "version_cmp ordering",
+                pairs[i].newer, pairs[i].older, pairs[i].why
             );
             failed++;
         }
-        if(lo < 0 || hi < 0) {
-            printf("FAIL %-40s %s or %s went NEGATIVE\n",
-                "version2number overflow", pairs[i].lower, pairs[i].higher
+        /*  and the other way round, so it is a comparison and not a coin  */
+        if(!(version_cmp(pairs[i].older, pairs[i].newer) < 0)) {
+            printf("FAIL %-40s %s should be OLDER than %s (%s)\n",
+                "version_cmp is symmetric",
+                pairs[i].older, pairs[i].newer, pairs[i].why
             );
             failed++;
         }
-    }
-
-    if(!failed) {
-        printf("ok   %-40s\n", "version2number orders releases");
-    } else {
-        global_result += -1;
     }
 
     /*
-     *  An empty version is 0, and so is one nobody can compare -- refused
-     *  out loud rather than silently truncated into looking like the lowest.
+     *  Equal is equal, and a missing segment is a zero.
      */
-    if(version2number("") != 0 || version2number(0) != 0) {
-        printf("FAIL %-40s\n", "version2number of an empty version");
-        global_result += -1;
+    struct { const char *a; const char *b; const char *why; } equals[] = {
+        {"1.9.0.0-2",   "1.9.0.0-2",    "identical"},
+        {"7.11",        "7.11.0",       "missing segment counts as zero"},
+        {"7.11.0",      "7.11.0.0.0",   "trailing zeros do not matter"},
+        {"",            "",             "two empty versions"},
+        {0, 0, 0}
+    };
+    for(int i = 0; equals[i].a; i++) {
+        if(version_cmp(equals[i].a, equals[i].b) != 0) {
+            printf("FAIL %-40s '%s' vs '%s' (%s)\n",
+                "version_cmp equality", equals[i].a, equals[i].b, equals[i].why
+            );
+            failed++;
+        }
+    }
+
+    /*
+     *  An absent version is the oldest thing there is, and NULL must not
+     *  crash: the agent reads these straight out of a treedb record.
+     */
+    if(!(version_cmp("1.0.0", "") > 0) || !(version_cmp("", "1.0.0") < 0)) {
+        printf("FAIL %-40s\n", "version_cmp against an empty version");
+        failed++;
+    }
+    if(!(version_cmp("1.0.0", 0) > 0) || !(version_cmp(0, "1.0.0") < 0) ||
+            version_cmp(0, 0) != 0) {
+        printf("FAIL %-40s\n", "version_cmp against NULL");
+        failed++;
+    }
+
+    if(!failed) {
+        printf("ok   %-40s\n", "version_cmp orders releases");
     } else {
-        printf("ok   %-40s\n", "version2number of an empty version");
+        global_result += -1;
     }
 }
 
@@ -213,7 +244,7 @@ PRIVATE int do_test(void)
     test_split_empties_excluded();
     test_split_null_size_arg();
     test_split_reentrancy();
-    test_version2number();
+    test_version_cmp();
 
     return global_result;
 }

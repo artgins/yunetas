@@ -1197,42 +1197,52 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
 /***************************************************************************
  *  Turn a dotted version into a comparable number
  ***************************************************************************/
-PUBLIC int64_t version2number(const char *sversion)
+PUBLIC int version_cmp(const char *version1, const char *version2)
 {
-    if(empty_string(sversion)) {
-        return 0;
+    int size1 = 0;
+    int size2 = 0;
+    const char **segments1 = 0;
+    const char **segments2 = 0;
+
+    if(!empty_string(version1)) {
+        segments1 = split2(version1, ".-", &size1);
+        if(!segments1) {
+            // Error already logged
+            size1 = 0;
+        }
+    }
+    if(!empty_string(version2)) {
+        segments2 = split2(version2, ".-", &size2);
+        if(!segments2) {
+            // Error already logged
+            size2 = 0;
+        }
     }
 
-    int list_size = 0;
-    const char **segments = split2(sversion, ".-", &list_size);
-    if(!segments) {
-        // Error already logged
-        return 0;
+    /*
+     *  Segment by segment, widest first: a missing segment is a zero, so
+     *  "7.11" and "7.11.0" compare equal. Nothing is accumulated into a
+     *  single number on the way -- that is the whole point, see helpers.h.
+     */
+    int ret = 0;
+    int segments = (size1 > size2)? size1:size2;
+    for(int i = 0; i < segments; i++) {
+        long v1 = (i < size1)? atol(segments1[i]):0;
+        long v2 = (i < size2)? atol(segments2[i]):0;
+        if(v1 != v2) {
+            ret = (v1 < v2)? -1:1;
+            break;
+        }
     }
 
-    if(list_size > MAX_VERSION_SEGMENTS) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Version with too many segments, NOT comparable",
-            "version",      "%s", sversion,
-            "segments",     "%d", list_size,
-            "max",          "%d", MAX_VERSION_SEGMENTS,
-            NULL
-        );
-        split_free2(segments);
-        return 0;
+    if(segments1) {
+        split_free2(segments1);
+    }
+    if(segments2) {
+        split_free2(segments2);
     }
 
-    int64_t version = 0;
-    int64_t power = 1;
-    for(int i = list_size-1; i >= 0; i--, power *= 1000) {
-        version += (int64_t)atoi(segments[i]) * power;
-    }
-
-    split_free2(segments);
-
-    return version;
+    return ret;
 }
 
 /***************************************************************************

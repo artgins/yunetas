@@ -732,6 +732,42 @@ ycommand -c 'list-yunos yuno_role=<role> yuno_running=true'
 # stays in treedb for rollback (see §6.6 below).
 ```
 
+### Versions only ever move forward
+
+Both steps above rest on one assumption — that a release compares **newer**
+than the one it replaces — and until 7.12.0 that comparison was the *only*
+thing enforcing it. When it was wrong, nothing else noticed.
+
+It was wrong. `get_n_v()` weighed each segment by 1000 into an `int`, so
+`1.9.0.0-2` needed 10¹², overflowed, and came out **negative** — older than
+`1.7.1.0-2`. `find-new-yunos` therefore picked the *older* binary as "a
+greater role version", and `promote_highest_release_yunos()` re-appended the
+*older* release as the primary. Not a failure to promote: an **active
+demotion**, repeated at every restart for eleven days on a client node, while
+every log line read like routine progress.
+
+Two things changed, and both matter when reading this chapter:
+
+- The comparison is [`version_cmp()`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/helpers.c)
+  in the SDK, comparing **segment by segment** with nothing accumulated into a
+  number — the same shape the JS and Python sides always used. It is covered
+  by `tests/c/helpers` against the real version chain of the node that hit
+  this.
+- The **direction is now checked on its own and logged either way**.
+  `find-new-yunos` writes an info line naming `from` → `to` when a release
+  moves forward, a **warning** when it does not, and it refuses to take a
+  release that does not move forward unless you pass `force=1`:
+
+  ```bash
+  ycommand -c 'find-new-yunos create=1 force=1'   # deliberate downgrade
+  ```
+
+  A promotion that would go backwards is an **error**, not a silent write.
+
+So a downgrade is still possible — it just has to be asked for, and it leaves
+a trace. If you are chasing "the new binary is installed but the old one keeps
+running", grep the agent log for `does NOT move forward` before anything else.
+
 > **CLI shortcut.** Steps 3–4 (plus an optional rollback snapshot before them)
 > are bundled by `yunetas upgrade-yunos` (`tui_yunetas` ≥ 0.10.0): it shoots a
 > rollback snap (idempotent by name, default `pre-upgrade-<YYYYMMDD>`,

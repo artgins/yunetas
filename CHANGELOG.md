@@ -23,15 +23,34 @@
     binary it was supposed to replace, with nothing in any log to say so,
     because a comparison that comes out negative says nothing.
 
-    The function moved to the SDK as `version2number()` — it is a string
+    The function moved to the SDK as **`version_cmp()`** — it is a string
     utility, not agent business, and a `PRIVATE` in a gclass cannot be tested.
-    It returns `int64_t`, and a version with more segments than
-    `MAX_VERSION_SEGMENTS` is refused with 0 **and a log**, instead of being
-    truncated into looking like the lowest one.
+    It compares **segment by segment** and packs nothing into a number, which
+    is what the JS (`version_tuple`) and Python sides of this project already
+    did; the C side was the only one that accumulated, and the only one that
+    broke. A wider accumulator would have moved the ceiling without removing
+    it: weighing segments by 1000 also assumes every segment stays under 1000,
+    so `1.2000.0` outranked `2.0.0`, and it right-aligned the segments, so
+    `7.11` and `7.11.0` were **different versions**. Neither survives the
+    rewrite. All 8 comparisons in `c_agent.c` go through it.
 
     Covered by `tests/c/helpers`, with that node's real version chain. The
-    test was checked against the old code first: it fails six times, starting
-    with the exact pair that cost the eleven days.
+    test was checked against the old implementation first — it fails **six**
+    times there: the exact pair that cost the eleven days, the `1.2000.0` /
+    `2.0.0` inversion, and the `7.11` = `7.11.0` equality.
+
+- **A release that does not move forward is refused, and says so.** The
+    comparison that picked a candidate was the only thing standing between a
+    deploy and a downgrade, so when it was wrong there was nothing left to
+    notice — eleven days of demotions and not one line about it.
+
+    `cmd_find_new_yunos()` now checks the direction on its own and logs it
+    **either way**: an info line naming `from` → `to` when a release moves
+    forward, a **warning** when it does not, and it refuses to take it unless
+    the caller passes `force=1`. `promote_highest_release_yunos()` gained the
+    matching guard: a promotion that would go backwards cannot happen by
+    construction, so if it ever does it is an **error**, not a silent
+    `gobj_update_node()`.
 
 ### Changed
 

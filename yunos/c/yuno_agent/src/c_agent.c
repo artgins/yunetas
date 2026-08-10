@@ -704,6 +704,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_find_new_yunos[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_BOOLEAN,   "create",       0,              0,          "Create new found yunos"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Take a release that does NOT move forward"),
 SDATA_END()
 };
 
@@ -4488,6 +4489,60 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  Take a candidate release only when it moves FORWARD, and say out loud
+ *  which way it moves. Returns TRUE to take it.
+ *
+ *  A version is only ever supposed to go forward, and until now the
+ *  comparison that picked the candidate was the ONLY thing standing between
+ *  a deploy and a downgrade. When that comparison was wrong -- get_n_v()
+ *  overflowed an int and read 1.9.0.0-2 as NEGATIVE -- nothing else noticed:
+ *  the agent re-appended the older release as the primary at every restart
+ *  for eleven days on a client node, and no log line said so, because a
+ *  comparison that comes out backwards says nothing.
+ *
+ *  So the direction is named in the log whichever way it goes, and going
+ *  backwards needs `force=1` from whoever is asking.
+ ***************************************************************************/
+PRIVATE BOOL accept_new_release(
+    hgobj gobj,
+    const char *what,       // "binary" or "config", for the log
+    const char *id,
+    const char *current,
+    const char *candidate,
+    BOOL force
+)
+{
+    if(version_cmp(candidate, current) > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_STARTUP,
+            "msg",          "%s", "new release found",
+            "what",         "%s", what,
+            "id",           "%s", id,
+            "from",         "%s", current,
+            "to",           "%s", candidate,
+            NULL
+        );
+        return TRUE;
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", force?
+                                "release does NOT move forward, taken anyway (force=1)":
+                                "release does NOT move forward, NOT taken",
+        "what",         "%s", what,
+        "id",           "%s", id,
+        "from",         "%s", current,
+        "to",           "%s", candidate,
+        NULL
+    );
+
+    return force?TRUE:FALSE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4495,6 +4550,7 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     BOOL create = kw_get_bool(gobj, kw, "create", 0, KW_WILD_NUMBER);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     /*
      *  Get a iter of matched resources.
@@ -4536,11 +4592,11 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_array_foreach(configs, ix, config) {
             const char *name_version_ = SDATA_GET_STR(config, "version");
             if(config_found) {
-                if(version2number(SDATA_GET_STR(config_found, "version")) < version2number(name_version_)) {
+                if(version_cmp(SDATA_GET_STR(config_found, "version"), name_version_) < 0) {
                     config_found = config;
                 }
             } else {
-                if(version2number(name_version) < version2number(name_version_)) {
+                if(version_cmp(name_version, name_version_) < 0) {
                     config_found = config;
                 }
             }
@@ -4564,17 +4620,38 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_array_foreach(binaries, ix, binary) {
             const char *role_version_ = SDATA_GET_STR(binary, "version");
             if(binary_found) {
-                if(version2number(SDATA_GET_STR(binary_found, "version")) < version2number(role_version_)) {
+                if(version_cmp(SDATA_GET_STR(binary_found, "version"), role_version_) < 0) {
                     binary_found = binary;
                 }
             } else {
-                if(version2number(role_version) < version2number(role_version_)) {
+                if(version_cmp(role_version, role_version_) < 0) {
                     binary_found = binary;
                 }
             }
         }
         json_incref(binary_found);
         JSON_DECREF(binaries);
+
+        /*
+         *  Both picks above are "the greatest one, if greater than what we
+         *  run". Check the direction ONE more time, on its own, so it lands
+         *  in the log either way and a backwards move needs force=1. See
+         *  accept_new_release().
+         */
+        if(config_found) {
+            if(!accept_new_release(
+                    gobj, "config", id, name_version,
+                    SDATA_GET_STR(config_found, "version"), force)) {
+                JSON_DECREF(config_found)
+            }
+        }
+        if(binary_found) {
+            if(!accept_new_release(
+                    gobj, "binary", id, role_version,
+                    SDATA_GET_STR(binary_found, "version"), force)) {
+                JSON_DECREF(binary_found)
+            }
+        }
 
         if(!config_found && !binary_found) {
             continue;
@@ -8948,12 +9025,36 @@ PRIVATE int promote_highest_release_yunos(hgobj gobj)
                 continue;
             }
             const char *rel = kw_get_str(gobj, inst, "yuno_release", "", 0);
-            if(!empty_string(rel) && version2number(rel) > version2number(best_release)) {
+            if(empty_string(rel)) {
+                continue;
+            }
+            if(version_cmp(rel, best_release) > 0) {
                 best_release = rel;
             }
         }
 
-        if(version2number(best_release) > version2number(primary_release)) {
+        /*
+         *  best_release starts AT primary_release and only ever moves up,
+         *  so this cannot fire -- which is exactly why it is worth saying
+         *  if it ever does. The eleven days this guard commemorates were a
+         *  promotion running backwards while every line in the log read
+         *  like routine progress.
+         */
+        if(version_cmp(best_release, primary_release) < 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_INTERNAL,
+                "msg",      "%s", "promotion would go BACKWARDS, refused",
+                "id",       "%s", id,
+                "from",     "%s", primary_release,
+                "to",       "%s", best_release,
+                NULL
+            );
+            JSON_DECREF(instances)
+            continue;
+        }
+
+        if(version_cmp(best_release, primary_release) > 0) {
             gobj_log_info(gobj, 0,
                 "function", "%s", __FUNCTION__,
                 "msgset",   "%s", MSGSET_STARTUP,

@@ -223,25 +223,23 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 PUBLIC const char **split2(const char *str, const char *delim, int *list_size);
 
 /**rst**
-    Turn a dotted version into a number that can be compared.
+    Compare two dotted versions, SEGMENT BY SEGMENT. Returns <0, 0 or >0,
+    like strcmp.
 
-    "1.9.0.0-2" -> 1_009_000_000_002: each segment weighs 1000 times the one
-    to its right, and both '.' and '-' separate, so a release and its revision
-    order together.
+    Both '.' and '-' separate, so a release and its revision order together
+    ("1.9.0.0-2" is five segments), and a missing segment counts as 0, so
+    "7.11" and "7.11.0" are the same version.
 
-    WARNING it returns int64_t and that is not decoration. The same arithmetic
-    in an int overflows at four segments and the result goes NEGATIVE, so an
-    older version compares as newer. That is not a hypothetical: the agent
-    promoted db_history on a client node from 1.9.0.0-2 back to 1.7.1.0-2 and
-    re-appended it on every restart for eleven days, because -317,314,558 is
-    less than 1,978,652,738.
-
-    More than MAX_VERSION_SEGMENTS segments is refused with 0 and a log, not
-    silently truncated: a version nobody can compare must not look like the
-    lowest one.
+    WARNING do not "simplify" this into a single number. The agent used to
+    weigh each segment by 1000 and accumulate: "1.9.0.0-2" needs 10^12, which
+    overflowed an int and came out NEGATIVE, so the older release won every
+    comparison and the agent promoted it back on every restart for eleven
+    days on a client node. A wider accumulator only moves the ceiling -- and
+    it still assumes every segment stays under 1000, so "1.2000.0" would
+    outrank "2.0.0". Comparing segment by segment assumes neither, which is
+    what the JS and Python sides of this project already do.
 **rst**/
-#define MAX_VERSION_SEGMENTS 6
-PUBLIC int64_t version2number(const char *sversion);
+PUBLIC int version_cmp(const char *version1, const char *version2);
 PUBLIC void split_free2(const char **list);
 
 /**rst**
