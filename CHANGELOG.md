@@ -2,7 +2,37 @@
 
 ## Unreleased
 
+
+## 7.11.0-2
+
+A packaging revision, not a new version: the tree under `kernel/`, `modules/`,
+`utils/` and `yunos/` is the same one 7.11.0 was cut from. The packages are
+rebuilt as `yuneta-agent-7.11.0-2` and attached to the existing 7.11.0 tag.
+
+Everything here comes from one install that failed on three nodes at once, and
+from what that failure left behind.
+
 ### Fixed
+
+- **A conffile question killed the install, and the install path cannot answer
+    one.** `install.sh` is meant to be run as `curl ... | sudo sh`, which
+    leaves dpkg with no stdin. It called apt with no `DEBIAN_FRONTEND` and no
+    conffile policy, so the first question dpkg asked read EOF and took the
+    whole install down — *"end of file on stdin at conffile prompt"* — with
+    the package left half configured and re-running it hitting the same wall.
+
+    It fired on three nodes because `/etc/logrotate.d/yuneta` had reached them
+    by hand before it shipped in the package, so dpkg does not own it and asks
+    what to do with it. `install.sh` now runs noninteractive with `confdef` +
+    `confold`, and says afterwards when a file was kept. The `preinst` also
+    adopts an unowned copy, so the question cannot come back.
+
+    ⚠️ **The failure is worse than a failed install**, and that is the part to
+    remember: dpkg had already unpacked and `prerm` had already stopped the
+    agent and the web server. Three nodes were left with their web server
+    down, their `nginx.conf` **deleted** — dpkg removes what the package no
+    longer ships — and nothing to restart them. It was only recoverable
+    because `preinst` had saved the configuration to `nginx.conf.pkgsave`.
 
 - **The package no longer decides which web server a node runs.** It shipped
     `/etc/yuneta/webserver` with whatever the build machine chose, and the
