@@ -49,30 +49,6 @@ found this in its first run.
 
 Finish the leak, then register `tests/c/tr_msg2db` in `tests/c/CMakeLists.txt`.
 
-## A msg2db stores records it can never load back
-
-The two ends of `pkey2` do not agree:
-
-```
-msg2db_append_message()  ->  kw_has_key(kw, pkey2)      accepts "alarm": ""
-load_record_callback()   ->  !empty_string(value)       drops  "alarm": ""
-```
-
-So a record with the key present and the value empty is written, stored, and
-then dropped at every load, for ever. A client node was carrying 4447 of them.
-
-**Decided and done**: the write side refuses an empty `pkey2`, which fails at
-the point where the mistake is made. The load side keeps its guard, and its
-reporting, for the records already on disk.
-
-⚠️ **What this changes for an app already running**: a caller that used to get
-its message stored now gets it refused, with an error naming the record. On
-hidraulia, `db_history` writes alarms whose `alarm` is empty when the alarm
-setting has no `id` — its own log line there reads *"alarm saved but won't
-reload"*, and it is no longer saved. That message needs rewording, and the
-question it points at — why a setting has no `id` — is now unavoidable, which
-was the point.
-
 ## ESP32: `gobj_post_event()` is not in the port
 
 `kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj
@@ -106,6 +82,12 @@ OS scheduler under load is not.
 Measured on 2026-08-05: 20/20 passes on an idle machine, and one failure in
 four full-suite runs on a busy one. A slow box (the yunovatios-central Rocky VM
 is kept deliberately slow) would fail it routinely.
+
+Seen again on 2026-08-10, and this is the cost of leaving it: it failed in a
+`yunetas test` whose ctest phase overlapped the tail of a build, and the red
+line landed in the middle of a release audit. It passed alone in 5 s and passed
+in the next full run, 121/121 — so the only thing it measured was the machine's
+load, and the only thing it produced was doubt about an unrelated change.
 
 Raise the upper bound. Keep the lower one at 5000 — a periodic timer firing
 EARLY is a real defect and that half of the assert earns its place.

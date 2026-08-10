@@ -1,6 +1,25 @@
 # **Changelog**
 
-## Unreleased
+## 7.12.0
+
+A minor for what was found, not for what was added.
+
+The agent had been **demoting** yunos: a version comparison packed its segments
+into an `int`, `1.9.0.0-2` overflowed into a negative number, and every
+`deactivate-snap` re-appended the OLDER release as the primary — for eleven
+days on a client node, with nothing in any log to say so. The comparison was
+both the decision and the only guard, so when it lied there was nothing left to
+notice. It is `version_cmp()` in the SDK now, comparing segment by segment,
+tested against that node's real version chain; and the direction is checked on
+its own, logged either way, and a release that does not move forward needs
+`force=1`.
+
+Two more of the same shape: a msg2db accepted records it could never load back
+(4447 of them on that node, and 4447 log lines at every start), and the package
+would unpack another machine's build over a node that compiles its own —
+foreign glibc archives into `outputs/`, which a static link takes in silence and
+the heap pays for at run time. Both refuse now, at the point where the mistake
+is made.
 
 ### Fixed
 

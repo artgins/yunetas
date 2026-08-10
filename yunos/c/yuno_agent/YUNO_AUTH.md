@@ -9,7 +9,7 @@ Sibling to [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md), [`DEBUGGING.md`](DEBUGGING.
 
 > ⚠️ **Read §4.5 and §8.3 before assuming anything about authz enforcement.**
 > The per-command authz check is **re-armed but gated** in the framework
-> ([`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/command_parser.c)). It runs only when the yuno
+> ([`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/command_parser.c)). It runs only when the yuno
 > sets the `enable_command_authz` attr TRUE. **By default it is OFF**, so a
 > stock deployment is still authenticated-but-not-authorized at the command
 > boundary. This is the difference from the old "commented out" state: the `SDF_AUTHZ_X`
@@ -110,8 +110,8 @@ SEC-04/-06/-07/-09 hardening Yuneta deployments require.
 
 ### 2.2 The endpoints
 
-Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c). URL dispatcher at
-[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c).
+Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c). URL dispatcher at
+[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c).
 
 | Endpoint           | Method | Purpose                                              | Sets cookies?       |
 |--------------------|--------|------------------------------------------------------|---------------------|
@@ -156,45 +156,45 @@ need it.
 
 ### 2.3 PKCE authorization-code flow
 
-[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c). The flow:
+[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c). The flow:
 
 1. SPA generates `code_verifier`, derives `code_challenge`, redirects to
    IdP `/auth` with the challenge.
 2. IdP redirects back with `code`.
 3. SPA POSTs `{code, code_verifier, redirect_uri}` to `/auth/callback`.
 4. BFF validates `redirect_uri` against `allowed_redirect_uri`
-   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c), SEC-06).
+   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c), SEC-06).
 5. BFF calls IdP `/token` with `grant_type=authorization_code` +
-   `code_verifier` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)).
+   `code_verifier` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)).
 6. The tokens arrive. BFF writes them as HttpOnly cookies
-   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)).
+   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)).
 
 State and nonce are the SPA's responsibility — the BFF does not generate
 them.
 
 ### 2.4 The cookies
 
-Built in [`make_set_cookie()`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c#L860) at [`c_auth_bff.c:860`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c#L860):
+Built in [`make_set_cookie()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c#L860) at [`c_auth_bff.c:860`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c#L860):
 
 ```
 Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
             Path=/; HttpOnly; Secure; SameSite=Strict; Domain=<host>
 ```
 
-- `HttpOnly` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)) — JS cannot read.
+- `HttpOnly` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)) — JS cannot read.
 - `Secure` — HTTPS only.
 - `SameSite=Strict` — no cross-site CSRF.
 - `Path=/` — sent with all requests to the origin.
-- `Domain` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)) — set from `cookie_domain` attr, no port.
+- `Domain` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)) — set from `cookie_domain` attr, no port.
   Means a cookie set by the BFF on port 1801 is automatically sent with
   the WebSocket upgrade to ports 1600 / 1800 / etc on the same hostname.
 - `Max-Age` — `expires_in` for access, `refresh_expires_in` for refresh.
 
-Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)).
+Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)).
 
 ### 2.5 The OIDC config: `issuer` + (optional) explicit endpoints
 
-`attrs_table` at [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c):
+`attrs_table` at [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c):
 
 | Attribute              | Status              | Purpose                                              |
 |------------------------|---------------------|------------------------------------------------------|
@@ -299,11 +299,11 @@ wrong password is not a diagnosis problem.
 Two issues are tracked but not fixed (per
 `project_auth_bff_pending_bugs`):
 
-- **HTTP_CL chain leak** ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)). Under rapid
+- **HTTP_CL chain leak** ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)). Under rapid
   browser-disconnect during a `/token` call, the outbound
   [`C_PROT_HTTP_CL`](#gclass-c-prot-http-cl) chain to Keycloak is not always released cleanly.
 - **No real-IdP smoke tests.** The auth_bff test suite at
-  `tests/c/c_auth_bff/` runs against [`c_mock_keycloak.c`](https://github.com/artgins/yunetas/blob/7.11.0/tests/c/c_auth_bff/c_mock_keycloak.c) only. Live
+  `tests/c/c_auth_bff/` runs against [`c_mock_keycloak.c`](https://github.com/artgins/yunetas/blob/7.12.0/tests/c/c_auth_bff/c_mock_keycloak.c) only. Live
   Keycloak regressions are caught manually.
 
 ---
@@ -319,20 +319,20 @@ gobj tree carries the `Cookie` header through the upgrade into
 
 ### 3.2 Reading the JWT
 
-[`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_ievent_srv.c) declares two volatile attributes the channel
+[`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_ievent_srv.c) declares two volatile attributes the channel
 exposes after auth:
 
 - `http_cookie` — the raw cookie header (set by `c_authz` during upgrade).
 - `jwt_payload` — the decoded JWT payload, also set by `c_authz`.
 
-The comment at [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_ievent_srv.c) is explicit: *"HACK set by c_authz,
+The comment at [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_ievent_srv.c) is explicit: *"HACK set by c_authz,
 this gclass is an external entry gate!"*. The actual cookie→JWT path
 runs **inside `C_AUTHZ`**, not `C_IEVENT_SRV`.
 
 ### 3.3 Signature verification: libjwt
 
 `kernel/c/libjwt/` — Yuneta vendors a copy of libjwt. The verification
-entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/libjwt/src/jwt-verify.c#L136) in [`jwt-verify.c:136`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/libjwt/src/jwt-verify.c#L136). The [JWKS] endpoint gives the keys(https://datatracker.ietf.org/doc/html/rfc7517)
+entry point is [`jwt_parse()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/libjwt/src/jwt-verify.c#L136) in [`jwt-verify.c:136`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/libjwt/src/jwt-verify.c#L136). The [JWKS] endpoint gives the keys(https://datatracker.ietf.org/doc/html/rfc7517)
 fetched from the issuer (cached, refreshed on rotation). The crypto
 backend is OpenSSL or mbedTLS, runtime-selectable via the same `ytls`
 abstraction used by TCP.
@@ -340,7 +340,7 @@ abstraction used by TCP.
 ### 3.4 Claim validation: the `azp` → `client_id` migration
 
 The JWT's `azp` (authorized party) claim must match the configured
-`client_id`. Per [`c_task_authenticate.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_task_authenticate.c):
+`client_id`. Per [`c_task_authenticate.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_task_authenticate.c):
 
 ```
 "OAuth2 client_id (Keycloak/Auth0/Azure AD/...).
@@ -370,7 +370,7 @@ ROPC-disabled IdP. Full analysis in `TODO.md`.
 
 ### 3.5 The `__username__` attribute
 
-After successful authn, [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) writes the resolved
+After successful authn, [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) writes the resolved
 username into the source gobj's `__username__` attribute:
 
 ```c
@@ -385,15 +385,15 @@ manually for test fixtures. In production a JWT always gives this value.
 
 ## 4. Authorization: `C_AUTHZ`
 
-The `C_AUTHZ` gclass ([`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c), 4114 lines)
+The `C_AUTHZ` gclass ([`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c), 4114 lines)
 is the singleton authorization service. One instance per yuno (created
 as the default `authz` service in the `yuno_citizen` template, see
 [`SCAFFOLDING.md`](SCAFFOLDING.md) §5.1). Other gobjs find it with
-`gobj_find_service_by_gclass(C_AUTHZ, TRUE)` ([`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c)).
+`gobj_find_service_by_gclass(C_AUTHZ, TRUE)` ([`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c)).
 
 ### 4.1 The `authzs` treedb schema
 
-[`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/treedb_schema_authzs.c). Three topics:
+[`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/treedb_schema_authzs.c). Three topics:
 
 | Topic           | pkey        | Notable columns                                                       |
 |-----------------|-------------|-----------------------------------------------------------------------|
@@ -401,13 +401,13 @@ as the default `authz` service in the `yuno_citizen` template, see
 | `roles`         | `id`        | `parent_role_id` (fkey for inheritance), `service`, `permission`, `permissions[]`, `deny`, `parameters`, `users{}` (dict hook back to users) |
 | `users_accesses`| `id`+`tm`   | login audit: `ev`, `ip`, `jwt_payload`                                |
 
-Roles can inherit from a parent (`parent_role_id`) — [`get_user_roles()`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c#L3608)
-at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) walks the chain and accumulates effective
+Roles can inherit from a parent (`parent_role_id`) — [`get_user_roles()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c#L3608)
+at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) walks the chain and accumulates effective
 authzs.
 
 ### 4.2 The `yuneta` super-user
 
-[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c):
+[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c):
 
 ```c
 if(strcmp(username, "yuneta") != 0) {
@@ -419,7 +419,7 @@ if(strcmp(username, "yuneta") != 0) {
 `yuneta` is the only user permitted to authenticate **without** a JWT
 or password. This is the authentication-side bypass — there is **no
 matching authz bypass**. The agent's `__username__` attribute defaulting
-to `"yuneta"` ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)) gives the agent itself this bypass for
+to `"yuneta"` ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)) gives the agent itself this bypass for
 its local CLI calls.
 
 If a check is enforced (see §4.5), `yuneta` does *not* automatically
@@ -428,7 +428,7 @@ pass. The authz check is a separate lookup. In production deployments
 
 **The seed cannot be deleted.** On every master start, `C_AUTHZ` `mt_start`
 runs an idempotent loop over `Authz.initial_load`, which holds the seed
-`root` role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c) `main.c`). The loop creates
+`root` role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c) `main.c`). The loop creates
 any missing seed record and marks it **immutable** with
 `treedb_set_node_immutable()`. CRUD operations can therefore never remove the
 powers of the local trusted user. `delete-node` refuses an immutable record,
@@ -441,7 +441,7 @@ agent22 shares the store as non-master and does not run the loop.
 
 ### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 
-The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c):
+The predicate. [`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h), body at [`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c):
 
 ```c
 PUBLIC BOOL gobj_user_has_authz(hgobj gobj, const char *authz, json_t *kw, hgobj src);
@@ -450,9 +450,9 @@ PUBLIC BOOL gobj_user_has_authz(hgobj gobj, const char *authz, json_t *kw, hgobj
 Resolution order:
 
 1. The gclass's own `mt_authz_checker` method, if declared
-   ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c)).
+   ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)).
 2. The globally-installed `__global_authorization_checker_fn__`
-   ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c)). This is set by `C_AUTHZ` at registration.
+   ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)). This is set by `C_AUTHZ` at registration.
 3. If neither is installed, **returns `TRUE`** (default-allow).
 
 That last point matters: a yuno with no `C_AUTHZ` service running has no
@@ -460,7 +460,7 @@ authz enforcement at all. Every call passes.
 
 ### 4.4 The `pm_*` and `SDATAAUTHZ` schemas
 
-[`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h). Two macros define the schema:
+[`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h). Two macros define the schema:
 
 - `SDATAPM(type, name, flag, default, description)` — a parameter row.
 - `SDATAAUTHZ(...)` — declares an authz that a command requires (with
@@ -468,7 +468,7 @@ authz enforcement at all. Every call passes.
 
 A command's parameter schema is declared once as a `sdata_desc_t` array
 and referenced in the `SDATACM2` row in the command table. Example from
-[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c):
+[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c):
 
 ```c
 PRIVATE sdata_desc_t pm_run_yuno[] = {
@@ -486,7 +486,7 @@ is gated behind a yuno attr (next section).
 ### 4.5 The command authz check — re-armed, gated opt-in
 
 The `SDF_AUTHZ_X` check at the command-dispatch boundary in
-[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/command_parser.c)
+[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/command_parser.c)
 was commented out for years. It is now **re-armed** but **gated** behind a
 yuno attr, so the default stays non-breaking:
 
@@ -513,13 +513,13 @@ The three pieces that make it safe:
 
 - **The gate — `enable_command_authz`.** A new `SDF_RD` boolean attr on
   `c_yuno` (`enable_command_authz`, default `"0"`,
-  [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_yuno.c)).
+  [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c)).
   The check runs **only** when this is TRUE. `SDF_RD` (not `SDF_WR`) on purpose:
   the runtime `write-attr` command cannot turn authz *off* at runtime — only
   config or code can set it. Absent attr → off.
 - **External-only — the kw `__username__` marker.** The check fires **only for
   external commands**: those whose kw carries `__username__`, the authenticated
-  principal that [`c_ievent_srv`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_ievent_srv.c)
+  principal that [`c_ievent_srv`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_ievent_srv.c)
   injects (`kw_set_dict_value`, overwrite — a wire client cannot spoof it) on
   every dispatched wire command. **Internal `gobj_command()` calls carry no kw
   `__username__` and are never gated**. Without that rule a yuno denies its own
@@ -552,13 +552,13 @@ roles.
 > internal startup commands of a yuno. The fail-open-without-`C_AUTHZ` posture
 > and the strict-always-enforce posture are still available. See `TODO.md`
 > § *Security: re-enable per-command authorization*. The regression test is
-> [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/tests/c/command_authz/test_command_authz.c). It covers six cases:
+> [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/tests/c/command_authz/test_command_authz.c). It covers six cases:
 > gate-off runs, external+deny → -403, internal-command bypass, self-bypass,
 > external+granted runs, and global authz resolves.
 
 ### 4.6 `EVF_AUTHZ_INJECT` / `EVF_AUTHZ_SUBSCRIBE`
 
-[`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h) declares the flags. [`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c) declares the
+[`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h) declares the flags. [`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c) declares the
 matching global authzs (`__inject_event__`, `__subscribe_event__`). The
 **enforcement** for these flags is not found in the dispatcher
 (`gobj_send_event`, `gobj_subscribe_event`). Unlike the command check (§4.5,
@@ -578,7 +578,7 @@ Two paths, in priority order:
    - Inside `C_AUTHZ`'s own commands (you cannot list users without
      authority over the auth service itself).
    - Inside `auth_bff` for things like cookie-domain validation
-     ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching, SEC-06).
+     ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching, SEC-06).
    - The MQTT broker's per-group publish/subscribe ACL (a topic-pattern model
      in the broker's own treedb, not `gobj_user_has_authz` — see the
      `mqtt_broker` doc's *Authorization* section).
@@ -590,18 +590,18 @@ handler rather than turning on the (fail-closed) global gate.
 ### 4.8 Per-instance config keys (`authz.*`)
 
 The `C_AUTHZ` gclass reads a small set of attrs at boot (see
-[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) `attrs_table`):
+[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) `attrs_table`):
 
 | Key                       | Status                | Purpose                                                                                  |
 |---------------------------|-----------------------|------------------------------------------------------------------------------------------|
 | `authz.master`            | bool                  | Whether this instance owns the authz treedb (writer) or follows another (reader).        |
 | `authz.authz_service`     | preferred             | Service name under which to build/look up the authz tree. Empty → defaults to `yuno_role`. |
-| `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
+| `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
 | `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical
-form is the lowercase `authz.*` used in [`yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/main.c).
+form is the lowercase `authz.*` used in [`yuno_agent/src/main.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/main.c).
 
 There is also a JWKS migration analogous to §2.5:
 
@@ -613,7 +613,7 @@ There is also a JWKS migration analogous to §2.5:
 **Gotcha:** if you use the deprecated `authz.authz_yuno_role`, the
 controlcenter will silently reject the agent's identity card ("User not
 exist") — the JWT validates fine but the user→service mapping returns
-empty. Both spellings reach [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) but the deprecated one
+empty. Both spellings reach [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) but the deprecated one
 generally lags behind in coverage. Always prefer `authz.authz_service`.
 
 ### 4.9 Output events: a subscriber can refuse a login
@@ -645,7 +645,7 @@ Consequences worth knowing before you write an action for this event:
 - **The checked value is the *sum* of the subscriber returns**, not "any
   negative". With several subscribers, a `-1` and a `+1` cancel out.
 - **A subscriber holding `__own_event__` short-circuits** the accumulation
-  ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c#L9204) breaks before `ret += ret_`), so its refusal is never seen.
+  ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L9204) breaks before `ret += ret_`), so its refusal is never seen.
 - **Refusing is safe for the peer.** `c_ievent_cli` drops the transport on the
   NAK, and `c_tcp` reconnects with its backoff, so a refused agent returns.
   That is what makes "refuse until I can register the user" a valid answer
@@ -741,7 +741,7 @@ confirm that the boundary works.
 
 ## 5. `C_AUTHZ` commands (user / role CRUD)
 
-The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) declares them. These are the names:
+The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) declares them. These are the names:
 
 | Command            | Purpose                                                       |
 |--------------------|---------------------------------------------------------------|
@@ -767,8 +767,8 @@ All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforce
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
 default.
 
-Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L6333) ([`c_agent.c:6333`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L6333), registered as
-`authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
+Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L6390) ([`c_agent.c:6390`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L6390), registered as
+`authzs-yuno` at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)) is the agent's wrapper to broadcast
 authz data to all running yunos.
 
 ---
@@ -818,7 +818,7 @@ dropping live connections.
 
 ### 6.2 The agent's `cert_sync_*` attributes
 
-[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c):
+[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c):
 
 | Attribute               | Default                                          | Purpose                                  |
 |-------------------------|--------------------------------------------------|------------------------------------------|
@@ -855,19 +855,19 @@ The `sudo -n` needs NOPASSWD in sudoers. That is a wide grant. See §8.10.
 
 ### 6.4 The reload broadcast
 
-[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c): when the post-snapshot diff says "changed",
-[`cert_sync_broadcast_reload()`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L9614) sends `command=reload-certs service=__yuno__`
-to every running yuno via [`cmd_command_yuno()`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L6213), plus the local agent.
+[`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c): when the post-snapshot diff says "changed",
+[`cert_sync_broadcast_reload()`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L9695) sends `command=reload-certs service=__yuno__`
+to every running yuno via [`cmd_command_yuno()`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L6270), plus the local agent.
 
 Yunos without TLS listeners ignore the event. Yunos with TLS handle it
-at [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_tcp_s.c) — re-read the cert paths configured in their
+at [`c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_tcp_s.c) — re-read the cert paths configured in their
 `crypto` attribute, swap the new cert into the listening context, leave
 existing connections alone.
 
 ### 6.5 `cert-sync-now` and `cert-sync-status`
 
-[`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L7098) ([`c_agent.c:7098`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L7098)) forces a tick immediately.
-[`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L7121) ([`c_agent.c:7121`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L7121)) returns the full state:
+[`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L7155) ([`c_agent.c:7155`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L7155)) forces a tick immediately.
+[`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L7178) ([`c_agent.c:7178`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L7178)) returns the full state:
 `enabled`, `interval_sec`, `store_dir`, `copy_cmd`, `last_check`,
 `last_action`, `last_result`, `failures`, plus a
 `deploy_hook_last_run` timestamp read from
@@ -939,7 +939,7 @@ The convention from
 ### 7.3 The IdP admin client (`register-idp-user`)
 
 `C_IDP_KEYCLOAK`
-([`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_idp_keycloak.c))
+([`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_idp_keycloak.c))
 creates a user in Keycloak with one command: `register-idp-user`. The local
 `authzs` user is written by `C_AUTHZ`, which subscribes to the event
 `EV_IDP_USER_CREATED` that the command publishes.
@@ -1207,7 +1207,7 @@ also lives in the agent's treedb at runtime.
 
 ### 8.3 The command authz check is OFF by default
 
-[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/command_parser.c). The most important thing in this document.
+[`command_parser.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/command_parser.c). The most important thing in this document.
 The check is re-armed (§4.5) but **gated behind `enable_command_authz`, default
 OFF**. By default the framework therefore **does not call**
 `gobj_user_has_authz` for commands, and every authenticated user can run every
@@ -1224,9 +1224,9 @@ Plan for this:
 
 ### 8.4 Event-level authz is also unenforced
 
-`EVF_AUTHZ_INJECT` and `EVF_AUTHZ_SUBSCRIBE` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h)) are
+`EVF_AUTHZ_INJECT` and `EVF_AUTHZ_SUBSCRIBE` ([`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h)) are
 declared and the global authzs `__inject_event__` /
-`__subscribe_event__` are registered ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c)), but no check
+`__subscribe_event__` are registered ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)), but no check
 runs in `gobj_send_event` or `gobj_subscribe_event`. Unlike the command check
 (§4.5, now gated-but-enforceable), event-level authz has **no gate and no
 enforcement** — declared only.
@@ -1234,13 +1234,13 @@ enforcement** — declared only.
 ### 8.5 Authz default is allow
 
 `gobj_user_has_authz` returns `TRUE` if no checker is installed
-([`gobj.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c)). A yuno that did not register `C_AUTHZ` has zero
+([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)). A yuno that did not register `C_AUTHZ` has zero
 authz enforcement, even for the custom `gobj_user_has_authz` calls
 inside individual gclasses. The default is open.
 
 ### 8.6 The `yuneta` bypass is authentication-only
 
-[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) permits the `yuneta` user to authenticate without
+[`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) permits the `yuneta` user to authenticate without
 JWT/password. It does **not** give `yuneta` automatic authz over
 everything. The user must still own roles. In practice the agent's
 `yuneta` user owns every role in production, but a fresh deployment
@@ -1250,19 +1250,19 @@ custom-gated operation.
 ### 8.7 Legacy `idp_url` + `realm` still works
 
 The deprecation warning is logged but the BFF accepts the legacy shape
-and constructs the URL automatically ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)). Do not depend
+and constructs the URL automatically ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)). Do not depend
 on this. Migrate the batches.
 
 ### 8.8 HTTP_CL chain leak on rapid disconnect
 
-[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c). During load testing with aggressive
+[`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c). During load testing with aggressive
 client disconnects in the middle of `/token`, the outbound HTTP client chain
 is not always released. Watch the open-fd count of the process when the load
 is unusual.
 
 ### 8.9 No real-IdP smoke tests
 
-`tests/c/c_auth_bff/` runs against [`c_mock_keycloak.c`](https://github.com/artgins/yunetas/blob/7.11.0/tests/c/c_auth_bff/c_mock_keycloak.c). Regressions
+`tests/c/c_auth_bff/` runs against [`c_mock_keycloak.c`](https://github.com/artgins/yunetas/blob/7.12.0/tests/c/c_auth_bff/c_mock_keycloak.c). Regressions
 against a real Keycloak release go unnoticed in CI. Manual smoke test
 on staging is mandatory before any auth_bff release.
 
@@ -1539,32 +1539,32 @@ Keycloak `id` of the account. If the answer carries an `error_code` or a
 
 | What                                              | Where                                                                  |
 |---------------------------------------------------|------------------------------------------------------------------------|
-| `C_IDP_KEYCLOAK` gclass                           | [`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_idp_keycloak.c)                             |
-| `C_AUTH_BFF` gclass                               | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)                                 |
-| auth_bff yuno wrapper                             | [`yunos/c/auth_bff/src/c_auth_bff_yuno.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/auth_bff/src/c_auth_bff_yuno.c)                               |
-| auth_bff endpoints dispatcher                     | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)                                               |
-| auth_bff attrs (`issuer`, deprecated `idp_url`)   | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)                                                 |
-| PKCE token call                                   | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)                                               |
-| Cookie builder                                    | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_auth_bff.c)                                                 |
-| libjwt entry point                                | [`kernel/c/libjwt/src/jwt-verify.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/libjwt/src/jwt-verify.c)                                  |
-| `C_AUTHZ` gclass                                  | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c)                                    |
-| `authzs` treedb schema                            | [`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/treedb_schema_authzs.c)                |
-| `register-idp-user` + the three Keycloak calls    | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) (`kc_get_token`, `kc_create_user`, `kc_send_email`) |
-| `kc_*` attrs, `set-kc-config` / `view-kc-config`  | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c)                                                    |
-| Role inheritance walk                             | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c) (`get_user_roles`)                               |
-| `yuneta` super-user bypass                        | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c)                                                    |
-| `__username__` write-side                         | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_authz.c)                                             |
-| `gobj_user_has_authz`                             | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h), [`gobj.c:9400`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.c#L9400)                                 |
-| `SDATAPM` / `SDATAAUTHZ` macros                   | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h)                                                       |
-| Command authz check (gated opt-in)                | [`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/command_parser.c)                          |
-| `enable_command_authz` attr (`c_yuno`)            | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_yuno.c)                              |
-| Command authz regression test                     | [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.11.0/tests/c/command_authz/test_command_authz.c) |
-| `EVF_AUTHZ_*` flags                               | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/gobj-c/src/gobj.h)                                                       |
-| Agent's cert_sync attrs                           | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                             |
-| [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c#L9632) (diff + broadcast)               | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
-| `cert_sync_broadcast_reload`                      | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
-| `cert-sync-now` / `cert-sync-status` commands     | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.11.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
-| `reload-certs` handler in TCP server              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.11.0/kernel/c/root-linux/src/c_tcp_s.c)                            |
+| `C_IDP_KEYCLOAK` gclass                           | [`kernel/c/root-linux/src/c_idp_keycloak.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_idp_keycloak.c)                             |
+| `C_AUTH_BFF` gclass                               | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)                                 |
+| auth_bff yuno wrapper                             | [`yunos/c/auth_bff/src/c_auth_bff_yuno.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/auth_bff/src/c_auth_bff_yuno.c)                               |
+| auth_bff endpoints dispatcher                     | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)                                               |
+| auth_bff attrs (`issuer`, deprecated `idp_url`)   | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)                                                 |
+| PKCE token call                                   | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)                                               |
+| Cookie builder                                    | [`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_auth_bff.c)                                                 |
+| libjwt entry point                                | [`kernel/c/libjwt/src/jwt-verify.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/libjwt/src/jwt-verify.c)                                  |
+| `C_AUTHZ` gclass                                  | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c)                                    |
+| `authzs` treedb schema                            | [`kernel/c/root-linux/src/treedb_schema_authzs.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/treedb_schema_authzs.c)                |
+| `register-idp-user` + the three Keycloak calls    | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) (`kc_get_token`, `kc_create_user`, `kc_send_email`) |
+| `kc_*` attrs, `set-kc-config` / `view-kc-config`  | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c)                                                    |
+| Role inheritance walk                             | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c) (`get_user_roles`)                               |
+| `yuneta` super-user bypass                        | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c)                                                    |
+| `__username__` write-side                         | [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_authz.c)                                             |
+| `gobj_user_has_authz`                             | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h), [`gobj.c:9400`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L9400)                                 |
+| `SDATAPM` / `SDATAAUTHZ` macros                   | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h)                                                       |
+| Command authz check (gated opt-in)                | [`kernel/c/gobj-c/src/command_parser.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/command_parser.c)                          |
+| `enable_command_authz` attr (`c_yuno`)            | [`kernel/c/root-linux/src/c_yuno.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c)                              |
+| Command authz regression test                     | [`tests/c/command_authz/test_command_authz.c`](https://github.com/artgins/yunetas/blob/7.12.0/tests/c/command_authz/test_command_authz.c) |
+| `EVF_AUTHZ_*` flags                               | [`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h)                                                       |
+| Agent's cert_sync attrs                           | [`yunos/c/yuno_agent/src/c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)                             |
+| [`cert_sync_tick`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c#L9713) (diff + broadcast)               | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
+| `cert_sync_broadcast_reload`                      | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
+| `cert-sync-now` / `cert-sync-status` commands     | [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.12.0/yunos/c/yuno_agent/src/c_agent.c)                                                  |
+| `reload-certs` handler in TCP server              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_tcp_s.c)                            |
 | Per-yuno cert paths (example)                     | `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json:26-27`          |
 | Localhost dev OIDC batch                          | `batches/localhost/auth_bff.1801.json:55-58`                           |
 | auth_bff pending bugs (memory)                    | `~/.claude/.../memory/project_auth_bff_pending_bugs.md`                |
