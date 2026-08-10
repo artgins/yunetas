@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+
+## 7.11.0-3
+
+A packaging revision, not a new version: the tree under `kernel/`, `modules/`,
+`utils/` and `yunos/` is the same one 7.11.0 was cut from. The packages are
+rebuilt as `yuneta-agent-7.11.0-3` and attached to the existing 7.11.0 tag.
+
+One change, and it closes the difference the previous revision opened.
+
 ### Changed
 
 - **`/etc/yuneta/webserver` is handled the same way in the `.deb` and the
