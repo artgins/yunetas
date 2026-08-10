@@ -24,10 +24,19 @@ gobj is a crash, and on ESP32 nothing stops it today.
 
 ## msg2db leaks 8 blocks per open/close, and has no tests
 
-`msg2db_open_db()` + `msg2db_close_db()` leak **8 tracked blocks (~1 KB) per
-cycle**. Measured with `tests/c/tr_msg2db/test_pkey2_empty` (written, not
-registered — see its README): 8 for one cycle, 16 for two, identical with 0 or
-5 records, so it is the open/close pair and not the records.
+There are **two** leaks, told apart by measurement with
+`tests/c/tr_msg2db/test_pkey2_empty` (written, not registered — see its
+README):
+
+- **The open/close pair**: 8 tracked blocks for two cycles once nothing is
+  dropped at load, so ~4 per cycle.
+- **The drop path at load**: it was 16 blocks for those same two cycles while
+  the store still held records with an empty `pkey2`. The difference is the
+  dropping, not the reading.
+
+The second one is now hard to reach from the API — the write side refuses
+those records — but old stores are full of them, so it still runs on every
+node that carries the history.
 
 Two candidates were ruled out by measurement, not by reading: the file-static
 `topic_cols_desc` (removed anyway — it was the pattern CLAUDE.md forbids, and
@@ -52,12 +61,17 @@ load_record_callback()   ->  !empty_string(value)       drops  "alarm": ""
 So a record with the key present and the value empty is written, stored, and
 then dropped at every load, for ever. A client node was carrying 4447 of them.
 
-The reporting is fixed (one line plus a tally, instead of one line per record).
-What is not decided is the behaviour: either the write side refuses an empty
-pkey2 — which fails at the point where the mistake is made, and is what the
-rest of this framework does — or the load side accepts it and gives up the
-secondary index for that record. Refusing at write time changes what a running
-app sees, so it is a decision, not a cleanup.
+**Decided and done**: the write side refuses an empty `pkey2`, which fails at
+the point where the mistake is made. The load side keeps its guard, and its
+reporting, for the records already on disk.
+
+⚠️ **What this changes for an app already running**: a caller that used to get
+its message stored now gets it refused, with an error naming the record. On
+hidraulia, `db_history` writes alarms whose `alarm` is empty when the alarm
+setting has no `id` — its own log line there reads *"alarm saved but won't
+reload"*, and it is no longer saved. That message needs rewording, and the
+question it points at — why a setting has no `id` — is now unavoidable, which
+was the point.
 
 ## ESP32: `gobj_post_event()` is not in the port
 

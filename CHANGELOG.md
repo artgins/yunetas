@@ -17,6 +17,22 @@
 
 ### Fixed
 
+- **BREAKING: a msg2db refuses a message whose `pkey2` value is empty.** The
+    write side only asked whether the key was present, while the load side
+    asks for a non-empty value — so a record carrying `"alarm": ""` was
+    accepted, written to disk, and then dropped at every load for the life of
+    the store. A client node was carrying 4447 of them, written across a
+    fortnight and unreadable ever since.
+
+    A store must not take what it cannot give back. The refusal belongs where
+    the caller still holds the record and can be told, not in somebody else's
+    log a restart later.
+
+    ⚠️ **An app that writes those records will now see them refused**, with an
+    error naming the record. That is the intended consequence: the mistake
+    surfaces where it is made. Records already on disk are untouched, and the
+    load side keeps its guard and its reporting for them.
+
 - **`tr_msg2db.c` no longer keeps a file-static `json_t *` cache.**
     `topic_cols_desc` was a `PRIVATE json_t *` kept alive across open/close
     with an incref dance — the pattern CLAUDE.md forbids for library helpers,

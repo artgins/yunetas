@@ -1,24 +1,25 @@
 # tr_msg2db — NOT in the suite yet
 
-`test_pkey2_empty` pins what a msg2db does with a record whose `pkey2` value is
-empty: the write side accepts it (`kw_has_key`), the load side refuses it
-(`!empty_string`), so the record is stored and then dropped at every load for
-the life of the store. The test asserts the reporting -- the first dropped
-record logged whole, and one tally when the topic finishes loading.
+`test_pkey2_empty` pins the rule that a store must not take what it cannot
+give back: `msg2db_append_message()` refuses a record whose `pkey2` value is
+empty, says so where the caller can still hear it, and writes nothing. The
+reload then finds only what it can read.
 
-**It is not registered in `tests/c/CMakeLists.txt`**, because it cannot pass
-yet: `msg2db_open_db()` + `msg2db_close_db()` leak **8 tracked blocks per
-cycle** (~1 KB), and the memory check at the end of every test in this tree is
-global. Measured with this very test: 8 blocks for one cycle, 16 for two,
-identical with 0 or 5 bad records, so the leak is in the open/close pair and
-has nothing to do with the records.
+**It is not registered in `tests/c/CMakeLists.txt`**, and cannot be until two
+things are done:
 
-That leak is older than this test. It went unnoticed because **msg2db has never
-had a test at all** -- `tests/c/tr_msg` covers `tr_msg.c`, a different module.
+1. **msg2db leaks.** `open_db` + `close_db` leak tracked blocks per cycle, and
+   the memory check at the end of every test in this tree is global. Measured
+   with this test: 16 blocks for two cycles when the store held records that
+   the load dropped, **8** for the same two cycles once the write side started
+   refusing them. So there are two leaks, not one: a base leak in the
+   open/close pair, and one on the path that drops a record at load.
+2. **The expected-log list of the fill phase does not match yet.** The two
+   INFO lines the database creation emits are not landing where the strict
+   FIFO comparison wants them. The refusals themselves are right.
 
-To finish this: find the 8 blocks, then register the directory. Two smaller
-things are also open in the test itself, both marked in the source: the
-expected-log list of the fill phase, and the `msg2db_list_messages()` call,
-which returns 0 records where 3 are expected.
+The leak is older than this test. It went unnoticed because **msg2db has never
+had a test at all** — `tests/c/tr_msg` covers `tr_msg.c`, a different module —
+and the first one written for it found the leak on its first run.
 
 See `TODO.md`.

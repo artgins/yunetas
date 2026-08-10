@@ -1,21 +1,18 @@
 /****************************************************************************
  *          test_pkey2_empty.c
  *
- *  A msg2db topic with a pkey2 accepts records whose pkey2 value is EMPTY,
- *  and then refuses to load them back. The two ends do not agree:
+ *  A store must not take what it cannot give back.
  *
- *      msg2db_append_message()  checks kw_has_key(kw, pkey2)
- *      load_record_callback()   checks !empty_string(value)
+ *  msg2db_append_message() used to accept a record whose pkey2 value was
+ *  empty -- it only asked whether the KEY was there -- while the load side
+ *  asks for a non-empty VALUE. So `"alarm": ""` was written, stored, and
+ *  dropped at every load for the life of the store. A client node was
+ *  carrying 4447 of them, written across a fortnight and unreadable ever
+ *  since, and saying so 4447 times in its log at every start.
  *
- *  So `"alarm": ""` is written and stored, and dropped at every load for the
- *  life of the store. A client node was carrying 4447 of them, from two
- *  devices and a fortnight of one July, and saying so 4447 times in the log
- *  at every start -- which buries everything else that log is for.
- *
- *  What this test pins is the reporting, which is what changed: the first
- *  dropped record is logged WHOLE, so it can be diagnosed, and the rest are
- *  counted and reported once when the topic finishes loading. Two lines, not
- *  one per record, and neither of them silent.
+ *  The write side refuses them now, which is what this test pins: the record
+ *  is rejected where the caller can still be told, the log says so, and
+ *  nothing reaches the disk. The reload then finds only what it can read.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -79,19 +76,20 @@ PRIVATE char msg2db_schema[]= "\
 ";
 
 /***************************************************************************
- *  Append GOOD_RECORDS with a pkey2, and BAD_RECORDS without one.
+ *  Append GOOD_RECORDS with a pkey2, and BAD_RECORDS with an empty one.
  *
- *  The bad ones carry the key with an empty value, which is what the write
- *  side accepts today -- writing them is not a mistake of this test, it is
- *  the behaviour under test.
+ *  The index is {id: {pkey2: node}} -- one node per pair -- so the good ones
+ *  carry a distinct alarm each, to land as distinct nodes.
  ***************************************************************************/
 PRIVATE int fill_topic(json_t *tranger)
 {
     for(int i = 0; i < GOOD_RECORDS; i++) {
+        char alarm_name[32];
+        snprintf(alarm_name, sizeof(alarm_name), "temperature-%d", i);
         json_t *msg = json_pack("{s:s, s:I, s:s, s:s}",
             "id", "device-1",
             "tm", (json_int_t)(1700000000 + i),
-            "alarm", "temperature",
+            "alarm", alarm_name,
             "description", "a record that can be loaded back"
         );
         msg2db_append_message(tranger, MSG2DB_NAME, TOPIC_NAME, msg, "");
@@ -102,7 +100,7 @@ PRIVATE int fill_topic(json_t *tranger)
             "id", "device-2",
             "tm", (json_int_t)(1700001000 + i),
             "alarm", "",
-            "description", "stored, and never loadable"
+            "description", "refused: a store must not take what it cannot give back"
         );
         msg2db_append_message(tranger, MSG2DB_NAME, TOPIC_NAME, msg, "");
     }
@@ -145,13 +143,21 @@ PRIVATE int do_test(void)
      *  The empty pkey2 is accepted here without a word, which
      *  is the asymmetry this test documents.
      *-------------------------------------------------------*/
-    set_expected_results(
-        "fill",
-        json_array(),   // no logs at all while writing
-        NULL,
-        NULL,
-        TRUE
+    /*
+     *  Creating the database says so, and then every bad record is refused
+     *  out loud -- one line each, because each one is a caller being told
+     *  that its message did not make it.
+     */
+    json_t *expected_fill = json_pack("[{s:s}, {s:s}]",
+        "msg", "Creating __timeranger2__.json",
+        "msg", "Creating topic"
     );
+    for(int i = 0; i < BAD_RECORDS; i++) {
+        json_array_append_new(expected_fill,
+            json_pack("{s:s}", "msg", "Field 'pkey2' required, message NOT saved")
+        );
+    }
+    set_expected_results("fill", expected_fill, NULL, NULL, TRUE);
 
     json_t *tranger = tranger2_startup(0, TRANGER_CONFIG(), yev_loop);
     helper_quote2doublequote(msg2db_schema);
@@ -168,19 +174,10 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------------*
      *  Second run: load it back.
      *
-     *  EXACTLY two lines, whatever BAD_RECORDS is: the first
-     *  record whole, and the tally. That is the whole point.
+     *  Nothing to complain about: what could not be read was
+     *  never written.
      *-------------------------------------------------------*/
-    set_expected_results(
-        "load",
-        json_pack("[{s:s}, {s:s}]",
-            "msg", "Field 'pkey2' required, record NOT loaded (first of the topic)",
-            "msg", "Records NOT loaded, 'pkey2' empty"
-        ),
-        NULL,
-        NULL,
-        TRUE
-    );
+    set_expected_results("load", json_array(), NULL, NULL, TRUE);
 
     tranger = tranger2_startup(0, TRANGER_CONFIG(), yev_loop);
     helper_quote2doublequote(msg2db_schema);
@@ -188,19 +185,20 @@ PRIVATE int do_test(void)
     msg2db_open_db(tranger, MSG2DB_NAME, jn_schema2, "");
 
     /*
-     *  And the good ones did load: dropping the bad must not cost the rest.
+     *  The good ones are there, and only the good ones: the refused records
+     *  left nothing behind to load.
      */
     json_t *messages = msg2db_list_messages(
         tranger,
         MSG2DB_NAME,
         TOPIC_NAME,
-        json_pack("{s:s}", "id", "device-1"),   // jn_ids, owned
-        0,                                      // jn_filter, owned
-        0                                       // match_fn
+        0,      // jn_ids, owned: all ids
+        0,      // jn_filter, owned
+        0       // match_fn
     );
     size_t loaded = json_array_size(messages);
     if(loaded != GOOD_RECORDS) {
-        printf("%sERROR --> %s loaded %d good records, expected %d\n",
+        printf("%sERROR --> %s loaded %d messages, expected %d\n",
             On_Red BWhite, Color_Off, (int)loaded, GOOD_RECORDS
         );
         result += -1;

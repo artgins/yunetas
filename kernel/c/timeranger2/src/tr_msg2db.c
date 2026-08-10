@@ -1138,11 +1138,25 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
      *-----------------------------------*/
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *pkey2_col = kw_get_str(gobj, topic, "pkey2", 0, 0);
-    if(!kw_has_key(kw, pkey2_col)) {
+
+    /*
+     *  The VALUE, not just the key.
+     *
+     *  This used to be kw_has_key(), while the load side asks for a non-empty
+     *  value -- so a record carrying `"alarm": ""` was accepted here, written
+     *  to disk, and then dropped at every load for the life of the store. A
+     *  client node was carrying 4447 of them, written across a fortnight and
+     *  unreadable ever since.
+     *
+     *  A store must not take what it cannot give back. The refusal belongs
+     *  here, where the caller still has the record and can be told, and not a
+     *  restart later in somebody else's log.
+     */
+    if(empty_string(kw_get_str(gobj, kw, pkey2_col, 0, 0))) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB,
-            "msg",          "%s", "Field 'pkey2' required",
+            "msg",          "%s", "Field 'pkey2' required, message NOT saved",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
             "pkey2",        "%s", pkey2_col,
