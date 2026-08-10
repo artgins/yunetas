@@ -1705,6 +1705,24 @@ cat > "${WORKDIR}/DEBIAN/preinst" <<'EOF'
 #######################################################################
 set -e
 
+# --- Adopt a conffile the node has but dpkg does not own ---
+#
+# /etc/logrotate.d/yuneta reached some nodes by hand before it shipped in the
+# package. dpkg does not own it there, so on upgrade it reports the file as
+# "created by you or by some script" and ASKS what to do. That question is
+# fatal for the supported install path, `curl ... | sudo sh`, which gives dpkg
+# no stdin: it reads EOF and leaves the package half configured. Three nodes
+# at once on 7.11.0.
+#
+# Move the unowned copy aside so dpkg can lay down its own without asking.
+# The old one stays next to it, named the way dpkg names these, so nothing is
+# lost and the operator can compare.
+for _cf in /etc/logrotate.d/yuneta; do
+    if [ -e "$_cf" ] && ! dpkg-query -S "$_cf" >/dev/null 2>&1; then
+        mv -f "$_cf" "${_cf}.dpkg-bak" || true
+    fi
+done
+
 for _web in nginx openresty/nginx; do
     _conf="/yuneta/bin/${_web}/conf"
     if [ -f "${_conf}/nginx.conf" ]; then

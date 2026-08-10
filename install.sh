@@ -225,8 +225,32 @@ if [ "$FAMILY" = "debian" ]; then
     # unconfigured and prints a wall of dependency errors on every clean install
     # — `gdb` did exactly that on 7.8.5. The dpkg path stays only as a fallback
     # for an apt too old to take a file argument.
-    if ! apt-get install -y "$PKG"; then
-        dpkg -i "$PKG" || apt-get install -y -f
+    # NON-INTERACTIVE, and not as a precaution: this installer is meant to be
+    # run as `curl ... | sudo sh`, which leaves dpkg with no stdin at all. A
+    # single conffile question is then fatal -- dpkg reads EOF, aborts with
+    # "end of file on stdin at conffile prompt", and leaves the package half
+    # configured. It happened on 7.11.0 on three nodes at once, because
+    # /etc/logrotate.d/yuneta had been deployed by hand before it shipped in
+    # the package: dpkg does not own it there, so it asks whether to keep it.
+    #
+    # confdef + confold is the conservative pair: never ask, and keep whatever
+    # the node has when the two differ. Overwriting would be worse -- the same
+    # list holds /etc/sudoers.d/90-yuneta and the agent's init script.
+    APT_CONF_OPTS="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
+    export DEBIAN_FRONTEND=noninteractive
+
+    if ! apt-get install -y $APT_CONF_OPTS "$PKG"; then
+        dpkg -i --force-confdef --force-confold "$PKG" ||
+            apt-get install -y -f $APT_CONF_OPTS
+    fi
+
+    # A conffile the node keeps is not an error, but it IS something the
+    # operator has to know: the version in the package did not land.
+    if dpkg-query -W -f='${Conffiles}\n' yuneta-agent 2>/dev/null |
+            tr ' ' '\n' | grep -q obsolete; then
+        echo "[!] Some config files were kept as they are on this node; the" >&2
+        echo "    versions from the package did not land. Compare with:" >&2
+        echo "    dpkg-query -W -f='\${Conffiles}\\n' yuneta-agent" >&2
     fi
 else
     # dnf resolves the package's deps from the now-enabled repos.
