@@ -22,6 +22,43 @@ C and JS agree since 7.10.0 (JS aligned in gobj-js `7.10.0`). ESP32 does not:
 The two that matter are the lifetime ones: an event delivered to a destroyed
 gobj is a crash, and on ESP32 nothing stops it today.
 
+## msg2db leaks 8 blocks per open/close, and has no tests
+
+`msg2db_open_db()` + `msg2db_close_db()` leak **8 tracked blocks (~1 KB) per
+cycle**. Measured with `tests/c/tr_msg2db/test_pkey2_empty` (written, not
+registered — see its README): 8 for one cycle, 16 for two, identical with 0 or
+5 records, so it is the open/close pair and not the records.
+
+Two candidates were ruled out by measurement, not by reading: the file-static
+`topic_cols_desc` (removed anyway — it was the pattern CLAUDE.md forbids, and
+nothing outside `msg2db_open_db()` ever read it) and the test's own handling of
+the tranger config. Neither changed the count.
+
+It went unnoticed because **msg2db has never had a test**. `tests/c/tr_msg`
+covers `tr_msg.c`, which is a different module. The first test written for it
+found this in its first run.
+
+Finish the leak, then register `tests/c/tr_msg2db` in `tests/c/CMakeLists.txt`.
+
+## A msg2db stores records it can never load back
+
+The two ends of `pkey2` do not agree:
+
+```
+msg2db_append_message()  ->  kw_has_key(kw, pkey2)      accepts "alarm": ""
+load_record_callback()   ->  !empty_string(value)       drops  "alarm": ""
+```
+
+So a record with the key present and the value empty is written, stored, and
+then dropped at every load, for ever. A client node was carrying 4447 of them.
+
+The reporting is fixed (one line plus a tally, instead of one line per record).
+What is not decided is the behaviour: either the write side refuses an empty
+pkey2 — which fails at the point where the mistake is made, and is what the
+rest of this framework does — or the load side accepts it and gives up the
+secondary index for that record. Refusing at write time changes what a running
+app sees, so it is a decision, not a cleanup.
+
 ## ESP32: `gobj_post_event()` is not in the port
 
 `kernel/c/root-esp32/components/esp_gobj/` carries its own copy of the gobj

@@ -55,7 +55,6 @@ PRIVATE int load_record_callback(
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE json_t *topic_cols_desc = 0;
 
 /***************************************************************************
  *
@@ -220,12 +219,17 @@ PUBLIC json_t *msg2db_open_db(
 
     /*--------------------------------*
      *      Create desc of cols
+     *
+     *  LOCAL, and built per call. It used to be a file-static kept alive
+     *  across open/close with an incref dance, which is the pattern CLAUDE.md
+     *  forbids for library helpers -- anything alive past gobj_end() is a
+     *  leak, and this one was: ~2 KB per open/close cycle, unnoticed because
+     *  msg2db had no test at all.
+     *
+     *  It is only ever read by parse_schema_cols() below, inside this very
+     *  function, so there was nothing for the static to save.
      *--------------------------------*/
-    if(!topic_cols_desc) {
-        topic_cols_desc = _treedb_create_topic_cols_desc();
-    } else {
-        JSON_INCREF(topic_cols_desc)
-    }
+    json_t *topic_cols_desc = _treedb_create_topic_cols_desc();
 
     /*
      *  At least 'topics' must be.
@@ -239,12 +243,7 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
-        // HACK undo the incref/create above (no close_db pairs a failed open)
-        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
-            json_decref(topic_cols_desc);
-        } else {
-            JSON_DECREF(topic_cols_desc);
-        }
+        JSON_DECREF(topic_cols_desc)
         JSON_DECREF(jn_schema)
         return 0;
     }
@@ -261,12 +260,7 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
-        // HACK undo the incref/create above (no close_db pairs a failed open)
-        if(topic_cols_desc && topic_cols_desc->refcount > 1) {
-            json_decref(topic_cols_desc);
-        } else {
-            JSON_DECREF(topic_cols_desc);
-        }
+        JSON_DECREF(topic_cols_desc)
         JSON_DECREF(jn_schema)
         return 0;
     }
@@ -334,6 +328,11 @@ PUBLIC json_t *msg2db_open_db(
         );
     }
 
+    /*
+     *  Done with it: nothing outside this function ever reads it.
+     */
+    JSON_DECREF(topic_cols_desc)
+
     /*------------------------------*
      *  Create the root of msg2db
      *------------------------------*/
@@ -389,7 +388,7 @@ PUBLIC json_t *msg2db_open_db(
             "topic_name", topic_name,
             "msg2db_name", msg2db_name
         );
-        if(!tranger2_open_list(
+        json_t *list = tranger2_open_list(
             tranger,
             topic_name,
             match_cond,     // owned
@@ -397,7 +396,8 @@ PUBLIC json_t *msg2db_open_db(
             master?"":rt_id, // rt_id, master goes by mem, don't use rt_id
             !master,        // rt_by_disk
             msg2db_name     // creator
-        )) {
+        );
+        if(!list) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB,
@@ -405,6 +405,26 @@ PUBLIC json_t *msg2db_open_db(
                 "topic_name",   "%s", topic_name,
                 NULL
             );
+        } else {
+            /*
+             *  The tally of what load_record_callback() refused to load. The
+             *  first one was logged whole; this is how many followed it, and
+             *  it is the line that says how much of the topic is missing.
+             */
+            json_t *topic_ = tranger2_topic(tranger, topic_name);
+            json_int_t dropped = kw_get_int(gobj, topic_, "pkey2_dropped", 0, 0);
+            if(dropped > 0) {
+                json_object_del(topic_, "pkey2_dropped");
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MSG2DB,
+                    "msg",          "%s", "Records NOT loaded, 'pkey2' empty",
+                    "msg2db_name",  "%s", msg2db_name,
+                    "topic_name",   "%s", topic_name,
+                    "dropped",      "%ld", (long)dropped,
+                    NULL
+                );
+            }
         }
     }
 
@@ -454,12 +474,6 @@ PUBLIC int msg2db_close_db(
     }
 
     JSON_DECREF(msg2db)
-    // HACK incref/decref by each msg2db_open_db/msg2db_close_db
-    if(topic_cols_desc && topic_cols_desc->refcount > 1) {
-        json_decref(topic_cols_desc);
-    } else {
-        JSON_DECREF(topic_cols_desc);
-    }
     return 0;
 }
 
@@ -962,16 +976,41 @@ PRIVATE int load_record_callback(
 
         const char *pkey2_value = kw_get_str(gobj, jn_record, pkey2_col, 0, 0);
         if(empty_string(pkey2_value)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB,
-                "msg",          "%s", "Field 'pkey2' required",
-                "path",         "%s", path,
-                "topic_name",   "%s", topic_name,
-                "pkey2",        "%s", pkey2_col,
-                "jn_record",    "%j", jn_record,
-                NULL
-            );
+            /*
+             *  The record is dropped, and that has to be said. But it is said
+             *  ONCE with the whole record, and counted after that: a store
+             *  that holds thousands of these writes thousands of identical
+             *  lines at every start and buries everything else in the log.
+             *  Measured on a client node: 4447 lines per start, all from two
+             *  devices and a fortnight of last July.
+             *
+             *  msg2db_open_db() reports the count when the topic finishes
+             *  loading, so the number never goes unsaid either.
+             */
+            /*
+             *  The tally lives in the TOPIC, not in the list: the handle the
+             *  callback is given is not always the one tranger2_open_list()
+             *  returns -- with no_rt the `extra` IS the handle -- and a
+             *  counter that lands in the wrong object is a counter nobody
+             *  reads.
+             */
+            json_t *topic_ = tranger2_topic(tranger, topic_name);
+            json_int_t dropped = kw_get_int(gobj, topic_, "pkey2_dropped", 0, KW_CREATE);
+            json_object_set_new(topic_, "pkey2_dropped", json_integer(dropped + 1));
+
+            if(dropped == 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MSG2DB,
+                    "msg",          "%s", "Field 'pkey2' required, record NOT loaded (first of the topic)",
+                    "path",         "%s", path,
+                    "topic_name",   "%s", topic_name,
+                    "pkey2",        "%s", pkey2_col,
+                    "jn_record",    "%j", jn_record,
+                    NULL
+                );
+            }
+
             JSON_DECREF(jn_record);
             return 0;  // Timeranger: does not load the record, it's mine.
         }

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Changed
+
+- **A msg2db says once what it used to say thousands of times.** Every record
+    whose `pkey2` value is empty is dropped at load, and each one wrote its own
+    error line: a client node was printing **4447 identical lines at every
+    start**, which buries everything else that log exists for.
+
+    Now the first dropped record is logged **whole**, so it can still be
+    diagnosed, and `msg2db_open_db()` reports the count when the topic finishes
+    loading. Two lines instead of thousands, and neither of them silent — the
+    number of records that did not load is stated, which is the part that
+    matters.
+
+### Fixed
+
+- **`tr_msg2db.c` no longer keeps a file-static `json_t *` cache.**
+    `topic_cols_desc` was a `PRIVATE json_t *` kept alive across open/close
+    with an incref dance — the pattern CLAUDE.md forbids for library helpers,
+    and the same variable that `tr_treedb.c` is cited as the fixed example of.
+    Nothing outside `msg2db_open_db()` ever read it, so it is a local now,
+    built per call and released before the function returns.
+
+    ⚠️ This was **not** the leak it looked like: msg2db still leaks 8 tracked
+    blocks per open/close cycle, measured and written down in `TODO.md`. The
+    static was removed because it is forbidden, not because it was guilty.
 
 ## 7.11.0-3
 
