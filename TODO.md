@@ -64,6 +64,29 @@ Until then, a deferral there stays a `C_TIMER0`, and the two implementations
 of the same framework differ on a documented call. Nothing uses it on ESP32
 today, which is why this is a note and not a blocker.
 
+## Agent: the spare agent is only refreshed on the package path
+
+`install.sh` restarts `yuneta_agent22` after an upgrade, once the main agent is
+confirmed healthy on the new binary (7.12.0). That covers the **runtime** nodes,
+which install the `.deb` / `.rpm`.
+
+It does not cover the nodes that **build from source**: there the binaries come
+from `yunetas build` and both agents are restarted by hand. Nothing checks, and
+nothing says the spare is stale — which is exactly how it went five days unnoticed
+on four nodes, running the version-comparison bug 7.12.0 fixes.
+
+The natural home is the `yunetas` CLI, since it is what put the binaries there:
+after a build that replaced `/yuneta/agent/*`, restart the main agent, verify it,
+then the spare. Same order as `install.sh` — the spare is the only way into a node
+whose main agent is broken, so it is never touched first.
+
+Cheap first step, independent of the automation: teach something to REPORT a stale
+agent. The test is one line and reads the process, not the file:
+
+```sh
+readlink /proc/$(pgrep -x yuneta_agent22 | head -1)/exe | grep -q ' (deleted)$'
+```
+
 ## Tests: `test_c_timer0` asserts a 10 ms window on a 5 s measurement
 
 `c_test_timer0.c` fails the run when five ticks of a 1 s periodic timer do not

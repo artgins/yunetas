@@ -20,7 +20,10 @@ rebuilt as `yuneta-agent-7.12.0-2` and attached to the existing 7.12.0 tag.
     the exact opposite of what a second agent is for.
 
     `install.sh` now refreshes it — but only **after** confirming the main
-    agent is up *and* running the binary that was just installed. If the main
+    agent is up *and* running the binary that was just installed. (That script
+    is fetched from `main`, not shipped in the package, so it takes effect
+    without a package revision; the `%pre` change below is what the `-2`
+    packages carry.) If the main
     agent is unhealthy, the spare is the only way into the node and is left
     strictly alone, with the manual command printed. A spare that does not come
     back is reported without failing the install, because the node still has
