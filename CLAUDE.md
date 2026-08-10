@@ -1376,6 +1376,15 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `git tag -l | grep <version>` (catches both prefixed and unprefixed forms);
   if anything matches, stop and ask — duplicate `7.x.y`/`v7.x.y` tags pointing
   at different commits is a serious error.
+- **Bumping `YUNETA_VERSION` means resetting `RELEASE` to `1`.** The two files
+  are independent and nothing links them: `RELEASE` is the packaging revision
+  (`yuneta-agent-<VERSION>-<RELEASE>`), it is bumped alone for a repackage, and
+  it does **not** reset itself. Every release before 7.12.0 shipped its first
+  package as `-1` because somebody remembered; 7.12.0 shipped as **`-3`**
+  because this line was not here. Nothing breaks — the package manager compares
+  the version first — but the number claims two earlier revisions that never
+  existed, and the next repackage of that version has to keep climbing from the
+  wrong floor.
 - **Pre-tag audit** (also on any "save" / "save and quit" request), checked
   against `git log <last-tag>..HEAD`:
   1. `CHANGELOG.md ## Unreleased` lists every non-docs/test change.
