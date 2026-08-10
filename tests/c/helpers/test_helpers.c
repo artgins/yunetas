@@ -11,6 +11,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <yunetas.h>
 
@@ -133,6 +134,76 @@ PRIVATE void test_split_reentrancy(void)
 }
 
 /***************************************************************************
+ *  A version has to compare as a version, and the arithmetic has to fit.
+ *
+ *  This was an `int` accumulating up to 1000^4, so a four-segment release
+ *  with its revision -- "1.9.0.0-2" -- overflowed and came out NEGATIVE. The
+ *  agent compares releases with this to decide which binary is the newest,
+ *  and on a client node it read 1.9.0.0-2 as SMALLER than 1.7.1.0-2 and
+ *  promoted the OLD one, re-appending it on every restart for eleven days.
+ *  The store showed it plainly: 1.9.0.0 written at 13:46:25, 1.7.1.0 written
+ *  back two seconds later.
+ *
+ *  The cases below are that node's real version chain.
+ ***************************************************************************/
+PRIVATE void test_version2number(void)
+{
+    struct { const char *lower; const char *higher; } pairs[] = {
+        /*  The pair that cost eleven days  */
+        {"1.7.1.0-2",   "1.9.0.0-2"},
+        /*  The rest of the same chain, in order  */
+        {"1.5.3.0-2",   "1.5.4.0-2"},
+        {"1.5.4.0-2",   "1.6.5.0-2"},
+        {"1.6.8.0-2",   "1.7.0.0-2"},
+        {"1.7.0.0-2",   "1.7.1.0-2"},
+        {"1.8.0.0-2",   "1.8.1.0-2"},
+        {"1.8.1.0-2",   "1.9.0.0-2"},
+        /*  The revision orders within one release  */
+        {"1.9.0.0-1",   "1.9.0.0-2"},
+        /*  Three segments, which used to work by luck  */
+        {"7.9.11",      "7.10.0"},
+        {"7.10.0-1",    "7.11.0-1"},
+        {0, 0}
+    };
+
+    int failed = 0;
+    for(int i = 0; pairs[i].lower; i++) {
+        int64_t lo = version2number(pairs[i].lower);
+        int64_t hi = version2number(pairs[i].higher);
+        if(!(hi > lo)) {
+            printf("FAIL %-40s %s (%" PRId64 ") should be > %s (%" PRId64 ")\n",
+                "version2number ordering",
+                pairs[i].higher, hi, pairs[i].lower, lo
+            );
+            failed++;
+        }
+        if(lo < 0 || hi < 0) {
+            printf("FAIL %-40s %s or %s went NEGATIVE\n",
+                "version2number overflow", pairs[i].lower, pairs[i].higher
+            );
+            failed++;
+        }
+    }
+
+    if(!failed) {
+        printf("ok   %-40s\n", "version2number orders releases");
+    } else {
+        global_result += -1;
+    }
+
+    /*
+     *  An empty version is 0, and so is one nobody can compare -- refused
+     *  out loud rather than silently truncated into looking like the lowest.
+     */
+    if(version2number("") != 0 || version2number(0) != 0) {
+        printf("FAIL %-40s\n", "version2number of an empty version");
+        global_result += -1;
+    } else {
+        printf("ok   %-40s\n", "version2number of an empty version");
+    }
+}
+
+/***************************************************************************
  *              Test
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
@@ -142,6 +213,7 @@ PRIVATE int do_test(void)
     test_split_empties_excluded();
     test_split_null_size_arg();
     test_split_reentrancy();
+    test_version2number();
 
     return global_result;
 }

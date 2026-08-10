@@ -1195,6 +1195,47 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
 }
 
 /***************************************************************************
+ *  Turn a dotted version into a comparable number
+ ***************************************************************************/
+PUBLIC int64_t version2number(const char *sversion)
+{
+    if(empty_string(sversion)) {
+        return 0;
+    }
+
+    int list_size = 0;
+    const char **segments = split2(sversion, ".-", &list_size);
+    if(!segments) {
+        // Error already logged
+        return 0;
+    }
+
+    if(list_size > MAX_VERSION_SEGMENTS) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Version with too many segments, NOT comparable",
+            "version",      "%s", sversion,
+            "segments",     "%d", list_size,
+            "max",          "%d", MAX_VERSION_SEGMENTS,
+            NULL
+        );
+        split_free2(segments);
+        return 0;
+    }
+
+    int64_t version = 0;
+    int64_t power = 1;
+    for(int i = list_size-1; i >= 0; i--, power *= 1000) {
+        version += (int64_t)atoi(segments[i]) * power;
+    }
+
+    split_free2(segments);
+
+    return version;
+}
+
+/***************************************************************************
     Split a string by delim returning the list of strings.
     Return filling `list_size` if not null with items size,
         It MUST be initialized to 0 (no limit) or to maximum items wanted.

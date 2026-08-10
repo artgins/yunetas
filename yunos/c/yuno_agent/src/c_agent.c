@@ -4488,26 +4488,6 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  Get numeric version
- ***************************************************************************/
-PRIVATE int get_n_v(const char *sversion)
-{
-    int version = 0;
-
-    int list_size;
-    const char **segments = split2(sversion, ".-", &list_size);
-
-    int power = 1;
-    for(int i=list_size-1; i>=0; i--, power *=1000) {
-        version += atoi(segments[i]) * power;
-    }
-
-    split_free2(segments);
-
-    return version;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4556,11 +4536,11 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_array_foreach(configs, ix, config) {
             const char *name_version_ = SDATA_GET_STR(config, "version");
             if(config_found) {
-                if(get_n_v(SDATA_GET_STR(config_found, "version")) < get_n_v(name_version_)) {
+                if(version2number(SDATA_GET_STR(config_found, "version")) < version2number(name_version_)) {
                     config_found = config;
                 }
             } else {
-                if(get_n_v(name_version) < get_n_v(name_version_)) {
+                if(version2number(name_version) < version2number(name_version_)) {
                     config_found = config;
                 }
             }
@@ -4584,11 +4564,11 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_array_foreach(binaries, ix, binary) {
             const char *role_version_ = SDATA_GET_STR(binary, "version");
             if(binary_found) {
-                if(get_n_v(SDATA_GET_STR(binary_found, "version")) < get_n_v(role_version_)) {
+                if(version2number(SDATA_GET_STR(binary_found, "version")) < version2number(role_version_)) {
                     binary_found = binary;
                 }
             } else {
-                if(get_n_v(role_version) < get_n_v(role_version_)) {
+                if(version2number(role_version) < version2number(role_version_)) {
                     binary_found = binary;
                 }
             }
@@ -8968,12 +8948,12 @@ PRIVATE int promote_highest_release_yunos(hgobj gobj)
                 continue;
             }
             const char *rel = kw_get_str(gobj, inst, "yuno_release", "", 0);
-            if(!empty_string(rel) && get_n_v(rel) > get_n_v(best_release)) {
+            if(!empty_string(rel) && version2number(rel) > version2number(best_release)) {
                 best_release = rel;
             }
         }
 
-        if(get_n_v(best_release) > get_n_v(primary_release)) {
+        if(version2number(best_release) > version2number(primary_release)) {
             gobj_log_info(gobj, 0,
                 "function", "%s", __FUNCTION__,
                 "msgset",   "%s", MSGSET_STARTUP,

@@ -221,6 +221,27 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
     HACK: No, It does NOT include the empty strings!
 **rst**/
 PUBLIC const char **split2(const char *str, const char *delim, int *list_size);
+
+/**rst**
+    Turn a dotted version into a number that can be compared.
+
+    "1.9.0.0-2" -> 1_009_000_000_002: each segment weighs 1000 times the one
+    to its right, and both '.' and '-' separate, so a release and its revision
+    order together.
+
+    WARNING it returns int64_t and that is not decoration. The same arithmetic
+    in an int overflows at four segments and the result goes NEGATIVE, so an
+    older version compares as newer. That is not a hypothetical: the agent
+    promoted db_history on a client node from 1.9.0.0-2 back to 1.7.1.0-2 and
+    re-appended it on every restart for eleven days, because -317,314,558 is
+    less than 1,978,652,738.
+
+    More than MAX_VERSION_SEGMENTS segments is refused with 0 and a log, not
+    silently truncated: a version nobody can compare must not look like the
+    lowest one.
+**rst**/
+#define MAX_VERSION_SEGMENTS 6
+PUBLIC int64_t version2number(const char *sversion);
 PUBLIC void split_free2(const char **list);
 
 /**rst**

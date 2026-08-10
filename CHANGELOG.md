@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The agent promoted the OLD binary, and kept doing it.** `get_n_v()`
+    weighed each segment of a version by 1000 and accumulated into an `int`.
+    A four-segment release with its revision — `1.9.0.0-2` — needs 10¹², so it
+    overflowed and came out **negative**:
+
+    ```
+    1.7.1.0-2  ->   1,978,652,738
+    1.9.0.0-2  ->    -317,314,558
+    ```
+
+    `promote_highest_release_yunos()` compares with that, so it read the older
+    release as the newer one and **re-appended it as the primary**. Not a
+    failure to promote: an active demotion, repeated at every restart. The
+    store on a client node showed it plainly — `1.9.0.0` written at 13:46:25,
+    `1.7.1.0` written back **two seconds later**, and again on 01/08, 04/08,
+    05/08, 09/08 and 10/08. Eleven days of `deactivate-snap` bringing back the
+    binary it was supposed to replace, with nothing in any log to say so,
+    because a comparison that comes out negative says nothing.
+
+    The function moved to the SDK as `version2number()` — it is a string
+    utility, not agent business, and a `PRIVATE` in a gclass cannot be tested.
+    It returns `int64_t`, and a version with more segments than
+    `MAX_VERSION_SEGMENTS` is refused with 0 **and a log**, instead of being
+    truncated into looking like the lowest one.
+
+    Covered by `tests/c/helpers`, with that node's real version chain. The
+    test was checked against the old code first: it fails six times, starting
+    with the exact pair that cost the eleven days.
+
 ### Changed
 
 - **A msg2db says once what it used to say thousands of times.** Every record
