@@ -306,6 +306,18 @@ Corollaries:
   Every gclass in the tree passes a real table. Keep it that way, especially in
   the throwaway driver gclasses that tests define.
 
+- **`kw_get_dict()` / `kw_get_list()` TAKE OWNERSHIP of `default_value`.** They
+  `JSON_DECREF(default_value)` on the path where they **find** the key — the
+  path that always runs — so handing them a borrowed pointer as the fallback
+  spends one reference per call and logs *"BAD json_decref()"*. It reads like
+  the harmless idiom it resembles (`kw_get_str`'s default is a plain `const
+  char *`, owned by nobody), and it only bites once the key is actually
+  present, so it survives every test that exercises the missing-key path. Ask
+  without a default and choose afterwards:
+  `json_t *v = kw_get_dict(gobj, kw, key, 0, 0); if(!v) { v = fallback; }`.
+  Real bug: a gate handing its own compiled-in model config as the fallback for
+  a per-device one, one bad decref per frame received.
+
 - **`jwt_checker_verify2()` returns claims even on FAILED verification**
   (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —
   never treat a non-NULL payload as "verified" (that accepts forged tokens),
