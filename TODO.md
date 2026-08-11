@@ -24,17 +24,16 @@ gobj is a crash, and on ESP32 nothing stops it today.
 
 ## Schema editing: what the `__system__` treedb still needs
 
-The meta-treedb is filled and rebuilds a schema (7.13.0, `YUNO_TREEDB.md`
-§3.11). What it does not do yet:
+The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
+(7.13.0, `YUNO_TREEDB.md` §3.11). What it does not do yet:
 
-- **No reconciliation.** The projection happens once, when a treedb has no
-    schema in `__system__`. Raise `schema_version` in the C literal afterwards
-    and `__system__` keeps the old one — the two homes drift with no message.
-    The open question is who wins per field, not how to write it: a C literal
-    that moved forward is usually right about *structure*, while the edited copy
-    is right about whatever the operator changed. Until this exists, treat
-    `use_internal_schema=0` as "the schema is now edited here, do not change the
-    literal".
+- **Nothing is ever removed from a projection.** By design: an element that is
+    in `__system__` and not in the incoming schema cannot be told apart from an
+    operator addition. The consequence is that a topic or column dropped from
+    the C literal lingers in `__system__` until somebody removes it explicitly,
+    and with `use_internal_schema=0` it stays in the schema the treedb opens
+    with. Telling the two cases apart needs state the projection does not carry
+    (which side wrote each element), so decide that before adding a rule.
 
 - **No write path from the GUI.** Editing is the ordinary `create-node` /
     `update-node` on the `treedb_system_schema` service, so nothing is missing

@@ -18,7 +18,15 @@ The test drives `C_TREEDB` through its own commands and checks:
    can supply the schema, and re-opened: the topics and columns that come back
    must be the ones that went in.
 
-Step 2 is the one that matters for schema editing: it is the same path an
+3. **Reconciliation** — a schema that moved forward (`schema_version` 1 → 2,
+   one column added, another re-headered) updates the projection, and the
+   columns that were already there **keep their rowid**. Re-creating columns
+   instead of updating them would renumber every one of them, because a
+   column's `id` is a rowid handed out from the topic size. The new column
+   reaches the running treedb too, which is the whole chain: literal →
+   `__system__` → schema file → topic.
+
+Steps 2 and 3 are the ones that matter for schema editing: they are the path an
 edited schema takes to reach a running treedb.
 
 ## Run

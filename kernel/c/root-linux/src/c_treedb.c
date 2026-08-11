@@ -859,31 +859,88 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 
 /***************************************************************************
- *  Build new schema, it must not exist
+ *  Find a column node of a topic by the column name.
+ *
+ *  A column name is unique only inside its topic, so `cols` keys its nodes
+ *  by rowid and holds the name in `value`: asking the topic-wide pkey2 index
+ *  for `value` would answer with the columns of every other topic too. The
+ *  lookup goes through the topic's own `cols` hook.
+ *
+ *  Return the column's rowid, or NULL if the topic has no such column.
+ *  Return is NOT yours.
  ***************************************************************************/
-PRIVATE int build_new_treedb_schema(
+PRIVATE const char *find_col_id(
+    hgobj gobj,
+    json_t *current_topic,  // topic node with its `cols` hook expanded, NOT owned
+    const char *col_name
+)
+{
+    json_t *cols = kw_get_dict(gobj, current_topic, "cols", 0, 0);
+    const char *col_id; json_t *col;
+    json_object_foreach(cols, col_id, col) {
+        if(strcmp(kw_get_str(gobj, col, "value", "", 0), col_name)==0) {
+            return col_id;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
+ *  Project a schema into the __system__ treedb: create what is missing,
+ *  update what moved.
+ *
+ *  HACK Nothing is ever deleted here. A column's `id` is a rowid handed out
+ *  from the topic size, so re-creating columns renumbers all of them and can
+ *  hand a retired number to a different column; and a delete is the one
+ *  destructive primitive of the store — it drops the schema's own history,
+ *  which is the reason to keep a schema in a treedb at all, and it refuses a
+ *  snapshot-tagged node. An update appends a new version instead, so what a
+ *  column used to declare stays readable with `instances`.
+ *
+ *  What exists here and not in the incoming schema is left alone: it is
+ *  indistinguishable from an operator addition, and removing a topic or a
+ *  column is a deliberate action, never a side effect of an upgrade.
+ ***************************************************************************/
+PRIVATE int upsert_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
-    json_t *kw // not owned
+    json_t *kw,     // not owned
+    json_t *current // not owned, the projection already stored, or NULL
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_int_t schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
 
-    json_t *treedb = gobj_create_node(
-        priv->gobj_node_system,
-        "treedbs",
-        json_pack("{s:s, s:I}",
-            "id", treedb_name,
-            "schema_version", (json_int_t )schema_version
-        ),
-        json_pack("{s:b}", "refs", 1),          // fkey,hook options
-        gobj
+    json_t *kw_treedb = json_pack("{s:s, s:I}",
+        "id", treedb_name,
+        "schema_version", (json_int_t )schema_version
     );
-    if(!treedb) {
-        return -1;
+
+    json_t *treedb;
+    if(current) {
+        treedb = gobj_update_node(
+            priv->gobj_node_system,
+            "treedbs",
+            kw_treedb,
+            json_pack("{s:b}", "refs", 1),      // fkey,hook options
+            gobj
+        );
+    } else {
+        treedb = gobj_create_node(
+            priv->gobj_node_system,
+            "treedbs",
+            kw_treedb,
+            json_pack("{s:b}", "refs", 1),      // fkey,hook options
+            gobj
+        );
     }
+    if(!treedb) {
+        return -1;  // Error already logged
+    }
+
+    json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
 
     json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
@@ -914,30 +971,42 @@ PRIVATE int build_new_treedb_schema(
             json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
         }
 
-        json_t *topic = gobj_create_node(
-            priv->gobj_node_system,
-            "topics",
-            kw_topic,
-            json_pack("{s:b}", "refs", 1),          // fkey,hook options
-            gobj
-        );
+        json_t *current_topic = json_object_get(current_topics, topic_name);
 
-        if(!topic) {
-            continue;
-        }
-        if(topic_pkey2s_) {
-            json_object_set(topic, "pkey2s", topic_pkey2s_);
-        }
+        json_t *topic;
+        if(current_topic) {
+            topic = gobj_update_node(
+                priv->gobj_node_system,
+                "topics",
+                kw_topic,
+                json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                gobj
+            );
+            if(!topic) {
+                continue;   // Error already logged
+            }
+        } else {
+            topic = gobj_create_node(
+                priv->gobj_node_system,
+                "topics",
+                kw_topic,
+                json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                gobj
+            );
+            if(!topic) {
+                continue;   // Error already logged
+            }
 
-        gobj_link_nodes(
-            priv->gobj_node_system,
-            "topics",               // hook
-            "treedbs",              // parent_topic_name,
-            json_incref(treedb),    // parent_record,owned
-            "topics",               // child_topic_name,
-            json_incref(topic),     // child_record,owned
-            gobj
-        );
+            gobj_link_nodes(
+                priv->gobj_node_system,
+                "topics",               // hook
+                "treedbs",              // parent_topic_name,
+                json_incref(treedb),    // parent_record,owned
+                "topics",               // child_topic_name,
+                json_incref(topic),     // child_record,owned
+                gobj
+            );
+        }
 
         json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
         if(!jn_cols) {
@@ -985,47 +1054,48 @@ PRIVATE int build_new_treedb_schema(
                 json_object_set(kw_col, "properties", properties_);
             }
 
-            // TODO comprueba que no existe la row, solo tienes la pkey2!
+            const char *col_id = current_topic?
+                find_col_id(gobj, current_topic, col_name):
+                NULL;
+
             json_t *col;
-//             col = gobj_get_node(
-//                 priv->gobj_node_system,
-//                 "cols",
-//                 kw_col,
-//                 json_pack("{s:b}", "refs", 1),  // fkey,hook options
-//                 gobj
-//             );
-//             if(col) {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_TREEDB,
-//                     "msg",          "%s", "Column alreade defined",
-//                     "topic_name",   "%s", topic_name,
-//                     NULL
-//                 );
-//                 json_decref(col);
-//                 continue;
-//             }
+            if(col_id) {
+                /*
+                 *  Keep the rowid: it is this column's identity
+                 */
+                json_object_set_new(kw_col, "id", json_string(col_id));
+                col = gobj_update_node(
+                    priv->gobj_node_system,
+                    "cols",
+                    kw_col,
+                    json_pack("{s:b}", "refs", 1),  // fkey,hook options
+                    gobj
+                );
+                if(!col) {
+                    continue;   // Error already logged
+                }
+            } else {
+                col = gobj_create_node(
+                    priv->gobj_node_system,
+                    "cols",
+                    kw_col,
+                    json_pack("{s:b}", "refs", 1),  // fkey,hook options
+                    gobj
+                );
+                if(!col) {
+                    continue;   // Error already logged
+                }
 
-            col = gobj_create_node(
-                priv->gobj_node_system,
-                "cols",
-                kw_col,
-                json_pack("{s:b}", "refs", 1),  // fkey,hook options
-                gobj
-            );
-            if(!col) {
-                continue;
+                gobj_link_nodes(
+                    priv->gobj_node_system,
+                    "cols",                 // hook
+                    "topics",               // parent_topic_name,
+                    json_incref(topic),     // parent_record,owned
+                    "cols",                 // child_topic_name,
+                    json_incref(col),       // child_record,owned
+                    gobj
+                );
             }
-
-            gobj_link_nodes(
-                priv->gobj_node_system,
-                "cols",                 // hook
-                "topics",               // parent_topic_name,
-                json_incref(topic),     // parent_record,owned
-                "cols",                 // child_topic_name,
-                json_incref(col),       // child_record,owned
-                gobj
-            );
 
             /*
              *  free
@@ -1046,6 +1116,79 @@ PRIVATE int build_new_treedb_schema(
     json_decref(treedb);
 
     return 0;
+}
+
+/***************************************************************************
+ *  Keep the __system__ projection in step with the schema compiled in C.
+ *
+ *  Same rule treedb_open_db applies between that schema and the persisted
+ *  schema file: the stored one wins on ties, and the incoming one has to be
+ *  strictly newer to take over. So raising `schema_version` is what publishes
+ *  a change, whichever side made it.
+ ***************************************************************************/
+PRIVATE int reconcile_treedb_schema(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Ask with a list: it is silent when the treedb has no projection yet,
+     *  which is the ordinary answer on a first open.
+     */
+    json_t *stored = gobj_list_nodes(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        0,
+        gobj
+    );
+    if(json_array_size(stored) == 0) {
+        JSON_DECREF(stored)
+        return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL);
+    }
+
+    json_int_t stored_version = kw_get_int(
+        gobj,
+        json_array_get(stored, 0),
+        "schema_version",
+        0,
+        KW_WILD_NUMBER
+    );
+    JSON_DECREF(stored)
+
+    json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
+    if(new_version <= stored_version) {
+        return 0;
+    }
+
+    json_t *current = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!current) {
+        return -1;  // Error already logged
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "Updating TreeDB schema in __system__",
+        "treedb_name",      "%s", treedb_name,
+        "schema_version",   "%d", (int)new_version,
+        "stored_version",   "%d", (int)stored_version,
+        NULL
+    );
+
+    int ret = upsert_treedb_schema(gobj, treedb_name, jn_schema, current);
+    JSON_DECREF(current)
+
+    return ret;
 }
 
 /***************************************************************************
@@ -1155,7 +1298,9 @@ PRIVATE json_t *get_client_treedb_schema(
     /*
      *  Check input schema although is not used
      */
+    BOOL input_schema_ok = TRUE;
     if(parse_schema(jn_client_treedb_schema)<0) {
+        input_schema_ok = FALSE;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
@@ -1168,25 +1313,19 @@ PRIVATE json_t *get_client_treedb_schema(
         }
     }
 
-    if(use_internal_schema) {
-        /*
-         *  The schema compiled in C is the source of truth. Project it into
-         *  the __system__ treedb the first time it is seen, so that the
-         *  schema also exists as data: that is what makes it listable and
-         *  editable through the ordinary node commands. Afterwards leave it
-         *  alone — re-projecting on every start would silently discard
-         *  whatever was edited there.
-         */
-        json_t *current_treedb_schema = get_treedb_schema(gobj, treedb_name);
-        if(!current_treedb_schema) {
-            build_new_treedb_schema(
-                gobj,
-                treedb_name,
-                jn_client_treedb_schema
-            );
-        }
-        JSON_DECREF(current_treedb_schema)
+    /*
+     *  The schema compiled in C also exists as data in the __system__
+     *  treedb: that is what makes it listable and editable through the
+     *  ordinary node commands. Project it the first time this treedb is
+     *  seen, and afterwards only when it is strictly newer — the version
+     *  is what decides, so an edit made there survives every start until
+     *  a higher `schema_version` arrives from C.
+     */
+    if(input_schema_ok) {
+        reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema);
+    }
 
+    if(use_internal_schema) {
         return json_incref(jn_client_treedb_schema);
     }
 
@@ -1208,34 +1347,6 @@ PRIVATE json_t *get_client_treedb_schema(
                 NULL
             );
             gobj_trace_json(gobj, client_treedb_schema, "Last treedb schema fails");
-            JSON_DECREF(client_treedb_schema);
-            // continue below
-        }
-    } else {
-        /*
-         *  Build new schema
-         */
-        build_new_treedb_schema(
-            gobj,
-            treedb_name,
-            jn_client_treedb_schema
-        );
-
-        client_treedb_schema = get_treedb_schema(gobj, treedb_name);
-
-        if(parse_schema(client_treedb_schema)==0) {
-            /*
-             *  Use new treedbs schema
-             */
-            return client_treedb_schema;
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB,
-                "msg",          "%s", "New treedb schema fails",
-                NULL
-            );
-            gobj_trace_json(gobj, client_treedb_schema, "New treedb schema fails");
             JSON_DECREF(client_treedb_schema);
             // continue below
         }

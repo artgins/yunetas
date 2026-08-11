@@ -75,10 +75,26 @@
     the source of truth, and the schema becomes visible. With
     `use_internal_schema=0` the projection is what the treedb opens with; the
     dead `return` that shadowed that path in `get_client_treedb_schema()` (it
-    was in V6 as well) is gone. New round-trip test
-    `tests/c/c_treedb_system_schema`: open, project, delete the schema file,
-    re-open, and the topics and columns that come back are the ones that went
-    in. Docs: `YUNO_TREEDB.md` §3.11.
+    was in V6 as well) is gone.
+
+    Afterwards the two homes reconcile by **`schema_version`, strictly newer
+    wins** — the same rule `treedb_open_db` already applies between that schema
+    and the persisted schema file, so an edit made in `__system__` survives
+    every start until a higher version arrives from C. Reconciling is an
+    **upsert; nothing is ever deleted**. A column's `id` is a rowid handed out
+    from the topic size, so re-creating columns renumbers all of them and can
+    hand a retired number to a different column — and a delete is the one
+    destructive primitive of the store: it drops the schema's own history, which
+    is the reason to keep a schema in a treedb at all, and it refuses a
+    snapshot-tagged node, so re-projection would fail outright on any store that
+    has ever been snapped. An update appends a new version instead, and what a
+    column used to declare stays readable with `instances`.
+
+    New test `tests/c/c_treedb_system_schema` covers the three steps: project;
+    delete the schema file and re-open, and the topics and columns that come
+    back are the ones that went in; then move the schema forward and check the
+    projection updates while the existing columns keep their rowid. Docs:
+    `YUNO_TREEDB.md` §3.11.
 
 - **gobj-ui submodule 5.11.1 → 5.12.0: `C_YUI_TREEDB_TOPIC_WITH_FORM` shows the
     topic's schema.** A toolbar button (`with_schema_button`, on by default)

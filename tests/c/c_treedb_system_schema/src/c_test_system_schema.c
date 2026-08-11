@@ -165,6 +165,83 @@ PRIVATE char schema_test1[] = "\
 }                                                                   \n\
 ";
 
+/***************************************************************************
+ *  Same treedb, schema moved forward: `schema_version` 1 -> 2, `users`
+ *  gains a column and re-headers another (its `topic_version` moves too, or
+ *  the persisted topic_cols.json would mask the change). `departments` is
+ *  left untouched on purpose.
+ ***************************************************************************/
+PRIVATE char schema_test2[] = "\
+{                                                                   \n\
+    'id': '"TREEDB_NAME"',                                          \n\
+    'schema_version': 2,                                            \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'users',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': 2,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'username': {                                       \n\
+                    'header': 'Login',                              \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'email': {                                          \n\
+                    'header': 'Email',                              \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent']                          \n\
+                },                                                  \n\
+                'departments': {                                    \n\
+                    'header': 'Department',                         \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'departments',                                    \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': 1,                                     \n\
+            'system_topic': true,                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'name': {                                           \n\
+                    'header': 'Name',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'users': {                                          \n\
+                    'header': 'Users',                              \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'users': 'departments'                      \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 
 
 
@@ -361,6 +438,97 @@ PRIVATE json_t *client_topic_cols(hgobj gobj, const char *topic_name)
     JSON_DECREF(desc)
 
     return cols;
+}
+
+/***************************************************************************
+ *  Return {col_name: rowid} of a topic as projected in __system__, plus
+ *  {col_name__header: header} so a content change can be checked too.
+ *  Return MUST be decref'd.
+ ***************************************************************************/
+PRIVATE json_t *system_topic_cols(hgobj gobj, const char *topic_name)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return NULL;
+    }
+
+    json_t *tree = gobj_node_tree(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", TREEDB_NAME),
+        json_object(),
+        gobj
+    );
+    if(!tree) {
+        return NULL;    // Error already logged
+    }
+
+    json_t *topic = json_object_get(
+        kw_get_dict(gobj, tree, "topics", 0, 0),
+        topic_name
+    );
+
+    json_t *cols = json_object();
+    const char *col_id; json_t *col;
+    json_object_foreach(json_object_get(topic, "cols"), col_id, col) {
+        const char *value = kw_get_str(gobj, col, "value", "", 0);
+        if(empty_string(value)) {
+            continue;
+        }
+        json_object_set_new(cols, value, json_string(col_id));
+
+        char header_key[NAME_MAX];
+        snprintf(header_key, sizeof(header_key), "%s__header", value);
+        json_object_set_new(
+            cols,
+            header_key,
+            json_string(kw_get_str(gobj, col, "header", "", 0))
+        );
+    }
+    JSON_DECREF(tree)
+
+    return cols;
+}
+
+/***************************************************************************
+ *  Return the schema_version stored in __system__ for the test treedb
+ ***************************************************************************/
+PRIVATE json_int_t system_schema_version(hgobj gobj)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *treedbs = gobj_list_nodes(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", TREEDB_NAME),
+        0,
+        gobj
+    );
+    json_int_t version = kw_get_int(
+        gobj,
+        json_array_get(treedbs, 0),
+        "schema_version",
+        -1,
+        KW_WILD_NUMBER
+    );
+    JSON_DECREF(treedbs)
+
+    return version;
 }
 
 /***************************************************************************
@@ -582,6 +750,122 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(cols_before)
     JSON_DECREF(cols_after)
     JSON_DECREF(jn_schema)
+
+    /*-----------------------------------------------*
+     *  Test 3: a schema that moved forward updates
+     *  the projection, and the columns keep their
+     *  identity. A column's id is a rowid, so
+     *  re-creating columns instead of updating them
+     *  renumbers every one of them.
+     *-----------------------------------------------*/
+    json_t *ids_before = system_topic_cols(gobj, "users");
+
+    helper_quote2doublequote(schema_test2);
+    json_t *jn_schema2 = legalstring2json(schema_test2, TRUE);
+    if(!jn_schema2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot parse the second test schema",
+            NULL
+        );
+        JSON_DECREF(ids_before)
+        return -1;
+    }
+
+    jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s}", "treedb_name", TREEDB_NAME),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+
+    if(open_test_treedb(gobj, jn_schema2) < 0) {
+        JSON_DECREF(ids_before)
+        return -1;  // Error already logged
+    }
+
+    json_int_t version = system_schema_version(gobj);
+    if(version != 2) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: schema_version not updated in __system__",
+            "schema_version",   "%d", (int)version,
+            NULL
+        );
+        result += -1;
+    }
+
+    json_t *ids_after = system_topic_cols(gobj, "users");
+
+    /*
+     *  The columns that were already there keep their rowid
+     */
+    const char *col_name; json_t *jn_id;
+    json_object_foreach(ids_before, col_name, jn_id) {
+        if(strstr(col_name, "__header")) {
+            continue;   // content, checked below; only the rowid is identity
+        }
+        json_t *now = json_object_get(ids_after, col_name);
+        if(!now || !json_equal(now, jn_id)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: column identity changed on update",
+                "col",          "%s", col_name,
+                "before",       "%j", jn_id,
+                "after",        "%j", now,
+                NULL
+            );
+            result += -1;
+        }
+    }
+
+    /*
+     *  The new column is there, the re-headered one carries its new header
+     */
+    if(!json_object_get(ids_after, "email")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: new column not projected in __system__",
+            "cols",         "%j", ids_after,
+            NULL
+        );
+        result += -1;
+    }
+    const char *header = json_string_value(json_object_get(ids_after, "username__header"));
+    if(!header || strcmp(header, "Login")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: column change not projected in __system__",
+            "header",       "%s", header?header:"",
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  And the running treedb opened with the new column
+     */
+    json_t *client_cols = client_topic_cols(gobj, "users");
+    if(!client_cols || !json_object_get(client_cols, "email")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: new column did not reach the treedb",
+            "cols",         "%j", client_cols,
+            NULL
+        );
+        result += -1;
+    }
+
+    JSON_DECREF(client_cols)
+    JSON_DECREF(ids_before)
+    JSON_DECREF(ids_after)
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

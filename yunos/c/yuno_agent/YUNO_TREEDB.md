@@ -695,10 +695,25 @@ drops the storage-only fields (`id`, `topics`, `_geometry`). Add a field for
 user columns to the `cols` topic; add a storage-only field there **and** to
 that skip list.
 
-**Who fills it.** `C_TREEDB`'s `open-treedb` projects the schema into
-`__system__` the first time it sees a treedb, and then leaves it alone —
-re-projecting on every start would discard whatever was edited there. The
-`use_internal_schema` attribute picks which home wins afterwards:
+**Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects the C
+literal into `__system__` the first time it sees a treedb, and afterwards only
+when the literal is **strictly newer**: `schema_version` decides, exactly as it
+already decides between the literal and the persisted schema file (§3.5). So an
+edit made in `__system__` survives every start until a higher `schema_version`
+arrives from C, and raising the version is how either side publishes a change.
+
+**Reconciling is an upsert — nothing is ever deleted.** A column's `id` is a
+rowid handed out from the topic size, so re-creating columns renumbers all of
+them and can hand a retired number to a different column; and a delete is the
+one destructive primitive of the store, which drops the schema's own history
+(the reason to keep a schema in a treedb at all) and refuses a snapshot-tagged
+node. An update appends a new version instead, so what a column used to declare
+stays readable with `instances`. What exists in `__system__` and not in the
+incoming schema is left alone: it is indistinguishable from an operator
+addition, and removing a topic or a column is a deliberate action, never a side
+effect of an upgrade.
+
+The `use_internal_schema` attribute picks which home opens the treedb:
 
 | `use_internal_schema` | Schema used to open the treedb |
 |---|---|
@@ -707,11 +722,11 @@ re-projecting on every start would discard whatever was edited there. The
 
 **The schema file still has the last word.** Whichever home supplies the
 schema, `treedb_open_db` compares its `schema_version` against the persisted
-`<treedb_name>.treedb_schema.json` and the **file wins on ties** (§3.5). So a
-schema edited in `__system__` reaches a running treedb only if its
-`schema_version` is higher than the file's — the same rule that governs the C
-literal, applied to the same file. Raise `schema_version` on the `treedbs`
-node when you change anything, and `topic_version` on each topic you touch.
+`<treedb_name>.treedb_schema.json` and the **file wins on ties** (§3.5). Same
+rule again, one layer down. So a change reaches a running treedb only when you
+raise `schema_version` on the `treedbs` node **and** `topic_version` on each
+topic you touched — the second one is what regenerates `topic_cols.json`, and
+without it the new columns exist in the schema and not in the topic.
 
 Round-trip coverage:
 [`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.12.0/tests/c/c_treedb_system_schema).
