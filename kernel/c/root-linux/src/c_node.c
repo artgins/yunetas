@@ -1841,11 +1841,14 @@ PRIVATE json_t *mt_node_tree(
 
     /*
      *  Return the duplicated full node
+     *  HACK read the option BEFORE releasing it: JSON_DECREF also nulls
+     *  the variable, so reading it afterwards asked the option to a NULL
+     *  kw — with_metadata never took effect and every call logged.
      */
+    BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
+
     JSON_DECREF(jn_options)
     JSON_DECREF(kw)
-
-    BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
 
     if(with_metadata) {
         return json_deep_copy(node);

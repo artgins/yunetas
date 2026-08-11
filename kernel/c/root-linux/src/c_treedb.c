@@ -900,13 +900,15 @@ PRIVATE int build_new_treedb_schema(
         const char *system_flag = kw_get_str(gobj, jn_topic, "system_flag", "sf_string_key", 0);
         json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
         json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
+        BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
 
-        json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I}",
+        json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
             "id", topic_name,
             "pkey", pkey,
             "system_flag", system_flag,
             "tkey", tkey,
-            "topic_version", (json_int_t )topic_version
+            "topic_version", (json_int_t )topic_version,
+            "system_topic", system_topic
         );
         if(topic_pkey2s_) {
             json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
@@ -1056,15 +1058,33 @@ PRIVATE json_t *get_treedb_schema(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *treedb = gobj_node_tree(
+    /*
+     *  A treedb opened for the first time has no schema here yet, and that
+     *  is an ordinary answer, not a failure: ask with a list (silent when
+     *  empty) instead of letting gobj_node_tree log a missing node.
+     */
+    json_t *found = gobj_list_nodes(
         priv->gobj_node_system,
         "treedbs",
         json_pack("{s:s}", "id", treedb_name),
         0,
         gobj
     );
-    if(!treedb) {
+    size_t found_size = json_array_size(found);
+    JSON_DECREF(found)
+    if(found_size == 0) {
         return 0;
+    }
+
+    json_t *treedb = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!treedb) {
+        return 0;   // Error already logged
     }
 
     json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
@@ -1150,20 +1170,22 @@ PRIVATE json_t *get_client_treedb_schema(
 
     if(use_internal_schema) {
         /*
-         *  Recrea external schema
+         *  The schema compiled in C is the source of truth. Project it into
+         *  the __system__ treedb the first time it is seen, so that the
+         *  schema also exists as data: that is what makes it listable and
+         *  editable through the ordinary node commands. Afterwards leave it
+         *  alone — re-projecting on every start would silently discard
+         *  whatever was edited there.
          */
-        return json_incref(jn_client_treedb_schema); // TODO
-
-        json_t *client_treedb_schema = get_treedb_schema(gobj, treedb_name);
-        if(client_treedb_schema) {
-            delete_client_treedb_schema(gobj, treedb_name);
-            json_decref(client_treedb_schema);
+        json_t *current_treedb_schema = get_treedb_schema(gobj, treedb_name);
+        if(!current_treedb_schema) {
+            build_new_treedb_schema(
+                gobj,
+                treedb_name,
+                jn_client_treedb_schema
+            );
         }
-        build_new_treedb_schema(
-            gobj,
-            treedb_name,
-            jn_client_treedb_schema
-        );
+        JSON_DECREF(current_treedb_schema)
 
         return json_incref(jn_client_treedb_schema);
     }

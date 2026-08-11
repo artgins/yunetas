@@ -664,6 +664,63 @@ protects against CRUD/control-plane deletion, not against an operator wiping
 the realm — "only a full store wipe removes them". Regression coverage:
 [`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/tree/7.12.0/tests/c/tr_treedb_immutable).
 
+### 3.11 The `__system__` treedb: a schema stored as data
+
+A schema has two homes. The one you write is the C literal
+(`treedb_schema_*.c`), persisted as
+`<tranger_dir>/<treedb_name>.treedb_schema.json` on first open (§3.5). The
+other is the **`__system__` treedb**, which every `C_TREEDB` service builds
+next to the treedbs it manages, at `<path>/__system__`. There the same
+schema is stored **as ordinary treedb data**:
+
+```
+treedbs   ── id, schema_version ──hook topics──▶
+topics    ── id, pkey, pkey2s, system_flag, tkey,
+             topic_version, system_topic ──hook cols──▶
+cols      ── id (rowid), value, header, fillspace, type,
+             placeholder, flag, hook, pkey2s, default,
+             description, properties
+```
+
+Its schema is `treedb_system_schema.c`, and it is the reason a schema can be
+read, listed and edited at runtime with the same `nodes` / `create-node` /
+`update-node` commands as any other data — no new command surface.
+
+**`cols` is keyed by rowid, and the column name lives in `value`.** A column
+name is unique only inside its topic, so two topics with an `id` column would
+collide on a single `cols` topic keyed by name. This is also why the
+descriptor used to validate a *user* column is derived, not copied, from that
+topic: `_treedb_create_topic_cols_desc()` renames `value` back to `id` and
+drops the storage-only fields (`id`, `topics`, `_geometry`). Add a field for
+user columns to the `cols` topic; add a storage-only field there **and** to
+that skip list.
+
+**Who fills it.** `C_TREEDB`'s `open-treedb` projects the schema into
+`__system__` the first time it sees a treedb, and then leaves it alone —
+re-projecting on every start would discard whatever was edited there. The
+`use_internal_schema` attribute picks which home wins afterwards:
+
+| `use_internal_schema` | Schema used to open the treedb |
+|---|---|
+| `1` (default in agent, controlcenter, mqtt_broker) | the C literal. `__system__` is still filled, so the schema is visible, but edits there do not reach the treedb |
+| `0` | the one rebuilt from `__system__` — edits there are what the treedb opens with |
+
+**The schema file still has the last word.** Whichever home supplies the
+schema, `treedb_open_db` compares its `schema_version` against the persisted
+`<treedb_name>.treedb_schema.json` and the **file wins on ties** (§3.5). So a
+schema edited in `__system__` reaches a running treedb only if its
+`schema_version` is higher than the file's — the same rule that governs the C
+literal, applied to the same file. Raise `schema_version` on the `treedbs`
+node when you change anything, and `topic_version` on each topic you touch.
+
+Round-trip coverage:
+[`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.12.0/tests/c/c_treedb_system_schema).
+
+**Known gap:** `delete-treedb` (`delete_client_treedb_schema()`) removes the
+parent node before its children and passes collapsed views where pure nodes
+are required. It does not work, and it is unrelated to the data of the client
+treedb, which it never touches.
+
 ---
 
 ## 4. Sharp edges

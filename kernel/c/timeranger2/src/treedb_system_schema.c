@@ -5,6 +5,18 @@
  *          Consumed by tr_treedb (_treedb_create_topic_cols_desc) and by
  *          c_treedb (root-linux) to materialize the __system__ treedb.
  *
+ *          HACK The 'cols' topic below is the STORAGE schema of a column
+ *          definition, not the descriptor a user column is validated
+ *          against. They differ in the primary key: a column name is only
+ *          unique inside its topic, so 'cols' keys by rowid ('id') and
+ *          carries the column name in 'value' (its pkey2). The validator
+ *          used on user schemas is derived from this topic by
+ *          _treedb_create_topic_cols_desc(), which renames 'value' back to
+ *          'id' and drops the storage-only fields. Keep both in mind when
+ *          adding a field: a field meant for user columns goes here and is
+ *          picked up by the validator; a field that only makes sense in
+ *          the __system__ treedb must be added to the skip list there.
+ *
  *          Copyright (c) 2019 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -49,7 +61,7 @@
             │* system_flag              │   │
             │  tkey                     │   │
             │* topic_version            │   │
-            │                           │   │
+            │  system_topic             │   │
             │                           │   │
             │  _geometry                │   │
             └───────────────────────────┘   │
@@ -81,7 +93,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '7',                              \n\
+    'schema_version': '8',                              \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -134,7 +146,7 @@ char treedb_system_schema[]= "\
             'id': 'topics',                             \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '3',                       \n\
+            'topic_version': '4',                       \n\
             'system_topic': true,                       \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
@@ -215,6 +227,15 @@ char treedb_system_schema[]= "\
                         'required'                      \n\
                     ]                                   \n\
                 },                                      \n\
+                'system_topic': {                       \n\
+                    'header': 'System Topic',           \n\
+                    'fillspace': 6,                     \n\
+                    'type': 'boolean',                  \n\
+                    'flag': [                           \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
+                    ]                                   \n\
+                },                                      \n\
                 '_geometry': {                          \n\
                     'header': 'Geometry',               \n\
                     'type': 'blob',                     \n\
@@ -230,12 +251,21 @@ char treedb_system_schema[]= "\
             'id': 'cols',                               \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '5',                       \n\
+            'topic_version': '6',                       \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
-                    'header': 'Id',                     \n\
+                    'header': 'rowid',                  \n\
+                    'fillspace': 4,                     \n\
+                    'type': 'string',                   \n\
+                    'flag': [                           \n\
+                        'persistent',                   \n\
+                        'rowid'                         \n\
+                    ]                                   \n\
+                },                                      \n\
+                'value': {                              \n\
+                    'header': 'Column',                 \n\
                     'fillspace': 10,                    \n\
                     'type': 'string',                   \n\
                     'flag': [                           \n\

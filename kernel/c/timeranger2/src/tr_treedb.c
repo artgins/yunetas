@@ -431,6 +431,16 @@ PRIVATE int delete_secondary_node(
  *  the array-of-objects shape that callers expect (each entry carries its
  *  `id` as a regular field).
  *
+ *  That topic is the STORAGE schema of the __system__ treedb, so it is not
+ *  literally the descriptor of a user column: it keys columns by rowid
+ *  (`id`) and holds the column name in `value`, because a column name is
+ *  unique only inside its topic. The descriptor is therefore derived —
+ *  `value` becomes `id`, and the fields that exist only to store a column
+ *  in the __system__ treedb are skipped. Adding a storage-only field to
+ *  the `cols` topic without listing it here leaks it into every user
+ *  schema validation and into the column editor the GUI builds from
+ *  C_NODE's `system-schema`.
+ *
  *  Ownership: the returned json_t belongs to the caller (matches the
  *  prior json_pack-based contract). Parse-each-call on purpose — keeps
  *  the function leak-free under CONFIG_DEBUG_TRACK_MEMORY; callers that
@@ -466,12 +476,31 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
         return NULL;
     }
 
+    /*
+     *  Storage-only fields of the `cols` topic: the rowid pkey, the fkey
+     *  back to `topics`, and the editor geometry. They describe how a
+     *  column is STORED in the __system__ treedb, never what a user column
+     *  may declare.
+     */
+    static const char *storage_only[] = {"id", "topics", "_geometry", NULL};
+
     json_t *topic_cols_desc_ = json_array(); // Avoid declaration shadows a variable in the global scope
     const char *col_id;
     json_t *jn_col;
     json_object_foreach(json_object_get(jn_cols_topic, "cols"), col_id, jn_col) {
+        if(str_in_list(storage_only, col_id, TRUE)) {
+            continue;
+        }
         json_t *entry = json_deep_copy(jn_col);
-        json_object_set_new(entry, "id", json_string(col_id));
+        /*
+         *  HACK The name of a column is its pkey2 `value`; as a descriptor
+         *  it is the `id` every caller looks the column up by.
+         */
+        json_object_set_new(
+            entry,
+            "id",
+            json_string(strcmp(col_id, "value")==0? "id":col_id)
+        );
         json_array_append_new(topic_cols_desc_, entry);
     }
     json_decref(jn_schema);

@@ -22,6 +22,38 @@ C and JS agree since 7.10.0 (JS aligned in gobj-js `7.10.0`). ESP32 does not:
 The two that matter are the lifetime ones: an event delivered to a destroyed
 gobj is a crash, and on ESP32 nothing stops it today.
 
+## Schema editing: what the `__system__` treedb still needs
+
+The meta-treedb is filled and rebuilds a schema (7.13.0, `YUNO_TREEDB.md`
+§3.11). What it does not do yet:
+
+- **No reconciliation.** The projection happens once, when a treedb has no
+    schema in `__system__`. Raise `schema_version` in the C literal afterwards
+    and `__system__` keeps the old one — the two homes drift with no message.
+    The open question is who wins per field, not how to write it: a C literal
+    that moved forward is usually right about *structure*, while the edited copy
+    is right about whatever the operator changed. Until this exists, treat
+    `use_internal_schema=0` as "the schema is now edited here, do not change the
+    literal".
+
+- **No write path from the GUI.** Editing is the ordinary `create-node` /
+    `update-node` on the `treedb_system_schema` service, so nothing is missing
+    at the command layer — but nothing validates a column against the derived
+    descriptor before it is stored, and nothing stops an edit that a running
+    treedb cannot adopt (a changed `pkey`/`tkey`/`system_flag`, which
+    `topic_desc.json` never rewrites; a removed column with data behind it).
+    The guard belongs on the write, not on the reader.
+
+- **Applying an edit means reopening.** `close-treedb` + `open-treedb` is the
+    only path today. In-place would need `tranger2_write_topic_cols()` (written,
+    called by nobody) plus `parse_schema_cols()` + `parse_hooks()` and a link
+    reload when hooks or fkeys change.
+
+- **`delete-treedb` does not work.** `delete_client_treedb_schema()` deletes the
+    parent before its children and hands collapsed views to a function that
+    requires pure nodes. It was inert while `__system__` was empty; it is
+    reachable now. It never touches the client treedb's own data.
+
 ## msg2db leaks 8 blocks per open/close, and has no tests
 
 There are **two** leaks, told apart by measurement with

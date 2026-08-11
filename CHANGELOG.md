@@ -44,6 +44,42 @@
 
 ### Added
 
+- **The `__system__` treedb holds a schema again.** Every `C_TREEDB` service
+    builds a `__system__` treedb whose topics (`treedbs` → `topics` → `cols`)
+    exist to hold a treedb schema **as data** — the V6 design that makes a
+    schema listable and editable at runtime through the ordinary node commands.
+    It has been created empty on every start and never filled: each of the 13
+    stores on the dev machine had `treedbs/keys`, `topics/keys` and `cols/keys`
+    with zero records, and nothing could have filled them, for two reasons in
+    the meta-schema itself.
+
+    Its `cols` topic had **lost the `value` column** while keeping
+    `'pkey2s': 'value'`, a secondary index on a column that no longer existed;
+    and `cols.id` had lost its **`rowid`** flag, so `treedb_create_node()`
+    refused every column with *"Field 'id' required"*. Both were collateral of
+    merging two descriptors that are not the same object: the **storage** schema
+    of a column (keyed by rowid, name in `value`, because a column name is
+    unique only inside its topic) and the **validator** for a user column (keyed
+    by name). The diagram at the top of the file still documented the original
+    shape — `id (rowid)`, `* value (2)` — which is what it was checked against.
+
+    Both are restored, `_treedb_create_topic_cols_desc()` now *derives* the
+    validator from the storage schema (renames `value` → `id`, drops the
+    storage-only fields) instead of copying it, and `topics` gained
+    `system_topic` so the flag survives the round trip. System schema 7 → 8.
+    Since the three topics were empty everywhere, the regeneration the bump
+    forces has nothing to lose.
+
+    `open-treedb` projects a treedb's schema into `__system__` the first time it
+    sees it, under the default `use_internal_schema=1` too — the C literal stays
+    the source of truth, and the schema becomes visible. With
+    `use_internal_schema=0` the projection is what the treedb opens with; the
+    dead `return` that shadowed that path in `get_client_treedb_schema()` (it
+    was in V6 as well) is gone. New round-trip test
+    `tests/c/c_treedb_system_schema`: open, project, delete the schema file,
+    re-open, and the topics and columns that come back are the ones that went
+    in. Docs: `YUNO_TREEDB.md` §3.11.
+
 - **gobj-ui submodule 5.11.1 → 5.12.0: `C_YUI_TREEDB_TOPIC_WITH_FORM` shows the
     topic's schema.** A toolbar button (`with_schema_button`, on by default)
     opens that topic's `desc` — pkey, cols, types, flags and fkey targets — in
@@ -101,6 +137,17 @@
     failure that is invisible by construction.
 
 ### Fixed
+
+- **`C_NODE`'s `mt_node_tree` released its options before reading them.**
+    `JSON_DECREF(jn_options)` also nulls the variable, and the
+    `with_metadata` lookup came two lines later — so the option never took
+    effect, and every call logged *"kw must be list or dict"*. Reading a node
+    tree with metadata was impossible, silently.
+
+- `get_treedb_schema()` asked `gobj_node_tree()` whether a treedb had a schema
+    in `__system__` yet, and a first open — the ordinary answer — logged *"Node
+    not found"* as an error. It asks with a list now, which is silent when
+    empty.
 
 - Landing page: carded [yunomusica.com](https://yunomusica.com) as the second
     live example — a shipped SPA on `C_YUI_SHELL` + `C_YUI_NAV`, installable and
