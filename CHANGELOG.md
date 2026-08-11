@@ -63,6 +63,43 @@
     `scripts/verify_js_api_coverage.py --repin` (105 links, 2 line anchors) and
     its appendix index regenerated.
 
+- **gobj-ui submodule 5.12.0 → 5.13.0: the JSON of a treedb cell is one click
+    away.** A col that holds a JSON document — `dict`, `list`, `object`,
+    `array`, `blob`, `template`, `coordinates`, `gbuffer` — has only ever shown
+    the first 20 characters of `JSON.stringify()` in its cell, which for the
+    fields carrying the actual configuration of a node is a preview of the
+    opening brace. Reading the value meant opening the edit form: edition mode,
+    a raw text editor, and a dialog whose purpose is to change the record.
+
+    Clicking the cell now opens the whole value in the same adaptive dialog the
+    schema button uses, on a hosted `C_YUI_JSON` — read-only, collapsed and
+    searchable. The record is already in the table, so the dialog issues no
+    command and touches no backend. The click crosses the machine
+    (`EV_SHOW_CELL_JSON {row_id, col_id}`) like every other action of this view,
+    and the kw carries the **identity** of the cell and never its value: the
+    trace dumps the kw. A cell whose document is empty gets no link, and that
+    absence is what makes the click a no-op.
+
+    The preview is built as a DOM node (`JSON_CELL` / `JSON_CELL_ICON` /
+    `JSON_CELL_PREVIEW`) instead of the bare string the formatter used to
+    return, so record data is no longer parsed as markup on its way into the
+    cell.
+
+    Every v2 consumer took it and is deployed: `gui_treedb`
+    (artgins.ytreedb.com), wattyzer (app.wattyzer.com, which was two releases
+    behind and also gains the schema button), both yunovatios GUIs, and
+    `gui_agent` on both control-center planes — that one mounts no treedb
+    table, so what it takes is 5.12.0's idempotent `register_c_yui_json()`. The
+    two v1 apps, estadodelaire and hidraulia, stay on the frozen `1.0.1` line
+    by design.
+
+    Three of those apps had to **define the keys the library now asks of their
+    own i18next**, which their prebuild validators caught: `show json`
+    everywhere, plus the JSON viewer's `too many rows; collapse some branches`
+    in wattyzer, reachable there since the viewer entered the treedb stack. An
+    undefined key renders as the key itself and never changes language — the
+    failure that is invisible by construction.
+
 ### Fixed
 
 - Landing page: carded [yunomusica.com](https://yunomusica.com) as the second
