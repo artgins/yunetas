@@ -1132,12 +1132,13 @@ h1.hero-title {
             </a>
 
             <!--
-                The one absolute href on this page besides GitHub, and it
-                breaks the root-relative rule in the header comment on
-                purpose: the demo is a separate app on its own host, not a
-                page of this tree, so there is nothing to keep on the
-                reader's hostname. It carries no MyST theme either, so the
-                localStorage argument does not apply to it.
+                This card and the yunomúsica one below are the only
+                absolute hrefs on this page besides GitHub, and they break
+                the root-relative rule in the header comment on purpose:
+                both are separate apps on their own hosts, not pages of
+                this tree, so there is nothing to keep on the reader's
+                hostname. Neither carries a MyST theme either, so the
+                localStorage argument does not apply to them.
             -->
             <a class="run-card" href="https://demo.yuneta.io">
                 <span class="run-kick">&#9654;&ensp;Live</span>
@@ -1147,6 +1148,18 @@ h1.hero-title {
                 model, declared in one JSON file and materialized by the shell. No backend and
                 no login. Open it on a phone too: the layouts change per breakpoint, which is
                 the part a screenshot cannot show.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="run-card" href="https://yunomusica.com">
+                <span class="run-kick">&#9654;&ensp;Live</span>
+                <span class="run-t">A shipped app, not a demo</span>
+                <span class="run-d">Yunomúsica plays the music already on your phone: you
+                authorise a folder, it is read on the device, and nothing is copied or
+                uploaded. It is Yuneta in the browser doing ordinary work — the same
+                <code>C_YUI_SHELL</code> and <code>C_YUI_NAV</code> as the demo above, five
+                app gclasses, and every tap arriving at a state machine as an event. Installable,
+                offline, ten languages, no backend to call.</span>
                 <span class="run-go">open &rarr;</span>
             </a>
 
