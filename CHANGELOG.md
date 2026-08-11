@@ -42,6 +42,27 @@
     does not have. The script warns when a submodule HEAD is not its tag,
     because then every `#L` anchor is a guess.
 
+### Added
+
+- **gobj-ui submodule 5.11.1 → 5.12.0: `C_YUI_TREEDB_TOPIC_WITH_FORM` shows the
+    topic's schema.** A toolbar button (`with_schema_button`, on by default)
+    opens that topic's `desc` — pkey, cols, types, flags and fkey targets — in
+    the standardized adaptive dialog, on the lazy JSON viewer. The table shows
+    the data; nothing showed the contract the data answers to, which is what
+    you need in front of you when a value is refused or a link does not appear,
+    and reaching it meant reading the backend's schema by hand.
+
+    `register_c_yui_json()` became **idempotent** along the way, the courtesy
+    `register_c_yui_form()` already had: the topic view auto-registers the JSON
+    viewer for its dialog, and every consumer registers it explicitly *after*
+    the topic view — an order that would otherwise trip *"GClass ALREADY
+    created"* on boot.
+
+    `yunos/js` takes it in `gui_treedb`, built and deployed. The JS API
+    reference is repinned to the new tag with
+    `scripts/verify_js_api_coverage.py --repin` (105 links, 2 line anchors) and
+    its appendix index regenerated.
+
 ### Fixed
 
 - Landing page: carded [yunomusica.com](https://yunomusica.com) as the second
