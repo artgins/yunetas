@@ -653,6 +653,181 @@ PRIVATE int check_system_treedb(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A schema write that cannot produce a working schema must be refused at
+ *  the point of writing: stored, it breaks the treedb at its next open,
+ *  far from whoever wrote it.
+ ***************************************************************************/
+PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
+{
+    int result = 0;
+
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  A type outside the enum the meta-schema declares
+     */
+    json_t *bad = gobj_create_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s, s:s}",
+            "value", "bad_col",
+            "header", "Bad",
+            "type", "xinteger"
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(bad) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a column with a type outside the enum was stored",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(bad)
+
+    /*
+     *  The same on an update, which used to store anything it was handed.
+     *  The stored value must be untouched afterwards.
+     */
+    const char *username_id = json_string_value(json_object_get(col_ids, "username"));
+    json_t *updated = gobj_update_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s}",
+            "id", username_id?username_id:"",
+            "type", "xinteger"
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(updated) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: an update to a type outside the enum was stored",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(updated)
+
+    json_t *cols_now = system_topic_cols(gobj, "users");
+    json_t *username = gobj_get_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s}", "id", username_id?username_id:""),
+        0,
+        gobj
+    );
+    const char *type_now = kw_get_str(gobj, username, "type", "", 0);
+    if(strcmp(type_now, "string")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a refused update left the node changed",
+            "type",         "%s", type_now,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(username)
+    JSON_DECREF(cols_now)
+
+    /*
+     *  A topic's pkey cannot change once the topic exists: topic_desc.json
+     *  is written at creation and never rewritten, so the change would be
+     *  stored, shown by every reader, and ignored by the topic for good.
+     */
+    json_t *retopic = gobj_update_node(
+        gobj_node_system,
+        "topics",
+        json_pack("{s:s, s:s}",
+            "id", "users",
+            "pkey", "username"
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(retopic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the pkey of an existing topic was changed",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(retopic)
+
+    /*
+     *  Two columns with the same name in one topic: the name is the key a
+     *  schema is rebuilt by, so the duplicate would drop one definition.
+     */
+    json_t *twin = gobj_create_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s, s:s}",
+            "value", "username",
+            "header", "Twin",
+            "type", "string"
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    json_t *users_topic = gobj_get_node(
+        gobj_node_system,
+        "topics",
+        json_pack("{s:s}", "id", "users"),
+        0,
+        gobj
+    );
+    if(twin && users_topic) {
+        int ret = gobj_link_nodes(
+            gobj_node_system,
+            "cols",                     // hook
+            "topics",                   // parent_topic_name
+            json_incref(users_topic),   // parent_record, owned
+            "cols",                     // child_topic_name
+            json_incref(twin),          // child_record, owned
+            gobj
+        );
+        if(ret == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a duplicate column name was linked into a topic",
+                NULL
+            );
+            result += -1;
+        }
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot set up the duplicate column check",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(twin)
+    JSON_DECREF(users_topic)
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -862,6 +1037,13 @@ PRIVATE int run_tests(hgobj gobj)
         );
         result += -1;
     }
+
+    /*-----------------------------------------------*
+     *  Test 4: writes that would define a broken
+     *  schema are refused where they are written,
+     *  not at the next open
+     *-----------------------------------------------*/
+    result += check_refused_writes(gobj, ids_after);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

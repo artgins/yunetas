@@ -22,6 +22,13 @@
 extern "C"{
 #endif
 
+/*
+ *  Name of the treedb that stores schemas as data (the `id` of the literal
+ *  below, and the name of the C_NODE service that C_TREEDB builds for it).
+ *  A write to its topics is a schema change, so tr_treedb guards it.
+ */
+#define TREEDB_SYSTEM_SCHEMA_NAME   "treedb_system_schema"
+
 extern char treedb_system_schema[];
 
 #ifdef __cplusplus

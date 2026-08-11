@@ -90,6 +90,17 @@
     has ever been snapped. An update appends a new version instead, and what a
     column used to declare stays readable with `instances`.
 
+    And a write to those topics is a schema change, so it answers to the rules
+    of a schema: a column is checked against the descriptor a user column
+    answers to (the one `parse_schema_cols()` applies at open, so the failure
+    lands on the writer instead of on the next open); `pkey` must be `id` and
+    `system_flag` `sf_string_key`, which `treedb_open_db()` otherwise answers by
+    silently dropping the topic; `pkey`/`tkey`/`system_flag` cannot change once
+    the topic exists, because `topic_desc.json` is never rewritten and the
+    change would be stored, shown by every reader, and ignored by the topic for
+    good; and two columns with the same name in one topic are refused **when
+    the column is linked**, which is when the clash becomes real.
+
     New test `tests/c/c_treedb_system_schema` covers the three steps: project;
     delete the schema file and re-open, and the topics and columns that come
     back are the ones that went in; then move the schema forward and check the
@@ -153,6 +164,25 @@
     failure that is invisible by construction.
 
 ### Fixed
+
+- **A treedb `update-node` validated nothing, and answered success when it
+    failed.** `treedb_update_node()` set each incoming field straight onto the
+    node — no type, no `notnull`, no `enum` — so a column could end up holding
+    what its own schema forbids, and `mt_update_node()` then dropped the return
+    value and answered the collapsed view of the unchanged node, so a refusal
+    read as a success all the way to the client. Updates now run the same
+    normalization as creates, validate **every** field before touching the node
+    (a refusal leaves nothing half-applied), and the failure reaches
+    `cmd_update_node`, which already knew how to report it.
+
+- **`enum` was decorative on writes.** A column's `enum` list was checked only
+    when a *schema* was parsed (`check_desc_field`), never when a *node* was
+    written: `normalize_node_field_value()`'s `enum` case only looked at whether
+    the container was a string or an array. So the promise did not survive the
+    first write, on any treedb. Checked now on both paths, for the supplied
+    value only — an absent optional field is stored as `""` or `[]`, which no
+    enum has to list. Audited before shipping: 122 enum columns across the local
+    stores, 0 values outside their list.
 
 - **`C_NODE`'s `mt_node_tree` released its options before reading them.**
     `JSON_DECREF(jn_options)` also nulls the variable, and the

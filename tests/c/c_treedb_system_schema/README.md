@@ -26,8 +26,15 @@ The test drives `C_TREEDB` through its own commands and checks:
    reaches the running treedb too, which is the whole chain: literal →
    `__system__` → schema file → topic.
 
+4. **Refused writes** — a write that could not produce a working schema is
+   refused where it is written, not at the next open: a column whose `type` is
+   outside the enum the meta-schema declares (on create *and* on update, and
+   the refused update leaves the node untouched), a change to the `pkey` of an
+   existing topic, and a second column with a name the topic already has.
+
 Steps 2 and 3 are the ones that matter for schema editing: they are the path an
-edited schema takes to reach a running treedb.
+edited schema takes to reach a running treedb. Step 4 is what stands between an
+editor and a treedb that no longer opens.
 
 ## Run
 

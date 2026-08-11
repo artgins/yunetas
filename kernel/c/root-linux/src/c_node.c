@@ -924,12 +924,22 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
 
     } else {
         if(!create) {
-            treedb_update_node( // Return is NOT YOURS
+            /*
+             *  A refused update used to be answered as a success: the
+             *  return was dropped, and the caller got the collapsed view of
+             *  a node that had not changed.
+             */
+            if(!treedb_update_node( // Return is NOT YOURS
                 priv->tranger,
                 node,
                 json_incref(kw), // Don't use kw_incref for tranger
                 autolink?FALSE:TRUE
-            );
+            )) {
+                // Error already logged
+                JSON_DECREF(jn_options)
+                KW_DECREF(kw)
+                return 0;
+            }
         }
         if(autolink) {
             treedb_clean_node(priv->tranger, node, FALSE);  // remove current links

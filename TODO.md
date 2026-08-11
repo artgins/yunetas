@@ -35,13 +35,12 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     with. Telling the two cases apart needs state the projection does not carry
     (which side wrote each element), so decide that before adding a rule.
 
-- **No write path from the GUI.** Editing is the ordinary `create-node` /
-    `update-node` on the `treedb_system_schema` service, so nothing is missing
-    at the command layer — but nothing validates a column against the derived
-    descriptor before it is stored, and nothing stops an edit that a running
-    treedb cannot adopt (a changed `pkey`/`tkey`/`system_flag`, which
-    `topic_desc.json` never rewrites; a removed column with data behind it).
-    The guard belongs on the write, not on the reader.
+- **A removed column with data behind it is still nobody's problem.** The
+    write guard refuses what cannot produce a working schema, but dropping a
+    column that has values in the topic's records is a legal schema and a data
+    decision: the records keep the field, every reader stops showing it, and
+    nothing says so. Deciding what the GUI does here (warn, refuse, offer to
+    keep it hidden) needs the record side, not the schema side.
 
 - **Applying an edit means reopening.** `close-treedb` + `open-treedb` is the
     only path today. In-place would need `tranger2_write_topic_cols()` (written,

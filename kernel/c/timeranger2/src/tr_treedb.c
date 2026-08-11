@@ -2417,6 +2417,62 @@ PRIVATE json_t *filtra_fkeys(
 }
 
 /***************************************************************************
+ *  Check a value against the `enum` list its column declares.
+ *
+ *  The list is what the schema promises the column holds, and it was only
+ *  ever checked when a SCHEMA was parsed (check_desc_field), never when a
+ *  NODE was written — so the promise did not survive the first write.
+ ***************************************************************************/
+PRIVATE int check_enum_value(
+    const char *topic_name, // used only for log
+    const char *field,
+    json_t *col,    // NOT owned
+    json_t *value   // NOT owned, the value about to be stored
+)
+{
+    hgobj gobj = 0;
+
+    json_t *desc_enum = kw_get_list(gobj, col, "enum", 0, 0);
+    if(!desc_enum) {
+        return 0;
+    }
+
+    json_t *values = json_is_array(value)? value: NULL;
+    int idx; json_t *v;
+    int ret = 0;
+
+    if(!values) {
+        values = json_array();
+        json_array_append(values, value);
+    } else {
+        json_incref(values);
+    }
+
+    json_array_foreach(values, idx, v) {
+        if(!json_is_string(v)) {
+            continue;
+        }
+        if(!json_str_in_list(gobj, desc_enum, json_string_value(v), TRUE)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Value not in enum",
+                "topic_name",   "%s", topic_name,
+                "field",        "%s", field,
+                "value",        "%j", v,
+                "value_to_be",  "%j", desc_enum,
+                NULL
+            );
+            ret = -1;
+        }
+    }
+
+    JSON_DECREF(values)
+
+    return ret;
+}
+
+/***************************************************************************
  *  Normalize a new treedb node field
  ***************************************************************************/
 PRIVATE int normalize_node_field_value(
@@ -2636,6 +2692,21 @@ PRIVATE int normalize_node_field_value(
                     );
                     return -1;
             } SWITCHS_END;
+
+            /*
+             *  Only what the caller supplied: an absent optional field is
+             *  stored as "" or [], which no enum has to list.
+             */
+            if(value) {
+                if(check_enum_value(
+                    topic_name,
+                    field,
+                    col,
+                    json_object_get(record, field)
+                )<0) {
+                    return -1;  // Error already logged
+                }
+            }
             break;
 
         CASES("list")
@@ -3005,6 +3076,120 @@ PUBLIC int set_volatil_values(
     }
 
     JSON_DECREF(cols)
+    return 0;
+}
+
+/***************************************************************************
+ *  Guard a write that defines a schema.
+ *
+ *  The __system__ treedb stores treedb schemas as data (topics `treedbs` ->
+ *  `topics` -> `cols`, see treedb_system_schema.c), so a write to its topics
+ *  is a schema change and has to answer to the rules of a schema. These are
+ *  checked here, when the write happens, because none of them is loud later:
+ *
+ *  - a column is validated against the descriptor a user column answers to,
+ *    the same one parse_schema_cols() applies when a schema is opened. Stored
+ *    unchecked, the column breaks the treedb at its NEXT open, far from
+ *    whoever wrote it;
+ *  - `pkey` and `system_flag` have fixed values, and treedb_open_db() drops a
+ *    topic that disagrees — the topic just disappears from the treedb;
+ *  - `pkey`, `tkey` and `system_flag` cannot change once the topic exists,
+ *    because topic_desc.json is written at creation and never rewritten. The
+ *    change would be stored here, shown by every reader, and ignored by the
+ *    topic for good.
+ *
+ *  Return 0 if the write may proceed, -1 if it must be refused.
+ ***************************************************************************/
+PRIVATE int check_system_schema_write(
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *node,       // NOT owned, the node as it would be stored
+    json_t *previous    // NOT owned, the node before the update, NULL on create
+)
+{
+    hgobj gobj = 0;
+
+    if(strcmp(treedb_name, TREEDB_SYSTEM_SCHEMA_NAME)!=0) {
+        return 0;
+    }
+
+    if(strcmp(topic_name, "topics")==0) {
+        const char *pkey = kw_get_str(gobj, node, "pkey", "", 0);
+        if(!empty_string(pkey) && strcmp(pkey, "id")!=0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Schema topic pkey must be 'id'",
+                "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                "pkey",         "%s", pkey,
+                NULL
+            );
+            return -1;
+        }
+
+        const char *system_flag = kw_get_str(gobj, node, "system_flag", "", 0);
+        if(!empty_string(system_flag) && strcmp(system_flag, "sf_string_key")!=0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Schema topic system_flag must be 'sf_string_key'",
+                "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                "system_flag",  "%s", system_flag,
+                NULL
+            );
+            return -1;
+        }
+
+        if(previous) {
+            static const char *frozen[] = {"pkey", "tkey", "system_flag", NULL};
+            for(int i=0; frozen[i]; i++) {
+                const char *was = kw_get_str(gobj, previous, frozen[i], "", 0);
+                const char *now = kw_get_str(gobj, node, frozen[i], "", 0);
+                if(strcmp(was, now)!=0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "Cannot change this field of an existing topic",
+                        "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                        "field",        "%s", frozen[i],
+                        "was",          "%s", was,
+                        "now",          "%s", now,
+                        NULL
+                    );
+                    return -1;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    if(strcmp(topic_name, "cols")==0) {
+        /*
+         *  The stored shape is not the descriptor's: a column is keyed by
+         *  rowid here and carries its name in `value`.
+         */
+        json_t *user_col = json_deep_copy(node);
+        json_object_del(user_col, "__md_treedb__");
+        json_object_del(user_col, "topics");
+        json_object_del(user_col, "_geometry");
+        json_object_set(user_col, "id", json_object_get(user_col, "value"));
+        json_object_del(user_col, "value");
+
+        if(parse_schema_cols(topic_cols_desc, user_col)<0) {   // user_col owned
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Column definition refused",
+                "col",          "%s", kw_get_str(gobj, node, "value", "", 0),
+                NULL
+            );
+            return -1;
+        }
+
+        return 0;
+    }
+
     return 0;
 }
 
@@ -4762,6 +4947,15 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         JSON_DECREF(kw)
         return 0;
     }
+
+    if(check_system_schema_write(treedb_name, topic_name, node, NULL)<0) {
+        // Error already logged
+        JSON_DECREF(pkey2_list)
+        JSON_DECREF(kw)
+        JSON_DECREF(node)
+        return 0;
+    }
+
     BOOL links_inherited = FALSE;
     if(save_pkey2 && prev_node) {
         /*
@@ -5274,6 +5468,16 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         return 0;
     }
 
+    /*
+     *  HACK Normalize every incoming field BEFORE touching the node. An
+     *  update used to store whatever it was handed — no type, no enum, no
+     *  notnull — so a column could hold what its own schema forbids, and
+     *  applying field by field would leave a half-updated node behind on
+     *  the first refusal.
+     */
+    json_t *updates = json_object();
+    int ret = 0;
+
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
@@ -5282,12 +5486,38 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         if(!(is_fkey || is_hook)) {
             json_t *new_value = kw_get_dict_value(gobj, kw, col_name, 0, 0);
             if(new_value) {
-                json_object_set(node, col_name, new_value);
+                if(normalize_node_field_value(
+                    topic_name,
+                    col_name,
+                    col,
+                    updates,
+                    new_value
+                )<0) {
+                    ret = -1;   // Error already logged
+                }
             }
         }
     }
 
     JSON_DECREF(cols)
+
+    if(ret == 0) {
+        const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+        json_t *candidate = json_deep_copy(node);
+        json_object_update(candidate, updates);
+        ret = check_system_schema_write(treedb_name, topic_name, candidate, node);
+        JSON_DECREF(candidate)
+    }
+
+    if(ret < 0) {
+        // Error already logged
+        JSON_DECREF(updates)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    json_object_update(node, updates);
+    JSON_DECREF(updates)
 
     /*-------------------------------*
      *  Write to tranger
@@ -7313,6 +7543,40 @@ PUBLIC int treedb_link_nodes(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*
+     *  A column joins a topic here, so this is where "the topic now has two
+     *  columns with the same name" becomes true. It is worth refusing: the
+     *  name is the key a schema is rebuilt by, so a duplicate silently drops
+     *  one of the two definitions on the next read.
+     */
+    if(strcmp(kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", "", 0),
+            TREEDB_SYSTEM_SCHEMA_NAME)==0 &&
+        strcmp(kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0), "cols")==0 &&
+        strcmp(hook_name, "cols")==0
+    ) {
+        const char *col_name = kw_get_str(gobj, child_node, "value", "", 0);
+        json_t *siblings = get_hook_list(
+            gobj,
+            kw_get_dict_value(gobj, parent_node, hook_name, 0, 0)
+        );
+        int idx; json_t *sibling;
+        json_array_foreach(siblings, idx, sibling) {
+            if(strcmp(kw_get_str(gobj, sibling, "value", "", 0), col_name)==0) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "Topic already has a column with this name",
+                    "topic",        "%s", kw_get_str(gobj, parent_node, "id", "", 0),
+                    "col",          "%s", col_name,
+                    NULL
+                );
+                JSON_DECREF(siblings)
+                return -1;
+            }
+        }
+        JSON_DECREF(siblings)
+    }
 
     if(_link_nodes(
         gobj,

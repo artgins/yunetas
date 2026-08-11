@@ -117,6 +117,7 @@ static int register_yuno_and_more(void)
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + users regenerated */
+            "{s:s}, {s:s}, {s:s}, {s:s},"               /* the four refused writes */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
@@ -140,6 +141,10 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
+            "msg", "Value not in enum",
+            "msg", "Value not in enum",
+            "msg", "Schema topic pkey must be 'id'",
+            "msg", "Topic already has a column with this name",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

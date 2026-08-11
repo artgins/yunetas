@@ -551,6 +551,27 @@ Most production code calls `gobj_*node`. Those functions route to the right
 treedb from the `priv` of the gobj, and they integrate the authzs and the
 traces.
 
+**What a write validates** (since 7.13.0 — before it, less than this):
+
+| | create | update |
+|---|---|---|
+| Type of each field, per the topic's cols | yes | **yes** |
+| `required` on a missing field | yes | n/a (the node already has one) |
+| `notnull` | yes | **yes** |
+| `enum` membership | **yes** | **yes** |
+
+An update used to store whatever it was handed: no type, no `notnull`, no
+`enum`. And `enum` was checked only when a *schema* was parsed, never when a
+*node* was written, so the list a column declares did not survive the first
+write — on either path. Both now run the same normalization, and an update
+validates every incoming field **before** touching the node, so a refusal
+leaves nothing half-applied.
+
+A refused write returns NULL (`-1` for links), and `cmd_create_node` /
+`cmd_update_node` answer `result: -1` with the cause. Until 7.13.0
+`mt_update_node` dropped the return of `treedb_update_node` and answered the
+collapsed view of the unchanged node — a refused update read as a success.
+
 ### 3.7 The link/unlink-saves-child rule
 
 CLAUDE.md hard rule, reproduced verbatim from [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/timeranger2/src/tr_treedb.c):
@@ -727,6 +748,26 @@ rule again, one layer down. So a change reaches a running treedb only when you
 raise `schema_version` on the `treedbs` node **and** `topic_version` on each
 topic you touched — the second one is what regenerates `topic_cols.json`, and
 without it the new columns exist in the schema and not in the topic.
+
+**A write here is a schema change, so it answers to the rules of a schema.**
+On top of the ordinary validation of §3.6, writes to these topics are refused
+when they could not produce a working schema — at the point of writing,
+because none of these is loud later:
+
+- a column is checked against the descriptor a user column answers to, the
+  same one `parse_schema_cols()` applies when a schema is opened. Stored
+  unchecked, the column breaks the treedb at its **next open**, far from
+  whoever wrote it;
+- `pkey` must be `id` and `system_flag` must be `sf_string_key` —
+  `treedb_open_db()` silently drops a topic that disagrees;
+- `pkey`, `tkey` and `system_flag` **cannot change once the topic exists**:
+  `topic_desc.json` is written at creation and never rewritten, so the change
+  would be stored here, shown by every reader, and ignored by the topic for
+  good;
+- two columns with the same name in one topic are refused **when the column
+  is linked** to it, which is when the clash becomes real. The name is the key
+  a schema is rebuilt by, so a duplicate drops one of the two definitions on
+  the next read.
 
 Round-trip coverage:
 [`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.12.0/tests/c/c_treedb_system_schema).
