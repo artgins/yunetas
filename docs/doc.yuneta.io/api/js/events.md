@@ -234,7 +234,7 @@ A partial object in `kw` subscribes only to the events with a payload that
 matches those keys.
 
 The `kw` accepts four configuration keys: `__config__`, `__global__`,
-`__local__` and `__filter__`. See [Subscription options](#js_subscription_options).
+`__local__` and `__filter__`. See [Subscription options](#subscription-options).
 
 Each GClass takes one of two subscription models, and writes the block in
 `mt_create`. A **child** gobj uses its parent when the `subscriber`
@@ -361,7 +361,7 @@ event.
 
 ---
 
-(js_subscription_options)=
+(subscription-options)=
 ## Subscription options
 
 The `kw` of [`gobj_subscribe_event()`](#js_gobj_subscribe_event) accepts four

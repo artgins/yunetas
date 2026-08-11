@@ -37,9 +37,20 @@ point at a tag that does not exist in those repos. The tag is read from the
 package.json of the submodule, and the script verifies that the checked-out
 commit really is that tag before it writes a single link.
 
+  3. REPIN (--repin). Rewrites the hand-written pages: every `/blob/<tag>/` and
+     `/tree/<tag>/` of the two submodule repos moves to the tag the submodule
+     is on now, and every `#L<n>` anchor is recomputed from the symbol that the
+     link text names. The appendix is generated, so it needs no repin — the
+     pages under api/js/ and api/gobj-ui/ are hand-written and do.
+
+     This is the JS twin of `check_doc_line_refs.py --repin`, which cannot do
+     the job: it matches `github.com/artgins/yunetas/blob/` only, so it walks
+     straight past every link into these two repositories.
+
 Usage:
     scripts/verify_js_api_coverage.py            # audit + index drift check
     scripts/verify_js_api_coverage.py --write    # regenerate the appendix index
+    scripts/verify_js_api_coverage.py --repin    # retag + re-anchor the pages
     scripts/verify_js_api_coverage.py --summary  # one line per package
 """
 
@@ -345,14 +356,135 @@ def render_index(packages: list[Package], anchors: dict[str, dict[str, str]]) ->
 
 
 #
+#   Repin: retag the hand-written pages and recompute their line anchors
+#
+#   A link looks like
+#       [`period_start(period, anchor_ms)`](https://…/blob/5.11.0/src/yui_time.js#L338)
+#   The text names the symbol, so the anchor is recomputable: find that symbol
+#   in the package, and write its current definition line. A link whose text
+#   names no symbol we know (a "Source code:" file link, a heading) still gets
+#   the new tag, and keeps whatever anchor it had.
+#
+MD_LINK = re.compile(r"\[(?P<text>[^\]]*)\]\((?P<url>https://github\.com/[^)]+)\)")
+IDENT = re.compile(r"[A-Za-z_$][\w$]*")
+#   `(js_<symbol>)=` on its own line, immediately above the entry it labels.
+#   The label is the authoritative name of the symbol: a heading is free to
+#   read `## C_TIMER` while the symbol is `register_c_timer`.
+ANCHOR_ABOVE = re.compile(r"^\(js_(?P<name>[A-Za-z_$][\w$]*)\)=\s*$")
+
+
+def repin_pages(packages: list[Package]) -> tuple[int, int, list[str]]:
+    tags = 0
+    anchors = 0
+    notes: list[str] = []
+
+    for pkg in packages:
+        root = DOCS / pkg.docdir
+        if not root.exists():
+            continue
+        #   /blob/<ref>/<path>[#L<n>] and /tree/<ref>[/<path>]
+        blob = re.compile(
+            re.escape(pkg.repo) + r"/blob/(?P<ref>[^/]+)/(?P<path>[^)#\s]+)"
+            r"(?P<frag>#L(?P<line>\d+))?"
+        )
+        tree = re.compile(re.escape(pkg.repo) + r"/tree/(?P<ref>[^/)\s]+)")
+
+        for path in sorted(root.rglob("*.md")):
+            text = path.read_text()
+            original = text
+            #   line number -> the symbol that the nearest anchor above claims
+            claimed: dict[int, str] = {}
+            pending = None
+            for i, line in enumerate(text.split("\n")):
+                m_a = ANCHOR_ABOVE.match(line)
+                if m_a:
+                    pending = m_a.group("name")
+                elif pending and line.strip():
+                    claimed[i] = pending
+                    pending = None
+
+            def symbol_for(offset: int, label: str):
+                """The symbol a link belongs to: the anchor first, the text second."""
+                line_no = text.count("\n", 0, offset)
+                name = claimed.get(line_no)
+                if name and name in pkg.symbols:
+                    return pkg.symbols[name]
+                ident = IDENT.search(label.replace("`", ""))
+                return pkg.symbols.get(ident.group(0)) if ident else None
+
+            def fix_link(m):
+                nonlocal tags, anchors
+                url = m.group("url")
+                label = m.group("text")
+                bm = blob.fullmatch(url.split("#")[0] + (
+                    "#" + url.split("#", 1)[1] if "#" in url else ""
+                )) or blob.match(url)
+                if not bm:
+                    return m.group(0)
+                if bm.group("ref") != pkg.tag:
+                    tags += 1
+                new_url = f"{pkg.repo}/blob/{pkg.tag}/{bm.group('path')}"
+
+                #   Recompute the anchor from the symbol this entry documents
+                sym = symbol_for(m.start(), label)
+                if bm.group("frag"):
+                    if sym and sym["file"] == bm.group("path"):
+                        if str(sym["line"]) != bm.group("line"):
+                            anchors += 1
+                        new_url += f"#L{sym['line']}"
+                    else:
+                        if sym:
+                            notes.append(
+                                f"{path.relative_to(DOCS)}: `{label}` links into "
+                                f"{bm.group('path')}, and the symbol now lives "
+                                f"in {sym['file']} — the anchor is kept, fix it "
+                                f"by hand"
+                            )
+                        new_url += bm.group("frag")
+                return f"[{label}]({new_url})"
+
+            text = MD_LINK.sub(fix_link, text)
+
+            def fix_tree(m):
+                nonlocal tags
+                if m.group("ref") != pkg.tag:
+                    tags += 1
+                return f"{pkg.repo}/tree/{pkg.tag}"
+
+            text = tree.sub(fix_tree, text)
+
+            #   The version written as prose next to the source link
+            text = re.sub(
+                r"(\*\*version:\*\* `)[0-9][^`]*(`)",
+                lambda m: m.group(1) + pkg.tag + m.group(2),
+                text,
+            )
+
+            if text != original:
+                path.write_text(text)
+
+    return tags, anchors, notes
+
+
+#
 #   Main
 #
 def main(argv: list[str]) -> int:
     write = "--write" in argv
+    repin = "--repin" in argv
     summary = "--summary" in argv
 
     for pkg in PACKAGES:
         scan_package(pkg)
+
+    if repin:
+        tags, moved, notes = repin_pages(PACKAGES)
+        for note in notes:
+            print(f"  {note}")
+        print(
+            f"repin: {tags} links retagged, {moved} line anchors recomputed "
+            + ", ".join(f"{p.name} -> {p.tag}" for p in PACKAGES)
+        )
 
     anchors = {p.name: doc_anchors(p.docdir) for p in PACKAGES}
 

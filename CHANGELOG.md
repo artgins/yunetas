@@ -48,13 +48,26 @@
     live example — a shipped SPA on `C_YUI_SHELL` + `C_YUI_NAV`, installable and
     offline, next to the shell demo that exists to show the shell.
 
-### Known
+- **gobj-ui submodule 5.11.0 → 5.11.1**, which exports
+    `yui_shell_confirm_danger()` from the package root. `confirm_ok`,
+    `confirm_yesno` and `confirm_yesnocancel` were all in the barrel and the
+    destructive one was not, so the dialog the library's own comment tells you
+    to use for *"this deletes an account"* — red button, safe answer last — was
+    the single one that `import { … } from "@yuneta/gobj-ui"` resolved to
+    `undefined`. Found while writing the gobj-ui reference above. A missing
+    export fails at the call and not at the import, so it read as a bug in the
+    caller, and the only consumer had reached for the deep import and moved on.
+    Deep imports keep working, so nothing breaks.
 
-- `yui_shell_confirm_danger()` is **not** in the gobj-ui barrel, and its three
-    siblings are. It is the one the library's own comment says to use for a
-    destructive action, and an import of it from `@yuneta/gobj-ui` gives
-    `undefined`. The only consumer reaches it by deep import. Documented as
-    such; the export belongs in a gobj-ui release.
+- **`--repin` for the JS docs.** A submodule bump moves a tag, and every
+    hand-written `blob/<tag>/` link into that repository goes stale with it.
+    `check_doc_line_refs.py --repin` cannot help — it matches
+    `github.com/artgins/yunetas/blob/` only — so the 5.11.1 bump would have left
+    104 links pointing at 5.11.0 with the pages looking correct. The JS script
+    now retags them and recomputes each `#L` anchor from the symbol that the
+    entry's own `(js_<name>)=` label names, which is more reliable than the link
+    text: a heading is free to read `## C_TIMER` while the symbol is
+    `register_c_timer()`.
 
 ## 7.12.0-2
 

@@ -339,451 +339,451 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 ## gobj-ui (UI Library)
 
-**Package:** `@yuneta/gobj-ui` — **version:** `5.11.0` — **source:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/5.11.0)
+**Package:** `@yuneta/gobj-ui` — **version:** `5.11.1` — **source:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/5.11.1)
 
-184 symbols, 92 with a reference entry.
+184 symbols, 93 with a reference entry.
 
 ### `src/c_g6_nodes_tree.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_g6_nodes_tree`**](gobj-ui/gclasses.md#js_register_c_g6_nodes_tree) | `function register_c_g6_nodes_tree()` | [L6359](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_g6_nodes_tree.js#L6359) |
+| [**`register_c_g6_nodes_tree`**](gobj-ui/gclasses.md#js_register_c_g6_nodes_tree) | `function register_c_g6_nodes_tree()` | [L6359](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_g6_nodes_tree.js#L6359) |
 
 ### `src/c_yui_form.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_form`**](gobj-ui/gclasses.md#js_register_c_yui_form) | `function register_c_yui_form()` | [L3013](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_form.js#L3013) |
+| [**`register_c_yui_form`**](gobj-ui/gclasses.md#js_register_c_yui_form) | `function register_c_yui_form()` | [L3013](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_form.js#L3013) |
 
 ### `src/c_yui_gobj_tree_js.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_gobj_tree_js`**](gobj-ui/gclasses.md#js_register_c_yui_gobj_tree_js) | `function register_c_yui_gobj_tree_js()` | [L2123](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_gobj_tree_js.js#L2123) |
+| [**`register_c_yui_gobj_tree_js`**](gobj-ui/gclasses.md#js_register_c_yui_gobj_tree_js) | `function register_c_yui_gobj_tree_js()` | [L2123](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_gobj_tree_js.js#L2123) |
 
 ### `src/c_yui_json.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_json`**](gobj-ui/gclasses.md#js_register_c_yui_json) | `function register_c_yui_json()` | [L937](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_json.js#L937) |
+| [**`register_c_yui_json`**](gobj-ui/gclasses.md#js_register_c_yui_json) | `function register_c_yui_json()` | [L937](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_json.js#L937) |
 
 ### `src/c_yui_json_graph.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_json_graph`**](gobj-ui/gclasses.md#js_register_c_yui_json_graph) | `function register_c_yui_json_graph()` | [L1110](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_json_graph.js#L1110) |
+| [**`register_c_yui_json_graph`**](gobj-ui/gclasses.md#js_register_c_yui_json_graph) | `function register_c_yui_json_graph()` | [L1110](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_json_graph.js#L1110) |
 
 ### `src/c_yui_map.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_map`**](gobj-ui/gclasses.md#js_register_c_yui_map) | `function register_c_yui_map()` | [L904](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_map.js#L904) |
+| [**`register_c_yui_map`**](gobj-ui/gclasses.md#js_register_c_yui_map) | `function register_c_yui_map()` | [L904](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_map.js#L904) |
 
 ### `src/c_yui_nav.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_nav`**](gobj-ui/gclasses.md#js_register_c_yui_nav) | `function register_c_yui_nav()` | [L1027](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_nav.js#L1027) |
+| [**`register_c_yui_nav`**](gobj-ui/gclasses.md#js_register_c_yui_nav) | `function register_c_yui_nav()` | [L1027](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_nav.js#L1027) |
 
 ### `src/c_yui_node.js` — 11 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`register_c_yui_node`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1690) | `function register_c_yui_node()` | [L1690](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1690) |
-| [`yui_node_add`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1495) | `function yui_node_add(node, spec, index)` | [L1495](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1495) |
-| [`yui_node_find`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1540) | `function yui_node_find(node, path)` | [L1540](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1540) |
-| [`yui_node_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1530) | `function yui_node_nav_mode(node)` | [L1530](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1530) |
-| [`yui_node_remove`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1500) | `function yui_node_remove(node, node_id)` | [L1500](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1500) |
-| [`yui_node_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1553) | `function yui_node_route(node)` | [L1553](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1553) |
-| [`yui_node_set_chrome_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1515) | `function yui_node_set_chrome_depth(node, depth)` | [L1515](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1515) |
-| [`yui_node_set_content`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1510) | `function yui_node_set_content(node, content)` | [L1510](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1510) |
-| [`yui_node_set_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1525) | `function yui_node_set_nav_mode(node, mode)` | [L1525](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1525) |
-| [`yui_node_set_projection`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1505) | `function yui_node_set_projection(node, projection)` | [L1505](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1505) |
-| [`yui_node_tree_version`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1567) | `function yui_node_tree_version(node)` | [L1567](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1567) |
+| [`register_c_yui_node`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1690) | `function register_c_yui_node()` | [L1690](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1690) |
+| [`yui_node_add`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1495) | `function yui_node_add(node, spec, index)` | [L1495](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1495) |
+| [`yui_node_find`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1540) | `function yui_node_find(node, path)` | [L1540](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1540) |
+| [`yui_node_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1530) | `function yui_node_nav_mode(node)` | [L1530](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1530) |
+| [`yui_node_remove`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1500) | `function yui_node_remove(node, node_id)` | [L1500](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1500) |
+| [`yui_node_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1553) | `function yui_node_route(node)` | [L1553](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1553) |
+| [`yui_node_set_chrome_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1515) | `function yui_node_set_chrome_depth(node, depth)` | [L1515](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1515) |
+| [`yui_node_set_content`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1510) | `function yui_node_set_content(node, content)` | [L1510](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1510) |
+| [`yui_node_set_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1525) | `function yui_node_set_nav_mode(node, mode)` | [L1525](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1525) |
+| [`yui_node_set_projection`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1505) | `function yui_node_set_projection(node, projection)` | [L1505](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1505) |
+| [`yui_node_tree_version`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1567) | `function yui_node_tree_version(node)` | [L1567](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1567) |
 
 ### `src/c_yui_pager.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_pager`**](gobj-ui/gclasses.md#js_register_c_yui_pager) | `function register_c_yui_pager()` | [L540](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_pager.js#L540) |
+| [**`register_c_yui_pager`**](gobj-ui/gclasses.md#js_register_c_yui_pager) | `function register_c_yui_pager()` | [L540](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_pager.js#L540) |
 
 ### `src/c_yui_period.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_period`**](gobj-ui/gclasses.md#js_register_c_yui_period) | `function register_c_yui_period()` | [L1436](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_period.js#L1436) |
+| [**`register_c_yui_period`**](gobj-ui/gclasses.md#js_register_c_yui_period) | `function register_c_yui_period()` | [L1436](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_period.js#L1436) |
 
 ### `src/c_yui_service_view.js` — 3 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`expose_view_container`**](gobj-ui/gclasses.md#js_expose_view_container) | `function expose_view_container(host, view)` | [L210](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_service_view.js#L210) |
-| [**`register_c_yui_service_view`**](gobj-ui/gclasses.md#js_register_c_yui_service_view) | `function register_c_yui_service_view()` | [L353](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_service_view.js#L353) |
-| [**`yui_mount_service_view`**](gobj-ui/gclasses.md#js_yui_mount_service_view) | `function yui_mount_service_view(host, spec)` | [L147](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_service_view.js#L147) |
+| [**`expose_view_container`**](gobj-ui/gclasses.md#js_expose_view_container) | `function expose_view_container(host, view)` | [L210](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_service_view.js#L210) |
+| [**`register_c_yui_service_view`**](gobj-ui/gclasses.md#js_register_c_yui_service_view) | `function register_c_yui_service_view()` | [L353](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_service_view.js#L353) |
+| [**`yui_mount_service_view`**](gobj-ui/gclasses.md#js_yui_mount_service_view) | `function yui_mount_service_view(host, spec)` | [L147](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_service_view.js#L147) |
 
 ### `src/c_yui_shell.js` — 25 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_shell`**](gobj-ui/gclasses.md#js_register_c_yui_shell) | `function register_c_yui_shell()` | [L3020](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3020) |
-| [**`yui_shell_close_drawer`**](gobj-ui/shell.md#js_yui_shell_close_drawer) | `function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }` | [L3238](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3238) |
-| [**`yui_shell_close_dropdown`**](gobj-ui/shell.md#js_yui_shell_close_dropdown) | `function yui_shell_close_dropdown(shell_gobj)` | [L3501](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3501) |
-| [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3393) | `function yui_shell_language_changed(shell_gobj)` | [L3393](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3393) |
-| [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3183) | `function yui_shell_nav_map(shell_gobj)` | [L3183](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3183) |
-| [**`yui_shell_navigate`**](gobj-ui/shell.md#js_yui_shell_navigate) | `function yui_shell_navigate(shell_gobj, route, opts)` | [L3160](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3160) |
-| [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3109) | `function yui_shell_of(gobj)` | [L3109](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3109) |
-| [**`yui_shell_open_drawer`**](gobj-ui/shell.md#js_yui_shell_open_drawer) | `function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }` | [L3237](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3237) |
-| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell.md#js_yui_shell_overlay_dismissed) | `function yui_shell_overlay_dismissed(shell_gobj, overlay)` | [L3281](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3281) |
-| [**`yui_shell_pop_escape`**](gobj-ui/shell.md#js_yui_shell_pop_escape) | `function yui_shell_pop_escape(shell_gobj, handler)` | [L3258](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3258) |
-| [**`yui_shell_push_escape`**](gobj-ui/shell.md#js_yui_shell_push_escape) | `function yui_shell_push_escape(shell_gobj, layer, handler)` | [L3254](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3254) |
-| [**`yui_shell_refresh_avatars`**](gobj-ui/shell.md#js_yui_shell_refresh_avatars) | `function yui_shell_refresh_avatars(shell_gobj)` | [L3326](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3326) |
-| [**`yui_shell_register_event_handler`**](gobj-ui/shell.md#js_yui_shell_register_event_handler) | `function yui_shell_register_event_handler(shell_gobj, event, gclass)` | [L3223](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3223) |
-| [**`yui_shell_register_overlay`**](gobj-ui/shell.md#js_yui_shell_register_overlay) | `function yui_shell_register_overlay(shell_gobj, close_fn, opts)` | [L3277](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3277) |
-| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell.md#js_yui_shell_set_avatar_provider) | `function yui_shell_set_avatar_provider(shell_gobj, provider)` | [L3316](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3316) |
-| [**`yui_shell_set_connection_state`**](gobj-ui/shell.md#js_yui_shell_set_connection_state) | `function yui_shell_set_connection_state(shell_gobj, connected)` | [L3412](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3412) |
-| [**`yui_shell_set_sub_routes`**](gobj-ui/shell.md#js_yui_shell_set_sub_routes) | `function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)` | [L3203](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3203) |
-| [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L2849) | `function yui_shell_set_submenu(shell_gobj, parent_item_id, items)` | [L2849](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L2849) |
-| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_badge) | `function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)` | [L3464](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3464) |
-| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_icon) | `function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)` | [L3431](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3431) |
-| [**`yui_shell_set_translator`**](gobj-ui/shell.md#js_yui_shell_set_translator) | `function yui_shell_set_translator(shell_gobj, t)` | [L3341](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3341) |
-| [**`yui_shell_toggle_drawer`**](gobj-ui/shell.md#js_yui_shell_toggle_drawer) | `function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }` | [L3239](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3239) |
-| [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3371) | `function yui_shell_translate(shell_gobj, $el)` | [L3371](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3371) |
-| [**`yui_shell_unpark_route`**](gobj-ui/shell.md#js_yui_shell_unpark_route) | `function yui_shell_unpark_route(route)` | [L3299](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3299) |
-| [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3130) | `function yui_shell_zone(shell_gobj, zone_id)` | [L3130](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3130) |
+| [**`register_c_yui_shell`**](gobj-ui/gclasses.md#js_register_c_yui_shell) | `function register_c_yui_shell()` | [L3020](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3020) |
+| [**`yui_shell_close_drawer`**](gobj-ui/shell.md#js_yui_shell_close_drawer) | `function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }` | [L3238](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3238) |
+| [**`yui_shell_close_dropdown`**](gobj-ui/shell.md#js_yui_shell_close_dropdown) | `function yui_shell_close_dropdown(shell_gobj)` | [L3501](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3501) |
+| [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3393) | `function yui_shell_language_changed(shell_gobj)` | [L3393](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3393) |
+| [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3183) | `function yui_shell_nav_map(shell_gobj)` | [L3183](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3183) |
+| [**`yui_shell_navigate`**](gobj-ui/shell.md#js_yui_shell_navigate) | `function yui_shell_navigate(shell_gobj, route, opts)` | [L3160](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3160) |
+| [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3109) | `function yui_shell_of(gobj)` | [L3109](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3109) |
+| [**`yui_shell_open_drawer`**](gobj-ui/shell.md#js_yui_shell_open_drawer) | `function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }` | [L3237](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3237) |
+| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell.md#js_yui_shell_overlay_dismissed) | `function yui_shell_overlay_dismissed(shell_gobj, overlay)` | [L3281](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3281) |
+| [**`yui_shell_pop_escape`**](gobj-ui/shell.md#js_yui_shell_pop_escape) | `function yui_shell_pop_escape(shell_gobj, handler)` | [L3258](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3258) |
+| [**`yui_shell_push_escape`**](gobj-ui/shell.md#js_yui_shell_push_escape) | `function yui_shell_push_escape(shell_gobj, layer, handler)` | [L3254](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3254) |
+| [**`yui_shell_refresh_avatars`**](gobj-ui/shell.md#js_yui_shell_refresh_avatars) | `function yui_shell_refresh_avatars(shell_gobj)` | [L3326](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3326) |
+| [**`yui_shell_register_event_handler`**](gobj-ui/shell.md#js_yui_shell_register_event_handler) | `function yui_shell_register_event_handler(shell_gobj, event, gclass)` | [L3223](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3223) |
+| [**`yui_shell_register_overlay`**](gobj-ui/shell.md#js_yui_shell_register_overlay) | `function yui_shell_register_overlay(shell_gobj, close_fn, opts)` | [L3277](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3277) |
+| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell.md#js_yui_shell_set_avatar_provider) | `function yui_shell_set_avatar_provider(shell_gobj, provider)` | [L3316](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3316) |
+| [**`yui_shell_set_connection_state`**](gobj-ui/shell.md#js_yui_shell_set_connection_state) | `function yui_shell_set_connection_state(shell_gobj, connected)` | [L3412](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3412) |
+| [**`yui_shell_set_sub_routes`**](gobj-ui/shell.md#js_yui_shell_set_sub_routes) | `function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)` | [L3203](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3203) |
+| [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L2849) | `function yui_shell_set_submenu(shell_gobj, parent_item_id, items)` | [L2849](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L2849) |
+| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_badge) | `function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)` | [L3464](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3464) |
+| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_icon) | `function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)` | [L3431](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3431) |
+| [**`yui_shell_set_translator`**](gobj-ui/shell.md#js_yui_shell_set_translator) | `function yui_shell_set_translator(shell_gobj, t)` | [L3341](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3341) |
+| [**`yui_shell_toggle_drawer`**](gobj-ui/shell.md#js_yui_shell_toggle_drawer) | `function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }` | [L3239](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3239) |
+| [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3371) | `function yui_shell_translate(shell_gobj, $el)` | [L3371](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3371) |
+| [**`yui_shell_unpark_route`**](gobj-ui/shell.md#js_yui_shell_unpark_route) | `function yui_shell_unpark_route(route)` | [L3299](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3299) |
+| [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3130) | `function yui_shell_zone(shell_gobj, zone_id)` | [L3130](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3130) |
 
 ### `src/c_yui_treedb_graph.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_treedb_graph`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_graph) | `function register_c_yui_treedb_graph()` | [L2203](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_treedb_graph.js#L2203) |
+| [**`register_c_yui_treedb_graph`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_graph) | `function register_c_yui_treedb_graph()` | [L2203](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_treedb_graph.js#L2203) |
 
 ### `src/c_yui_treedb_schema.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_treedb_schema`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_schema) | `function register_c_yui_treedb_schema()` | [L474](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_treedb_schema.js#L474) |
+| [**`register_c_yui_treedb_schema`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_schema) | `function register_c_yui_treedb_schema()` | [L474](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_treedb_schema.js#L474) |
 
 ### `src/c_yui_treedb_topic_with_form.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_treedb_topic_with_form`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_topic_with_form) | `function register_c_yui_treedb_topic_with_form()` | [L2421](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_treedb_topic_with_form.js#L2421) |
+| [**`register_c_yui_treedb_topic_with_form`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_topic_with_form) | `function register_c_yui_treedb_topic_with_form()` | [L2421](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_treedb_topic_with_form.js#L2421) |
 
 ### `src/c_yui_treedb_topics.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_treedb_topics`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_topics) | `function register_c_yui_treedb_topics()` | [L2282](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_treedb_topics.js#L2282) |
+| [**`register_c_yui_treedb_topics`**](gobj-ui/gclasses.md#js_register_c_yui_treedb_topics) | `function register_c_yui_treedb_topics()` | [L2282](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_treedb_topics.js#L2282) |
 
 ### `src/c_yui_uplot.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_uplot`**](gobj-ui/gclasses.md#js_register_c_yui_uplot) | `function register_c_yui_uplot()` | [L507](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_uplot.js#L507) |
+| [**`register_c_yui_uplot`**](gobj-ui/gclasses.md#js_register_c_yui_uplot) | `function register_c_yui_uplot()` | [L507](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_uplot.js#L507) |
 
 ### `src/c_yui_window.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_window`**](gobj-ui/gclasses.md#js_register_c_yui_window) | `function register_c_yui_window()` | [L1266](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_window.js#L1266) |
+| [**`register_c_yui_window`**](gobj-ui/gclasses.md#js_register_c_yui_window) | `function register_c_yui_window()` | [L1266](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_window.js#L1266) |
 
 ### `src/c_yui_window_manager.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_window_manager`**](gobj-ui/gclasses.md#js_register_c_yui_window_manager) | `function register_c_yui_window_manager()` | [L645](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_window_manager.js#L645) |
+| [**`register_c_yui_window_manager`**](gobj-ui/gclasses.md#js_register_c_yui_window_manager) | `function register_c_yui_window_manager()` | [L645](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_window_manager.js#L645) |
 
 ### `src/c_yui_wizard.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`register_c_yui_wizard`**](gobj-ui/gclasses.md#js_register_c_yui_wizard) | `function register_c_yui_wizard()` | [L607](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_wizard.js#L607) |
+| [**`register_c_yui_wizard`**](gobj-ui/gclasses.md#js_register_c_yui_wizard) | `function register_c_yui_wizard()` | [L607](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_wizard.js#L607) |
 
 ### `src/form_toolbar_plan.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`DEFAULT_TOOLBAR`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L19) | `const DEFAULT_TOOLBAR = ["save", "undo", "clear", "copy", "paste"];` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L19) |
-| [`plan_toolbar`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L35) | `function plan_toolbar(wanted)` | [L35](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L35) |
+| [`DEFAULT_TOOLBAR`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L19) | `const DEFAULT_TOOLBAR = ["save", "undo", "clear", "copy", "paste"];` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L19) |
+| [`plan_toolbar`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L35) | `function plan_toolbar(wanted)` | [L35](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L35) |
 
 ### `src/g6_drag_canvas_touch.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`ensure_drag_canvas_patch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/g6_drag_canvas_touch.js#L132) | `function ensure_drag_canvas_patch()` | [L132](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/g6_drag_canvas_touch.js#L132) |
+| [`ensure_drag_canvas_patch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/g6_drag_canvas_touch.js#L132) | `function ensure_drag_canvas_patch()` | [L132](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/g6_drag_canvas_touch.js#L132) |
 
 ### `src/json_view_helpers.js` — 10 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`JSON_PATH_DELIMITER`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L21) | `const JSON_PATH_DELIMITER = "`";` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L21) |
-| [`format_epoch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L203) | `function format_epoch(value)` | [L203](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L203) |
-| [`get_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L102) | `function get_by_segments(root, segments)` | [L102](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L102) |
-| [`is_collapsed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L58) | `function is_collapsed(value)` | [L58](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L58) |
-| [`is_time_field`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L189) | `function is_time_field(field)` | [L189](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L189) |
-| [`json_type`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L26) | `function json_type(value)` | [L26](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L26) |
-| [`seg_join`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L83) | `function seg_join(segments)` | [L83](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L83) |
-| [`seg_split`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L90) | `function seg_split(path)` | [L90](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L90) |
-| [`set_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L127) | `function set_by_segments(root, segments, new_value)` | [L127](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L127) |
-| [`subtree_matches`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L153) | `function subtree_matches(value, term)` | [L153](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L153) |
+| [`JSON_PATH_DELIMITER`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L21) | `const JSON_PATH_DELIMITER = "`";` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L21) |
+| [`format_epoch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L203) | `function format_epoch(value)` | [L203](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L203) |
+| [`get_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L102) | `function get_by_segments(root, segments)` | [L102](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L102) |
+| [`is_collapsed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L58) | `function is_collapsed(value)` | [L58](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L58) |
+| [`is_time_field`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L189) | `function is_time_field(field)` | [L189](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L189) |
+| [`json_type`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L26) | `function json_type(value)` | [L26](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L26) |
+| [`seg_join`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L83) | `function seg_join(segments)` | [L83](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L83) |
+| [`seg_split`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L90) | `function seg_split(path)` | [L90](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L90) |
+| [`set_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L127) | `function set_by_segments(root, segments, new_value)` | [L127](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L127) |
+| [`subtree_matches`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L153) | `function subtree_matches(value, term)` | [L153](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L153) |
 
 ### `src/lib_graph.js` — 10 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`addClasses`**](gobj-ui/dom.md#js_addClasses) | `function addClasses($container, selector, ...classNames)` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L19) |
-| [**`disableElements`**](gobj-ui/dom.md#js_disableElements) | `function disableElements($container, selector)` | [L57](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L57) |
-| [**`enableElements`**](gobj-ui/dom.md#js_enableElements) | `function enableElements($container, selector)` | [L64](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L64) |
-| [**`getStrokeColor`**](gobj-ui/dom.md#js_getStrokeColor) | `function getStrokeColor(fillColor, theme = 'light', factor = 0.2)` | [L123](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L123) |
-| [**`removeChildElements`**](gobj-ui/dom.md#js_removeChildElements) | `function removeChildElements($element)` | [L49](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L49) |
-| [**`removeClasses`**](gobj-ui/dom.md#js_removeClasses) | `function removeClasses($container, selector, ...classNames)` | [L29](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L29) |
-| [**`set_active_state`**](gobj-ui/dom.md#js_set_active_state) | `function set_active_state($container, selector, set)` | [L103](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L103) |
-| [**`set_cancel_state`**](gobj-ui/dom.md#js_set_cancel_state) | `function set_cancel_state($container, selector, set)` | [L90](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L90) |
-| [**`set_submit_state`**](gobj-ui/dom.md#js_set_submit_state) | `function set_submit_state($container, selector, set)` | [L77](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L77) |
-| [**`toggleClasses`**](gobj-ui/dom.md#js_toggleClasses) | `function toggleClasses($container, selector, ...classNames)` | [L39](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_graph.js#L39) |
+| [**`addClasses`**](gobj-ui/dom.md#js_addClasses) | `function addClasses($container, selector, ...classNames)` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L19) |
+| [**`disableElements`**](gobj-ui/dom.md#js_disableElements) | `function disableElements($container, selector)` | [L57](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L57) |
+| [**`enableElements`**](gobj-ui/dom.md#js_enableElements) | `function enableElements($container, selector)` | [L64](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L64) |
+| [**`getStrokeColor`**](gobj-ui/dom.md#js_getStrokeColor) | `function getStrokeColor(fillColor, theme = 'light', factor = 0.2)` | [L123](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L123) |
+| [**`removeChildElements`**](gobj-ui/dom.md#js_removeChildElements) | `function removeChildElements($element)` | [L49](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L49) |
+| [**`removeClasses`**](gobj-ui/dom.md#js_removeClasses) | `function removeClasses($container, selector, ...classNames)` | [L29](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L29) |
+| [**`set_active_state`**](gobj-ui/dom.md#js_set_active_state) | `function set_active_state($container, selector, set)` | [L103](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L103) |
+| [**`set_cancel_state`**](gobj-ui/dom.md#js_set_cancel_state) | `function set_cancel_state($container, selector, set)` | [L90](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L90) |
+| [**`set_submit_state`**](gobj-ui/dom.md#js_set_submit_state) | `function set_submit_state($container, selector, set)` | [L77](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L77) |
+| [**`toggleClasses`**](gobj-ui/dom.md#js_toggleClasses) | `function toggleClasses($container, selector, ...classNames)` | [L39](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_graph.js#L39) |
 
 ### `src/lib_icons.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`inject_svg_icons`**](gobj-ui/dom.md#js_inject_svg_icons) | `function inject_svg_icons()` | [L117](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_icons.js#L117) |
+| [**`inject_svg_icons`**](gobj-ui/dom.md#js_inject_svg_icons) | `function inject_svg_icons()` | [L117](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_icons.js#L117) |
 
 ### `src/lib_maplibre.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`EditControl`**](gobj-ui/maplibre.md#js_EditControl) | `class EditControl` | [L18](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_maplibre.js#L18) |
-| [**`MarkerControl`**](gobj-ui/maplibre.md#js_MarkerControl) | `class MarkerControl` | [L99](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/lib_maplibre.js#L99) |
+| [**`EditControl`**](gobj-ui/maplibre.md#js_EditControl) | `class EditControl` | [L18](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_maplibre.js#L18) |
+| [**`MarkerControl`**](gobj-ui/maplibre.md#js_MarkerControl) | `class MarkerControl` | [L99](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/lib_maplibre.js#L99) |
 
 ### `src/nav_cards_helpers.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`card_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L21) | `function card_descriptor(it, show_label)` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L21) |
-| [`cards_grid_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L61) | `function cards_grid_descriptor(items, show_label)` | [L61](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L61) |
+| [`card_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L21) | `function card_descriptor(it, show_label)` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L21) |
+| [`cards_grid_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L61) | `function cards_grid_descriptor(items, show_label)` | [L61](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L61) |
 
 ### `src/node_tree_model.js` — 12 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`NAV_MODES`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L232) | `const NAV_MODES = ["stack", "back", "path"];` | [L232](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L232) |
-| [`VALID_LAYOUTS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L37) | `const VALID_LAYOUTS = [` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L37) |
-| [`child_nav_items`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L172) | `function child_nav_items(children, route_of)` | [L172](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L172) |
-| [`chrome_visible`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L206) | `function chrome_visible(distance, depth)` | [L206](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L206) |
-| [`head_tail`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L65) | `function head_tail(subpath)` | [L65](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L65) |
-| [`is_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L234) | `function is_nav_mode(mode)` | [L234](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L234) |
-| [`join_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L78) | `function join_route(base_route, ids)` | [L78](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L78) |
-| [`nav_mode_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L270) | `function nav_mode_depth(declared_depth, mode)` | [L270](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L270) |
-| [`nav_mode_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L246) | `function nav_mode_renders(projection, mode, slot, is_root)` | [L246](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L246) |
-| [`normalize_spec`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L291) | `function normalize_spec(spec, errors, where)` | [L291](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L291) |
-| [`projection_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L123) | `function projection_renders(projection, mode)` | [L123](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L123) |
-| [`split_subpath`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L52) | `function split_subpath(subpath)` | [L52](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L52) |
+| [`NAV_MODES`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L232) | `const NAV_MODES = ["stack", "back", "path"];` | [L232](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L232) |
+| [`VALID_LAYOUTS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L37) | `const VALID_LAYOUTS = [` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L37) |
+| [`child_nav_items`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L172) | `function child_nav_items(children, route_of)` | [L172](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L172) |
+| [`chrome_visible`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L206) | `function chrome_visible(distance, depth)` | [L206](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L206) |
+| [`head_tail`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L65) | `function head_tail(subpath)` | [L65](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L65) |
+| [`is_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L234) | `function is_nav_mode(mode)` | [L234](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L234) |
+| [`join_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L78) | `function join_route(base_route, ids)` | [L78](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L78) |
+| [`nav_mode_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L270) | `function nav_mode_depth(declared_depth, mode)` | [L270](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L270) |
+| [`nav_mode_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L246) | `function nav_mode_renders(projection, mode, slot, is_root)` | [L246](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L246) |
+| [`normalize_spec`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L291) | `function normalize_spec(spec, errors, where)` | [L291](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L291) |
+| [`projection_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L123) | `function projection_renders(projection, mode)` | [L123](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L123) |
+| [`split_subpath`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L52) | `function split_subpath(subpath)` | [L52](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L52) |
 
 ### `src/pager_helpers.js` — 6 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`pager_back_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L120) | `function pager_back_action(stack, back_on_root)` | [L120](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L120) |
-| [`pager_header_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L79) | `function pager_header_model(stack, opts)` | [L79](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L79) |
-| [`pager_pop`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L30) | `function pager_pop(stack)` | [L30](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L30) |
-| [`pager_push`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L21) | `function pager_push(stack, entry)` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L21) |
-| [`pager_replace`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L45) | `function pager_replace(stack, entry)` | [L45](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L45) |
-| [`pager_top`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L59) | `function pager_top(stack)` | [L59](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L59) |
+| [`pager_back_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L120) | `function pager_back_action(stack, back_on_root)` | [L120](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L120) |
+| [`pager_header_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L79) | `function pager_header_model(stack, opts)` | [L79](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L79) |
+| [`pager_pop`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L30) | `function pager_pop(stack)` | [L30](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L30) |
+| [`pager_push`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L21) | `function pager_push(stack, entry)` | [L21](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L21) |
+| [`pager_replace`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L45) | `function pager_replace(stack, entry)` | [L45](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L45) |
+| [`pager_top`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L59) | `function pager_top(stack)` | [L59](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L59) |
 
 ### `src/route_map_model.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`build_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_map_model.js#L248) | `function build_nav_map(input)` | [L248](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_map_model.js#L248) |
+| [`build_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_map_model.js#L248) | `function build_nav_map(input)` | [L248](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_map_model.js#L248) |
 
 ### `src/route_resolver.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`normalize_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L40) | `function normalize_route(route)` | [L40](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L40) |
-| [`resolve_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L55) | `function resolve_route(item_index, route)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L55) |
+| [`normalize_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L40) | `function normalize_route(route)` | [L40](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L40) |
+| [`resolve_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L55) | `function resolve_route(item_index, route)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L55) |
 
 ### `src/shell_focus_trap.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`FOCUSABLE_SELECTOR`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L30) | `const FOCUSABLE_SELECTOR =` | [L30](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L30) |
-| [`activate_focus_trap_on`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L55) | `function activate_focus_trap_on($panel, doc)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L55) |
+| [`FOCUSABLE_SELECTOR`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L30) | `const FOCUSABLE_SELECTOR =` | [L30](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L30) |
+| [`activate_focus_trap_on`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L55) | `function activate_focus_trap_on($panel, doc)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L55) |
 
 ### `src/shell_modals.js` — 9 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`yui_shell_confirm_danger`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L579) | `function yui_shell_confirm_danger(shell, message, opts)` | [L579](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L579) |
-| [**`yui_shell_confirm_ok`**](gobj-ui/modals.md#js_yui_shell_confirm_ok) | `function yui_shell_confirm_ok(shell, message, opts)` | [L544](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L544) |
-| [**`yui_shell_confirm_yesno`**](gobj-ui/modals.md#js_yui_shell_confirm_yesno) | `function yui_shell_confirm_yesno(shell, message, opts)` | [L555](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L555) |
-| [**`yui_shell_confirm_yesnocancel`**](gobj-ui/modals.md#js_yui_shell_confirm_yesnocancel) | `function yui_shell_confirm_yesnocancel(shell, message, opts)` | [L592](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L592) |
-| [`yui_shell_popup_layer`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L75) | `function yui_shell_popup_layer(shell)` | [L75](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L75) |
-| [**`yui_shell_show_error`**](gobj-ui/modals.md#js_yui_shell_show_error) | `function yui_shell_show_error(shell, message, opts)` | [L174](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L174) |
-| [**`yui_shell_show_info`**](gobj-ui/modals.md#js_yui_shell_show_info) | `function yui_shell_show_info(shell, message, opts)` | [L166](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L166) |
-| [**`yui_shell_show_modal`**](gobj-ui/modals.md#js_yui_shell_show_modal) | `function yui_shell_show_modal(shell, content, opts)` | [L189](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L189) |
-| [**`yui_shell_show_warning`**](gobj-ui/modals.md#js_yui_shell_show_warning) | `function yui_shell_show_warning(shell, message, opts)` | [L170](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L170) |
+| [**`yui_shell_confirm_danger`**](gobj-ui/modals.md#js_yui_shell_confirm_danger) | `function yui_shell_confirm_danger(shell, message, opts)` | [L579](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L579) |
+| [**`yui_shell_confirm_ok`**](gobj-ui/modals.md#js_yui_shell_confirm_ok) | `function yui_shell_confirm_ok(shell, message, opts)` | [L544](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L544) |
+| [**`yui_shell_confirm_yesno`**](gobj-ui/modals.md#js_yui_shell_confirm_yesno) | `function yui_shell_confirm_yesno(shell, message, opts)` | [L555](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L555) |
+| [**`yui_shell_confirm_yesnocancel`**](gobj-ui/modals.md#js_yui_shell_confirm_yesnocancel) | `function yui_shell_confirm_yesnocancel(shell, message, opts)` | [L592](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L592) |
+| [`yui_shell_popup_layer`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L75) | `function yui_shell_popup_layer(shell)` | [L75](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L75) |
+| [**`yui_shell_show_error`**](gobj-ui/modals.md#js_yui_shell_show_error) | `function yui_shell_show_error(shell, message, opts)` | [L174](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L174) |
+| [**`yui_shell_show_info`**](gobj-ui/modals.md#js_yui_shell_show_info) | `function yui_shell_show_info(shell, message, opts)` | [L166](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L166) |
+| [**`yui_shell_show_modal`**](gobj-ui/modals.md#js_yui_shell_show_modal) | `function yui_shell_show_modal(shell, content, opts)` | [L189](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L189) |
+| [**`yui_shell_show_warning`**](gobj-ui/modals.md#js_yui_shell_show_warning) | `function yui_shell_show_warning(shell, message, opts)` | [L170](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L170) |
 
 ### `src/shell_route_map.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`yui_shell_show_route_map`**](gobj-ui/shell.md#js_yui_shell_show_route_map) | `function yui_shell_show_route_map(shell, opts)` | [L437](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_route_map.js#L437) |
+| [**`yui_shell_show_route_map`**](gobj-ui/shell.md#js_yui_shell_show_route_map) | `function yui_shell_show_route_map(shell, opts)` | [L437](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_route_map.js#L437) |
 
 ### `src/shell_section_index.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`secondary_nav_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L81) | `function secondary_nav_renders(item, layout)` | [L81](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L81) |
-| [`section_index_target`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L43) | `function section_index_target(menu_id, item)` | [L43](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L43) |
+| [`secondary_nav_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L81) | `function secondary_nav_renders(item, layout)` | [L81](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L81) |
+| [`section_index_target`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L43) | `function section_index_target(menu_id, item)` | [L43](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L43) |
 
 ### `src/shell_show_on.js` — 3 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`BULMA_BP_ORDER`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L13) | `const BULMA_BP_ORDER = ["mobile", "tablet", "desktop", "widescreen", "fullhd"];` | [L13](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L13) |
-| [`breakpoints_from_expr`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L31) | `function breakpoints_from_expr(expr)` | [L31](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L31) |
-| [`bulma_hidden_class`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L81) | `function bulma_hidden_class(bp)` | [L81](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L81) |
+| [`BULMA_BP_ORDER`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L13) | `const BULMA_BP_ORDER = ["mobile", "tablet", "desktop", "widescreen", "fullhd"];` | [L13](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L13) |
+| [`breakpoints_from_expr`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L31) | `function breakpoints_from_expr(expr)` | [L31](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L31) |
+| [`bulma_hidden_class`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L81) | `function bulma_hidden_class(bp)` | [L81](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L81) |
 
 ### `src/shell_toolbar_helpers.js` — 6 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`TOOLBAR_ACTION_TYPES`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L29) | `const TOOLBAR_ACTION_TYPES = ["navigate", "drawer", "event", "dropdown"];` | [L29](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L29) |
-| [`TOOLBAR_ITEM_KINDS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L28) | `const TOOLBAR_ITEM_KINDS = ["brand", "avatar", "connection", "action"];` | [L28](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L28) |
-| [`classify_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L39) | `function classify_toolbar_item(item)` | [L39](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L39) |
-| [`validate_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L112) | `function validate_action(action, owner_id)` | [L112](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L112) |
-| [`validate_dropdown_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L165) | `function validate_dropdown_action(action, owner_id)` | [L165](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L165) |
-| [`validate_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L60) | `function validate_toolbar_item(item)` | [L60](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L60) |
+| [`TOOLBAR_ACTION_TYPES`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L29) | `const TOOLBAR_ACTION_TYPES = ["navigate", "drawer", "event", "dropdown"];` | [L29](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L29) |
+| [`TOOLBAR_ITEM_KINDS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L28) | `const TOOLBAR_ITEM_KINDS = ["brand", "avatar", "connection", "action"];` | [L28](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L28) |
+| [`classify_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L39) | `function classify_toolbar_item(item)` | [L39](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L39) |
+| [`validate_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L112) | `function validate_action(action, owner_id)` | [L112](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L112) |
+| [`validate_dropdown_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L165) | `function validate_dropdown_action(action, owner_id)` | [L165](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L165) |
+| [`validate_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L60) | `function validate_toolbar_item(item)` | [L60](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L60) |
 
 ### `src/wizard_helpers.js` — 6 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`wizard_accumulate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L88) | `function wizard_accumulate(acc, step_id, kw)` | [L88](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L88) |
-| [`wizard_clamp_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L20) | `function wizard_clamp_index(idx, count)` | [L20](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L20) |
-| [`wizard_next_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L37) | `function wizard_next_index(idx, count)` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L37) |
-| [`wizard_prev_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L42) | `function wizard_prev_index(idx, count)` | [L42](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L42) |
-| [`wizard_should_validate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L105) | `function wizard_should_validate(linear, has_gobj)` | [L105](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L105) |
-| [`wizard_step_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L55) | `function wizard_step_model(steps, idx, opts)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L55) |
+| [`wizard_accumulate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L88) | `function wizard_accumulate(acc, step_id, kw)` | [L88](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L88) |
+| [`wizard_clamp_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L20) | `function wizard_clamp_index(idx, count)` | [L20](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L20) |
+| [`wizard_next_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L37) | `function wizard_next_index(idx, count)` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L37) |
+| [`wizard_prev_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L42) | `function wizard_prev_index(idx, count)` | [L42](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L42) |
+| [`wizard_should_validate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L105) | `function wizard_should_validate(linear, has_gobj)` | [L105](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L105) |
+| [`wizard_step_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L55) | `function wizard_step_model(steps, idx, opts)` | [L55](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L55) |
 
 ### `src/yui_clipboard.js` — 6 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`yui_button_mark_done`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L159) | `function yui_button_mark_done($button, label)` | [L159](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L159) |
-| [`yui_button_unmark`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L183) | `function yui_button_unmark($button)` | [L183](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L183) |
-| [`yui_copy_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L80) | `function yui_copy_json(value)` | [L80](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L80) |
-| [`yui_copy_table_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L130) | `function yui_copy_table_json(tabulator)` | [L130](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L130) |
-| [`yui_copy_text`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L54) | `function yui_copy_text(text)` | [L54](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L54) |
-| [`yui_table_rows`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L110) | `function yui_table_rows(tabulator)` | [L110](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L110) |
+| [`yui_button_mark_done`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L159) | `function yui_button_mark_done($button, label)` | [L159](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L159) |
+| [`yui_button_unmark`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L183) | `function yui_button_unmark($button)` | [L183](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L183) |
+| [`yui_copy_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L80) | `function yui_copy_json(value)` | [L80](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L80) |
+| [`yui_copy_table_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L130) | `function yui_copy_table_json(tabulator)` | [L130](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L130) |
+| [`yui_copy_text`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L54) | `function yui_copy_text(text)` | [L54](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L54) |
+| [`yui_table_rows`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L110) | `function yui_table_rows(tabulator)` | [L110](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L110) |
 
 ### `src/yui_dev.js` — 5 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`apply_dev_traces`**](gobj-ui/dev.md#js_apply_dev_traces) | `function apply_dev_traces()` | [L1479](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_dev.js#L1479) |
-| [**`build_dev_panel`**](gobj-ui/dev.md#js_build_dev_panel) | `function build_dev_panel()` | [L1589](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_dev.js#L1589) |
-| [**`dev_window_was_open`**](gobj-ui/dev.md#js_dev_window_was_open) | `function dev_window_was_open()` | [L1468](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_dev.js#L1468) |
-| [**`info_traffic`**](gobj-ui/dev.md#js_info_traffic) | `function info_traffic(title, msg, direction, size)` | [L898](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_dev.js#L898) |
-| [**`setup_dev`**](gobj-ui/dev.md#js_setup_dev) | `function setup_dev(self, show)` | [L1525](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_dev.js#L1525) |
+| [**`apply_dev_traces`**](gobj-ui/dev.md#js_apply_dev_traces) | `function apply_dev_traces()` | [L1479](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_dev.js#L1479) |
+| [**`build_dev_panel`**](gobj-ui/dev.md#js_build_dev_panel) | `function build_dev_panel()` | [L1589](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_dev.js#L1589) |
+| [**`dev_window_was_open`**](gobj-ui/dev.md#js_dev_window_was_open) | `function dev_window_was_open()` | [L1468](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_dev.js#L1468) |
+| [**`info_traffic`**](gobj-ui/dev.md#js_info_traffic) | `function info_traffic(title, msg, direction, size)` | [L898](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_dev.js#L898) |
+| [**`setup_dev`**](gobj-ui/dev.md#js_setup_dev) | `function setup_dev(self, show)` | [L1525](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_dev.js#L1525) |
 
 ### `src/yui_frontend_view.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`setup_frontend_view`**](gobj-ui/dev.md#js_setup_frontend_view) | `function setup_frontend_view(self)` | [L42](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_frontend_view.js#L42) |
+| [**`setup_frontend_view`**](gobj-ui/dev.md#js_setup_frontend_view) | `function setup_frontend_view(self)` | [L42](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_frontend_view.js#L42) |
 
 ### `src/yui_inputs.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`attach_clear`**](gobj-ui/dom.md#js_attach_clear) | `function attach_clear($control, $input, on_clear)` | [L48](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_inputs.js#L48) |
-| [**`refresh_clear`**](gobj-ui/dom.md#js_refresh_clear) | `function refresh_clear($input)` | [L98](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_inputs.js#L98) |
+| [**`attach_clear`**](gobj-ui/dom.md#js_attach_clear) | `function attach_clear($control, $input, on_clear)` | [L48](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_inputs.js#L48) |
+| [**`refresh_clear`**](gobj-ui/dom.md#js_refresh_clear) | `function refresh_clear($input)` | [L98](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_inputs.js#L98) |
 
 ### `src/yui_install.js` — 6 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`yui_install_ask_once`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L197) | `function yui_install_ask_once(shell, opts)` | [L197](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L197) |
-| [`yui_install_can`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L112) | `function yui_install_can()` | [L112](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L112) |
-| [`yui_install_is_installed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L93) | `function yui_install_is_installed()` | [L93](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L93) |
-| [`yui_install_prompt`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L131) | `function yui_install_prompt()` | [L131](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L131) |
-| [`yui_install_start_watch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L169) | `function yui_install_start_watch()` | [L169](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L169) |
-| [`yui_install_subscribe`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L56) | `function yui_install_subscribe(fn)` | [L56](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L56) |
+| [`yui_install_ask_once`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L197) | `function yui_install_ask_once(shell, opts)` | [L197](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L197) |
+| [`yui_install_can`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L112) | `function yui_install_can()` | [L112](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L112) |
+| [`yui_install_is_installed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L93) | `function yui_install_is_installed()` | [L93](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L93) |
+| [`yui_install_prompt`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L131) | `function yui_install_prompt()` | [L131](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L131) |
+| [`yui_install_start_watch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L169) | `function yui_install_start_watch()` | [L169](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L169) |
+| [`yui_install_subscribe`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L56) | `function yui_install_subscribe(fn)` | [L56](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L56) |
 
 ### `src/yui_tabulator_i18n.js` — 2 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`yui_tabulator_lang`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L45) | `function yui_tabulator_lang(t)` | [L45](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L45) |
-| [`yui_tabulator_relocalize`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L92) | `function yui_tabulator_relocalize(table, t)` | [L92](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L92) |
+| [`yui_tabulator_lang`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L45) | `function yui_tabulator_lang(t)` | [L45](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L45) |
+| [`yui_tabulator_relocalize`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L92) | `function yui_tabulator_relocalize(table, t)` | [L92](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L92) |
 
 ### `src/yui_theme.js` — 3 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`yui_is_dark`**](gobj-ui/theme.md#js_yui_is_dark) | `function yui_is_dark()` | [L56](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_theme.js#L56) |
-| [**`yui_theme_now`**](gobj-ui/theme.md#js_yui_theme_now) | `function yui_theme_now()` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_theme.js#L37) |
-| [**`yui_watch_theme`**](gobj-ui/theme.md#js_yui_watch_theme) | `function yui_watch_theme(gobj, event = "EV_THEME")` | [L85](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_theme.js#L85) |
+| [**`yui_is_dark`**](gobj-ui/theme.md#js_yui_is_dark) | `function yui_is_dark()` | [L56](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_theme.js#L56) |
+| [**`yui_theme_now`**](gobj-ui/theme.md#js_yui_theme_now) | `function yui_theme_now()` | [L37](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_theme.js#L37) |
+| [**`yui_watch_theme`**](gobj-ui/theme.md#js_yui_watch_theme) | `function yui_watch_theme(gobj, event = "EV_THEME")` | [L85](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_theme.js#L85) |
 
 ### `src/yui_time.js` — 24 symbols
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [`MS_DAY`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L50) | `const MS_DAY = 86400000;` | [L50](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L50) |
-| [`PERIOD_UNITS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L54) | `const PERIOD_UNITS = ["minute", "hour", "day", "week", "month", "year"];` | [L54](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L54) |
-| [**`YUI_PERIODS`**](gobj-ui/time.md#js_YUI_PERIODS) | `const YUI_PERIODS =` | [L61](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L61) |
-| [**`YUI_PERIODS_DEFAULT`**](gobj-ui/time.md#js_YUI_PERIODS_DEFAULT) | `const YUI_PERIODS_DEFAULT = ["hour", "day", "week", "month", "year"];` | [L80](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L80) |
-| [**`YUI_ROLLING`**](gobj-ui/time.md#js_YUI_ROLLING) | `const YUI_ROLLING =` | [L85](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L85) |
-| [`day_number`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L241) | `function day_number(d)` | [L241](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L241) |
-| [**`epoch_to_local_input`**](gobj-ui/time.md#js_epoch_to_local_input) | `function epoch_to_local_input(value, ms)` | [L184](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L184) |
-| [**`epoch_to_ms`**](gobj-ui/time.md#js_epoch_to_ms) | `function epoch_to_ms(value, ms)` | [L162](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L162) |
-| [**`fmt_epoch`**](gobj-ui/time.md#js_fmt_epoch) | `function fmt_epoch(value, ms)` | [L213](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L213) |
-| [**`infer_period`**](gobj-ui/time.md#js_infer_period) | `function infer_period(from, to, candidates, ms)` | [L497](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L497) |
-| [**`is_current_period`**](gobj-ui/time.md#js_is_current_period) | `function is_current_period(period, anchor_ms, now_ms)` | [L469](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L469) |
-| [**`iso_week`**](gobj-ui/time.md#js_iso_week) | `function iso_week(d)` | [L270](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L270) |
-| [**`local_input_to_epoch`**](gobj-ui/time.md#js_local_input_to_epoch) | `function local_input_to_epoch(v, ms)` | [L195](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L195) |
-| [**`ms_to_epoch`**](gobj-ui/time.md#js_ms_to_epoch) | `function ms_to_epoch(value_ms, ms)` | [L170](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L170) |
-| [**`period_bounds`**](gobj-ui/time.md#js_period_bounds) | `function period_bounds(period, anchor_ms)` | [L422](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L422) |
-| [**`period_bounds_epoch`**](gobj-ui/time.md#js_period_bounds_epoch) | `function period_bounds_epoch(period, anchor_ms, ms)` | [L438](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L438) |
-| [**`period_label`**](gobj-ui/time.md#js_period_label) | `function period_label(period, anchor_ms, t, locale)` | [L554](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L554) |
-| [**`period_name`**](gobj-ui/time.md#js_period_name) | `function period_name(period, t)` | [L528](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L528) |
-| [**`period_shift`**](gobj-ui/time.md#js_period_shift) | `function period_shift(period, anchor_ms, delta)` | [L385](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L385) |
-| [**`period_spec`**](gobj-ui/time.md#js_period_spec) | `function period_spec(period)` | [L302](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L302) |
-| [**`period_start`**](gobj-ui/time.md#js_period_start) | `function period_start(period, anchor_ms)` | [L338](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L338) |
-| [**`rolling_bounds`**](gobj-ui/time.md#js_rolling_bounds) | `function rolling_bounds(rolling, ms, now_ms)` | [L455](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L455) |
-| [**`safe_locale`**](gobj-ui/time.md#js_safe_locale) | `function safe_locale(locale)` | [L108](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L108) |
-| [`start_of_iso_week`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L257) | `function start_of_iso_week(d)` | [L257](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L257) |
+| [`MS_DAY`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L50) | `const MS_DAY = 86400000;` | [L50](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L50) |
+| [`PERIOD_UNITS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L54) | `const PERIOD_UNITS = ["minute", "hour", "day", "week", "month", "year"];` | [L54](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L54) |
+| [**`YUI_PERIODS`**](gobj-ui/time.md#js_YUI_PERIODS) | `const YUI_PERIODS =` | [L61](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L61) |
+| [**`YUI_PERIODS_DEFAULT`**](gobj-ui/time.md#js_YUI_PERIODS_DEFAULT) | `const YUI_PERIODS_DEFAULT = ["hour", "day", "week", "month", "year"];` | [L80](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L80) |
+| [**`YUI_ROLLING`**](gobj-ui/time.md#js_YUI_ROLLING) | `const YUI_ROLLING =` | [L85](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L85) |
+| [`day_number`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L241) | `function day_number(d)` | [L241](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L241) |
+| [**`epoch_to_local_input`**](gobj-ui/time.md#js_epoch_to_local_input) | `function epoch_to_local_input(value, ms)` | [L184](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L184) |
+| [**`epoch_to_ms`**](gobj-ui/time.md#js_epoch_to_ms) | `function epoch_to_ms(value, ms)` | [L162](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L162) |
+| [**`fmt_epoch`**](gobj-ui/time.md#js_fmt_epoch) | `function fmt_epoch(value, ms)` | [L213](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L213) |
+| [**`infer_period`**](gobj-ui/time.md#js_infer_period) | `function infer_period(from, to, candidates, ms)` | [L497](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L497) |
+| [**`is_current_period`**](gobj-ui/time.md#js_is_current_period) | `function is_current_period(period, anchor_ms, now_ms)` | [L469](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L469) |
+| [**`iso_week`**](gobj-ui/time.md#js_iso_week) | `function iso_week(d)` | [L270](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L270) |
+| [**`local_input_to_epoch`**](gobj-ui/time.md#js_local_input_to_epoch) | `function local_input_to_epoch(v, ms)` | [L195](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L195) |
+| [**`ms_to_epoch`**](gobj-ui/time.md#js_ms_to_epoch) | `function ms_to_epoch(value_ms, ms)` | [L170](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L170) |
+| [**`period_bounds`**](gobj-ui/time.md#js_period_bounds) | `function period_bounds(period, anchor_ms)` | [L422](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L422) |
+| [**`period_bounds_epoch`**](gobj-ui/time.md#js_period_bounds_epoch) | `function period_bounds_epoch(period, anchor_ms, ms)` | [L438](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L438) |
+| [**`period_label`**](gobj-ui/time.md#js_period_label) | `function period_label(period, anchor_ms, t, locale)` | [L554](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L554) |
+| [**`period_name`**](gobj-ui/time.md#js_period_name) | `function period_name(period, t)` | [L528](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L528) |
+| [**`period_shift`**](gobj-ui/time.md#js_period_shift) | `function period_shift(period, anchor_ms, delta)` | [L385](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L385) |
+| [**`period_spec`**](gobj-ui/time.md#js_period_spec) | `function period_spec(period)` | [L302](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L302) |
+| [**`period_start`**](gobj-ui/time.md#js_period_start) | `function period_start(period, anchor_ms)` | [L338](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L338) |
+| [**`rolling_bounds`**](gobj-ui/time.md#js_rolling_bounds) | `function rolling_bounds(rolling, ms, now_ms)` | [L455](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L455) |
+| [**`safe_locale`**](gobj-ui/time.md#js_safe_locale) | `function safe_locale(locale)` | [L108](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L108) |
+| [`start_of_iso_week`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L257) | `function start_of_iso_week(d)` | [L257](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L257) |
 
 ### `src/yui_toolbar.js` — 1 symbol
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`yui_toolbar`**](gobj-ui/dom.md#js_yui_toolbar) | `function yui_toolbar(attrs={}, items = [])` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_toolbar.js#L19) |
+| [**`yui_toolbar`**](gobj-ui/dom.md#js_yui_toolbar) | `function yui_toolbar(attrs={}, items = [])` | [L19](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_toolbar.js#L19) |
 
 ## Alphabetical index
 
 | Symbol | Module | Package |
 |---|---|---|
 | [**`__yuno__`**](js/hierarchy.md#js___yuno__) | `src/gobj.js` | gobj-js (Core Framework) |
-| [`activate_focus_trap_on`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L55) | `src/shell_focus_trap.js` | gobj-ui (UI Library) |
+| [`activate_focus_trap_on`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L55) | `src/shell_focus_trap.js` | gobj-ui (UI Library) |
 | [**`addClasses`**](gobj-ui/dom.md#js_addClasses) | `src/lib_graph.js` | gobj-ui (UI Library) |
 | [**`apply_dev_traces`**](gobj-ui/dev.md#js_apply_dev_traces) | `src/yui_dev.js` | gobj-ui (UI Library) |
 | [**`attach_clear`**](gobj-ui/dom.md#js_attach_clear) | `src/yui_inputs.js` | gobj-ui (UI Library) |
-| [`breakpoints_from_expr`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L31) | `src/shell_show_on.js` | gobj-ui (UI Library) |
+| [`breakpoints_from_expr`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L31) | `src/shell_show_on.js` | gobj-ui (UI Library) |
 | [**`build_command_response`**](js/events.md#js_build_command_response) | `src/command_parser.js` | gobj-js (Core Framework) |
 | [**`build_dev_panel`**](gobj-ui/dev.md#js_build_dev_panel) | `src/yui_dev.js` | gobj-ui (UI Library) |
-| [`build_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_map_model.js#L248) | `src/route_map_model.js` | gobj-ui (UI Library) |
+| [`build_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_map_model.js#L248) | `src/route_map_model.js` | gobj-ui (UI Library) |
 | [**`build_path`**](js/helpers_str.md#js_build_path) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`build_stats_response`**](js/events.md#js_build_stats_response) | `src/stats_parser.js` | gobj-js (Core Framework) |
-| [`BULMA_BP_ORDER`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L13) | `src/shell_show_on.js` | gobj-ui (UI Library) |
-| [`bulma_hidden_class`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_show_on.js#L81) | `src/shell_show_on.js` | gobj-ui (UI Library) |
-| [`card_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L21) | `src/nav_cards_helpers.js` | gobj-ui (UI Library) |
-| [`cards_grid_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/nav_cards_helpers.js#L61) | `src/nav_cards_helpers.js` | gobj-ui (UI Library) |
-| [`child_nav_items`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L172) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`chrome_visible`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L206) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`classify_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L39) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`BULMA_BP_ORDER`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L13) | `src/shell_show_on.js` | gobj-ui (UI Library) |
+| [`bulma_hidden_class`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_show_on.js#L81) | `src/shell_show_on.js` | gobj-ui (UI Library) |
+| [`card_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L21) | `src/nav_cards_helpers.js` | gobj-ui (UI Library) |
+| [`cards_grid_descriptor`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/nav_cards_helpers.js#L61) | `src/nav_cards_helpers.js` | gobj-ui (UI Library) |
+| [`child_nav_items`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L172) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`chrome_visible`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L206) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`classify_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L39) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
 | [**`clean_name`**](js/helpers_str.md#js_clean_name) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`clear_timeout`**](js/builtin_gclasses.md#js_clear_timeout) | `src/c_timer.js` | gobj-js (Core Framework) |
 | [**`cmp_two_simple_json`**](js/helpers_str.md#js_cmp_two_simple_json) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -794,13 +794,13 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`createOneHtml`**](js/helpers_dom.md#js_createOneHtml) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`current_timestamp`**](js/helpers_str.md#js_current_timestamp) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`data_type_t`**](js/attrs.md#js_data_type_t) | `src/gobj.js` | gobj-js (Core Framework) |
-| [`day_number`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L241) | `src/yui_time.js` | gobj-ui (UI Library) |
+| [`day_number`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L241) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`db_list_persistent_attrs`**](js/persistence.md#js_db_list_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
 | [**`db_load_persistent_attrs`**](js/persistence.md#js_db_load_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
 | [**`db_remove_persistent_attrs`**](js/persistence.md#js_db_remove_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
 | [**`db_save_persistent_attrs`**](js/persistence.md#js_db_save_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
 | [**`debounce`**](js/helpers_str.md#js_debounce) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`DEFAULT_TOOLBAR`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L19) | `src/form_toolbar_plan.js` | gobj-ui (UI Library) |
+| [`DEFAULT_TOOLBAR`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L19) | `src/form_toolbar_plan.js` | gobj-ui (UI Library) |
 | [**`delete_from_list`**](js/helpers_str.md#js_delete_from_list) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`dev_window_was_open`**](gobj-ui/dev.md#js_dev_window_was_open) | `src/yui_dev.js` | gobj-ui (UI Library) |
 | [**`disableElements`**](gobj-ui/dom.md#js_disableElements) | `src/lib_graph.js` | gobj-ui (UI Library) |
@@ -808,15 +808,15 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`EditControl`**](gobj-ui/maplibre.md#js_EditControl) | `src/lib_maplibre.js` | gobj-ui (UI Library) |
 | [**`empty_string`**](js/helpers_json.md#js_empty_string) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`enableElements`**](gobj-ui/dom.md#js_enableElements) | `src/lib_graph.js` | gobj-ui (UI Library) |
-| [`ensure_drag_canvas_patch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/g6_drag_canvas_touch.js#L132) | `src/g6_drag_canvas_touch.js` | gobj-ui (UI Library) |
+| [`ensure_drag_canvas_patch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/g6_drag_canvas_touch.js#L132) | `src/g6_drag_canvas_touch.js` | gobj-ui (UI Library) |
 | [**`epoch_to_local_input`**](gobj-ui/time.md#js_epoch_to_local_input) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`epoch_to_ms`**](gobj-ui/time.md#js_epoch_to_ms) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`escapeHtml`**](js/helpers_dom.md#js_escapeHtml) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`event_flag_t`**](js/state_machine.md#js_event_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`expose_view_container`**](gobj-ui/gclasses.md#js_expose_view_container) | `src/c_yui_service_view.js` | gobj-ui (UI Library) |
 | [**`fmt_epoch`**](gobj-ui/time.md#js_fmt_epoch) | `src/yui_time.js` | gobj-ui (UI Library) |
-| [`FOCUSABLE_SELECTOR`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_focus_trap.js#L30) | `src/shell_focus_trap.js` | gobj-ui (UI Library) |
-| [`format_epoch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L203) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`FOCUSABLE_SELECTOR`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_focus_trap.js#L30) | `src/shell_focus_trap.js` | gobj-ui (UI Library) |
+| [`format_epoch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L203) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`gclass_add_ev_action`**](js/gclass.md#js_gclass_add_ev_action) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gclass_add_event_type`**](js/gclass.md#js_gclass_add_event_type) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gclass_add_state`**](js/gclass.md#js_gclass_add_state) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -826,7 +826,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gclass_find_by_name`**](js/gclass.md#js_gclass_find_by_name) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gclass_flag_t`**](js/gclass.md#js_gclass_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gclass_unregister`**](js/gclass.md#js_gclass_unregister) | `src/gobj.js` | gobj-js (Core Framework) |
-| [`get_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L102) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`get_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L102) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`get_function_name`**](js/helpers_str.md#js_get_function_name) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`get_now`**](js/helpers_str.md#js_get_now) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`getPositionRelativeToBody`**](js/helpers_dom.md#js_getPositionRelativeToBody) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -927,7 +927,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_yuno_id`**](js/hierarchy.md#js_gobj_yuno_id) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_yuno_name`**](js/hierarchy.md#js_gobj_yuno_name) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_yuno_role`**](js/hierarchy.md#js_gobj_yuno_role) | `src/gobj.js` | gobj-js (Core Framework) |
-| [`head_tail`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L65) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`head_tail`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L65) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`id_index_in_obj_list`**](js/helpers_str.md#js_id_index_in_obj_list) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`index_in_list`**](js/helpers_str.md#js_index_in_list) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`infer_period`**](gobj-ui/time.md#js_infer_period) | `src/yui_time.js` | gobj-ui (UI Library) |
@@ -935,20 +935,20 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`inject_svg_icons`**](gobj-ui/dom.md#js_inject_svg_icons) | `src/lib_icons.js` | gobj-ui (UI Library) |
 | [**`is_array`**](js/helpers_json.md#js_is_array) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_boolean`**](js/helpers_json.md#js_is_boolean) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`is_collapsed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L58) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`is_collapsed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L58) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`is_current_period`**](gobj-ui/time.md#js_is_current_period) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`is_date`**](js/helpers_json.md#js_is_date) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_function`**](js/helpers_json.md#js_is_function) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_gobj`**](js/helpers_json.md#js_is_gobj) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_metadata_key`**](js/helpers_kw.md#js_is_metadata_key) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`is_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L234) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`is_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L234) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`is_null`**](js/helpers_json.md#js_is_null) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_number`**](js/helpers_json.md#js_is_number) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_object`**](js/helpers_json.md#js_is_object) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_private_key`**](js/helpers_kw.md#js_is_private_key) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_pure_number`**](js/helpers_json.md#js_is_pure_number) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`is_string`**](js/helpers_json.md#js_is_string) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`is_time_field`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L189) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`is_time_field`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L189) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`iso_week`**](gobj-ui/time.md#js_iso_week) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`jdb_delete`**](js/helpers_data.md#js_jdb_delete) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`jdb_get`**](js/helpers_data.md#js_jdb_get) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -956,7 +956,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`jdb_get_topic`**](js/helpers_data.md#js_jdb_get_topic) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`jdb_init`**](js/helpers_data.md#js_jdb_init) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`jdb_update`**](js/helpers_data.md#js_jdb_update) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`join_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L78) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`join_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L78) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`json_array_append`**](js/helpers_json.md#js_json_array_append) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`json_array_append_new`**](js/helpers_json.md#js_json_array_append_new) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`json_array_extend`**](js/helpers_json.md#js_json_array_extend) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -972,9 +972,9 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`json_object_update`**](js/helpers_json.md#js_json_object_update) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`json_object_update_existing`**](js/helpers_json.md#js_json_object_update_existing) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`json_object_update_missing`**](js/helpers_json.md#js_json_object_update_missing) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`JSON_PATH_DELIMITER`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L21) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`JSON_PATH_DELIMITER`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L21) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`json_size`**](js/helpers_json.md#js_json_size) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`json_type`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L26) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`json_type`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L26) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`jwt2json`**](js/helpers_data.md#js_jwt2json) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`jwtDecode`**](js/helpers_data.md#js_jwtDecode) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`kw_clone_by_keys`**](js/helpers_kw.md#js_kw_clone_by_keys) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1014,7 +1014,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`log_info`**](js/logging.md#js_log_info) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`log_warning`**](js/logging.md#js_log_warning) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`MarkerControl`**](gobj-ui/maplibre.md#js_MarkerControl) | `src/lib_maplibre.js` | gobj-ui (UI Library) |
-| [`MS_DAY`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L50) | `src/yui_time.js` | gobj-ui (UI Library) |
+| [`MS_DAY`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L50) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`ms_to_epoch`**](gobj-ui/time.md#js_ms_to_epoch) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`msg_iev_get_msg_type`**](js/helpers_kw.md#js_msg_iev_get_msg_type) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`msg_iev_get_stack`**](js/helpers_kw.md#js_msg_iev_get_stack) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1022,18 +1022,18 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`msg_iev_read_key`**](js/helpers_kw.md#js_msg_iev_read_key) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`msg_iev_set_msg_type`**](js/helpers_kw.md#js_msg_iev_set_msg_type) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`msg_iev_write_key`**](js/helpers_kw.md#js_msg_iev_write_key) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`nav_mode_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L270) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`nav_mode_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L246) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`NAV_MODES`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L232) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`nav_mode_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L270) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`nav_mode_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L246) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`NAV_MODES`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L232) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`node_uuid`**](js/helpers_str.md#js_node_uuid) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`normalize_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L40) | `src/route_resolver.js` | gobj-ui (UI Library) |
-| [`normalize_spec`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L291) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`pager_back_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L120) | `src/pager_helpers.js` | gobj-ui (UI Library) |
-| [`pager_header_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L79) | `src/pager_helpers.js` | gobj-ui (UI Library) |
-| [`pager_pop`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L30) | `src/pager_helpers.js` | gobj-ui (UI Library) |
-| [`pager_push`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L21) | `src/pager_helpers.js` | gobj-ui (UI Library) |
-| [`pager_replace`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L45) | `src/pager_helpers.js` | gobj-ui (UI Library) |
-| [`pager_top`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/pager_helpers.js#L59) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`normalize_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L40) | `src/route_resolver.js` | gobj-ui (UI Library) |
+| [`normalize_spec`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L291) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`pager_back_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L120) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`pager_header_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L79) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`pager_pop`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L30) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`pager_push`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L21) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`pager_replace`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L45) | `src/pager_helpers.js` | gobj-ui (UI Library) |
+| [`pager_top`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/pager_helpers.js#L59) | `src/pager_helpers.js` | gobj-ui (UI Library) |
 | [**`parseBoolean`**](js/helpers_json.md#js_parseBoolean) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`parseSVG`**](js/helpers_dom.md#js_parseSVG) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`period_bounds`**](gobj-ui/time.md#js_period_bounds) | `src/yui_time.js` | gobj-ui (UI Library) |
@@ -1043,9 +1043,9 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`period_shift`**](gobj-ui/time.md#js_period_shift) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`period_spec`**](gobj-ui/time.md#js_period_spec) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`period_start`**](gobj-ui/time.md#js_period_start) | `src/yui_time.js` | gobj-ui (UI Library) |
-| [`PERIOD_UNITS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L54) | `src/yui_time.js` | gobj-ui (UI Library) |
-| [`plan_toolbar`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/form_toolbar_plan.js#L35) | `src/form_toolbar_plan.js` | gobj-ui (UI Library) |
-| [`projection_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L123) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`PERIOD_UNITS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L54) | `src/yui_time.js` | gobj-ui (UI Library) |
+| [`plan_toolbar`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/form_toolbar_plan.js#L35) | `src/form_toolbar_plan.js` | gobj-ui (UI Library) |
+| [`projection_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L123) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`refresh_clear`**](gobj-ui/dom.md#js_refresh_clear) | `src/yui_inputs.js` | gobj-ui (UI Library) |
 | [**`refresh_language`**](js/helpers_dom.md#js_refresh_language) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`register_c_g6_nodes_tree`**](gobj-ui/gclasses.md#js_register_c_g6_nodes_tree) | `src/c_g6_nodes_tree.js` | gobj-ui (UI Library) |
@@ -1057,7 +1057,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`register_c_yui_json_graph`**](gobj-ui/gclasses.md#js_register_c_yui_json_graph) | `src/c_yui_json_graph.js` | gobj-ui (UI Library) |
 | [**`register_c_yui_map`**](gobj-ui/gclasses.md#js_register_c_yui_map) | `src/c_yui_map.js` | gobj-ui (UI Library) |
 | [**`register_c_yui_nav`**](gobj-ui/gclasses.md#js_register_c_yui_nav) | `src/c_yui_nav.js` | gobj-ui (UI Library) |
-| [`register_c_yui_node`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1690) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`register_c_yui_node`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1690) | `src/c_yui_node.js` | gobj-ui (UI Library) |
 | [**`register_c_yui_pager`**](gobj-ui/gclasses.md#js_register_c_yui_pager) | `src/c_yui_pager.js` | gobj-ui (UI Library) |
 | [**`register_c_yui_period`**](gobj-ui/gclasses.md#js_register_c_yui_period) | `src/c_yui_period.js` | gobj-ui (UI Library) |
 | [**`register_c_yui_service_view`**](gobj-ui/gclasses.md#js_register_c_yui_service_view) | `src/c_yui_service_view.js` | gobj-ui (UI Library) |
@@ -1073,7 +1073,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`register_c_yuno`**](js/builtin_gclasses.md#js_register_c_yuno) | `src/c_yuno.js` | gobj-js (Core Framework) |
 | [**`removeChildElements`**](gobj-ui/dom.md#js_removeChildElements) | `src/lib_graph.js` | gobj-ui (UI Library) |
 | [**`removeClasses`**](gobj-ui/dom.md#js_removeClasses) | `src/lib_graph.js` | gobj-ui (UI Library) |
-| [`resolve_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/route_resolver.js#L55) | `src/route_resolver.js` | gobj-ui (UI Library) |
+| [`resolve_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/route_resolver.js#L55) | `src/route_resolver.js` | gobj-ui (UI Library) |
 | [**`rolling_bounds`**](gobj-ui/time.md#js_rolling_bounds) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`safe_locale`**](gobj-ui/time.md#js_safe_locale) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`safeSrc`**](js/helpers_dom.md#js_safeSrc) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1087,13 +1087,13 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`SDATADF`**](js/commands.md#js_SDATADF) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATAPM`**](js/commands.md#js_SDATAPM) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATAPM0`**](js/commands.md#js_SDATAPM0) | `src/gobj.js` | gobj-js (Core Framework) |
-| [`secondary_nav_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L81) | `src/shell_section_index.js` | gobj-ui (UI Library) |
-| [`section_index_target`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_section_index.js#L43) | `src/shell_section_index.js` | gobj-ui (UI Library) |
-| [`seg_join`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L83) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
-| [`seg_split`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L90) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`secondary_nav_renders`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L81) | `src/shell_section_index.js` | gobj-ui (UI Library) |
+| [`section_index_target`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_section_index.js#L43) | `src/shell_section_index.js` | gobj-ui (UI Library) |
+| [`seg_join`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L83) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`seg_split`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L90) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`send_http_json_post`**](js/helpers_data.md#js_send_http_json_post) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`set_active_state`**](gobj-ui/dom.md#js_set_active_state) | `src/lib_graph.js` | gobj-ui (UI Library) |
-| [`set_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L127) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`set_by_segments`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L127) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`set_cancel_state`**](gobj-ui/dom.md#js_set_cancel_state) | `src/lib_graph.js` | gobj-ui (UI Library) |
 | [**`set_console_log_enabled`**](js/logging.md#js_set_console_log_enabled) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`set_log_callback`**](js/logging.md#js_set_log_callback) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1103,9 +1103,9 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`set_timeout_periodic`**](js/builtin_gclasses.md#js_set_timeout_periodic) | `src/c_timer.js` | gobj-js (Core Framework) |
 | [**`setup_dev`**](gobj-ui/dev.md#js_setup_dev) | `src/yui_dev.js` | gobj-ui (UI Library) |
 | [**`setup_frontend_view`**](gobj-ui/dev.md#js_setup_frontend_view) | `src/yui_frontend_view.js` | gobj-ui (UI Library) |
-| [`split_subpath`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L52) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`split_subpath`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L52) | `src/node_tree_model.js` | gobj-ui (UI Library) |
 | [**`sprintf`**](js/logging.md#js_sprintf) | `src/sprintf.js` | gobj-js (Core Framework) |
-| [`start_of_iso_week`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_time.js#L257) | `src/yui_time.js` | gobj-ui (UI Library) |
+| [`start_of_iso_week`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_time.js#L257) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`stats_parser`**](js/events.md#js_stats_parser) | `src/stats_parser.js` | gobj-js (Core Framework) |
 | [**`str_in_list`**](js/helpers_str.md#js_str_in_list) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`strcasecmp`**](js/helpers_str.md#js_strcasecmp) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1113,12 +1113,12 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`strncmp`**](js/helpers_str.md#js_strncmp) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`strs_in_list`**](js/helpers_str.md#js_strs_in_list) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`strstr`**](js/helpers_str.md#js_strstr) | `src/helpers.js` | gobj-js (Core Framework) |
-| [`subtree_matches`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/json_view_helpers.js#L153) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
+| [`subtree_matches`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/json_view_helpers.js#L153) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [**`template_get_field_desc`**](js/treedb_helpers.md#js_template_get_field_desc) | `src/lib_treedb.js` | gobj-js (Core Framework) |
 | [**`timeTracker`**](js/helpers_str.md#js_timeTracker) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`toggleClasses`**](gobj-ui/dom.md#js_toggleClasses) | `src/lib_graph.js` | gobj-ui (UI Library) |
-| [`TOOLBAR_ACTION_TYPES`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L29) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
-| [`TOOLBAR_ITEM_KINDS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L28) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`TOOLBAR_ACTION_TYPES`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L29) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`TOOLBAR_ITEM_KINDS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L28) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
 | [**`trace_json`**](js/logging.md#js_trace_json) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`trace_level_t`**](js/traces.md#js_trace_level_t) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`trace_msg`**](js/logging.md#js_trace_msg) | `src/helpers.js` | gobj-js (Core Framework) |
@@ -1127,57 +1127,57 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`treedb_encoder_fkey`**](js/treedb_helpers.md#js_treedb_encoder_fkey) | `src/lib_treedb.js` | gobj-js (Core Framework) |
 | [**`treedb_get_field_desc`**](js/treedb_helpers.md#js_treedb_get_field_desc) | `src/lib_treedb.js` | gobj-js (Core Framework) |
 | [**`treedb_hook_data_size`**](js/treedb_helpers.md#js_treedb_hook_data_size) | `src/lib_treedb.js` | gobj-js (Core Framework) |
-| [`VALID_LAYOUTS`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/node_tree_model.js#L37) | `src/node_tree_model.js` | gobj-ui (UI Library) |
-| [`validate_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L112) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
-| [`validate_dropdown_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L165) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
-| [`validate_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_toolbar_helpers.js#L60) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`VALID_LAYOUTS`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/node_tree_model.js#L37) | `src/node_tree_model.js` | gobj-ui (UI Library) |
+| [`validate_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L112) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`validate_dropdown_action`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L165) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
+| [`validate_toolbar_item`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_toolbar_helpers.js#L60) | `src/shell_toolbar_helpers.js` | gobj-ui (UI Library) |
 | [**`vsprintf`**](js/logging.md#js_vsprintf) | `src/sprintf.js` | gobj-js (Core Framework) |
-| [`wizard_accumulate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L88) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`wizard_clamp_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L20) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`wizard_next_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L37) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`wizard_prev_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L42) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`wizard_should_validate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L105) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`wizard_step_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/wizard_helpers.js#L55) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
-| [`yui_button_mark_done`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L159) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_button_unmark`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L183) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_copy_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L80) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_copy_table_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L130) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_copy_text`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L54) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_install_ask_once`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L197) | `src/yui_install.js` | gobj-ui (UI Library) |
-| [`yui_install_can`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L112) | `src/yui_install.js` | gobj-ui (UI Library) |
-| [`yui_install_is_installed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L93) | `src/yui_install.js` | gobj-ui (UI Library) |
-| [`yui_install_prompt`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L131) | `src/yui_install.js` | gobj-ui (UI Library) |
-| [`yui_install_start_watch`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L169) | `src/yui_install.js` | gobj-ui (UI Library) |
-| [`yui_install_subscribe`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_install.js#L56) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`wizard_accumulate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L88) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`wizard_clamp_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L20) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`wizard_next_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L37) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`wizard_prev_index`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L42) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`wizard_should_validate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L105) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`wizard_step_model`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/wizard_helpers.js#L55) | `src/wizard_helpers.js` | gobj-ui (UI Library) |
+| [`yui_button_mark_done`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L159) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_button_unmark`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L183) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_copy_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L80) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_copy_table_json`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L130) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_copy_text`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L54) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_install_ask_once`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L197) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`yui_install_can`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L112) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`yui_install_is_installed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L93) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`yui_install_prompt`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L131) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`yui_install_start_watch`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L169) | `src/yui_install.js` | gobj-ui (UI Library) |
+| [`yui_install_subscribe`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_install.js#L56) | `src/yui_install.js` | gobj-ui (UI Library) |
 | [**`yui_is_dark`**](gobj-ui/theme.md#js_yui_is_dark) | `src/yui_theme.js` | gobj-ui (UI Library) |
 | [**`yui_mount_service_view`**](gobj-ui/gclasses.md#js_yui_mount_service_view) | `src/c_yui_service_view.js` | gobj-ui (UI Library) |
-| [`yui_node_add`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1495) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_find`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1540) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1530) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_remove`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1500) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1553) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_set_chrome_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1515) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_set_content`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1510) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_set_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1525) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_set_projection`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1505) | `src/c_yui_node.js` | gobj-ui (UI Library) |
-| [`yui_node_tree_version`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_node.js#L1567) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_add`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1495) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_find`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1540) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1530) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_remove`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1500) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_route`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1553) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_set_chrome_depth`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1515) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_set_content`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1510) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_set_nav_mode`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1525) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_set_projection`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1505) | `src/c_yui_node.js` | gobj-ui (UI Library) |
+| [`yui_node_tree_version`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_node.js#L1567) | `src/c_yui_node.js` | gobj-ui (UI Library) |
 | [**`YUI_PERIODS`**](gobj-ui/time.md#js_YUI_PERIODS) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`YUI_PERIODS_DEFAULT`**](gobj-ui/time.md#js_YUI_PERIODS_DEFAULT) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`YUI_ROLLING`**](gobj-ui/time.md#js_YUI_ROLLING) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`yui_shell_close_drawer`**](gobj-ui/shell.md#js_yui_shell_close_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_close_dropdown`**](gobj-ui/shell.md#js_yui_shell_close_dropdown) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_confirm_danger`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L579) | `src/shell_modals.js` | gobj-ui (UI Library) |
+| [**`yui_shell_confirm_danger`**](gobj-ui/modals.md#js_yui_shell_confirm_danger) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_ok`**](gobj-ui/modals.md#js_yui_shell_confirm_ok) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_yesno`**](gobj-ui/modals.md#js_yui_shell_confirm_yesno) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_yesnocancel`**](gobj-ui/modals.md#js_yui_shell_confirm_yesnocancel) | `src/shell_modals.js` | gobj-ui (UI Library) |
-| [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3393) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3183) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3393) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3183) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_navigate`**](gobj-ui/shell.md#js_yui_shell_navigate) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3109) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3109) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_open_drawer`**](gobj-ui/shell.md#js_yui_shell_open_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_overlay_dismissed`**](gobj-ui/shell.md#js_yui_shell_overlay_dismissed) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_pop_escape`**](gobj-ui/shell.md#js_yui_shell_pop_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_popup_layer`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L75) | `src/shell_modals.js` | gobj-ui (UI Library) |
+| [`yui_shell_popup_layer`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L75) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_push_escape`**](gobj-ui/shell.md#js_yui_shell_push_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_refresh_avatars`**](gobj-ui/shell.md#js_yui_shell_refresh_avatars) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_register_event_handler`**](gobj-ui/shell.md#js_yui_shell_register_event_handler) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
@@ -1185,7 +1185,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`yui_shell_set_avatar_provider`**](gobj-ui/shell.md#js_yui_shell_set_avatar_provider) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_set_connection_state`**](gobj-ui/shell.md#js_yui_shell_set_connection_state) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_set_sub_routes`**](gobj-ui/shell.md#js_yui_shell_set_sub_routes) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L2849) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L2849) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_badge) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_icon) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_set_translator`**](gobj-ui/shell.md#js_yui_shell_set_translator) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
@@ -1195,12 +1195,12 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`yui_shell_show_route_map`**](gobj-ui/shell.md#js_yui_shell_show_route_map) | `src/shell_route_map.js` | gobj-ui (UI Library) |
 | [**`yui_shell_show_warning`**](gobj-ui/modals.md#js_yui_shell_show_warning) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_toggle_drawer`**](gobj-ui/shell.md#js_yui_shell_toggle_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3371) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3371) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_unpark_route`**](gobj-ui/shell.md#js_yui_shell_unpark_route) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/c_yui_shell.js#L3130) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [`yui_table_rows`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_clipboard.js#L110) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
-| [`yui_tabulator_lang`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L45) | `src/yui_tabulator_i18n.js` | gobj-ui (UI Library) |
-| [`yui_tabulator_relocalize`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/yui_tabulator_i18n.js#L92) | `src/yui_tabulator_i18n.js` | gobj-ui (UI Library) |
+| [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/c_yui_shell.js#L3130) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [`yui_table_rows`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_clipboard.js#L110) | `src/yui_clipboard.js` | gobj-ui (UI Library) |
+| [`yui_tabulator_lang`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L45) | `src/yui_tabulator_i18n.js` | gobj-ui (UI Library) |
+| [`yui_tabulator_relocalize`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/yui_tabulator_i18n.js#L92) | `src/yui_tabulator_i18n.js` | gobj-ui (UI Library) |
 | [**`yui_theme_now`**](gobj-ui/theme.md#js_yui_theme_now) | `src/yui_theme.js` | gobj-ui (UI Library) |
 | [**`yui_toolbar`**](gobj-ui/dom.md#js_yui_toolbar) | `src/yui_toolbar.js` | gobj-ui (UI Library) |
 | [**`yui_watch_theme`**](gobj-ui/theme.md#js_yui_watch_theme) | `src/yui_theme.js` | gobj-ui (UI Library) |

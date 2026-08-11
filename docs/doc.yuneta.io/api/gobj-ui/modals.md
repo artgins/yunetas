@@ -7,7 +7,7 @@ description: >-
 
 # Dialogs and notifications
 
-**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js)
+**Source code:** [`src/shell_modals.js`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js)
 
 Every function takes the shell as its first parameter.
 
@@ -20,17 +20,17 @@ A notification goes into the layer of the shell and goes away on its own after
 until somebody closes it. Each one gives `{close}` back.
 
 (js_yui_shell_show_info)=
-### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L166)
+### [`yui_shell_show_info(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L166)
 
 Shows a message of information.
 
 (js_yui_shell_show_warning)=
-### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L170)
+### [`yui_shell_show_warning(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L170)
 
 Shows a warning.
 
 (js_yui_shell_show_error)=
-### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L174)
+### [`yui_shell_show_error(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L174)
 
 Shows an error.
 
@@ -39,7 +39,7 @@ Shows an error.
 ## Modal
 
 (js_yui_shell_show_modal)=
-## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L189)
+## [`yui_shell_show_modal(shell, content, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L189)
 
 Puts an overlay in the layer of the modals. `content` accepts a string, which
 the function draws inside a box, or an element, which it draws as it is.
@@ -60,19 +60,19 @@ Each one gives a promise back. The buttons carry a label that the caller can
 change.
 
 (js_yui_shell_confirm_ok)=
-### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L544)
+### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L544)
 
 Shows a message with one button. The promise gives `undefined` back.
 `opts.ok_label` changes the label.
 
 (js_yui_shell_confirm_yesno)=
-### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L555)
+### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L555)
 
 Asks a question with two answers. The promise gives `true` for yes.
 `opts.yes_label` and `opts.no_label` change the labels.
 
 (js_yui_shell_confirm_yesnocancel)=
-### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.0/src/shell_modals.js#L592)
+### [`yui_shell_confirm_yesnocancel(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L592)
 
 Asks a question with three answers. The promise gives `"yes"`, `"no"` or
 `"cancel"`.
@@ -80,10 +80,18 @@ Asks a question with three answers. The promise gives `"yes"`, `"no"` or
 Use it when the third answer is a real one. A question such as *"play all"* has
 three answers and not two: add, replace, or cancel.
 
+(js_yui_shell_confirm_danger)=
+### [`yui_shell_confirm_danger(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/5.11.1/src/shell_modals.js#L579)
+
+Asks a **destructive** question. The promise gives `true` only when the user
+presses the red button. `opts.confirm_label` and `opts.cancel_label` change the
+labels, and the defaults are `"Delete"` and `"Cancel"`.
+
 ---
 
 :::{important}
-A destructive question takes `yui_shell_confirm_danger()`, and not
+A destructive question takes
+[`yui_shell_confirm_danger()`](#js_yui_shell_confirm_danger), and not
 [`yui_shell_confirm_yesno()`](#js_yui_shell_confirm_yesno). The yes of the
 second one is blue, which is the right color for *"do you want to continue"*
 and the wrong one for *"this deletes an account"*: the two read the same at one
@@ -93,12 +101,9 @@ answer is the **last** button, so the Escape key, the background and the button
 of close all give the safe answer.
 :::
 
-:::{warning}
-`yui_shell_confirm_danger()` is **not** in the barrel of the package, and its
-three brothers above are. An import of it from `@yuneta/gobj-ui` gives
-`undefined`. Import it from its module until somebody adds it to `index.js`:
-
-```javascript
-import { yui_shell_confirm_danger } from "@yuneta/gobj-ui/src/shell_modals.js";
-```
+:::{note}
+This function reached the barrel of the package in **5.11.1**. Before that
+release, an import of it from `@yuneta/gobj-ui` gave `undefined`, and the only
+way in was its module. A consumer that still writes the deep import keeps
+working, because the `./src/*` map does not change.
 :::
