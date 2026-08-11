@@ -59,6 +59,25 @@
     caller, and the only consumer had reached for the deep import and moved on.
     Deep imports keep working, so nothing breaks.
 
+- **Both JS packages track their `package-lock.json` now.** Each one ignored
+    it, so a build of either was reproducible only by accident: every machine
+    resolved its own tree from the ranges in `package.json`, and the tree behind
+    a published `dist/` was whatever that disk held that day. Nothing recorded
+    it. The lockfile is never published — npm keeps it out of the tarball, and
+    it is in neither package's `files` — so this changes what a developer and a
+    CI run get, not what a consumer gets. Both verified with a real `npm ci`
+    from the committed lock in a clean directory: 76 packages for gobj-js, 251
+    for gobj-ui.
+
+    The staleness warning of `verify_js_api_coverage.py` had to change with it.
+    It compared the submodule HEAD against its tag, so a lockfile commit made it
+    fire for ever — and a warning that everybody learns to ignore is worse than
+    no warning. It now diffs the **documented files** (`src/`, `index.js`)
+    between the tag and the **working tree**, which is both quieter and
+    stricter: a commit that cannot move a line number says nothing, and an
+    uncommitted edit that can move one — which the old check missed entirely,
+    because it compared two commits — now reports.
+
 - **`--repin` for the JS docs.** A submodule bump moves a tag, and every
     hand-written `blob/<tag>/` link into that repository goes stale with it.
     `check_doc_line_refs.py --repin` cannot help — it matches

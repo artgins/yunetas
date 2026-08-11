@@ -168,17 +168,21 @@ def scan_package(pkg: Package) -> None:
         )
     pkg.tag = json.loads(pkg_json.read_text())["version"]
 
-    #   The source links carry line numbers, so the checkout must BE the tag.
-    #   A detached commit past the tag makes every #L anchor silently wrong.
+    #   The source links carry line numbers, so what the docs describe must be
+    #   what the tag holds. The test is NOT "is HEAD the tag": a commit that
+    #   touches only a lockfile, a README or the CI cannot move a line number,
+    #   and warning about it teaches everybody to ignore the warning. Ask the
+    #   question that matters — did the DOCUMENTED files move since the tag?
+    #
+    #   The diff runs against the WORKING TREE and not against HEAD: the script
+    #   reads the files on disk, so an edit that is not committed yet moves the
+    #   lines it reports just as surely as one that is.
     try:
-        head = subprocess.run(
-            ["git", "-C", str(pkg.path), "rev-parse", "HEAD"],
+        changed = subprocess.run(
+            ["git", "-C", str(pkg.path), "diff", "--name-only", pkg.tag,
+             "--", "src", "index.js"],
             capture_output=True, text=True, check=True,
-        ).stdout.strip()
-        tagged = subprocess.run(
-            ["git", "-C", str(pkg.path), "rev-list", "-n", "1", pkg.tag],
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
+        ).stdout.split()
     except subprocess.CalledProcessError:
         print(
             f"WARNING: {pkg.name}: no tag {pkg.tag} in the submodule. "
@@ -186,10 +190,13 @@ def scan_package(pkg: Package) -> None:
             file=sys.stderr,
         )
     else:
-        if head != tagged:
+        if changed:
             print(
-                f"WARNING: {pkg.name}: HEAD ({head[:9]}) is not tag {pkg.tag} "
-                f"({tagged[:9]}). The #L anchors can point at the wrong lines.",
+                f"WARNING: {pkg.name}: {len(changed)} documented file(s) moved "
+                f"since tag {pkg.tag} ({', '.join(changed[:3])}"
+                f"{', …' if len(changed) > 3 else ''}). The #L anchors point "
+                f"into the tag, so they can be wrong. Publish and re-tag, then "
+                f"run --repin.",
                 file=sys.stderr,
             )
 
