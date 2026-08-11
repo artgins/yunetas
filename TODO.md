@@ -248,6 +248,35 @@ Remaining is **per-gate deployment config** (validate on staging):
   `ssl_allow_insecure_client` opt-out) on each client crypto block in the realm
   config, and raise the server-side gates.
 
+## Security: `denied_ips` is never consulted at accept
+
+`c_yuno` keeps the two lists — `allowed_ips` and `denied_ips` (`SDF_PERSIST`,
+with their `list-`/`add-`/`remove-` commands) — and exports both readers,
+`is_ip_allowed()` and `is_ip_denied()`. But the accept path
+(`c_tcp_s.c`, `yev_callback` on `fd_clisrv`) asks only **`is_ip_allowed`**, and
+only when the gate carries `only_allowed_ips`. So:
+
+- **the allow-list works** (whitelist mode, loopback exempted);
+- **the deny-list does not stop a connection.** `is_ip_denied()` has exactly
+  one caller, `c_authz.c:802`, so a denied ip is refused at *authentication* —
+  which means an unauthenticated gate (an IoT/mqtt field port) accepts it,
+  builds its channel tree, and lets the protocol run.
+
+Found while banning an internet scanner off a yunovatios mqtt gate: adding the
+scanner's ip to `denied_ips` would have changed nothing on that port, so the
+ban had to be keyed by the identity the peer announces instead (project-side,
+`gate_energia.denied_clients`).
+
+Open decisions before wiring `is_ip_denied()` into the accept path:
+
+- **cost per accept**: it is a json dict lookup per connection, the same one
+  `is_ip_allowed` already pays, so only on the gates that have a list;
+- **whether the check belongs in `c_tcp_s` or in `c_iogate`** — dropping at
+  accept never spends a channel of the pool, which is the point;
+- **`only_allowed_ips` is a badly named door**: it gates the whole ip check,
+  so a gate that wants a deny-list today has to turn on whitelist mode. The
+  deny-list should apply unconditionally when non-empty.
+
 ## Security: MQTT broker ACL — model + default-deny decision
 
 The publish + subscribe ACL (model A: per-group `publish_acl`/`subscribe_acl`,
