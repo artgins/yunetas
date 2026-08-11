@@ -45,8 +45,14 @@ import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "@yuneta/gobj-j
 Browse the JavaScript API pages in the left sidebar, in the order
 shown. They follow the same sequence as the C reference: bootstrap →
 GClass registration → GObject lifecycle → state machine → attributes →
-events → hierarchy → persistence → helpers → logging → built-in
-GClasses → TreeDB helpers.
+events → commands → hierarchy → persistence → traces → logging →
+helpers → built-in GClasses → TreeDB helpers.
+
+Every symbol that the package exports is in the
+[JS API index](../appendix_js_api_index.md), with its signature, its module and
+a link to its source. A symbol with a reference entry links to that entry.
+
+The UI library has its own section: [gobj-ui API](../gobj-ui/index.md).
 
 ## Source layout
 

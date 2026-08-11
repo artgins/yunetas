@@ -20,15 +20,40 @@ import {
 } from "@yuneta/gobj-js";
 ```
 
-| Function | Purpose |
-|---|---|
-| `treedb_hook_data_size(value)` | Count items referenced by a hook field, with caching. |
-| `treedb_decoder_fkey(col, fkey)` | Parse a foreign-key reference string into its `{topic, id, hook}` components. |
-| `treedb_encoder_fkey(col, fkey)` | Build a canonical fkey reference string `"topic^id^hook"`. |
-| `treedb_decoder_hook(col, hook)` | Parse a hook reference. |
-| `treedb_get_field_desc(col)` | Build a field descriptor from a column definition. |
-| `template_get_field_desc(key, value)` | Build a field descriptor from a template entry. |
-| `create_template_record(template, kw)` | Instantiate a new record from a template definition. |
+(js_treedb_hook_data_size)=
+### [`treedb_hook_data_size(value)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L145)
+
+Counts the items that a hook field references.
+
+(js_treedb_decoder_fkey)=
+### [`treedb_decoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L177)
+
+Reads a foreign-key reference, and gives its topic, its identifier and its hook.
+
+(js_treedb_encoder_fkey)=
+### [`treedb_encoder_fkey(col, fkey)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L241)
+
+Builds the canonical form of a foreign-key reference, `"topic^id^hook"`.
+
+(js_treedb_decoder_hook)=
+### [`treedb_decoder_hook(col, hook)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L268)
+
+Reads a hook reference.
+
+(js_treedb_get_field_desc)=
+### [`treedb_get_field_desc(col)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L397)
+
+Builds the descriptor of a field from the definition of a column.
+
+(js_template_get_field_desc)=
+### [`template_get_field_desc(key, value)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L457)
+
+Builds the descriptor of a field from one entry of a template.
+
+(js_create_template_record)=
+### [`create_template_record(template, kw)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/lib_treedb.js#L534)
+
+Builds a new record from the definition of a template.
 
 ## Fkey format
 

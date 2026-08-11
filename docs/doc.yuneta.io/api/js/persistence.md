@@ -1,50 +1,104 @@
+---
+title: 'JS: Persistence'
+description: >-
+  Saving and loading the attributes that carry SDF_PERSIST, and the
+  local-storage back end that gobj-js ships.
+---
+
 # Persistence
 
-Attributes declared with the `SDF_PERSIST` flag are automatically
-saved and loaded by the framework via the callbacks registered at
-[bootstrap](bootstrap.md).
+An attribute with the flag `SDF_PERSIST` stays between two visits of the same
+browser. The framework holds no store of its own. It calls the four functions
+that [`gobj_start_up()`](bootstrap.md#js_gobj_start_up) receives, and the
+package ships a back end on the local storage.
 
-The reference backend is `localStorage` (browser) via `dbsimple.js`.
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js),
+[`src/dbsimple.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/dbsimple.js)
 
-## Low-level dbsimple API
+:::{important}
+Always name the attributes that you save:
+`gobj_save_persistent_attrs(gobj, "attr_name")`. The call with no name saves
+every attribute that carries `SDF_PERSIST`, which is wasteful, and it can write
+over an attribute that the caller did not touch. The C side has the same rule.
+:::
+
+---
+
+## The API of the framework
+
+Each function accepts a string, a list of names or an object of names in `keys`.
+
+(js_gobj_save_persistent_attrs)=
+### [`gobj_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L1636)
+
+Saves the attributes that `keys` names.
+
+(js_gobj_load_persistent_attrs)=
+### [`gobj_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L1619)
+
+Loads the attributes that `keys` names.
+
+(js_gobj_remove_persistent_attrs)=
+### [`gobj_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L1653)
+
+Deletes the attributes that `keys` names from the store.
+
+(js_gobj_list_persistent_attrs)=
+### [`gobj_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L1671)
+
+Gives the attributes that the store holds.
+
+---
+
+## The back end on the local storage
+
+Give these four functions to
+[`gobj_start_up()`](bootstrap.md#js_gobj_start_up), and the API above works on
+the local storage of the browser.
 
 ```javascript
-db_load_persistent_attrs(gobj, keys)
-db_save_persistent_attrs(gobj, keys)
-db_remove_persistent_attrs(gobj, keys)
-db_list_persistent_attrs(gobj, keys)
+import {
+    gobj_start_up,
+    db_load_persistent_attrs,
+    db_save_persistent_attrs,
+    db_remove_persistent_attrs,
+    db_list_persistent_attrs
+} from "@yuneta/gobj-js";
+
+gobj_start_up(
+    settings,
+    db_load_persistent_attrs,
+    db_save_persistent_attrs,
+    db_remove_persistent_attrs,
+    db_list_persistent_attrs,
+    command_parser,
+    stats_parser
+);
 ```
 
-These read/write directly from `localStorage`. Use them as the
-callbacks passed to `gobj_start_up`.
+(js_db_save_persistent_attrs)=
+### [`db_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/dbsimple.js#L69)
 
-## Via gobj (delegates to registered persistence fns)
+Writes the attributes to the local storage.
 
-```javascript
-gobj_load_persistent_attrs(gobj, keys)
-gobj_save_persistent_attrs(gobj, keys)
-gobj_remove_persistent_attrs(gobj, keys)
-gobj_list_persistent_attrs(gobj, keys)
-```
+(js_db_load_persistent_attrs)=
+### [`db_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/dbsimple.js#L38)
 
-Application code normally calls these, not the low-level `db_*`
-functions. They dispatch to whichever backend was registered at
-`gobj_start_up` time.
+Reads the attributes from the local storage.
 
-## Local storage helpers (no "store" parameter)
+(js_db_remove_persistent_attrs)=
+### [`db_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/dbsimple.js#L96)
 
-Also exposed for ad-hoc use outside the attribute persistence system:
+Deletes the attributes from the local storage.
 
-```javascript
-kw_get_local_storage_value(key, default_value, create)   // create=false by default
-kw_set_local_storage_value(key, value)
-kw_remove_local_storage_value(key)
-```
+(js_db_list_persistent_attrs)=
+### [`db_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/dbsimple.js#L123)
 
-## Plugging in a different backend
+Gives the attributes that the local storage holds.
 
-Pass your own callbacks to `gobj_start_up` — for example, an
-`IndexedDB`-backed store, an HTTP REST backend, or an in-memory mock for
-tests. The only contract is that each callback takes `(gobj, keys)`
-and either loads/saves/removes/lists the attributes whose names appear
-in the `keys` array.
+---
+
+The three helpers below the back end are in
+[`kw` helpers](helpers_kw.md#js_kw_get_local_storage_value). A write that fails
+gives `-1`, so a caller sees the failure. The local storage of a browser has a
+limit of size, and a private window can refuse a write.

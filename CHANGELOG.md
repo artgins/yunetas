@@ -1,5 +1,61 @@
 # **Changelog**
 
+## Unreleased
+
+### Documentation
+
+- **The JavaScript side had no API reference — it had a listing.** Looking for
+    `gobj_post_event()` in the docs found nothing, and the function had been in
+    the JS runtime for releases. It *was* on the site, as one line inside a code
+    block on `api/js/events.md`, with no signature and **no anchor**: the JS
+    pages carried zero `(name)=` labels and the appendix index was C-only
+    (2540 C functions, 0 JS symbols), so no JS name was reachable by search.
+    The whole JS reference was 790 lines against 31 608 for C, written once in
+    April and touched since only by the STE sweep and a link fix.
+
+    The one line documenting `gobj_post_event()` was also **wrong**: it said
+    *"next microtask"*, and the queue has drained with `setTimeout(…, 0)` — a
+    macrotask, so the browser keeps its turns — since the JS side aligned with
+    the C contract in gobj-js 7.10.0. `gobj_deliver_posted_events()`,
+    `gobj_posted_events_size()`, the 10 000-message ceiling and the
+    purge-on-destroy were all undocumented.
+
+    Both packages now have a real reference, every symbol anchored and linked to
+    its source: **gobj-js 255/255** and the **gobj-ui public surface 92/92**.
+    New pages for what was missing entirely — the whole trace API
+    (`gobj_set_gclass_trace()` and the silencing side, which is the tool the
+    project calls an axiom for debugging), the `SDATACM`/`SDATAPM`/`SDATAAUTHZ`
+    command descriptors, the `kw`/`kwid`/`msg_iev` families, the DOM and i18n
+    helpers, the `jdb` database — and a first **gobj-ui section**: the shell
+    API, the dialogs, the component gclasses, the period algebra, the theme and
+    the dev panel.
+
+- **`scripts/verify_js_api_coverage.py`** — the gate that stops this from
+    happening again, the JS half of `verify_api_coverage.py`. It reads every
+    export of both submodule packages, compares them against the `(js_<name>)=`
+    anchors, and reports MISSING and STALE. `--write` generates
+    `api/appendix_js_api_index.md`, which lists **all 439 symbols** with their
+    signature, module and a source link — so a search finds a symbol whether or
+    not it has a reference entry yet. The links are pinned to each submodule's
+    **own tag**, read from its `package.json`: gobj-js is at 7.10.0 and gobj-ui
+    at 5.11.0, and pinning either to the SDK tag points at a tag that repository
+    does not have. The script warns when a submodule HEAD is not its tag,
+    because then every `#L` anchor is a guess.
+
+### Fixed
+
+- Landing page: carded [yunomusica.com](https://yunomusica.com) as the second
+    live example — a shipped SPA on `C_YUI_SHELL` + `C_YUI_NAV`, installable and
+    offline, next to the shell demo that exists to show the shell.
+
+### Known
+
+- `yui_shell_confirm_danger()` is **not** in the gobj-ui barrel, and its three
+    siblings are. It is the one the library's own comment says to use for a
+    destructive action, and an import of it from `@yuneta/gobj-ui` gives
+    `undefined`. The only consumer reaches it by deep import. Documented as
+    such; the export belongs in a gobj-ui release.
+
 ## 7.12.0-2
 
 A packaging revision, not a new version: the tree under `kernel/`, `modules/`,

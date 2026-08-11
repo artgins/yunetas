@@ -241,12 +241,32 @@ project:
             - file: api/js/state_machine.md
             - file: api/js/attrs.md
             - file: api/js/events.md
+            - file: api/js/commands.md
             - file: api/js/hierarchy.md
             - file: api/js/persistence.md
-            - file: api/js/helpers.md
+            - file: api/js/traces.md
             - file: api/js/logging.md
+            - title: Helpers
+              file: api/js/helpers.md
+              children:
+                - file: api/js/helpers_json.md
+                - file: api/js/helpers_kw.md
+                - file: api/js/helpers_str.md
+                - file: api/js/helpers_dom.md
+                - file: api/js/helpers_data.md
             - file: api/js/builtin_gclasses.md
             - file: api/js/treedb_helpers.md
+        - title: JavaScript UI (gobj-ui)
+          file: api/gobj-ui/index.md
+          children:
+            - file: api/gobj-ui/shell.md
+            - file: api/gobj-ui/modals.md
+            - file: api/gobj-ui/gclasses.md
+            - file: api/gobj-ui/time.md
+            - file: api/gobj-ui/theme.md
+            - file: api/gobj-ui/dom.md
+            - file: api/gobj-ui/dev.md
+            - file: api/gobj-ui/maplibre.md
 
     - title: Built-in GClasses
       file: api/gclass/index.md
@@ -378,8 +398,11 @@ project:
     - title: Benchmarks & Stress Tests
       file: benchmarks.md
 
-    - title: "Appendix: Function Index"
+    - title: "Appendix: Function Index (C)"
       file: api/appendix_api_index.md
+
+    - title: "Appendix: Symbol Index (JS)"
+      file: api/appendix_js_api_index.md
 
     - title: "Appendix: Diagram Index"
       file: appendix_diagrams_index.md
