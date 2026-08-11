@@ -1395,6 +1395,14 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   5. READMEs/docs scanned for stale content (old versions, removed features,
      renamed APIs).
   Surface gaps as a punch list before committing/tagging.
+- **A submodule bump of `kernel/js/gobj-js` or `kernel/js/gobj-ui` means
+  running `python3 scripts/verify_js_api_coverage.py --write`.** Those two
+  packages carry their own tags, so `check_doc_line_refs.py --repin` does not
+  touch their links: it only matches `github.com/artgins/yunetas/blob/`. The JS
+  script re-pins them from each submodule's own `package.json`, regenerates
+  `api/appendix_js_api_index.md`, and fails when an export has no `(js_<name>)=`
+  anchor. Run it with no flag as a guard before tagging — it exits non-zero on a
+  new undocumented export or a stale anchor.
 - **Every release includes the live docs:** repin the `blob/<old>/` /
   `tree/<old>/` deep links across `docs/doc.yuneta.io/**` and
   `yunos/c/yuno_agent/*.md` with
