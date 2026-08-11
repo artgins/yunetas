@@ -78,6 +78,29 @@
     uncommitted edit that can move one — which the old check missed entirely,
     because it compared two commits — now reports.
 
+- **Every JS consumer refreshed, by a rule instead of by hand.** Eleven
+    packages across nine repos moved their floors to `^5.11.1` for gobj-ui and
+    `^7.10.0` for gobj-js, plus maplibre-gl `^6.3.0`, vite `^8.2.1` and vitest
+    `^4.1.10` where they applied. The rule was to raise each floor to what npm
+    calls **wanted** — the newest version the existing range already accepted —
+    and never to **latest**, so a major cannot enter through a sweep.
+
+    That rule is what protects the two v1 apps: estadodelaire and hidraulia keep
+    gobj-ui at `1.0.1` (the frozen line), maplibre-gl at `5.24.0` (v6 is ESM-only
+    and needs the worker wired) and vanilla-jsoneditor at `0.23.8`. All three
+    are majors, and a major is a migration to plan, not a number to raise.
+
+    The peer floors of gobj-ui are untouched for the mirror-image reason: a peer
+    floor is a contract with every consumer, and `^6.1.0` already accepts
+    maplibre 6.3.0. Raising it would force every consumer up and cost a
+    republish, for nothing.
+
+    Verified by build, not by the number in the file: all eleven install, the
+    nine with a build script build, and the two libraries pass 39 and 256 tests.
+    Worth knowing — **estadodelaire and hidraulia declare vitest and ship no test
+    file**, so the build is the only gate their bump passed, and they are the two
+    that cost the most to repair.
+
 - **`--repin` for the JS docs.** A submodule bump moves a tag, and every
     hand-written `blob/<tag>/` link into that repository goes stale with it.
     `check_doc_line_refs.py --repin` cannot help — it matches

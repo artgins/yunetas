@@ -100,9 +100,9 @@ in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
 `EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
 caught up at the `7.6.7` release.) **Every** consumer takes it from the
-registry: estadodelaire (`^7.9.6`), hidraulia (`^7.6.6`), wattyzer (`^7.9.6`,
-since 2026-07-25), the in-repo `yunos/js/*` yunos (`^7.9.11`, since 2026-08-03)
-and yunovatios. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
+registry, and since 2026-08-11 they all declare the same floor — `^7.10.0`:
+estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios GUIs and
+the in-repo `yunos/js/*` yunos. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
 
