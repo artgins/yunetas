@@ -61,6 +61,14 @@ What that workspace still lacks:
     both commands — the workspace does not offer them yet, so the operator
     goes to the Commands tab.
 
+- **gobj-ui does not know the `rowid` type.** The schema topics are keyed by
+    rowid (7.13.0: `topics` and `cols`, with the `rowid` flag on `id`), and
+    `transform__treedb_value_2_table_value()` has no case for it — so every
+    render of those tables logs *"unhandled type 'rowid'"*, once per cell. The
+    value passes through and the editor works; it is noise, but it is noise on
+    exactly the two topics this feature exists to edit. It is a library fix
+    (gobj-ui publish + range bump in the consumers), not a console one.
+
 - **The topic selection is not routed.** A reload lands on the topic grid.
     `gui_treedb`'s `C_TREEDB_VIEW` does that URL bridging and is the model.
 
