@@ -11530,6 +11530,21 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         requester
     );
     if(!gobj_requester_channel) {
+        /*
+         *  Command cascaded from a controlcenter: it arrived via the outbound
+         *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child,
+         *  so the requester names a top-level service. Same fallback as
+         *  ac_command_yuno_answer / ac_stats_yuno_answer: send EV_SEND_IEV to
+         *  that C_IEVENT_CLI, which serializes the inner iev up the link.
+         *
+         *  Without it EVERY counter-driven answer — kill-yuno, run-yuno,
+         *  play-yuno, pause-yuno — was dropped here for any client behind a
+         *  controlcenter, which is every SPA. The work was done; only the
+         *  answer was lost, so the caller waits forever.
+         */
+        gobj_requester_channel = gobj_find_service(requester, FALSE);
+    }
+    if(!gobj_requester_channel) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,

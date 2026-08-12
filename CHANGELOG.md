@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The agent dropped every counter-driven answer of a client behind a
+    controlcenter.** `kill-yuno`, `run-yuno`, `play-yuno` and `pause-yuno` do
+    not answer when the command is parsed: they answer when it is DONE — the
+    agent raises a `C_COUNTER` that waits for the killed yuno's channel to
+    close, or for the launched one to connect back, and `ac_final_count()`
+    sends the answer to the requester. It looked for that requester with
+    `gobj_child_by_name(__input_side__, …)` only, and a command cascaded from a
+    controlcenter arrives through the OUTBOUND `controlcenter` C_IEVENT_CLI —
+    a top-level service, not an input-side child. So the lookup missed, the
+    answer was dropped with *"requester channel child not found"* in the
+    agent's log, and the caller waited forever for work that had actually been
+    done.
+
+    This is the same defect `ac_command_yuno_answer` / `ac_stats_yuno_answer`
+    were fixed for in `d2d833109` (7.11.0); the deferred path was missed
+    because it is reached only by the four lifecycle commands, and only from a
+    SPA — a local `ycommand` requester ("input-N") IS an input-side child, so
+    every CLI test passed. Same fallback here:
+    `gobj_find_service(requester, FALSE)`.
+
+    Found while giving gui_agent's Schemas workspace its Apply button, whose
+    whole job is `kill-yuno` → `run-yuno play=0` → `play-yuno` chained on those
+    answers. **Nodes need the new agent binary for it to work there.**
+
 ### Documentation
 
 - **The JavaScript side had no API reference — it had a listing.** Looking for

@@ -55,12 +55,15 @@ What that workspace still lacks:
     Marking (or hiding) those rows costs one `services` per yuno when a node is
     expanded, which is N round trips the picker does not make today.
 
-- **Applying is still manual.** `kill-yuno` + `run-yuno` on the owning yuno is
-    what publishes an edited schema (every client reconnects and re-reads a
-    schema that changed under them, which is the point; `pause`+`play` also
-    works and keeps the pid, but it is the less travelled path). The console has
-    both commands — the workspace does not offer them yet, so the operator
-    goes to the Commands tab.
+- **Applying needs an agent carrying the `ac_final_count` fix of this
+    release.** The workspace
+    does it now (`kill-yuno` → `run-yuno play=0` → `play-yuno`, confirmed
+    first), but those commands answer through `ac_final_count()`, which dropped
+    the answer of any client behind a controlcenter until now. Against an older
+    agent the sequence stops at the first step with the yuno KILLED and not
+    restarted; the tab gives up after 30 s and says so, but the yuno stays
+    down until somebody runs it. Deploy the agent before using Apply on a
+    node.
 
 - **The topic selection is not routed.** A reload lands on the topic grid.
     `gui_treedb`'s `C_TREEDB_VIEW` does that URL bridging and is the model.
