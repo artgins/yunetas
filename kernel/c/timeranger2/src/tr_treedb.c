@@ -3088,6 +3088,123 @@ PUBLIC int set_volatil_values(
 }
 
 /***************************************************************************
+ *  The id inside an fkey reference: "topics^device_groups^cols" -> the
+ *  middle segment. Returns "" when the reference is not one.
+ ***************************************************************************/
+PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
+{
+    hgobj gobj = 0;
+    *bf = 0;
+
+    const char *ref = NULL;
+    if(json_is_array(fkeys)) {
+        ref = json_string_value(json_array_get(fkeys, 0));
+    } else if(json_is_string(fkeys)) {
+        ref = json_string_value(fkeys);
+    }
+    if(empty_string(ref)) {
+        return bf;
+    }
+
+    const char *p = strchr(ref, '^');
+    if(!p) {
+        return bf;
+    }
+    p++;
+    const char *q = strchr(p, '^');
+    int len = q? (int)(q - p): (int)strlen(p);
+    if(len <= 0 || len >= bfsize) {
+        return bf;
+    }
+    memcpy(bf, p, len);
+    bf[len] = 0;
+
+    (void)gobj;
+    return bf;
+}
+
+/***************************************************************************
+ *  Publish a schema change: raise the versions that make it visible.
+ *
+ *  A change to a schema that does not raise its versions does NOTHING, and
+ *  says nothing: treedb_open_db keeps the persisted schema file on a tie,
+ *  and tranger2 keeps the persisted topic_cols.json unless the incoming
+ *  topic_version is higher (§3.5). Leaving those two numbers to whoever
+ *  writes means every editor, script and console has to carry the rule —
+ *  and the author of this code got it wrong three times in a row while
+ *  debugging, knowing it.
+ *
+ *  So a write to a schema publishes itself: the column's topic and its
+ *  treedb move up. The projector sets the versions itself and marks the
+ *  tranger while it works, which is also what keeps this from answering
+ *  its own writes.
+ ***************************************************************************/
+PRIVATE int publish_schema_change(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *node            // NOT owned, the node just written
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(strcmp(treedb_name, TREEDB_SYSTEM_SCHEMA_NAME)!=0) {
+        return 0;
+    }
+    if(json_boolean_value(json_object_get(tranger, "__schema_publishing__"))) {
+        return 0;
+    }
+
+    char topic_id[NAME_MAX] = {0};
+    char treedb_id[NAME_MAX] = {0};
+
+    if(strcmp(topic_name, "cols")==0) {
+        fkey_ref_id(json_object_get(node, "topics"), topic_id, sizeof(topic_id));
+    } else if(strcmp(topic_name, "topics")==0) {
+        snprintf(topic_id, sizeof(topic_id), "%s", kw_get_str(gobj, node, "id", "", 0));
+    } else {
+        return 0;   /*  `treedbs` carries the version itself  */
+    }
+
+    json_object_set_new(tranger, "__schema_publishing__", json_true());
+
+    json_t *topic_node = empty_string(topic_id)?
+        NULL:
+        treedb_get_node(tranger, treedb_name, "topics", topic_id);
+    if(topic_node) {
+        fkey_ref_id(json_object_get(topic_node, "treedbs"), treedb_id, sizeof(treedb_id));
+
+        if(strcmp(topic_name, "cols")==0) {
+            /*  the topic republishes its columns  */
+            json_int_t v = kw_get_int(gobj, topic_node, "topic_version", 0, KW_WILD_NUMBER);
+            treedb_update_node(
+                tranger,
+                topic_node,
+                json_pack("{s:I}", "topic_version", (json_int_t)(v + 1)),
+                TRUE
+            );
+        }
+    }
+
+    if(!empty_string(treedb_id)) {
+        json_t *treedb_node = treedb_get_node(tranger, treedb_name, "treedbs", treedb_id);
+        if(treedb_node) {
+            json_int_t v = kw_get_int(gobj, treedb_node, "schema_version", 0, KW_WILD_NUMBER);
+            treedb_update_node(
+                tranger,
+                treedb_node,
+                json_pack("{s:I}", "schema_version", (json_int_t)(v + 1)),
+                TRUE
+            );
+        }
+    }
+
+    json_object_del(tranger, "__schema_publishing__");
+
+    return 0;
+}
+
+/***************************************************************************
  *  Guard a write that defines a schema.
  *
  *  The __system__ treedb stores treedb schemas as data (topics `treedbs` ->
@@ -5534,6 +5651,11 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         treedb_save_node(tranger, node);
     }
 
+    {
+        const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+        publish_schema_change(tranger, treedb_name, topic_name, node);
+    }
+
     JSON_DECREF(kw)
     return node;
 }
@@ -7602,7 +7724,20 @@ PUBLIC int treedb_link_nodes(
      *      Save persistent
      *  Only children are saved
      *----------------------------*/
-    return treedb_save_node(tranger, child_node);
+    int ret = treedb_save_node(tranger, child_node);
+
+    /*
+     *  A column joins its topic HERE, so this is where a new column becomes
+     *  part of a schema: at create time it has no topic yet to publish to.
+     */
+    publish_schema_change(
+        tranger,
+        kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", "", 0),
+        kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0),
+        child_node
+    );
+
+    return ret;
 }
 
 /***************************************************************************

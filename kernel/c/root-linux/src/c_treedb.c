@@ -1017,6 +1017,14 @@ PRIVATE int upsert_treedb_schema(
      */
     json_t *cols_desc = _treedb_create_topic_cols_desc();
 
+    /*
+     *  A write to a schema publishes itself by raising the versions (see
+     *  publish_schema_change in tr_treedb). The projector sets them itself,
+     *  and every node it writes is a schema write, so it says so while it
+     *  works — otherwise each column would move the versions again.
+     */
+    json_object_set_new(priv->tranger_system_, "__schema_publishing__", json_true());
+
     json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
@@ -1204,6 +1212,7 @@ PRIVATE int upsert_treedb_schema(
     /*
      *  free
      */
+    json_object_del(priv->tranger_system_, "__schema_publishing__");
     JSON_DECREF(cols_desc)
     json_decref(treedb);
 

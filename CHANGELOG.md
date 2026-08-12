@@ -176,6 +176,20 @@
 
 ### Fixed
 
+- **A change to a schema now publishes itself.** Raising `topic_version` and
+    `schema_version` is what makes a change visible — forget either and the
+    change does nothing and says nothing, because `treedb_open_db` keeps the
+    persisted schema file on a tie and tranger2 keeps `topic_cols.json` unless
+    the incoming version is higher. Leaving that to whoever writes means every
+    editor, script and console carries the rule; the author of this code got it
+    wrong three times in a row while debugging, knowing it. So writing a `cols`
+    or `topics` node of `__system__` raises the versions that publish it,
+    walking up the fkeys to the column's topic and its treedb. A new column
+    publishes when it is **linked** to its topic, which is when it becomes part
+    of the schema — at create time it has no topic yet. The projector sets the
+    versions itself and marks the tranger while it works, which is also what
+    stops the rule from answering its own writes.
+
 - **The projection of a schema was losing three column attributes, and a
     scalar `default`.** Measured across the 19 schemas in the tree and the
     project repos: `enum` (18 uses) and `template` (6) had no column in the

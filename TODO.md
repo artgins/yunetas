@@ -35,6 +35,15 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     with. Telling the two cases apart needs state the projection does not carry
     (which side wrote each element), so decide that before adding a rule.
 
+- **`use_internal_schema` still gates the whole feature.** An edit reaches a
+    treedb only if its yuno runs with the flag at 0, and it defaults to 1 and is
+    read-only in the agent and in `db_history_co` (writable in controlcenter).
+    So an admin can edit any schema and nothing happens anywhere until each
+    yuno's config is changed and it is restarted. Now that `c_schema_version`
+    separates provenance, the flag distinguishes nothing — the projection is
+    seeded from the literal and re-made whenever the literal or the projector
+    moves ahead — so the answer is to retire it, not to drive it from a GUI.
+
 - **A removed column with data behind it is still nobody's problem.** The
     write guard refuses what cannot produce a working schema, but dropping a
     column that has values in the topic's records is a legal schema and a data

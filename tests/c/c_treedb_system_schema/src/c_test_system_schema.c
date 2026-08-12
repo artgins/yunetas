@@ -951,6 +951,77 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
 }
 
 /***************************************************************************
+ *  A change to a schema publishes itself.
+ *
+ *  Raising `topic_version` and `schema_version` is what makes a change
+ *  visible, and forgetting either does nothing and says nothing. Leaving
+ *  that to whoever writes means every editor carries the rule; so the write
+ *  carries it, and this checks that a caller who only edits a column ends
+ *  up with both numbers moved.
+ ***************************************************************************/
+PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
+{
+    int result = 0;
+
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        return -1;  // Error already logged elsewhere
+    }
+
+    json_t *topic_before = gobj_get_node(
+        gobj_node_system, "topics", json_pack("{s:s}", "id", "users"), 0, gobj
+    );
+    json_int_t topic_v0 = kw_get_int(gobj, topic_before, "topic_version", 0, KW_WILD_NUMBER);
+    json_int_t schema_v0 = system_schema_version(gobj, "schema_version");
+    JSON_DECREF(topic_before)
+
+    const char *username_id = json_string_value(json_object_get(col_ids, "username"));
+    json_t *updated = gobj_update_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s}",
+            "id", username_id?username_id:"",
+            "header", "Login name"
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(!updated) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a legal column edit was refused",
+            NULL
+        );
+        return -1;
+    }
+    JSON_DECREF(updated)
+
+    json_t *topic_after = gobj_get_node(
+        gobj_node_system, "topics", json_pack("{s:s}", "id", "users"), 0, gobj
+    );
+    json_int_t topic_v1 = kw_get_int(gobj, topic_after, "topic_version", 0, KW_WILD_NUMBER);
+    json_int_t schema_v1 = system_schema_version(gobj, "schema_version");
+    JSON_DECREF(topic_after)
+
+    if(topic_v1 <= topic_v0 || schema_v1 <= schema_v0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: a column edit did not publish itself",
+            "topic_version",    "%d", (int)topic_v1,
+            "was",              "%d", (int)topic_v0,
+            "schema_version",   "%d", (int)schema_v1,
+            "schema_was",       "%d", (int)schema_v0,
+            NULL
+        );
+        result += -1;
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -1272,6 +1343,11 @@ PRIVATE int run_tests(hgobj gobj)
      *  not at the next open
      *-----------------------------------------------*/
     result += check_refused_writes(gobj, ids_after);
+
+    /*-----------------------------------------------*
+     *  Test 6: a change to a schema publishes itself
+     *-----------------------------------------------*/
+    result += check_autopublished_versions(gobj, ids_after);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

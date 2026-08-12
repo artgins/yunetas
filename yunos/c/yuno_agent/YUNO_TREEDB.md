@@ -768,10 +768,19 @@ The `use_internal_schema` attribute picks which home opens the treedb:
 **The schema file still has the last word.** Whichever home supplies the
 schema, `treedb_open_db` compares its `schema_version` against the persisted
 `<treedb_name>.treedb_schema.json` and the **file wins on ties** (§3.5). Same
-rule again, one layer down. So a change reaches a running treedb only when you
-raise `schema_version` on the `treedbs` node **and** `topic_version` on each
-topic you touched — the second one is what regenerates `topic_cols.json`, and
-without it the new columns exist in the schema and not in the topic.
+rule again, one layer down. So a change reaches a running treedb only if
+`schema_version` moved on the `treedbs` node **and** `topic_version` on each
+topic touched — the second is what regenerates `topic_cols.json`, and without
+it the new columns exist in the schema and not in the topic.
+
+**You do not raise them: the write does.** A change that forgets either does
+nothing and says nothing, so leaving the rule to whoever writes means every
+editor, script and console has to carry it — and it is easy to get wrong even
+while looking at it. Writing a `cols` or `topics` node of `__system__`
+therefore raises the versions that publish it, walking up the fkeys to the
+column's topic and its treedb. The projector sets them itself and marks the
+tranger while it works (`__schema_publishing__`), which is also what stops the
+rule from answering its own writes.
 
 **A write here is a schema change, so it answers to the rules of a schema.**
 On top of the ordinary validation of §3.6, writes to these topics are refused
