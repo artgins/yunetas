@@ -695,11 +695,12 @@ next to the treedbs it manages, at `<path>/__system__`. There the same
 schema is stored **as ordinary treedb data**:
 
 ```
-treedbs   ── id, schema_version, c_schema_version ──hook topics──▶
-topics    ── id, pkey, pkey2s, system_flag, tkey,
+treedbs   ── id, schema_version, c_schema_version,
+             system_schema_version ──hook topics──▶
+topics    ── id (rowid), value, pkey, pkey2s, system_flag, tkey,
              topic_version, system_topic ──hook cols──▶
-cols      ── id (rowid), value, header, fillspace, type,
-             placeholder, flag, hook, pkey2s, default,
+cols      ── id (rowid), value, header, fillspace, type, placeholder,
+             flag, enum, template, hook, pkey2s, default,
              description, properties
 ```
 
@@ -707,9 +708,13 @@ Its schema is `treedb_system_schema.c`, and it is the reason a schema can be
 read, listed and edited at runtime with the same `nodes` / `create-node` /
 `update-node` commands as any other data — no new command surface.
 
-**`cols` is keyed by rowid, and the column name lives in `value`.** A column
-name is unique only inside its topic, so two topics with an `id` column would
-collide on a single `cols` topic keyed by name. This is also why the
+**`topics` and `cols` are keyed by rowid, and the name lives in `value`.** A
+name is unique only inside its parent: two topics with an `id` column would
+collide on a single `cols` topic keyed by name, and two treedbs with a `users`
+topic would collide on a single `topics` topic keyed by name — `users` is a
+topic of `authzs`, `mqtt_broker` and `controlcenter` alike. So addressing
+either one costs its rowid, not its name (`fetch_node` needs `id`; a pkey2
+only refines a primary lookup). This is also why the
 descriptor used to validate a *user* column is derived, not copied, from that
 topic: `_treedb_create_topic_cols_desc()` renames `value` back to `id` and
 drops the storage-only fields (`id`, `topics`, `_geometry`). Add a field for

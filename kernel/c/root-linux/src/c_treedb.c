@@ -937,6 +937,32 @@ PRIVATE const char *find_col_id(
 }
 
 /***************************************************************************
+ *  Find a topic node of a treedb by the topic name.
+ *
+ *  Same reason as find_col_id: a topic name is unique only inside its
+ *  treedb, so `topics` keys its nodes by rowid and holds the name in
+ *  `value`. Keyed by the bare name, the second treedb of a store declaring
+ *  `users` collided with the first and lost its schema.
+ *
+ *  Return the topic node, or NULL. Return is NOT yours.
+ ***************************************************************************/
+PRIVATE json_t *find_topic_node(
+    hgobj gobj,
+    json_t *current_topics, // the treedb's `topics` hook expanded, NOT owned
+    const char *topic_name
+)
+{
+    const char *topic_id; json_t *topic;
+    json_object_foreach(current_topics, topic_id, topic) {
+        if(strcmp(kw_get_str(gobj, topic, "value", "", 0), topic_name)==0) {
+            return topic;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
  *  Project a schema into the __system__ treedb: create what is missing,
  *  update what moved.
  *
@@ -1042,7 +1068,7 @@ PRIVATE int upsert_treedb_schema(
         json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
 
-        json_t *current_topic = json_object_get(current_topics, topic_name);
+        json_t *current_topic = find_topic_node(gobj, current_topics, topic_name);
 
         /*
          *  A topic's version cannot go BACKWARDS on a re-projection, for the
@@ -1063,7 +1089,7 @@ PRIVATE int upsert_treedb_schema(
         }
 
         json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
-            "id", topic_name,
+            "value", topic_name,
             "pkey", pkey,
             "system_flag", system_flag,
             "tkey", tkey,
@@ -1072,6 +1098,14 @@ PRIVATE int upsert_treedb_schema(
         );
         if(topic_pkey2s_) {
             json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
+        }
+        if(current_topic) {
+            /*  Keep the rowid: it is this topic's identity  */
+            json_object_set(
+                kw_topic,
+                "id",
+                json_object_get(current_topic, "id")
+            );
         }
 
         json_t *topic;
@@ -1359,9 +1393,25 @@ PRIVATE json_t *get_treedb_schema(
         return 0;   // Error already logged
     }
 
-    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
-    const char *topic_name; json_t *topic;
-    json_object_foreach(topics, topic_name, topic) {
+    /*
+     *  HACK Both `topics` and `cols` are keyed by rowid and carry their name
+     *  in `value` (a name is unique only inside its parent), so the schema is
+     *  re-keyed by name on the way out — that is the shape a schema has.
+     */
+    json_t *stored_topics = kw_get_dict(gobj, treedb, "topics", 0, KW_EXTRACT);
+    json_t *topics = json_object();
+    json_object_set_new(treedb, "topics", topics);
+
+    const char *stored_topic_id; json_t *topic;
+    json_object_foreach(stored_topics, stored_topic_id, topic) {
+        const char *topic_name = kw_get_str(gobj, topic, "value", 0, KW_REQUIRED);
+        if(empty_string(topic_name)) {
+            continue;
+        }
+        json_object_set(topics, topic_name, topic);
+        json_object_set_new(topic, "id", json_string(topic_name));
+        json_object_del(topic, "value");
+
         json_t *cols = kw_get_dict(gobj, topic, "cols", 0, KW_EXTRACT|KW_REQUIRED);
         if(!cols) {
             continue;
@@ -1410,6 +1460,7 @@ PRIVATE json_t *get_treedb_schema(
 
         json_decref(cols);
     }
+    JSON_DECREF(stored_topics)
 
     return treedb;
 }

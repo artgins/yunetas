@@ -58,7 +58,8 @@
                                             │
                        topics               │
             ┌───────────────────────────┐   │
-            │* id                       │   │
+            │  id (rowid)               │   │
+            │* value (2)                │   │
             │                           │   │
             │               treedbs [↖] │ ──┘n
             │                           │
@@ -103,7 +104,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '12',                             \n\
+    'schema_version': '13',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -174,10 +175,20 @@ char treedb_system_schema[]= "\
             'id': 'topics',                             \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '4',                       \n\
+            'topic_version': '5',                       \n\
             'system_topic': true,                       \n\
+            'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
+                    'header': 'rowid',                  \n\
+                    'fillspace': 4,                     \n\
+                    'type': 'string',                   \n\
+                    'flag': [                           \n\
+                        'persistent',                   \n\
+                        'rowid'                         \n\
+                    ]                                   \n\
+                },                                      \n\
+                'value': {                              \n\
                     'header': 'Topic',                  \n\
                     'fillspace': 20,                    \n\
                     'type': 'string',                   \n\

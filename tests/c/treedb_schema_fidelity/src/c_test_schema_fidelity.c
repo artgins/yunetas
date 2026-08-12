@@ -163,6 +163,30 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  ONE store for all of them, on purpose: `users` is a topic of three of
+     *  these four schemas, and holding them together is what used to break —
+     *  `topics` was keyed by the bare topic name, so the second treedb
+     *  declaring `users` collided with the first, lost its topic node, and its
+     *  rebuilt schema failed to parse while the code fell back to the literal
+     *  in silence.
+     */
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+        "path", priv->path_database,
+        "filename_mask", "%Y",
+        "master", 1,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_TRACE_STACK
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_treedbs,
+        gobj
+    );
+    gobj_start_tree(priv->gobj_treedbs);
+
     set_timeout(priv->timer, 100);
 
     return 0;
@@ -215,33 +239,6 @@ PRIVATE int sweep_schema(hgobj gobj, const char *name, char *literal)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
 
-    /*
-     *  One store per schema, on purpose. The __system__ treedb keys its
-     *  `topics` topic by the BARE topic name, so two treedbs sharing one
-     *  (`users` is in authzs, mqtt_broker and controlcenter alike) collide in
-     *  a single store — a real limit, recorded in TODO.md, and not what this
-     *  sweep is measuring: whether ONE schema survives its own projection.
-     */
-    char path[PATH_MAX];
-    build_path(path, sizeof(path), priv->path_database, name, NULL);
-
-    char service_name[NAME_MAX];
-    snprintf(service_name, sizeof(service_name), "treedbs_%s", name);
-
-    priv->gobj_treedbs = gobj_create_service(
-        service_name,
-        C_TREEDB,
-        json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
-            "path", path,
-            "filename_mask", "%Y",
-            "master", 1,
-            "xpermission", 02770,
-            "rpermission", 0660,
-            "exit_on_error", LOG_OPT_TRACE_STACK
-        ),
-        gobj
-    );
-    gobj_start_tree(priv->gobj_treedbs);
 
     helper_quote2doublequote(literal);
     json_t *jn_schema = legalstring2json(literal, TRUE);
@@ -389,10 +386,6 @@ PRIVATE int sweep_schema(hgobj gobj, const char *name, char *literal)
         gobj
     );
     JSON_DECREF(jn_resp)
-
-    gobj_stop_tree(priv->gobj_treedbs);
-    gobj_destroy(priv->gobj_treedbs);
-    priv->gobj_treedbs = NULL;
 
     return result;
 }

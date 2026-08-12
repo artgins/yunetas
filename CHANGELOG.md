@@ -176,6 +176,21 @@
 
 ### Fixed
 
+- **Two treedbs of one store could not both hold a schema.** `__system__` keyed
+    its `topics` topic by the **bare topic name**, and a topic name is unique
+    only inside its treedb: `users` is a topic of `authzs`, `mqtt_broker` and
+    `controlcenter` alike. The second one to be projected got *"Node already
+    exists"*, its topic node was never created, its hooks then failed with
+    *"link topic not found"*, its rebuilt schema failed `parse_schema`, and
+    `get_client_treedb_schema` fell back to the C literal — in silence. The
+    local controlador's store holds five treedbs and its projection held one.
+
+    `topics` is keyed by rowid now, with the name in the pkey2 `value`, exactly
+    as `cols` has been since V6 — the same flaw, solved for columns and never
+    for topics. The sweep that found it now holds all four schemas in **one**
+    store, which is what used to break. Addressing a topic costs what
+    addressing a column costs: its rowid, not its name. System schema 12 → 13.
+
 - **A change to a schema now publishes itself.** Raising `topic_version` and
     `schema_version` is what makes a change visible — forget either and the
     change does nothing and says nothing, because `treedb_open_db` keeps the

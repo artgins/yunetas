@@ -3245,7 +3245,7 @@ PRIVATE int check_system_schema_write(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Schema topic pkey must be 'id'",
-                "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                "topic",        "%s", kw_get_str(gobj, node, "value", "", 0),
                 "pkey",         "%s", pkey,
                 NULL
             );
@@ -3258,7 +3258,7 @@ PRIVATE int check_system_schema_write(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Schema topic system_flag must be 'sf_string_key'",
-                "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                "topic",        "%s", kw_get_str(gobj, node, "value", "", 0),
                 "system_flag",  "%s", system_flag,
                 NULL
             );
@@ -3275,7 +3275,7 @@ PRIVATE int check_system_schema_write(
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB,
                         "msg",          "%s", "Cannot change this field of an existing topic",
-                        "topic",        "%s", kw_get_str(gobj, node, "id", "", 0),
+                        "topic",        "%s", kw_get_str(gobj, node, "value", "", 0),
                         "field",        "%s", frozen[i],
                         "was",          "%s", was,
                         "now",          "%s", now,
@@ -7697,7 +7697,7 @@ PUBLIC int treedb_link_nodes(
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB,
                     "msg",          "%s", "Topic already has a column with this name",
-                    "topic",        "%s", kw_get_str(gobj, parent_node, "id", "", 0),
+                    "topic",        "%s", kw_get_str(gobj, parent_node, "value", "", 0),
                     "col",          "%s", col_name,
                     NULL
                 );

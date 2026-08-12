@@ -475,6 +475,38 @@ PRIVATE json_t *client_topic_cols(hgobj gobj, const char *topic_name)
 }
 
 /***************************************************************************
+ *  The rowid of a topic by its name: `topics` is keyed by rowid and holds
+ *  the name in `value`, so a topic is addressed the same way a column is.
+ *  Return is NOT yours (points into the returned tree, which is freed).
+ ***************************************************************************/
+PRIVATE int system_topic_id(hgobj gobj, const char *topic_name, char *bf, int bfsize)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    *bf = 0;
+    if(!gobj_node_system) {
+        return -1;
+    }
+
+    json_t *nodes = gobj_list_nodes(
+        gobj_node_system,
+        "topics",
+        json_pack("{s:s}", "value", topic_name),
+        0,
+        gobj
+    );
+    int idx; json_t *node;
+    json_array_foreach(nodes, idx, node) {
+        if(strcmp(kw_get_str(gobj, node, "value", "", 0), topic_name)==0) {
+            snprintf(bf, bfsize, "%s", kw_get_str(gobj, node, "id", "", 0));
+            break;
+        }
+    }
+    JSON_DECREF(nodes)
+
+    return empty_string(bf)? -1: 0;
+}
+
+/***************************************************************************
  *  Return {col_name: rowid} of a topic as projected in __system__, plus
  *  {col_name__header: header} so a content change can be checked too.
  *  Return MUST be decref'd.
@@ -503,10 +535,14 @@ PRIVATE json_t *system_topic_cols(hgobj gobj, const char *topic_name)
         return NULL;    // Error already logged
     }
 
-    json_t *topic = json_object_get(
-        kw_get_dict(gobj, tree, "topics", 0, 0),
-        topic_name
-    );
+    json_t *topic = NULL;
+    const char *k; json_t *t;
+    json_object_foreach(kw_get_dict(gobj, tree, "topics", 0, 0), k, t) {
+        if(strcmp(kw_get_str(gobj, t, "value", "", 0), topic_name)==0) {
+            topic = t;
+            break;
+        }
+    }
 
     json_t *cols = json_object();
     const char *col_id; json_t *col;
@@ -630,7 +666,7 @@ PRIVATE int check_system_treedb(hgobj gobj)
     } else {
         int idx; json_t *topic;
         json_array_foreach(topics, idx, topic) {
-            const char *id = kw_get_str(gobj, topic, "id", "", 0);
+            const char *id = kw_get_str(gobj, topic, "value", "", 0);
             BOOL system_topic = kw_get_bool(gobj, topic, "system_topic", 0, 0);
             BOOL expected = strcmp(id, "departments")==0? TRUE:FALSE;
             if(system_topic != expected) {
@@ -873,11 +909,13 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
      *  is written at creation and never rewritten, so the change would be
      *  stored, shown by every reader, and ignored by the topic for good.
      */
+    char users_topic_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
     json_t *retopic = gobj_update_node(
         gobj_node_system,
         "topics",
         json_pack("{s:s, s:s}",
-            "id", "users",
+            "id", users_topic_id,
             "pkey", "username"
         ),
         json_pack("{s:b}", "refs", 1),
@@ -912,7 +950,7 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
     json_t *users_topic = gobj_get_node(
         gobj_node_system,
         "topics",
-        json_pack("{s:s}", "id", "users"),
+        json_pack("{s:s}", "id", users_topic_id),
         0,
         gobj
     );
@@ -968,8 +1006,10 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
         return -1;  // Error already logged elsewhere
     }
 
+    char users_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_id, sizeof(users_id));
     json_t *topic_before = gobj_get_node(
-        gobj_node_system, "topics", json_pack("{s:s}", "id", "users"), 0, gobj
+        gobj_node_system, "topics", json_pack("{s:s}", "id", users_id), 0, gobj
     );
     json_int_t topic_v0 = kw_get_int(gobj, topic_before, "topic_version", 0, KW_WILD_NUMBER);
     json_int_t schema_v0 = system_schema_version(gobj, "schema_version");
@@ -998,7 +1038,7 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
     JSON_DECREF(updated)
 
     json_t *topic_after = gobj_get_node(
-        gobj_node_system, "topics", json_pack("{s:s}", "id", "users"), 0, gobj
+        gobj_node_system, "topics", json_pack("{s:s}", "id", users_id), 0, gobj
     );
     json_int_t topic_v1 = kw_get_int(gobj, topic_after, "topic_version", 0, KW_WILD_NUMBER);
     json_int_t schema_v1 = system_schema_version(gobj, "schema_version");
