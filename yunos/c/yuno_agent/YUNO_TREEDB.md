@@ -695,7 +695,7 @@ next to the treedbs it manages, at `<path>/__system__`. There the same
 schema is stored **as ordinary treedb data**:
 
 ```
-treedbs   ── id, schema_version ──hook topics──▶
+treedbs   ── id, schema_version, c_schema_version ──hook topics──▶
 topics    ── id, pkey, pkey2s, system_flag, tkey,
              topic_version, system_topic ──hook cols──▶
 cols      ── id (rowid), value, header, fillspace, type,
@@ -718,10 +718,24 @@ that skip list.
 
 **Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects the C
 literal into `__system__` the first time it sees a treedb, and afterwards only
-when the literal is **strictly newer**: `schema_version` decides, exactly as it
-already decides between the literal and the persisted schema file (§3.5). So an
-edit made in `__system__` survives every start until a higher `schema_version`
-arrives from C, and raising the version is how either side publishes a change.
+when the literal is **strictly newer**, exactly as `schema_version` already
+decides between the literal and the persisted schema file (§3.5). Raising the
+version is how either side publishes a change.
+
+The `treedbs` node carries **two** numbers, and they are not interchangeable:
+
+| | Written by | Means |
+|---|---|---|
+| `schema_version` | whoever edits the schema (an editor raises it on save) | what this schema is worth to `treedb_open_db` |
+| `c_schema_version` | only the projection | which version of the C literal this projection came from |
+
+Reconciliation compares the literal against **`c_schema_version`**. Sharing one
+counter would mean that the first edit made here — which has to raise
+`schema_version` to reach the treedb at all — silently outranks every later
+release of the literal, and nothing would say so. A re-projection also
+publishes under `max(stored, literal) + 1`, or the persisted schema file,
+sitting at the edited number, would keep masking it. Stores projected before
+`c_schema_version` existed fall back to `schema_version`.
 
 **Reconciling is an upsert — nothing is ever deleted.** A column's `id` is a
 rowid handed out from the topic size, so re-creating columns renumbers all of

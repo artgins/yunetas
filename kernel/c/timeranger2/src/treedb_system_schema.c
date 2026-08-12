@@ -40,7 +40,7 @@
             │* id                       │
             │                           │
             │* schema_version           │
-            │                           │
+            │  c_schema_version         │
             │                           │
             │                 topics {} │ ◀─┐N
             │                           │   │
@@ -93,13 +93,13 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '8',                              \n\
+    'schema_version': '9',                              \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '2',                       \n\
+            'topic_version': '3',                       \n\
             'system_topic': true,                       \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
@@ -120,6 +120,15 @@ char treedb_system_schema[]= "\
                         'writable',                     \n\
                         'persistent',                   \n\
                         'required'                      \n\
+                    ]                                   \n\
+                },                                      \n\
+                'c_schema_version': {                   \n\
+                    'header': 'From C Version',         \n\
+                    'fillspace': 10,                    \n\
+                    'type': 'integer',                  \n\
+                    'flag': [                           \n\
+                        'wild',                         \n\
+                        'persistent'                    \n\
                     ]                                   \n\
                 },                                      \n\
                 'topics': {                             \n\

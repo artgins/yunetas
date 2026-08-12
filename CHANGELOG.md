@@ -77,6 +77,17 @@
     dead `return` that shadowed that path in `get_client_treedb_schema()` (it
     was in V6 as well) is gone.
 
+    The `treedbs` node carries **two** version numbers, because one counter
+    cannot serve two writers: `schema_version` is what the schema is worth to
+    `treedb_open_db` and whoever edits the schema raises it, while
+    `c_schema_version` records which literal the projection came from and only
+    the projection writes it. Reconciliation compares against the second. With a
+    single counter, the first edit made here — which has to raise the version to
+    reach the treedb at all — would silently outrank every later release of the
+    literal. A re-projection publishes under `max(stored, literal) + 1`, or the
+    persisted schema file, sitting at the edited number, would keep masking it.
+    System schema 8 → 9.
+
     Afterwards the two homes reconcile by **`schema_version`, strictly newer
     wins** — the same rule `treedb_open_db` already applies between that schema
     and the persisted schema file, so an edit made in `__system__` survives

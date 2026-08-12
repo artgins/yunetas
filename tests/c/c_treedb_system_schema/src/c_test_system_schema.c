@@ -497,9 +497,9 @@ PRIVATE json_t *system_topic_cols(hgobj gobj, const char *topic_name)
 }
 
 /***************************************************************************
- *  Return the schema_version stored in __system__ for the test treedb
+ *  Return a version field of the treedb node stored in __system__
  ***************************************************************************/
-PRIVATE json_int_t system_schema_version(hgobj gobj)
+PRIVATE json_int_t system_schema_version(hgobj gobj, const char *field)
 {
     hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
     if(!gobj_node_system) {
@@ -522,7 +522,7 @@ PRIVATE json_int_t system_schema_version(hgobj gobj)
     json_int_t version = kw_get_int(
         gobj,
         json_array_get(treedbs, 0),
-        "schema_version",
+        field,
         -1,
         KW_WILD_NUMBER
     );
@@ -983,13 +983,21 @@ PRIVATE int run_tests(hgobj gobj)
         return -1;  // Error already logged
     }
 
-    json_int_t version = system_schema_version(gobj);
-    if(version != 2) {
+    /*
+     *  The projection records WHICH literal it came from in
+     *  `c_schema_version`, and publishes under a `schema_version` that
+     *  outranks whatever was already published — otherwise the persisted
+     *  schema file, sitting at the previous number, keeps masking it.
+     */
+    json_int_t from_c = system_schema_version(gobj, "c_schema_version");
+    json_int_t version = system_schema_version(gobj, "schema_version");
+    if(from_c != 2 || version != 3) {
         gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL,
-            "msg",              "%s", "TEST FAIL: schema_version not updated in __system__",
-            "schema_version",   "%d", (int)version,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_INTERNAL,
+            "msg",                  "%s", "TEST FAIL: wrong versions after re-projection",
+            "c_schema_version",     "%d", (int)from_c,
+            "schema_version",       "%d", (int)version,
             NULL
         );
         result += -1;
@@ -1061,7 +1069,81 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
-     *  Test 4: writes that would define a broken
+     *  Test 4: an edit made here raises the published
+     *  version, and a later release of the C literal
+     *  still lands. The two lines are told apart by
+     *  `c_schema_version`; sharing one counter, this
+     *  edit would outrank every future literal and
+     *  nothing would say so.
+     *-----------------------------------------------*/
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    json_t *edited = gobj_update_node(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s, s:I}", "id", TREEDB_NAME, "schema_version", (json_int_t)10),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    JSON_DECREF(edited)
+
+    /*
+     *  jn_schema2 was consumed by the open above; parse the literal again
+     */
+    json_t *jn_schema3 = legalstring2json(schema_test2, TRUE);
+    json_object_set_new(jn_schema3, "schema_version", json_integer(3));
+    json_t *jn_users = json_array_get(json_object_get(jn_schema3, "topics"), 0);
+    json_object_set_new(jn_users, "topic_version", json_integer(3));
+    json_object_set_new(
+        json_object_get(json_object_get(jn_users, "cols"), "email"),
+        "header",
+        json_string("E-mail")
+    );
+
+    jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+
+    if(open_test_treedb(gobj, jn_schema3) == 0) {
+        json_int_t from_c3 = system_schema_version(gobj, "c_schema_version");
+        json_int_t version3 = system_schema_version(gobj, "schema_version");
+        json_t *cols3 = system_topic_cols(gobj, "users");
+        const char *email_header = json_string_value(
+            json_object_get(cols3, "email__header")
+        );
+
+        if(from_c3 != 3 || version3 <= 10) {
+            gobj_log_error(gobj, 0,
+                "function",             "%s", __FUNCTION__,
+                "msgset",               "%s", MSGSET_INTERNAL,
+                "msg",                  "%s", "TEST FAIL: a literal newer than the projection did not land",
+                "c_schema_version",     "%d", (int)from_c3,
+                "schema_version",       "%d", (int)version3,
+                NULL
+            );
+            result += -1;
+        }
+        if(!email_header || strcmp(email_header, "E-mail")!=0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the literal's column change did not reach __system__",
+                "header",       "%s", email_header?email_header:"",
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(cols3)
+    } else {
+        result += -1;   // Error already logged
+    }
+    /*  jn_schema3 was consumed by open_test_treedb  */
+
+    /*-----------------------------------------------*
+     *  Test 5: writes that would define a broken
      *  schema are refused where they are written,
      *  not at the next open
      *-----------------------------------------------*/

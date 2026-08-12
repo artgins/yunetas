@@ -117,6 +117,8 @@ static int register_yuno_and_more(void)
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + users regenerated */
+            "{s:s},"                                    /* literal newer than an edited projection */
+            "{s:s}, {s:s}, {s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s},"               /* the four refused writes */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
@@ -137,6 +139,10 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating TreeDB schema file",
+            "msg", "Updating TreeDB schema in __system__",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
             "msg", "Updating TreeDB schema in __system__",
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",

@@ -948,11 +948,30 @@ PRIVATE int upsert_treedb_schema(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_int_t schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
+    json_int_t c_schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
 
-    json_t *kw_treedb = json_pack("{s:s, s:I}",
+    /*
+     *  `schema_version` says what this schema is worth to treedb_open_db, and
+     *  whoever edits it here raises it. `c_schema_version` says which version
+     *  of the C literal this projection came from, and only this function
+     *  writes it: without that second number the two lines share one counter,
+     *  an edit made here silently outranks every later release of the literal,
+     *  and nothing says so.
+     *
+     *  A re-projection must also outrank whatever is already published, or the
+     *  persisted schema file — which may sit at the edited version — keeps
+     *  masking it.
+     */
+    json_int_t schema_version = c_schema_version;
+    if(current) {
+        json_int_t stored = kw_get_int(gobj, current, "schema_version", 0, KW_WILD_NUMBER);
+        schema_version = (stored > c_schema_version? stored: c_schema_version) + 1;
+    }
+
+    json_t *kw_treedb = json_pack("{s:s, s:I, s:I}",
         "id", treedb_name,
-        "schema_version", (json_int_t )schema_version
+        "schema_version", (json_int_t )schema_version,
+        "c_schema_version", (json_int_t )c_schema_version
     );
 
     json_t *treedb;
@@ -1187,13 +1206,24 @@ PRIVATE int reconcile_treedb_schema(
         return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL);
     }
 
+    /*
+     *  Compare against the version of the LITERAL this projection came from,
+     *  never against `schema_version` — that one belongs to whoever edits the
+     *  schema here, and comparing against it would let one edit outrank every
+     *  later release of the literal. Stores projected before `c_schema_version`
+     *  existed fall back to it.
+     */
+    json_t *stored_treedb = json_array_get(stored, 0);
     json_int_t stored_version = kw_get_int(
         gobj,
-        json_array_get(stored, 0),
-        "schema_version",
+        stored_treedb,
+        "c_schema_version",
         0,
         KW_WILD_NUMBER
     );
+    if(stored_version == 0) {
+        stored_version = kw_get_int(gobj, stored_treedb, "schema_version", 0, KW_WILD_NUMBER);
+    }
     JSON_DECREF(stored)
 
     json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
