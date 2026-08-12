@@ -866,11 +866,33 @@ PRIVATE int run_tests(hgobj gobj)
      *  file, so that on re-open neither the file nor
      *  an input schema can supply it: what comes back
      *  must come from __system__.
+     *
+     *  HACK The tests run from a timer, so the yuno is playing and
+     *  close-treedb refuses — it destroys services whose handles a normal
+     *  owner has cached. This driver opened the treedb and holds nothing of
+     *  it, which is what `force` is for. The refusal itself is checked below.
      *-----------------------------------------------*/
     json_t *jn_resp = gobj_command(
         priv->gobj_treedbs,
         "close-treedb",
         json_pack("{s:s}", "treedb_name", TREEDB_NAME),
+        gobj
+    );
+    if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED) == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a playing yuno closed its treedb",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
         gobj
     );
     int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
@@ -951,7 +973,7 @@ PRIVATE int run_tests(hgobj gobj)
     jn_resp = gobj_command(
         priv->gobj_treedbs,
         "close-treedb",
-        json_pack("{s:s}", "treedb_name", TREEDB_NAME),
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
         gobj
     );
     JSON_DECREF(jn_resp)

@@ -96,6 +96,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_close_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Close although the yuno plays (only if nothing cached the treedb's handles)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_treedb[] = {
@@ -615,6 +616,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -639,6 +641,41 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             -1,
             json_sprintf("What treedb_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------------------------------*
+     *  Closing destroys the treedb's C_NODE and its
+     *  C_TRANGER, and whoever opened them keeps raw
+     *  handles that no framework cleanup can reach: the
+     *  service pointer, the `tranger` json_t read from it,
+     *  copies of both on a hot path, and whatever else was
+     *  opened on that same tranger (a msg2db, another
+     *  treedb). Freed underneath, the next record processed
+     *  writes into released memory.
+     *
+     *  The owner closes and reopens through its own
+     *  lifecycle — mt_pause closes, mt_play reopens and
+     *  re-acquires every handle — and by then the yuno is
+     *  already out of play. From outside, that is
+     *  `pause-yuno` + `play-yuno`.
+     *
+     *  `force` is for a caller that opened the treedb and
+     *  holds nothing of it.
+     *-----------------------------------------------------*/
+    if(gobj_is_playing(gobj_yuno()) && !force) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: cannot close a treedb while the yuno plays. Use "
+                "pause-yuno + play-yuno, which reopens it through the yuno's "
+                "own lifecycle (force=1 only if nothing cached its handles)",
+                gobj_yuno_role_plus_name()
+            ),
             0,
             0,
             kw  // owned

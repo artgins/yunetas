@@ -769,6 +769,21 @@ because none of these is loud later:
   a schema is rebuilt by, so a duplicate drops one of the two definitions on
   the next read.
 
+**Applying an edit: `pause-yuno` + `play-yuno`, never `close-treedb`.** An
+edited schema reaches a running treedb only when the treedb is reopened, and
+the reopen has to be driven by the yuno that opened it. `close-treedb`
+destroys the treedb's `C_NODE` and its `C_TRANGER`, and an owner typically
+keeps raw handles that no framework cleanup can reach — the service pointer,
+the `tranger` json_t read from it, copies of both on a hot path, and whatever
+else it opened on that same tranger (`db_history_co` opens its `msg2db_alarms`
+there). Called from outside on a playing yuno, the next record processed
+writes into released memory. Every in-tree consumer therefore closes only from
+`mt_pause` and reopens in `mt_play`, which re-acquires every handle; from
+outside, that pair is `pause-yuno` + `play-yuno`, and it does **not** restart
+the process. `cmd_close_treedb` refuses while the yuno plays (`force=1` for a
+caller that holds nothing of the treedb). Note `pause` stops the yuno's other
+services too, so its gate goes down for the cycle.
+
 Round-trip coverage:
 [`tests/c/c_treedb_system_schema`](https://github.com/artgins/yunetas/tree/7.12.0/tests/c/c_treedb_system_schema).
 

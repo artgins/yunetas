@@ -42,10 +42,16 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     nothing says so. Deciding what the GUI does here (warn, refuse, offer to
     keep it hidden) needs the record side, not the schema side.
 
-- **Applying an edit means reopening.** `close-treedb` + `open-treedb` is the
-    only path today. In-place would need `tranger2_write_topic_cols()` (written,
-    called by nobody) plus `parse_schema_cols()` + `parse_hooks()` and a link
-    reload when hooks or fkeys change.
+- **Applying an edit costs a `pause-yuno` + `play-yuno`.** That is the whole
+    yuno, not just the treedb: its gate goes down for the cycle, and any client
+    connected to it — the editor included — has to reconnect. Reopening only the
+    treedb is not available to a third party and should not be: `close-treedb`
+    destroys services whose handles the owner has cached (it now refuses while
+    the yuno plays). A true in-place reload would live in the owner, as a local
+    method it implements — "reload your schema" — using
+    `tranger2_write_topic_cols()` (written, called by nobody) plus
+    `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
+    fkeys change.
 
 - **`delete-treedb` does not work.** `delete_client_treedb_schema()` deletes the
     parent before its children and hands collapsed views to a function that

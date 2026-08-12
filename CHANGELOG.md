@@ -165,6 +165,18 @@
 
 ### Fixed
 
+- **`close-treedb` on a playing yuno was a use-after-free anyone could
+    trigger.** It destroys the treedb's `C_NODE` and its `C_TRANGER`, and an
+    owner keeps raw handles no framework cleanup can reach: the service pointer,
+    the `tranger` json_t read from it, copies of both on a hot path, and
+    whatever else was opened on that same tranger — `db_history_co` opens its
+    `msg2db_alarms` there. Freed underneath, the next record processed writes
+    into released memory. Every in-tree consumer closes only from `mt_pause`, so
+    the command now refuses while the yuno plays and points at the pair that
+    does this correctly, `pause-yuno` + `play-yuno` (which reopens through the
+    owner's own lifecycle, without restarting the process). `force=1` remains
+    for a caller that opened the treedb and holds nothing of it.
+
 - **A treedb `update-node` validated nothing, and answered success when it
     failed.** `treedb_update_node()` set each incoming field straight onto the
     node — no type, no `notnull`, no `enum` — so a column could end up holding
