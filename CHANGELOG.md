@@ -2,32 +2,6 @@
 
 ## Unreleased
 
-### Fixed
-
-- **The agent dropped every counter-driven answer of a client behind a
-    controlcenter.** `kill-yuno`, `run-yuno`, `play-yuno` and `pause-yuno` do
-    not answer when the command is parsed: they answer when it is DONE — the
-    agent raises a `C_COUNTER` that waits for the killed yuno's channel to
-    close, or for the launched one to connect back, and `ac_final_count()`
-    sends the answer to the requester. It looked for that requester with
-    `gobj_child_by_name(__input_side__, …)` only, and a command cascaded from a
-    controlcenter arrives through the OUTBOUND `controlcenter` C_IEVENT_CLI —
-    a top-level service, not an input-side child. So the lookup missed, the
-    answer was dropped with *"requester channel child not found"* in the
-    agent's log, and the caller waited forever for work that had actually been
-    done.
-
-    This is the same defect `ac_command_yuno_answer` / `ac_stats_yuno_answer`
-    were fixed for in `d2d833109` (7.11.0); the deferred path was missed
-    because it is reached only by the four lifecycle commands, and only from a
-    SPA — a local `ycommand` requester ("input-N") IS an input-side child, so
-    every CLI test passed. Same fallback here:
-    `gobj_find_service(requester, FALSE)`.
-
-    Found while giving gui_agent's Schemas workspace its Apply button, whose
-    whole job is `kill-yuno` → `run-yuno play=0` → `play-yuno` chained on those
-    answers. **Nodes need the new agent binary for it to work there.**
-
 ### Documentation
 
 - **The JavaScript side had no API reference — it had a listing.** Looking for
@@ -400,6 +374,51 @@
     entry's own `(js_<name>)=` label names, which is more reliable than the link
     text: a heading is free to read `## C_TIMER` while the symbol is
     `register_c_timer()`.
+
+
+- **The agent dropped every counter-driven answer of a client behind a
+    controlcenter.** `kill-yuno`, `run-yuno`, `play-yuno` and `pause-yuno` do
+    not answer when the command is parsed: they answer when it is DONE — the
+    agent raises a `C_COUNTER` that waits for the killed yuno's channel to
+    close, or for the launched one to connect back, and `ac_final_count()`
+    sends the answer to the requester. It looked for that requester with
+    `gobj_child_by_name(__input_side__, …)` only, and a command cascaded from a
+    controlcenter arrives through the OUTBOUND `controlcenter` C_IEVENT_CLI —
+    a top-level service, not an input-side child. So the lookup missed, the
+    answer was dropped with *"requester channel child not found"* in the
+    agent's log, and the caller waited forever for work that had actually been
+    done.
+
+    This is the same defect `ac_command_yuno_answer` / `ac_stats_yuno_answer`
+    were fixed for in `d2d833109` (7.11.0); the deferred path was missed
+    because it is reached only by the four lifecycle commands, and only from a
+    SPA — a local `ycommand` requester ("input-N") IS an input-side child, so
+    every CLI test passed. Same fallback here:
+    `gobj_find_service(requester, FALSE)`.
+
+    Found while giving gui_agent's Schemas workspace its Apply button, whose
+    whole job is `kill-yuno` → `run-yuno play=0` → `play-yuno` chained on those
+    answers. **Nodes need the new agent binary for it to work there.**
+
+- **gobj-ui submodule 5.13.0 → 5.14.1, and the JS yunos with it.** `5.14.0`
+    publishes `EV_RECORD_WRITTEN` from `C_YUI_TREEDB_TOPICS`: the view refreshes
+    itself from the treedb's own node events, which arrive for every writer and
+    therefore say nothing a host can act on — a schema editor, where changing a
+    column also has to raise the versions that publish it, cannot use them
+    without answering its own writes in a loop. `5.14.1` teaches the treedb
+    table the `rowid` type: a topic keyed by rowid — which is how the
+    `__system__` treedb has stored a schema since this release — logged
+    *"unhandled type 'rowid'"* once per cell over every render of `topics` and
+    `cols`, the two topics a schema editor exists to edit.
+
+- **`yunos/js`: gui_agent grows a Schemas workspace** — gobj-ui's treedb editor,
+    unchanged, over a routing adapter that re-wraps each command as
+    `command-agent` + `cmd2agent="command-yuno …"`, so one control-center
+    session reaches the `treedb_system_schema` of any yuno of any node. It
+    discovers which treedbs a yuno exposes, marks in the picker the yunos with
+    none, carries `<treedb>/<topic>` in the URL, and applies a schema by
+    restarting the owning yuno. Detail in that submodule's own `CHANGELOG.md`.
+
 
 ## 7.12.0-2
 

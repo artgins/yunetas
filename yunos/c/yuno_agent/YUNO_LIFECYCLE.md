@@ -313,6 +313,17 @@ ycommand -c 'run-yuno play=0'   # launch only → 1 answer ("N yunos found to ru
 ycommand -c 'play-yuno'         # play already-running yunos → 1 aggregated answer
 ```
 
+**Where that answer goes.** It is sent when the counter completes, long after
+the command returned, so it is not carried back by the call: `ac_final_count()`
+resolves the requester by NAME and sends it an `EV_MT_COMMAND_ANSWER`. A local
+`ycommand` is a child of `__input_side__` and is found there; a client behind a
+**controlcenter** is not — its command arrived through the agent's *outbound*
+`controlcenter` `C_IEVENT_CLI`, a top-level service. Until this release the
+lookup missed and the answer was dropped with *"requester channel child not
+found"* in the agent's log: the yuno was killed, or launched, and the caller
+waited forever. A node with an older agent still behaves that way, which
+matters to anything that chains these commands on their answers.
+
 `play=0` (default `1`, backward-compatible) suppresses the auto-play for that
 launch only. The agent records the `launch_id` in an in-memory set
 (`priv->no_play_launches`). `ac_on_open()` consumes it by matching the

@@ -678,10 +678,22 @@ Points found so far (verified this session unless noted):
    fires (see [§4.5](https://doc.yuneta.io/yuno-auth#id-4-5-the-command-authz-check-re-armed-gated-opt-in)), so
    **any principal the node authenticates can run the entire agent surface** —
    `install-binary`, `update-binary`, `kill-yuno`, `deactivate-snap`,
-   `create/delete-realm`, `command-yuno`, configs, … The node authz list
-   governs **only** `open-console` (the one unconditional check, in
-   `cmd_open_console`). Fix in the final phase: set `enable_command_authz` +
-   give each `SDATAAUTHZ` command a permission and map roles to it.
+   `create/delete-realm`, `command-yuno`, configs, … Fix in the final phase:
+   set `enable_command_authz` + give each `SDATAAUTHZ` command a permission and
+   map roles to it.
+
+   **What the node authz list governs today, with the gate off, is not only
+   `open-console`.** A command that calls `gobj_user_has_authz()` ITSELF is
+   checked regardless of the gate, and `C_NODE` — every treedb — does exactly
+   that: `read` in `cmd_list_nodes` / `cmd_get_node`, `create`, `update` and
+   `delete` in their commands. So the treedb surface of every yuno is already
+   fail-closed per user, while the agent's own control plane is wide open —
+   the inverse of what an operator expects. Verified 2026-08-12 by
+   `claudia@artgins.com` (point 3): every topic of `treedb_system_schema`
+   answered `-403 No permission to 'read'` until they were given a role in
+   THAT yuno's `C_AUTHZ`. The matrix must cover the per-yuno treedb
+   permissions, not only the agent commands, and until it does an operator
+   needs a role in each yuno whose schema or data they are to touch.
 
 2. **The controlcenter's `command-agent` is not scoped per node/tenant.**
    `cmd_command_agent` ([`c_controlcenter.c`](src/c_controlcenter.c)) checks
