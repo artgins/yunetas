@@ -160,6 +160,40 @@ PRIVATE char schema_test1[] = "\
                     }                                               \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'fidelity',                                       \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': 1,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'probe': {                                          \n\
+                    'header': 'Probe',                              \n\
+                    'fillspace': 7,                                 \n\
+                    'type': 'dict',                                 \n\
+                    'placeholder': 'a placeholder',                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {'fidelity': 'parent'},                 \n\
+                    'enum': ['one','two'],                          \n\
+                    'template': {'shape': 1},                       \n\
+                    'pkey2s': 'a_key',                              \n\
+                    'default': 'a scalar default',                  \n\
+                    'description': 'every attribute at once',       \n\
+                    'properties': {'p': 1}                          \n\
+                }                                                   \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -584,7 +618,7 @@ PRIVATE int check_system_treedb(hgobj gobj)
      *  Two topic nodes, system_topic preserved
      *-----------------------------------------------*/
     json_t *topics = gobj_list_nodes(gobj_node_system, "topics", 0, 0, gobj);
-    if(json_array_size(topics) != 2) {
+    if(json_array_size(topics) != 3) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -622,7 +656,7 @@ PRIVATE int check_system_treedb(hgobj gobj)
      *  rebuilt from them.
      *-----------------------------------------------*/
     json_t *cols = gobj_list_nodes(gobj_node_system, "cols", 0, 0, gobj);
-    if(json_array_size(cols) != 6) {
+    if(json_array_size(cols) != 9) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -648,6 +682,95 @@ PRIVATE int check_system_treedb(hgobj gobj)
         }
     }
     JSON_DECREF(cols)
+
+    return result;
+}
+
+/***************************************************************************
+ *  Every attribute a column MAY declare has to survive the projection.
+ *
+ *  The list is not written here on purpose: it is read from the descriptor
+ *  a user column answers to (_treedb_create_topic_cols_desc), so an
+ *  attribute added there without storage behind it fails this test instead
+ *  of disappearing from every schema in silence. That is how `enum` and
+ *  `template` were lost — a column kept its `enum` FLAG while its list
+ *  evaporated, so it declared an enumeration it no longer had.
+ ***************************************************************************/
+PRIVATE int check_column_fidelity(hgobj gobj)
+{
+    int result = 0;
+
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
+    if(!gobj_node_system || !gobj_client_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: services not found for the fidelity check",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  What the treedb serves now is what the projection rebuilt
+     */
+    json_t *desc = gobj_topic_desc(gobj_client_node, "fidelity");
+    json_t *rebuilt = NULL;
+    int idx; json_t *col;
+    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
+        if(strcmp(kw_get_str(gobj, col, "id", "", 0), "probe")==0) {
+            rebuilt = col;
+            break;
+        }
+    }
+    if(!rebuilt) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the probe column did not survive at all",
+            NULL
+        );
+        JSON_DECREF(desc)
+        return -1;
+    }
+
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *entry;
+    json_array_foreach(cols_desc, idx, entry) {
+        const char *attr = kw_get_str(gobj, entry, "id", "", 0);
+        if(empty_string(attr) || strcmp(attr, "id")==0) {
+            continue;   /*  the column's own name, checked by finding it  */
+        }
+        json_t *value = json_object_get(rebuilt, attr);
+        if(!value || json_is_null(value)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a declared column attribute was lost",
+                "attr",         "%s", attr,
+                NULL
+            );
+            result += -1;
+            continue;
+        }
+        /*
+         *  An attribute the probe sets must come back with its value, not
+         *  with the empty shape a lost value leaves behind.
+         */
+        if(json_is_object(value) && json_object_size(value)==0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a declared column attribute came back empty",
+                "attr",         "%s", attr,
+                NULL
+            );
+            result += -1;
+        }
+    }
+    JSON_DECREF(cols_desc)
+    JSON_DECREF(desc)
 
     return result;
 }
@@ -857,6 +980,7 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     result += check_system_treedb(gobj);
+    result += check_column_fidelity(gobj);
 
     json_t *cols_before = client_topic_cols(gobj, "users");
 

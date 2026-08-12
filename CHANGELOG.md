@@ -176,6 +176,26 @@
 
 ### Fixed
 
+- **The projection of a schema was losing three column attributes, and a
+    scalar `default`.** Measured across the 19 schemas in the tree and the
+    project repos: `enum` (18 uses) and `template` (6) had no column in the
+    meta-schema at all, and `pkey2s` had one that the projector never filled.
+    The `enum` loss is the worst of the three because it is silent *and*
+    disarming: the column keeps its `enum` **flag** while its enumeration
+    disappears, so it declares an enumeration it no longer has and every value
+    passes. On top of that, a column's `default` is declared `blob`, and a blob
+    replaced anything that was not an array or an object with `{}` — so
+    `'default': 'es'` was stored as an empty dict. A blob that discards a
+    scalar is not a blob; it keeps what it is given now, on both the write and
+    the read back.
+
+    The cause of the missing attributes was a **list written by hand** in the
+    projector: adding an attribute to the descriptor did not add it there. It
+    now copies whatever the descriptor declares, and the test asserts fidelity
+    the same way — reading the attribute list from the descriptor instead of
+    repeating it — so the next attribute that gains no storage fails a test
+    rather than changing every schema quietly. System schema 9 → 10.
+
 - **`close-treedb` on a playing yuno was a use-after-free anyone could
     trigger.** It destroys the treedb's `C_NODE` and its `C_TRANGER`, and an
     owner keeps raw handles no framework cleanup can reach: the service pointer,

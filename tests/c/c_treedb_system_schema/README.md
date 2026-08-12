@@ -26,7 +26,15 @@ The test drives `C_TREEDB` through its own commands and checks:
    reaches the running treedb too, which is the whole chain: literal →
    `__system__` → schema file → topic.
 
-4. **Refused writes** — a write that could not produce a working schema is
+4. **Fidelity** — every attribute a column MAY declare survives the round
+   trip. The list is not written in the test: it is read from the descriptor
+   a user column answers to, so an attribute added there without storage
+   behind it fails here instead of disappearing from every schema in silence.
+   That is how `enum`, `template` and `pkey2s` were being lost — a column kept
+   its `enum` **flag** while its enumeration evaporated, so it declared an
+   enumeration it no longer had, and every value passed.
+
+5. **Refused writes** — a write that could not produce a working schema is
    refused where it is written, not at the next open: a column whose `type` is
    outside the enum the meta-schema declares (on create *and* on update, and
    the refused update leaves the node untouched), a change to the `pkey` of an

@@ -2747,7 +2747,14 @@ PRIVATE int normalize_node_field_value(
             break;
 
         CASES("blob")
-            if(JSON_TYPEOF(value, JSON_ARRAY) || JSON_TYPEOF(value, JSON_OBJECT)) {
+            /*
+             *  HACK a blob holds whatever it is given, SCALARS INCLUDED. It
+             *  used to keep only arrays and objects and replace anything else
+             *  with {}, which is not a blob: a column's `default` is declared
+             *  blob and `'default': 'es'` was stored as an empty dict, so the
+             *  default was gone and nothing said so.
+             */
+            if(value) {
                 json_object_set(record, field, value);
             } else {
                 json_object_set_new(record, field, json_object());
@@ -2945,7 +2952,8 @@ PRIVATE int set_mem_field_value(
             break;
 
         CASES("blob")
-            if(JSON_TYPEOF(value, JSON_ARRAY) || JSON_TYPEOF(value, JSON_OBJECT)) {
+            /*  Reading back what the write kept: scalars included  */
+            if(value) {
                 json_object_set(record, field, value);
             } else {
                 json_object_set_new(record, field, json_object());

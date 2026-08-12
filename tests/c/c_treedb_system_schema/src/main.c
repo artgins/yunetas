@@ -113,7 +113,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* __snaps__ __graphs__ treedbs topics cols */
             "{s:s},"    /* Playing yuno */
             "{s:s}, {s:s},"                             /* client tranger + schema */
-            "{s:s}, {s:s}, {s:s}, {s:s},"               /* __snaps__ __graphs__ users departments */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* __snaps__ __graphs__ users departments fidelity */
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + users regenerated */
@@ -134,6 +134,7 @@ static int register_yuno_and_more(void)
             "msg", "Playing yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

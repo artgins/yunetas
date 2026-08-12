@@ -79,6 +79,8 @@
             │  fillspace                │
             │* type                     │
             │  flag                     │
+            │  enum                     │
+            │  template                 │
             │  hook                     │
             │  default                  │
             │  description              │
@@ -93,7 +95,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '9',                              \n\
+    'schema_version': '10',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -260,7 +262,7 @@ char treedb_system_schema[]= "\
             'id': 'cols',                               \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '6',                       \n\
+            'topic_version': '7',                       \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
@@ -390,6 +392,24 @@ char treedb_system_schema[]= "\
                         'enum',                         \n\
                         'persistent',                   \n\
                         'writable'                      \n\
+                    ]                                   \n\
+                },                                      \n\
+                'enum': {                               \n\
+                    'header': 'Enum',                   \n\
+                    'fillspace': 10,                    \n\
+                    'type': 'blob',                     \n\
+                    'flag': [                           \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
+                    ]                                   \n\
+                },                                      \n\
+                'template': {                           \n\
+                    'header': 'Template',               \n\
+                    'fillspace': 8,                     \n\
+                    'type': 'blob',                     \n\
+                    'flag': [                           \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
                     ]                                   \n\
                 },                                      \n\
                 'hook': {                               \n\

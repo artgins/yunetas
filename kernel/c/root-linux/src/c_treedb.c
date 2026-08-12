@@ -998,6 +998,11 @@ PRIVATE int upsert_treedb_schema(
 
     json_t *current_topics = current? kw_get_dict(gobj, current, "topics", 0, 0): NULL;
 
+    /*
+     *  What a column may declare, read once for the whole projection
+     */
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+
     json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
@@ -1077,37 +1082,35 @@ PRIVATE int upsert_treedb_schema(
                 continue;
             }
             const char *header = kw_get_str(gobj, jn_col, "header", col_name, 0);
-            json_int_t fillspace = kw_get_int(gobj, jn_col, "fillspace", 10, 0);
-            const char *placeholder = kw_get_str(gobj, jn_col, "placeholder", "", 0);
             const char *type = kw_get_str(gobj, jn_col, "type", "", KW_REQUIRED);
             if(empty_string(type)) {
                 continue;
             }
-            json_t *flag_ = kw_get_list(gobj, jn_col, "flag", json_array(), 0);
-            json_t *hook_ = kw_get_dict_value(gobj, jn_col, "hook", 0, 0);
-            json_t *default_ = kw_get_dict_value(gobj, jn_col, "default", 0, 0);
-            const char *description = kw_get_str(gobj, jn_col, "description", 0, 0);
-            json_t *properties_ = kw_get_dict_value(gobj, jn_col, "properties", 0, 0);
+            /*
+             *  Copy every attribute the DESCRIPTOR declares, never a list
+             *  written by hand here: that list is why `enum`, `template` and
+             *  `pkey2s` never reached the projection. An attribute added to
+             *  the descriptor did not add itself here, and the loss showed up
+             *  only later, as a schema that had quietly changed — a column
+             *  keeping its `enum` flag while its enumeration was gone.
+             */
+            json_t *kw_col = json_object();
+            json_object_set_new(kw_col, "value", json_string(col_name));
 
-            json_t *kw_col = json_pack("{s:s, s:s, s:I, s:s, s:s, s:O}",
-                "value", col_name,
-                "header", header,
-                "fillspace", (json_int_t)fillspace,
-                "placeholder", placeholder,
-                "type", type,
-                "flag", flag_
-            );
-            if(hook_) {
-                json_object_set(kw_col, "hook", hook_);
+            int idx3; json_t *desc_entry;
+            json_array_foreach(cols_desc, idx3, desc_entry) {
+                const char *attr = kw_get_str(gobj, desc_entry, "id", "", 0);
+                if(empty_string(attr) || strcmp(attr, "id")==0) {
+                    continue;   /*  the column's name, already in `value`  */
+                }
+                json_t *v = json_object_get(jn_col, attr);
+                if(v) {
+                    json_object_set(kw_col, attr, v);
+                }
             }
-            if(default_) {
-                json_object_set(kw_col, "default", default_);
-            }
-            if(description) {
-                json_object_set_new(kw_col, "description", json_string(description));
-            }
-            if(properties_) {
-                json_object_set(kw_col, "properties", properties_);
+
+            if(!json_object_get(kw_col, "header")) {
+                json_object_set_new(kw_col, "header", json_string(header));
             }
 
             const char *col_id = current_topic?
@@ -1169,6 +1172,7 @@ PRIVATE int upsert_treedb_schema(
     /*
      *  free
      */
+    JSON_DECREF(cols_desc)
     json_decref(treedb);
 
     return 0;
