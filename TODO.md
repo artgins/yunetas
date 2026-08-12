@@ -35,6 +35,28 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     with. Telling the two cases apart needs state the projection does not carry
     (which side wrote each element), so decide that before adding a rule.
 
+- **Two treedbs of one store cannot both be projected if they share a topic
+    name.** `__system__` has a single `topics` topic keyed by the BARE topic
+    name, so the second treedb declaring `users` gets *"Node already exists"*,
+    its topic node is never created, its hooks then fail with *"link topic not
+    found"*, the rebuilt schema fails `parse_schema`, and
+    `get_client_treedb_schema` falls back to the C literal — silently. Found by
+    `tests/c/treedb_schema_fidelity`: `authzs`, `mqtt_broker` and
+    `controlcenter` all declare `users`. It is the same flaw V6 solved for
+    COLUMNS (rowid `id` + the name in the pkey2 `value`) and never solved for
+    topics, and it is why that sweep gives each schema its own store.
+
+    Real today: the controlador's store holds five treedbs and the projection
+    holds one. **This blocks retiring `use_internal_schema`** — with the flag
+    gone, a treedb whose projection lost to a name clash would open from a
+    schema that is not the one it runs. Fixing it means keying `topics` by
+    rowid, which moves the `topics^<name>^cols` references the columns carry.
+
+- **Not every treedb is projected at all.** `C_AUTHZ` creates its `C_NODE`
+    directly instead of going through `C_TREEDB`'s `open-treedb`, so
+    `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
+    direct `C_NODE` consumer is in the same position.
+
 - **`use_internal_schema` still gates the whole feature.** An edit reaches a
     treedb only if its yuno runs with the flag at 0, and it defaults to 1 and is
     read-only in the agent and in `db_history_co` (writable in controlcenter).
