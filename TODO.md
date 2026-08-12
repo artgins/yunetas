@@ -34,34 +34,42 @@ the form telling the truth about the function.
 the yuno list and the lifecycle commands, which is most of what an admin console
 needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
 
-Discovery works today with no backend work: `list-yunos`, then per yuno
-`command-yuno id=<id> service=__yuno__ command=services`, filtering `C_NODE`.
-Each yuno's schemas live in its own `treedb_system_schema` service.
+**DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, and the routing
+adapter it needed. `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
+the view's command verbatim, re-wraps it as `command-agent` +
+`cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
+the original command back on top of the `command_stack` before handing the
+answer to the view; `C_AGENT_TREEDB` mounts gobj-ui's `C_YUI_TREEDB_TOPICS`
+with `yui_mount_service_view()` against it. The library is untouched. The two
+traps it had to be born knowing (the whole kw is the yuno filter; the routed
+path loses the live node events, echoed locally for its own writes) are in its
+header and in `gui_agent/README.md`.
 
-**The adapter is the piece to write, and it needs no library change.**
-`gobj_command()` dispatches to `gclass.gmt.mt_command_parser` before anything
-else, so a gclass implementing it can take the view's command verbatim
-(`descs`, `nodes`, `update-node`), re-wrap it as `command-yuno id=<yuno>
-service=<treedb> command=<cmd>`, and answer with `EV_MT_COMMAND_ANSWER` — which
-is how the view already receives answers, `__md_command__` echo included. Hand
-it to `yui_mount_service_view()` as the `transport` and gobj-ui's treedb views
-work unchanged, through one agent connection with one login.
+What that workspace still lacks:
 
-Two things that adapter must be born knowing:
+- **It always opens the yuno's `treedb_system_schema`.** Discovery of the
+    other treedbs of a yuno is one round trip away and specified but not
+    written: `command-yuno id=<id> service=__yuno__ command=services`, filtering
+    `C_NODE` (or `treedbs` on the `C_TREEDB` service). Same picker, one more
+    step. Until then the yuno list offers every running yuno, including those
+    with no treedb at all, whose tab answers with an error toast.
 
-- **`command-yuno` uses its WHOLE kw as the filter that selects the yuno**, so a
-  bare `id` at the top level answers *"Yuno not found"*. The record travels
-  nested (`record={...}`), which is what the views already send.
-- **Routing through the agent loses the subscriptions.** `command-yuno` is
-  request/response; the `EV_TREEDB_NODE_*` that refresh a table live do not
-  travel. For a schema editor that costs nothing — a schema does not change
-  under you — and it is one more reason not to fold a live data browser into
-  this console.
+- **Applying is still manual.** `kill-yuno` + `run-yuno` on the owning yuno is
+    what publishes an edited schema (every client reconnects and re-reads a
+    schema that changed under them, which is the point; `pause`+`play` also
+    works and keeps the pid, but it is the less travelled path). The console has
+    both commands — the workspace does not offer them yet, so the operator
+    goes to the Commands tab.
 
-Applying a change is `kill-yuno` + `run-yuno` on the owning yuno: every client
-reconnects and re-reads a schema that has changed under them, which is the
-point (`pause`+`play` also works and keeps the pid, but it is the less
-travelled path, and clients are disconnected either way).
+- **The topic selection is not routed.** A reload lands on the topic grid.
+    `gui_treedb`'s `C_TREEDB_VIEW` does that URL bridging and is the model.
+
+- **Authz is the yuno's, and nobody provisions it.** The commands run in the
+    target yuno with the logged-in identity, so a console user needs the `read`
+    / `create` / `update` / `delete` authz of that `C_NODE` in **that yuno's**
+    `C_AUTHZ`. Today an operator who can log into the controlcenter still gets
+    `-403` per topic on a yuno where they have no role. Part of the authz-roles
+    work, not of the console.
 
 ## Schema editing: what the `__system__` treedb still needs
 
