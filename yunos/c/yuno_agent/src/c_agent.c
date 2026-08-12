@@ -935,7 +935,6 @@ SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        "Expiration timeout for commands"),
-SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_RD,           "1",            "Use internal (hardcoded) schema (TODO don't set to 0, out schema not working)"),
 
 SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
 SDATA (DTP_INTEGER,     "max_megas_audit_file",SDF_WR,          "500",          "max megas rotatory file size"),
@@ -1356,7 +1355,6 @@ PRIVATE int mt_play(hgobj gobj)
         exit(-1);
     }
 
-    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
 
     const char *treedb_name_ = kw_get_str(gobj,
         jn_treedb_schema_yuneta_agent,
@@ -1366,12 +1364,11 @@ PRIVATE int mt_play(hgobj gobj)
     );
     snprintf(priv->treedb_agentdb_name, sizeof(priv->treedb_agentdb_name), "%s", treedb_name_);
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
         "treedb_name", priv->treedb_agentdb_name,
-        "treedb_schema", jn_treedb_schema_yuneta_agent,
-        "use_internal_schema", use_internal_schema
+        "treedb_schema", jn_treedb_schema_yuneta_agent
     );
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",

@@ -40,14 +40,12 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
     direct `C_NODE` consumer is in the same position.
 
-- **`use_internal_schema` still gates the whole feature.** An edit reaches a
-    treedb only if its yuno runs with the flag at 0, and it defaults to 1 and is
-    read-only in the agent and in `db_history_co` (writable in controlcenter).
-    So an admin can edit any schema and nothing happens anywhere until each
-    yuno's config is changed and it is restarted. Now that `c_schema_version`
-    separates provenance, the flag distinguishes nothing — the projection is
-    seeded from the literal and re-made whenever the literal or the projector
-    moves ahead — so the answer is to retire it, not to drive it from a GUI.
+- **The project yunos still declare `use_internal_schema`.** The flag is gone
+    from `C_TREEDB` and from the yunos of this tree, and an unknown key in a
+    command kw is harmless (`command_parser` merges it and nobody reads it), so
+    they keep working untouched — but the attribute is now a lie in their
+    source. Remove it from wattyzer, estadodelaire, hidraulia and yunovatios
+    the next time each is touched.
 
 - **A removed column with data behind it is still nobody's problem.** The
     write guard refuses what cannot produce a working schema, but dropping a

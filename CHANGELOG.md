@@ -176,6 +176,29 @@
 
 ### Fixed
 
+- **`use_internal_schema` is gone: a treedb opens from its projection,
+    always.** The flag chose between the C literal and the `__system__`
+    projection, defaulted to 1, and was read-only in most yunos — so an edit
+    made in `__system__` reached nothing anywhere until every yuno's config was
+    changed one by one, which is the difference between a feature and a demo.
+    It distinguishes nothing now: the projection is seeded from the literal and
+    re-made whenever the literal **or the projector** moves ahead, so opening
+    from it *is* opening from the literal until somebody edits it. The literal
+    stays as the fallback for a projection that cannot be rebuilt into a valid
+    schema. Removed from `C_TREEDB` and from the yunos of this tree; the project
+    yunos that still pass it keep working untouched, because `command_parser`
+    merges an unknown key and nobody reads it.
+
+    Opening every treedb from its projection surfaced one more thing the flag
+    had been hiding, caught by the mqtt ACL test: a column with **no**
+    `default` is stored with an empty one, because the attribute is a blob and
+    a blob with no value is `{}`. Left in the rebuilt schema that empty dict is
+    a real default, and creating a record without that field handed `{}` to a
+    string column — *"Value must be string"*, from a schema nobody wrote that
+    way. It is dropped now, but only for a column that cannot hold a container:
+    `[]` is a legitimate default for an array column, and mqtt_broker's
+    `publish_acl`/`subscribe_acl` declare exactly that.
+
 - **Two treedbs of one store could not both hold a schema.** `__system__` keyed
     its `topics` topic by the **bare topic name**, and a topic name is unique
     only inside its treedb: `users` is a topic of `authzs`, `mqtt_broker` and

@@ -51,8 +51,7 @@
 PRIVATE json_t *get_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_client_treedb_schema, // not owned
-    BOOL use_internal_schema
+    json_t *jn_client_treedb_schema // not owned
 );
 PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
@@ -89,8 +88,7 @@ PRIVATE sdata_desc_t pm_open_treedb[] = {
 SDATAPM (DTP_STRING,    "filename_mask",0,              "%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema"),
-SDATAPM (DTP_BOOLEAN,   "use_internal_schema",0,        0,          "Use internal (hardcoded in source code) schema"),
+SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema, projected into __system__ and reconciled there"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_treedb[] = {
@@ -473,7 +471,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_treedb_schema = kw_get_dict(gobj, kw, "treedb_schema", 0, 0);
-    BOOL use_internal_schema = kw_get_bool(gobj, kw, "use_internal_schema", 0, 0);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -520,8 +517,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *jn_client_treedb_schema = get_client_treedb_schema(
         gobj,
         treedb_name,
-        _jn_treedb_schema, // not owned
-        use_internal_schema
+        _jn_treedb_schema // not owned
     );
     if(!jn_client_treedb_schema) {
         return msg_iev_build_response(
@@ -1451,6 +1447,32 @@ PRIVATE json_t *get_treedb_schema(
             json_object_set(new_cols, value, col);
             json_object_set_new(col, "id", json_string(value));
             json_object_del(col, "value");
+
+            /*
+             *  HACK a column with no `default` is stored with an EMPTY one:
+             *  the attribute is a blob, and a blob with no value is {}. Left
+             *  in the rebuilt schema that empty dict becomes a real default,
+             *  and creating a record without that field then hands {} to a
+             *  string column — "Value must be string", from a schema nobody
+             *  wrote that way.
+             *
+             *  Only for a column that cannot HOLD a container, though: `[]` is
+             *  a legitimate default for an array column, and mqtt_broker's
+             *  publish_acl/subscribe_acl declare exactly that.
+             */
+            const char *col_type = kw_get_str(gobj, col, "type", "", 0);
+            BOOL holds_container =
+                strcmp(col_type, "dict")==0 || strcmp(col_type, "object")==0 ||
+                strcmp(col_type, "array")==0 || strcmp(col_type, "list")==0 ||
+                strcmp(col_type, "blob")==0;
+
+            json_t *jn_default = json_object_get(col, "default");
+            if(!holds_container && jn_default &&
+                (json_is_object(jn_default) || json_is_array(jn_default)) &&
+                json_object_size(jn_default)==0 && json_array_size(jn_default)==0
+            ) {
+                json_object_del(col, "default");
+            }
         }
 
         /*
@@ -1471,8 +1493,7 @@ PRIVATE json_t *get_treedb_schema(
 PRIVATE json_t *get_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
-    json_t *jn_client_treedb_schema, // not owned
-    BOOL use_internal_schema
+    json_t *jn_client_treedb_schema // not owned
 )
 {
     /*
@@ -1488,29 +1509,31 @@ PRIVATE json_t *get_client_treedb_schema(
             NULL
         );
         gobj_trace_json(gobj, jn_client_treedb_schema, "Input Schema fails");
-        if(use_internal_schema) {
-            return 0;
-        }
     }
 
     /*
      *  The schema compiled in C also exists as data in the __system__
      *  treedb: that is what makes it listable and editable through the
      *  ordinary node commands. Project it the first time this treedb is
-     *  seen, and afterwards only when it is strictly newer — the version
-     *  is what decides, so an edit made there survives every start until
-     *  a higher `schema_version` arrives from C.
+     *  seen, and afterwards only when the literal or the projector moved
+     *  ahead — the version is what decides, so an edit made there survives
+     *  every start until a higher `schema_version` arrives from C.
      */
     if(input_schema_ok) {
         reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema);
     }
 
-    if(use_internal_schema) {
-        return json_incref(jn_client_treedb_schema);
-    }
-
     /*
-     *  Get the current schema of treedbs
+     *  A treedb opens from its projection, always. There used to be a flag
+     *  (`use_internal_schema`) to open from the literal instead, and with it
+     *  an edit made in __system__ reached nothing until every yuno's config
+     *  was changed one by one. It distinguishes nothing now: the projection
+     *  is seeded from the literal and re-made whenever the literal or the
+     *  projector moves ahead, so opening from it IS opening from the literal
+     *  until somebody edits it — which is the whole point.
+     *
+     *  The literal is still the fallback, for a projection that cannot be
+     *  rebuilt into a valid schema.
      */
     json_t *client_treedb_schema = get_treedb_schema(gobj, treedb_name);
     if(client_treedb_schema) {

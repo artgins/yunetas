@@ -129,7 +129,6 @@ SDATA (DTP_BOOLEAN,     "enabled_new_devices",SDF_PERSIST,      "1",          "A
 SDATA (DTP_BOOLEAN,     "enabled_new_users",SDF_PERSIST,        "1",          "Auto enable new users"),
 
 // TODO a 0 cuando funcionen bien los out schemas
-SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_WR,           "1",          "Use internal (hardcoded) schema"),
 
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
@@ -348,7 +347,6 @@ PRIVATE int mt_play(hgobj gobj)
         exit(-1);
     }
 
-    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
 
     const char *treedb_name = kw_get_str(gobj,
         jn_treedb_schema_controlcenter,
@@ -357,12 +355,11 @@ PRIVATE int mt_play(hgobj gobj)
         KW_REQUIRED
     );
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
         "treedb_name", treedb_name,
-        "treedb_schema", jn_treedb_schema_controlcenter,
-        "use_internal_schema", use_internal_schema
+        "treedb_schema", jn_treedb_schema_controlcenter
     );
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",

@@ -131,7 +131,6 @@ SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service na
 SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if it's empty then it'll be used the yuno_name"),
 
 // TODO a 0 cuando funcionen bien los out schemas
-SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
 SDATA (DTP_JSON,    "deny_subscribes",  0,          0,          "JSON list of topic strings to deny subscription"),
 
@@ -999,7 +998,6 @@ PRIVATE int open_database(hgobj gobj)
         exit(-1);
     }
 
-    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
 
     const char *treedb_name_ = kw_get_str(gobj,
         jn_treedb_schema_mqtt_broker,
@@ -1011,13 +1009,12 @@ PRIVATE int open_database(hgobj gobj)
 
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",
-        json_pack("{s:s, s:s, s:i, s:s, s:o, s:b}",
+        json_pack("{s:s, s:s, s:i, s:s, s:o}",
             "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
             "filename_mask", "%Y",
             "exit_on_error", 0,
             "treedb_name", priv->treedb_mqtt_broker_name,
-            "treedb_schema", jn_treedb_schema_mqtt_broker,
-            "use_internal_schema", use_internal_schema
+            "treedb_schema", jn_treedb_schema_mqtt_broker
         ),
         gobj
     );

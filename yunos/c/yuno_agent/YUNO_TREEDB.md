@@ -763,12 +763,14 @@ incoming schema is left alone: it is indistinguishable from an operator
 addition, and removing a topic or a column is a deliberate action, never a side
 effect of an upgrade.
 
-The `use_internal_schema` attribute picks which home opens the treedb:
-
-| `use_internal_schema` | Schema used to open the treedb |
-|---|---|
-| `1` (default in agent, controlcenter, mqtt_broker) | the C literal. `__system__` is still filled, so the schema is visible, but edits there do not reach the treedb |
-| `0` | the one rebuilt from `__system__` — edits there are what the treedb opens with |
+**A treedb opens from its projection, always.** There used to be a flag
+(`use_internal_schema`) to open from the literal instead, and with it an edit
+made in `__system__` reached nothing until every yuno's config was changed one
+by one. It distinguishes nothing now: the projection is seeded from the literal
+and re-made whenever the literal or the projector moves ahead, so opening from
+it *is* opening from the literal until somebody edits it — which is the point.
+The literal remains the fallback, for a projection that cannot be rebuilt into
+a valid schema.
 
 **The schema file still has the last word.** Whichever home supplies the
 schema, `treedb_open_db` compares its `schema_version` against the persisted
