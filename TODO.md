@@ -34,8 +34,10 @@ the form telling the truth about the function.
 the yuno list and the lifecycle commands, which is most of what an admin console
 needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
 
-**DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, and the routing
-adapter it needed. `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
+**DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, the routing
+adapter it needed, and the discovery of which treedbs a yuno exposes
+(`services`, filtering `C_NODE`, offered in a selector with
+`treedb_system_schema` first). `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
 the view's command verbatim, re-wraps it as `command-agent` +
 `cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
 the original command back on top of the `command_stack` before handing the
@@ -47,12 +49,11 @@ header and in `gui_agent/README.md`.
 
 What that workspace still lacks:
 
-- **It always opens the yuno's `treedb_system_schema`.** Discovery of the
-    other treedbs of a yuno is one round trip away and specified but not
-    written: `command-yuno id=<id> service=__yuno__ command=services`, filtering
-    `C_NODE` (or `treedbs` on the `C_TREEDB` service). Same picker, one more
-    step. Until then the yuno list offers every running yuno, including those
-    with no treedb at all, whose tab answers with an error toast.
+- **The picker still offers every running yuno.** Discovery now happens in the
+    TAB (`services`, filtering `C_NODE`), so a yuno with no treedb says so
+    instead of erroring per topic — but the tree cannot know before you open it.
+    Marking (or hiding) those rows costs one `services` per yuno when a node is
+    expanded, which is N round trips the picker does not make today.
 
 - **Applying is still manual.** `kill-yuno` + `run-yuno` on the owning yuno is
     what publishes an edited schema (every client reconnects and re-reads a
@@ -60,14 +61,6 @@ What that workspace still lacks:
     works and keeps the pid, but it is the less travelled path). The console has
     both commands — the workspace does not offer them yet, so the operator
     goes to the Commands tab.
-
-- **gobj-ui does not know the `rowid` type.** The schema topics are keyed by
-    rowid (7.13.0: `topics` and `cols`, with the `rowid` flag on `id`), and
-    `transform__treedb_value_2_table_value()` has no case for it — so every
-    render of those tables logs *"unhandled type 'rowid'"*, once per cell. The
-    value passes through and the editor works; it is noise, but it is noise on
-    exactly the two topics this feature exists to edit. It is a library fix
-    (gobj-ui publish + range bump in the consumers), not a console one.
 
 - **The topic selection is not routed.** A reload lands on the topic grid.
     `gui_treedb`'s `C_TREEDB_VIEW` does that URL bridging and is the model.
