@@ -61,7 +61,6 @@ transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
 | `deny_subscribes` | — | JSON list of topics for which SUBSCRIBE is refused |
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
-| `use_internal_schema` | `true` | Use the hardcoded TreeDB schema |
 | `on_critical_error` | `2` | `LOG_OPT_EXIT_ZERO` (exit, no auto-restart) on error |
 
 Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,

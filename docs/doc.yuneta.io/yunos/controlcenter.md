@@ -106,7 +106,6 @@ default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
 |-----------|---------|
 | `enabled_new_devices` | Auto-accept unknown nodes/devices |
 | `enabled_new_users` | Auto-accept unknown users |
-| `use_internal_schema` | Use the hardcoded TreeDB schema |
 | `timeout` | Periodic tick |
 
 The listen URLs/ports live in the realm config (`__top_side__` /

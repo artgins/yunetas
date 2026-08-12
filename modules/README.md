@@ -175,7 +175,6 @@ Broker-level logic: client registration, subscription tree management, message r
 | `mqtt_persistent_db` | boolean | true | Persistent database for sessions |
 | `mqtt_service` | string | — | Service name (default: yuno_role) |
 | `mqtt_tenant` | string | — | Multi-tenant identifier (default: yuno_name) |
-| `use_internal_schema` | boolean | true | Use hardcoded TreeDB schema |
 | `deny_subscribes` | json | — | JSON list of denied topic filters |
 | `on_critical_error` | integer | 2 | Error behavior (2 = exit zero) |
 | `timeout` | integer | 1000 | Periodic timer interval (ms) |
