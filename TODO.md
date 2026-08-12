@@ -22,6 +22,47 @@ C and JS agree since 7.10.0 (JS aligned in gobj-js `7.10.0`). ESP32 does not:
 The two that matter are the lifetime ones: an event delivered to a destroyed
 gobj is a crash, and on ESP32 nothing stops it today.
 
+## Schema editing: the admin console
+
+The backend is done (see below for what it still lacks). The client is not, and
+it does not belong in an application SPA: an end user edits data, not the shape
+of it. `gui_treedb` also *cannot* apply a schema change — it connects to yunos
+directly and `pause-yuno`/`kill-yuno` are agent commands — and that inability is
+the form telling the truth about the function.
+
+**Grow `gui_agent`, do not merge the two.** It already has the agent connection,
+the yuno list and the lifecycle commands, which is most of what an admin console
+needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
+
+Discovery works today with no backend work: `list-yunos`, then per yuno
+`command-yuno id=<id> service=__yuno__ command=services`, filtering `C_NODE`.
+Each yuno's schemas live in its own `treedb_system_schema` service.
+
+**The adapter is the piece to write, and it needs no library change.**
+`gobj_command()` dispatches to `gclass.gmt.mt_command_parser` before anything
+else, so a gclass implementing it can take the view's command verbatim
+(`descs`, `nodes`, `update-node`), re-wrap it as `command-yuno id=<yuno>
+service=<treedb> command=<cmd>`, and answer with `EV_MT_COMMAND_ANSWER` — which
+is how the view already receives answers, `__md_command__` echo included. Hand
+it to `yui_mount_service_view()` as the `transport` and gobj-ui's treedb views
+work unchanged, through one agent connection with one login.
+
+Two things that adapter must be born knowing:
+
+- **`command-yuno` uses its WHOLE kw as the filter that selects the yuno**, so a
+  bare `id` at the top level answers *"Yuno not found"*. The record travels
+  nested (`record={...}`), which is what the views already send.
+- **Routing through the agent loses the subscriptions.** `command-yuno` is
+  request/response; the `EV_TREEDB_NODE_*` that refresh a table live do not
+  travel. For a schema editor that costs nothing — a schema does not change
+  under you — and it is one more reason not to fold a live data browser into
+  this console.
+
+Applying a change is `kill-yuno` + `run-yuno` on the owning yuno: every client
+reconnects and re-reads a schema that has changed under them, which is the
+point (`pause`+`play` also works and keeps the pid, but it is the less
+travelled path, and clients are disconnected either way).
+
 ## Schema editing: what the `__system__` treedb still needs
 
 The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
