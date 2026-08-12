@@ -17,6 +17,13 @@
  *          picked up by the validator; a field that only makes sense in
  *          the __system__ treedb must be added to the skip list there.
  *
+ *          HACK `schema_version` here means "how a schema is stored AND
+ *          projected". It moves when a field changes, and also when the
+ *          PROJECTOR changes without any field moving — 11 -> 12 did exactly
+ *          that: 11 could write a topic_version lower than the one already
+ *          published, leaving a projection that never reached its topic. It
+ *          is the lever that re-projects every store on the next start.
+ *
  *          Copyright (c) 2019 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -41,6 +48,7 @@
             │                           │
             │* schema_version           │
             │  c_schema_version         │
+            │  system_schema_version    │
             │                           │
             │                 topics {} │ ◀─┐N
             │                           │   │
@@ -95,13 +103,13 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '10',                             \n\
+    'schema_version': '12',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '3',                       \n\
+            'topic_version': '4',                       \n\
             'system_topic': true,                       \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
@@ -126,6 +134,15 @@ char treedb_system_schema[]= "\
                 },                                      \n\
                 'c_schema_version': {                   \n\
                     'header': 'From C Version',         \n\
+                    'fillspace': 10,                    \n\
+                    'type': 'integer',                  \n\
+                    'flag': [                           \n\
+                        'wild',                         \n\
+                        'persistent'                    \n\
+                    ]                                   \n\
+                },                                      \n\
+                'system_schema_version': {              \n\
+                    'header': 'By Meta Version',        \n\
                     'fillspace': 10,                    \n\
                     'type': 'integer',                  \n\
                     'flag': [                           \n\

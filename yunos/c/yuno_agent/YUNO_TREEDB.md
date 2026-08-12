@@ -722,12 +722,22 @@ when the literal is **strictly newer**, exactly as `schema_version` already
 decides between the literal and the persisted schema file (§3.5). Raising the
 version is how either side publishes a change.
 
-The `treedbs` node carries **two** numbers, and they are not interchangeable:
+The `treedbs` node carries **three** numbers, and they are not
+interchangeable:
 
 | | Written by | Means |
 |---|---|---|
 | `schema_version` | whoever edits the schema (an editor raises it on save) | what this schema is worth to `treedb_open_db` |
 | `c_schema_version` | only the projection | which version of the C literal this projection came from |
+| `system_schema_version` | only the projection | which version of the **meta-schema** produced it |
+
+The third one exists because a projection is a function of two things: the
+literal, and the meta-schema that says how a schema is stored and projected.
+Comparing only the literal froze a projection made by an older SDK forever —
+and an older SDK is exactly the one whose projection may be missing what it did
+not know how to store yet. So raising the meta-schema's own `schema_version` is
+the lever that **re-projects every store on the next start**, and it moves when
+the projector changes even if no field does.
 
 Reconciliation compares the literal against **`c_schema_version`**. Sharing one
 counter would mean that the first edit made here — which has to raise

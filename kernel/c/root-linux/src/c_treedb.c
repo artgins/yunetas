@@ -212,6 +212,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_tranger_system;
     hgobj gobj_node_system;
     json_t *tranger_system_;
+    json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
 
@@ -291,6 +292,18 @@ PRIVATE void mt_create(hgobj gobj)
     if(!jn_treedb_system_schema) {
         exit(-1);
     }
+
+    /*
+     *  How a schema is STORED is this schema's business, so its version is
+     *  what says whether a projection made earlier is still worth keeping.
+     */
+    priv->system_schema_version = kw_get_int(
+        gobj,
+        jn_treedb_system_schema,
+        "schema_version",
+        0,
+        KW_WILD_NUMBER
+    );
 
     const char *treedb_name = kw_get_str(
         gobj,
@@ -968,10 +981,11 @@ PRIVATE int upsert_treedb_schema(
         schema_version = (stored > c_schema_version? stored: c_schema_version) + 1;
     }
 
-    json_t *kw_treedb = json_pack("{s:s, s:I, s:I}",
+    json_t *kw_treedb = json_pack("{s:s, s:I, s:I, s:I}",
         "id", treedb_name,
         "schema_version", (json_int_t )schema_version,
-        "c_schema_version", (json_int_t )c_schema_version
+        "c_schema_version", (json_int_t )c_schema_version,
+        "system_schema_version", (json_int_t )priv->system_schema_version
     );
 
     json_t *treedb;
@@ -1020,6 +1034,26 @@ PRIVATE int upsert_treedb_schema(
         json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
 
+        json_t *current_topic = json_object_get(current_topics, topic_name);
+
+        /*
+         *  A topic's version cannot go BACKWARDS on a re-projection, for the
+         *  same reason `schema_version` cannot: the literal's number may be
+         *  lower than what has already been published, and tranger2 keeps the
+         *  persisted topic_cols.json whenever the incoming version is not
+         *  higher. Writing the literal's number verbatim left a re-projection
+         *  that fixed the columns in __system__ and never reached the topic.
+         */
+        if(current_topic) {
+            json_int_t stored_topic_version = kw_get_int(
+                gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
+            );
+            if(stored_topic_version > topic_version) {
+                topic_version = stored_topic_version;
+            }
+            topic_version += 1;
+        }
+
         json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
             "id", topic_name,
             "pkey", pkey,
@@ -1031,8 +1065,6 @@ PRIVATE int upsert_treedb_schema(
         if(topic_pkey2s_) {
             json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
         }
-
-        json_t *current_topic = json_object_get(current_topics, topic_name);
 
         json_t *topic;
         if(current_topic) {
@@ -1228,10 +1260,27 @@ PRIVATE int reconcile_treedb_schema(
     if(stored_version == 0) {
         stored_version = kw_get_int(gobj, stored_treedb, "schema_version", 0, KW_WILD_NUMBER);
     }
+
+    /*
+     *  A projection is a function of two things: the literal it came from and
+     *  the meta-schema that says how a schema is stored. Comparing only the
+     *  literal froze a projection made by an older SDK forever — and an older
+     *  SDK is exactly the one whose projection may be missing what it did not
+     *  know how to store yet (`enum` and `template` were). An absent field
+     *  reads as 0, so a projection made before this existed re-projects on the
+     *  next start, which is how those losses heal.
+     */
+    json_int_t stored_meta = kw_get_int(
+        gobj,
+        stored_treedb,
+        "system_schema_version",
+        0,
+        KW_WILD_NUMBER
+    );
     JSON_DECREF(stored)
 
     json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
-    if(new_version <= stored_version) {
+    if(new_version <= stored_version && priv->system_schema_version <= stored_meta) {
         return 0;
     }
 

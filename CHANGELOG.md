@@ -194,7 +194,25 @@
     now copies whatever the descriptor declares, and the test asserts fidelity
     the same way — reading the attribute list from the descriptor instead of
     repeating it — so the next attribute that gains no storage fails a test
-    rather than changing every schema quietly. System schema 9 → 10.
+    rather than changing every schema quietly.
+
+    Fixing the projector was not enough to fix the stores it had already
+    written: reconciliation compared only the C literal, so a projection made
+    by an older SDK stayed frozen — and an older SDK is exactly the one whose
+    projection is missing what it did not know how to store. The `treedbs` node
+    now also records `system_schema_version`, the meta-schema version that
+    produced it, and a projection made by an older one is re-made on the next
+    start. Raising the meta-schema's own version is the migration lever, and it
+    moves when the projector changes even if no field does — 11 → 12 was
+    exactly that, because 11 could write a `topic_version` **lower** than the
+    one already published, leaving a re-projection that fixed the columns in
+    `__system__` and never reached the topic. A topic's version cannot go
+    backwards now, for the same reason `schema_version` cannot.
+
+    Verified end to end on a real schema: the local yunovatios controlador,
+    degraded by the lossy projector, recovered `language`'s `["es","en"]` and
+    its `"es"` default, and `cluster`'s `false` — a scalar boolean default that
+    a blob used to replace with `{}`. System schema 9 → 12.
 
 - **`close-treedb` on a playing yuno was a use-after-free anyone could
     trigger.** It destroys the treedb's `C_NODE` and its `C_TRANGER`, and an
