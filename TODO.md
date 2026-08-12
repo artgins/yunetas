@@ -37,7 +37,8 @@ needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
 **DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, the routing
 adapter it needed, and the discovery of which treedbs a yuno exposes
 (`services`, filtering `C_NODE`, offered in a selector with
-`treedb_system_schema` first). `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
+`treedb_system_schema` first, and probed per yuno on expanding a node in the
+picker so a yuno with none is marked there). `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
 the view's command verbatim, re-wraps it as `command-agent` +
 `cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
 the original command back on top of the `command_stack` before handing the
@@ -48,12 +49,6 @@ path loses the live node events, echoed locally for its own writes) are in its
 header and in `gui_agent/README.md`.
 
 What that workspace still lacks:
-
-- **The picker still offers every running yuno.** Discovery now happens in the
-    TAB (`services`, filtering `C_NODE`), so a yuno with no treedb says so
-    instead of erroring per topic — but the tree cannot know before you open it.
-    Marking (or hiding) those rows costs one `services` per yuno when a node is
-    expanded, which is N round trips the picker does not make today.
 
 - **Applying needs an agent carrying the `ac_final_count` fix of this
     release.** The workspace
