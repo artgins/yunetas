@@ -60,9 +60,6 @@ What that workspace still lacks:
     down until somebody runs it. Deploy the agent before using Apply on a
     node.
 
-- **The topic selection is not routed.** A reload lands on the topic grid.
-    `gui_treedb`'s `C_TREEDB_VIEW` does that URL bridging and is the model.
-
 - **Authz is the yuno's, and nobody provisions it.** The commands run in the
     target yuno with the logged-in identity, so a console user needs the `read`
     / `create` / `update` / `delete` authz of that `C_NODE` in **that yuno's**
