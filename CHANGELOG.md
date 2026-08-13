@@ -419,6 +419,22 @@
     none, carries `<treedb>/<topic>` in the URL, and applies a schema by
     restarting the owning yuno. Detail in that submodule's own `CHANGELOG.md`.
 
+- **`yunos/js`: the two SPAs give their primary rail back to the work.** In
+    `gui_agent` the rail is the four workspaces (Commands, Statistics,
+    Terminal, Schemas) and the settings page moved to `/preferences` under the
+    toolbar avatar; in `gui_treedb` the rail is Topics and Graphs, and what
+    `/settings` held became two pages with their own names — `/connections`
+    (the backends, where each workspace picker sends you) and `/preferences`
+    (the live buffer). All of them stay ROUTES, so they are linkable, survive
+    an F5 and appear in the site map.
+
+    On the way, gui_agent's Schemas tab stopped routing its own url by hand:
+    the treedbs of a yuno are now a **tree of nodes** (`C_YUI_NODE` at the
+    tab's route, one `link` child per treedb), which is what makes the shape of
+    the navigation a user choice — **Preferences → Navigation**: stacked
+    strips, back to parent, or breadcrumb, applied live to the open tabs.
+    Detail in that submodule's own `CHANGELOG.md`.
+
 
 ## 7.12.0-2
 

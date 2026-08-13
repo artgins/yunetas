@@ -36,9 +36,12 @@ needs; `gui_treedb` stays what it is, a data browser pointed at a backend.
 
 **DONE (`yunos/js`, gui_agent):** the **Schemas** workspace, the routing
 adapter it needed, and the discovery of which treedbs a yuno exposes
-(`services`, filtering `C_NODE`, offered in a selector with
+(`services`, filtering `C_NODE`, declared as a **tree of nodes** with
 `treedb_system_schema` first, and probed per yuno on expanding a node in the
-picker so a yuno with none is marked there). `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
+picker so a yuno with none is marked there). Each treedb is a `link` node of a
+`C_YUI_NODE` rooted at the tab's route, so the depth (yuno → treedb → topic) is
+navigation and not a `<select>`, and how it is drawn — strips, back, breadcrumb
+— is a Preferences choice. `C_AGENT_TREEDB_LINK` implements `mt_command_parser`, takes
 the view's command verbatim, re-wraps it as `command-agent` +
 `cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
 the original command back on top of the `command_stack` before handing the
