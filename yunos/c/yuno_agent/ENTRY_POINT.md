@@ -279,8 +279,26 @@ sleep(1);
 kill(pid, SIGKILL);   // hard — guarantee it goes
 ```
 
-The second `kill()` is what stops the watcher (per §4.3). Without it, the
-SIGQUIT stops only the child, and the watcher relaunches it.
+The scan matches **both** processes of the pair, because the watcher and the
+child share the process name. Each one answers differently:
+
+- The **child** catches SIGQUIT through its signalfd and calls
+  `set_yuno_must_die()`, which sets `gobj_set_exit_code(0)` before the orderly
+  shutdown. So it exits **0** — and per the matrix in §4.3 the watcher then
+  returns 1 and exits by itself. **A SIGQUIT does not leave a resurrecting
+  yuno behind.**
+- The **watcher** ignores SIGQUIT (`signal(SIGQUIT, SIG_IGN)` in
+  `daemon_catch_signals()`, [`ydaemon.c:50`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/ydaemon.c#L50)). It is deaf to the soft signal
+  by design.
+
+The second `kill()` is therefore not what breaks a relaunch loop: it is the
+guarantee for the case where one second was not enough — a child stuck in its
+shutdown, and the watcher still sitting in `waitpid()`. SIGKILL is uncatchable
+and takes both.
+
+That exit code is the whole protocol. The restart path uses the other value:
+`timeout_restart` sets `gobj_set_exit_code(-1)`, and the non-zero exit is
+precisely what asks the watcher to launch the yuno again.
 
 ### 4.6 [`get_watcher_pid()`](#get_watcher_pid)
 

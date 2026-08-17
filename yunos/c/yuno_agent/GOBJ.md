@@ -293,8 +293,11 @@ The framework hands `SDF_PERSIST` attrs to a pluggable backend
 registered at startup. The default backend writes them under the yuno's
 data directory. APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)):
 
-- `gobj_load_persistent_attrs(gobj, jn_attrs)` — invoked automatically
-  on service-flavour creates.
+- `gobj_load_persistent_attrs(gobj, jn_attrs)` — loads a subset by name.
+  Nothing in the tree calls it: the automatic load on a service-flavour
+  create is `gobj_create()` calling the **registered load backend**
+  directly ([`gobj.c:1748`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L1748)), before `mt_create`, and it loads every
+  persistent attr. Both refuse a gobj that is not a service.
 - `gobj_save_persistent_attrs(gobj, jn_attrs)` — call after mutating a
   `SDF_PERSIST` attr you want to checkpoint immediately.
 

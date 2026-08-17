@@ -1054,7 +1054,7 @@ For a hot rollout in which you cannot restart the yunos:
 3. Verify the new field shows up:
 
    ```bash
-   ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=list-nodes topic=<topic>'
+   ycommand -c 'command-yuno id=<yuno> service=<treedb> command=list-nodes topic=<topic>'
    ```
 
 ### 5.3 Create a node and link it to a parent
@@ -1085,10 +1085,16 @@ gobj_link_nodes(gobj, "users",
 ### 5.4 Inspect snapshots
 
 ```bash
-ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=list-snaps'
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=snaps'
 ```
 
 Snapshots are global to a treedb. You see one entry per "tag".
+
+The command is `snaps`, not `list-snaps` — only its handler is called
+`cmd_list_snaps`. And these commands live in `C_NODE`, so `service` is the
+**treedb service**, never `__yuno__`: `C_YUNO` has no command parser that
+forwards to other services, so `__yuno__` answers that the command does not
+exist. The same applies to `list-nodes` above, which is an alias of `nodes`.
 
 ### 5.5 Recover from a botched schema change
 

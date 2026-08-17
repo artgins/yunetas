@@ -129,7 +129,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   A running yuno or a logically grouped set of yunos, identified by Role, Name, and Owner.
 
 **Re-launch** (Watcher-Worker)
-:   Yuneta's self-healing daemon mechanism. In daemon mode, a *watcher* process monitors the *worker* (the actual yuno) and automatically re-launches it on unexpected termination. No systemd required.
+:   Yuneta's self-healing daemon mechanism. In daemon mode, a *watcher* process monitors the *worker* (the actual yuno) and re-launches it after a crash or a non-zero exit. It does **not** re-launch after a clean `exit(0)` or after `SIGKILL` — both mean "stay down", which is how the agent kills yunos. No systemd required. See [Watcher signal posture](#entry-point-watcher).
 
 (glossary-sdata)=
 **SData** (Structured Data)

@@ -179,9 +179,9 @@ ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-trace le
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gclass-trace gclass=C_TCP_S level=traffic set=1'
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gobj-trace gobj=<short_name> level=machine set=1'
 
-# silence (no_trace)
-ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-global-no-trace level=ev_kw set=1'
+# silence (no_trace) — per gclass or per gobj
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gclass-no-trace gclass=C_TIMER level=periodic set=1'
+ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gobj-no-trace gobj=<short_name> level=machine set=1'
 
 # inspect current state
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=get-global-trace'
@@ -194,16 +194,42 @@ The short form in CLAUDE.md,
 this. The shorter form `ycommand -c 'set-global-trace …'` sends `command-yuno`
 to the yuno that is registered as the default yuno.
 
+> **There is no `set-global-no-trace` command.** The no-trace switch is exposed
+> only per gclass (`set-gclass-no-trace`) and per gobj (`set-gobj-no-trace`).
+> The C API [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h#L2106) does exist, but no command in
+> `c_yuno.c` calls it, so it is reachable from code only. To silence a global
+> level from the control plane, clear it with `set-global-trace … set=0`.
+
+(persistence-of-traces)=
 ### Persistence
 
-- **Global traces** are persisted: [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c) ([`save_global_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2164))
-  writes them to the yuno's `trace_levels` attribute, and they are
-  re-applied on the next start.
-- **Gclass and gobj traces** are **live-only**. They die with the process.
+**Every trace set from the control plane is persisted. None of them are
+live-only.** `set-global-trace`, `set-gclass-trace` and `set-gobj-trace` all
+end in `gobj_save_persistent_attrs()` on the yuno's `trace_levels` attribute,
+and their `no-trace` counterparts on `no_trace_levels`:
 
-CAUTION: a forgotten `set-global-trace level=machine set=1` survives a
-restart, and it fills your disk. It gives no message first. Always pair the
-enable and the disable in the same session.
+| Command                 | Saver                                        | Key in the attr    |
+|-------------------------|----------------------------------------------|--------------------|
+| `set-global-trace`      | [`save_global_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2164)  | `__global_trace__` |
+| `set-gclass-trace`      | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2247)    | the gclass name    |
+| `set-gobj-trace`        | [`save_user_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2247)    | the gobj name      |
+| `set-gclass-no-trace`   | [`save_user_no_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2300) | the gclass name    |
+| `set-gobj-no-trace`     | [`save_user_no_trace`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L2300) | the gobj name      |
+
+They are re-applied on the next start: `set_user_gclass_traces()` and
+`set_user_gclass_no_traces()` run from `mt_create`, `set_user_gobj_traces()`
+right after the children are built.
+
+CAUTION: a forgotten `set-gclass-trace gclass=C_TCP_S level=traffic set=1`
+survives a restart exactly like a global one, and it fills your disk. It gives
+no message first. Always pair the enable and the disable in the same session.
+
+> An entry whose key names a gclass that no longer exists is skipped **without
+> a log** at start up ([`c_yuno.c:4992`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c#L4992), a deliberate exception to the
+> no-silent-errors rule: a mistyped gclass name is the common case). So a trace
+> that does not turn on after a restart usually means a typo in the persisted
+> attr. Read it with `list-persistent-attrs`, and clear it with
+> `remove-persistent-attrs`.
 
 ### 4.1 When the yuno never reaches the agent (`--global-trace`)
 
@@ -405,7 +431,9 @@ ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gclass-trace gc
 ycommand -c 'command-yuno id=<yuno> service=__yuno__ command=set-gobj-trace gobj=<short_name> level=machine set=1'
 ```
 
-Both are live-only — they vanish on restart.
+Both are persisted and are re-applied on the next start, like every other
+trace set from the control plane (see [Persistence](#persistence-of-traces)).
+Disable them in the same session.
 
 ### The same trace in the browser
 
@@ -787,8 +815,9 @@ ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=
 ycommand -c "command-yuno id=$YUNO service=__yuno__ command=set-gobj-trace gobj=<short_name> level=ev_kw   set=0"
 ```
 
-These traces are live-only. If you forget the disable step, a restart of the
-yuno clears them.
+The disable step is not optional. These traces are **persisted**: a restart
+does not clear them, it re-applies them. A forgotten `ev_kw` on a busy gobj
+then writes for as long as the yuno lives.
 
 ### 11.6 Spot the canonical "Event NOT DEFINED in state" error
 
