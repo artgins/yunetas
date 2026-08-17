@@ -289,17 +289,45 @@ Plus bulk APIs:
 
 ### 5.4 `SDF_PERSIST` storage
 
-The framework hands `SDF_PERSIST` attrs to a pluggable backend
-registered at startup. The default backend writes them under the yuno's
-data directory. APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)):
+The framework hands `SDF_PERSIST` attrs to a pluggable backend registered at
+startup. The default backend writes them under the yuno's data directory.
 
-- `gobj_load_persistent_attrs(gobj, jn_attrs)` — loads a subset by name.
-  Nothing in the tree calls it: the automatic load on a service-flavour
-  create is `gobj_create()` calling the **registered load backend**
-  directly ([`gobj.c:1748`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L1748)), before `mt_create`, and it loads every
-  persistent attr. Both refuse a gobj that is not a service.
+**The load is automatic, and it does not go through the public API.** The
+chain, top to bottom:
+
+1. [`entry_point.c:83`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/entry_point.c#L83) picks the default backend,
+   `db_load_persistent_attrs` ([`dbsimple.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/dbsimple.c)). A yuno can replace it
+   through the `persistent_attrs` argument of `yuneta_entry_point()`.
+2. `gobj_start_up()` stores it in `__global_load_persistent_attrs_fn__`
+   ([`gobj.c:553`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L553)).
+3. **`gobj_create()` calls that pointer itself** ([`gobj.c:1748`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L1748)) for a gobj
+   flagged `gobj_flag_service` or `gobj_flag_top_service` — after
+   `write_json_parameters()`, **before** `mt_create`. It passes `keys = 0`,
+   which means every key in the file.
+4. `db_load_persistent_attrs()` reads the file and applies it with
+   `gobj_write_attrs(gobj, attrs, SDF_PERSIST, 0)`. **That flag mask is the
+   real filter**: the file may hold anything, only attrs declared
+   `SDF_PERSIST` are written.
+
+So a service gets its persistent attrs **before its own `mt_create` runs**,
+and a non-service gobj never gets any.
+
+The file is one per gobj, named
+`<GCLASS_NAME>-<gobj_name>-persistent-attrs.json`, under the realm's `data`
+subdirectory (`yuneta_realm_file(..., "data", ...)`). A missing file is not an
+error: the load returns 0 and the attrs keep their SData defaults.
+
+APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)):
+
 - `gobj_save_persistent_attrs(gobj, jn_attrs)` — call after mutating a
-  `SDF_PERSIST` attr you want to checkpoint immediately.
+  `SDF_PERSIST` attr you want to checkpoint immediately. Always name the
+  attrs; the bare call saves them all.
+- `gobj_load_persistent_attrs(gobj, jn_attrs)` — reload a **subset by name**.
+  Nothing in the tree calls it, because step 3 already loaded everything at
+  create time. It is there for a gobj that wants to discard its in-memory
+  values and re-read some of them.
+
+Both refuse a gobj that is not a service, with a warning and `-1`.
 
 Example from [`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/root-linux/src/c_yuno.c):
 

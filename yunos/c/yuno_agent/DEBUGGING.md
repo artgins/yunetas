@@ -194,11 +194,17 @@ The short form in CLAUDE.md,
 this. The shorter form `ycommand -c 'set-global-trace …'` sends `command-yuno`
 to the yuno that is registered as the default yuno.
 
-> **There is no `set-global-no-trace` command.** The no-trace switch is exposed
-> only per gclass (`set-gclass-no-trace`) and per gobj (`set-gobj-no-trace`).
-> The C API [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h#L2106) does exist, but no command in
-> `c_yuno.c` calls it, so it is reachable from code only. To silence a global
-> level from the control plane, clear it with `set-global-trace … set=0`.
+> **There is no `set-global-no-trace` command, by design.** From the control
+> plane the no-trace switch is exposed per gclass (`set-gclass-no-trace`) and
+> per gobj (`set-gobj-no-trace`) only — that is where silencing one noisy
+> level while a broad trace is on makes sense. To silence a global level, do
+> not mask it: clear it with `set-global-trace … set=0`.
+>
+> The C API [`gobj_set_global_no_trace()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h#L2106) is a different thing and is
+> used everywhere: each yuno's `main.c` calls it once at start up, almost
+> always as `gobj_set_global_no_trace("timer_periodic", TRUE)`. That is why a
+> global `machine` trace does not drown in timer ticks. It is a compile-time
+> decision of the yuno, it is never persisted, and no command changes it.
 
 (persistence-of-traces)=
 ### Persistence
