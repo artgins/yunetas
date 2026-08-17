@@ -15,10 +15,11 @@
     — the topics BY NAME, and the `__schema_version__` the treedb was built
     with, which is what tells a client whether the schema it is looking at is
     the one it knows. It is also
-    per TREEDB and it is runtime state, not config: the same yuno is routinely
-    master of its `treedb_system_schema` and a replica of a data treedb, and
-    `tranger2_startup` decides by who holds the lock, falling back to
-    non-master when the store is taken.
+    per TREEDB, not per yuno: the same yuno is routinely master of its
+    `treedb_system_schema` and a replica of a data treedb. The role comes from
+    the config — only a yuno configured as master opens the store in exclusive
+    mode, and one configured `master: false` never competes for the lock, so
+    the start order does not change it.
 
     And **writing to a replica used to answer success.** `create-node`,
     `update-node`, `delete-node`, `link-nodes`, `unlink-nodes` and `import-db`

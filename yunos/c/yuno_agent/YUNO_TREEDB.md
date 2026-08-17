@@ -272,26 +272,46 @@ no record.
 
 ### 2.7 Master / non-master
 
-[`tranger2_startup`](#tranger2_startup) ([`timeranger2.c:330`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/timeranger2/src/timeranger2.c#L330)) attempts an **exclusive
-lock** on `__timeranger2__.json`. Whoever gets it is the master:
+Exactly one process owns a store for writing:
 
-  - The master can **read AND write**. Only the master can
+- The master can **read AND write**. Only the master can
   call `tranger2_append_record`, [`tranger2_delete_topic`](#tranger2_delete_topic) and the other write functions.
 - Non-masters can only read. They are expected to use
   `tranger2_open_rt_disk` so the master can push updates to them via
   hardlinks in the `disks/<rt_id>/` directory.
 
-The lock is held for the lifetime of the process. If a master crashes
-without releasing, the OS releases the flock on exit and the next
-yuno that opens the database becomes master.
+**The role comes from the configuration, not from a start-up race.** The
+`master` attr of the yuno's config goes directly to
+[`tranger2_startup`](#tranger2_startup), and **only a yuno configured as master
+opens `__timeranger2__.json` in exclusive mode**
+([`timeranger2.c:443`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/timeranger2/src/timeranger2.c#L443)).
+A yuno configured `master: false` never competes for the lock: it opens the
+file in shared mode and stays a replica, whatever the start order. To move the
+mastership of a store, change the configuration. Do not change the order of the
+restarts.
 
-**It is runtime state, not configuration.** A yuno's config *asks* for
-`master: true`; `tranger2_startup` resolves it by whoever holds the lock and
-**falls back to non-master** when the store is already taken. So the same
-config gives a master on one boot and a replica on the next, and the flag is
-**per tranger** — one yuno is routinely the master of its
-`treedb_system_schema` and a replica of a data treedb it shares with another
-yuno.
+**A configured master that finds the store locked stops. It does not become a
+replica.** The exclusive probe fails and logs a CRITICAL that carries
+`on_critical_error`, which is `2` (`LOG_OPT_EXIT_ZERO`) by default and is
+hardcoded to that value by `C_AUTHZ`. That CRITICAL calls `exit(0)` inside the
+log, before the non-master fallback below it. The exit code `0` is deliberate:
+the watcher does not relaunch a clean exit, so the second instance stays down
+and the store keeps exactly one owner. The fallback that opens the file in
+shared mode and clears the flag is reached only when `on_critical_error` is
+`0` — a read-only replica that is configured to run non-master.
+
+The lock is held for the lifetime of the process. If a master crashes, the OS
+releases the flock on exit, and the next yuno **configured as master** takes
+the store.
+
+The flag is **per tranger**, not per yuno: one yuno is routinely the master of
+its `treedb_system_schema` and a replica of a data treedb that it shares with
+another yuno.
+
+```
+db_history_ce (1620):  "Authz.master": true    → master of the authzs store
+gate_central  (2020):  "Authz.master": false   → replica of the same store
+```
 
 **Asking a running yuno: `treedb-info`.** Until 7.13.0 the flag was not
 reachable from the control plane at all — it is an `SDF_RD` attr of the
