@@ -91,18 +91,21 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.12.0`; the gobj-js package is at
-`7.10.0` on npm — it moved for the `gobj_post_event()` alignment, and 7.11.0/7.12.0
-carries no further JS change) and **published to npm**.
+versioned to track `YUNETA_VERSION` (SDK `7.12.0`, and the gobj-js package is
+now at `7.12.0` on npm too: it moved at 7.10.0 for the `gobj_post_event()`
+alignment and again at 7.12.0, where `gclass_find_by_name()` /
+`gobj_find_service()` stopped answering `undefined` for a lookup that finds
+nothing — a `=== null` guard against them was always false) and **published to
+npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
 patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
 `EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
 caught up at the `7.6.7` release.) **Every** consumer takes it from the
-registry, and since 2026-08-11 they all declare the same floor — `^7.10.0`:
-estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios GUIs and
-the in-repo `yunos/js/*` yunos. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
+registry, and they all declare the same floor — `^7.12.0` since 2026-08-17
+(`^7.10.0` before that): estadodelaire, hidraulia, wattyzer, yunomusica, the
+three yunovatios GUIs and the in-repo `yunos/js/*` yunos. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
 
