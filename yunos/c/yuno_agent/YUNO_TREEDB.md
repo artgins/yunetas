@@ -285,6 +285,44 @@ The lock is held for the lifetime of the process. If a master crashes
 without releasing, the OS releases the flock on exit and the next
 yuno that opens the database becomes master.
 
+**It is runtime state, not configuration.** A yuno's config *asks* for
+`master: true`; `tranger2_startup` resolves it by whoever holds the lock and
+**falls back to non-master** when the store is already taken. So the same
+config gives a master on one boot and a replica on the next, and the flag is
+**per tranger** — one yuno is routinely the master of its
+`treedb_system_schema` and a replica of a data treedb it shares with another
+yuno.
+
+**Asking a running yuno: `treedb-info`.** Until 7.13.0 the flag was not
+reachable from the control plane at all — it is an `SDF_RD` attr of the
+tranger, absent from `services`, from `treedbs` and from the stats, so the only
+place it surfaced was the whole `print-tranger` dump. `C_NODE` answers it now:
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=treedb-info'
+{
+    "treedb_name": "treedb_authzs",
+    "master": false,
+    "topics": 5
+}
+```
+
+**Writing to a replica is refused, and used to be silent.** `create-node`,
+`update-node`, `delete-node`, `link-nodes`, `unlink-nodes` and `import-db` on a
+non-master `C_NODE` now answer
+
+```
+ERROR -1: gate_central^2020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
+```
+
+Before 7.13.0 they answered **success**: the node was built in the in-memory
+treedb, `tranger2_append_record`'s own "NO master" guard was never reached
+(a non-master treedb does not attempt the append), nothing was logged, and the
+row was gone at the next reload. An editor showed a saved record that was
+already lost. The check runs **before** the authz check on purpose: on a replica
+nobody can write, whoever they are, and a `-403` would send an operator looking
+for a permission that would not help.
+
 ### 2.8 Snapshots
 
 The current timeranger2 API does **not** expose a snapshot primitive

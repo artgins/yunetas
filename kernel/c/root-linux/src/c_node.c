@@ -74,6 +74,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_treedb_info(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -156,6 +157,11 @@ PRIVATE sdata_desc_t pm_topics[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'dict'"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_treedb_info[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (default: this service's own)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_desc[] = {
@@ -272,6 +278,7 @@ SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs, 
 
 /*-CMD2---type----------name------------flag------------ali-items-----------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "treedbs",      SDF_AUTHZ_X,    0,  0,              cmd_treedbs,        "List treedb's"),
+SDATACM2 (DTP_SCHEMA,   "treedb-info",  SDF_AUTHZ_X,    0,  pm_treedb_info, cmd_treedb_info,    "Treedb name, MASTER flag (only the master can write) and topic count"),
 SDATACM2 (DTP_SCHEMA,   "topics",       SDF_AUTHZ_X,    0,  pm_topics,      cmd_topics,         "List topics"),
 SDATACM2 (DTP_SCHEMA,   "jtree",        SDF_AUTHZ_X,    0,  pm_jtree,       cmd_jtree,          "List hierarchical tree (topic with self-link). Webix option return dict-list else return list of dicts. Always with __path__ "),
 SDATACM2 (DTP_SCHEMA,   "create-node",  SDF_AUTHZ_X,    a_create, pm_create_node, cmd_create_node, "Create node"),
@@ -1932,6 +1939,48 @@ PRIVATE json_t *mt_list_snaps(
 
 
 
+/***************************************************************************
+ *  Can this treedb be WRITTEN?
+ *
+ *  Only the master of the tranger can. A non-master treedb is a REPLICA: it
+ *  follows the master's appends from disk (see the rt_by_disk lists it opens),
+ *  so a write here lands in the in-memory treedb, never reaches the store,
+ *  and is gone at the next reload. Worse, it looked like it worked: the write
+ *  commands answered success with the node they had just built, and
+ *  tranger2_append_record()'s own "NO master" guard is never reached because
+ *  a non-master treedb does not attempt the append at all -- so nothing was
+ *  logged either. An editor showed a saved row that was already lost.
+ ***************************************************************************/
+PRIVATE BOOL treedb_is_master(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return kw_get_bool(gobj, priv->tranger, "master", 0, KW_REQUIRED);
+}
+
+/***************************************************************************
+ *  The response a write command gives on a replica. Checked BEFORE authz on
+ *  purpose: on a replica nobody can write, whoever they are, and answering
+ *  -403 would send an operator looking for a permission that would not help.
+ ***************************************************************************/
+PRIVATE json_t *build_readonly_response(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return msg_iev_build_response(
+        gobj,
+        -1,
+        json_sprintf("%s: treedb '%s' is READ-ONLY, this yuno is not the master of its tranger",
+            gobj_yuno_role_plus_name(),
+            priv->treedb_name
+        ),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+
             /***************************
              *      Commands
              ***************************/
@@ -1978,6 +2027,13 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
@@ -2084,6 +2140,13 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
@@ -2190,6 +2253,13 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
     json_t *_jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
@@ -2286,6 +2356,13 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
     const char *child_ref = kw_get_str(gobj, kw, "child_ref", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
@@ -2421,6 +2498,13 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
     const char *child_ref = kw_get_str(gobj, kw, "child_ref", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
@@ -2564,6 +2648,70 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         0,
         treedbs,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  What a client needs to know about this treedb before offering to EDIT it:
+ *  its name, whether this yuno is the MASTER of the tranger it sits on, and
+ *  how many topics it holds.
+ *
+ *  `master` is the answer to "can I write here?", and it was not reachable
+ *  from the control plane: it is an SDF_RD attr of the tranger, absent from
+ *  `services`, from `treedbs` and from the stats, and the only place it
+ *  surfaced was the whole `print-tranger` dump -- megabytes to read one
+ *  boolean. It is also per TREEDB, not per yuno: the same yuno can be master
+ *  of its `treedb_system_schema` and a replica of a data treedb.
+ ***************************************************************************/
+PRIVATE json_t *cmd_treedb_info(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    if(empty_string(treedb_name)) {
+        treedb_name = priv->treedb_name;
+    }
+
+    json_t *topics = gobj_treedb_topics(gobj, treedb_name, 0, src);
+    size_t topics_size = 0;
+    if(json_is_array(topics)) {
+        topics_size = json_array_size(topics);
+    } else if(json_is_object(topics)) {
+        topics_size = json_object_size(topics);
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:b, s:I}",
+        "treedb_name", treedb_name,
+        "master", treedb_is_master(gobj),
+        "topics", (json_int_t)topics_size
+    );
+    JSON_DECREF(topics)
+
+    if(!jn_data) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "json_pack() FAILED",
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the treedb info",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        0,
+        jn_data,
         kw  // owned
     );
 }
@@ -3635,6 +3783,13 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*----------------------------------------*
+     *  A replica cannot be written
+     *----------------------------------------*/
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
 
     int if_resource_exists = 0; // abort by default

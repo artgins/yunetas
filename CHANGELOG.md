@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### TreeDB
+
+- **`C_NODE` answers `treedb-info`, and refuses writes on a replica.** Two
+    halves of the same hole.
+
+    The **master flag was not reachable** from the control plane: it is an
+    `SDF_RD` attr of the tranger, absent from `services`, from `treedbs` and
+    from the stats, so a client wanting to know whether a treedb can be edited
+    had to fetch the entire `print-tranger` dump — megabytes to read one
+    boolean. `treedb-info` answers `{treedb_name, master, topics}`. It is also
+    per TREEDB and it is runtime state, not config: the same yuno is routinely
+    master of its `treedb_system_schema` and a replica of a data treedb, and
+    `tranger2_startup` decides by who holds the lock, falling back to
+    non-master when the store is taken.
+
+    And **writing to a replica used to answer success.** `create-node`,
+    `update-node`, `delete-node`, `link-nodes`, `unlink-nodes` and `import-db`
+    built the node in the in-memory treedb and returned it; the append was
+    never attempted, so `tranger2_append_record`'s own "NO master" guard never
+    fired and **nothing was logged**; the row was gone at the next reload. They
+    now answer
+
+    ```
+    ERROR -1: <yuno>: treedb '<name>' is READ-ONLY, this yuno is not the master of its tranger
+    ```
+
+    checked BEFORE the authz check, because on a replica nobody can write
+    whoever they are, and a `-403` sends the operator after a permission that
+    would not help. Reads are untouched — a replica exists to be read.
+
+    Verified against two live yunos sharing one store, one master and one
+    replica: the four write commands refused on the replica, reads kept
+    working, writes on the master still persisted to disk. 123/123 ctest.
+
+    Not covered, and deliberately: the snap commands (`shoot-snap`,
+    `activate-snap`, `deactivate-snap`) also write, and their master semantics
+    were not verified here.
+
 ### Documentation
 
 - **The JavaScript side had no API reference — it had a listing.** Looking for
