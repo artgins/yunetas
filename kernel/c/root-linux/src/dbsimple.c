@@ -80,7 +80,7 @@ PRIVATE int save_json(
     json_t *jn // owned
 )
 {
-    char filename[NAME_MAX];
+    char filename[PATH_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
     int ret = json_dump_file(

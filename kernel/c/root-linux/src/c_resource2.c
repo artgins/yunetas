@@ -139,7 +139,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(service,               gobj_read_str_attr)
     SET_PRIV(database,              gobj_read_str_attr)
 
-    char path_service[NAME_MAX];
+    char path_service[PATH_MAX];
     build_path(path_service, sizeof(path_service),
         priv->service,
         gobj_yuno_role_plus_name(),

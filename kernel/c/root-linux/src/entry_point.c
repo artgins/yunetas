@@ -543,7 +543,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             } else if(strcmp(handler_type, "file")==0) {
                 const char *filename_mask = kw_get_str(0, kw, "filename_mask", 0, 0);
                 if(!empty_string(filename_mask)) {
-                    char temp[NAME_MAX];
+                    char temp[PATH_MAX];
                     char *path = yuneta_log_file(temp, sizeof(temp), filename_mask, TRUE);
                     if(path) {
                         size_t bf_size = 0;                     // 0 = default 64K

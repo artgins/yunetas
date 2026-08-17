@@ -1147,7 +1147,7 @@ PRIVATE void mt_create(hgobj gobj)
      *      Audit
      *-----------------------------*/
     if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
-        char audit_path[NAME_MAX];
+        char audit_path[PATH_MAX];
         yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE);
         priv->audit_file = rotatory_open(
             audit_path,
@@ -1815,7 +1815,7 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     char private_domain[PATH_MAX];
     build_yuno_private_domain(gobj, node, private_domain, sizeof(private_domain));
 
-    char yuno_data_path[NAME_MAX];
+    char yuno_data_path[PATH_MAX];
     const char *work_dir = yuneta_root_dir();
     build_path(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain, NULL);
 
@@ -3144,7 +3144,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
-    char path[NAME_MAX];
+    char path[PATH_MAX];
     yuneta_realm_file(path, sizeof(path), "temp", id, TRUE);
     gbuf2file(
         gobj,
@@ -3407,7 +3407,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    char path[NAME_MAX];
+    char path[PATH_MAX];
     yuneta_realm_file(path, sizeof(path), "temp", role, TRUE);
     gbuf2file(
         gobj,

@@ -2888,7 +2888,7 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     }
 
     JSON_INCREF(jn_content);
-    char path[NAME_MAX];
+    char path[PATH_MAX];
 
     save_local_json(gobj, path, sizeof(path), id, jn_content);
     //log_debug_printf("save_local_json %s", path);
@@ -2917,12 +2917,22 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     }
     JSON_DECREF(jn_new_content);
 
-    char upgrade_command[512];
-    snprintf(upgrade_command, sizeof(upgrade_command),
+    char upgrade_command[PATH_MAX + NAME_MAX + 64];
+    int written = snprintf(upgrade_command, sizeof(upgrade_command),
         "create-config id='%s' content64=$$(%s) ",
         id,
         path
     );
+    if(written < 0 || (size_t)written >= sizeof(upgrade_command)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "create-config line truncated, edit it by hand",
+            "id",           "%s", id,
+            "path",         "%s", path,
+            NULL
+        );
+    }
 
     json_t *kw_line = json_object();
     json_object_set_new(kw_line, "text", json_string(upgrade_command));
@@ -2980,7 +2990,7 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
     const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
     JSON_INCREF(jn_content);
-    char path[NAME_MAX];
+    char path[PATH_MAX];
 
     save_local_json(gobj, path, sizeof(path), name, jn_content);
     //log_debug_printf("save_local_json %s", path);
@@ -3040,7 +3050,7 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
     JSON_INCREF(jn_content);
-    char path[NAME_MAX];
+    char path[PATH_MAX];
 
     save_local_json(gobj, path, sizeof(path), name, jn_content);
     //log_debug_printf("save_local_json %s", path);
@@ -3100,7 +3110,7 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
     JSON_INCREF(jn_content);
-    char path[NAME_MAX];
+    char path[PATH_MAX];
 
     save_local_string(gobj, path, sizeof(path), name, jn_content);
     //log_debug_printf("save_local_json %s", path);
@@ -3176,7 +3186,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
     JSON_INCREF(jn_content);
-    char path[NAME_MAX];
+    char path[PATH_MAX];
     save_local_base64(gobj, path, sizeof(path), name, jn_content);
 
     clear_input_line(gobj);
