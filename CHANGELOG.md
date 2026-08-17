@@ -11,7 +11,10 @@
     `SDF_RD` attr of the tranger, absent from `services`, from `treedbs` and
     from the stats, so a client wanting to know whether a treedb can be edited
     had to fetch the entire `print-tranger` dump — megabytes to read one
-    boolean. `treedb-info` answers `{treedb_name, master, topics}`. It is also
+    boolean. `treedb-info` answers `{treedb_name, master, schema_version, topics}`
+    — the topics BY NAME, and the `__schema_version__` the treedb was built
+    with, which is what tells a client whether the schema it is looking at is
+    the one it knows. It is also
     per TREEDB and it is runtime state, not config: the same yuno is routinely
     master of its `treedb_system_schema` and a replica of a data treedb, and
     `tranger2_startup` decides by who holds the lock, falling back to

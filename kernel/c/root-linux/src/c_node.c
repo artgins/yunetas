@@ -2673,20 +2673,24 @@ PRIVATE json_t *cmd_treedb_info(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         treedb_name = priv->treedb_name;
     }
 
+    /*
+     *  The topics BY NAME, and the schema version the treedb was built with.
+     *  The version lives in the treedb's own root inside the tranger
+     *  (`treedbs.<name>.__schema_version__`, written by treedb_open_db), and
+     *  it is what tells a client whether the schema it is looking at is the
+     *  one it knows: a change of cols must bump it, or the persisted
+     *  topic_cols masks the new in-memory schema.
+     */
     json_t *topics = gobj_treedb_topics(gobj, treedb_name, 0, src);
-    size_t topics_size = 0;
-    if(json_is_array(topics)) {
-        topics_size = json_array_size(topics);
-    } else if(json_is_object(topics)) {
-        topics_size = json_object_size(topics);
-    }
+    json_t *treedb = kw_get_subdict_value(gobj, priv->tranger, "treedbs", treedb_name, 0, 0);
+    json_int_t schema_version = kw_get_int(gobj, treedb, "__schema_version__", 0, 0);
 
-    json_t *jn_data = json_pack("{s:s, s:b, s:I}",
+    json_t *jn_data = json_pack("{s:s, s:b, s:I, s:o}",
         "treedb_name", treedb_name,
         "master", treedb_is_master(gobj),
-        "topics", (json_int_t)topics_size
+        "schema_version", schema_version,
+        "topics", topics?topics:json_array()   // owned
     );
-    JSON_DECREF(topics)
 
     if(!jn_data) {
         gobj_log_error(gobj, 0,

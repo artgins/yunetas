@@ -303,9 +303,15 @@ ycommand -c 'command-yuno id=<yuno> service=<treedb> command=treedb-info'
 {
     "treedb_name": "treedb_authzs",
     "master": false,
-    "topics": 5
+    "schema_version": 19,
+    "topics": ["__snaps__", "__graphs__", "roles", "users", "users_accesses"]
 }
 ```
+
+`schema_version` is the treedb's own `__schema_version__` inside the tranger
+(written by `treedb_open_db`), and it is what tells a client whether the schema
+it is looking at is the one it knows — a change of cols must bump it, or the
+persisted `topic_cols.json` masks the new in-memory schema (§3.4).
 
 **Writing to a replica is refused, and used to be silent.** `create-node`,
 `update-node`, `delete-node`, `link-nodes`, `unlink-nodes` and `import-db` on a
