@@ -1721,7 +1721,7 @@ PUBLIC int save_json_to_file(
         return -1;
     }
 
-    if(json_dumpfd(jn_data, fp, JSON_INDENT(2))<0) {
+    if(json_dumpfd(jn_data, fp, JSON_INDENT(4))<0) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON,
