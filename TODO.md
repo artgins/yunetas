@@ -51,6 +51,14 @@ traps it had to be born knowing (the whole kw is the yuno filter; the routed
 path loses the live node events, echoed locally for its own writes) are in its
 header and in `gui_agent/README.md`.
 
+The **record GRAPH** is there too, as a position of the same url
+(`<treedb>/graph[/<topic>]`, the third icon of every topic card): the treedb's
+viewer hosts `C_YUI_TREEDB_GRAPH` on the same adapter and swaps the two bodies,
+lazily, because G6 is the heaviest thing the workspace draws. A replica hands it
+the same `readonly` the editor gets and it loses its `edition` mode (gobj-ui
+5.16.0), and a write in it marks *Apply* — except a save of the graph LAYOUT,
+which is the view's own bookkeeping in `__graphs__`.
+
 What that workspace still lacks:
 
 - **Applying needs an agent carrying the `ac_final_count` fix of this

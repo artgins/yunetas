@@ -10,7 +10,7 @@ description: >-
 Each gclass declares a finite state machine: a list of states, and for each
 state a table of rows with the form `(event, action, next state)`.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js)
 
 ```javascript
 const st_idle = [
@@ -35,30 +35,30 @@ state of `null` the gobj stays where it is.
 ---
 
 (js_gobj_current_state)=
-## [`gobj_current_state(gobj)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L3592)
+## [`gobj_current_state(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3612)
 
 Gives the name of the state that is active.
 
 (js_gobj_change_state)=
-## [`gobj_change_state(gobj, state_name)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L3547)
+## [`gobj_change_state(gobj, state_name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3567)
 
 Changes the state without an event. Returns `true` when the state changes.
 
 (js_gobj_has_event)=
-## [`gobj_has_event(gobj, event, event_flag)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L3694)
+## [`gobj_has_event(gobj, event, event_flag)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3714)
 
 Tells if the gclass declares an event. Give `0` in `event_flag` to accept every
 flag.
 
 (js_gobj_has_output_event)=
-## [`gobj_has_output_event(gobj, event, event_flag)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L3711)
+## [`gobj_has_output_event(gobj, event, event_flag)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3731)
 
 Tells if the gclass declares an event as an output event.
 
 ---
 
 (js_event_flag_t)=
-## [`event_flag_t`](https://github.com/artgins/gobj-js/blob/7.10.0/src/gobj.js#L297)
+## [`event_flag_t`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L297)
 
 The flags of an event, in the table `event_types` of the gclass.
 

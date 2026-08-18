@@ -10,7 +10,7 @@ description: >-
 The browser is an operating system, and its DOM is where a GUI gclass draws.
 These helpers build the elements and keep the untrusted values safe.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js)
 
 :::{important}
 A DOM callback does the work of a translator, and nothing more. A click, an
@@ -25,7 +25,7 @@ inside the callback is invisible to the `machine` trace.
 ## Build an element
 
 (js_createElement2)=
-## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L3002)
+## [`createElement2()`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L3002)
 
 Builds an HTML element from a description that is a plain array. It is the
 function that a GUI gclass uses to draw.
@@ -88,17 +88,17 @@ the CSS and not to the text.
 ---
 
 (js_createOneHtml)=
-### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L2813)
+### [`createOneHtml(htmlString)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L2813)
 
 Builds one element from a string of HTML.
 
 (js_parseSVG)=
-### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L3138)
+### [`parseSVG(string)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L3138)
 
 Builds an SVG element from a string of SVG code.
 
 (js_getPositionRelativeToBody)=
-### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L3110)
+### [`getPositionRelativeToBody(element)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L3110)
 
 Gives the position of an element against the body of the document. A popover or
 a menu that must stay next to its button uses it.
@@ -108,13 +108,13 @@ a menu that must stay next to its button uses it.
 ## Untrusted values
 
 (js_escapeHtml)=
-### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L2780)
+### [`escapeHtml(str)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L2780)
 
 Escapes a value for an HTML context. Use it every time that a string from a
 user or from a server goes into a template that becomes `innerHTML`.
 
 (js_safeSrc)=
-### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L2798)
+### [`safeSrc(url)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L2798)
 
 Validates a URL for the `src` attribute of an image or a media element. It
 refuses the `javascript:` and `data:` schemes, which carry a cross-site script.
@@ -125,7 +125,7 @@ It gives an empty string back for every scheme that it refuses.
 ## Language
 
 (js_refresh_language)=
-## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js#L3146)
+## [`refresh_language()`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js#L3146)
 
 Translates a DOM tree again, after the application changes its language.
 

@@ -11,8 +11,8 @@ description: >-
 names that the C side uses. A gclass that moves between the two languages keeps
 its calls.
 
-**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/helpers.js),
-[`src/sprintf.js`](https://github.com/artgins/gobj-js/blob/7.10.0/src/sprintf.js)
+**Source code:** [`src/helpers.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/helpers.js),
+[`src/sprintf.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/sprintf.js)
 
 | Family | Page |
 |---|---|

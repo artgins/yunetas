@@ -442,6 +442,47 @@
     whole job is `kill-yuno` → `run-yuno play=0` → `play-yuno` chained on those
     answers. **Nodes need the new agent binary for it to work there.**
 
+- **gobj-ui submodule 5.15.0 → 5.16.0, and the JS yunos with it: the treedb
+    GRAPH learns read-only and reports its writes.** The whole write surface of
+    `C_YUI_TREEDB_GRAPH` hangs off ONE operation mode — `edition` is the only
+    one that draws the create / delete / link affordances — so `readonly` drops
+    it from the mode select, and because the mode is a PERSISTED preference, a
+    graph left in edition on a master comes back in `reading` on a replica. The
+    five write events are refused as well: the G6 child raises them from its
+    undo/redo history and from saving the node geometry, neither of which goes
+    through the toolbar.
+
+    It also publishes `EV_RECORD_WRITTEN`, the event the topics editor has had
+    since 5.14.0, because a host that edits a SCHEMA is not finished when the
+    record is written — the yuno still has to be restarted to re-read it.
+    `__graphs__` is excluded on purpose: the graph writes that topic itself on
+    every layout save, and reporting it would say the schema changed because
+    somebody dragged a node.
+
+    And a third thing, which only a SECOND view on the same treedb could
+    surface: an updated node the table never loaded threw an unhandled
+    rejection. Tabulator's `updateData()` rejects on a row it cannot find and
+    nobody awaits it, so it arrived as a bare *"Update Error - Unable to find
+    row"* naming neither gclass nor topic.
+
+- **`yunos/js`: gui_agent's Schemas workspace draws the treedb as a graph.**
+    Under a treedb the subpath was `<topic>[/info]` or `schema`; it is now also
+    `graph[/<topic>]`, and the third icon of every topic card goes there — the
+    treedb's viewer hosts the graph beside the topic editor, on the SAME routing
+    adapter, and swaps the two bodies by url. Mounted lazily (G6 is the heaviest
+    thing the workspace draws, and it measures its canvas when first SHOWN), and
+    opened with the `dagre` layout rather than the library's `manual`, which
+    places nodes where the records say they are — a schema treedb carries no
+    geometry, so it opened as one diagonal pile of 265 `cols`.
+
+    The adapter had to learn the treedb LINK events: the graph subscribes to
+    `EV_TREEDB_NODE_LINKED`/`UNLINKED` on its transport as soon as it loads a
+    topic, and `gobj_subscribe_event` refuses an event that is not in the
+    publisher's output list — so leaving them undeclared did not cost an edge
+    that fails to redraw, it cost the SUBSCRIPTION. `gui_treedb` declares
+    `EV_RECORD_WRITTEN`, which had been an FSM error on every write since
+    gobj-ui 5.14.0. Detail in that submodule's own `CHANGELOG.md`.
+
 - **gobj-ui submodule 5.13.0 → 5.14.1, and the JS yunos with it.** `5.14.0`
     publishes `EV_RECORD_WRITTEN` from `C_YUI_TREEDB_TOPICS`: the view refreshes
     itself from the treedb's own node events, which arrive for every writer and
