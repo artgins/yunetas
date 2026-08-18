@@ -220,7 +220,23 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
+    /*
+     *  The authzs doc is a LIST: it goes in `jn_data`, never in
+     *  `jn_comment`, which must be a json string -- the client reads it
+     *  with kw_get_str(). And a command handler must always come back
+     *  through msg_iev_build_response(): it is what sets `__md_iev__`
+     *  back, and an answer without it never reaches the requester.
+     */
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_resp,
+        kw  // owned
+    );
 }
 
 

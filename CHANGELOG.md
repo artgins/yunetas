@@ -25,6 +25,12 @@
     `list-users` and `create-user` had it too, with the resource list in the
     same wrong slot.
 
+- **The SKELETONS shipped the broken shape.** `gclass_service` and
+    `yuno_citizen` both scaffolded the bare `return gobj_build_authzs_doc(...)`
+    — which is where the four gclasses above got it. Fixed at the source, with
+    the reason in the template so the next reader does not have to find this
+    entry.
+
 - **Four `cmd_authzs` answered nothing at all.** `C_IDP_KEYCLOAK`,
     `C_MQTT_BROKER`, `C_CONTROLCENTER` and `C_WEBSTATS` returned
     `gobj_build_authzs_doc()` raw, and `command_parser()` hands a handler's
