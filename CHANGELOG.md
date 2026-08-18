@@ -519,6 +519,13 @@
     nobody awaits it, so it arrived as a bare *"Update Error - Unable to find
     row"* naming neither gclass nor topic.
 
+- **`yunos/js`: gui_treedb's Connections moved from the account menu to the
+    rail.** The backends are where a session starts and both work entries depend
+    on them, so they lead the rail — Connections / Topics / Graphs. The item
+    declares a route and no target: `/connections` is already in `shell.routes`
+    and `build_item_index()` fills it from there, so one place says which gclass
+    the backends page is. Detail in that submodule's own `CHANGELOG.md`.
+
 - **`yunos/js`: a gui_agent tab remembers where you were inside it.** Open a
     topic in a Schemas tab, look at another tab, come back — and you landed on
     the treedb cards with the topic gone: a tab's nav item carries a FIXED
