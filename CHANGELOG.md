@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Added
+
+- **`diff-schema`: what the stored schema says that the schema in C does not.**
+    A treedb opens from its projection in `__system__`, the projector never
+    deletes, and a re-projection publishes under `max(stored, literal) + 1`. So
+    the three numbers of the `treedbs` node say that SOMETHING was published and
+    never what: `schema_version` 24 over `c_schema_version` 23 is the shape of an
+    operator edit and the shape of a plain re-projection alike. The new command
+    of `C_TREEDB` tells the two apart.
+
+        ycommand -c 'command-agent service=treedbs command=diff-schema \
+            treedb_name=treedb_yuneta_agent'
+
+    It answers one row per difference (`treedb`, `kind`, `topic`, `col`, `attr`,
+    `stored`, `from_c`) plus a comment with the stored versions, the ones the
+    running yuno carries and the count. `kind` is `changed`, `only_in_stored`
+    (an operator addition, or a topic a later schema dropped and the upsert
+    kept), `only_in_c` (declared and never projected) or `version`.
+
+    Two rules keep the answer readable, and both are about the store rather than
+    about schemas. A record carries EVERY column of its topic filled with the
+    empty value of its type, so an attribute nobody wrote is stored as `""`,
+    `{}`, `[]` or `0` and is not a difference — read as one, those defaults
+    buried 6 real differences under 592. And the version stamps are not compared
+    as content, since the projector raises them itself: only the anomaly is
+    reported, a projection made from another release or a topic the
+    re-projection never reached.
+
+    The comparison is projection against projection: the schema from C is
+    projected in memory through the same two builders the projector uses
+    (`build_topic_projection()` / `build_col_projection()`, extracted from
+    `upsert_treedb_schema()` for this), so no default the projector fills in can
+    read as a difference nobody made, and the two paths cannot drift apart.
+    `C_TREEDB` now keeps the schema each treedb was opened with, which is the
+    other half of the comparison; a treedb opened from its projection alone has
+    nothing to compare with and the command says so.
+
 ### Changed
 
 - **Every JSON file the framework writes is indented with FOUR spaces**, not

@@ -827,6 +827,50 @@ incoming schema is left alone: it is indistinguishable from an operator
 addition, and removing a topic or a column is a deliberate action, never a side
 effect of an upgrade.
 
+**`diff-schema` says what the projection holds that C does not.** Nothing
+deletes, and a re-projection publishes under a version of its own, so the three
+numbers above tell you that *something* was published and never *what*: a
+`treedbs` node at `schema_version` 24 with `c_schema_version` 23 is the shape of
+an operator edit **and** the shape of a plain re-projection. The command tells
+the two apart. It is a command of `C_TREEDB`, the service that owns
+`__system__`:
+
+```bash
+# One treedb of the node's own agent
+ycommand -c 'command-agent service=treedbs command=diff-schema \
+    treedb_name=treedb_yuneta_agent'
+
+# Every treedb this service opened with a schema from C
+ycommand -c 'command-agent service=treedbs command=diff-schema'
+
+# In any other yuno, through its own C_TREEDB service
+ycommand -c 'command-yuno id=<id> service=<treedb_service> command=diff-schema'
+```
+
+It answers one row per difference — `treedb`, `kind`, `topic`, `col`, `attr`,
+`stored`, `from_c` — and a comment carrying the three stored numbers, the two
+the running yuno has, and the count:
+
+| `kind` | Means |
+|---|---|
+| `changed` | both sides declare the attribute, with different values |
+| `only_in_stored` | in `__system__` and not in the schema from C: an operator addition, or something a later schema dropped and the upsert kept |
+| `only_in_c` | declared in C and missing from the projection: it never took |
+| `version` | the projection came from another release of the schema than the one running, or a topic's stored version is BEHIND it |
+
+Two rules keep the answer readable, and both are about the store rather than
+about schemas. A treedb record carries **every** column of its topic, filled
+with the empty value of its type, so an attribute nobody wrote is stored as
+`""`, `{}`, `[]` or `0`. That is not a difference. Read as one, those defaults
+buried 6 real differences under 592 on the first run. And the version stamps are not
+compared as content — the projector raises them itself — so only the anomaly is
+reported: a projection that came from a different release, or a topic the
+re-projection never reached.
+
+The command compares against the schema the treedb was **opened** with, kept in
+memory for that purpose, so it can only answer for a treedb opened with one. A
+treedb opened from its projection alone has no other half to compare with.
+
 **A treedb opens from its projection, always.** There used to be a flag
 (`use_internal_schema`) to open from the literal instead, and with it an edit
 made in `__system__` reached nothing until every yuno's config was changed one

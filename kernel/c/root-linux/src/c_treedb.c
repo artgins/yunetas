@@ -14,6 +14,7 @@
  *          "delete-treedb"
  *          "create-topic"
  *          "delete-topic"
+ *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -57,6 +58,12 @@ PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name
 );
+PRIVATE json_t *diff_treedb_schema(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // the schema from C, not owned
+    json_t *rows        // not owned, where the differences are appended
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -68,6 +75,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -121,6 +129,11 @@ SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_diff_schema[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (empty: every treedb opened with a schema from C)"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -135,6 +148,7 @@ SDATACM2 (DTP_SCHEMA,   "close-treedb", SDF_AUTHZ_X,    0, pm_close_treedb, cmd_
 SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_delete_treedb, "Delete treedb"),
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
+SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
 SDATA_END()
 };
 
@@ -210,6 +224,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_tranger_system;
     hgobj gobj_node_system;
     json_t *tranger_system_;
+    json_t *jn_c_schemas;               // schema from C by treedb_name, see diff-schema
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
@@ -237,6 +252,13 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(exit_on_error,             gobj_read_integer_attr)
+
+    /*
+     *  The schema a treedb was opened with is dropped once projected, and
+     *  then nothing can say what the projection stored on top of it. Keep it
+     *  by treedb_name: that is the other half `diff-schema` compares.
+     */
+    priv->jn_c_schemas = json_object();
 
     /*-----------------------------------*
      *      Create System Timeranger
@@ -356,6 +378,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_c_schemas)
 }
 
 /***************************************************************************
@@ -624,6 +649,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
@@ -714,6 +741,8 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     gobj_destroy(gobj_client_tranger);
     gobj_destroy(gobj_client_node);
 
+    json_object_del(priv->jn_c_schemas, treedb_name);
+
     return msg_iev_build_response(gobj,
         0,
         json_sprintf("Treedb closed!"),
@@ -728,6 +757,8 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
@@ -771,6 +802,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     int ret = delete_client_treedb_schema(gobj, treedb_name);
+    json_object_del(priv->jn_c_schemas, treedb_name);
 
     return msg_iev_build_response(gobj,
         ret,
@@ -894,6 +926,125 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     );
 }
 
+/***************************************************************************
+ *  What the stored schema says that the schema compiled in C does not.
+ *
+ *  A treedb opens from its projection in __system__, not from the schema in
+ *  C: the projection is seeded from it and re-made whenever it moves ahead,
+ *  so the two are the same thing until somebody edits the projection. And
+ *  the projector never deletes, so an edit is invisible — the three version
+ *  numbers of the `treedbs` node say that SOMETHING was published, never
+ *  what. This answers what.
+ ***************************************************************************/
+PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*--------------------------------------------------*
+     *  Only a treedb opened with a schema from C can be
+     *  compared: that schema is the other half.
+     *--------------------------------------------------*/
+    json_t *jn_treedbs = json_array();
+    if(!empty_string(treedb_name)) {
+        if(json_object_get(priv->jn_c_schemas, treedb_name)) {
+            json_array_append_new(jn_treedbs, json_string(treedb_name));
+        }
+    } else {
+        const char *name; json_t *jn_schema;
+        json_object_foreach(priv->jn_c_schemas, name, jn_schema) {
+            json_array_append_new(jn_treedbs, json_string(name));
+        }
+    }
+    if(json_array_size(jn_treedbs) == 0) {
+        JSON_DECREF(jn_treedbs)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: no treedb opened with a schema from C%s%s",
+                gobj_yuno_role_plus_name(),
+                empty_string(treedb_name)?"":": ",
+                empty_string(treedb_name)?"":treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*--------------------------------------------------*
+     *      Compare
+     *--------------------------------------------------*/
+    json_t *rows = json_array();
+    gbuffer_t *gbuf = gbuffer_create(256, 32*1024);
+    gbuffer_printf(gbuf, "%s:", gobj_yuno_role_plus_name());
+
+    int idx; json_t *jn_name;
+    json_array_foreach(jn_treedbs, idx, jn_name) {
+        const char *name = json_string_value(jn_name);
+        size_t differences = json_array_size(rows);
+
+        json_t *summary = diff_treedb_schema(
+            gobj,
+            name,
+            json_object_get(priv->jn_c_schemas, name),
+            rows
+        );
+        if(!summary) {
+            gbuffer_printf(gbuf, " %s: cannot be read;", name);
+            continue;   // Error already logged
+        }
+        differences = json_array_size(rows) - differences;
+
+        if(!kw_get_bool(gobj, summary, "projected", 0, 0)) {
+            gbuffer_printf(gbuf, " %s: not projected yet;", name);
+        } else {
+            gbuffer_printf(gbuf,
+                " %s: stored schema_version=%d c_schema_version=%d"
+                " system_schema_version=%d, in C schema_version=%d"
+                " system_schema_version=%d, %d differences;",
+                name,
+                (int)kw_get_int(gobj, summary, "schema_version", 0, 0),
+                (int)kw_get_int(gobj, summary, "c_schema_version", 0, 0),
+                (int)kw_get_int(gobj, summary, "system_schema_version", 0, 0),
+                (int)kw_get_int(gobj, summary, "c_schema_version_in_c", 0, 0),
+                (int)kw_get_int(gobj, summary, "system_schema_version_in_c", 0, 0),
+                (int)differences
+            );
+        }
+        json_decref(summary);
+    }
+    JSON_DECREF(jn_treedbs)
+
+    json_t *jn_comment = json_string(gbuffer_cur_rd_pointer(gbuf));
+    GBUFFER_DECREF(gbuf)
+
+    return msg_iev_build_response(gobj,
+        0,
+        jn_comment,
+        0,
+        rows,
+        kw  // owned
+    );
+}
+
 
 
 
@@ -956,6 +1107,109 @@ PRIVATE json_t *find_topic_node(
     }
 
     return NULL;
+}
+
+/***************************************************************************
+ *  Build what the __system__ projection stores for one TOPIC.
+ *
+ *  Shared by the projector and by `diff-schema`: comparing a schema with its
+ *  projection means projecting it the same way first, or every default the
+ *  projector fills in reads as a difference nobody made.
+ *
+ *  `topic_version` comes from the caller: the projector does not always write
+ *  the number the schema carries (see upsert_treedb_schema).
+ *
+ *  Return the node kw, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *build_topic_projection(
+    hgobj gobj,
+    json_t *jn_topic,   // not owned
+    const char *topic_name,
+    json_int_t topic_version
+)
+{
+    const char *pkey = kw_get_str(gobj, jn_topic, "pkey", "id", 0);
+    const char *tkey = kw_get_str(gobj, jn_topic, "tkey", "", 0);
+    const char *system_flag = kw_get_str(gobj, jn_topic, "system_flag", "sf_string_key", 0);
+    json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
+    BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
+
+    json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
+        "value", topic_name,
+        "pkey", pkey,
+        "system_flag", system_flag,
+        "tkey", tkey,
+        "topic_version", (json_int_t )topic_version,
+        "system_topic", system_topic
+    );
+    if(!kw_topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "json_pack() FAILED",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return NULL;
+    }
+    if(topic_pkey2s_) {
+        json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
+    }
+
+    return kw_topic;
+}
+
+/***************************************************************************
+ *  Build what the __system__ projection stores for one COLUMN.
+ *
+ *  Copy every attribute the DESCRIPTOR declares, never a list written by
+ *  hand here: that list is why `enum`, `template` and `pkey2s` never reached
+ *  the projection. An attribute added to the descriptor did not add itself
+ *  here, and the loss showed up only later, as a schema that had quietly
+ *  changed — a column keeping its `enum` flag while its enumeration was
+ *  gone.
+ *
+ *  The column's name travels in `value`; the rowid `id` is the caller's
+ *  business, it is the identity the store hands out.
+ *
+ *  Return the node kw, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *build_col_projection(
+    hgobj gobj,
+    json_t *jn_col,     // not owned
+    json_t *cols_desc   // not owned
+)
+{
+    const char *col_name = kw_get_str(gobj, jn_col, "id", "", KW_REQUIRED);
+    if(empty_string(col_name)) {
+        return NULL;    // Error already logged
+    }
+    const char *header = kw_get_str(gobj, jn_col, "header", col_name, 0);
+    const char *type = kw_get_str(gobj, jn_col, "type", "", KW_REQUIRED);
+    if(empty_string(type)) {
+        return NULL;    // Error already logged
+    }
+
+    json_t *kw_col = json_object();
+    json_object_set_new(kw_col, "value", json_string(col_name));
+
+    int idx; json_t *desc_entry;
+    json_array_foreach(cols_desc, idx, desc_entry) {
+        const char *attr = kw_get_str(gobj, desc_entry, "id", "", 0);
+        if(empty_string(attr) || strcmp(attr, "id")==0) {
+            continue;   /*  the column's name, already in `value`  */
+        }
+        json_t *v = json_object_get(jn_col, attr);
+        if(v) {
+            json_object_set(kw_col, attr, v);
+        }
+    }
+
+    if(!json_object_get(kw_col, "header")) {
+        json_object_set_new(kw_col, "header", json_string(header));
+    }
+
+    return kw_col;
 }
 
 /***************************************************************************
@@ -1057,12 +1311,7 @@ PRIVATE int upsert_treedb_schema(
         if(empty_string(topic_name)) {
             continue;
         }
-        const char *pkey = kw_get_str(gobj, jn_topic, "pkey", "id", 0);
-        const char *tkey = kw_get_str(gobj, jn_topic, "tkey", "", 0);
-        const char *system_flag = kw_get_str(gobj, jn_topic, "system_flag", "sf_string_key", 0);
         json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
-        json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
-        BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
 
         json_t *current_topic = find_topic_node(gobj, current_topics, topic_name);
 
@@ -1084,16 +1333,9 @@ PRIVATE int upsert_treedb_schema(
             topic_version += 1;
         }
 
-        json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
-            "value", topic_name,
-            "pkey", pkey,
-            "system_flag", system_flag,
-            "tkey", tkey,
-            "topic_version", (json_int_t )topic_version,
-            "system_topic", system_topic
-        );
-        if(topic_pkey2s_) {
-            json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
+        json_t *kw_topic = build_topic_projection(gobj, jn_topic, topic_name, topic_version);
+        if(!kw_topic) {
+            continue;   // Error already logged
         }
         if(current_topic) {
             /*  Keep the rowid: it is this topic's identity  */
@@ -1147,41 +1389,11 @@ PRIVATE int upsert_treedb_schema(
 
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
-            const char *col_name = kw_get_str(gobj, jn_col, "id", "", KW_REQUIRED);
-            if(empty_string(col_name)) {
-                continue;
+            json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc);
+            if(!kw_col) {
+                continue;   // Error already logged
             }
-            const char *header = kw_get_str(gobj, jn_col, "header", col_name, 0);
-            const char *type = kw_get_str(gobj, jn_col, "type", "", KW_REQUIRED);
-            if(empty_string(type)) {
-                continue;
-            }
-            /*
-             *  Copy every attribute the DESCRIPTOR declares, never a list
-             *  written by hand here: that list is why `enum`, `template` and
-             *  `pkey2s` never reached the projection. An attribute added to
-             *  the descriptor did not add itself here, and the loss showed up
-             *  only later, as a schema that had quietly changed — a column
-             *  keeping its `enum` flag while its enumeration was gone.
-             */
-            json_t *kw_col = json_object();
-            json_object_set_new(kw_col, "value", json_string(col_name));
-
-            int idx3; json_t *desc_entry;
-            json_array_foreach(cols_desc, idx3, desc_entry) {
-                const char *attr = kw_get_str(gobj, desc_entry, "id", "", 0);
-                if(empty_string(attr) || strcmp(attr, "id")==0) {
-                    continue;   /*  the column's name, already in `value`  */
-                }
-                json_t *v = json_object_get(jn_col, attr);
-                if(v) {
-                    json_object_set(kw_col, attr, v);
-                }
-            }
-
-            if(!json_object_get(kw_col, "header")) {
-                json_object_set_new(kw_col, "header", json_string(header));
-            }
+            const char *col_name = json_string_value(json_object_get(kw_col, "value"));
 
             const char *col_id = current_topic?
                 find_col_id(gobj, current_topic, col_name):
@@ -1496,6 +1708,8 @@ PRIVATE json_t *get_client_treedb_schema(
     json_t *jn_client_treedb_schema // not owned
 )
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  Check input schema although is not used
      */
@@ -1520,6 +1734,12 @@ PRIVATE json_t *get_client_treedb_schema(
      *  every start until a higher `schema_version` arrives from C.
      */
     if(input_schema_ok) {
+        /*
+         *  Keep it: once projected it is gone, and it is the only thing that
+         *  can tell an edit made in __system__ from what C declares.
+         */
+        json_object_set(priv->jn_c_schemas, treedb_name, jn_client_treedb_schema);
+
         reconcile_treedb_schema(gobj, treedb_name, jn_client_treedb_schema);
     }
 
@@ -1634,6 +1854,365 @@ PRIVATE int delete_client_treedb_schema(
     json_decref(treedb);
 
     return ret;
+}
+
+/***************************************************************************
+ *  Is this value the same thing as declaring nothing?
+ *
+ *  A treedb record carries EVERY column of its topic, filled with the empty
+ *  value of its type. So an attribute the schema does not declare is stored
+ *  as "", {}, [], false or 0, and the store cannot tell that from one
+ *  written empty on purpose. Read as differences, those 586 defaults buried
+ *  the 6 that somebody made.
+ ***************************************************************************/
+PRIVATE BOOL is_unset_value(json_t *value)  // not owned, may be NULL
+{
+    if(!value || json_is_null(value)) {
+        return TRUE;
+    }
+    if(json_is_string(value)) {
+        return empty_string(json_string_value(value));
+    }
+    if(json_is_object(value) || json_is_array(value)) {
+        return empty_json(value);
+    }
+    if(json_is_boolean(value)) {
+        return json_is_true(value)?FALSE:TRUE;
+    }
+    if(json_is_integer(value)) {
+        return json_integer_value(value)==0?TRUE:FALSE;
+    }
+    if(json_is_real(value)) {
+        return json_real_value(value)==0.0?TRUE:FALSE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Append one difference.
+ ***************************************************************************/
+PRIVATE int add_diff_row(
+    json_t *rows,           // not owned
+    const char *treedb_name,
+    const char *kind,       // changed | only_in_stored | only_in_c | version
+    const char *topic_name,
+    const char *col_name,   // "" at topic level
+    const char *attr,       // "" when the whole topic/column is the difference
+    json_t *stored,         // not owned, NULL when there is nothing stored
+    json_t *from_c          // not owned, NULL when C does not declare it
+)
+{
+    json_t *row = json_object();
+
+    json_object_set_new(row, "treedb", json_string(treedb_name));
+    json_object_set_new(row, "kind", json_string(kind));
+    json_object_set_new(row, "topic", json_string(topic_name?topic_name:""));
+    json_object_set_new(row, "col", json_string(col_name?col_name:""));
+    json_object_set_new(row, "attr", json_string(attr?attr:""));
+    json_object_set(row, "stored", stored?stored:json_null());
+    json_object_set(row, "from_c", from_c?from_c:json_null());
+
+    json_array_append_new(rows, row);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Compare the attributes of one projected node with the stored one.
+ *
+ *  Both sides are compared, so an attribute added in __system__ that C does
+ *  not declare is reported too: that is what an operator edit looks like.
+ ***************************************************************************/
+PRIVATE int diff_node_attrs(
+    hgobj gobj,
+    json_t *rows,           // not owned
+    const char *treedb_name,
+    const char *topic_name,
+    const char *col_name,   // NULL at topic level
+    json_t *projected,      // not owned
+    json_t *stored,         // not owned
+    const char **skip       // attributes that say how a node is STORED
+)
+{
+    const char *attr; json_t *v;
+
+    json_object_foreach(projected, attr, v) {
+        if(str_in_list(skip, attr, TRUE)) {
+            continue;
+        }
+        json_t *stored_value = json_object_get(stored, attr);
+        if(is_unset_value(v) && is_unset_value(stored_value)) {
+            continue;
+        }
+        if(!stored_value) {
+            add_diff_row(
+                rows, treedb_name, "only_in_c", topic_name, col_name, attr, NULL, v
+            );
+            continue;
+        }
+        if(!json_equal(stored_value, v)) {
+            add_diff_row(
+                rows, treedb_name, "changed", topic_name, col_name, attr, stored_value, v
+            );
+        }
+    }
+
+    json_object_foreach(stored, attr, v) {
+        if(str_in_list(skip, attr, TRUE)) {
+            continue;
+        }
+        if(json_object_get(projected, attr) || is_unset_value(v)) {
+            continue;
+        }
+        add_diff_row(
+            rows, treedb_name, "only_in_stored", topic_name, col_name, attr, v, NULL
+        );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  What the __system__ projection of a treedb says that its schema from C
+ *  does not.
+ *
+ *  The projection is an upsert that never deletes, so what it holds and the
+ *  schema does not is indistinguishable from an operator addition — until
+ *  somebody compares the two. That is this function: it projects the schema
+ *  from C in memory, with the same builders the projector uses, and compares
+ *  node by node.
+ *
+ *  The version stamps are NOT compared as content: `schema_version` and
+ *  `topic_version` are raised BY the projector (a re-projection publishes
+ *  under `max(stored, literal) + 1`), so they always differ after one and
+ *  would bury the differences somebody actually made. What is reported is
+ *  the anomaly: a projection that came from a release of the schema other
+ *  than the one running, and a topic whose stored version is BEHIND the
+ *  schema's — meaning the re-projection never reached it.
+ *
+ *  Return the summary, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *diff_treedb_schema(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_schema,  // the schema from C, not owned
+    json_t *rows        // not owned, where the differences are appended
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Attributes that say how a node is STORED, never what it declares:
+     *  the rowid, the name (it is the identity being compared), the links
+     *  to parent and children, the editor geometry and the treedb metadata.
+     */
+    static const char *topic_skip[] = {
+        "id", "value", "treedbs", "cols", "topic_version", "_geometry", "__md_treedb__", NULL
+    };
+    static const char *col_skip[] = {
+        "id", "value", "topics", "_geometry", "__md_treedb__", NULL
+    };
+
+    json_int_t c_schema_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
+
+    /*
+     *  Ask with a list: a treedb with no projection yet is an ordinary
+     *  answer, not a failure.
+     */
+    json_t *found = gobj_list_nodes(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        0,
+        gobj
+    );
+    size_t found_size = json_array_size(found);
+    JSON_DECREF(found)
+    if(found_size == 0) {
+        return json_pack("{s:s, s:b, s:I}",
+            "treedb", treedb_name,
+            "projected", 0,
+            "c_schema_version_in_c", (json_int_t )c_schema_version
+        );
+    }
+
+    json_t *current = gobj_node_tree(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        json_object(),
+        gobj
+    );
+    if(!current) {
+        return NULL;    // Error already logged
+    }
+
+    json_int_t stored_schema_version = kw_get_int(
+        gobj, current, "schema_version", 0, KW_WILD_NUMBER
+    );
+    json_int_t stored_c_schema_version = kw_get_int(
+        gobj, current, "c_schema_version", 0, KW_WILD_NUMBER
+    );
+    json_int_t stored_system_schema_version = kw_get_int(
+        gobj, current, "system_schema_version", 0, KW_WILD_NUMBER
+    );
+
+    /*
+     *  The projection came from another release of the schema than the one
+     *  this yuno runs: everything else reported below may be that, and not
+     *  an edit.
+     */
+    if(stored_c_schema_version != c_schema_version) {
+        json_t *stored_value = json_integer(stored_c_schema_version);
+        json_t *from_c = json_integer(c_schema_version);
+        add_diff_row(
+            rows, treedb_name, "version", "", "", "c_schema_version", stored_value, from_c
+        );
+        json_decref(stored_value);
+        json_decref(from_c);
+    }
+
+    json_t *current_topics = kw_get_dict(gobj, current, "topics", 0, 0);
+    json_t *cols_desc = _treedb_create_topic_cols_desc();
+    json_t *seen_topics = json_object();
+
+    json_t *jn_topics = kw_get_list(gobj, jn_schema, "topics", 0, 0);
+    int idx; json_t *jn_topic;
+    json_array_foreach(jn_topics, idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(topic_name)) {
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", KW_REQUIRED);
+        }
+        if(empty_string(topic_name)) {
+            continue;   // Error already logged
+        }
+        json_object_set_new(seen_topics, topic_name, json_true());
+
+        json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
+        json_t *projected_topic = build_topic_projection(
+            gobj, jn_topic, topic_name, topic_version
+        );
+        if(!projected_topic) {
+            continue;   // Error already logged
+        }
+
+        json_t *stored_topic = find_topic_node(gobj, current_topics, topic_name);
+        if(!stored_topic) {
+            add_diff_row(rows, treedb_name, "only_in_c", topic_name, "", "", NULL, NULL);
+            json_decref(projected_topic);
+            continue;
+        }
+
+        diff_node_attrs(
+            gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic, topic_skip
+        );
+
+        /*
+         *  A stored topic_version BEHIND the schema's means the projection
+         *  never reached this topic; ahead is what a re-projection does.
+         */
+        json_int_t stored_topic_version = kw_get_int(
+            gobj, stored_topic, "topic_version", 0, KW_WILD_NUMBER
+        );
+        if(stored_topic_version < topic_version) {
+            json_t *stored_value = json_integer(stored_topic_version);
+            json_t *from_c = json_integer(topic_version);
+            add_diff_row(
+                rows, treedb_name, "version", topic_name, "", "topic_version",
+                stored_value, from_c
+            );
+            json_decref(stored_value);
+            json_decref(from_c);
+        }
+
+        json_decref(projected_topic);
+
+        json_t *stored_cols = kw_get_dict(gobj, stored_topic, "cols", 0, 0);
+        json_t *seen_cols = json_object();
+
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            json_t *projected_col = build_col_projection(gobj, jn_col, cols_desc);
+            if(!projected_col) {
+                continue;   // Error already logged
+            }
+            const char *col_name = json_string_value(json_object_get(projected_col, "value"));
+            json_object_set_new(seen_cols, col_name, json_true());
+
+            const char *col_id = find_col_id(gobj, stored_topic, col_name);
+            if(!col_id) {
+                add_diff_row(
+                    rows, treedb_name, "only_in_c", topic_name, col_name, "", NULL, NULL
+                );
+                json_decref(projected_col);
+                continue;
+            }
+
+            diff_node_attrs(
+                gobj,
+                rows,
+                treedb_name,
+                topic_name,
+                col_name,
+                projected_col,
+                json_object_get(stored_cols, col_id),
+                col_skip
+            );
+            json_decref(projected_col);
+        }
+        JSON_DECREF(jn_cols)
+
+        const char *stored_col_id; json_t *stored_col;
+        json_object_foreach(stored_cols, stored_col_id, stored_col) {
+            const char *col_name = kw_get_str(gobj, stored_col, "value", "", 0);
+            if(empty_string(col_name) || json_object_get(seen_cols, col_name)) {
+                continue;
+            }
+            add_diff_row(
+                rows, treedb_name, "only_in_stored", topic_name, col_name, "", NULL, NULL
+            );
+        }
+        JSON_DECREF(seen_cols)
+    }
+
+    const char *stored_topic_id; json_t *stored_topic;
+    json_object_foreach(current_topics, stored_topic_id, stored_topic) {
+        const char *topic_name = kw_get_str(gobj, stored_topic, "value", "", 0);
+        if(empty_string(topic_name) || json_object_get(seen_topics, topic_name)) {
+            continue;
+        }
+        add_diff_row(rows, treedb_name, "only_in_stored", topic_name, "", "", NULL, NULL);
+    }
+
+    json_t *summary = json_pack("{s:s, s:b, s:I, s:I, s:I, s:I, s:I}",
+        "treedb", treedb_name,
+        "projected", 1,
+        "schema_version", (json_int_t )stored_schema_version,
+        "c_schema_version", (json_int_t )stored_c_schema_version,
+        "system_schema_version", (json_int_t )stored_system_schema_version,
+        "c_schema_version_in_c", (json_int_t )c_schema_version,
+        "system_schema_version_in_c", (json_int_t )priv->system_schema_version
+    );
+    if(!summary) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "json_pack() FAILED",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
+
+    /*
+     *  free
+     */
+    JSON_DECREF(seen_topics)
+    JSON_DECREF(cols_desc)
+    JSON_DECREF(current)
+
+    return summary;
 }
 
 

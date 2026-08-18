@@ -1062,6 +1062,102 @@ PRIVATE int check_autopublished_versions(hgobj gobj, json_t *col_ids)
 }
 
 /***************************************************************************
+ *  `diff-schema` names what the stored schema says and C does not.
+ *
+ *  The projector never deletes and publishes under a version of its own, so
+ *  after an edit the three numbers of the `treedbs` node say that SOMETHING
+ *  was published, never what. Run here, the answer must be exactly the two
+ *  things this test did to the projection and nothing else:
+ *
+ *      - the column edit of check_autopublished_versions,
+ *      - the `fidelity` topic, declared by the first schema and dropped by
+ *        the second, which the projection keeps because removing a topic is
+ *        a deliberate action, never a side effect of an upgrade.
+ *
+ *  Nothing else, above all: the store fills every column of a record with
+ *  the empty value of its type, and reading those as differences drowns the
+ *  ones somebody made.
+ ***************************************************************************/
+PRIVATE int check_schema_diff(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "diff-schema",
+        json_pack("{s:s}", "treedb_name", TREEDB_NAME),
+        gobj
+    );
+    if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: diff-schema failed",
+            "comment",      "%s", kw_get_str(gobj, jn_resp, "comment", "", 0),
+            NULL
+        );
+        JSON_DECREF(jn_resp)
+        return -1;
+    }
+
+    json_t *rows = kw_get_list(gobj, jn_resp, "data", 0, KW_REQUIRED);
+
+    BOOL found_edit = FALSE;
+    BOOL found_dropped_topic = FALSE;
+
+    int idx; json_t *row;
+    json_array_foreach(rows, idx, row) {
+        const char *kind = kw_get_str(gobj, row, "kind", "", 0);
+        const char *topic = kw_get_str(gobj, row, "topic", "", 0);
+        const char *col = kw_get_str(gobj, row, "col", "", 0);
+        const char *attr = kw_get_str(gobj, row, "attr", "", 0);
+        const char *stored = kw_get_str(gobj, row, "stored", "", 0);
+        const char *from_c = kw_get_str(gobj, row, "from_c", "", 0);
+
+        if(strcmp(kind, "changed")==0 && strcmp(topic, "users")==0 &&
+            strcmp(col, "username")==0 && strcmp(attr, "header")==0 &&
+            strcmp(stored, "Login name")==0 && strcmp(from_c, "Login")==0
+        ) {
+            found_edit = TRUE;
+            continue;
+        }
+        if(strcmp(kind, "only_in_stored")==0 && strcmp(topic, "fidelity")==0 &&
+            empty_string(col) && empty_string(attr)
+        ) {
+            found_dropped_topic = TRUE;
+            continue;
+        }
+
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: diff-schema reports a difference nobody made",
+            "row",          "%j", row,
+            NULL
+        );
+        result += -1;
+    }
+
+    if(!found_edit || !found_dropped_topic) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_INTERNAL,
+            "msg",                  "%s", "TEST FAIL: diff-schema misses a difference",
+            "column_edit",          "%d", (int)found_edit,
+            "dropped_topic",        "%d", (int)found_dropped_topic,
+            "rows",                 "%j", rows,
+            NULL
+        );
+        result += -1;
+    }
+
+    JSON_DECREF(jn_resp)
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -1388,6 +1484,11 @@ PRIVATE int run_tests(hgobj gobj)
      *  Test 6: a change to a schema publishes itself
      *-----------------------------------------------*/
     result += check_autopublished_versions(gobj, ids_after);
+
+    /*-----------------------------------------------*
+     *  Test 7: and `diff-schema` says WHAT it changed
+     *-----------------------------------------------*/
+    result += check_schema_diff(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)
