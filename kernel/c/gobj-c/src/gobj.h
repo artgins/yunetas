@@ -1682,10 +1682,16 @@ PUBLIC const sdata_desc_t *authz_get_level_desc(
     const char *authz
 );
 
+/*
+ *  Build the authzs doc of a gobj: a LIST/DICT, so a caller answering with
+ *  msg_iev_build_response() puts it in `jn_data`, never in `jn_comment`.
+ *  It CONSUMES kw, like gobj_build_cmds_doc() does -- that is why every
+ *  cmd_authzs() increfs before calling.
+ */
 PUBLIC json_t *gobj_build_authzs_doc(
     hgobj gobj,
     const char *cmd,
-    json_t *kw
+    json_t *kw      // owned
 );
 
 /*--------------------------------------------*

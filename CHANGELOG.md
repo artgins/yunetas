@@ -4,6 +4,22 @@
 
 ### Fixed
 
+- **`gobj_build_authzs_doc()` never released `kw`, and every `authzs` leaked
+    one.** Its sibling `gobj_build_cmds_doc()` decrefs on all three of its
+    return paths; this one decrefs on none of its four — while all fifteen
+    callers `KW_INCREF(kw)` before calling, precisely because they believe it
+    consumes one. Neither header said `// owned`, which is how the two helpers
+    drifted apart.
+
+    It now consumes `kw`, with a single exit: `authz` and `service` are
+    BORROWED out of the kw and used by `authzs_list()` and by the error
+    messages, so the decref cannot happen before the last of them.
+
+    Measured, not argued: 20 `authzs` against a treedb service and an orderly
+    `kill-yuno`, reading the `gbmem` audit at shutdown — **753 leaked blocks
+    before, 0 after**. This is what the *"system memory not free"* line at the
+    end of a yuno's log has been reporting.
+
 - **`authzs` answered with the permission list in the COMMENT field, and
     `ycommand` refused it.** `msg_iev_build_response()` takes
     `(result, jn_comment, jn_schema, jn_data, kw)` and every one of them is a

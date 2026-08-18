@@ -9813,44 +9813,54 @@ PUBLIC const sdata_desc_t *authz_get_level_desc(
 PUBLIC json_t *gobj_build_authzs_doc(
     hgobj gobj,
     const char *cmd,
-    json_t *kw
+    json_t *kw      // owned
 )
 {
+    /*
+     *  `authz` and `service` are BORROWED from kw, so every use of them --
+     *  the authzs_list() calls and the json_sprintf() messages -- has to
+     *  happen before the decref. Hence one exit and not four returns.
+     */
     const char *authz = kw_get_str(gobj, kw, "authz", "", 0);
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
+    json_t *jn_authzs;
 
     if(!empty_string(service)) {
         hgobj service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
-            return json_sprintf("Service not found: '%s'", service);
-        }
-
-        json_t *jn_authzs = authzs_list(service_gobj, authz);
-        if(!jn_authzs) {
-            if(empty_string(authz)) {
-                return json_sprintf("Service without authzs table: '%s'", service);
-            } else {
-                return json_sprintf("Authz not found: '%s' in service: '%s'", authz, service);
+            jn_authzs = json_sprintf("Service not found: '%s'", service);
+        } else {
+            jn_authzs = authzs_list(service_gobj, authz);
+            if(!jn_authzs) {
+                if(empty_string(authz)) {
+                    jn_authzs = json_sprintf(
+                        "Service without authzs table: '%s'", service
+                    );
+                } else {
+                    jn_authzs = json_sprintf(
+                        "Authz not found: '%s' in service: '%s'", authz, service
+                    );
+                }
             }
         }
-        return jn_authzs;
-    }
+    } else {
+        jn_authzs = json_object();
+        json_t *jn_global_list = sdataauth2json(gobj_get_global_authz_table());
+        json_object_set_new(jn_authzs, "global authzs", jn_global_list);
 
-    json_t *jn_authzs = json_object();
-    json_t *jn_global_list = sdataauth2json(gobj_get_global_authz_table());
-    json_object_set_new(jn_authzs, "global authzs", jn_global_list);
-
-    const char *service_; json_t *jn_service;
-    json_object_foreach(__jn_services__, service_, jn_service) {
-        hgobj gobj_service = gobj_find_service(service_, TRUE);
-        if(gobj_service) {
-            if(gclass_authz_desc(gobj_gclass(gobj_service))) {
-                json_t *l = authzs_list(gobj_service, authz);
-                json_object_set_new(jn_authzs, service_, l);
+        const char *service_; json_t *jn_service;
+        json_object_foreach(__jn_services__, service_, jn_service) {
+            hgobj gobj_service = gobj_find_service(service_, TRUE);
+            if(gobj_service) {
+                if(gclass_authz_desc(gobj_gclass(gobj_service))) {
+                    json_t *l = authzs_list(gobj_service, authz);
+                    json_object_set_new(jn_authzs, service_, l);
+                }
             }
         }
     }
 
+    KW_DECREF(kw)
     return jn_authzs;
 }
 
