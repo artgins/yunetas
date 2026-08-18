@@ -39,6 +39,17 @@
     other half of the comparison; a treedb opened from its projection alone has
     nothing to compare with and the command says so.
 
+- **`yunos/js`: gui_agent asks it from the Schemas workspace.** A `Differences`
+    button beside *Apply* asks each `C_TREEDB` service of the yuno and shows the
+    answer as a table, with what the command says about the versions above it.
+    A service that refuses, or that is too old to know the command, says so in
+    the same dialog beside the ones that answered. Detail in that submodule's
+    own `CHANGELOG.md`.
+
+    Note it takes the `read` permission of the **`C_TREEDB`** service, which is
+    not the `C_NODE` service of the treedb: an identity that reads a schema can
+    still be refused here.
+
 ### Changed
 
 - **Every JSON file the framework writes is indented with FOUR spaces**, not
