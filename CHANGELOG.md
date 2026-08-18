@@ -525,7 +525,8 @@
     declares a route and no target: `/connections` is already in `shell.routes`
     and `build_item_index()` fills it from there, so one place says which gclass
     the backends page is. The workspace picker (tab 0 of Topics/Graphs) is
-    relabelled **Select** in the same move: two different pages had carried the
+    renamed **Select** in the same move, path included
+    (`/<ws>/connections` → `/<ws>/select`): two different pages had carried the
     name *Connections*, and it only showed once both were on screen at once.
     Detail in that submodule's own `CHANGELOG.md`.
 
