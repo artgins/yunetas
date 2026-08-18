@@ -1,5 +1,19 @@
 # **Changelog**
 
+## Unreleased
+
+### Changed
+
+- **Every JSON file the framework writes is indented with FOUR spaces**, not
+    two. `save_json_to_file()` is the one helper behind all of them —
+    persistent attrs, configs, whatever a gclass saves — so the change reaches
+    every file at once, and it puts the C side on the rule the rest of the
+    project already follows: one level of structure is four characters.
+
+    Only whitespace moves. Nothing reads these files by column, and jansson
+    parses either shape, so an old file stays readable and is rewritten with
+    the new indent the first time something saves it.
+
 ## 7.13.0
 
 A schema stops being something only the C literal knows.
