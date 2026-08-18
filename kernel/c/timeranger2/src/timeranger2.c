@@ -1843,9 +1843,18 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
         // Error already logged
         return 0;
     }
+    /*
+     *  `pkey2s` travels with the descriptor: a topic whose pkey is
+     *  synthetic (a `rowid`/`uuid` flagged id) is unreadable without it,
+     *  because the name a human knows the record by lives in the
+     *  secondary key. A viewer that only gets the pkey can do nothing
+     *  but print the rowid. Absent keys are skipped by kw_clone_by_path,
+     *  so a topic without secondary keys is unaffected.
+     */
     const char *fields[] = {
         "topic_name",
         "pkey",
+        "pkey2s",
         "tkey",
         "system_flag",
         "topic_version",

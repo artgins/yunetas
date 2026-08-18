@@ -4,6 +4,23 @@
 
 ### Added
 
+- **A topic descriptor now carries `pkey2s`.** `tranger2_topic_desc()` cloned
+    `topic_name`, `pkey`, `tkey`, `system_flag`, `topic_version` and `cols` — so
+    a viewer of a treedb learned which column is the primary key and never which
+    one is the SECONDARY key.
+
+    That is the difference between identifying a record and naming it. A topic
+    whose id column is flagged `rowid` or `uuid` keys its records by a value
+    nobody reads, and the name a human knows them by lives in its `pkey2s`
+    column: `treedb_system_schema` keys `topics` and `cols` by rowid and holds
+    the topic/column name in `value`. Without `pkey2s` in the descriptor the
+    only thing a GUI could print was the rowid, which is how the agent console's
+    graph came to draw cards reading `181`, `225`, `193`.
+
+    Additive and safe on both sides: `kw_clone_by_path()` skips a key a topic
+    does not have, and the reader (gobj-ui 5.17.0) falls back to the id when the
+    descriptor does not carry the field, which is what an older node answers.
+
 - **`diff-schema`: what the stored schema says that the schema in C does not.**
     A treedb opens from its projection in `__system__`, the projector never
     deletes, and a re-projection publishes under `max(stored, literal) + 1`. So
