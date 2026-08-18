@@ -519,6 +519,19 @@
     nobody awaits it, so it arrived as a bare *"Update Error - Unable to find
     row"* naming neither gclass nor topic.
 
+- **`yunos/js`: a gui_agent tab remembers where you were inside it.** Open a
+    topic in a Schemas tab, look at another tab, come back — and you landed on
+    the treedb cards with the topic gone: a tab's nav item carries a FIXED
+    route (its base), so clicking it always navigated to the root.
+
+    The route cannot simply be made deeper — `yui_shell_set_submenu()`
+    registers `item.route` in the shell's item index, so it is where the tab's
+    view is MOUNTED and what a deep link resolves to. `C_APP` remembers the
+    last position per tab and replays it when the tab is entered again, which
+    it tells apart from walking UP inside the tab (the view's own *Topics*
+    button) by looking at whether the previous route belonged to another tab.
+    Detail in that submodule's own `CHANGELOG.md`.
+
 - **`yunos/js`: gui_agent's Schemas workspace draws the treedb as a graph.**
     Under a treedb the subpath was `<topic>[/info]` or `schema`; it is now also
     `graph[/<topic>]`, and the third icon of every topic card goes there — the
