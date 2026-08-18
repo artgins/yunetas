@@ -530,6 +530,15 @@
     name *Connections*, and it only showed once both were on screen at once.
     Detail in that submodule's own `CHANGELOG.md`.
 
+- **`yunos/js`: gui_agent reaches the AGENT's own treedbs.** The agent never
+    appears in `list-yunos` — it is the daemon that answers it — so its treedbs
+    (`treedb_yuneta_agent`, `treedb_system_schema`, `treedb_authzs`) were
+    unreachable from the console. The Schemas picker offers it now under the
+    sentinel yuno id `__agent__`, addressed with the agent's own `command-agent
+    service=<treedb>`; on the `.ovh` plane the same row is **agent22**. Apply is
+    disabled there — the agent is not a managed yuno and is restarted on the
+    node. Detail in that submodule's own `CHANGELOG.md`.
+
 - **`yunos/js`: a gui_agent tab remembers where you were inside it.** Open a
     topic in a Schemas tab, look at another tab, come back — and you landed on
     the treedb cards with the topic gone: a tab's nav item carries a FIXED

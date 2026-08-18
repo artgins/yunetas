@@ -51,6 +51,14 @@ traps it had to be born knowing (the whole kw is the yuno filter; the routed
 path loses the live node events, echoed locally for its own writes) are in its
 header and in `gui_agent/README.md`.
 
+The **node's own AGENT** is an entry of the picker too (sentinel yuno id
+`__agent__`): it never appears in `list-yunos`, but it runs the same services
+and its treedbs — `treedb_yuneta_agent` included — were unreachable from the
+console. One line differs, `command-agent service=<treedb>` instead of
+`command-yuno id=<yuno> …`, and it lives in `cmd2agent_service()`. On the
+`.ovh` plane the same row is **agent22**. Apply is disabled there: the agent is
+not a managed yuno, so it is restarted on the node.
+
 The **record GRAPH** is there too, as a position of the same url
 (`<treedb>/graph[/<topic>]`, the third icon of every topic card): the treedb's
 viewer hosts `C_YUI_TREEDB_GRAPH` on the same adapter and swaps the two bodies,
