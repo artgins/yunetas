@@ -1113,9 +1113,9 @@ PRIVATE json_t *cmd_list_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         0,
+        0,
+        0,
         jn_resp,
-        0,
-        0,
         kw  // owned
     );
 }
@@ -1132,9 +1132,9 @@ PRIVATE json_t *cmd_list_clients(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(
         gobj,
         0,
+        0,
+        0,
         jn_resp,
-        0,
-        0,
         kw  // owned
     );
 }
@@ -1151,9 +1151,9 @@ PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
+        0,
+        0,
         jn_resp,
-        0,
-        0,
         kw  // owned
     );
 }
@@ -1198,9 +1198,9 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(
         gobj,
         jn_resp?0:-1,
+        jn_resp?0:json_sprintf("%s: cannot create user", gobj_yuno_role_plus_name()),
+        0,
         jn_resp,
-        0,
-        0,
         kw  // owned
     );
 }

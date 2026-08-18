@@ -455,9 +455,9 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         0,
+        0,
+        0,
         jn_resp,
-        0,
-        0,
         kw  // owned
     );
 }

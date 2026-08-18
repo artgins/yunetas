@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`authzs` answered with the permission list in the COMMENT field, and
+    `ycommand` refused it.** `msg_iev_build_response()` takes
+    `(result, jn_comment, jn_schema, jn_data, kw)` and every one of them is a
+    `json_t *`, so the compiler cannot tell them apart — but `jn_comment` is a
+    STRING (`ycommand` reads it with `kw_get_str` and prints it with `%s`),
+    while the authzs doc is a list. Every `authzs` command therefore logged
+
+    ```
+    ERROR: ... "function": "kw_get_str", "msg": "path MUST BE a json str", "path": "comment"
+    ```
+
+    with a full stack trace, and printed no permissions at all. `cmd_help` is
+    NOT affected and was left alone: `gobj_build_cmds_doc()` returns a json
+    string, which is exactly what a comment is.
+
+    Eleven copies of the same three lines — `c_agent`, `c_authz`, `c_node`,
+    `c_task`, `c_tranger`, `c_treedb`, `c_postgres`, `c_pepon`, `c_teston` and
+    the two timer tests. `C_PROT_MQTT`'s `list-topics`, `list-clients`,
+    `list-users` and `create-user` had it too, with the resource list in the
+    same wrong slot.
+
+- **Four `cmd_authzs` answered nothing at all.** `C_IDP_KEYCLOAK`,
+    `C_MQTT_BROKER`, `C_CONTROLCENTER` and `C_WEBSTATS` returned
+    `gobj_build_authzs_doc()` raw, and `command_parser()` hands a handler's
+    return value straight back with no wrapping. That is not a display
+    problem: `msg_iev_build_response()` is also what sets `__md_iev__` back on
+    the answer, so a bare doc has nothing to route it to the requester and the
+    command **hung until the caller gave up** — verified live, 25 s with no
+    answer against an unpatched yuno, correct output against the patched one.
+
 ### TreeDB
 
 - **`C_NODE` answers `treedb-info`, and refuses writes on a replica.** Two

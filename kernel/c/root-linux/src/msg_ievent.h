@@ -340,12 +340,27 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     BOOL reverse_dst
 );
 
+/*----------------------------------------------------------*
+ *  Build the answer of a command.
+ *
+ *  ⚠️  `jn_comment` MUST BE A JSON STRING and `jn_data` is where a
+ *  structure goes. The four json_t* arguments look alike to the
+ *  compiler, so putting a list or a dict in the comment slot builds
+ *  fine and fails at the CLIENT: ycommand reads it with kw_get_str()
+ *  and logs "path MUST BE a json str" with a stack trace, printing no
+ *  data at all. Eleven `cmd_authzs` shipped that way.
+ *
+ *  ⚠️  A command handler must ALWAYS come back through here (or
+ *  build_command_response()): this is what puts `__md_iev__` back on
+ *  the answer, and an answer without it cannot be routed to the
+ *  requester -- the caller waits for ever instead of getting an error.
+ *-----------------------------------------------------------*/
 PUBLIC json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     hgobj gobj,
     json_int_t result,
-    json_t *jn_comment, // owned
+    json_t *jn_comment, // owned, MUST BE a json string
     json_t *jn_schema,  // owned
-    json_t *jn_data,    // owned
+    json_t *jn_data,    // owned, the structure
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 );
 
