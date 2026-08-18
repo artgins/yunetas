@@ -4,11 +4,11 @@ Initialize and stop the gobj runtime and control the process exit code. Call `go
 
 Source code:
 
-- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.h)
-- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c)
+- [`gobj.h`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.h)
+- [`gobj.c`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c)
 
 (gobj_end)=
-## [`gobj_end()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L644)
+## [`gobj_end()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L644)
 
 De-initializes the gobj system, freeing resources and shutting down the yuno if it exists.
 
@@ -33,7 +33,7 @@ If a yuno exists, it will be stopped and destroyed before freeing global resourc
 ---
 
 (gobj_get_exit_code)=
-## [`gobj_get_exit_code()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L636)
+## [`gobj_get_exit_code()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L636)
 
 Retrieves the exit code set for the application shutdown process.
 
@@ -58,7 +58,7 @@ The exit code is set using [`gobj_set_exit_code()`](#gobj_set_exit_code).
 ---
 
 (gobj_is_shutdowning)=
-## [`gobj_is_shutdowning()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L620)
+## [`gobj_is_shutdowning()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L620)
 
 Checks if the system is in the process of shutting down.
 
@@ -83,7 +83,7 @@ This function is useful for determining whether the system is in the process of 
 ---
 
 (gobj_set_exit_code)=
-## [`gobj_set_exit_code()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L628)
+## [`gobj_set_exit_code()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L628)
 
 Sets the exit code for the process, which will be returned when the program terminates.
 
@@ -108,7 +108,7 @@ The exit code set by this function can be retrieved using [`gobj_get_exit_code()
 ---
 
 (gobj_start_up)=
-## [`gobj_start_up()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L530)
+## [`gobj_start_up()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L530)
 
 `gobj_start_up()` initializes the gobj system, setting up global settings, memory management, and persistent attributes.
 
@@ -159,7 +159,7 @@ If `global_authentication_parser` is `NULL`, authentication is bypassed.
 ---
 
 (gobj_set_shutdown)=
-## [`gobj_set_shutdown()`](https://github.com/artgins/yunetas/blob/7.12.0/kernel/c/gobj-c/src/gobj.c#L609)
+## [`gobj_set_shutdown()`](https://github.com/artgins/yunetas/blob/7.13.0/kernel/c/gobj-c/src/gobj.c#L609)
 
 Marks the gobj system as shutting down. Once called, `gobj_is_shutdowning()` will return `TRUE`. This flag is used throughout the framework to signal that the yuno is in the process of shutting down. This allows GClasses to perform cleanup and stop accepting new work.
 

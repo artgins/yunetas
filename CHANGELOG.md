@@ -1,8 +1,40 @@
 # **Changelog**
 
-## Unreleased
+## 7.13.0
+
+A schema stops being something only the C literal knows.
+
+The `__system__` treedb holds it as DATA again — projected on every open,
+reconciled by version, and able to rebuild the schema a treedb opens with — and
+`gui_agent` grows the **Schemas** workspace that edits it: the treedbs of any
+yuno of any node, over the one control-center session the console already has,
+as tables or as a G6 graph. The node's own agent is one of the entries.
+
+The other half is honesty about who may write. Only the MASTER of a treedb's
+tranger can, and until now a replica **answered success** and lost the row at
+the next reload; it refuses now, `treedb-info` says which one a yuno is, and
+the editor opens read-only instead of turning every click into a toast.
+
+And a family of small lies found by pulling one thread: every `authzs` command
+answered with its permission list in the COMMENT field — which the client
+refuses — four of them answered nothing at all, and the one helper behind them
+leaked a whole `kw` per call.
 
 ### Fixed
+
+- **Eleven full-path buffers were sized with `NAME_MAX`.** `NAME_MAX` is 255 and
+    documents a FILENAME; these were filled with a whole path by `build_path()`
+    or `yuneta_realm_file()`, so a long realm, role or config name truncates.
+    Nothing was silent — `build_path()` logs the overflow — but the write
+    failed.
+
+    The one that started it: `dbsimple.c`'s `save_json()` used `NAME_MAX` for
+    the same path `load_json()` reads with `PATH_MAX`, so a yuno could load its
+    persistent attrs and fail to save them. Also `entry_point.c` (the file log
+    handler), `c_resource2.c`, `c_agent.c` (audit file, yuno data dir, two temp
+    files) and five callers each in `c_ycommand.c` and `c_cli.c`.
+    `get_persist_filename()` keeps its `NAME_MAX` buffer: that one really is a
+    filename.
 
 - **`gobj_build_authzs_doc()` never released `kw`, and every `authzs` leaked
     one.** Its sibling `gobj_build_cmds_doc()` decrefs on all three of its

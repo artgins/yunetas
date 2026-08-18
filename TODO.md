@@ -69,8 +69,7 @@ which is the view's own bookkeeping in `__graphs__`.
 
 What that workspace still lacks:
 
-- **Applying needs an agent carrying the `ac_final_count` fix of this
-    release.** The workspace
+- **Applying needs an agent carrying the `ac_final_count` fix of 7.13.0.** The workspace
     does it now (`kill-yuno` → `run-yuno play=0` → `play-yuno`, confirmed
     first), but those commands answer through `ac_final_count()`, which dropped
     the answer of any client behind a controlcenter until now. Against an older
