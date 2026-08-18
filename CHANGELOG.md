@@ -524,7 +524,10 @@
     on them, so they lead the rail — Connections / Topics / Graphs. The item
     declares a route and no target: `/connections` is already in `shell.routes`
     and `build_item_index()` fills it from there, so one place says which gclass
-    the backends page is. Detail in that submodule's own `CHANGELOG.md`.
+    the backends page is. The workspace picker (tab 0 of Topics/Graphs) is
+    relabelled **Select** in the same move: two different pages had carried the
+    name *Connections*, and it only showed once both were on screen at once.
+    Detail in that submodule's own `CHANGELOG.md`.
 
 - **`yunos/js`: a gui_agent tab remembers where you were inside it.** Open a
     topic in a Schemas tab, look at another tab, come back — and you landed on
