@@ -432,9 +432,10 @@ PRIVATE int delete_secondary_node(
  *  `id` as a regular field).
  *
  *  That topic is the STORAGE schema of the __system__ treedb, so it is not
- *  literally the descriptor of a user column: it keys columns by rowid
- *  (`id`) and holds the column name in `value`, because a column name is
- *  unique only inside its topic. The descriptor is therefore derived —
+ *  literally the descriptor of a user column: it keys columns by their
+ *  qualified name (`id`) and holds the bare column name in `value`, because
+ *  a column name is unique only inside its topic. The descriptor is
+ *  therefore derived —
  *  `value` becomes `id`, and the fields that exist only to store a column
  *  in the __system__ treedb are skipped. Adding a storage-only field to
  *  the `cols` topic without listing it here leaks it into every user
@@ -477,8 +478,8 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     }
 
     /*
-     *  Storage-only fields of the `cols` topic: the rowid pkey, the fkey
-     *  back to `topics`, and the editor geometry. They describe how a
+     *  Storage-only fields of the `cols` topic: the qualified pkey, the
+     *  fkey back to `topics`, and the editor geometry. They describe how a
      *  column is STORED in the __system__ treedb, never what a user column
      *  may declare.
      */
@@ -3292,7 +3293,7 @@ PRIVATE int check_system_schema_write(
     if(strcmp(topic_name, "cols")==0) {
         /*
          *  The stored shape is not the descriptor's: a column is keyed by
-         *  rowid here and carries its name in `value`.
+         *  its qualified name here and carries the bare one in `value`.
          */
         json_t *user_col = json_deep_copy(node);
         json_object_del(user_col, "__md_treedb__");
@@ -4908,6 +4909,94 @@ PRIVATE BOOL inherit_links(
 }
 
 /***************************************************************************
+ *  Compose the id of a node whose pkey carries the `qualified` flag: the
+ *  id of its parent, a dot, and its own name.
+ *
+ *      treedbs   treedb_yunovatioscodb
+ *      topics    treedb_yunovatioscodb.yunos
+ *      cols      treedb_yunovatioscodb.yunos.yuno_role
+ *
+ *  A name is unique only inside its parent, so it is the parent's id that
+ *  makes it whole, and the parent's id already carries its own. The parent
+ *  comes from the fkey the caller sends in the kw, the name from the first
+ *  secondary key of the topic.
+ *
+ *  The separator cannot be '^': that is the character an fkey reference is
+ *  split on ("parent_topic^parent_id^hook"), so an id carrying one makes
+ *  every reference to that node undecodable.
+ *
+ *  Return `bf`, empty when the kw does not carry what it takes.
+ ***************************************************************************/
+PRIVATE const char *build_qualified_id(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    json_t *kw,     // NOT owned
+    char *bf,
+    int bfsize
+)
+{
+    *bf = 0;
+
+    /*
+     *  The name it is known by
+     */
+    json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+    const char *pkey2_name = json_string_value(json_array_get(pkey2s, 0));
+    const char *name = empty_string(pkey2_name)? "": kw_get_str(gobj, kw, pkey2_name, "", 0);
+    if(empty_string(name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot compose a qualified 'id': no secondary key in kw",
+            "topic_name",   "%s", topic_name,
+            "pkey2",        "%s", pkey2_name?pkey2_name:"",
+            NULL
+        );
+        JSON_DECREF(pkey2s)
+        return bf;
+    }
+    JSON_DECREF(pkey2s)
+
+    /*
+     *  The parent it hangs from
+     */
+    char parent_id[RECORD_KEY_VALUE_MAX] = {0};
+    json_t *fkey_names = topic_desc_fkey_names(
+        tranger2_list_topic_desc_cols(tranger, topic_name)   // owned
+    );
+    int idx; json_t *jn_fkey_name;
+    json_array_foreach(fkey_names, idx, jn_fkey_name) {
+        json_t *fkeys = kw_get_dict_value(gobj, kw, json_string_value(jn_fkey_name), 0, 0);
+        if(!fkeys) {
+            continue;
+        }
+        char ref_id[RECORD_KEY_VALUE_MAX];
+        if(!empty_string(fkey_ref_id(fkeys, ref_id, sizeof(ref_id)))) {
+            snprintf(parent_id, sizeof(parent_id), "%s", ref_id);
+            break;
+        }
+    }
+    JSON_DECREF(fkey_names)
+
+    if(empty_string(parent_id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot compose a qualified 'id': no parent fkey in kw",
+            "topic_name",   "%s", topic_name,
+            "name",         "%s", name,
+            NULL
+        );
+        return bf;
+    }
+
+    snprintf(bf, bfsize, "%s.%s", parent_id, name);
+
+    return bf;
+}
+
+/***************************************************************************
     Create a new node
  ***************************************************************************/
 PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
@@ -4955,6 +5044,15 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
             json_int_t rowid = (json_int_t)tranger2_topic_size(tranger, topic_name) + 1;
             json_object_set_new(kw, "id", json_sprintf("%"JSON_INTEGER_FORMAT, rowid));
+            id = kw_get_str(gobj, kw, "id", 0, 0);
+        } else if(kw_has_word(gobj, id_col_flag, "qualified", 0)) {
+            char qualified_id[RECORD_KEY_VALUE_MAX];
+            build_qualified_id(gobj, tranger, topic_name, kw, qualified_id, sizeof(qualified_id));
+            if(empty_string(qualified_id)) {
+                JSON_DECREF(kw)
+                return 0;   // Error already logged
+            }
+            json_object_set_new(kw, "id", json_string(qualified_id));
             id = kw_get_str(gobj, kw, "id", 0, 0);
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

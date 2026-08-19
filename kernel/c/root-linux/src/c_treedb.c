@@ -1056,27 +1056,53 @@ PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 
 /***************************************************************************
- *  Find a column node of a topic by the column name.
+ *  The id of a node of the projection: the id of its parent, a dot, and
+ *  its own name.
  *
- *  A column name is unique only inside its topic, so `cols` keys its nodes
- *  by rowid and holds the name in `value`: asking the topic-wide pkey2 index
- *  for `value` would answer with the columns of every other topic too. The
- *  lookup goes through the topic's own `cols` hook.
+ *      treedbs   treedb_yunovatioscodb
+ *      topics    treedb_yunovatioscodb.yunos
+ *      cols      treedb_yunovatioscodb.yunos.yuno_role
  *
- *  Return the column's rowid, or NULL if the topic has no such column.
- *  Return is NOT yours.
+ *  A topic name is unique only inside its treedb, and a column name only
+ *  inside its topic: keyed by the bare name, the second treedb of a store
+ *  declaring `users` collided with the first and lost its schema. The
+ *  parent's id is what makes the name whole, and it carries its own.
+ *
+ *  Same rule tr_treedb applies to a pkey flagged `qualified`, written here
+ *  too because the projector knows both halves and does not have to
+ *  compose an fkey to say so.
  ***************************************************************************/
-PRIVATE const char *find_col_id(
-    hgobj gobj,
-    json_t *current_topic,  // topic node with its `cols` hook expanded, NOT owned
-    const char *col_name
+PRIVATE const char *build_schema_node_id(
+    char *bf,
+    int bfsize,
+    const char *parent_id,
+    const char *name
 )
 {
-    json_t *cols = kw_get_dict(gobj, current_topic, "cols", 0, 0);
-    const char *col_id; json_t *col;
-    json_object_foreach(cols, col_id, col) {
-        if(strcmp(kw_get_str(gobj, col, "value", "", 0), col_name)==0) {
-            return col_id;
+    snprintf(bf, bfsize, "%s.%s", parent_id, name);
+    return bf;
+}
+
+/***************************************************************************
+ *  Find a node of a projection by the name it holds in `value`.
+ *
+ *  The projector addresses a node by its qualified id, which it composes;
+ *  `diff-schema` cannot, because it also reads projections made before the
+ *  key was qualified — and what it compares is what a name resolves to,
+ *  under whichever convention wrote it.
+ *
+ *  Return the node, or NULL. Return is NOT yours.
+ ***************************************************************************/
+PRIVATE json_t *find_node_by_name(
+    hgobj gobj,
+    json_t *siblings,       // a `topics` or `cols` hook expanded, NOT owned
+    const char *name
+)
+{
+    const char *node_id; json_t *node;
+    json_object_foreach(siblings, node_id, node) {
+        if(strcmp(kw_get_str(gobj, node, "value", "", 0), name)==0) {
+            return node;
         }
     }
 
@@ -1084,29 +1110,225 @@ PRIVATE const char *find_col_id(
 }
 
 /***************************************************************************
- *  Find a topic node of a treedb by the topic name.
+ *  Rewrite one node of the projection under a new id, content and all.
  *
- *  Same reason as find_col_id: a topic name is unique only inside its
- *  treedb, so `topics` keys its nodes by rowid and holds the name in
- *  `value`. Keyed by the bare name, the second treedb of a store declaring
- *  `users` collided with the first and lost its schema.
+ *  An operator's addition lives in these topics too and it is not the
+ *  projector's to drop, so the move copies what is stored instead of
+ *  re-deriving it: only the identity changes.
  *
- *  Return the topic node, or NULL. Return is NOT yours.
+ *  What it drops is asked of the DESCRIPTOR, never written down here: the
+ *  links are rebuilt by the link that follows, and a hook or fkey added to
+ *  the meta-schema later would otherwise travel as a stale reference.
+ *
+ *  Return the new node, or NULL. Return is YOURS.
  ***************************************************************************/
-PRIVATE json_t *find_topic_node(
+PRIVATE json_t *move_schema_node(
     hgobj gobj,
-    json_t *current_topics, // the treedb's `topics` hook expanded, NOT owned
-    const char *topic_name
+    const char *topic_name, // `topics` or `cols`
+    json_t *stored,         // not owned, the node as the tree holds it
+    const char *new_id,
+    const char *hook,       // hook of the parent it hangs from
+    const char *parent_topic_name,
+    json_t *parent          // not owned
 )
 {
-    const char *topic_id; json_t *topic;
-    json_object_foreach(current_topics, topic_id, topic) {
-        if(strcmp(kw_get_str(gobj, topic, "value", "", 0), topic_name)==0) {
-            return topic;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_node = json_deep_copy(stored);
+    json_object_del(kw_node, "__md_treedb__");
+
+    json_t *desc = gobj_topic_desc(priv->gobj_node_system, topic_name);
+    int idx; json_t *col;
+    json_array_foreach(kw_get_list(gobj, desc, "cols", 0, 0), idx, col) {
+        json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        if(kw_has_word(gobj, flag, "hook", 0) || kw_has_word(gobj, flag, "fkey", 0)) {
+            json_object_del(kw_node, kw_get_str(gobj, col, "id", "", 0));
         }
     }
+    JSON_DECREF(desc)
 
-    return NULL;
+    json_object_set_new(kw_node, "id", json_string(new_id));
+
+    json_t *node = gobj_create_node(
+        priv->gobj_node_system,
+        topic_name,
+        kw_node,
+        json_pack("{s:b}", "refs", 1),      // fkey,hook options
+        gobj
+    );
+    if(!node) {
+        return NULL;    // Error already logged
+    }
+
+    gobj_link_nodes(
+        priv->gobj_node_system,
+        hook,
+        parent_topic_name,
+        json_incref(parent),    // parent_record, owned
+        topic_name,
+        json_incref(node),      // child_record, owned
+        gobj
+    );
+
+    return node;
+}
+
+/***************************************************************************
+ *  Move a projection made with rowid keys to qualified ones.
+ *
+ *  `topics` and `cols` used to be keyed by a rowid handed out from the
+ *  topic size, with the name in `value`. They are keyed by the qualified
+ *  name now, and the two conventions cannot live side by side: the schema
+ *  is rebuilt by `value`, so a legacy node and its qualified twin are the
+ *  same topic twice and which of them wins is iteration order.
+ *
+ *  A column moves before its topic: deleting a parent only UNLINKS its
+ *  children, so a column left behind would end up orphaned under an id
+ *  nothing points at any more.
+ *
+ *  This runs right before a re-projection, which is what the
+ *  `system_schema_version` bump that introduced the qualified key
+ *  triggers on every store, once.
+ *
+ *  Return the number of nodes moved, or -1.
+ ***************************************************************************/
+PRIVATE int migrate_schema_ids_to_qualified(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *current     // not owned, the projection already stored
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *current_topics = kw_get_dict(gobj, current, "topics", 0, 0);
+    if(!current_topics) {
+        return 0;
+    }
+
+    /*
+     *  The loop writes to the very hook it walks, so take the keys first.
+     */
+    json_t *legacy_topic_ids = json_array();
+    const char *stored_topic_id; json_t *stored_topic;
+    json_object_foreach(current_topics, stored_topic_id, stored_topic) {
+        const char *topic_name = kw_get_str(gobj, stored_topic, "value", "", 0);
+        if(empty_string(topic_name)) {
+            continue;
+        }
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+        if(strcmp(stored_topic_id, topic_id)!=0) {
+            json_array_append_new(legacy_topic_ids, json_string(stored_topic_id));
+        }
+    }
+    if(json_array_size(legacy_topic_ids) == 0) {
+        JSON_DECREF(legacy_topic_ids)
+        return 0;
+    }
+
+    json_t *treedb = gobj_get_node(
+        priv->gobj_node_system,
+        "treedbs",
+        json_pack("{s:s}", "id", treedb_name),
+        0,
+        gobj
+    );
+    if(!treedb) {
+        JSON_DECREF(legacy_topic_ids)
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  A schema write publishes itself by raising the versions, and moving
+     *  a node changes no schema: say so while it works, the same way the
+     *  projector does.
+     */
+    json_object_set_new(priv->tranger_system_, "__schema_publishing__", json_true());
+
+    int moved = 0;
+    int idx; json_t *jn_legacy_topic_id;
+    json_array_foreach(legacy_topic_ids, idx, jn_legacy_topic_id) {
+        const char *legacy_topic_id = json_string_value(jn_legacy_topic_id);
+        json_t *legacy_topic = json_object_get(current_topics, legacy_topic_id);
+        const char *topic_name = kw_get_str(gobj, legacy_topic, "value", "", 0);
+
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+
+        json_t *topic = move_schema_node(
+            gobj, "topics", legacy_topic, topic_id, "topics", "treedbs", treedb
+        );
+        if(!topic) {
+            continue;   // Error already logged
+        }
+        moved++;
+
+        /*
+         *  Same reason as above: the delete below takes columns out of the
+         *  very hook this walks, so hold them before touching any.
+         */
+        json_t *legacy_cols = json_array();
+        const char *legacy_col_id; json_t *legacy_col;
+        json_object_foreach(kw_get_dict(gobj, legacy_topic, "cols", 0, 0),
+            legacy_col_id, legacy_col
+        ) {
+            json_array_append(legacy_cols, legacy_col);
+        }
+
+        int idx2; json_t *stored_col;
+        json_array_foreach(legacy_cols, idx2, stored_col) {
+            const char *col_name = kw_get_str(gobj, stored_col, "value", "", 0);
+            if(empty_string(col_name)) {
+                continue;
+            }
+            char col_id[RECORD_KEY_VALUE_MAX];
+            build_schema_node_id(col_id, sizeof(col_id), topic_id, col_name);
+
+            json_t *col = move_schema_node(
+                gobj, "cols", stored_col, col_id, "cols", "topics", topic
+            );
+            if(!col) {
+                continue;   // Error already logged
+            }
+            JSON_DECREF(col)
+            moved++;
+
+            gobj_delete_node(
+                priv->gobj_node_system,
+                "cols",
+                json_pack("{s:s}", "id", kw_get_str(gobj, stored_col, "id", "", 0)),
+                json_pack("{s:b}", "force", 1),
+                gobj
+            );
+        }
+        JSON_DECREF(legacy_cols)
+
+        gobj_delete_node(
+            priv->gobj_node_system,
+            "topics",
+            json_pack("{s:s}", "id", legacy_topic_id),
+            json_pack("{s:b}", "force", 1),
+            gobj
+        );
+
+        JSON_DECREF(topic)
+    }
+
+    json_object_del(priv->tranger_system_, "__schema_publishing__");
+
+    JSON_DECREF(treedb)
+    JSON_DECREF(legacy_topic_ids)
+
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "TreeDB schema ids moved to qualified names",
+        "treedb_name",      "%s", treedb_name,
+        "moved",            "%d", moved,
+        NULL
+    );
+
+    return moved;
 }
 
 /***************************************************************************
@@ -1169,8 +1391,8 @@ PRIVATE json_t *build_topic_projection(
  *  changed — a column keeping its `enum` flag while its enumeration was
  *  gone.
  *
- *  The column's name travels in `value`; the rowid `id` is the caller's
- *  business, it is the identity the store hands out.
+ *  The column's name travels in `value`; the qualified `id` is the
+ *  caller's business, it is what addresses the column.
  *
  *  Return the node kw, or NULL. Return is YOURS.
  ***************************************************************************/
@@ -1216,13 +1438,13 @@ PRIVATE json_t *build_col_projection(
  *  Project a schema into the __system__ treedb: create what is missing,
  *  update what moved.
  *
- *  HACK Nothing is ever deleted here. A column's `id` is a rowid handed out
- *  from the topic size, so re-creating columns renumbers all of them and can
- *  hand a retired number to a different column; and a delete is the one
- *  destructive primitive of the store — it drops the schema's own history,
- *  which is the reason to keep a schema in a treedb at all, and it refuses a
+ *  HACK Nothing is ever deleted here. A delete is the one destructive
+ *  primitive of the store — it drops the schema's own history, which is the
+ *  reason to keep a schema in a treedb at all, and it refuses a
  *  snapshot-tagged node. An update appends a new version instead, so what a
- *  column used to declare stays readable with `instances`.
+ *  column used to declare stays readable with `instances`. The one exception
+ *  is migrate_schema_ids_to_qualified(), which runs before this and has to
+ *  retire an id the store can no longer address a node by.
  *
  *  What exists here and not in the incoming schema is left alone: it is
  *  indistinguishable from an operator addition, and removing a topic or a
@@ -1313,7 +1535,12 @@ PRIVATE int upsert_treedb_schema(
         }
         json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
 
-        json_t *current_topic = find_topic_node(gobj, current_topics, topic_name);
+        char topic_id[RECORD_KEY_VALUE_MAX];
+        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+
+        json_t *current_topic = current_topics?
+            json_object_get(current_topics, topic_id):
+            NULL;
 
         /*
          *  A topic's version cannot go BACKWARDS on a re-projection, for the
@@ -1337,14 +1564,7 @@ PRIVATE int upsert_treedb_schema(
         if(!kw_topic) {
             continue;   // Error already logged
         }
-        if(current_topic) {
-            /*  Keep the rowid: it is this topic's identity  */
-            json_object_set(
-                kw_topic,
-                "id",
-                json_object_get(current_topic, "id")
-            );
-        }
+        json_object_set_new(kw_topic, "id", json_string(topic_id));
 
         json_t *topic;
         if(current_topic) {
@@ -1395,16 +1615,16 @@ PRIVATE int upsert_treedb_schema(
             }
             const char *col_name = json_string_value(json_object_get(kw_col, "value"));
 
-            const char *col_id = current_topic?
-                find_col_id(gobj, current_topic, col_name):
+            char col_id[RECORD_KEY_VALUE_MAX];
+            build_schema_node_id(col_id, sizeof(col_id), topic_id, col_name);
+            json_object_set_new(kw_col, "id", json_string(col_id));
+
+            json_t *current_col = current_topic?
+                json_object_get(kw_get_dict(gobj, current_topic, "cols", 0, 0), col_id):
                 NULL;
 
             json_t *col;
-            if(col_id) {
-                /*
-                 *  Keep the rowid: it is this column's identity
-                 */
-                json_object_set_new(kw_col, "id", json_string(col_id));
+            if(current_col) {
                 col = gobj_update_node(
                     priv->gobj_node_system,
                     "cols",
@@ -1546,6 +1766,26 @@ PRIVATE int reconcile_treedb_schema(
         return -1;  // Error already logged
     }
 
+    /*
+     *  A projection made before the key was qualified has to move first:
+     *  the upsert below addresses every node by the qualified id, so what
+     *  it cannot find it creates, and the two would be the same topic
+     *  twice. Moving changes the tree, so read it again afterwards.
+     */
+    if(migrate_schema_ids_to_qualified(gobj, treedb_name, current) > 0) {
+        JSON_DECREF(current)
+        current = gobj_node_tree(
+            priv->gobj_node_system,
+            "treedbs",
+            json_pack("{s:s}", "id", treedb_name),
+            json_object(),
+            gobj
+        );
+        if(!current) {
+            return -1;  // Error already logged
+        }
+    }
+
     gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_INFO,
@@ -1602,9 +1842,10 @@ PRIVATE json_t *get_treedb_schema(
     }
 
     /*
-     *  HACK Both `topics` and `cols` are keyed by rowid and carry their name
-     *  in `value` (a name is unique only inside its parent), so the schema is
-     *  re-keyed by name on the way out — that is the shape a schema has.
+     *  HACK Both `topics` and `cols` are keyed by their qualified name and
+     *  carry the bare one in `value` (a name is unique only inside its
+     *  parent), so the schema is re-keyed by the bare name on the way out —
+     *  that is the shape a schema has.
      */
     json_t *stored_topics = kw_get_dict(gobj, treedb, "topics", 0, KW_EXTRACT);
     json_t *topics = json_object();
@@ -1630,19 +1871,12 @@ PRIVATE json_t *get_treedb_schema(
         json_object_del(topic, "treedbs");
 
         /*
-         *  HACK It's a topic with rowid and pkey2
-         *  TODO en este tipo de tablas en el frontend
-         *      tienen que salvar sin "id" (porque es rowid)
-         *
+         *  HACK A column is addressed by its qualified id and named by its
+         *  pkey2, so the schema is re-keyed by the name on the way out.
          */
         json_t *new_cols = json_object();
         const char *col_name; json_t *col;
         json_object_foreach(cols, col_name, col) {
-            /*
-             *  TODO get pkey2 and interchange pkey by pkey2
-             *
-             *  HACK The id of a rowid record is his pkey2
-             */
             const char *value = kw_get_str(gobj, col, "value", 0, KW_REQUIRED);
             if(empty_string(value)) {
                 continue;
@@ -2004,8 +2238,9 @@ PRIVATE json_t *diff_treedb_schema(
 
     /*
      *  Attributes that say how a node is STORED, never what it declares:
-     *  the rowid, the name (it is the identity being compared), the links
-     *  to parent and children, the editor geometry and the treedb metadata.
+     *  the qualified id, the name (it is the identity being compared), the
+     *  links to parent and children, the editor geometry and the treedb
+     *  metadata.
      */
     static const char *topic_skip[] = {
         "id", "value", "treedbs", "cols", "topic_version", "_geometry", "__md_treedb__", NULL
@@ -2097,7 +2332,7 @@ PRIVATE json_t *diff_treedb_schema(
             continue;   // Error already logged
         }
 
-        json_t *stored_topic = find_topic_node(gobj, current_topics, topic_name);
+        json_t *stored_topic = find_node_by_name(gobj, current_topics, topic_name);
         if(!stored_topic) {
             add_diff_row(rows, treedb_name, "only_in_c", topic_name, "", "", NULL, NULL);
             json_decref(projected_topic);
@@ -2141,8 +2376,8 @@ PRIVATE json_t *diff_treedb_schema(
             const char *col_name = json_string_value(json_object_get(projected_col, "value"));
             json_object_set_new(seen_cols, col_name, json_true());
 
-            const char *col_id = find_col_id(gobj, stored_topic, col_name);
-            if(!col_id) {
+            json_t *stored_col = find_node_by_name(gobj, stored_cols, col_name);
+            if(!stored_col) {
                 add_diff_row(
                     rows, treedb_name, "only_in_c", topic_name, col_name, "", NULL, NULL
                 );
@@ -2157,7 +2392,7 @@ PRIVATE json_t *diff_treedb_schema(
                 topic_name,
                 col_name,
                 projected_col,
-                json_object_get(stored_cols, col_id),
+                stored_col,
                 col_skip
             );
             json_decref(projected_col);

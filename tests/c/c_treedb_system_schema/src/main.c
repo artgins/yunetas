@@ -119,7 +119,9 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* schema file + every topic republished */
             "{s:s},"                                    /* literal newer than an edited projection */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"
-            "{s:s}, {s:s}, {s:s}, {s:s},"               /* the four refused writes */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
+            "{s:s}, {s:s},"                             /* the legacy projection moves */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* and its treedb opens */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
@@ -155,7 +157,15 @@ static int register_yuno_and_more(void)
             "msg", "Value not in enum",
             "msg", "Value not in enum",
             "msg", "Schema topic pkey must be 'id'",
+            "msg", "Node already exists",
             "msg", "Topic already has a column with this name",
+            "msg", "TreeDB schema ids moved to qualified names",
+            "msg", "Updating TreeDB schema in __system__",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
+            "msg", "Creating topic",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

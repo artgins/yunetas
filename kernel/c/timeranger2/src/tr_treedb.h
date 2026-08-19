@@ -171,6 +171,7 @@ PUBLIC int treedb_set_callback(
         "template"
         "uuid"
         "rowid"
+        "qualified"
         "password"
         "email"
         "url"

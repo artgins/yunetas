@@ -128,36 +128,6 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 
-- **`topics` and `cols` are keyed by ROWID, and that is not the only way.**
-    A topic name is unique only inside its treedb, so keying `topics` by the
-    bare name made the second treedb of a store declaring `users` collide with
-    the first and lose its schema. The fix was a rowid pkey with the name in the
-    `value` pkey2 — which solves the collision and costs: a rowid is not
-    reproducible (`tranger2_topic_size() + 1`), so two projections of the same
-    schema do not align and a diff cannot key on it; `find_col_id()` and
-    `find_topic_node()` are linear scans by `value` precisely because the pkey
-    says nothing; and the pkey2 index is not an identity either, since it holds
-    duplicates (`value` is `"id"` in every topic at once).
-
-    The alternative is a **qualified key** — `"<treedb>^<topic>"` and
-    `"<treedb>^<topic>^<col>"`. `^` is already the fkey separator and
-    `is_valid_key_name()` rejects only `/` and a leading `.`, so it is a legal
-    record key. It is unique by construction, deterministic, readable, and it
-    turns both scans into a `gobj_get_node()`.
-
-    **What stops it is the store, not the code.** The projector never deletes,
-    so bumping `system_schema_version` would re-project every store and leave
-    the rowid-keyed nodes beside the new ones: this needs a one-time cleanup,
-    not just a version bump. Saved geometry (`_geometry`, the `properties` of
-    `__graphs__`) is keyed by node id and would be lost once. Note the two
-    conventions ALREADY coexist in deployed stores — topics projected before the
-    change kept their name as id, because `find_topic_node()` matches on
-    `value`.
-
-    Until then the READER hides it: the schema landing draws the schema instead
-    of the meta-treedb's records, and the record graph labels by the secondary
-    key (gobj-ui 5.17.0). That is a fix to the symptom and it is deliberate.
-
 - **`delete-treedb` does not work.** `delete_client_treedb_schema()` deletes the
     parent before its children and hands collapsed views to a function that
     requires pure nodes. It was inert while `__system__` was empty; it is

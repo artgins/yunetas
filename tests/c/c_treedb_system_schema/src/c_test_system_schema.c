@@ -11,7 +11,7 @@
  *
  *              1) opening a treedb projects its schema into __system__,
  *                 with every column carrying its name in `value` (the
- *                 column pkey2 — `id` is a rowid),
+ *                 column pkey2 — `id` is the qualified name),
  *              2) that projection alone can rebuild the schema: with the
  *                 schema file deleted, re-opening the treedb reconstructs
  *                 the very same topics and columns from __system__.
@@ -475,9 +475,9 @@ PRIVATE json_t *client_topic_cols(hgobj gobj, const char *topic_name)
 }
 
 /***************************************************************************
- *  The rowid of a topic by its name: `topics` is keyed by rowid and holds
- *  the name in `value`, so a topic is addressed the same way a column is.
- *  Return is NOT yours (points into the returned tree, which is freed).
+ *  The id of a topic by its name: `topics` is keyed by the qualified name
+ *  and holds the bare one in `value`, so a topic is addressed the same way
+ *  a column is.
  ***************************************************************************/
 PRIVATE int system_topic_id(hgobj gobj, const char *topic_name, char *bf, int bfsize)
 {
@@ -507,7 +507,7 @@ PRIVATE int system_topic_id(hgobj gobj, const char *topic_name, char *bf, int bf
 }
 
 /***************************************************************************
- *  Return {col_name: rowid} of a topic as projected in __system__, plus
+ *  Return {col_name: id} of a topic as projected in __system__, plus
  *  {col_name__header: header} so a content change can be checked too.
  *  Return MUST be decref'd.
  ***************************************************************************/
@@ -719,6 +719,45 @@ PRIVATE int check_system_treedb(hgobj gobj)
     }
     JSON_DECREF(cols)
 
+    /*-----------------------------------------------*
+     *  Every node is addressed by its qualified
+     *  name: the id of its parent, a dot, and its
+     *  own name. It is what makes the id reproduce —
+     *  a rowid handed out from the topic size does
+     *  not — and it is what a second treedb of the
+     *  same store declaring `users` needs so as not
+     *  to collide with the first.
+     *-----------------------------------------------*/
+    char topic_id[NAME_MAX];
+    if(system_topic_id(gobj, "users", topic_id, sizeof(topic_id))<0 ||
+        strcmp(topic_id, TREEDB_NAME ".users")!=0
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: topic not keyed by its qualified name",
+            "id",           "%s", topic_id,
+            "expected",     "%s", TREEDB_NAME ".users",
+            NULL
+        );
+        result += -1;
+    }
+
+    json_t *users_cols = system_topic_cols(gobj, "users");
+    const char *username_id = json_string_value(json_object_get(users_cols, "username"));
+    if(!username_id || strcmp(username_id, TREEDB_NAME ".users.username")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: column not keyed by its qualified name",
+            "id",           "%s", username_id?username_id:"",
+            "expected",     "%s", TREEDB_NAME ".users.username",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(users_cols)
+
     return result;
 }
 
@@ -832,15 +871,26 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
     }
 
     /*
+     *  A column is created under its topic: `cols` keys by the qualified
+     *  name, so the fkey is what the id is composed from. Without it the
+     *  create fails for want of a parent and never reaches the check below.
+     */
+    char users_topic_id[NAME_MAX];
+    system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
+    char users_fkey[NAME_MAX + sizeof("topics^^cols")];
+    snprintf(users_fkey, sizeof(users_fkey), "topics^%s^cols", users_topic_id);
+
+    /*
      *  A type outside the enum the meta-schema declares
      */
     json_t *bad = gobj_create_node(
         gobj_node_system,
         "cols",
-        json_pack("{s:s, s:s, s:s}",
+        json_pack("{s:s, s:s, s:s, s:s}",
             "value", "bad_col",
             "header", "Bad",
-            "type", "xinteger"
+            "type", "xinteger",
+            "topics", users_fkey
         ),
         json_pack("{s:b}", "refs", 1),
         gobj
@@ -909,8 +959,6 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
      *  is written at creation and never rewritten, so the change would be
      *  stored, shown by every reader, and ignored by the topic for good.
      */
-    char users_topic_id[NAME_MAX];
-    system_topic_id(gobj, "users", users_topic_id, sizeof(users_topic_id));
     json_t *retopic = gobj_update_node(
         gobj_node_system,
         "topics",
@@ -935,14 +983,53 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
     /*
      *  Two columns with the same name in one topic: the name is the key a
      *  schema is rebuilt by, so the duplicate would drop one definition.
+     *
+     *  The qualified key refuses it where it is born — same topic, same
+     *  name, same id — so the create never returns a node.
      */
     json_t *twin = gobj_create_node(
         gobj_node_system,
         "cols",
-        json_pack("{s:s, s:s, s:s}",
+        json_pack("{s:s, s:s, s:s, s:s}",
             "value", "username",
             "header", "Twin",
-            "type", "string"
+            "type", "string",
+            "topics", users_fkey
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(twin) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: a duplicate column name was created in a topic",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(twin)
+
+    /*
+     *  The guard behind that one is still the link: a column born under
+     *  another topic carries an id of its own, and nothing about the id
+     *  says the NAME is already taken where it is being hooked.
+     */
+    char departments_topic_id[NAME_MAX];
+    system_topic_id(gobj, "departments", departments_topic_id, sizeof(departments_topic_id));
+    char departments_fkey[NAME_MAX + sizeof("topics^^cols")];
+    snprintf(departments_fkey, sizeof(departments_fkey),
+        "topics^%s^cols", departments_topic_id
+    );
+
+    json_t *stranger = gobj_create_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s, s:s, s:s, s:s}",
+            "value", "username",
+            "header", "Stranger",
+            "type", "string",
+            "topics", departments_fkey
         ),
         json_pack("{s:b}", "refs", 1),
         gobj
@@ -954,14 +1041,14 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
         0,
         gobj
     );
-    if(twin && users_topic) {
+    if(stranger && users_topic) {
         int ret = gobj_link_nodes(
             gobj_node_system,
             "cols",                     // hook
             "topics",                   // parent_topic_name
             json_incref(users_topic),   // parent_record, owned
             "cols",                     // child_topic_name
-            json_incref(twin),          // child_record, owned
+            json_incref(stranger),      // child_record, owned
             gobj
         );
         if(ret == 0) {
@@ -982,8 +1069,22 @@ PRIVATE int check_refused_writes(hgobj gobj, json_t *col_ids)
         );
         result += -1;
     }
-    JSON_DECREF(twin)
     JSON_DECREF(users_topic)
+
+    /*
+     *  Take it away again: it is a column of `departments` now, and no
+     *  later check should have to know this one ran.
+     */
+    if(stranger) {
+        gobj_delete_node(
+            gobj_node_system,
+            "cols",
+            json_pack("{s:s}", "id", kw_get_str(gobj, stranger, "id", "", 0)),
+            json_pack("{s:b}", "force", 1),
+            gobj
+        );
+    }
+    JSON_DECREF(stranger)
 
     return result;
 }
@@ -1158,6 +1259,249 @@ PRIVATE int check_schema_diff(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A projection made with rowid keys moves to qualified ones.
+ *
+ *  `topics` and `cols` used to be keyed by a rowid handed out from the
+ *  topic size. Every deployed store holds one of those, and the two
+ *  conventions cannot live side by side: the schema is rebuilt by `value`,
+ *  so a legacy node and its qualified twin are the same topic twice.
+ *
+ *  This builds a legacy projection by hand — numeric ids, the name in
+ *  `value`, linked as the old projector linked them — and opens a treedb
+ *  over it. What comes back must be keyed by the qualified name, with the
+ *  legacy nodes gone and the content intact: a column NOT in the schema
+ *  from C is an operator's, and moving it is the only way it survives its
+ *  parent changing address.
+ ***************************************************************************/
+#define LEGACY_TREEDB   "treedb_legacy"
+
+PRIVATE int check_legacy_ids_migrated(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        return -1;  // Error already logged elsewhere
+    }
+
+    /*
+     *  A projection as the old projector left it
+     */
+    json_t *treedb = gobj_create_node(
+        gobj_node_system,
+        "treedbs",
+        json_pack("{s:s, s:i, s:i, s:i}",
+            "id", LEGACY_TREEDB,
+            "schema_version", 1,
+            "c_schema_version", 1,
+            "system_schema_version", 1
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    json_t *topic = gobj_create_node(
+        gobj_node_system,
+        "topics",
+        json_pack("{s:s, s:s, s:s, s:s, s:i}",
+            "id", "7",
+            "value", "users",
+            "pkey", "id",
+            "system_flag", "sf_string_key",
+            "topic_version", 1
+        ),
+        json_pack("{s:b}", "refs", 1),
+        gobj
+    );
+    if(!treedb || !topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot build the legacy projection",
+            NULL
+        );
+        JSON_DECREF(treedb)
+        JSON_DECREF(topic)
+        return -1;
+    }
+    gobj_link_nodes(
+        gobj_node_system,
+        "topics", "treedbs", json_incref(treedb), "topics", json_incref(topic), gobj
+    );
+
+    static const char *legacy_cols[][3] = {
+        {"70", "id",           "Id"},
+        {"71", "username",     "Login"},
+        {"72", "operator_col", "Operator"},     /*  not in the schema from C  */
+        {NULL, NULL, NULL}
+    };
+    for(int i=0; legacy_cols[i][0]; i++) {
+        json_t *col = gobj_create_node(
+            gobj_node_system,
+            "cols",
+            json_pack("{s:s, s:s, s:s, s:s, s:[s]}",
+                "id", legacy_cols[i][0],
+                "value", legacy_cols[i][1],
+                "header", legacy_cols[i][2],
+                "type", "string",
+                "flag", "persistent"
+            ),
+            json_pack("{s:b}", "refs", 1),
+            gobj
+        );
+        if(!col) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: cannot build a legacy column",
+                "col",          "%s", legacy_cols[i][1],
+                NULL
+            );
+            result += -1;
+            continue;
+        }
+        gobj_link_nodes(
+            gobj_node_system,
+            "cols", "topics", json_incref(topic), "cols", json_incref(col), gobj
+        );
+        JSON_DECREF(col)
+    }
+    JSON_DECREF(treedb)
+    JSON_DECREF(topic)
+
+    /*
+     *  Opening it re-projects — the stored meta version is behind — and the
+     *  re-projection is what the move rides on.
+     */
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "open-treedb",
+        json_pack("{s:s, s:i, s:s, s:o}",
+            "filename_mask", "%Y",
+            "exit_on_error", 0,
+            "treedb_name", LEGACY_TREEDB,
+            "treedb_schema", json_pack("{s:s, s:i, s:[{s:s, s:s, s:s, s:i, s:{s:{s:s, s:s, s:[s,s]}}}]}",
+                "id", LEGACY_TREEDB,
+                "schema_version", 1,
+                "topics",
+                    "id", "users",
+                    "pkey", "id",
+                    "system_flag", "sf_string_key",
+                    "topic_version", 1,
+                    "cols",
+                        "id",
+                            "header", "Id",
+                            "type", "string",
+                            "flag", "persistent", "required"
+            )
+        ),
+        gobj
+    );
+    int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    JSON_DECREF(jn_resp)
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: cannot open the legacy treedb",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The legacy ids are gone and the qualified ones answer
+     */
+    static const char *gone[] = {"7", NULL};
+    for(int i=0; gone[i]; i++) {
+        json_t *stale = gobj_get_node(
+            gobj_node_system, "topics", json_pack("{s:s}", "id", gone[i]),
+            json_pack("{s:b}", "no_verbose", 1), gobj
+        );
+        if(stale) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a legacy topic id survived the move",
+                "id",           "%s", gone[i],
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(stale)
+    }
+
+    json_t *moved = gobj_get_node(
+        gobj_node_system,
+        "topics",
+        json_pack("{s:s}", "id", LEGACY_TREEDB ".users"),
+        json_pack("{s:b}", "no_verbose", 1),
+        gobj
+    );
+    if(!moved) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the topic did not move to its qualified id",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(moved)
+
+    /*
+     *  The operator's column moved with its content: it is in no schema
+     *  from C, so the projector would never have written it again.
+     */
+    json_t *operator_col = gobj_get_node(
+        gobj_node_system,
+        "cols",
+        json_pack("{s:s}", "id", LEGACY_TREEDB ".users.operator_col"),
+        json_pack("{s:b}", "no_verbose", 1),
+        gobj
+    );
+    const char *header = kw_get_str(gobj, operator_col, "header", "", 0);
+    if(!operator_col || strcmp(header, "Operator")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: an operator column did not survive the move",
+            "header",       "%s", header,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(operator_col)
+
+    /*
+     *  And the treedb opens with it, which is the point of keeping it
+     */
+    hgobj gobj_legacy_node = gobj_find_service(LEGACY_TREEDB, FALSE);
+    json_t *desc = gobj_legacy_node? gobj_topic_desc(gobj_legacy_node, "users"): NULL;
+    BOOL found = FALSE;
+    int idx; json_t *col;
+    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
+        if(strcmp(kw_get_str(gobj, col, "id", "", 0), "operator_col")==0) {
+            found = TRUE;
+            break;
+        }
+    }
+    if(!found) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the moved column did not reach the open treedb",
+            "desc",         "%j", desc,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(desc)
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -1282,9 +1626,9 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  Test 3: a schema that moved forward updates
      *  the projection, and the columns keep their
-     *  identity. A column's id is a rowid, so
-     *  re-creating columns instead of updating them
-     *  renumbers every one of them.
+     *  identity: an update appends a version of the
+     *  same node, a re-create would be a second one
+     *  under the same name.
      *-----------------------------------------------*/
     json_t *ids_before = system_topic_cols(gobj, "users");
 
@@ -1337,12 +1681,12 @@ PRIVATE int run_tests(hgobj gobj)
     json_t *ids_after = system_topic_cols(gobj, "users");
 
     /*
-     *  The columns that were already there keep their rowid
+     *  The columns that were already there keep their id
      */
     const char *col_name; json_t *jn_id;
     json_object_foreach(ids_before, col_name, jn_id) {
         if(strstr(col_name, "__header")) {
-            continue;   // content, checked below; only the rowid is identity
+            continue;   // content, checked below; only the id is identity
         }
         json_t *now = json_object_get(ids_after, col_name);
         if(!now || !json_equal(now, jn_id)) {
@@ -1489,6 +1833,12 @@ PRIVATE int run_tests(hgobj gobj)
      *  Test 7: and `diff-schema` says WHAT it changed
      *-----------------------------------------------*/
     result += check_schema_diff(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 8: a projection keyed by rowid moves to
+     *  qualified ids on the next re-projection
+     *-----------------------------------------------*/
+    result += check_legacy_ids_migrated(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

@@ -1,5 +1,54 @@
 # **Changelog**
 
+## Unreleased
+
+### Changed
+
+- **BREAKING (stored data): `topics` and `cols` of `__system__` are keyed by
+    the QUALIFIED name, not by a rowid.** The id of a node is now the id of its
+    parent, a dot, and its own name — `treedb_yunovatioscodb.yunos` for a topic,
+    `treedb_yunovatioscodb.yunos.yuno_role` for a column.
+
+    The collision it has to avoid is real: a topic name is unique only inside
+    its treedb, so keyed by the bare name the second treedb of a store
+    declaring `users` collided with the first and lost its schema. A rowid
+    handed out from `tranger2_topic_size() + 1` avoided it and paid for it — it
+    does not reproduce, so two projections of the same schema do not align;
+    `find_col_id()` and `find_topic_node()` had to be linear scans over `value`
+    because the key said nothing; and a rowid pkey has no update, so an editor
+    saving a column appended a second one under the same name instead of
+    changing it.
+
+    **The separator is a dot and cannot be `^`.** That is the character an fkey
+    reference is split on — `decode_parent_ref()` requires exactly
+    `parent_topic^parent_id^hook` — so a column keyed `treedb^topic^col` makes
+    every reference to itself undecodable.
+
+- **A new `id` flag, `qualified`, beside `uuid` and `rowid`.** A create that
+    sends no `id` gets one composed from the parent named in its fkey and the
+    value of the topic's first secondary key (`build_qualified_id()` in
+    `tr_treedb.c`). So an editor creates a column the way it creates any other
+    record, and the rule lives in the store instead of in each client.
+    Declarable by any schema; `tr_treedb.h` and `lib_treedb.js` carry the
+    vocabulary.
+
+- **Meta-schema at `schema_version` 14** (`topics` topic_version 6, `cols` 8),
+    which re-projects every store on the next start.
+    `migrate_schema_ids_to_qualified()` runs first and moves a projection made
+    with rowid keys, node by node: it rewrites each under its qualified id with
+    its content intact — an operator's addition is in there too and is not the
+    projector's to drop — and deletes the old one, columns before their topic
+    because deleting a parent only UNLINKS its children. It is the one delete
+    the projector does, and it happens once per store.
+
+- **gobj-ui labels a `qualified` key by the secondary key too**
+    (`treedb_node_label.js`), the same way it already did for `rowid` and
+    `uuid`: the id names the record but names every ancestor with it, and the
+    card wants the leaf. The pkey stays as the tooltip. The form treats a
+    qualified pkey as a key the store hands out — never typed on create — and
+    an existing row opens for **update**, which is what stops an edit from
+    appending a twin.
+
 ## 7.13.1
 
 A schema you can read: the descriptor learns to say what NAMES a record, and

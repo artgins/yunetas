@@ -761,9 +761,10 @@ schema is stored **as ordinary treedb data**:
 ```
 treedbs   ── id, schema_version, c_schema_version,
              system_schema_version ──hook topics──▶
-topics    ── id (rowid), value, pkey, pkey2s, system_flag, tkey,
-             topic_version, system_topic ──hook cols──▶
-cols      ── id (rowid), value, header, fillspace, type, placeholder,
+topics    ── id (<treedb>.<topic>), value, pkey, pkey2s, system_flag,
+             tkey, topic_version, system_topic ──hook cols──▶
+cols      ── id (<topic id>.<column>), value, header, fillspace, type,
+             placeholder,
              flag, enum, template, hook, pkey2s, default,
              description, properties
 ```
@@ -772,32 +773,48 @@ Its schema is `treedb_system_schema.c`, and it is the reason a schema can be
 read, listed and edited at runtime with the same `nodes` / `create-node` /
 `update-node` commands as any other data — no new command surface.
 
-**`topics` and `cols` are keyed by rowid, and the name lives in `value`.** A
-name is unique only inside its parent: two topics with an `id` column would
-collide on a single `cols` topic keyed by name, and two treedbs with a `users`
-topic would collide on a single `topics` topic keyed by name — `users` is a
-topic of `authzs`, `mqtt_broker` and `controlcenter` alike. So addressing
-either one costs its rowid, not its name (`fetch_node` needs `id`; a pkey2
-only refines a primary lookup). This is also why the
-descriptor used to validate a *user* column is derived, not copied, from that
-topic: `_treedb_create_topic_cols_desc()` renames `value` back to `id` and
-drops the storage-only fields (`id`, `topics`, `_geometry`). Add a field for
-user columns to the `cols` topic; add a storage-only field there **and** to
-that skip list.
+**`topics` and `cols` are keyed by the QUALIFIED name, and the bare one
+lives in `value`.** A name is unique only inside its parent: two topics with
+an `id` column would collide on a single `cols` topic keyed by name, and two
+treedbs with a `users` topic would collide on a single `topics` topic keyed by
+name — `users` is a topic of `authzs`, `mqtt_broker` and `controlcenter`
+alike. So the id of a node is **the id of its parent, a dot, and its own
+name**: `treedb_yunovatioscodb.yunos` for a topic,
+`treedb_yunovatioscodb.yunos.yuno_role` for a column. Unique by construction,
+and the projector composes it instead of looking it up.
 
-That keying has a cost on the READING side, and it is paid by
+The separator cannot be `^`. That is the character an fkey reference is split
+on (`decode_parent_ref()` requires exactly `parent_topic^parent_id^hook`), so
+an id carrying one makes every reference to that node undecodable.
+
+`id` carries the flag **`qualified`**, a third way for the store to hand a key
+out beside `uuid` and `rowid`: a create that sends no `id` gets one composed
+from the parent named in its fkey and the value of the topic's first secondary
+key ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.13.1/kernel/c/timeranger2/src/tr_treedb.c), `build_qualified_id`). So an editor creates a column the
+same way it creates any other record.
+
+These two topics used to be keyed by a **rowid** handed out from the topic
+size. That address was unique but arbitrary: it did not reproduce, it made
+every lookup a linear scan over `value`, and — because a rowid pkey has no
+update — an editor saving a column appended a second one instead of changing
+it. `migrate_schema_ids_to_qualified()` in
+[`c_treedb.c`](https://github.com/artgins/yunetas/blob/7.13.1/kernel/c/root-linux/src/c_treedb.c) moves a projection made that way, node by node, content
+and all, on the re-projection that the meta-schema bump triggers.
+
+The keying is also why the descriptor used to validate a *user* column is
+derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
+renames `value` back to `id` and drops the storage-only fields (`id`,
+`topics`, `_geometry`). Add a field for user columns to the `cols` topic; add
+a storage-only field there **and** to that skip list.
+
+The name still has to reach a reader, and that is paid by
 `tranger2_topic_desc()`, which carries `pkey2s` with the descriptor since
-7.13.1. A record keyed by a rowid has no name in its key, so a viewer given
-only `pkey` can print nothing but the number: that is how the agent console
-came to draw a graph of cards reading `181`, `225`, `193`. With `pkey2s` in
-the descriptor a reader can tell a synthetic key (its column carries the
-`rowid` or `uuid` flag) from one that names its record, and label by the
-secondary key instead. The rowid stays the address; it stops being the label.
-
-Whether the rowid is the right key at all is a separate, open question —
-a qualified key (`"<treedb>^<topic>"`) would solve the same collision without
-it. See `TODO.md`; what stops it is the store, since the projector never
-deletes.
+7.13.1. A qualified id names the record, but it names every ancestor with it,
+and a rowid named nothing at all: that is how the agent console came to draw a
+graph of cards reading `181`, `225`, `193`. With `pkey2s` in the descriptor a
+reader can tell a key that is not the plain name (its column carries the
+`rowid`, `uuid` or `qualified` flag) from one that is, and label by the
+secondary key instead. The id stays the address; it is not the label.
 
 **Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects the C
 literal into `__system__` the first time it sees a treedb, and afterwards only
@@ -830,16 +847,16 @@ publishes under `max(stored, literal) + 1`, or the persisted schema file,
 sitting at the edited number, would keep masking it. Stores projected before
 `c_schema_version` existed fall back to `schema_version`.
 
-**Reconciling is an upsert — nothing is ever deleted.** A column's `id` is a
-rowid handed out from the topic size, so re-creating columns renumbers all of
-them and can hand a retired number to a different column; and a delete is the
-one destructive primitive of the store, which drops the schema's own history
-(the reason to keep a schema in a treedb at all) and refuses a snapshot-tagged
-node. An update appends a new version instead, so what a column used to declare
-stays readable with `instances`. What exists in `__system__` and not in the
-incoming schema is left alone: it is indistinguishable from an operator
-addition, and removing a topic or a column is a deliberate action, never a side
-effect of an upgrade.
+**Reconciling is an upsert — nothing is ever deleted.** A delete is the one
+destructive primitive of the store: it drops the schema's own history (the
+reason to keep a schema in a treedb at all) and refuses a snapshot-tagged
+node. An update appends a new version instead, so what a column used to
+declare stays readable with `instances`. What exists in `__system__` and not
+in the incoming schema is left alone: it is indistinguishable from an operator
+addition, and removing a topic or a column is a deliberate action, never a
+side effect of an upgrade. The one exception is the move to qualified ids,
+which has to retire an address the store can no longer reach a node by, and
+runs once per store.
 
 **`diff-schema` says what the projection holds that C does not.** Nothing
 deletes, and a re-projection publishes under a version of its own, so the three
