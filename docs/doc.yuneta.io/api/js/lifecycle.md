@@ -7,7 +7,7 @@ description: >-
 
 # GObject Lifecycle
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js)
 
 :::{important}
 The lifecycle is explicit. Yuneta has no garbage collector for gobjs. Prefer, in
@@ -21,7 +21,7 @@ destruction that a posted event carries. Never a timer of one millisecond.
 ## Flags
 
 (js_gobj_flag_t)=
-### [`gobj_flag_t`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L277)
+### [`gobj_flag_t`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L277)
 
 The features of a gobj. Each creation function below writes one combination of
 these, so application code rarely names them.
@@ -41,23 +41,23 @@ these, so application code rarely names them.
 ## Creation
 
 (js_gobj_create)=
-### [`gobj_create(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2042)
+### [`gobj_create(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2042)
 
 Builds a child gobj. It is the function that a gclass uses in `mt_create`.
 
 (js_gobj_create_yuno)=
-### [`gobj_create_yuno(gobj_name, gclass_name, kw)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L1980)
+### [`gobj_create_yuno(gobj_name, gclass_name, kw)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L1980)
 
 Builds the root of the tree. There is one for each process.
 
 (js_gobj_create_service)=
-### [`gobj_create_service(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L1988)
+### [`gobj_create_service(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L1988)
 
 Builds a service with a name under the yuno. Only a service can be the source or
 the destination of a message between yunos.
 
 (js_gobj_create_default_service)=
-### [`gobj_create_default_service(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L1997)
+### [`gobj_create_default_service(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L1997)
 
 Builds the default service, which receives
 [`gobj_play()`](#js_gobj_play) and [`gobj_pause()`](#js_gobj_pause).
@@ -69,12 +69,12 @@ Keep the value that the function returns.
 :::
 
 (js_gobj_create_volatil)=
-### [`gobj_create_volatil(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2012)
+### [`gobj_create_volatil(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2012)
 
 Builds a child that the parent destroys with itself.
 
 (js_gobj_create_pure_child)=
-### [`gobj_create_pure_child(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2027)
+### [`gobj_create_pure_child(gobj_name, gclass_name, kw, parent)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2027)
 
 Builds a pure child. It sends its events to its parent, and the parent must
 declare each one of them in its own state machine.
@@ -85,14 +85,14 @@ A pure child does **not** start with `mt_play` of the yuno. Start it with
 :::
 
 (js_gobj_create2)=
-### [`gobj_create2(gobj_name, gclass_name, kw, parent, gobj_flag)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L1798)
+### [`gobj_create2(gobj_name, gclass_name, kw, parent, gobj_flag)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L1798)
 
 Builds a gobj with the flags that the caller gives. Every function above calls
 it with one combination of [`gobj_flag_t`](#js_gobj_flag_t). Use it only for a
 combination that no other function gives.
 
 (js_gobj_destroy)=
-### [`gobj_destroy(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2060)
+### [`gobj_destroy(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2060)
 
 Destroys a gobj. The destruction goes down: it destroys the children first. It
 deletes the subscriptions, and it takes the gobj out of the queue of the posted
@@ -103,33 +103,33 @@ events.
 ## Start and stop
 
 (js_gobj_start)=
-### [`gobj_start(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2209)
+### [`gobj_start(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2209)
 
 Starts a gobj, and calls its `mt_start` method.
 
 (js_gobj_stop)=
-### [`gobj_stop(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2324)
+### [`gobj_stop(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2324)
 
 Stops a gobj, and calls its `mt_stop` method.
 
 (js_gobj_start_children)=
-### [`gobj_start_children(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2269)
+### [`gobj_start_children(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2269)
 
 Starts the children of a gobj, and not the gobj.
 
 (js_gobj_stop_children)=
-### [`gobj_stop_children(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2367)
+### [`gobj_stop_children(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2367)
 
 Stops the children of a gobj.
 
 (js_gobj_start_tree)=
-### [`gobj_start_tree(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2295)
+### [`gobj_start_tree(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2295)
 
 Starts a gobj and each one of the gobjs below it. A gclass with the flag
 `gcflag_manual_start` does not start here.
 
 (js_gobj_stop_tree)=
-### [`gobj_stop_tree(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2380)
+### [`gobj_stop_tree(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2380)
 
 Stops a gobj and each one of the gobjs below it.
 
@@ -145,12 +145,12 @@ stop dismantles what is still in an iteration. Post an event instead.
 ## Play and pause
 
 (js_gobj_play)=
-### [`gobj_play(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2403)
+### [`gobj_play(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2403)
 
 Plays a gobj, and calls its `mt_play` method.
 
 (js_gobj_pause)=
-### [`gobj_pause(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2450)
+### [`gobj_pause(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2450)
 
 Pauses a gobj, and calls its `mt_pause` method.
 
@@ -165,32 +165,32 @@ stays with `running` true and `playing` false.
 ## Status
 
 (js_gobj_is_running)=
-### [`gobj_is_running(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2480)
+### [`gobj_is_running(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2480)
 
 Tells if a gobj is running.
 
 (js_gobj_is_playing)=
-### [`gobj_is_playing(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2514)
+### [`gobj_is_playing(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2514)
 
 Tells if a gobj is playing.
 
 (js_gobj_is_service)=
-### [`gobj_is_service(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2502)
+### [`gobj_is_service(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2502)
 
 Tells if a gobj is a service.
 
 (js_gobj_is_volatil)=
-### [`gobj_is_volatil(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2644)
+### [`gobj_is_volatil(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2644)
 
 Tells if the parent destroys this gobj with itself.
 
 (js_gobj_is_pure_child)=
-### [`gobj_is_pure_child(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2660)
+### [`gobj_is_pure_child(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2660)
 
 Tells if a gobj is a pure child.
 
 (js_gobj_is_destroying)=
-### [`gobj_is_destroying(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L2676)
+### [`gobj_is_destroying(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2676)
 
 Tells if a gobj is under destruction. Use it in a handler of a transport that
 can arrive late, such as the close of a websocket.

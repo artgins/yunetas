@@ -1,6 +1,9 @@
 # **Changelog**
 
-## Unreleased
+## 7.13.2
+
+A key that says where it belongs: the schema stored as data stops being
+addressed by a counter, and starts being addressed by its own name.
 
 ### Changed
 

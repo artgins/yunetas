@@ -10,7 +10,7 @@ description: >-
 A gclass declares its attributes in a table. Each attribute has a type, a name,
 a set of flags, a default value and a description.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js)
 
 ```javascript
 import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "@yuneta/gobj-js";
@@ -35,13 +35,13 @@ registration, and the first creation of an instance fails.
 ## Declare
 
 (js_SDATA)=
-### [`SDATA(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L157)
+### [`SDATA(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L157)
 
 Declares one attribute. The table finishes with
 [`SDATA_END()`](commands.md#js_SDATA_END).
 
 (js_data_type_t)=
-### [`data_type_t`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L85)
+### [`data_type_t`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L85)
 
 The types of an attribute.
 
@@ -57,7 +57,7 @@ The types of an attribute.
 | `DTP_POINTER` | A value that is not JSON, such as a gobj or a DOM node. |
 
 (js_sdata_flag_t)=
-### [`sdata_flag_t`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L109)
+### [`sdata_flag_t`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L109)
 
 The flags of an attribute. Combine them with the bit-or operator.
 
@@ -94,44 +94,44 @@ A `path` accepts the back-tick to reach an attribute of a child gobj:
 :::
 
 (js_gobj_has_attr)=
-### [`gobj_has_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3151)
+### [`gobj_has_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3151)
 
 Tells if a gobj has an attribute with that name.
 
 (js_gobj_read_attr)=
-### [`gobj_read_attr(gobj, name, src)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3162)
+### [`gobj_read_attr(gobj, name, src)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3162)
 
 Reads an attribute of any type. `src` names the gobj that asks, for the
 authorization and for the log.
 
 (js_gobj_read_attrs)=
-### [`gobj_read_attrs(gobj, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3185)
+### [`gobj_read_attrs(gobj, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3185)
 
 Reads every attribute whose flags match `include_flag`, as one object.
 
 (js_gobj_read_bool_attr)=
-### [`gobj_read_bool_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3221)
+### [`gobj_read_bool_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3221)
 
 Reads a boolean attribute.
 
 (js_gobj_read_integer_attr)=
-### [`gobj_read_integer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3252)
+### [`gobj_read_integer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3252)
 
 Reads an integer attribute.
 
 (js_gobj_read_str_attr)=
-### [`gobj_read_str_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3275)
+### [`gobj_read_str_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3275)
 
 Reads a string attribute.
 
 (js_gobj_read_pointer_attr)=
-### [`gobj_read_pointer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3298)
+### [`gobj_read_pointer_attr(gobj, name)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3298)
 
 Reads an attribute that holds a value which is not JSON. The `subscriber`
 attribute of the subscription model uses it.
 
 (js_gobj_hsdata)=
-### [`gobj_hsdata(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L1044)
+### [`gobj_hsdata(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L1044)
 
 Gives the whole store of the attributes of a gobj. It is an internal handle, and
 the functions above are the way to read an attribute.
@@ -141,32 +141,32 @@ the functions above are the way to read an attribute.
 ## Write
 
 (js_gobj_write_attr)=
-### [`gobj_write_attr(gobj, path, value, src)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3317)
+### [`gobj_write_attr(gobj, path, value, src)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3317)
 
 Writes an attribute of any type.
 
 (js_gobj_write_attrs)=
-### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3458)
+### [`gobj_write_attrs(gobj, kw, include_flag, src)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3458)
 
 Writes every attribute of `kw` whose flags match `include_flag`.
 
 (js_gobj_write_bool_attr)=
-### [`gobj_write_bool_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3483)
+### [`gobj_write_bool_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3483)
 
 Writes a boolean attribute.
 
 (js_gobj_write_integer_attr)=
-### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3511)
+### [`gobj_write_integer_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3511)
 
 Writes an integer attribute.
 
 (js_gobj_write_str_attr)=
-### [`gobj_write_str_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3539)
+### [`gobj_write_str_attr(gobj, name, value)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3539)
 
 Writes a string attribute.
 
 (js_gobj_reset_volatil_attrs)=
-### [`gobj_reset_volatil_attrs(gobj)`](https://github.com/artgins/gobj-js/blob/7.12.0/src/gobj.js#L3446)
+### [`gobj_reset_volatil_attrs(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L3446)
 
 Writes the default value in every attribute that carries `SDF_VOLATIL`.
 
