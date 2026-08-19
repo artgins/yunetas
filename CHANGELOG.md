@@ -2,8 +2,42 @@
 
 ## Unreleased
 
-The order of the columns is part of the schema, and it stops being the
-order the filesystem happens to hand the projection back in.
+A schema stops being read by its rows. The order of the columns is part of
+the schema and no longer the order the filesystem happens to hand the
+projection back in; and the console that edits schemas stops showing the
+three topics they are STORED in and shows the schema they ARE.
+
+### Added
+
+- **The Schemas workspace of the agent console edits a schema AS A SCHEMA**
+    (JS submodules: `gobj-ui` 6.1.1, `yunos-js`). Every schema a yuno holds
+    lives in its `treedb_system_schema`, stored as data in three flat topics
+    linked by fkeys — `treedbs` -> `topics` -> `cols`. That is the right
+    storage and it was the whole screen: adding one column to one topic meant
+    finding it in a table holding every column of every topic of every treedb
+    the yuno has, composing the parent fkey by hand, and remembering to raise a
+    `topic_version` that nothing asks about.
+
+    The new `C_YUI_SCHEMA_EDITOR` puts the schema back together — treedb ->
+    topics -> columns in declared order, reordered by dragging, flags as
+    checkboxes that say what they do, the schema DRAWN from the records being
+    edited, a check of what the treedb would refuse, an export as the C literal
+    and an import shown as a plan before it runs.
+
+    **Both versions travel with every write**, and the operator is asked to
+    remember neither: `topic_version`, without which the persisted
+    `topic_cols.json` masks the edit — the restart succeeds and nothing moved —
+    and `schema_version`, which is what publishes the schema as a whole.
+    Raising it is safe because `reconcile_treedb_schema()` compares
+    `c_schema_version`, the version of the LITERAL, precisely so that an edit
+    made there survives every start until a newer literal arrives.
+
+    No C changed for this. It is listed here because the two JS submodules move
+    with the release, and because the behaviour it depends on is the kernel's:
+    `autolink` on a partial `update-node` rewrites a node's links from the fkey
+    fields the record carries, finds none, and reads that as "no parents" — the
+    editor learned it by detaching a topic from its treedb on a dev node, with
+    the write answering success.
 
 ### Fixed
 
