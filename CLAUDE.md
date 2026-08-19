@@ -54,14 +54,17 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `5.0.0`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.1.1`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
   carries five BREAKING contract changes, and `5.0.0` is a **dependency-only
   major** (no API moved) that raises the peer floors — gobj-js `>= 7.8.7`,
   `maplibre-gl ^6.0.0` (ESM-only), i18next `^26.3.6`, tom-select `^2.6.2`,
-  vanilla-jsoneditor `^3.13.0`.
+  vanilla-jsoneditor `^3.13.0`. `6.0.0` is another dependency-only major (peer
+  floor gobj-js `^7.13.2`, for the qualified pkey); `6.1.x` added
+  `C_YUI_SCHEMA_EDITOR`, the schema editor the agent console's Schemas
+  workspace lands on.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package
@@ -104,9 +107,11 @@ in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
 `EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
 caught up at the `7.6.7` release.) **Every** consumer takes it from the
-registry, and they all declare the same floor — `^7.12.0` since 2026-08-17
-(`^7.10.0` before that): estadodelaire, hidraulia, wattyzer, yunomusica, the
-three yunovatios GUIs and the in-repo `yunos/js/*` yunos. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
+registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
+GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
+same floor, and assuming they do has been wrong since the in-repo yunos moved
+ahead: `yunos/js/*` are on `^7.13.2` (2026-08-19), wattyzer on `^7.12.0`. Check
+the consumer's own `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
 

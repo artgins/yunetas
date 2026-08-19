@@ -45,11 +45,11 @@ navigation and not a `<select>`, and how it is drawn — strips, back, breadcrum
 the view's command verbatim, re-wraps it as `command-agent` +
 `cmd2agent="command-yuno id=<yuno> service=<treedb> command=<cmd>"`, and puts
 the original command back on top of the `command_stack` before handing the
-answer to the view; `C_AGENT_TREEDB` mounts gobj-ui's `C_YUI_TREEDB_TOPICS`
-with `yui_mount_service_view()` against it. The library is untouched. The two
-traps it had to be born knowing (the whole kw is the yuno filter; the routed
-path loses the live node events, echoed locally for its own writes) are in its
-header and in `gui_agent/README.md`.
+answer to the view; `C_AGENT_TREEDB` mounts the library's views with
+`yui_mount_service_view()` against it. The two traps it had to be born knowing
+(the whole kw is the yuno filter; the routed path loses the live node events,
+echoed locally for its own writes) are in its header and in
+`gui_agent/README.md`.
 
 The **node's own AGENT** is an entry of the picker too (sentinel yuno id
 `__agent__`): it never appears in `list-yunos`, but it runs the same services
@@ -66,6 +66,20 @@ lazily, because G6 is the heaviest thing the workspace draws. A replica hands it
 the same `readonly` the editor gets and it loses its `edition` mode (gobj-ui
 5.16.0), and a write in it marks *Apply* — except a save of the graph LAYOUT,
 which is the view's own bookkeeping in `__graphs__`.
+
+**DONE (gobj-ui 6.1.1 + gui_agent 0.8.0):** the workspace stopped showing the
+three topics a schema is STORED in and shows the schema they ARE.
+`C_YUI_SCHEMA_EDITOR` is the landing of `treedb_system_schema` (segment `edit`;
+the raw tables keep `raw` and their own names): treedb → topics → columns in
+declared order, reordered by dragging, flags as checkboxes that say what they
+do, the schema DRAWN from the records being edited (that button drew the meta
+schema before — the same three cards on every yuno), a **check** of what the
+treedb would refuse, an **export** as the C literal and an **import** shown as
+a plan. Both versions travel with every write, so the operator is asked to
+remember neither. This one IS a library gclass: the logic is pure and tested
+apart from the view (`schema_model`, `schema_validate`, `schema_descs`,
+`schema_to_c`, `schema_import`, `schema_flags`, `schema_write_options`), and
+the app mounts it unchanged like the other two.
 
 What that workspace still lacks:
 
@@ -84,6 +98,13 @@ What that workspace still lacks:
     `C_AUTHZ`. Today an operator who can log into the controlcenter still gets
     `-403` per topic on a yuno where they have no role. Part of the authz-roles
     work, not of the console.
+
+    Worth knowing before diagnosing one: **`descs` and `nodes` take DIFFERENT
+    authz** (`a_schema` and `a_nodes` in `c_node.c`). An identity that has one
+    and not the other loads the schema and is then refused per topic, so the
+    view fills its tabs and answers `-403` for every table — which reads as a
+    broken build and is a missing role. Verified on the agents' own treedbs
+    with `claudia@artgins.com` (2026-08-19).
 
 ## Schema editing: what the `__system__` treedb still needs
 
