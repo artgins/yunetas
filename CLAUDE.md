@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.1.1`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.1.2`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -64,7 +64,8 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   vanilla-jsoneditor `^3.13.0`. `6.0.0` is another dependency-only major (peer
   floor gobj-js `^7.13.2`, for the qualified pkey); `6.1.x` added
   `C_YUI_SCHEMA_EDITOR`, the schema editor the agent console's Schemas
-  workspace lands on.
+  workspace lands on, and made the schema view's node click opt-in
+  (`with_node_click`) after 6.1.1 published it under hosts that never asked.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package
