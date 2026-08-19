@@ -128,6 +128,36 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `parse_schema_cols()` + `parse_hooks()` and a link reload when hooks or
     fkeys change.
 
+- **`topics` and `cols` are keyed by ROWID, and that is not the only way.**
+    A topic name is unique only inside its treedb, so keying `topics` by the
+    bare name made the second treedb of a store declaring `users` collide with
+    the first and lose its schema. The fix was a rowid pkey with the name in the
+    `value` pkey2 — which solves the collision and costs: a rowid is not
+    reproducible (`tranger2_topic_size() + 1`), so two projections of the same
+    schema do not align and a diff cannot key on it; `find_col_id()` and
+    `find_topic_node()` are linear scans by `value` precisely because the pkey
+    says nothing; and the pkey2 index is not an identity either, since it holds
+    duplicates (`value` is `"id"` in every topic at once).
+
+    The alternative is a **qualified key** — `"<treedb>^<topic>"` and
+    `"<treedb>^<topic>^<col>"`. `^` is already the fkey separator and
+    `is_valid_key_name()` rejects only `/` and a leading `.`, so it is a legal
+    record key. It is unique by construction, deterministic, readable, and it
+    turns both scans into a `gobj_get_node()`.
+
+    **What stops it is the store, not the code.** The projector never deletes,
+    so bumping `system_schema_version` would re-project every store and leave
+    the rowid-keyed nodes beside the new ones: this needs a one-time cleanup,
+    not just a version bump. Saved geometry (`_geometry`, the `properties` of
+    `__graphs__`) is keyed by node id and would be lost once. Note the two
+    conventions ALREADY coexist in deployed stores — topics projected before the
+    change kept their name as id, because `find_topic_node()` matches on
+    `value`.
+
+    Until then the READER hides it: the schema landing draws the schema instead
+    of the meta-treedb's records, and the record graph labels by the secondary
+    key (gobj-ui 5.17.0). That is a fix to the symptom and it is deliberate.
+
 - **`delete-treedb` does not work.** `delete_client_treedb_schema()` deletes the
     parent before its children and hands collapsed views to a function that
     requires pure nodes. It was inert while `__system__` was empty; it is
@@ -523,6 +553,24 @@ with rt_disk followers — to 4096 (`max_user_watches = 524288`,
 `ycommand -c 'info-inotify'` (limits + this yuno's instances/watches). It only
 raises the ceiling: **#1 still multiplies instances per Live card**, which is
 what the remaining work above fixes.
+
+## Tests: `c_tcp2/test2` is flaky under load
+
+It failed once in a full 123-test run at 7.13.1 and passed 9/9 alone, plus
+123/123 on the same tree in two other full runs. `c_tcp2` neither links nor
+uses timeranger, so it was not the change under test.
+
+The mechanism is the test's own shape rather than a race in `C_TCP`: the driver
+gclass arms `set_timeout(priv->timer, 2000)` before starting the input side and
+`set_timeout(priv->timer, 1000)` on open, while `main_test2.c` asserts a
+**strict FIFO list of log messages** (`set_expected_results()` +
+`test_json(NULL)`). When the box is busy running the rest of the suite, a
+1-second window can close in a different order than the list expects and the
+comparison fails, saying nothing about TCP.
+
+Fix by making the assertion order-independent, or by sizing the windows off
+something other than wall-clock pressure — not by widening the timeouts until
+it stops happening on this machine.
 
 ## Packaging: the sparse SDK in the `.deb` serves one glibc at a time
 

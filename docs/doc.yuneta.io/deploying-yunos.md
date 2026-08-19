@@ -7,7 +7,7 @@ together the three tools that do the work:
 
 | Tool | What it is | Where it lives |
 |------|------------|----------------|
-| [`yunetas`](yunetas-cli.md) | The CLI that manages and builds (`pipx install yunetas`). It is the front end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.13.0/utils/python/tui_yunetas) (git submodule, published on PyPI) |
+| [`yunetas`](yunetas-cli.md) | The CLI that manages and builds (`pipx install yunetas`). It is the front end for everything below. | [`utils/python/tui_yunetas`](https://github.com/artgins/yunetas/tree/7.13.1/utils/python/tui_yunetas) (git submodule, published on PyPI) |
 | [`sync_binaries.py`](tools/sync_binaries.md) | Compares the built binaries with the agent's installed set, then pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
 | [`sync_configs.py`](tools/sync_configs.md) | Compares a directory of `*.json` yuno configs with the agent's installed set, then pushes the differences. | ships **inside the CLI** (`yunetas.agent_tools`) since 0.17.0 |
 

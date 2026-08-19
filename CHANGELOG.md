@@ -1,6 +1,9 @@
 # **Changelog**
 
-## Unreleased
+## 7.13.1
+
+A schema you can read: the descriptor learns to say what NAMES a record, and
+the two treedb views stop showing storage where a schema was asked for.
 
 ### Added
 
@@ -66,6 +69,33 @@
     Note it takes the `read` permission of the **`C_TREEDB`** service, which is
     not the `C_NODE` service of the treedb: an identity that reads a schema can
     still be refused here.
+
+- **gobj-ui submodule 5.16.0 → 5.17.0: the treedb views become readable on a
+    schema.** Two views, two different failures, one release.
+
+    `C_YUI_TREEDB_SCHEMA` — the `/schema` landing of a treedb — drew one 40px
+    circle per topic with its name underneath, which answered neither of the
+    questions a schema is opened for: what a topic holds, and what links to
+    what. It now draws what the `.c` literals draw in ASCII: one CARD per topic
+    listing its fields in schema order, and one edge per hook, leaving the row
+    that declares the hook and landing on the fkey row of the child it names.
+    The marks are the notation of those literals (`{}` `[]` `()` `(↖)` `[↖]`
+    `{↖}` `*` `#`), so the drawing and the source read the same. Both ends of
+    an edge come from the declaration — `'hook': {'yunos': 'realm_id'}` names
+    them — and a self-referent hook draws as the loop it is.
+
+    `C_G6_NODES_TREE` — the RECORD graph — labelled every card with `record.id`,
+    which on `treedb_system_schema` meant a fan of cards reading `181`, `225`,
+    `193`. It now reads the pkey column's flags and, when the key is synthetic,
+    labels by the secondary key, keeping the pkey as the tooltip. That is what
+    the `pkey2s` above is for.
+
+    The two answer different questions and the confusion between them is the
+    whole story: the node graph draws RECORDS, so on a treedb whose records ARE
+    schemas it draws a box per column — a correct picture of the storage and an
+    unreadable picture of the schema.
+
+    `yunos/js` follows: `gui_agent` and `gui_treedb` at `^5.17.0`.
 
 ### Changed
 
