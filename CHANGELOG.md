@@ -41,6 +41,15 @@
     because deleting a parent only UNLINKS its children. It is the one delete
     the projector does, and it happens once per store.
 
+- **Published: gobj-js `7.13.2` and gobj-ui `6.0.0`.** gobj-js ships ahead of
+    the SDK release it belongs to, at the number the SDK will catch up to (the
+    same way `7.6.7` did): `qualified` joins `treedb_field_types`, the list
+    that turns a column FLAG into the `type` every form and table switches on.
+    gobj-ui 6.0.0 is a dependency-only major — no API moved — that raises its
+    peer floor to gobj-js `^7.13.2`, because on an older runtime the word is
+    missing and the qualified paths fail quietly. The in-repo SPAs
+    (`gui_agent`, `gui_treedb`) take both.
+
 - **gobj-ui labels a `qualified` key by the secondary key too**
     (`treedb_node_label.js`), the same way it already did for `rowid` and
     `uuid`: the id names the record but names every ancestor with it, and the
