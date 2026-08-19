@@ -1071,15 +1071,36 @@ PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  *  Same rule tr_treedb applies to a pkey flagged `qualified`, written here
  *  too because the projector knows both halves and does not have to
  *  compose an fkey to say so.
+ *
+ *  A name that does not FIT is refused, never trimmed: the id is the address
+ *  of the node, so a truncated one silently addresses something else — and
+ *  two long names sharing a prefix would land on the same record.
+ *
+ *  Return `bf`, or NULL when it does not fit.
  ***************************************************************************/
 PRIVATE const char *build_schema_node_id(
+    hgobj gobj,
     char *bf,
     int bfsize,
     const char *parent_id,
     const char *name
 )
 {
-    snprintf(bf, bfsize, "%s.%s", parent_id, name);
+    int written = snprintf(bf, bfsize, "%s.%s", parent_id, name);
+    if(written < 0 || written >= bfsize) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Qualified 'id' does not fit in a record key",
+            "parent_id",    "%s", parent_id,
+            "name",         "%s", name,
+            "max",          "%d", bfsize - 1,
+            NULL
+        );
+        *bf = 0;
+        return NULL;
+    }
+
     return bf;
 }
 
@@ -1216,7 +1237,9 @@ PRIVATE int migrate_schema_ids_to_qualified(
             continue;
         }
         char topic_id[RECORD_KEY_VALUE_MAX];
-        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+        if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged
+        }
         if(strcmp(stored_topic_id, topic_id)!=0) {
             json_array_append_new(legacy_topic_ids, json_string(stored_topic_id));
         }
@@ -1253,7 +1276,9 @@ PRIVATE int migrate_schema_ids_to_qualified(
         const char *topic_name = kw_get_str(gobj, legacy_topic, "value", "", 0);
 
         char topic_id[RECORD_KEY_VALUE_MAX];
-        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+        if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged
+        }
 
         json_t *topic = move_schema_node(
             gobj, "topics", legacy_topic, topic_id, "topics", "treedbs", treedb
@@ -1282,7 +1307,9 @@ PRIVATE int migrate_schema_ids_to_qualified(
                 continue;
             }
             char col_id[RECORD_KEY_VALUE_MAX];
-            build_schema_node_id(col_id, sizeof(col_id), topic_id, col_name);
+            if(!build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id, col_name)) {
+                continue;   // Error already logged
+            }
 
             json_t *col = move_schema_node(
                 gobj, "cols", stored_col, col_id, "cols", "topics", topic
@@ -1536,7 +1563,9 @@ PRIVATE int upsert_treedb_schema(
         json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
 
         char topic_id[RECORD_KEY_VALUE_MAX];
-        build_schema_node_id(topic_id, sizeof(topic_id), treedb_name, topic_name);
+        if(!build_schema_node_id(gobj, topic_id, sizeof(topic_id), treedb_name, topic_name)) {
+            continue;   // Error already logged
+        }
 
         json_t *current_topic = current_topics?
             json_object_get(current_topics, topic_id):
@@ -1616,7 +1645,10 @@ PRIVATE int upsert_treedb_schema(
             const char *col_name = json_string_value(json_object_get(kw_col, "value"));
 
             char col_id[RECORD_KEY_VALUE_MAX];
-            build_schema_node_id(col_id, sizeof(col_id), topic_id, col_name);
+            if(!build_schema_node_id(gobj, col_id, sizeof(col_id), topic_id, col_name)) {
+                JSON_DECREF(kw_col)
+                continue;   // Error already logged
+            }
             json_object_set_new(kw_col, "id", json_string(col_id));
 
             json_t *current_col = current_topic?

@@ -4991,7 +4991,24 @@ PRIVATE const char *build_qualified_id(
         return bf;
     }
 
-    snprintf(bf, bfsize, "%s.%s", parent_id, name);
+    /*
+     *  Refused, never trimmed: the id is the address of the node, so a
+     *  truncated one silently addresses something else.
+     */
+    int written = snprintf(bf, bfsize, "%s.%s", parent_id, name);
+    if(written < 0 || written >= bfsize) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Qualified 'id' does not fit in a record key",
+            "topic_name",   "%s", topic_name,
+            "parent_id",    "%s", parent_id,
+            "name",         "%s", name,
+            "max",          "%d", bfsize - 1,
+            NULL
+        );
+        *bf = 0;
+    }
 
     return bf;
 }
