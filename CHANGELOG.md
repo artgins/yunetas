@@ -44,6 +44,15 @@ addressed by a counter, and starts being addressed by its own name.
     because deleting a parent only UNLINKS its children. It is the one delete
     the projector does, and it happens once per store.
 
+- **An id that does not fit is refused, never trimmed.** Both composers built
+    the qualified id with a bare `snprintf` into a buffer of one record key,
+    and both halves can be a full key on their own. The id is the ADDRESS of
+    the node, so a truncated one silently addresses something else — two long
+    names sharing a prefix would land on the same record. They read the return
+    value now, log, and answer nothing; every call site skips that topic or
+    column. GCC saw only one of the two: `-Wformat-truncation` could bound the
+    projector's buffers and not the ones fed by a json string.
+
 - **Published: gobj-js `7.13.2` and gobj-ui `6.0.0`.** gobj-js ships ahead of
     the SDK release it belongs to, at the number the SDK will catch up to (the
     same way `7.6.7` did): `qualified` joins `treedb_field_types`, the list
