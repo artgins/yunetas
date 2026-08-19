@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <inttypes.h>
 #include <fcntl.h>
@@ -624,6 +625,59 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
 }
 
 /***************************************************************************
+ *  The order of the columns is part of a schema: it is the order a table
+ *  paints them in, and the order a form asks for them.
+ *
+ *  topic_cols.json is deliberately frozen until `topic_version` rises -- the
+ *  persisted file is what a topic opens with, and a change to WHAT a column
+ *  declares has to announce itself with a version, or the two schemas drift
+ *  apart in silence. A change to the ORDER declares nothing new: same
+ *  columns, same content, different sequence. That one is let through, so an
+ *  order fixed at the source reaches a store that already exists without
+ *  every topic in the tree having to bump its version.
+ *
+ *  Return TRUE when only the order moved.
+ ***************************************************************************/
+PRIVATE BOOL only_the_order_moved(
+    json_t *stored_cols,    // not owned
+    json_t *new_cols        // not owned
+)
+{
+    if(!json_is_object(stored_cols) || !json_is_object(new_cols)) {
+        return FALSE;
+    }
+    if(json_object_size(stored_cols) != json_object_size(new_cols)) {
+        return FALSE;
+    }
+
+    const char *col_name; json_t *col;
+    json_object_foreach(new_cols, col_name, col) {
+        json_t *stored_col = json_object_get(stored_cols, col_name);
+        if(!stored_col || !json_equal(stored_col, col)) {
+            return FALSE;
+        }
+    }
+
+    /*
+     *  Same columns saying the same things: only the sequence can differ.
+     */
+    void *new_iter = json_object_iter(new_cols);
+    void *stored_iter = json_object_iter(stored_cols);
+    while(new_iter && stored_iter) {
+        if(strcmp(
+            json_object_iter_key(new_iter),
+            json_object_iter_key(stored_iter)
+        )!=0) {
+            return TRUE;
+        }
+        new_iter = json_object_iter_next(new_cols, new_iter);
+        stored_iter = json_object_iter_next(stored_cols, stored_iter);
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
  ***************************************************************************/
@@ -952,6 +1006,33 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "topic",        "%s", topic_name,
                 NULL
             );
+        } else {
+            /*----------------------------------------*
+             *      Re-order topic_cols.json
+             *----------------------------------------*/
+            json_t *stored_cols = load_json_from_file(
+                gobj,
+                directory,
+                "topic_cols.json",
+                0
+            );
+            if(only_the_order_moved(stored_cols, jn_cols)) {
+                JSON_INCREF(jn_cols);
+                tranger2_write_topic_cols(
+                    tranger,
+                    topic_name,
+                    jn_cols
+                );
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Re-ordering topic_cols.json",
+                    "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                    "topic",        "%s", topic_name,
+                    NULL
+                );
+            }
+            JSON_DECREF(stored_cols)
         }
     }
 
@@ -5617,6 +5698,14 @@ struct find_keys_s {
 
 typedef int (*find_keys_cb_fn)(struct find_keys_s *find_keys);
 
+/***************************************************************************
+ *  Compare two key names, for qsort()
+ ***************************************************************************/
+PRIVATE int cmp_key_names(const void *a, const void *b)
+{
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
 PRIVATE int find_keys_in_disk(
     hgobj gobj,
     json_t *topic,
@@ -5649,6 +5738,20 @@ PRIVATE int find_keys_in_disk(
         .directory = directory,
         .key = 0
     };
+
+    /*
+     *  HACK Collect the names first, and read them back SORTED.
+     *
+     *  readdir() hands the keys back in whatever order the filesystem keeps
+     *  them -- hash order on ext4 -- and that order is not an internal
+     *  detail: it is the order the keys enter the topic cache, therefore the
+     *  order a keyless list loads its records in, therefore the order the
+     *  nodes of a treedb sit in memory, and therefore the order of the
+     *  columns of a schema rebuilt from its __system__ projection. Sorted,
+     *  a store reads back the same way twice, and two replicas of it read
+     *  back the same way as each other.
+     */
+    json_t *jn_keys = json_array();
     while((entry = readdir(dir)) != NULL) {
         if(entry->d_name[0] == '.' &&
           (entry->d_name[1] == '\0' ||
@@ -5680,8 +5783,34 @@ PRIVATE int find_keys_in_disk(
             continue;
         }
 
+        json_array_append_new(jn_keys, json_string(entry->d_name));
+    }
+
+    closedir(dir);
+
+    /*
+     *  The array owns the names; this one only points at them, to be sorted.
+     */
+    size_t keys_size = json_array_size(jn_keys);
+    char **names = keys_size? gbmem_malloc(keys_size * sizeof(char *)): NULL;
+    if(names) {
+        for(size_t i = 0; i < keys_size; i++) {
+            names[i] = (char *)json_string_value(json_array_get(jn_keys, i));
+        }
+        qsort(names, keys_size, sizeof(char *), cmp_key_names);
+    }
+
+    for(size_t i = 0; i < keys_size; i++) {
+        /*
+         *  With no room for the index the keys come back in the filesystem's
+         *  order: worse than sorted, but still every one of them.
+         *  Error already logged by gbmem_malloc().
+         */
+        find_keys.key = names?
+            names[i]:
+            json_string_value(json_array_get(jn_keys, i));
+
         // Call user callback
-        find_keys.key = entry->d_name;
         if(cb(&find_keys) < 0) {
             break; // user requested stop
         }
@@ -5689,7 +5818,8 @@ PRIVATE int find_keys_in_disk(
         match_count++;
     }
 
-    closedir(dir);
+    GBMEM_FREE(names)
+    json_decref(jn_keys);
 
     return match_count;
 }

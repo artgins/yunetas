@@ -49,6 +49,12 @@
     * field required
     = field inherited
 
+    `order` is the place a node occupies among its siblings: the projector
+    stamps it from the position the schema compiled in C declares, and the
+    schema is rebuilt in that order. It defaults to 9999 -- a node created
+    here by hand says nothing about where it goes, and what says nothing
+    goes last.
+
                         treedbs
             ┌───────────────────────────┐
             │* id                       │
@@ -72,6 +78,7 @@
             │                           │
             │                   cols {} │ ◀─┐N
             │                           │   │
+            │  order                    │   │
             │* pkey                     │   │
             │  pkey2s                   │   │
             │* system_flag              │   │
@@ -90,7 +97,7 @@
             │                           │   │
             │                topics [↖] │ ──┘n
             │                           │
-            │                           │
+            │  order                    │
             │* header                   │
             │  fillspace                │
             │* type                     │
@@ -111,7 +118,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '14',                             \n\
+    'schema_version': '15',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -182,7 +189,7 @@ char treedb_system_schema[]= "\
             'id': 'topics',                             \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '6',                       \n\
+            'topic_version': '7',                       \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
@@ -220,6 +227,17 @@ char treedb_system_schema[]= "\
                     'hook': {                           \n\
                         'cols': 'topics'                \n\
                     }                                   \n\
+                },                                      \n\
+                'order': {                              \n\
+                    'header': 'Order',                  \n\
+                    'fillspace': 3,                     \n\
+                    'type': 'integer',                  \n\
+                    'default': 9999,                    \n\
+                    'flag': [                           \n\
+                        'wild',                         \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
+                    ]                                   \n\
                 },                                      \n\
                 'pkey': {                               \n\
                     'header': 'Primary Key',            \n\
@@ -297,7 +315,7 @@ char treedb_system_schema[]= "\
             'id': 'cols',                               \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '8',                       \n\
+            'topic_version': '9',                       \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
@@ -325,6 +343,17 @@ char treedb_system_schema[]= "\
                     'type': 'array',                    \n\
                     'flag': [                           \n\
                         'fkey'                          \n\
+                    ]                                   \n\
+                },                                      \n\
+                'order': {                              \n\
+                    'header': 'Order',                  \n\
+                    'fillspace': 3,                     \n\
+                    'type': 'integer',                  \n\
+                    'default': 9999,                    \n\
+                    'flag': [                           \n\
+                        'wild',                         \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
                     ]                                   \n\
                 },                                      \n\
                 'header': {                             \n\

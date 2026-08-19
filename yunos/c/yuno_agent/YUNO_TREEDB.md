@@ -571,6 +571,11 @@ The fix:
 2. While debugging schema problems, wipe the topic's directory in
    `store/` to force a clean load.
 
+One change does NOT wait for the bump: a schema whose columns are the same
+and say the same things, in a different **order**. The freeze exists so that a
+change to what a column declares cannot arrive unannounced; an order declares
+nothing new, so `tranger2_create_topic()` rewrites the file for it (§3.11).
+
 ### 3.6 Node CRUD: the public API
 
 Two layers — `treedb_*` (the low-level graph API) and `gobj_*node` (the
@@ -761,9 +766,9 @@ schema is stored **as ordinary treedb data**:
 ```
 treedbs   ── id, schema_version, c_schema_version,
              system_schema_version ──hook topics──▶
-topics    ── id (<treedb>.<topic>), value, pkey, pkey2s, system_flag,
+topics    ── id (<treedb>.<topic>), value, order, pkey, pkey2s, system_flag,
              tkey, topic_version, system_topic ──hook cols──▶
-cols      ── id (<topic id>.<column>), value, header, fillspace, type,
+cols      ── id (<topic id>.<column>), value, order, header, fillspace, type,
              placeholder,
              flag, enum, template, hook, pkey2s, default,
              description, properties
@@ -804,8 +809,31 @@ and all, on the re-projection that the meta-schema bump triggers.
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
 renames `value` back to `id` and drops the storage-only fields (`id`,
-`topics`, `_geometry`). Add a field for user columns to the `cols` topic; add
-a storage-only field there **and** to that skip list.
+`topics`, `order`, `_geometry`). Add a field for user columns to the `cols`
+topic; add a storage-only field there **and** to that skip list.
+
+**`order` is what keeps a schema in shape.** The order of the columns is part
+of a schema — it is the order a table paints them in and the order a form asks
+for them — and a projection cannot supply it by itself: its nodes are records,
+they come back in the order the store holds them, which is the order
+`readdir()` returns the key directories in. So the projector stamps the
+position each node occupies in the schema compiled in C, and
+`get_treedb_schema()` sorts by it and then **removes it**: in a schema the
+order IS the sequence of the `cols` dict, and a schema carrying both would
+hand every topic a column attribute nobody declared. A node the projection
+cannot place — one projected before the index existed — falls back to where C
+declares it, and goes last when C does not know it either. `order` defaults to
+**9999**, so a column created here by hand, which says nothing about where it
+goes, goes last too.
+
+Two more things hold that order down, below the schema. The keys of a topic
+are read **sorted** (`find_keys_in_disk()`), because `readdir()` order was
+never a contract: the same store read back differently twice, and two replicas
+of it differently from each other. And a `topic_cols.json` that differs from
+the schema **only in the order** is rewritten instead of waiting for a
+`topic_version` bump (§3.5) — the freeze is there to stop a change to WHAT a
+column declares from arriving unannounced, and a change to the order announces
+nothing new.
 
 The name still has to reach a reader, and that is paid by
 `tranger2_topic_desc()`, which carries `pkey2s` with the descriptor since

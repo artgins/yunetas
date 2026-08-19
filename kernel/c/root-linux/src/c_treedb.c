@@ -1374,7 +1374,8 @@ PRIVATE json_t *build_topic_projection(
     hgobj gobj,
     json_t *jn_topic,   // not owned
     const char *topic_name,
-    json_int_t topic_version
+    json_int_t topic_version,
+    int order
 )
 {
     const char *pkey = kw_get_str(gobj, jn_topic, "pkey", "id", 0);
@@ -1405,6 +1406,11 @@ PRIVATE json_t *build_topic_projection(
         json_object_set(kw_topic, "pkey2s", topic_pkey2s_);
     }
 
+    /*
+     *  Where the topic sits in the schema. See build_col_projection().
+     */
+    json_object_set_new(kw_topic, "order", json_integer(order));
+
     return kw_topic;
 }
 
@@ -1421,12 +1427,19 @@ PRIVATE json_t *build_topic_projection(
  *  The column's name travels in `value`; the qualified `id` is the
  *  caller's business, it is what addresses the column.
  *
+ *  `order` is the position the column occupies in the schema, and it is
+ *  copied from nowhere: in a schema the order IS the sequence of the `cols`
+ *  dict, so the caller's index is the only place it exists. Stored, it is
+ *  what lets the schema be rebuilt in the order it was written, whatever
+ *  order the projection is read back in.
+ *
  *  Return the node kw, or NULL. Return is YOURS.
  ***************************************************************************/
 PRIVATE json_t *build_col_projection(
     hgobj gobj,
     json_t *jn_col,     // not owned
-    json_t *cols_desc   // not owned
+    json_t *cols_desc,  // not owned
+    int order
 )
 {
     const char *col_name = kw_get_str(gobj, jn_col, "id", "", KW_REQUIRED);
@@ -1457,6 +1470,8 @@ PRIVATE json_t *build_col_projection(
     if(!json_object_get(kw_col, "header")) {
         json_object_set_new(kw_col, "header", json_string(header));
     }
+
+    json_object_set_new(kw_col, "order", json_integer(order));
 
     return kw_col;
 }
@@ -1589,7 +1604,9 @@ PRIVATE int upsert_treedb_schema(
             topic_version += 1;
         }
 
-        json_t *kw_topic = build_topic_projection(gobj, jn_topic, topic_name, topic_version);
+        json_t *kw_topic = build_topic_projection(
+            gobj, jn_topic, topic_name, topic_version, idx
+        );
         if(!kw_topic) {
             continue;   // Error already logged
         }
@@ -1638,7 +1655,7 @@ PRIVATE int upsert_treedb_schema(
 
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
-            json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc);
+            json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc, idx2);
             if(!kw_col) {
                 continue;   // Error already logged
             }
@@ -1835,6 +1852,120 @@ PRIVATE int reconcile_treedb_schema(
 }
 
 /***************************************************************************
+ *  The names a schema DECLARES, in the order it declares them: the topics
+ *  of the treedb when `topic_name` is NULL, the columns of that topic
+ *  otherwise.
+ *
+ *  Return a list of names, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *declared_names(
+    hgobj gobj,
+    json_t *c_schema,       // not owned, the schema compiled in C, or NULL
+    const char *topic_name  // NULL for the topic names themselves
+)
+{
+    json_t *jn_topics = c_schema? kw_get_list(gobj, c_schema, "topics", 0, 0): NULL;
+    if(!jn_topics) {
+        return NULL;
+    }
+
+    json_t *names = json_array();
+
+    int idx; json_t *jn_topic;
+    json_array_foreach(jn_topics, idx, jn_topic) {
+        const char *name = kw_get_str(gobj, jn_topic, "id", "", 0);
+        if(empty_string(name)) {
+            name = kw_get_str(gobj, jn_topic, "topic_name", "", 0);
+        }
+        if(empty_string(name)) {
+            continue;
+        }
+        if(!topic_name) {
+            json_array_append_new(names, json_string(name));
+            continue;
+        }
+        if(strcmp(name, topic_name)!=0) {
+            continue;
+        }
+
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
+        int idx2; json_t *jn_col;
+        json_array_foreach(jn_cols, idx2, jn_col) {
+            const char *col_name = kw_get_str(gobj, jn_col, "id", "", 0);
+            if(!empty_string(col_name)) {
+                json_array_append_new(names, json_string(col_name));
+            }
+        }
+        JSON_DECREF(jn_cols)
+        break;
+    }
+
+    return names;
+}
+
+/***************************************************************************
+ *  Put the nodes of a rebuilt schema back in the order they were WRITTEN
+ *  in, and take the index away again: `order` says where a node belongs
+ *  while it is stored as a record, and a schema says the same thing by the
+ *  sequence of its dict. Left in, it would reach every topic as a column
+ *  attribute nobody declared.
+ *
+ *  A node with no `order` -- one an operator added, or one projected before
+ *  the index existed -- falls back to where the schema compiled in C
+ *  declares it, and goes last when C does not know it either. The sort is
+ *  stable, so nodes that answer the same keep the order they arrived in.
+ *
+ *  Return a new dict holding the same nodes. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *order_schema_nodes(
+    json_t *nodes,      // not owned, {name: node}
+    json_t *declared    // not owned, [name, ...] as declared in C, or NULL
+)
+{
+    json_t *sorted = json_array();  // of [order, name]
+
+    const char *name; json_t *node;
+    json_object_foreach(nodes, name, node) {
+        json_int_t order;
+        json_t *jn_order = json_object_get(node, "order");
+        if(json_is_integer(jn_order)) {
+            order = json_integer_value(jn_order);
+        } else {
+            order = INT_MAX;
+            int idx; json_t *jn_name;
+            json_array_foreach(declared, idx, jn_name) {
+                if(strcmp(json_string_value(jn_name), name)==0) {
+                    order = idx;
+                    break;
+                }
+            }
+        }
+
+        size_t pos = json_array_size(sorted);
+        while(pos > 0) {
+            json_t *prev = json_array_get(sorted, pos-1);
+            if(json_integer_value(json_array_get(prev, 0)) <= order) {
+                break;
+            }
+            pos--;
+        }
+        json_array_insert_new(sorted, pos, json_pack("[I,s]", order, name));
+    }
+
+    json_t *ordered = json_object();
+    int idx; json_t *entry;
+    json_array_foreach(sorted, idx, entry) {
+        const char *node_name = json_string_value(json_array_get(entry, 1));
+        json_t *node_ = json_object_get(nodes, node_name);
+        json_object_del(node_, "order");
+        json_object_set(ordered, node_name, node_);
+    }
+    JSON_DECREF(sorted)
+
+    return ordered;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *get_treedb_schema(
@@ -1878,10 +2009,16 @@ PRIVATE json_t *get_treedb_schema(
      *  carry the bare one in `value` (a name is unique only inside its
      *  parent), so the schema is re-keyed by the bare name on the way out —
      *  that is the shape a schema has.
+     *
+     *  And re-ORDERED on the way out too: the nodes come back in the order
+     *  the store happens to hold them, while in a schema the order of the
+     *  columns is what a table paints. The schema compiled in C is the
+     *  fallback for whatever the projection cannot place by itself.
      */
+    json_t *c_schema = json_object_get(priv->jn_c_schemas, treedb_name);
+
     json_t *stored_topics = kw_get_dict(gobj, treedb, "topics", 0, KW_EXTRACT);
     json_t *topics = json_object();
-    json_object_set_new(treedb, "topics", topics);
 
     const char *stored_topic_id; json_t *topic;
     json_object_foreach(stored_topics, stored_topic_id, topic) {
@@ -1954,13 +2091,27 @@ PRIVATE json_t *get_treedb_schema(
         }
 
         /*
-         *  Set new checked cols
+         *  Set new checked cols, in the order they were declared in.
+         *
+         *  The name comes from `id` and not from `topic_name`: that one
+         *  points into the `value` deleted above, and the string it aims at
+         *  may be gone by now.
          */
-        json_object_set_new(topic, "cols", new_cols);
+        json_t *declared_cols = declared_names(
+            gobj, c_schema, kw_get_str(gobj, topic, "id", "", 0)
+        );
+        json_object_set_new(topic, "cols", order_schema_nodes(new_cols, declared_cols));
+        JSON_DECREF(declared_cols)
+        JSON_DECREF(new_cols)
 
         json_decref(cols);
     }
     JSON_DECREF(stored_topics)
+
+    json_t *declared_topics = declared_names(gobj, c_schema, NULL);
+    json_object_set_new(treedb, "topics", order_schema_nodes(topics, declared_topics));
+    JSON_DECREF(declared_topics)
+    JSON_DECREF(topics)
 
     return treedb;
 }
@@ -2358,7 +2509,7 @@ PRIVATE json_t *diff_treedb_schema(
 
         json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
         json_t *projected_topic = build_topic_projection(
-            gobj, jn_topic, topic_name, topic_version
+            gobj, jn_topic, topic_name, topic_version, idx
         );
         if(!projected_topic) {
             continue;   // Error already logged
@@ -2401,7 +2552,7 @@ PRIVATE json_t *diff_treedb_schema(
         json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
-            json_t *projected_col = build_col_projection(gobj, jn_col, cols_desc);
+            json_t *projected_col = build_col_projection(gobj, jn_col, cols_desc, idx2);
             if(!projected_col) {
                 continue;   // Error already logged
             }

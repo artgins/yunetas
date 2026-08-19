@@ -1,5 +1,53 @@
 # **Changelog**
 
+## Unreleased
+
+The order of the columns is part of the schema, and it stops being the
+order the filesystem happens to hand the projection back in.
+
+### Fixed
+
+- **A table paints its columns in the order the schema declares them
+    again.** Since 7.13.0 a treedb opens from its `__system__` projection, and
+    the projection is a treedb like any other: its nodes load in the order
+    `readdir()` returns the key directories, which on ext4 is hash order. That
+    order became the order of `cols` in the rebuilt schema, then got FROZEN
+    into each topic's `topic_cols.json` the next time `topic_version` rose, and
+    from there into every table: `list-yunos` came back with `_channel_gobj`
+    first and `id` third, in a different scramble on each node.
+
+    Four things had to change for an order to survive:
+
+    - **The order is stored.** `topics` and `cols` of `__system__` carry an
+        `order`, stamped by the projector from the position the node occupies in
+        the schema compiled in C. It is storage, not something a column may
+        declare: `_treedb_create_topic_cols_desc()` keeps it out of the
+        descriptor a user column answers to, and `get_treedb_schema()` takes it
+        away again on the way out — in a schema the order IS the sequence of the
+        dict, and a schema carrying both would hand every topic a column
+        attribute nobody wrote.
+
+    - **The rebuild sorts by it**, and falls back to where the schema compiled
+        in C declares the node when the projection cannot place it — one
+        projected before the index existed — so a store that has not been
+        re-projected yet already comes back in order. `order` defaults to
+        **9999**: a column created in `__system__` by hand says nothing about
+        where it goes, and what says nothing goes last.
+
+    - **The keys load sorted** (`find_keys_in_disk()`). `readdir()` order was
+        never a contract: two replicas of the same store read it back
+        differently, and so did the same store twice.
+
+    - **A topic_cols.json that differs from the schema ONLY in the order is
+        rewritten**, instead of waiting for a `topic_version` bump. The file is
+        deliberately frozen until the version rises — that is what stops a
+        change to WHAT a column declares from arriving unannounced — and a
+        change to the order announces nothing new.
+
+- **Meta-schema at `schema_version` 15** (`topics` topic_version 7, `cols` 9),
+    which re-projects every store on the next start and rewrites every
+    `topic_cols.json` with the order the schema declares.
+
 ## 7.13.2
 
 A key that says where it belongs: the schema stored as data stops being

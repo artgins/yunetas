@@ -43,7 +43,19 @@ The test drives `C_TREEDB` through its own commands and checks:
    name means the same id, while the link still has to refuse a column born
    under another topic and hooked in here.
 
-6. **The move to qualified ids** — a projection built by hand the way the old
+6. **Column order** — a schema comes back in the order it was DECLARED in,
+   topics and columns alike, and a column added in the MIDDLE of a topic
+   lands in the middle. The projection cannot supply an order by itself: its
+   nodes are records, and records come back in the order the store holds
+   them, so the position has to be stored with each node and read back. What
+   is served and not declared — the treedb's own `__snaps__` / `__graphs__`,
+   a topic the projection kept after C stopped declaring it — is not a
+   mismatch; everything the schema declares must be there, in its order.
+   What this does not reach is the RELOAD: the `__system__` treedb is built
+   once per process, so the order its nodes come back from disk in is only
+   exercised across a restart.
+
+7. **The move to qualified ids** — a projection built by hand the way the old
    projector left it (numeric ids, the name in `value`) is re-projected, and
    what comes back is keyed by the qualified name with the legacy nodes gone.
    A column that is in **no** schema from C rides along: it is an operator's,

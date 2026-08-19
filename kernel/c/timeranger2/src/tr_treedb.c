@@ -479,11 +479,14 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
 
     /*
      *  Storage-only fields of the `cols` topic: the qualified pkey, the
-     *  fkey back to `topics`, and the editor geometry. They describe how a
-     *  column is STORED in the __system__ treedb, never what a user column
-     *  may declare.
+     *  fkey back to `topics`, the place the column occupies among its
+     *  siblings, and the editor geometry. They describe how a column is
+     *  STORED in the __system__ treedb, never what a user column may
+     *  declare -- `order` least of all: in a schema the order of a column
+     *  IS its position in the dict, and a column carrying its own index
+     *  would put the same fact in two places that can disagree.
      */
-    static const char *storage_only[] = {"id", "topics", "_geometry", NULL};
+    static const char *storage_only[] = {"id", "topics", "order", "_geometry", NULL};
 
     json_t *topic_cols_desc_ = json_array(); // Avoid declaration shadows a variable in the global scope
     const char *col_id;

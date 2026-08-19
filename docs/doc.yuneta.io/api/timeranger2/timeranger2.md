@@ -1859,6 +1859,12 @@ must bump the topic's `topic_version` (and `schema_version` for structural
 changes), otherwise the persisted `topic_cols.json` masks the new schema on the
 next reload.
 
+One change does not wait for the bump. When the incoming schema holds the same
+columns saying the same things and only their **order** differs,
+[`tranger2_create_topic()`](<#tranger2_create_topic>) rewrites the file: the
+freeze is there so that a change to what a column declares cannot arrive
+unannounced, and an order announces nothing new.
+
 ---
 
 (tranger2_write_topic_var)=

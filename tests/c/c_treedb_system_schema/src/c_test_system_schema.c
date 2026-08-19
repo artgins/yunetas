@@ -851,6 +851,114 @@ PRIVATE int check_column_fidelity(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The order of the columns is part of a schema: it is the order a table
+ *  paints them in and the order a form asks for them.
+ *
+ *  A schema rebuilt from its __system__ projection must come back in the
+ *  order it was DECLARED in. The projection is a treedb like any other, and
+ *  the order its nodes come back in belongs to the filesystem -- so the
+ *  index has to be stored, and read back, for the schema to keep its shape.
+ ***************************************************************************/
+PRIVATE int check_schema_order(hgobj gobj, json_t *jn_schema)
+{
+    int result = 0;
+
+    hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
+    if(!gobj_client_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: client treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The topics, in the order the schema declares them
+     */
+    json_t *declared_topics = json_array();
+    int idx; json_t *jn_topic;
+    json_array_foreach(json_object_get(jn_schema, "topics"), idx, jn_topic) {
+        json_array_append_new(
+            declared_topics,
+            json_string(kw_get_str(gobj, jn_topic, "id", "", 0))
+        );
+    }
+
+    /*
+     *  What is served and NOT declared is not a mismatch: `__snaps__` and
+     *  `__graphs__` are the treedb's own, and a topic the projection keeps
+     *  after C stopped declaring it is an operator's. What is checked is
+     *  that everything the schema declares is there, in its order.
+     */
+    json_t *all_topics = gobj_treedb_topics(gobj_client_node, TREEDB_NAME, 0, gobj);
+    json_t *served_topics = json_array();
+    int idx1; json_t *jn_name;
+    json_array_foreach(all_topics, idx1, jn_name) {
+        if(json_str_in_list(gobj, declared_topics, json_string_value(jn_name), FALSE)) {
+            json_array_append(served_topics, jn_name);
+        }
+    }
+    JSON_DECREF(all_topics)
+
+    if(!json_equal(declared_topics, served_topics)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: the topics came back in another order",
+            "declared",     "%j", declared_topics,
+            "served",       "%j", served_topics,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(served_topics)
+    JSON_DECREF(declared_topics)
+
+    /*
+     *  And the columns of each topic
+     */
+    json_array_foreach(json_object_get(jn_schema, "topics"), idx, jn_topic) {
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
+
+        json_t *declared_cols = json_array();
+        const char *col_name; json_t *jn_col;
+        json_object_foreach(json_object_get(jn_topic, "cols"), col_name, jn_col) {
+            json_array_append_new(declared_cols, json_string(col_name));
+        }
+
+        json_t *served_cols = json_array();
+        json_t *desc = gobj_topic_desc(gobj_client_node, topic_name);
+        int idx2; json_t *col;
+        json_array_foreach(json_object_get(desc, "cols"), idx2, col) {
+            const char *served_name = kw_get_str(gobj, col, "id", "", 0);
+            if(json_str_in_list(gobj, declared_cols, served_name, FALSE)) {
+                json_array_append_new(served_cols, json_string(served_name));
+            }
+        }
+        JSON_DECREF(desc)
+
+        if(!json_equal(declared_cols, served_cols)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: the columns came back in another order",
+                "topic_name",   "%s", topic_name,
+                "declared",     "%j", declared_cols,
+                "served",       "%j", served_cols,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(declared_cols)
+        JSON_DECREF(served_cols)
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  A schema write that cannot produce a working schema must be refused at
  *  the point of writing: stored, it breaks the treedb at its next open,
  *  far from whoever wrote it.
@@ -1532,6 +1640,7 @@ PRIVATE int run_tests(hgobj gobj)
 
     result += check_system_treedb(gobj);
     result += check_column_fidelity(gobj);
+    result += check_schema_order(gobj, jn_schema);
 
     json_t *cols_before = client_topic_cols(gobj, "users");
 
@@ -1607,6 +1716,8 @@ PRIVATE int run_tests(hgobj gobj)
 
     json_t *cols_after = client_topic_cols(gobj, "users");
 
+    result += check_schema_order(gobj, jn_schema);
+
     if(!cols_before || !cols_after || !json_equal(cols_before, cols_after)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1653,10 +1764,18 @@ PRIVATE int run_tests(hgobj gobj)
     );
     JSON_DECREF(jn_resp)
 
-    if(open_test_treedb(gobj, jn_schema2) < 0) {
+    if(open_test_treedb(gobj, json_incref(jn_schema2)) < 0) {
+        JSON_DECREF(jn_schema2)
         JSON_DECREF(ids_before)
         return -1;  // Error already logged
     }
+
+    /*
+     *  `email` is declared in the MIDDLE of `users`: a column added to a
+     *  schema takes the place the schema gives it, it is not appended.
+     */
+    result += check_schema_order(gobj, jn_schema2);
+    JSON_DECREF(jn_schema2)
 
     /*
      *  The projection records WHICH literal it came from in

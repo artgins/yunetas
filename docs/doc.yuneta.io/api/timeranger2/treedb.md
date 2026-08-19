@@ -24,11 +24,17 @@ json_t *_treedb_create_topic_cols_desc(void);
 
 **Returns**
 
-A JSON object containing the column schema description. The returned object is not owned by the caller.
+A JSON list describing what a user column may declare. **The return is yours**
+— every caller decrefs it (`parse_schema()`, `treedb_open_db()`).
 
 **Notes**
 
-The returned JSON object must not be modified or freed by the caller.
+It is DERIVED from the `cols` topic of `treedb_system_schema`, not written by
+hand: `value` is renamed back to `id`, and the storage-only fields of that
+topic (`id`, `topics`, `order`, `_geometry`) are dropped, because they say how
+a column is stored in `__system__` and not what a column may declare. A field
+added there for user columns needs nothing here; a storage-only one has to be
+added to that skip list too.
 
 ---
 
