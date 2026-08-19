@@ -67,7 +67,7 @@ the same `readonly` the editor gets and it loses its `edition` mode (gobj-ui
 5.16.0), and a write in it marks *Apply* — except a save of the graph LAYOUT,
 which is the view's own bookkeeping in `__graphs__`.
 
-**DONE (gobj-ui 6.1.2 + gui_agent 0.8.0):** the workspace stopped showing the
+**DONE (gobj-ui 6.2.1 + gui_agent 0.8.1):** the workspace stopped showing the
 three topics a schema is STORED in and shows the schema they ARE.
 `C_YUI_SCHEMA_EDITOR` is the landing of `treedb_system_schema` (segment `edit`;
 the raw tables keep `raw` and their own names): treedb → topics → columns in

@@ -10,7 +10,7 @@ three topics they are STORED in and shows the schema they ARE.
 ### Added
 
 - **The Schemas workspace of the agent console edits a schema AS A SCHEMA**
-    (JS submodules: `gobj-ui` 6.1.2, `yunos-js`). Every schema a yuno holds
+    (JS submodules: `gobj-ui` 6.2.1, `yunos-js`). Every schema a yuno holds
     lives in its `treedb_system_schema`, stored as data in three flat topics
     linked by fkeys — `treedbs` -> `topics` -> `cols`. That is the right
     storage and it was the whole screen: adding one column to one topic meant
