@@ -1645,10 +1645,12 @@ A key the topic does not carry is omitted rather than returned empty, so a
 topic with no secondary key has no `pkey2s` at all.
 
 `pkey2s` matters to any reader that must NAME a record and not only identify
-it. A topic whose id column is flagged `rowid` or `uuid` keys its records by a
-value that means nothing to a person — `treedb_system_schema` keys `topics` and
-`cols` that way — and the name lives in the secondary key. A viewer given only
-`pkey` can do nothing but print the rowid.
+it. A topic whose id column is flagged `rowid`, `uuid` or `qualified` keys its
+records by a value that is not the name: a rowid and a UUID mean nothing to a
+person, and a qualified id (`<parent id>.<name>`) names every ancestor together
+with the record. `treedb_system_schema` keys `topics` and `cols` with qualified
+ids. In all three the name lives in the secondary key. A viewer given only
+`pkey` can do nothing but print the address.
 
 **Notes**
 

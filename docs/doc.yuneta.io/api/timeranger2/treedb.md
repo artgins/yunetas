@@ -541,6 +541,25 @@ Returns a JSON object representing the newly created node. WARNING: The returned
 
 This function creates a 'pure node' without loading hook links. The primary key (`pkey`) of all topics must be 'id', and it must be a string.
 
+`id` is mandatory, but the topic can hand it out. When the `kw` carries no
+`id`, the flag on the `id` column decides what the new one is:
+
+| Flag on `id` | The id the topic hands out |
+|---|---|
+| `uuid` | A random UUID. |
+| `rowid` | The topic size plus one. |
+| `qualified` | The id of the parent, a dot, and the name of the record. The name is the first secondary key of the topic (`pkey2s`). The parent is the one named in the fkey of the `kw`. |
+
+A column carries at most one of the three. With none of them, a `kw` with no
+`id` is an error. A `qualified` id is an error too when the `kw` carries no
+secondary key, when it carries no parent fkey, or when the composed id is
+longer than a record key: a key too long is refused, never trimmed, because a
+truncated id is the address of another node. In all of these the function logs
+the cause and returns `NULL`.
+
+See the [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
+§3.3 for the flags and §3.11 for why the schema topics are keyed this way.
+
 ---
 
 (treedb_create_topic)=

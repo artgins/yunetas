@@ -511,12 +511,45 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `pkey`       | Marks the primary-key column.                                           |
 | `pkey2`      | Marks a secondary key.                                                  |
 | `tkey`       | Marks the time-key column.                                              |
+| `uuid`       | On the `id` column: a create that sends no `id` gets a random UUID.     |
+| `rowid`      | On the `id` column: a create that sends no `id` gets the topic size plus one. |
+| `qualified`  | On the `id` column: a create that sends no `id` gets the id of its parent, a dot, and its own name. |
 | `password`   | Treated as opaque secret on inspection.                                 |
 | `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
 | `inherit`    | Inherits a value from a related node.                                   |
 
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —
 in-memory only.
+
+**`uuid`, `rowid` and `qualified` are the three ways the store hands a key
+out, and a column carries at most one of them.** All three sit on the `id`
+column, and all three act only when the create sends no `id`: an `id` in the
+kw is always kept as it is. They are not equivalent.
+
+- `uuid` gives an address that is unique everywhere and means nothing to a
+  person.
+- `rowid` gives the topic size plus one. That address is unique but arbitrary:
+  it does not reproduce, and a `rowid` pkey has no update, so an editor that
+  saves a record appends a second one instead of changing the first. It is
+  here for the stores that already use it. Do not declare it in a new topic.
+- `qualified` gives a name: the id of the parent, a dot, and the name of the
+  record. The name is the first secondary key of the topic (`pkey2s`), and the
+  parent is the one named in the fkey of the kw. Full story in §3.11.
+
+`qualified` has three conditions. [`treedb_create_node()`](#treedb_create_node)
+logs the cause and creates nothing when one of them is not true:
+
+1. The topic declares `pkey2s`, and the kw carries that field. That field is
+   the name.
+2. The kw carries an fkey with a parent. A `qualified` record is always the
+   child of something.
+3. The composed id is not longer than a record key
+   (`RECORD_KEY_VALUE_MAX`). A key too long is refused, never trimmed: a
+   truncated id is the address of another node.
+
+The separator is a dot, and it cannot be `^`. That is the character an fkey
+reference is split on, so an id that carries one makes every reference to that
+node undecodable (§3.11).
 
 ### 3.4 The `__md_treedb__` metadata block
 
