@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.3.0`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.0.1`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -70,7 +70,12 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   (`remember_position`), so a strip of children stops behaving like a row of
   tabs that forgets; `6.3.0` gives `C_YUI_TREEDB_TOPICS` a `source_url` it
   prints in its toolbar, because a tab labelled with a treedb name does not
-  say which BACKEND that treedb is on.
+  say which BACKEND that treedb is on; `6.3.x` stops the schema diagram
+  rescaling itself the moment it appears and turns its arrowheads round to
+  land on the parent's hook, where the `.c` literal and the `↖` of the fkey
+  mark put them. `7.0.0` is a third dependency-only major, raising the
+  `maplibre-gl` floor to `^6.4.1` — where `DOM.sanitize` stops skipping the
+  attribute after each one it removes.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package

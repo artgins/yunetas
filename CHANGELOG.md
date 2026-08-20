@@ -1,5 +1,42 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **The schema diagram keeps the size it is drawn at, and its arrows say who
+    references whom** (JS submodules: `gobj-ui` 7.0.1, `yunos-js`). Selecting
+    Diagram in `C_YUI_TREEDB_SCHEMA` drew the graph at its own scale and then,
+    a frame later, zoomed it to the container: the reader saw one size and got
+    another, and which one depended on how many topics the treedb had. The fit
+    is gone — the canvas still follows the container when the view is shown,
+    since G6 draws at 0x0 while hidden, but the camera no longer moves, so the
+    scale and any pan/zoom survive.
+
+    The arrowheads were also backwards. This view exists to draw a treedb the
+    way its `.c` literal draws it in ASCII, and the `.c` lands the arrowhead on
+    the parent's HOOK row: the reference belongs to the child's fkey and points
+    up at its parent, which is what the `↖` in the `(↖)` / `[↖]` / `{↖}` marks
+    the same view prints has always said. The edge stays declared parent ->
+    child, because that is what ranks the parent first under left-to-right
+    dagre; only the marker moved.
+
+### Changed
+
+- **`maplibre-gl` moves to `6.4.1`, and gobj-ui's peer floor moves with it**
+    (`gobj-ui` 7.0.0, a dependency-only major — no component API moved).
+    6.4.1 fixes `DOM.sanitize` leaving dangerous attributes behind when several
+    of them sit next to each other: it iterated a live `NamedNodeMap` while
+    removing from it, so every removal skipped the attribute right after it and
+    an `ontoggle` could survive the scrub. A floor is the only thing that stops
+    a consumer from resolving to a version without that fix, so the floor is
+    what moves. `yunos/js/gui_treedb` declares maplibre itself and moves too.
+
+    Not affected: the v1 line. `estadodelaire` and `hidraulia` are the two SPAs
+    that actually mount a map in production and they are on `maplibre-gl`
+    `^5.24.0`, which is the last 5.x there is — the fix is not backported, so
+    the only way out of it is the migration to v2.
+
 ## 7.14.0
 
 A schema stops being read by its rows. The order of the columns is part of

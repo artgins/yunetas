@@ -10,12 +10,12 @@ description: >-
 Two controls for a map of maplibre. Each one takes the gobj that builds it, so
 every action of the user arrives at the state machine of that gobj as an event.
 
-**Source code:** [`src/lib_maplibre.js`](https://github.com/artgins/gobj-ui.js/blob/6.3.0/src/lib_maplibre.js)
+**Source code:** [`src/lib_maplibre.js`](https://github.com/artgins/gobj-ui.js/blob/7.0.1/src/lib_maplibre.js)
 
 ---
 
 (js_EditControl)=
-## [`EditControl`](https://github.com/artgins/gobj-ui.js/blob/6.3.0/src/lib_maplibre.js#L18)
+## [`EditControl`](https://github.com/artgins/gobj-ui.js/blob/7.0.1/src/lib_maplibre.js#L18)
 
 The control of edition of the map.
 
@@ -28,7 +28,7 @@ new EditControl(gobj, config)
 | `showMarkerDrag` | `false` | Shows the button that lets the user move the markers. |
 
 (js_MarkerControl)=
-## [`MarkerControl`](https://github.com/artgins/gobj-ui.js/blob/6.3.0/src/lib_maplibre.js#L99)
+## [`MarkerControl`](https://github.com/artgins/gobj-ui.js/blob/7.0.1/src/lib_maplibre.js#L99)
 
 The control of the markers.
 
