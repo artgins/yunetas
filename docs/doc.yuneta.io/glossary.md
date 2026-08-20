@@ -119,17 +119,29 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **Persistent attribute**
 :   An attribute with the `SDF_PERSIST` flag — automatically saved to and loaded from disk. See [Persistent attrs guide](guide/guide_persistent_attrs.md).
 
+(pkey)=
+**Pkey** (Primary key)
+:   The column that addresses a record in a [topic](#topic). In [TreeDB](#glossary-treedb) it is always `id`, and always a string. A create carries it, unless the column declares [`uuid`](#uuid-key), [`rowid`](#rowid-key) or [`qualified`](#qualified-id) — the three flags that make the topic hand the key out. A column carries at most one of the three. See the [TreeDB crash course](../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.3.
+
 **Publish / Subscribe**
 :   Pattern where a gobj publishes output events to all subscribed gobjs via `gobj_publish_event()` / `gobj_subscribe_event()`. See [Publish API](api/gobj/publish.md).
 
 **Pure child**
 :   A gobj created with `gobj_flag_pure_child` — sends events directly to its parent without requiring explicit subscriptions.
 
+(qualified-id)=
+**Qualified id**
+:   A [pkey](#pkey) flag: a create that sends no `id` gets the id of its parent, a dot, and its own name. The name is the first secondary key of the topic (`pkey2s`). The parent is the one named in the [fkey](#fkey) of the create. The id is unique by construction, because a name is unique inside its parent. The separator cannot be `^`, the character an fkey reference is split on. `treedb_system_schema` keys its `topics` and `cols` this way. See the [TreeDB crash course](../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11.
+
 **Realm**
 :   A running yuno or a logically grouped set of yunos, identified by Role, Name, and Owner.
 
 **Re-launch** (Watcher-Worker)
 :   Yuneta's self-healing daemon mechanism. In daemon mode, a *watcher* process monitors the *worker* (the actual yuno) and re-launches it after a crash or a non-zero exit. It does **not** re-launch after a clean `exit(0)` or after `SIGKILL` — both mean "stay down", which is how the agent kills yunos. No systemd required. See [Watcher signal posture](#entry-point-watcher).
+
+(rowid-key)=
+**Rowid key**
+:   A [pkey](#pkey) flag: a create that sends no `id` gets the size of the topic plus one. It is not [g_rowid](#g_rowid) or [i_rowid](#i_rowid), which timeranger2 gives to every record — this one is the address of a node. The address is unique but arbitrary: it does not reproduce, and a `rowid` pkey has no update, so an editor that saves a record appends a second one instead of changing the first. It is here for the stores that already use it. Do not declare it in a new topic.
 
 (glossary-sdata)=
 **SData** (Structured Data)
@@ -170,6 +182,10 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 (glossary-treedb)=
 **TreeDB** (`tr_treedb`)
 :   Graph memory database built on timeranger2. Nodes belong to topics and are linked via [hook](#hook)/[fkey](#fkey) relationships. See [TreeDB API](api/timeranger2/treedb.md).
+
+(uuid-key)=
+**UUID key**
+:   A [pkey](#pkey) flag: a create that sends no `id` gets a random UUID. The address is unique everywhere and means nothing to a person. A reader that must NAME such a record reads the secondary key (`pkey2s`) that the topic descriptor carries.
 
 (yev-loop)=
 **yev_loop**
