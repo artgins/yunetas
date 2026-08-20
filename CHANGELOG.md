@@ -4,6 +4,33 @@
 
 ### Added
 
+- **Edit a cell of a topic table in place** (`gobj-ui` 7.8.0, `gui_treedb`
+    0.11.0). Changing one field meant opening the record form, changing it,
+    saving and closing — four clicks for a word. A writable scalar is editable
+    in the table now, in edition mode.
+
+    Which cells: the schema decides (`writable` only, never the pkey —
+    renaming what a record is KEYED by is not a field edit) and the type
+    decides the rest. A hook holds children and an fkey IS a link, so both are
+    edited by linking; a dict or a list is a document the form has an editor
+    for; a date cell shows a formatted string over an epoch, so typing into it
+    would write the string. Those stay with the form, one click away on the
+    same row.
+
+    **The write is a partial update with no `autolink`, and that is the whole
+    safety of it.** `treedb_update_node()` merges (`json_object_update`), so
+    the fields it does not carry are left alone; `autolink` wipes a node's
+    links to rebuild them from the fkeys the record carries, and on a partial
+    record it reads that as "no parents", detaches the node and answers
+    success. So a cell edit travels as its own event and does not reuse the
+    form's, which does send autolink and may — the form hands it the whole
+    record with its fkeys in it. Verified against a live treedb: a role edited
+    in place kept its parent, and the parent kept it.
+
+    A refused write puts the topic back to what the treedb has: leaving the
+    typed value on screen is tolerable for a form, which stays open on the
+    values it failed with, while a cell edited in place would just look saved.
+
 - **The agent console hands its backends to the TreeDB GUI**
     (`yunos-js`: `gui_agent` 0.9.0, `gui_treedb` 0.10.0). Copying a dozen
     `wss://host:port` rows between two tabs of one browser was the
