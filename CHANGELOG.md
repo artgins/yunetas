@@ -4,6 +4,33 @@
 
 ### Added
 
+- **The agent console hands its backends to the TreeDB GUI**
+    (`yunos-js`: `gui_agent` 0.9.0, `gui_treedb` 0.10.0). Copying a dozen
+    `wss://host:port` rows between two tabs of one browser was the
+    alternative. The Schemas picker copies the yunos it shows as gui_treedb
+    connections; that app's Connections page pastes them (a clipboard read is
+    not always allowed — Firefox refuses outright — so a refusal opens a box
+    to paste into rather than failing).
+
+    The picker already asked every yuno what services it runs, which is how it
+    knows which ones hold a treedb, and threw the answer away one line after
+    it arrived. What it lacked is the ENDPOINT, and one `view-config` per yuno
+    gives it:
+
+    - the **port**, from
+      `global["<gate>.__json_config_variables__"].__top_url__`. A yuno without
+      it exposes no top gate and can never be a treedb backend, so its absence
+      is the filter — a node with 17 yunos contributes the 2 that are
+      reachable.
+    - the **host**, which is not in that url (the yuno binds `0.0.0.0`, its
+      realm binds `127.0.0.1`): the filename of `__ssl_certificate__` — the
+      FQDN the certificate is issued for — else the realm id. Neither is
+      guaranteed, so the url is a proposal and the connections arrive
+      **disabled**.
+    - the **service**, which is the one NAMED like the yuno's role. Taking
+      "the first top-service" instead made all nine backends of a real scan
+      read `authz`, which is a connection the backend refuses.
+
 - **A topic table you can read, and a graph you can search**
     (JS submodules: `gobj-ui` 7.3.0, `yunos-js` — `gui_treedb` 0.8.0).
     The treedb topic table had a single global search box while the read-only
