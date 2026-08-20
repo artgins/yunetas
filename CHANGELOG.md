@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.14.0
 
 A schema stops being read by its rows. The order of the columns is part of
 the schema and no longer the order the filesystem happens to hand the
@@ -8,10 +8,14 @@ projection back in; and the console that edits schemas stops showing the
 three topics they are STORED in and shows the schema they ARE — and stops
 losing your place in it.
 
+The consoles also start saying WHICH machine you are looking at, in the two
+places that never said it: a treedb tab named after a treedb that lives on
+four backends, and a collapsed node hiding the yunos it has open.
+
 ### Added
 
 - **The Schemas workspace of the agent console edits a schema AS A SCHEMA**
-    (JS submodules: `gobj-ui` 6.2.1, `yunos-js`). Every schema a yuno holds
+    (JS submodules: `gobj-ui` 6.3.0, `yunos-js`). Every schema a yuno holds
     lives in its `treedb_system_schema`, stored as data in three flat topics
     linked by fkeys — `treedbs` -> `topics` -> `cols`. That is the right
     storage and it was the whole screen: adding one column to one topic meant
@@ -40,6 +44,23 @@ losing your place in it.
     editor learned it by detaching a topic from its treedb on a dev node, with
     the write answering success.
 
+- **Both consoles say WHICH machine you are looking at** (JS submodules:
+    `gobj-ui` 6.3.0, `yunos-js`). The same blind spot in two shapes, and the
+    same cost: an edit made on the node you did not mean.
+
+    A **gui_treedb tab** is labelled with the TREEDB name, and a treedb name is
+    not unique across backends — two tabs reading `treedb_authzs` are two
+    different machines. `C_YUI_TREEDB_TOPICS` takes a `source_url` and prints
+    it in its toolbar, which is where it fits: a tab wide enough for
+    `wss://host:1996` is a tab bar with room for one tab.
+
+    In the **agent console** what is open in Statistics and Schemas is a YUNO,
+    and the checkbox that says so is on a child row — invisible while the node
+    is collapsed, which is how a node is read most of the time. The node row
+    now carries the labels of its open yunos, read from the SELECTION and not
+    from the loaded children, because it is asked exactly when the children are
+    not on screen.
+
 ### Fixed
 
 - **`system-schema` answered with a validator, not with the schema.** The
@@ -58,7 +79,7 @@ losing your place in it.
     descriptor and `c_treedb`'s materialization of the `__system__` treedb now
     go through it too.
 
-- **The consoles stop losing your place** (JS submodules: `gobj-ui` 6.2.1,
+- **The consoles stop losing your place** (JS submodules: `gobj-ui` 6.3.0,
     `yunos-js`). Two reports from the agent console's Schemas workspace, and
     the same shape twice:
 
@@ -77,6 +98,16 @@ losing your place in it.
         root of the tab you were already in, which is the view's own way OUT of
         a topic. gui_agent already did this for its node tabs; gui_treedb does
         it now for its treedb tabs, with the decision in a tested function.
+
+    - **The picker was ERASING the position** it should have replayed. A tab
+        replays where it was left when it is entered again, and "again" was
+        decided by whether the previous route was another tab — but the picker
+        left that decision by its own early return, so the tab it had left
+        behind stayed on record as the one we were in. Going to Select and back
+        read exactly like walking up out of a topic: no replay, and the root
+        recorded over the position. The tab we were in is now consumed at the
+        one point every route passes through and written again only by the tab
+        branch, so a route that forgets to clear it cannot exist.
 
     Also: a **yuno tab names its node** (`yuneta_agent · wattyzer`). Every node
     runs a `yuneta_agent`, so two tabs of two nodes read the same and there was
@@ -118,6 +149,20 @@ losing your place in it.
         deliberately frozen until the version rises — that is what stops a
         change to WHAT a column declares from arriving unannounced — and a
         change to the order announces nothing new.
+
+- **A phone stopped cutting the node list in half** (`yunos-js`). Tabulator
+    ends a cell that does not fit with an ellipsis, and `fitColumns` leaves the
+    status column about half of what *"Ejecutando Solo lectura"* needs. Name and
+    status wrap now. Two things were needed: `variableHeight` on the columns, so
+    the table grows the rows, and `height: auto` on those cells, because
+    Tabulator measures once and writes that height into every cell — a column
+    that gets narrower afterwards (a rotated phone, a resized window) wraps into
+    a height nobody re-measured and loses the second line.
+
+- **gui_treedb opens on the work.** Its rail is Topics / Graphs / Connections,
+    the backends last: they are where you go when one has to be added or fixed,
+    which is not what a session is spent doing. `/connections` is the same
+    route — linkable, in the site map, and the landing is unchanged.
 
 - **Meta-schema at `schema_version` 15** (`topics` topic_version 7, `cols` 9),
     which re-projects every store on the next start and rewrites every

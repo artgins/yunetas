@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.2.1`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `6.3.0`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -68,7 +68,9 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   (`with_node_click`) after 6.1.1 published it under hosts that never asked;
   `6.2.x` lets a `C_YUI_NODE` tree remember where each child was left
   (`remember_position`), so a strip of children stops behaving like a row of
-  tabs that forgets.
+  tabs that forgets; `6.3.0` gives `C_YUI_TREEDB_TOPICS` a `source_url` it
+  prints in its toolbar, because a tab labelled with a treedb name does not
+  say which BACKEND that treedb is on.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package
@@ -98,8 +100,8 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.13.1`; the gobj-js package sits at
-`7.12.0` on npm, behind because neither 7.13.0 nor 7.13.1 moved anything on its
+versioned to track `YUNETA_VERSION` (SDK `7.14.0`; the gobj-js package sits at
+`7.12.0` on npm, behind because nothing since 7.13.0 moved anything on its
 side: it moved at 7.10.0 for the `gobj_post_event()`
 alignment and again at 7.12.0, where `gclass_find_by_name()` /
 `gobj_find_service()` stopped answering `undefined` for a lookup that finds
@@ -1460,7 +1462,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.13.1) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.14.0) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |
