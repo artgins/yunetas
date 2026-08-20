@@ -54,6 +54,28 @@
     was the only way there was; the header carries the state of the whole
     column (all / none / some) and flips it.
 
+- **A treedb nobody has arranged opens laid out, not piled up**
+    (`gobj-ui` 7.5.7, `gui_treedb` 0.9.2). `manual` means "leave every node
+    where it was put", and where none was put it means a cascade —
+    `get_default_ne_xy()` walks x and y together, so a first open was a
+    diagonal pile of cards, 126 of them on `treedb_system_schema`, and the way
+    out was knowing to pick a layout by hand. It opens in **dagre** unless most
+    of its nodes carry a saved position; the pick is not persisted, so one
+    dragged node makes `manual` right again by itself.
+
+    Two traps came out of this that are worth knowing beyond it, and both cost
+    a wrong guess before the real value was pulled out:
+
+    - **`gobj_write_attr()` writes the private field of the same name.** A
+      `priv.x` therefore stops answering "did the HOST set attr x?" the moment
+      anything resolves a default into it.
+    - **After a graph is built, `record._geometry` is not evidence of anything
+      a human did.** `get_node_graph_props()` returns the record's own
+      `_geometry` when it has one — and a treedb hands back `{}` for a record
+      nobody moved — and the `kw_get_int(..., KW_CREATE)` that follow write the
+      invented cascade coordinates into it. Every node of every treedb read as
+      "placed".
+
 ### Fixed
 
 - **The amber highlight in the treedb graph had never appeared**

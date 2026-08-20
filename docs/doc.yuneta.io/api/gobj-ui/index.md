@@ -15,8 +15,8 @@ It sits on top of [`@yuneta/gobj-js`](../js/index.md), and it holds the same
 rules: a DOM callback translates a notification of the browser into an event,
 and the work happens in an action of a state machine.
 
-**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.4.5) —
-**version:** `7.4.5`
+**Source code:** [github.com/artgins/gobj-ui.js](https://github.com/artgins/gobj-ui.js/tree/7.5.7) —
+**version:** `7.5.7`
 
 ---
 
