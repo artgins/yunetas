@@ -3172,7 +3172,7 @@ PUBLIC int walk_dir_tree(
     regex_t r;
 
     if(!is_directory(root_dir)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open directory",
