@@ -164,7 +164,7 @@ PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, h
 PRIVATE json_t* cmd_list_denied_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
-PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -388,7 +388,7 @@ SDATACM2(DTP_SCHEMA,    "remove-allowed-ip",        SDF_AUTHZ_X, 0,      pm_remo
 SDATACM2(DTP_SCHEMA,    "list-denied-ips",          SDF_AUTHZ_X, 0,      0,          cmd_list_denied_ips,        "List denied ips"),
 SDATACM2(DTP_SCHEMA,    "add-denied-ip",            SDF_AUTHZ_X, 0,      pm_add_denied_ip, cmd_add_denied_ip,    "Add a ip to denied list"),
 SDATACM2(DTP_SCHEMA,    "remove-denied-ip",         SDF_AUTHZ_X, 0,      pm_remove_denied_ip, cmd_remove_denied_ip, "Add a ip to denied list"),
-SDATACM2(DTP_SCHEMA,    "system-schema",            SDF_AUTHZ_X, 0,      0, cmd_system_topic_schema,             "Get system topic schema"),
+SDATACM2(DTP_SCHEMA,    "system-schema",            SDF_AUTHZ_X, 0,      0, cmd_system_schema,                   "Get the treedb meta-schema"),
 SDATACM2(DTP_SCHEMA,    "global-variables",         SDF_AUTHZ_X, 0,      0, cmd_global_variables,                "Get global variables"),
 
 SDATACM2(DTP_SCHEMA,    "truncate-log-file",        SDF_AUTHZ_X, 0,      0,          cmd_truncate_log_file,        "Truncate current log file"),
@@ -4141,17 +4141,22 @@ PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
+    json_t *jn_schema = treedb_create_system_schema();
+
     /*
      *  Inform
      */
     json_t *kw_response = build_command_response(
         gobj,
+        jn_schema?0:-1,
+        jn_schema?0:json_sprintf(
+            "%s: cannot parse the treedb meta-schema",
+            gobj_yuno_role_plus_name()
+        ),
         0,
-        0,
-        0,
-        _treedb_create_topic_cols_desc()
+        jn_schema
     );
     JSON_DECREF(kw)
     return kw_response;

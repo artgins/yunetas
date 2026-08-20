@@ -42,6 +42,22 @@ losing your place in it.
 
 ### Fixed
 
+- **`system-schema` answered with a validator, not with the schema.** The
+    command of `C_NODE` and `C_YUNO` returned `_treedb_create_topic_cols_desc()`
+    — the descriptor a user column is validated against, which is DERIVED from
+    the `cols` topic of `treedb_system_schema`: one topic of three, with the
+    storage-only fields dropped and `value` renamed back to `id`. What it
+    claims to answer is the meta-schema, and `C_NODE` already publishes the
+    schema of its own treedb through `desc`/`descs`, so there was nothing else
+    it could mean. It now returns the whole thing — `treedbs` -> `topics` ->
+    `cols` plus the `schema_version` that says how a schema is stored — and it
+    reports a parse failure instead of answering an empty success.
+
+    The literal is handed over by the new `treedb_create_system_schema()`
+    (`tr_treedb.h`), which is where the parse lived three times: the column
+    descriptor and `c_treedb`'s materialization of the `__system__` treedb now
+    go through it too.
+
 - **The consoles stop losing your place** (JS submodules: `gobj-ui` 6.2.1,
     `yunos-js`). Two reports from the agent console's Schemas workspace, and
     the same shape twice:

@@ -95,7 +95,7 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -304,7 +304,7 @@ SDATACM2 (DTP_SCHEMA,   "print-tranger",SDF_AUTHZ_X,    0,  pm_print_tranger,cmd
 SDATACM2 (DTP_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_node_pkey2s,    "List node's pkey2"),
 SDATACM2 (DTP_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
 SDATACM2 (DTP_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
-SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_topic_schema, "Get system schema"),
+SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_schema, "Get the treedb meta-schema"),
 SDATACM2 (DTP_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
 SDATA_END()
 };
@@ -2883,16 +2883,21 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
+    json_t *jn_schema = treedb_create_system_schema();
+
     /*
      *  Inform
      */
     return msg_iev_build_response(gobj,
+        jn_schema?0:-1,
+        jn_schema?0:json_sprintf(
+            "%s: cannot parse the treedb meta-schema",
+            gobj_yuno_role_plus_name()
+        ),
         0,
-        0,
-        0,
-        _treedb_create_topic_cols_desc(),
+        jn_schema,
         kw  // owned
     );
 }

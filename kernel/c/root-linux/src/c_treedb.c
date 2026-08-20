@@ -306,11 +306,9 @@ PRIVATE void mt_create(hgobj gobj)
     /*-------------------------------*
      *      Create System Treedb
      *-------------------------------*/
-    helper_quote2doublequote(treedb_system_schema);
-    json_t *jn_treedb_system_schema;
-    jn_treedb_system_schema = legalstring2json(treedb_system_schema, TRUE);
+    json_t *jn_treedb_system_schema = treedb_create_system_schema();
     if(!jn_treedb_system_schema) {
-        exit(-1);
+        exit(-1);   // Error already logged
     }
 
     /*

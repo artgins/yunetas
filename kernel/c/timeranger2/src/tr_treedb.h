@@ -237,6 +237,7 @@ PUBLIC size_t treedb_topic_size(
 /*------------------------------------*
  *      Utils
  *------------------------------------*/
+PUBLIC json_t *treedb_create_system_schema(void); // Return the treedb meta-schema, owned
 PUBLIC json_t *_treedb_create_topic_cols_desc(void);
 
 PUBLIC int parse_schema(

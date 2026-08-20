@@ -423,6 +423,26 @@ PRIVATE int delete_secondary_node(
 }
 
 /***************************************************************************
+ *  Return the treedb meta-schema, parsed.
+ *
+ *  `treedb_system_schema` (see kernel/c/timeranger2/src/treedb_system_schema.{c,h})
+ *  is the single source of truth for how a schema is stored: the treedbs, the
+ *  topics they hold and the columns those topics declare. This helper hands it
+ *  over whole; `_treedb_create_topic_cols_desc()` below derives the user-column
+ *  descriptor from it, and c_treedb (root-linux) materializes the __system__
+ *  treedb with it.
+ *
+ *  Ownership: the returned json_t belongs to the caller. Parse-each-call on
+ *  purpose — a cached static json_t would outlive gobj_end() and be reported
+ *  as a leak under CONFIG_DEBUG_TRACK_MEMORY.
+ ***************************************************************************/
+PUBLIC json_t *treedb_create_system_schema(void)
+{
+    helper_quote2doublequote(treedb_system_schema);   // idempotent
+    return legalstring2json(treedb_system_schema, TRUE); // Error already logged
+}
+
+/***************************************************************************
  *  Build the meta-schema for treedb column descriptors.
  *
  *  Single source of truth is the `cols` topic of `treedb_system_schema`
@@ -439,8 +459,7 @@ PRIVATE int delete_secondary_node(
  *  `value` becomes `id`, and the fields that exist only to store a column
  *  in the __system__ treedb are skipped. Adding a storage-only field to
  *  the `cols` topic without listing it here leaks it into every user
- *  schema validation and into the column editor the GUI builds from
- *  C_NODE's `system-schema`.
+ *  schema validation.
  *
  *  Ownership: the returned json_t belongs to the caller (matches the
  *  prior json_pack-based contract). Parse-each-call on purpose — keeps
@@ -450,8 +469,7 @@ PRIVATE int delete_secondary_node(
  ***************************************************************************/
 PUBLIC json_t *_treedb_create_topic_cols_desc(void)
 {
-    helper_quote2doublequote(treedb_system_schema);   // idempotent
-    json_t *jn_schema = legalstring2json(treedb_system_schema, TRUE);
+    json_t *jn_schema = treedb_create_system_schema();
     if(!jn_schema) {
         return NULL;    // Error already logged
     }
