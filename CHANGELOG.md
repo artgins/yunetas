@@ -34,6 +34,26 @@
     calling Tabulator straight from the DOM handler, where the `machine` trace
     could not see the one action a reader performs most often.
 
+- **A legend for the topic colours, a minimap, and one click to take every
+    service** (`gobj-ui` 7.4.5, `gui_treedb` 0.9.0). A node's port colour
+    encodes the topic it links to — a deliberate, functional cue, and nothing
+    on screen said what any colour meant. The graph gets a legend strip, and
+    it is a strip rather than an overlay because it is read AGAINST the graph.
+    Its entries are buttons: one focuses its topic and travels up as
+    `EV_TOPIC_SELECTED`, so the host turns it into the URL and what you are
+    looking at stays linkable.
+
+    A minimap appears from 30 nodes on (`minimap_min_nodes`). One of a graph
+    that already fits on screen is decoration, so it is not a preference to
+    find and set. Its shapes are drawn by hand — a block in the topic's
+    colour — because G6's minimap clones each element's KEY SHAPE and these
+    are `html` nodes; at that scale a card is a rectangle anyway.
+
+    In Connections, the **browse** column header selects every service of a
+    connection at once. A yuno routinely exposes a dozen, and one click each
+    was the only way there was; the header carries the state of the whole
+    column (all / none / some) and flips it.
+
 ### Fixed
 
 - **The amber highlight in the treedb graph had never appeared**
