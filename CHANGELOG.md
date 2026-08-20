@@ -109,6 +109,26 @@
       invented cascade coordinates into it. Every node of every treedb read as
       "placed".
 
+
+- **The record form says what is wrong, and says it in the app's language**
+    (`gobj-ui` 7.7.1, `gui_treedb` 0.10.2). Pressing Save on a form with a bad
+    field did **nothing at all**: the branch that refuses the save wrote
+    `abort_close` and `warning` on the click's own kw, which nobody reads —
+    that pair belongs to the close path. It calls `reportValidity()` now,
+    which marks every bad field and puts the caret and the viewport on the
+    first.
+
+    The message a field did show was `input.validationMessage`: the BROWSER's
+    sentence in the BROWSER's locale, so a Spanish form on an English Firefox
+    read "Please fill out this field." The empty required field has its own
+    key now; the rest still falls back to the browser, whose wording for a bad
+    pattern or an out-of-range number is better than anything generic.
+
+    And two dialogs of the editing flow were untranslatable: `yui_shell_confirm_*`
+    renders its message as an i18n KEY, so the English sentences passed in were
+    keys nobody had defined — they render as themselves, in every language, and
+    **no locale validator can see a key that travels as data**. New keys for
+    consumers: `this field is required`, `all changes will be lost`.
 ### Fixed
 
 - **The amber highlight in the treedb graph had never appeared**
