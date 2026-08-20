@@ -2,7 +2,68 @@
 
 ## Unreleased
 
+### Added
+
+- **A topic table you can read, and a graph you can search**
+    (JS submodules: `gobj-ui` 7.3.0, `yunos-js` — `gui_treedb` 0.8.0).
+    The treedb topic table had a single global search box while the read-only
+    tranger browser sitting next to it had per-column filters, a column chooser
+    and a CSV export: the richer table was the one that cannot write. It has
+    all three now (`with_header_filters`, `with_columns_button`,
+    `with_export_button`, all default on).
+
+    The filter box is **not** put on every column. A hook holds children, a
+    dict holds a subtree, and a date cell shows a formatted string over an
+    epoch number — a text match against the raw value there is a box that lies,
+    so those columns get none. A `boolean` gets a tristate tick, an `enum` the
+    list of its own values, and an `fkey` a box that stringifies the value
+    first, because *which rows point at X* is the question fkey columns exist
+    to answer. Search and header filters are separate layers: clearing the
+    search does not drop the column filters. The CSV carries what the table
+    HOLDS — loaded rows, visible columns, both filters applied — and not the
+    topic, which is a server-side dump this view cannot stream.
+
+    The graph gets a find box. It matches the term against a node's **label**
+    as well as its id — a topic keyed by `rowid` / `uuid` / `qualified` is
+    keyed by a counter or a path while the name a human knows sits in a
+    secondary key — and it **says how many** it found, because a graph that
+    did not move looks the same whether nothing matched or the match was
+    already on screen.
+
+    Searching in the table now crosses the FSM (`EV_SEARCH`) instead of
+    calling Tabulator straight from the DOM handler, where the `machine` trace
+    could not see the one action a reader performs most often.
+
 ### Fixed
+
+- **The amber highlight in the treedb graph had never appeared**
+    (`gobj-ui` 7.3.0). `EV_FOCUS_TOPIC` has been setting G6's `active` element
+    state since the topic-cards landing, and that state is defined as an amber
+    `stroke` plus a `halo` — both properties of a node's KEY SHAPE. Every node
+    in this graph is an `html` node, whose key shape is a DOM element, so
+    neither property ever had anything to paint on: the topic focus centred the
+    viewport and marked nothing. The highlight is drawn into the card's own
+    html now, repainting only the cards whose state changes, and a theme switch
+    carries it across — that path rebuilds every card and would otherwise clear
+    what is on screen.
+
+- **The row-count footer lied under a filter** (`gobj-ui` 7.2.4 + 7.2.5). It
+    read "5 Filas" over four visible rows. `dataProcessed` fires on `setData`,
+    not on a filter; and subscribing to `dataFiltered` was not enough either,
+    because Tabulator dispatches that event from inside its own `filter()`,
+    which only returns the surviving rows to the pipeline afterwards — so
+    `getDataCount("active")` answers the pre-filter set there. The footer takes
+    the rows the event hands over. It went unnoticed while the only filter was
+    the global search box.
+
+- **A filtered column had no room for its filter** (`gobj-ui` 7.2.2 + 7.2.3).
+    The table lays out `fitDataFill`, which sizes a column to its DATA, so a
+    `Role` column holding "root" came out narrower than the box it had just
+    been given and its placeholder was cut to "filtrar c". Text and list
+    filters carry a `minWidth` of 150 — what the placeholder needs in the
+    LONGEST locale, which is the measure that decides, since a column width
+    cannot follow the language.
+
 
 - **The schema diagram keeps the size it is drawn at, and its arrows say who
     references whom** (JS submodules: `gobj-ui` 7.0.1, `yunos-js`). Selecting
