@@ -65,7 +65,10 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   floor gobj-js `^7.13.2`, for the qualified pkey); `6.1.x` added
   `C_YUI_SCHEMA_EDITOR`, the schema editor the agent console's Schemas
   workspace lands on, and made the schema view's node click opt-in
-  (`with_node_click`) after 6.1.1 published it under hosts that never asked.
+  (`with_node_click`) after 6.1.1 published it under hosts that never asked;
+  `6.2.x` lets a `C_YUI_NODE` tree remember where each child was left
+  (`remember_position`), so a strip of children stops behaving like a row of
+  tabs that forgets.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package

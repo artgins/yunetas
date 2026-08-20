@@ -5,7 +5,8 @@
 A schema stops being read by its rows. The order of the columns is part of
 the schema and no longer the order the filesystem happens to hand the
 projection back in; and the console that edits schemas stops showing the
-three topics they are STORED in and shows the schema they ARE.
+three topics they are STORED in and shows the schema they ARE — and stops
+losing your place in it.
 
 ### Added
 
@@ -40,6 +41,30 @@ three topics they are STORED in and shows the schema they ARE.
     the write answering success.
 
 ### Fixed
+
+- **The consoles stop losing your place** (JS submodules: `gobj-ui` 6.2.1,
+    `yunos-js`). Two reports from the agent console's Schemas workspace, and
+    the same shape twice:
+
+    - A **strip of treedbs** dropped what each one had open. Open a topic,
+        move to a sibling treedb, come back — its cards, with browser Back the
+        only way to the table that was there. A `C_YUI_NODE` nav item pointed
+        at the canonical route of its child; with the new `remember_position`
+        it points at the tail last active under it. It stays a REAL position,
+        which is why this belongs to the tree and not to a viewer restoring
+        itself: clicking is a navigation like any other and nothing argues with
+        the url.
+    - **Shell tabs** had it too, and there the same trick is impossible: an
+        item's route is where the tab's view is MOUNTED and what a deep link
+        resolves to, so moving it would move the mount. The position is
+        replayed when the tab is ENTERED AGAIN — never when you arrive at the
+        root of the tab you were already in, which is the view's own way OUT of
+        a topic. gui_agent already did this for its node tabs; gui_treedb does
+        it now for its treedb tabs, with the decision in a tested function.
+
+    Also: a **yuno tab names its node** (`yuneta_agent · wattyzer`). Every node
+    runs a `yuneta_agent`, so two tabs of two nodes read the same and there was
+    no way to know which one you were typing into.
 
 - **A table paints its columns in the order the schema declares them
     again.** Since 7.13.0 a treedb opens from its `__system__` projection, and
