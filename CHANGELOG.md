@@ -63,6 +63,12 @@
     of its nodes carry a saved position; the pick is not persisted, so one
     dragged node makes `manual` right again by itself.
 
+    And it opens FITTED — but never zoomed out past the point where a card
+    carries no readable text. dagre spreads a schema treedb (one topic, a
+    hundred columns) far enough that fitting lands near 0.2 zoom: technically
+    the whole graph, and a hairline. It stops at a legible zoom and centres,
+    and the minimap such a graph always has says where that part is.
+
     Two traps came out of this that are worth knowing beyond it, and both cost
     a wrong guess before the real value was pulled out:
 
