@@ -4,6 +4,21 @@
 
 ### Fixed
 
+- **A probe that spells itself `/%2eenv` is still a probe** (`webstats`).
+    The probe patterns were matched against the raw path, so a scanner that
+    percent-encodes the interesting characters — `/%2eenv`, `/%2egit/%63onfig`,
+    `/%2f%2eaws%2fcredentials` — shared no substring with `.env` or `/.git` and
+    was counted as ordinary traffic. Ten such requests hid in one day of one
+    node, which is also ten the packaged `fail2ban` filter never saw.
+
+    The path is now percent-decoded before the patterns are applied, which is
+    what it already means at the HTTP layer. Chasing the encodings from the
+    pattern list instead is a game with no last move (`%2E`, `%2f`, and the
+    combinations of both), so the patterns stay in their plain form.
+
+    A malformed escape is copied verbatim, and so is `%00`: decoded it would
+    end the string and hide the rest of the path from the match.
+
 - **The agent's init script started a second web server, by hand**
     (`yuno_agent`). `yunos/c/yuno_agent/service/yuneta_agent` had drifted from
     the script the packagers generate, and it still carried a bare

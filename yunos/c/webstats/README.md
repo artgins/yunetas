@@ -260,6 +260,10 @@ table is the suite talking to itself.
   ⚠️ The filter must **not** key on the status code. A SPA vhost
   (`try_files … /index.html`) answers **200** to any path. That is the bug that
   made the packaged fail2ban filter blind on both console vhosts.
+  The patterns are matched against the **percent-decoded** path, so a scanner
+  writing `/%2eenv` is counted with the ones that write `/.env`. Write the
+  patterns in their plain form only; adding the encodings to the list is a
+  game with no last move (`%2E`, `%2f`, and the combinations of both).
 - **Latency**, once the log format carries it (§10): count, sum, max and a
   fixed histogram, per vhost and total.
   Buckets, in seconds:

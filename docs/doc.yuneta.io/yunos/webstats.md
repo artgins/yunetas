@@ -58,6 +58,9 @@ clients / agents / referrers, every 5xx whole, probes (counted, never banned —
 that is `fail2ban`'s job), a latency histogram, and the error log grouped by
 signature.
 
+A probe is matched on the **percent-decoded** path, so the scanner that asks
+for `/%2eenv` is counted with the ones that ask for `/.env`.
+
 ## Configuration
 
 | Attribute | Default | Purpose |

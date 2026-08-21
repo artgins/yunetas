@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <string.h>
 #include <strings.h>    /* strcasestr() */
+#include <ctype.h>      /* isxdigit() */
 #include <time.h>
 #include <unistd.h>
 
@@ -1380,6 +1381,41 @@ PRIVATE int parse_access_line(const char *line, ACCESS_LINE *al)
 }
 
 /***************************************************************************
+ *  Percent-decode a path into bf, for matching only.
+ *
+ *  A scanner writes the probe as `/%2eenv` and `/%2egit/%63onfig`, which is
+ *  the same request as `/.env` and `/.git/config` but shares no substring
+ *  with them, so a literal match counts it as ordinary traffic. Decoding
+ *  once is what the path already means at the HTTP layer; chasing the
+ *  encodings from the pattern list instead is a game with no last move
+ *  (`%2E`, `%2f`, and the combinations of both).
+ *
+ *  A malformed escape (a lone `%`, a bad hex digit) is copied verbatim: it
+ *  is what the peer asked for. `%00` is copied verbatim too — decoded it
+ *  would end the string here and hide the rest of the path from the match.
+ ***************************************************************************/
+PRIVATE void percent_decode(char *bf, size_t bfsize, const char *s, size_t len)
+{
+    size_t w = 0;
+
+    for(size_t r = 0; r < len && w + 1 < bfsize; r++) {
+        if(s[r] == '%' && r + 2 < len &&
+                isxdigit((unsigned char)s[r+1]) && isxdigit((unsigned char)s[r+2])) {
+            char hex[3] = {s[r+1], s[r+2], 0};
+            int v = (int)strtol(hex, NULL, 16);
+            if(v != 0) {
+                bf[w++] = (char)v;
+                r += 2;
+                continue;
+            }
+        }
+        bf[w++] = s[r];
+    }
+
+    bf[w] = 0;
+}
+
+/***************************************************************************
  *  Add one access line of the target day to the counters.
  ***************************************************************************/
 PRIVATE int accumulate_access_line(hgobj gobj, const char *line)
@@ -1569,7 +1605,7 @@ PRIVATE int accumulate_access_line(hgobj gobj, const char *line)
      *  Probes, by what is asked and never by the status code.
      */
     char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%.*s", (int)al.path_len, al.path);
+    percent_decode(path, sizeof(path), al.path, al.path_len);
 
     json_t *jn_pattern;
     json_array_foreach(priv->jn_probe_list, idx, jn_pattern) {
