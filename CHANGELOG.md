@@ -4,6 +4,35 @@
 
 ### Added
 
+- **A delete says what it takes with it** (`gobj-ui` 7.10.3, `gui_treedb`
+    0.13.3). The question was `are you sure` — the same words for one loose
+    record and for one with six children hanging off it. And these views
+    delete with **`force`**, which on a treedb node does not only remove it:
+    its children are **UNLINKED** (they survive, loose) and it is cleaned off
+    its parents. An operator could detach six records believing they had
+    removed one.
+
+    It names what is going and adds a line per thing at stake, each only when
+    there IS something at stake — a loose record must not be dressed up as a
+    dangerous one. Counted off the record the table already has, so asking
+    costs no round trip; the counting is pure and tested, because a hook or
+    fkey value arrives as a list of refs, a dict keyed by id or a single ref
+    string, and a column can be BOTH — which counts on both sides, because the
+    delete does both things.
+
+    In the graph the node-delete popover carries the same lines, and the
+    **unlink** popover carries the reassurance that is its whole point:
+    *neither record is deleted*. Next to a delete button painted the same red,
+    that is not obvious.
+
+    Three traps, all found by running it, and all worth knowing before
+    composing any message from keys: `yui_shell_confirm_*` renders its message
+    **as an i18n key** (so a composed sentence can never be one — pass DOM);
+    `createElement2` **trims text nodes** (so a `" "` separator vanishes and it
+    reads "BorrarDeveloper" — space with CSS); and a **counted** word must
+    carry no `i18n` attribute, because the dialog re-translates from the key
+    alone, without the count, and puts the plural back over the singular.
+
 - **`nodes` can answer a PAGE** (`c_node.c`). A treedb lives in memory, so
     walking it is not what costs: serializing every node, pushing it through a
     websocket and parsing it in a browser is. `nodes` takes `from` (1-based)
