@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.0.1`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.10.3`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -75,7 +75,14 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   land on the parent's hook, where the `.c` literal and the `↖` of the fkey
   mark put them. `7.0.0` is a third dependency-only major, raising the
   `maplibre-gl` floor to `^6.4.1` — where `DOM.sanitize` stops skipping the
-  attribute after each one it removes.
+  attribute after each one it removes. `7.1.x`–`7.10.x` is the treedb GUI
+  round: the topic table gets per-column filters, a column chooser, a CSV
+  export and in-place editing of a writable scalar; the graph gets a find box,
+  a topic-colour legend and a minimap, and opens a treedb nobody has arranged
+  in `dagre` instead of a diagonal pile; a topic can be pulled a PAGE at a
+  time (`with_remote_paging`, needs the SDK's paged `nodes`); and a delete
+  finally says what it takes with it, which with `force` is every child
+  UNLINKED.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package

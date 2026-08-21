@@ -263,8 +263,7 @@ already fine). What the audit left open:
   `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
   version, browse it read-only, roll back: all there, zero UI); **backup /
   restore** (`export-db` / `import-db`, a base64 payload maps straight to a
-  browser download / file input); server-side `filter` + `size` on `nodes` (the
-  topics view pulls the WHOLE topic and filters client-side); `backward` on
+  browser download / file input); `backward` on
   `open-iterator` (newest-first paging); and the relationship inspector
   (`parents` / `children` / `links`, plus `jtree`, whose ready-made tree with
   `__path__` we ignore in favour of a flat `nodes` list).
