@@ -68,7 +68,7 @@ signature.
 | `send_email` | `true` | `false` keeps the record and skips the mail |
 | `email_to` | — | Destination |
 | `email_from` | — | Sender. Empty: `<hostname>@<email_from_domain>` |
-| `email_from_domain` | `artgins.com` | Domain the hostname is composed with. Empty: the default of the email service |
+| `email_from_domain` | — | Domain the hostname is composed with. Empty: the sender is left to the email service |
 | `email_service` | `emailsender` | Service that sends |
 | `top_n` | 20 | Rows per top table |
 | `internal_networks` | — | Address prefixes not counted as clients |
