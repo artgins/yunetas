@@ -27,6 +27,10 @@
     starts the web server with `systemctl start yuneta-webserver` — idempotent,
     and it picks nginx or openresty as the node chose.
 
+    `ENTRY_POINT.md` §8.3.1 now says who owns the web server at boot, and
+    §8.3 adds the `ulimit -l` the script has always set and the doc never
+    showed — the memlock ceiling an io_uring ring is counted against.
+
 - **The GeoJSON owes maplibre a real boolean** (`gobj-ui` 7.10.5).
     `devices2geojson` copied `device.connected` into the feature properties
     verbatim. Four style expressions test it with `['case', ...]`, and maplibre
