@@ -1193,7 +1193,38 @@ For a hot rollout in which you cannot restart the yunos:
    ycommand -c 'command-yuno id=<yuno> service=<treedb> command=list-nodes topic=<topic>'
    ```
 
-### 5.3 Create a node and link it to a parent
+### 5.3 Read a topic a PAGE at a time
+
+A treedb lives in memory, so walking it is not what costs: serializing every
+node, pushing it through a websocket and parsing it in a browser is. So
+`nodes` can cut the answer on the way out:
+
+```bash
+# every node, as always
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=nodes topic_name=<topic>'
+
+# the second page of 50
+ycommand -c 'command-yuno id=<yuno> service=<treedb> command=nodes topic_name=<topic> from=51 limit=50'
+```
+
+`from` is **1-based**. With **no `limit`** the answer is the plain list it has
+always been, so every client written before this keeps working; asking for a
+page gets the envelope `get-page` uses:
+
+```json
+{"total_rows": 1234, "pages": 25, "data": [ ... ]}
+```
+
+That is deliberately the same contract as `list-keys` of `C_TRANGER`, so a
+client pages nodes exactly as it pages records. A page past the end is empty
+and still reports the true `total_rows`.
+
+Filtering happens BEFORE the cut: `filter` selects, `from`/`limit` slice what
+was selected, so `total_rows` is the size of the match and not of the topic.
+
+Pinned by `tests/c/c_node_paged_nodes`.
+
+### 5.4 Create a node and link it to a parent
 
 In C, inside an action or command handler:
 
@@ -1218,7 +1249,7 @@ gobj_link_nodes(gobj, "users",
 // `parent` is unchanged on disk.
 ```
 
-### 5.4 Inspect snapshots
+### 5.5 Inspect snapshots
 
 ```bash
 ycommand -c 'command-yuno id=<yuno> service=<treedb> command=snaps'
@@ -1232,7 +1263,7 @@ The command is `snaps`, not `list-snaps` — only its handler is called
 forwards to other services, so `__yuno__` answers that the command does not
 exist. The same applies to `list-nodes` above, which is an alias of `nodes`.
 
-### 5.5 Recover from a botched schema change
+### 5.6 Recover from a botched schema change
 
 ```bash
 # 1. stop the yuno that owns the store
@@ -1248,7 +1279,7 @@ ycommand -c 'run-yuno id=<yuno>'
 
 For production, do this against a backup. Never `rm -rf` a live store.
 
-### 5.6 Read another yuno's topic non-master (`rt_by_disk`)
+### 5.7 Read another yuno's topic non-master (`rt_by_disk`)
 
 Pseudocode in a different yuno that does NOT own the store:
 

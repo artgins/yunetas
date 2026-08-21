@@ -195,6 +195,8 @@ PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_JSON,      "filter",       0,              0,          "Search filter"),
+SDATAPM (DTP_INTEGER,   "from",         0,              0,          "First matching node to return, 1-based (with limit)"),
+SDATAPM (DTP_INTEGER,   "limit",        0,              0,          "How many nodes to return. 0 = every one, and the answer is the plain list it has always been"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
@@ -3122,15 +3124,73 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_incref(_jn_options),
         src
     );
+    if(!nodes) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_string(gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  A PAGE of the matched nodes.
+     *
+     *  The treedb is already in memory, so walking it is not what costs: what
+     *  costs is serializing every node, pushing it through the websocket and
+     *  parsing it in a browser. So the cut is made here, on the way out.
+     *
+     *  Same contract as `list-keys` of C_TRANGER, deliberately: with no
+     *  `limit` the answer is the plain list it has always been, so every
+     *  client written before this keeps working; asking for a page gets the
+     *  same envelope `get-page` uses, so a client pages nodes exactly as it
+     *  pages records. `from` is 1-based.
+     *
+     *  KW_WILD_NUMBER: these travel as strings through the agent's
+     *  command-yuno forwarding, which does not coerce.
+     */
+    json_int_t from = (json_int_t)kw_get_int(gobj, kw, "from", 0, KW_WILD_NUMBER);
+    json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 0, KW_WILD_NUMBER);
+    if(from < 1) {
+        from = 1;
+    }
+    if(limit < 0) {
+        limit = 0;
+    }
+
+    json_int_t total_rows = (json_int_t)json_array_size(nodes);
+    json_t *jn_result = nodes;
+
+    if(limit > 0) {
+        json_t *jn_page = json_array();
+        json_int_t last = from + limit - 1;
+        for(json_int_t i = from; i <= last && i <= total_rows; i++) {
+            json_t *node = json_array_get(nodes, (size_t)(i - 1));
+            if(node) {
+                json_array_append(jn_page, node);
+            }
+        }
+        JSON_DECREF(nodes)
+
+        json_int_t pages = (total_rows + limit - 1) / limit;
+        if(pages < 1) {
+            pages = 1;
+        }
+        jn_result = json_pack("{s:I, s:I, s:o}",
+            "total_rows", total_rows,
+            "pages", pages,
+            "data", jn_page
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
-        nodes?0:-1,
-        nodes?
-            json_sprintf("%d nodes", (int)json_array_size(nodes)):
-            json_string(gobj_log_last_message()),
-        nodes?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
-        nodes,
+        0,
+        json_sprintf("%s: %d nodes", gobj_yuno_role_plus_name(), (int)total_rows),
+        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
+        jn_result,
         kw  // owned
     );
 }

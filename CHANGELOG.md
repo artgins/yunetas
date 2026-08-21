@@ -4,6 +4,24 @@
 
 ### Added
 
+- **`nodes` can answer a PAGE** (`c_node.c`). A treedb lives in memory, so
+    walking it is not what costs: serializing every node, pushing it through a
+    websocket and parsing it in a browser is. `nodes` takes `from` (1-based)
+    and `limit`, and cuts the answer on the way out.
+
+    The contract is deliberately the one `list-keys` of `C_TRANGER` already
+    uses: with **no `limit`** the answer is the plain list it has always been,
+    so every client written before this keeps working; asking for a page gets
+    the envelope `get-page` uses, `{total_rows, pages, data}`, so a client
+    pages nodes exactly as it pages records. Filtering happens BEFORE the cut,
+    so `total_rows` is the size of the match and not of the topic, and a page
+    past the end is empty while still reporting the true total.
+
+    `KW_WILD_NUMBER` on both, because they arrive as strings through the
+    agent's `command-yuno` forwarding, which does not coerce — and that half
+    is pinned by the test too. New test: `tests/c/c_node_paged_nodes`
+    (124/124 green). Documented in `YUNO_TREEDB.md` §5.3.
+
 - **Edit a cell of a topic table in place** (`gobj-ui` 7.8.0, `gui_treedb`
     0.11.0). Changing one field meant opening the record form, changing it,
     saving and closing — four clicks for a word. A writable scalar is editable
