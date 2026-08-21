@@ -255,8 +255,8 @@ table is the suite talking to itself.
   The 404 table separates real broken links from probes, which are counted
   apart.
 - Probes: requests that match `probe_patterns` (any `.php`, `.env`, `.git`,
-  `.aws`, `.ssh`, `.svn`, `.hg`, `/wp-*`), with the count, the distinct
-  clients and the top offenders.
+  `.aws`, `.ssh`, `.svn`, `.hg`, `/wp-*`, `/cgi-bin`), with the count, the
+  distinct clients and the top offenders.
   ⚠️ The filter must **not** key on the status code. A SPA vhost
   (`try_files … /index.html`) answers **200** to any path. That is the bug that
   made the packaged fail2ban filter blind on both console vhosts.

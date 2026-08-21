@@ -537,6 +537,10 @@ cat > "${STAGE}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
 #   - Dot-directories that hold source control or credentials: .env, .git,
 #     .aws, .ssh, .svn, .hg. Nothing serves these on purpose.
 #   - The WordPress surface, /wp-*. No node runs WordPress either.
+#   - /cgi-bin. No node serves CGI, and what asks for it does not want a
+#     script: the requests are path traversal reaching for /bin/sh, written
+#     as /cgi-bin/.%2e/.%2e/.../bin/sh and as the double-encoded
+#     /cgi-bin/%%32%65%%32%65/.../bin/sh.
 #
 # The status is NOT looked at, and that took a fresh node to learn. The first
 # version of this filter matched only 404, 403 and 444, on the reasoning that a
@@ -579,6 +583,7 @@ _path   = [^"?]*
 failregex = ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s\.php[^"]*" \d+ .*$
             ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s/\.(?:env|git|aws|ssh|svn|hg)[^"]*" \d+ .*$
             ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s/wp-[^"]*" \d+ .*$
+            ^<HOST> \- \S+ \[\] "%(_method)s %(_path)s/cgi-bin[^"]*" \d+ .*$
 
 ignoreregex =
 

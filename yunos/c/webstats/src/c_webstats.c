@@ -62,7 +62,8 @@ PRIVATE const double latency_edges[] = {
  *  that filter blind on both console vhosts.
  */
 PRIVATE const char *default_probe_patterns[] = {
-    ".php", ".env", "/.git", "/.aws", "/.ssh", "/.svn", "/.hg", "/wp-", 0
+    ".php", ".env", "/.git", "/.aws", "/.ssh", "/.svn", "/.hg", "/wp-",
+    "/cgi-bin", 0
 };
 
 /*

@@ -21,6 +21,11 @@
     A malformed escape is copied verbatim, and so is `%00`: decoded it would
     end the string and hide the rest of the path from the match.
 
+    `/cgi-bin` joins the default patterns, in `webstats` and in the packaged
+    `fail2ban` filter together — they are one list in two files and drift
+    between them is the bug. No node serves CGI, and what asks for it is not
+    after a script: the requests are path traversal reaching for `/bin/sh`.
+
 - **The agent's init script started a second web server, by hand**
     (`yuno_agent`). `yunos/c/yuno_agent/service/yuneta_agent` had drifted from
     the script the packagers generate, and it still carried a bare
