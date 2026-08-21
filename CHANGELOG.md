@@ -57,12 +57,12 @@
     one mailbox were indistinguishable by sender — the hostname was in the
     subject and nowhere else, which no mail client sorts or filters by.
 
-    `webstats` now names the sender itself, from its config: set
-    `email_from_domain` and it is composed with the hostname into
-    `<hostname>@<domain>`; `email_from` overrides it with a literal address.
-    Both are read-only config attributes and both default to empty, which
-    leaves the sender to the email service, as before — no domain is built
-    into the yuno.
+    `email_from` names it, and the config composes it: `json_config` resolves
+    `(^^__hostname__^^)` inside a string, so
+    `"C_WEBSTATS.email_from": "(^^__hostname__^^)@artgins.com"` reaches the
+    yuno already resolved to `wattyzer@artgins.com`. The yuno stays out of it
+    — no domain and no address shape built in — and any other variable works
+    the same way. Empty leaves the sender to the email service, as before.
 
 - **A delete says what it takes with it** (`gobj-ui` 7.10.3, `gui_treedb`
     0.13.3). The question was `are you sure` — the same words for one loose

@@ -218,8 +218,7 @@ SDATA (DTP_INTEGER, "report_hour",      SDF_WR|SDF_PERSIST, "6",        "Local h
 SDATA (DTP_INTEGER, "report_minute",    SDF_WR|SDF_PERSIST, "0",        "Local minute of the daily run"),
 SDATA (DTP_BOOLEAN, "send_email",       SDF_WR|SDF_PERSIST, "true",     "Send the daily report by email"),
 SDATA (DTP_STRING,  "email_to",         SDF_WR|SDF_PERSIST, "",         "Destination of the report"),
-SDATA (DTP_STRING,  "email_from",       SDF_RD,             "",         "Sender of the report. Empty: <hostname>@<email_from_domain>"),
-SDATA (DTP_STRING,  "email_from_domain",SDF_RD,             "",         "Domain of the sender, composed with the hostname. Empty: the default of the email service"),
+SDATA (DTP_STRING,  "email_from",       SDF_RD,             "",         "Sender of the report, '(^^__hostname__^^)@domain' names the node. Empty: the default of the email service"),
 SDATA (DTP_STRING,  "email_service",    SDF_RD,             "emailsender", "Service that sends the report"),
 SDATA (DTP_INTEGER, "top_n",            SDF_WR|SDF_PERSIST, "20",       "Rows per top table"),
 SDATA (DTP_INTEGER, "max_distinct_keys",SDF_RD,             "200000",   "Cap of keys per counter map"),
@@ -3416,33 +3415,6 @@ PRIVATE int send_report(hgobj gobj)
         return -1;
     }
 
-    /*
-     *  The sender names the machine. Every node sends the same daily report,
-     *  and one shared address makes them indistinguishable in the mailbox.
-     */
-    char email_from[NAME_MAX];
-    email_from[0] = 0;
-    int from_len = 0;
-    const char *from = gobj_read_str_attr(gobj, "email_from");
-    const char *from_domain = gobj_read_str_attr(gobj, "email_from_domain");
-    if(!empty_string(from)) {
-        from_len = snprintf(email_from, sizeof(email_from), "%s", from);
-    } else if(!empty_string(from_domain)) {
-        from_len = snprintf(email_from, sizeof(email_from), "%s@%s",
-            get_hostname(), from_domain
-        );
-    }
-    if(from_len < 0 || (size_t)from_len >= sizeof(email_from)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONFIGURATION,
-            "msg",          "%s", "Sender address does not fit, the report was not sent",
-            "date",         "%s", priv->target_date,
-            NULL
-        );
-        return -1;
-    }
-
     const char *email_service = gobj_read_str_attr(gobj, "email_service");
     hgobj gobj_emailsender = gobj_find_service(email_service, FALSE);
     if(!gobj_emailsender) {
@@ -3519,6 +3491,11 @@ PRIVATE int send_report(hgobj gobj)
         "body", jn_body,        // owned
         "is_html", 1
     );
+    /*
+     *  The sender names the machine: the config resolves __hostname__ before
+     *  the attr is read, so every node reports under its own address.
+     */
+    const char *email_from = gobj_read_str_attr(gobj, "email_from");
     if(!empty_string(email_from)) {
         json_object_set_new(kw_email, "from", json_string(email_from));
     }
