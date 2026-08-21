@@ -8,8 +8,10 @@
     The probe patterns were matched against the raw path, so a scanner that
     percent-encodes the interesting characters — `/%2eenv`, `/%2egit/%63onfig`,
     `/%2f%2eaws%2fcredentials` — shared no substring with `.env` or `/.git` and
-    was counted as ordinary traffic. Ten such requests hid in one day of one
-    node, which is also ten the packaged `fail2ban` filter never saw.
+    was counted as ordinary traffic. Eight such requests hid in one day of one
+    node, and the packaged `fail2ban` filter is blind to them for the same
+    reason: it matches the literals against the raw log line, and it has no
+    way to decode first.
 
     The path is now percent-decoded before the patterns are applied, which is
     what it already means at the HTTP layer. Chasing the encodings from the
