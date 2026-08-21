@@ -51,6 +51,17 @@
 
 ### Added
 
+- **The daily report says which machine sent it** (`webstats`). The mail left
+    every node with the same sender, the one persisted in `emailsender`'s
+    `from` attr (`no-reply@artgins.com` here), so five nodes reporting into
+    one mailbox were indistinguishable by sender — the hostname was in the
+    subject and nowhere else, which no mail client sorts or filters by.
+
+    `webstats` now names the sender itself: `email_from_domain`
+    (default `artgins.com`) is composed with the hostname into
+    `<hostname>@artgins.com`, and `email_from` overrides it with a literal
+    address. Both empty leave the sender to the email service, as before.
+
 - **A delete says what it takes with it** (`gobj-ui` 7.10.3, `gui_treedb`
     0.13.3). The question was `are you sure` — the same words for one loose
     record and for one with six children hanging off it. And these views

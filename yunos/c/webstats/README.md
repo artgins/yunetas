@@ -188,6 +188,8 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 | `report_minute` | int | 0 | minute of the daily run |
 | `send_email` | bool | true | false leaves the record and skips the mail |
 | `email_to` | str | — | destination |
+| `email_from` | str | — | sender; empty composes `<hostname>@<email_from_domain>` |
+| `email_from_domain` | str | `artgins.com` | domain composed with the hostname; empty leaves the sender to the email service |
 | `email_service` | str | `emailsender` | service that sends |
 | `top_n` | int | 20 | rows per top table |
 | `max_distinct_keys` | int | 200000 | cap per counter map (§8.3) |
