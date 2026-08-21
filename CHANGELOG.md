@@ -4,6 +4,29 @@
 
 ### Fixed
 
+- **The agent's init script started a second web server, by hand**
+    (`yuno_agent`). `yunos/c/yuno_agent/service/yuneta_agent` had drifted from
+    the script the packagers generate, and it still carried a bare
+    `/yuneta/bin/nginx/sbin/nginx` in its `start` case — no check for one
+    already running, and plain nginx hardcoded while the openresty line sat
+    commented out beside it.
+
+    It is not a dead file: `CMakeLists.txt` installs `service/` into
+    `/yuneta/agent`, which is where the `.deb`/`.rpm` postinst reads
+    `yuneta_agent` from to seed `/etc/init.d/`. So a build on a source node
+    overwrote the packaged script with the stale one — the same way a build
+    overwrites the agent binaries.
+
+    On a node serving with openresty, the result was a second web server of
+    the wrong kind racing `yuneta-webserver.service` for ports 80 and 443
+    every boot. It lost by eight seconds and left 21 `[emerg] bind() ...
+    Address already in use` lines behind; had it won, it would have served
+    the stock `server_name localhost` config for every vhost on the node.
+
+    The copy here is now byte-identical to the one the `.deb` generates, which
+    starts the web server with `systemctl start yuneta-webserver` — idempotent,
+    and it picks nginx or openresty as the node chose.
+
 - **The GeoJSON owes maplibre a real boolean** (`gobj-ui` 7.10.5).
     `devices2geojson` copied `device.connected` into the feature properties
     verbatim. Four style expressions test it with `['case', ...]`, and maplibre

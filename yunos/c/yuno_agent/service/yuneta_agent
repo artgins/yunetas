@@ -1,52 +1,183 @@
-#!/bin/bash
-#
-#   Linux kernel module init script
-#   To be started on boot up on Debian systems:
-#       - ``update-rc.d yuneta_agent defaults``
-#
-#   Better tools to see rc?.d:
-#       - ``sysv-rc-conf``
-#       - ``chkconfig`` (on RedHat's systems)
-#
-#
-# chkconfig: 35 30 70
-# description: Yuneta service
-#
+#!/bin/sh
 ### BEGIN INIT INFO
-# Provides:       yuneta_agent
-# Required-Start: $local_fs $remote_fs $network $time $syslog $named
-# Required-Stop:  $local_fs $remote_fs $network $time $syslog $named
-# Default-Start:  2 3 4 5
-# Default-Stop:   0 1 6
+# Provides:          yuneta_agent
+# Required-Start:    $local_fs $remote_fs $network $time $syslog $named
+# Required-Stop:     $local_fs $remote_fs $network $time $syslog $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
 # Short-Description: Yuneta Agent service
+# Description:       Start/stop Yuneta Agent yunos and selected web server (nginx or openresty)
 ### END INIT INFO
 
-PATH=/sbin:/usr/sbin:/bin:/usr/bin
-DESC="Yuneta Agent service"
-DAEMON=/yuneta/agent/yuneta_agent
-SCRIPTNAME=/etc/init.d/yuneta_agent
+# Keep it simple: Yuneta handles its own daemon/watchdog. No start-stop-daemon here.
+set -eu
 
-# Exit if the package is not installed
-[ -x "$DAEMON" ] || echo "'$DAEMON' daemon NOT FOUND"
-[ -x "$DAEMON" ] || exit 1
+YUNETA_DIR="/yuneta"
+RUN_AS="yuneta"
+
+AGENT1_BIN="${YUNETA_DIR}/agent/yuneta_agent"
+AGENT1_CFG="${YUNETA_DIR}/agent/yuneta_agent.json"
+
+AGENT2_BIN="${YUNETA_DIR}/agent/yuneta_agent22"
+AGENT2_CFG="${YUNETA_DIR}/agent/yuneta_agent22.json"
+
+if [ -r /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+else
+    log_daemon_msg() { echo "$@"; }
+    log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
+fi
+
+_set_limits() {
+    # Core dumps
+    ulimit -c unlimited || true
+    # io_uring rings are pinned memory shared per user (see the memlock note in
+    # /etc/security/limits.d/99-yuneta-core.conf). pam_limits does not reach
+    # every boot path that starts this script, so raise it here as well.
+    ulimit -l unlimited 2>/dev/null || true
+    # Try to raise the hard limit, then set the soft limit
+    TARGET=200000
+    HARD="$(ulimit -Hn 2>/dev/null || echo 0)"
+    case "$HARD" in
+        unlimited) : ;;
+        *) ulimit -Hn "$TARGET" 2>/dev/null || true ;;
+    esac
+    ulimit -n "$TARGET" 2>/dev/null || ulimit -n 65535 2>/dev/null || true
+}
+
+_run_as_yuneta() {
+    su -s /bin/sh - "$RUN_AS" -c "$*"
+}
+
+start_yunos() {
+    RC1=1
+    RC2=1
+    _set_limits
+
+    if [ -x "$AGENT1_BIN" ]; then
+        log_daemon_msg "Starting yuneta_agent"
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start" && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "start yuneta_agent rc=$RC1"
+    else
+        echo "WARN: $AGENT1_BIN not found or not executable" >&2
+        logger -t yuneta_agent_init "start yuneta_agent skipped: not executable"
+    fi
+
+    if [ -x "$AGENT2_BIN" ]; then
+        log_daemon_msg "Starting yuneta_agent22"
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start" && RC2=0 || RC2=$?
+        log_end_msg $RC2
+        logger -t yuneta_agent_init "start yuneta_agent22 rc=$RC2"
+    else
+        echo "WARN: $AGENT2_BIN not found or not executable" >&2
+        logger -t yuneta_agent_init "start yuneta_agent22 skipped: not executable"
+    fi
+
+    if [ "$RC1" -eq 0 ] || [ "$RC2" -eq 0 ]; then
+        return 0
+    fi
+    return 1
+}
+
+# ---------------- Web server: owned by systemd ----------------
+#
+#   The web server is NOT started from here any more. It has its own unit,
+#   yuneta-webserver.service, so that systemd supervises the real master
+#   process. Starting it from here as well is how a second master ends up
+#   dying with "Address already in use" while the first one keeps serving.
+#
+#   These wrappers stay so that `service yuneta_agent {start,stop,status}`
+#   still answers for the whole node, which is what an operator expects.
+WEBUNIT="yuneta-webserver.service"
+
+start_web() {
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl start "$WEBUNIT" >/dev/null 2>&1 || true
+    fi
+}
+
+stop_web() {
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop "$WEBUNIT" >/dev/null 2>&1 || true
+    fi
+}
+
+status_web() {
+    if command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active --quiet "$WEBUNIT"; then
+            echo "web: running ($(/yuneta/bin/yuneta-webserver type 2>/dev/null));"
+            return 0
+        fi
+    fi
+    echo "web: not running;"
+    return 3
+}
+# ----------------------------------------------------------------
+
+status_yunos() {
+    S=3
+    MSG=""
+
+    if command -v pgrep >/dev/null 2>&1; then
+        if pgrep -u "$RUN_AS" -f "/agent/yuneta_agent( |$)" >/dev/null; then
+            MSG="$MSG yuneta_agent: running;"; S=0
+        else
+            MSG="$MSG yuneta_agent: not running;"
+        fi
+        if pgrep -u "$RUN_AS" -f "/agent/yuneta_agent22( |$)" >/dev/null; then
+            MSG="$MSG yuneta_agent22: running;"; S=0
+        else
+            MSG="$MSG yuneta_agent22: not running;"
+        fi
+    else
+        if pidof -x yuneta_agent >/dev/null 2>&1; then MSG="$MSG yuneta_agent: running;"; S=0; else MSG="$MSG yuneta_agent: not running;"; fi
+        if pidof -x yuneta_agent22 >/dev/null 2>&1; then MSG="$MSG yuneta_agent22: running;"; S=0; else MSG="$MSG yuneta_agent22: not running;"; fi
+    fi
+
+    echo "$MSG"
+    return $S
+}
+
+stop_yunos() {
+    RC1=0
+    RC2=0
+
+    if [ -x "$AGENT1_BIN" ]; then
+        log_daemon_msg "Stopping yuneta_agent"
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop" && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "stop yuneta_agent rc=$RC1"
+    else
+        logger -t yuneta_agent_init "stop yuneta_agent skipped: not executable"
+    fi
+
+    return 0
+}
 
 case "$1" in
-  start)
-    echo -n "Starting yuneta agent service: "
-    su - yuneta -c "$DAEMON --start --config-file=/yuneta/agent/yuneta_agent.json"
-    /yuneta/bin/nginx/sbin/nginx
-    # /yuneta/bin/openresty/bin/openresty
-    su - yuneta -c "/yuneta/agent/yuneta_agent22 --start --config-file=/yuneta/agent/yuneta_agent22.json"
-    echo
-    ;;
-  stop)
-    echo -n "Stopping yuneta agent service: "
-    /yuneta/bin/yshutdown
-    echo
-    ;;
-  *)
-    echo $"Usage: $0 {start|stop}"
-    exit 1
+    start)
+        start_yunos
+        start_web
+        ;;
+    stop)
+        stop_web
+        stop_yunos
+        ;;
+    restart|force-reload)
+        stop_web || true
+        stop_yunos || true
+        start_yunos
+        start_web
+        ;;
+    status)
+        status_yunos
+        status_web
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|force-reload|status}"
+        exit 2
+        ;;
 esac
 
 exit 0

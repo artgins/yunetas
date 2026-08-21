@@ -83,6 +83,15 @@ target_link_libraries(${PROJECT_NAME}
 ##############################################
 #   Installation
 ##############################################
+#   This lands service/yuneta_agent on /yuneta/agent, where the postinst of
+#   the .deb/.rpm reads it to seed /etc/init.d/yuneta_agent -- so a build on a
+#   source node OVERWRITES what the package put there. The packagers are the
+#   authority for that script (the heredocs in packages/{deb,rpm}/
+#   make-yuneta-agent-*.sh); the copy here must stay identical to the .deb one,
+#   which is the only flavour a source node can be. When they drifted, the copy
+#   here still started /yuneta/bin/nginx/sbin/nginx by hand: a second web
+#   server, of the wrong kind on a node serving with openresty, racing the
+#   yuneta-webserver unit for ports 80 and 443.
 install(DIRECTORY service
     USE_SOURCE_PERMISSIONS
     DESTINATION "/yuneta/agent"
