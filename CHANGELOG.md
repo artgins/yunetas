@@ -4,6 +4,25 @@
 
 ### Fixed
 
+- **The GeoJSON owes maplibre a real boolean** (`gobj-ui` 7.10.5).
+    `devices2geojson` copied `device.connected` into the feature properties
+    verbatim. Four style expressions test it with `['case', ...]`, and maplibre
+    asserts a **strict** boolean there — so `null`, absent, or the `1`/`0` a
+    backend may send all fail the assertion. Reproduced against maplibre's own
+    expression engine.
+
+    **The damage was not the console.** The failed assertion leaves the cluster
+    accumulator NULL, and the cluster colour compares it against `point_count`
+    — never equal, so the cluster paints **red as if a device were down**. The
+    unclustered point and its label lose their colour expression too and fall
+    back to the property default, black, instead of green or red. The map
+    reported a state that was not true. `!!device.connected` also makes the
+    `1`/`0` case work rather than merely stop erroring.
+
+    In the same pass, `get_coordinates` read `device.settings.coordinates`
+    while its own comment says `settings` may be null — a TypeError that would
+    unwind out of `devices2geojson`.
+
 - **The map asks for its source instead of guessing from the style**
     (`gobj-ui` 7.10.4). `C_YUI_MAP`'s refresh guarded itself with
     `map.isStyleLoaded()` and then called `map.getSource('devices').setData()`.
