@@ -5,7 +5,7 @@
 ### Fixed
 
 - **The map asks for its source instead of guessing from the style**
-    (`gobj-ui` submodule). `C_YUI_MAP`'s refresh guarded itself with
+    (`gobj-ui` 7.10.4). `C_YUI_MAP`'s refresh guarded itself with
     `map.isStyleLoaded()` and then called `map.getSource('devices').setData()`.
     The style is the wrong milestone: the source is added on the map `load`
     event, and `load` fires **one render frame after** `isStyleLoaded()` turns
@@ -25,8 +25,8 @@
     settled.
 
     No in-repo consumer registers `C_YUI_MAP`, so no yuno changes here. The
-    same fix ships on the frozen v1 line as **1.0.2**, for estadodelaire and
-    hidraulia, which is where it was found.
+    same fix ships on the frozen v1 line as **1.0.2** (npm dist-tag `legacy`),
+    for estadodelaire and hidraulia, which is where it was found.
 
 ## 7.15.0
 
