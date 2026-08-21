@@ -22,13 +22,29 @@
     is pinned by the test too. New test: `tests/c/c_node_paged_nodes`
     (124/124 green). Documented in `YUNO_TREEDB.md` §5.3.
 
-    The SPA side reads the SHAPE of the answer rather than assuming it
-    (`gobj-ui` 7.8.1, `gui_treedb` 0.11.1): both shapes are alive at once and
-    will be for a long time, since the app talks to backends the operator
-    configures and an older one answers the plain list whatever is asked of
-    it. Without that, the day a backend upgraded the table would have
-    rendered an envelope's keys as rows. It does not yet ASK for pages — see
-    below.
+    **The SPA asks for pages** (`gobj-ui` 7.9.2, `gui_treedb` 0.12.2): each
+    topic table pulls the page it is showing instead of the host pushing the
+    whole topic down. The page size is generous on purpose (200), so a treedb
+    that fits in one page behaves exactly as it did — paginator hidden, every
+    filter seeing every row — and only a topic that does not fit pays for
+    paging. Safe against a backend that cannot page: it answers the whole
+    list, which the table reads as one page.
+
+    The header filters and the search box work on the page that is loaded
+    (`filterMode: "local"`), which is what the tranger browser's Rows card
+    already does and for the same reason: the alternative is pushing every
+    filter to the backend and changing what "search" means.
+
+    Verified end to end against staging: `treedb_system_schema`'s `cols`
+    arrives whole in one page of 200 (114 rows, paginator hidden), and at 50
+    per page it really pages — 50, 50, 14, with different rows on each.
+
+    Two traps worth keeping, both found by running it: the correlation id
+    must be read **flat** off the command stack (`C_IEVENT_CLI` EXTRACTS
+    `__md_command__` and pushes it AS the stack's `kw`), and whether there is
+    more page must come from `getPageMax()`, not from the row count against
+    the page size — 50 rows of a 50-row page reads as "it all fits" and it
+    does not.
 
 - **Edit a cell of a topic table in place** (`gobj-ui` 7.8.0, `gui_treedb`
     0.11.0). Changing one field meant opening the record form, changing it,
