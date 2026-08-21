@@ -1,6 +1,21 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.0
+
+### Added
+
+- **The daily report says which machine sent it** (`webstats`). The mail left
+    every node with the same sender, the one persisted in `emailsender`'s
+    `from` attr (`no-reply@artgins.com` here), so five nodes reporting into
+    one mailbox were indistinguishable by sender — the hostname was in the
+    subject and nowhere else, which no mail client sorts or filters by.
+
+    `email_from` names it, and the config composes it: `json_config` resolves
+    `(^^__hostname__^^)` inside a string, so
+    `"C_WEBSTATS.email_from": "(^^__hostname__^^)@artgins.com"` reaches the
+    yuno already resolved to `wattyzer@artgins.com`. The yuno stays out of it
+    — no domain and no address shape built in — and any other variable works
+    the same way. Empty leaves the sender to the email service, as before.
 
 ### Fixed
 
@@ -99,19 +114,6 @@
 ## 7.15.0
 
 ### Added
-
-- **The daily report says which machine sent it** (`webstats`). The mail left
-    every node with the same sender, the one persisted in `emailsender`'s
-    `from` attr (`no-reply@artgins.com` here), so five nodes reporting into
-    one mailbox were indistinguishable by sender — the hostname was in the
-    subject and nowhere else, which no mail client sorts or filters by.
-
-    `email_from` names it, and the config composes it: `json_config` resolves
-    `(^^__hostname__^^)` inside a string, so
-    `"C_WEBSTATS.email_from": "(^^__hostname__^^)@artgins.com"` reaches the
-    yuno already resolved to `wattyzer@artgins.com`. The yuno stays out of it
-    — no domain and no address shape built in — and any other variable works
-    the same way. Empty leaves the sender to the email service, as before.
 
 - **A delete says what it takes with it** (`gobj-ui` 7.10.3, `gui_treedb`
     0.13.3). The question was `are you sure` — the same words for one loose
