@@ -1,5 +1,33 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **The map asks for its source instead of guessing from the style**
+    (`gobj-ui` submodule). `C_YUI_MAP`'s refresh guarded itself with
+    `map.isStyleLoaded()` and then called `map.getSource('devices').setData()`.
+    The style is the wrong milestone: the source is added on the map `load`
+    event, and `load` fires **one render frame after** `isStyleLoaded()` turns
+    true. A refresh landing in that frame threw *"can't access property
+    setData, map.getSource(...) is undefined"* — and the throw unwound through
+    `gobj_publish_event`, aborting the publisher's own loop, so the caller
+    stopped processing the rest of its batch.
+
+    Measured against maplibre-gl 5.24.0 in Firefox, the window is exactly one
+    frame, 10-42 ms, on every run — cold cache, warm cache and a
+    `display:none` container alike.
+
+    Testing the style was wrong in the other direction too: `style.loaded()`
+    requires every tile manager to be loaded, so it returns to false while new
+    tiles come in. Once the map was up, every refresh during a pan or a zoom
+    was silently dropped and the devices stopped moving until the tiles
+    settled.
+
+    No in-repo consumer registers `C_YUI_MAP`, so no yuno changes here. The
+    same fix ships on the frozen v1 line as **1.0.2**, for estadodelaire and
+    hidraulia, which is where it was found.
+
 ## 7.15.0
 
 ### Added
