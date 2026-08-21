@@ -22,6 +22,14 @@
     is pinned by the test too. New test: `tests/c/c_node_paged_nodes`
     (124/124 green). Documented in `YUNO_TREEDB.md` §5.3.
 
+    The SPA side reads the SHAPE of the answer rather than assuming it
+    (`gobj-ui` 7.8.1, `gui_treedb` 0.11.1): both shapes are alive at once and
+    will be for a long time, since the app talks to backends the operator
+    configures and an older one answers the plain list whatever is asked of
+    it. Without that, the day a backend upgraded the table would have
+    rendered an envelope's keys as rows. It does not yet ASK for pages — see
+    below.
+
 - **Edit a cell of a topic table in place** (`gobj-ui` 7.8.0, `gui_treedb`
     0.11.0). Changing one field meant opening the record form, changing it,
     saving and closing — four clicks for a word. A writable scalar is editable
