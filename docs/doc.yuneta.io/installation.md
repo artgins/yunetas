@@ -87,6 +87,31 @@ packaged externals in place, which is the same glibc mismatch by a shorter
 road.
 :::
 
+(version-on-a-build-node)=
+### Which version a build node shows
+
+On a node that builds from source, read the version from the **binary**. Do not
+read it from the package database.
+
+`dpkg -l` or `rpm -q` can show an older release than `<binary> --version`. On a
+build node, this is the correct state. It is not an upgrade that you must do.
+
+The node builds its own SDK, and it already has that code. The package adds
+only a version string to the package database.
+
+:::{important}
+Do not install the package to make the two numbers agree.
+
+The package carries full trees from the build machine: `/yuneta/bin/nginx`,
+`/yuneta/bin/openresty`, `outputs/`, `outputs_ext/` and `tools/`. The build
+machine can have a different glibc. Then the package installs a web server that
+cannot start on this node, and archives that are not the archives of this node.
+After that, you must rebuild everything, external libraries first.
+
+The marker file `/etc/yuneta/allow-package-over-source` removes the refusal. It
+does not remove this effect.
+:::
+
 ### Tested on
 
 The command above is exercised end-to-end, on a freshly installed OS, on:
