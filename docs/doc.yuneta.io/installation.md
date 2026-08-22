@@ -1,26 +1,29 @@
 # **Installation**
 
 > **Prerequisites:** Linux, Python 3.7+, `sudo` access.
-> Full dependency lists and licenses are in [Reference](#reference) below.
+> The full lists of dependencies and licenses are in [Reference](#reference).
 
-There are two ways to install Yunetas, depending on what you want to do:
+Yunetas has two installation methods. Your task decides which method you use:
 
-- **[Quick install](#quick-install)** — pre-built package (`.deb` on
-  Debian/Ubuntu, `.rpm` on RHEL/Rocky/Alma), via a single cross-distro
-  installer. Installs the runtime (agent, CLI tools, bundled web server)
-  **and** the Yuneta libraries, headers and CMake toolchain under
-  `/yuneta/development/yunetas/`, plus (by default) the developer toolchain — so you
-  can both *run* yunos and *compile your own projects* against the published
-  runtime. What it does **not** include is Yuneta's own source tree.
-- **[Build from source](#build-from-source)** — the full source tree.
-  Use this to develop the framework itself, or to produce a customised
-  runtime with different build options (TLS backend, modules,
-  static/dynamic, build type — see [`menuconfig`](#configure-menuconfig)).
+- **[Quick install](#quick-install)** — a pre-built package. It is a `.deb` on
+  Debian and Ubuntu, and a `.rpm` on RHEL, Rocky and Alma. One installer
+  supports the two distro families. The package installs the runtime: the
+  agent, the CLI tools and the bundled web server. It also installs the Yuneta
+  libraries, the headers and the CMake toolchain under
+  `/yuneta/development/yunetas/`. By default it installs the developer
+  toolchain too. You can then *run* yunos, and you can *compile your own
+  projects* against the published runtime. The package does not include the
+  source tree of Yuneta.
+- **[Build from source](#build-from-source)** — the full source tree. Use this
+  method to develop the framework. Use it also to make a runtime with different
+  build options. The options are the TLS backend, the modules, the static or
+  dynamic link, and the build type. See
+  [`menuconfig`](#configure-menuconfig).
 
-> ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the
-> management/build CLI (currently 0.19.1), **not** the C framework runtime
-> (currently 7.x). The `.deb` bundles both. A build from source uses
-> the CLI to drive the build.
+> ℹ️ The PyPI package `yunetas` (`pipx install yunetas`) is the CLI for
+> management and builds. Its current version is 0.19.1. It is not the C
+> framework runtime, which is at 7.x. The `.deb` contains the two of them. A
+> build from source uses the CLI to drive the build.
 
 ---
 
@@ -28,8 +31,8 @@ There are two ways to install Yunetas, depending on what you want to do:
 ## Quick install
 
 :::{important}
-**One command installs everything, on both distro families** — Debian/Ubuntu
-**and** RHEL/Rocky/Alma:
+**One command installs all the software.** It supports the two distro
+families: Debian and Ubuntu, and RHEL, Rocky and Alma.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh
@@ -39,39 +42,42 @@ curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | s
 (install-on-a-build-node)=
 ### Not on a node that builds from source
 
-The install **refuses** a node whose `/yuneta/development/yunetas` holds the
-sources (`kernel/` and `.git`), and so does the package itself if you install
-it by hand.
+The installer **refuses** a node that keeps the sources in
+`/yuneta/development/yunetas`. It looks for `kernel/` and `.git`. The package
+makes the same refusal when you install it by hand.
 
-The package carries libraries, headers and binaries built on another machine,
-and it lays them into the very tree `yunetas build` owns — `outputs/` and
-`outputs_ext/`. From then on the tree is no longer self-consistent: fresh
-objects link against archives built for a **different glibc**. A dynamic link
-fails loudly, which would be a mercy; a **static** link resolves them silently
-and the binary corrupts its heap at run time — SIGABRT deep inside `malloc`,
-seconds after start, with no framework error first and a stack that blames
-unrelated code. That is the same trap
+The package contains libraries, headers and binaries from a different machine.
+It puts them in `outputs/` and `outputs_ext/`, the tree that `yunetas build`
+owns. After that, the tree is not consistent. New objects link against archives
+that a **different glibc** built.
+
+A dynamic link fails with a clear error. A **static** link is worse, because it
+resolves the archives with no message. The binary then corrupts its heap at run
+time. You get a SIGABRT inside `malloc` some seconds after the start. There is
+no framework error before it, and the stack shows unrelated code. This is the
+same fault that
 [`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.16.1/tools/cmake/libc_guard.cmake)
 catches at configure time.
 
-To install anyway — it is supported, it just has to be a decision:
+You can install the package on such a node. But it must be a decision:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh \
     | sudo YUNETAS_FORCE_OVER_SOURCE=1 sh
 ```
 
-The variable goes **after** `sudo`: `sudo` resets the environment, so
-`VAR=1 sudo …` never reaches the package scripts. To make it stick for a node
-that is deliberately both — a build machine that also tracks the packages —
-drop the marker instead:
+Put the variable **after** `sudo`. The `sudo` command resets the environment,
+so `VAR=1 sudo …` does not reach the scripts of the package. Some nodes are
+deliberately a build machine and a package node. For those nodes, make the
+permission permanent with a marker file:
 
 ```bash
 sudo touch /etc/yuneta/allow-package-over-source
 ```
 
 :::{warning}
-After forcing, **rebuild everything on that node, external libraries first**:
+After you force the install, **build all the software on that node again.
+Start with the external libraries**:
 
 ```bash
 cd /yuneta/development/yunetas
@@ -82,9 +88,8 @@ yunetas init
 yunetas clean && yunetas build
 ```
 
-The external libraries come **first**. Rebuilding only the SDK leaves the
-packaged externals in place, which is the same glibc mismatch by a shorter
-road.
+Build the external libraries **first**. If you build the SDK only, the external
+libraries of the package stay on the node. This gives the same glibc mismatch.
 :::
 
 (version-on-a-build-node)=
@@ -102,11 +107,12 @@ only a version string to the package database.
 :::{important}
 Do not install the package to make the two numbers agree.
 
-The package carries full trees from the build machine: `/yuneta/bin/nginx`,
+The package contains full trees from the build machine: `/yuneta/bin/nginx`,
 `/yuneta/bin/openresty`, `outputs/`, `outputs_ext/` and `tools/`. The build
 machine can have a different glibc. Then the package installs a web server that
-cannot start on this node, and archives that are not the archives of this node.
-After that, you must rebuild everything, external libraries first.
+cannot start on this node. It also installs archives that this node did not
+build. After that, you must build all the software again, external libraries
+first.
 
 The marker file `/etc/yuneta/allow-package-over-source` removes the refusal. It
 does not remove this effect.
@@ -114,67 +120,69 @@ does not remove this effect.
 
 ### Tested on
 
-The command above is exercised end-to-end, on a freshly installed OS, on:
+The command above gets a complete test on a new installation of the OS:
 
-| Distro | Package | Verified |
+| Distro | Package | Tested |
 |---|---|---|
 | **Rocky Linux 9** (Blue Onyx) | `.rpm` (EL9, x86_64) | 7.9.11-3 · 2026-08-06 |
 | **Debian 13** (trixie) | `.deb` (amd64) | 7.9.11-3 · 2026-08-06 |
 
-Debian 13 was exercised on **both a VM and a dedicated server**, deliberately:
-the faster machine loses a start-up race the slower one wins, which is exactly
-how a snapd bug in the certbot step stayed hidden. Rocky was also verified
-**across a reboot** — the moment firewalld first starts and the agent has to
-come up on its own.
+The test of Debian 13 uses **a VM and a dedicated server**. This is deliberate.
+The faster machine loses a start-up race that the slower machine wins. A snapd
+bug in the certbot step stayed hidden for this reason. The test of Rocky also
+includes **a reboot**. At that moment firewalld starts for the first time, and
+the agent must start without help.
 
-Other releases of the same families are expected to work — the script branches
-on `apt` vs `dnf`, not on the version — but they are not exercised.
+Other releases of the same families can also work, because the script selects
+`apt` or `dnf` and does not read the version. There is no test for them.
 
-The 7.9.11-3 pass reimaged both nodes and probed them end to end, which is the
-only reason two defects were found at all: the installer was fetching the
-**oldest** package of a release rather than the newest, and the fail2ban filter
-could not match anything on a node whose vhost is a single-page app. Neither
-shows up on a node that is already configured.
+The test at 7.9.11-3 installed the OS again on the two nodes and did a complete
+test. Only for this reason it found two defects. First, the installer took the
+**oldest** package of a release, not the newest. Second, the fail2ban filter
+matched nothing on a node whose vhost is a single-page app. A node that is
+already configured shows neither defect.
 
-Each package is built in a container of its own target distro: **`debian:13`**
-(`.deb`, glibc 2.41) and **`rockylinux:9`** (`.rpm`, glibc 2.34). That build
-base decides whether a node can *compile* against the shipped SDK — see the
-glibc warning below. It does not affect running the shipped binaries.
+A container of the target distro builds each package: **`debian:13`** for the
+`.deb` (glibc 2.41) and **`rockylinux:9`** for the `.rpm` (glibc 2.34). This
+build base decides if a node can *compile* against the SDK of the package. See
+the glibc warning below. It has no effect on the binaries of the package, which
+run on any node.
 
-The script does everything in one run, no second step to remember:
+The script does all the work in one run. There is no second step:
 
-- detects the distro (`apt` vs `dnf`) and the architecture.
-- **on RHEL/Rocky/Alma**, enables **EPEL + CRB** first (mercurial, ninja-build,
-  pipx and the `-devel`/`-static` packages live there, and `dnf` cannot pull
-  from a repo that it enables in the same transaction).
-- pulls the matching package (`.deb` / `.rpm`) from the latest
-  [GitHub Release](https://github.com/artgins/yunetas/releases) and installs it
-  so that the dependencies resolve cleanly.
-- then installs the **full developer toolchain** (git, mercurial, clang, gcc,
-  cmake, ninja, wget, pipx, …) so the box can build yunos right away. No
-  prompts and no stops. It runs from start to end. Pass `--runtime-only`
-  (`… | sudo sh -s -- --runtime-only`) to skip the toolchain on a pure
-  deployment box.
+- It finds the distro (`apt` or `dnf`) and the architecture.
+- **On RHEL, Rocky and Alma**, it enables **EPEL and CRB** first. Those repos
+  hold mercurial, ninja-build, pipx and the `-devel` and `-static` packages.
+  `dnf` cannot install from a repo that it enables in the same transaction.
+- It gets the correct package (`.deb` or `.rpm`) from the most recent
+  [GitHub Release](https://github.com/artgins/yunetas/releases) and installs
+  it. The dependencies then resolve correctly.
+- It installs the **full developer toolchain**: git, mercurial, clang, gcc,
+  cmake, ninja, wget, pipx and more. The node can then build yunos
+  immediately. The script asks no questions and does not stop. It runs from the
+  start to the end. To omit the toolchain on a deployment node, use
+  `--runtime-only` (`… | sudo sh -s -- --runtime-only`).
 
-Pin a version (must exist as a published Release):
+Select a version. It must exist as a published Release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | sudo sh -s -- 7.5.7
 ```
 
-> ⚠️ **RHEL/Rocky/Alma need io_uring enabled.** The `.rpm` ships
-> `kernel.io_uring_disabled=0` and applies it in `%post`, but if SELinux
-> (`Enforcing`) or a host policy keeps io_uring disabled the agent will not
-> start — see the [io_uring requirement](#io_uring-required) below. The
-> `%post` is honest about it: if the agent is not running after install it
-> prints a warning naming the cause (io_uring or SELinux) with the
-> `systemctl status` / `journalctl` commands to diagnose it.
+> ⚠️ **RHEL, Rocky and Alma must have io_uring enabled.** The `.rpm` contains
+> `kernel.io_uring_disabled=0` and applies it in `%post`. If SELinux
+> (`Enforcing`) or a host policy keeps io_uring disabled, the agent does not
+> start. See the [io_uring requirement](#io_uring-required) below. If the agent
+> does not run after the installation, `%post` prints a warning. The warning
+> names the cause, io_uring or SELinux. It also gives the `systemctl status`
+> and `journalctl` commands for the diagnosis.
 
-Or download the package manually from the
-[Releases page](https://github.com/artgins/yunetas/releases) and install it
-(this installs only the runtime + its declared deps — for the developer
-toolchain, run `sudo /yuneta/bin/install-yuneta-dev-deps.sh` afterwards, or use
-the one-liner above):
+You can also download the package from the
+[Releases page](https://github.com/artgins/yunetas/releases) and install it.
+This installs the runtime and its declared dependencies only. To add the
+developer toolchain after that, run
+`sudo /yuneta/bin/install-yuneta-dev-deps.sh`, or use the one-line command
+above:
 
 ```bash
 # Debian / Ubuntu
@@ -185,88 +193,97 @@ sudo dnf -y install epel-release && sudo crb enable
 sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
 ```
 
-Prefer to build the package yourself (other arch, custom options)?
-[Build from source](#build-from-source), then run `packages/deb/<ARCH>.sh` or
-`packages/rpm/<arch>.sh` — see
+You can also build the package yourself, for a different architecture or with
+different options. First [build from source](#build-from-source). Then run
+`packages/deb/<ARCH>.sh` or `packages/rpm/<arch>.sh`. See
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/7.16.1/packages).
 
-The package installs the agent + CLI tools + bundled openresty under
-`/yuneta/`, creates the `yuneta` system user, applies kernel tuning
-and PAM limits, and starts the SysV service. It also lays down the
-Yuneta libraries, headers, CMake toolchain and the build `.config`
-as a sparse SDK under `/yuneta/development/yunetas/` (`outputs/`,
-`outputs_ext/`, `tools/`, `.config` — no sources): the SAME base path
-as a full source checkout, so projects compile against the published
-runtime without the source tree and without layout differences.
-Full inventory in
+The package installs the agent, the CLI tools and the bundled openresty under
+`/yuneta/`. It creates the `yuneta` system user. It applies the kernel tuning
+and the PAM limits. Then it starts the SysV service.
+
+The package also installs a sparse SDK under `/yuneta/development/yunetas/`.
+This sparse SDK holds the Yuneta libraries, the headers, the CMake toolchain
+and the build `.config` (`outputs/`, `outputs_ext/`, `tools/` and `.config`,
+with no sources). This base path is the SAME path as a full source checkout.
+Your projects thus compile against the published runtime with no source tree
+and with no difference of layout. The full inventory is in
 [`packages/README.md`](https://github.com/artgins/yunetas/tree/7.16.1/packages).
 
-> 🔴 **That sparse SDK only compiles on the glibc the package was built
-> against.** The shipped `outputs/lib/*.a` are static archives that reference
-> glibc internals whose layout moves between releases, so linking fresh objects
-> against them on a node with a *different* glibc produces a binary that
-> corrupts the heap at run time — SIGABRT deep in `_int_malloc` seconds after
-> start, no framework error first, stack blaming unrelated code. The **shipped
-> binaries keep working** (they are self-contained). It is the *build* that
-> breaks. Check before building anything on a node:
+> 🔴 **The sparse SDK compiles only on the glibc that built the package.** The
+> `outputs/lib/*.a` files of the package are static archives. They reference
+> internals of glibc, and the layout of those internals changes between
+> releases. If you link new objects against them on a node with a *different*
+> glibc, the binary corrupts its heap at run time. You get a SIGABRT in
+> `_int_malloc` some seconds after the start, with no framework error before it
+> and a stack that shows unrelated code. The **binaries of the package continue
+> to work**, because they are self-contained. Only the *build* fails. Before
+> you build on a node, do this test:
 >
 > ```bash
 > cat /yuneta/development/yunetas/outputs/lib/yuneta_libc.stamp   # what built the package
 > ldd --version | head -1                                          # what the node has
 > ```
 >
-> If they differ, that node is **runtime-only**: build elsewhere and push
-> binaries with `yunetas sync-binaries`. `tools/cmake/libc_guard.cmake` enforces
-> this at configure time. `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` only silences the
-> message, it does not make the link safe.
+> If the two values are different, that node is **runtime-only**. Build on a
+> different machine and push the binaries with `yunetas sync-binaries`.
+> `tools/cmake/libc_guard.cmake` applies this rule at configure time.
+> `-DYUNETA_ALLOW_LIBC_MISMATCH=ON` removes the message only. It does not make
+> the link safe.
 >
-> In practice, each package is built in a container of its own target distro,
-> so each one matches exactly one glibc:
+> A container of the target distro builds each package. Each package thus
+> matches one glibc only:
 >
 > | Package | Built in | glibc | Nodes that can build on-node |
 > |---|---|---|---|
 > | `.rpm` (EL9) | `rockylinux:9` | 2.34 | Rocky/Alma 9 |
 > | `.deb` (AMD64) | `debian:13` | 2.41 | Debian 13 (trixie) |
 >
-> So **Ubuntu nodes are runtime-only** — 24.04 (2.39) and 26.04 (2.43) both
-> differ from 2.41 — as is Debian 12. Build those elsewhere and push binaries.
-> The `.deb` came from an `ubuntu-22.04` runner (glibc 2.35) until **7.8.6-3**.
-> if you are on an older package, check its stamp rather than this table.
+> Thus **Ubuntu nodes are runtime-only**. Ubuntu 24.04 has glibc 2.39 and
+> Ubuntu 26.04 has glibc 2.43, and neither value is 2.41. Debian 12 is
+> runtime-only for the same reason. Build for those nodes on a different
+> machine and push the binaries. Until **7.8.6-3**, an `ubuntu-22.04` runner
+> (glibc 2.35) built the `.deb`. If you have an older package, read its stamp
+> and do not use this table.
 
-> ℹ️ **Build options of the published `.deb`.** The release asset is
-> compiled with the Kconfig defaults (`alldefconfig`): **GCC**,
-> **RelWithDebInfo**, **fully static** binaries, **OpenSSL** TLS
-> backend (mbedTLS off), and every module enabled (console, mqtt,
-> postgres, test, modbus). The exact configuration is installed at
-> `/yuneta/development/yunetas/.config` — inspect it to confirm what a given
-> package was built with. Need a different combination (for example mbedTLS
-> for smaller binaries, or a leaner module set)? Build from source and
-> pick your options with [`menuconfig`](#configure-menuconfig).
+> ℹ️ **Build options of the published `.deb`.** The Kconfig defaults
+> (`alldefconfig`) compile the release asset. These defaults are **GCC**,
+> **RelWithDebInfo**, **fully static** binaries and the **OpenSSL** TLS backend
+> (mbedTLS is off). All the modules are enabled: console, mqtt, postgres, test
+> and modbus. The installation puts the exact configuration at
+> `/yuneta/development/yunetas/.config`. Read that file to know the options of
+> a given package. For a different combination, build from source and select
+> your options with [`menuconfig`](#configure-menuconfig). Two examples are
+> mbedTLS for smaller binaries, and a smaller set of modules.
 
-> ⚠️ **The agent is a SysV service — manage it with the agent binary's own
-> `--start` / `--stop`, NOT `systemctl`/systemd.** Yuneta runs its own
-> daemon + watchdog, so `systemctl restart yuneta_agent` is effectively a
-> **no-op** (the process keeps its old PID and binary, so it is not
-> restarted). To start/stop/restart the agent:
+> ⚠️ **The agent is a SysV service. Control it with the `--start` and `--stop`
+> options of the agent binary. Do not use `systemctl` or systemd.** Yuneta runs
+> its own daemon and watchdog. Thus `systemctl restart yuneta_agent` does
+> **nothing**: the process keeps its old PID and its old binary. To start, stop
+> or restart the agent, use these commands:
 >
 > ```bash
 > /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop
 > /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start
 > ```
 >
-> or the init script `/etc/init.d/yuneta_agent {start|stop|restart}` (which
-> also handles the bundled web server). To roll out a new agent binary:
-> overwrite `/yuneta/agent/yuneta_agent`, then `--stop` and `--start`.
+> You can also use the init script
+> `/etc/init.d/yuneta_agent {start|stop|restart}`. It also controls the bundled
+> web server. To install
+> a new agent binary, write it over `/yuneta/agent/yuneta_agent`. Then use
+> `--stop` and `--start`.
 
-> ℹ️ **Build the `.deb` yourself** instead of using the published asset:
-> see `packages/README.md` for the four arch wrapper scripts
-> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/RISCV64.sh)). Requires the
-> SDK already built (next section).
+> ℹ️ **You can build the `.deb` yourself** and not use the published asset.
+> See `packages/README.md` for the four wrapper scripts, one for each
+> architecture
+> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/RISCV64.sh)). The SDK must be built
+> first (next section).
 
-### Verify a fresh install
+### Tests after a fresh install
 
-Five checks, both families. Run them right after the one-liner finishes — they
-catch everything that went wrong on a new node:
+There are five tests, and they apply to the two distro families. Run them
+immediately after the one-line command ends. They find all the faults that
+occurred on a new node:
 
 ```bash
 # 1. The three processes are up (agent, agent22, bundled web server)
@@ -286,33 +303,35 @@ sudo -u yuneta yunetas --help
 cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
 ```
 
-Add the glibc-stamp check above if the node is meant to **build**.
+If the node must **build** software, do the glibc-stamp test above too.
 
-Two things that look wrong and are not: `systemctl is-active yuneta_agent22`
-and `nginx` report `inactive`/`not-found` (neither has a systemd unit — the
-init script owns them), and on RHEL `certbot-renew.timer` is `enabled` but
-`inactive` until the next boot.
+Two results look like a fault and are correct. First,
+`systemctl is-active yuneta_agent22` and `nginx` report `inactive` or
+`not-found`. Neither has a systemd unit, and the init script controls them. Second, on RHEL,
+`certbot-renew.timer` is `enabled` but `inactive` until the next boot.
 
 ### Logs and banning
 
-The package also configures what happens to the web server's logs, because
-nginx does neither on its own.
+The package also configures the logs of the web server. nginx does not rotate
+its logs, and it does not ban an attacker.
 
-**Rotation is automatic.** `/etc/logrotate.d/yuneta` rotates the access and
-error logs of whichever web server the node runs, daily, keeping 30 compressed.
-Without it those files grow for the life of the node — nginx has no rotation of
-its own, it only knows how to reopen its files when it is signalled.
+**The rotation is automatic.** `/etc/logrotate.d/yuneta` rotates the access log
+and the error log of the web server of the node, one time each day. It keeps 30
+compressed files. Without this rotation, those files increase in size for the
+full life of the node. nginx has no rotation function. It can only open its
+files again when it receives a signal.
 
-**Banning is installed but OFF.** `/etc/fail2ban/jail.d/yuneta-nginx.conf`
-carries two jails that ban whoever probes the node for `.php` paths, `.env`,
-`.git` or the WordPress surface — none of which a Yuneta node serves, so a
-request for them cannot be a mistake. They ship **disabled** on purpose: if a
-jail's log path resolves to nothing, fail2ban does not skip that jail, it
-refuses to start at all and takes every other jail down with it, `sshd`
-included. A node that has the package but has not started its web server yet is
-exactly that case.
+**The ban function is installed, but it is OFF.**
+`/etc/fail2ban/jail.d/yuneta-nginx.conf` contains two jails. They ban a client
+that probes the node for `.php` paths, `.env`, `.git` or the WordPress paths. A
+Yuneta node serves none of these, thus such a request cannot be an error.
 
-Turn them on once `access.log` exists:
+The jails are **disabled** deliberately. If the log path of a jail matches no
+file, fail2ban does not omit that jail. It refuses to start, and all the other
+jails stop with it, `sshd` included. A node that has the package and has not
+started its web server is in this condition.
+
+When `access.log` exists, enable the jails:
 
 ```bash
 printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\n' \
@@ -320,24 +339,24 @@ printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\
 sudo systemctl reload fail2ban && sudo fail2ban-client status
 ```
 
-Then check the **firewall**, not the jail. A jail reports itself healthy while
-banning into thin air if `banaction` names a command the node does not have —
-on Debian that is `nft`, which `nftables` provides and a minimal install does
-not:
+Then test the **firewall**, not the jail. If `banaction` names a command that
+the node does not have, the jail reports a good condition but bans nothing. On
+Debian that command is `nft`. The `nftables` package supplies it, and a minimal
+installation does not.
 
 ```bash
 sudo nft list table inet f2b-table     # or: sudo iptables -L f2b-yuneta-nginx-probe -n
 ```
 
-> ⚠️ **On SELinux (`Enforcing`) the shipped log paths do not work.** They are
-> globs, and `fail2ban_t` cannot list `/yuneta/bin` — a denial that is
-> *dontaudited*, so it writes no AVC. fail2ban then reports *"Have not found any
-> log file"* and exits, with nothing naming SELinux. Give the jails a literal
-> path in the same `zz-` file and label the directory:
-> `semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"` followed by
+> ⚠️ **With SELinux in `Enforcing` mode, the log paths of the package do not
+> work.** The paths are globs, and `fail2ban_t` cannot list `/yuneta/bin`.
+> SELinux *dontaudits* this denial, thus it writes no AVC. fail2ban then reports
+> *"Have not found any log file"* and stops. No message names SELinux. Give the
+> jails a literal path in the same `zz-` file. Then label the directory with
+> `semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"` and
 > `restorecon -R /yuneta/bin/nginx/logs`.
 
-Full detail, including what the filter deliberately does *not* match, is in
+The full detail is in
 [`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/7.16.1/packages/deb/README.md).
 
 ---
@@ -345,8 +364,8 @@ Full detail, including what the filter deliberately does *not* match, is in
 (build-from-source)=
 ## Build from source
 
-The 7-step flow below installs the full SDK — sources, build deps,
-tooling — under `~/yunetaprojects/`.
+The seven steps below install the full SDK under `~/yunetaprojects/`. The SDK
+holds the sources, the build dependencies and the tools.
 
 ### 1. Create the `yuneta` user
 
@@ -356,20 +375,21 @@ sudo mkdir /yuneta
 sudo chown yuneta:yuneta /yuneta
 ```
 
-Log out and log back in as `yuneta` for the rest of the steps.
+Close the session. Then start a new session as the `yuneta` user for the other
+steps.
 
 ### 2. Install OS packages
 
-The repo ships a distro-aware helper that installs everything below and
-the `kconfiglib` `menuconfig` backend. It auto-detects Debian/Ubuntu vs
-RHEL/Rocky/Alma/Fedora from `/etc/os-release`:
+The repo contains a helper script. It installs all the packages below and the
+`kconfiglib` backend for `menuconfig`. It reads `/etc/os-release` to find the
+distro family: Debian and Ubuntu, or RHEL, Rocky, Alma and Fedora:
 
 ```bash
 cd ~/yunetaprojects/yunetas
 ./install-dependencies.sh
 ```
 
-Prefer to run the package manager yourself? Pick your distro below.
+To run the package manager yourself, select your distro below.
 
 ::::{tab-set}
 
@@ -396,16 +416,18 @@ pipx install kconfiglib
 
 :::{tab-item} RHEL / Rocky / Alma / Fedora
 
-Several packages live in **EPEL** (mercurial, ninja-build, telnet,
-pipx, fail2ban, python3-wheel) and **CRB / CodeReady Builder**
-(liburing-devel). Enable both first (skip on Fedora — it has neither):
+Some packages are in **EPEL**: mercurial, ninja-build, telnet, pipx, fail2ban
+and python3-wheel. One package is in **CRB (CodeReady Builder)**:
+liburing-devel. Enable the two repos first. Fedora has neither repo, thus omit
+this step on Fedora:
 
 ```bash
 sudo dnf -y install epel-release
 sudo crb enable        # or: sudo dnf config-manager --set-enabled crb
 ```
 
-Then install the packages (RHEL names mapped from the Debian list):
+Then install the packages. The names below are the RHEL names for the Debian
+list:
 
 ```bash
 sudo dnf -y install \
@@ -427,12 +449,12 @@ pipx install kconfiglib
 
 (io_uring-required)=
 
-> ⚠️ **RHEL/Rocky disable io_uring — Yuneta will not run until you
-> re-enable it.** Yuneta's event loop (`yev_loop`) is built entirely on
-> Linux **io_uring**. RHEL 9 / Rocky 9 / Alma 9 ship
-> `kernel.io_uring_disabled=2` (io_uring fully disabled, a hardening
-> default), so every yuno aborts at startup and the whole test suite
-> fails with *"Subprocess aborted"*. Enable it:
+> ⚠️ **RHEL and Rocky disable io_uring. Yuneta does not run until you enable
+> it.** The event loop of Yuneta (`yev_loop`) uses Linux **io_uring** for all
+> its work. RHEL 9, Rocky 9 and Alma 9 set `kernel.io_uring_disabled=2`, which
+> disables io_uring completely. This value is a hardening default. Thus every
+> yuno aborts at the start, and all the tests fail with
+> *"Subprocess aborted"*. Enable io_uring:
 >
 > ```bash
 > # Persist across reboots (production):
@@ -443,22 +465,22 @@ pipx install kconfiglib
 > sudo sysctl -w kernel.io_uring_disabled=0
 > ```
 >
-> Values: `0` = enabled for all · `1` = only `CAP_SYS_ADMIN` or members
-> of the `io_uring` group · `2` = fully disabled (the RHEL/Rocky default).
-> Debian/Ubuntu ship `0`, so this step is RHEL-family only. Confirm with
+> The values are `0` for all users, `1` for `CAP_SYS_ADMIN` or the members of
+> the `io_uring` group, and `2` for fully disabled. `2` is the default on RHEL
+> and Rocky. Debian and Ubuntu set `0`, thus only the RHEL family needs this
+> step. To make sure that the value is correct, run
 > `sysctl kernel.io_uring_disabled`.
 >
-> **SELinux is a second, independent gate.** Even with the sysctl at `0`, an
-> `Enforcing` policy can deny `io_uring_setup(2)` to a confined service, so the
-> agent still aborts. If it will not start while io_uring is enabled, check
-> `getenforce` and the audit log (`ausearch -m AVC -ts recent`).
+> **SELinux is a second and independent control.** The sysctl can be `0`, and an
+> `Enforcing` policy can still deny `io_uring_setup(2)` to a confined service.
+> The agent then aborts. If the agent does not start and io_uring is enabled,
+> read `getenforce` and the audit log (`ausearch -m AVC -ts recent`).
 
-> ℹ️ **Static build needs static archives.** The default config is
-> `CONFIG_FULLY_STATIC=y`, so the link needs `libc.a` / `libstdc++.a` /
-> `libcrypt.a` — provided on RHEL by `glibc-static`, `libstdc++-static`
-> and `libxcrypt-static` (all in CRB). On Debian these ship inside
-> `libc6-dev` / `build-essential`, so they are not listed separately
-> there.
+> ℹ️ **A static build needs static archives.** The default configuration is
+> `CONFIG_FULLY_STATIC=y`. The link then needs `libc.a`, `libstdc++.a` and
+> `libcrypt.a`. On RHEL, `glibc-static`, `libstdc++-static` and
+> `libxcrypt-static` supply them, all in CRB. On Debian they are inside `libc6-dev` and
+> `build-essential`, thus the Debian list does not show them.
 
 ```{dropdown} Debian → RHEL package name mapping
 | Debian / Ubuntu                  | RHEL / Rocky / Alma / Fedora            |
@@ -480,10 +502,10 @@ pipx install kconfiglib
 | *(static archives in `libc6-dev`)* | `glibc-static libstdc++-static libxcrypt-static` *(CRB)* |
 | `curl`                           | *(already present as `curl-minimal`)*   |
 
-`jansson-devel`, `liburing-devel`, `pcre2-devel` and `openssl-devel` are
-dev headers only; Yunetas builds its own static copies under
-`kernel/c/linux-ext-libs` (step 7), so on RHEL they are needed only for
-the dynamically-linked nginx/openresty and as convenience.
+`jansson-devel`, `liburing-devel`, `pcre2-devel` and `openssl-devel` give the
+development headers only. Yunetas builds its own static copies under
+`kernel/c/linux-ext-libs` (step 7). Thus on RHEL these packages are necessary
+only for the dynamic link of nginx and openresty.
 ```
 
 :::
@@ -575,8 +597,8 @@ cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
-[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.16.1/yunetas-env.sh) exports four variables and prepends `/yuneta/bin`
-plus `$YUNETAS_BASE/scripts` to `PATH`:
+[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.16.1/yunetas-env.sh) exports four variables. It also puts `/yuneta/bin` and
+`$YUNETAS_BASE/scripts` at the start of `PATH`:
 
 | Variable              | Value                                       |
 |-----------------------|---------------------------------------------|
@@ -585,28 +607,28 @@ plus `$YUNETAS_BASE/scripts` to `PATH`:
 | `YUNETAS_OUTPUTS_EXT` | `$YUNETAS_BASE/outputs_ext`                 |
 | `YUNETAS_YUNOS`       | `$YUNETAS_OUTPUTS/yunos`                    |
 
-> ℹ️ **Layout contract.** Build artefacts (`outputs/`, `outputs_ext/`)
-> live INSIDE `$YUNETAS_BASE` — both dirs are gitignored. The base is the
-> SAME path on every node: `/yuneta/development/yunetas/`, as a full
-> source checkout on dev nodes or as the sparse SDK (`outputs/`,
-> `outputs_ext/`, `tools/`, `.config` — no sources) staged by the
-> `.deb`/`.rpm` on runtime-only nodes. Your own project repos can live
-> anywhere. Register them with `yunetas register-project` (below).
+> ℹ️ **Layout contract.** The build artifacts (`outputs/` and `outputs_ext/`)
+> are INSIDE `$YUNETAS_BASE`. Git ignores the two directories. The base is the
+> SAME path on every node: `/yuneta/development/yunetas/`. On a development
+> node it is a full source checkout. On a runtime-only node it is the sparse
+> SDK from the `.deb` or the `.rpm` (`outputs/`, `outputs_ext/`, `tools/` and
+> `.config`, with no sources). Your own project repos can be at any path.
+> Register them with `yunetas register-project` (below).
 
-> ⚠️ **Re-source per shell.** New SSH sessions, cron jobs and CI need
-> to source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.16.1/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch) / [`ycommand`](#util-ycommand) /
-> [`yshutdown`](#util-yshutdown) are not on `PATH` and deploy scripts fail with
-> "command not found".
+> ⚠️ **Source the file again in each shell.** A new SSH session, a cron job
+> and CI must source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.16.1/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch), [`ycommand`](#util-ycommand)
+> and [`yshutdown`](#util-yshutdown) are not on `PATH`. The deploy scripts then
+> fail with "command not found".
 
-**Make it permanent** — add to `~/.bashrc`:
+**To make this permanent**, add these lines to `~/.bashrc`:
 
 ```bash
 cd ~/yunetaprojects/yunetas
 source yunetas-env.sh
 ```
 
-The script also sources `~/.yunetasrc` if it exists — use that file
-for your own personal additions.
+If `~/.yunetasrc` exists, the script sources it too. Use that file for your
+own additions.
 
 (configure-menuconfig)=
 ### 6. Configure (`menuconfig`)
@@ -616,8 +638,8 @@ cd ~/yunetaprojects/yunetas
 menuconfig
 ```
 
-Pick compiler, build type and the modules you need, then **save** —
-this writes `.config`, which the build needs.
+Select the compiler, the build type and the modules. Then **save**. This
+writes `.config`, and the build needs that file.
 
 ~~~~{dropdown} Full menuconfig options
 ```text
@@ -653,13 +675,12 @@ this writes `.config`, which the build needs.
 ```
 ~~~~
 
-> ⚠️ **Save `.config` or the build fails.** If you switch compiler,
-> re-run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.16.1/set_compiler.sh) so the external libs are rebuilt with
-> the matching toolchain.
+> ⚠️ **Save `.config`, or the build fails.** If you change the compiler, run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.16.1/set_compiler.sh) again. It builds the external
+> libraries with the correct toolchain.
 
 ### 7. Build and test
 
-Build the bundled external libraries first (one-shot):
+First, build the bundled external libraries. You do this one time only:
 
 ```bash
 cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
@@ -667,10 +688,10 @@ cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs
 ./configure-libs.sh # configure, build and install
 ```
 
-Then build, install and test yunetas with the **`yunetas` CLI** — this is
-the standard build interface (`init`, `build`, `clean`, `test`). Prefer
-it over calling `cmake` directly, so the install to `$YUNETAS_OUTPUTS/lib`
-and the per-yuno relinks happen in the right order:
+Then build, install and test yunetas with the **`yunetas` CLI**. This CLI is
+the standard build interface, with the commands `init`, `build`, `clean` and
+`test`. Use it, and do not call `cmake` directly. The CLI does the installation
+to `$YUNETAS_OUTPUTS/lib` and the relink of each yuno in the correct order:
 
 ```bash
 cd ~/yunetaprojects/yunetas
@@ -680,14 +701,15 @@ yunetas test     # ctest
 # yunetas clean  # wipe the build dirs
 ```
 
-Artefacts land in `$YUNETAS_OUTPUTS/` (= `$YUNETAS_BASE/outputs/`):
-`include/`, `lib/`, `bin/`, `yunos/`.
+The artifacts go to `$YUNETAS_OUTPUTS/`, which is `$YUNETAS_BASE/outputs/`.
+The subdirectories are `include/`, `lib/`, `bin/` and `yunos/`.
 
 #### External projects
 
-The `yunetas` CLI can also drive your own projects (any repo whose
-`yunos/CMakeLists.txt` includes `tools/cmake/project.cmake`). Register
-them once and `init` / `build` / `clean` process them right after the SDK:
+The `yunetas` CLI can also build your own projects. A project is any repo
+whose `yunos/CMakeLists.txt` includes `tools/cmake/project.cmake`. Register a
+project one time. Then `init`, `build` and `clean` process it immediately after
+the SDK:
 
 ```bash
 yunetas register-project /yuneta/development/projects/myproject
@@ -698,13 +720,14 @@ yunetas build --sdk-only      # only the SDK
 yunetas unregister-project myproject
 ```
 
-The registry is machine-local user state (`~/.yuneta/projects.json`), kept
-outside the source tree.
+The registry is user state of the local machine (`~/.yuneta/projects.json`).
+It stays outside the source tree.
 
-Deploy is **two steps: push the artifacts, then promote them.** The helpers
-below wrap `tools/agent/`. Shared arguments are forwarded verbatim (`-n`
-dry-run, `-a` all, OAuth2 options…). The full CLI reference, including the
-build and project-management commands, is on [The `yunetas` CLI](yunetas-cli.md):
+A deploy has **two steps. First push the artifacts. Then promote them.** The
+helpers below are an interface to `tools/agent/`. They forward the shared
+arguments without a change: `-n` for a dry run, `-a` for all, and the OAuth2
+options. [The `yunetas` CLI](yunetas-cli.md) gives the full CLI reference, with
+the build commands and the project-management commands:
 
 ```bash
 # 1. Push binaries AND configs together (recommended)
@@ -715,12 +738,16 @@ yunetas upgrade-yunos -n      # preview the agent commands without running them
 yunetas upgrade-yunos         # snapshot -> find-new-yunos -> deactivate-snap
 ```
 
-Push the two artifact kinds with **`sync`**, not one at a time: a binary bump
-must never ship without its matching config bump. A new fail-closed runtime
-(TLS verify-by-default) against a stale no-CA config is exactly what breaks
-OIDC login — `sync` couples the steps so neither is forgotten, and aborts
-before configs if the binaries push fails (no half-deploy). The individual
-helpers remain for when you need only one or a tool-specific flag:
+Push the two kinds of artifact with **`sync`**. Do not push them one at a
+time. A new binary must never go to a node without its new configuration.
+
+One example shows the risk. A new fail-closed runtime verifies TLS by default.
+Against an old configuration with no CA, the OIDC login fails. `sync` connects
+the two steps, thus you cannot forget one. If the push of the binaries fails,
+`sync` stops before the configurations. There is no half-deploy.
+
+The individual helpers stay available. Use them when you need one kind only, or
+a flag of one tool:
 
 ```bash
 yunetas sync-binaries -n      # outputs/yunos vs the local agent
@@ -728,34 +755,40 @@ yunetas sync-configs -n       # each project's yunos/batches/<host>/, auto-match
 yunetas sync-configs -n --host my.host.com   # or target one batches dir explicitly
 ```
 
-`sync-configs` (and the configs pass of `sync`) walks the registered projects.
-Without `--host` it queries the local agent (`*list-realms`) and syncs every
-`batches/<host>/` whose name is a realm_id the agent manages — a node running
-several realms deploys all the relevant ones in one pass (a batches dir is
-named after its realm_id, the deploy FQDN). If the agent cannot be reached it
-uses a single hostname match instead.
+`sync-configs` reads the registered projects, and the configuration pass of
+`sync` does the same. Without `--host`, it asks the local agent for its realms
+(`*list-realms`). It then syncs every `batches/<host>/` directory whose name is
+a realm_id of that agent. A node with several realms thus deploys all of them
+in one pass. The name of a batches directory is its realm_id, which is the
+deploy FQDN. If the agent does not answer, the tool matches one hostname only.
 
-`upgrade-yunos` takes an optional rollback snapshot (idempotent by name,
-default `pre-upgrade-<YYYYMMDD>`, `--no-snap` to skip. If a snap is already
-active it reuses that one instead of shooting another), lists the new yuno
-rows that `find-new-yunos` creates and asks for confirmation (`--yes` to
-skip), registers them (`find-new-yunos create=1`), then runs `deactivate-snap`
-— which triggers the agent's `restart_nodes()` (SIGKILL + treedb reload),
-promoting the newest release of every yuno. For a same-version hot-patch (no
-`APP_VERSION` bump) you can skip `upgrade-yunos`: `sync`, then bounce the
-affected yunos (`kill-yuno` + `run-yuno` / `play-yuno`).
+`upgrade-yunos` does four operations:
 
-> ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) reuse the same
-> `configure-libs.sh` with GCC or Clang — no separate toolchain.
-> OpenSSL is built with `no-dso` and `no-sock` to avoid glibc
-> resolver stubs in the static binary. See
-> `kernel/c/linux-ext-libs/HACKS.md` for details.
+1. It makes an optional snapshot for a rollback. The name makes it idempotent,
+   and the default name is `pre-upgrade-<YYYYMMDD>`. Use `--no-snap` to omit
+   the snapshot. If a snap is already active, the tool uses that one.
+2. It shows the new yuno rows that `find-new-yunos` creates, and it asks for a
+   confirmation. Use `--yes` to omit the question.
+3. It registers those rows with `find-new-yunos create=1`.
+4. It runs `deactivate-snap`. This starts `restart_nodes()` in the agent, which
+   does a SIGKILL and a treedb reload. The agent then promotes the newest
+   release of every yuno.
+
+A hot-patch of the same version has no change of `APP_VERSION`. For that case
+you can omit `upgrade-yunos`. Run `sync`. Then restart the affected yunos with
+`kill-yuno` and `run-yuno` or `play-yuno`.
+
+> ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) use the same
+> `configure-libs.sh` with GCC or with Clang. They need no different toolchain.
+> The build of OpenSSL uses `no-dso` and `no-sock`. This keeps the glibc
+> resolver stubs out of the static binary. See
+> `kernel/c/linux-ext-libs/HACKS.md` for the details.
 
 ---
 
 ## Troubleshooting
 
-````{dropdown} Bring back /var/log/syslog
+````{dropdown} Restore /var/log/syslog
 ```bash
 sudo apt-get update
 sudo apt-get install rsyslog
@@ -763,7 +796,7 @@ sudo systemctl enable --now rsyslog
 ```
 ````
 
-````{dropdown} Fix "Setting locale failed" warnings
+````{dropdown} Correct the "Setting locale failed" warnings
 ```bash
 dpkg-reconfigure locales
 ```
