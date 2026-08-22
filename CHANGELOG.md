@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.1
 
 ### Fixed
 
@@ -27,6 +27,12 @@
     the only site in the tree that treated the borrowed record as owned:
     `c_controlcenter` already pairs its `msg_iev_get_stack()` with an explicit
     `JSON_INCREF()`.
+
+- **The watcher changed directory without looking** (`ydaemon`). `relauncher()`
+    called `chdir(work_dir)` in the child and dropped the result, which the
+    compiler had been reporting as `-Wunused-result` on every build. A failed
+    `chdir` leaves the yuno running from whatever directory the watcher was in,
+    and it said nothing about it. It now logs the path and the `errno`.
 
 ## 7.16.0
 

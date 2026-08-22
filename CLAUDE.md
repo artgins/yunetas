@@ -112,7 +112,7 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.14.0`; the gobj-js package sits at
+versioned to track `YUNETA_VERSION` (SDK `7.16.1`; the gobj-js package sits at
 `7.12.0` on npm, behind because nothing since 7.13.0 moved anything on its
 side: it moved at 7.10.0 for the `gobj_post_event()`
 alignment and again at 7.12.0, where `gclass_find_by_name()` /
@@ -1474,7 +1474,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.14.0) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.16.1) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

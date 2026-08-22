@@ -220,7 +220,18 @@ PRIVATE int relauncher(
 
         /* Change the current working directory */
         if(!empty_string(work_dir)) {
-            chdir(work_dir);
+            if(chdir(work_dir) < 0) {
+                gobj_log_error(0, 0,
+                    "gobj",             "%s", __FILE__,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM,
+                    "msg",              "%s", "chdir() FAILED",
+                    "work_dir",         "%s", work_dir,
+                    "errno",            "%d", errno,
+                    "serror",           "%s", strerror(errno),
+                    NULL
+                );
+            }
         }
 
         gobj_trace_msg(0, "\n"); // Blank line
