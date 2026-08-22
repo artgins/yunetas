@@ -1369,6 +1369,18 @@ equivalent.
   does not mean bouncing every yuno that links it — identify which running
   yunos actually use the changed feature and propose that narrow set; a
   node-wide bounce of live services has real cost.
+- **On a node that builds from source, the version that counts is the binary's,
+  not the package's.** `dpkg -l` / `rpm -q` reporting an older release next to
+  `<binary> --version` reporting the current one is the **correct** state
+  there, not a pending upgrade — do not "align" it. The package ships whole
+  trees built on the build machine (`/yuneta/bin/nginx`, `/yuneta/bin/openresty`,
+  `outputs/`, `outputs_ext/`, `tools/`), so installing it on such a node
+  replaces a web server that runs with one built against another glibc, and
+  replaces the node's own archives with foreign ones — the provenance trap
+  under *Fully Static Binaries* above. What it delivers is a version string;
+  what it costs is a full rebuild, external libraries FIRST. `preinst` / `%pre`
+  refuse a source node for exactly this reason, and
+  `/etc/yuneta/allow-package-over-source` lifts the refusal, never the damage.
 - **Security defaults cut over hard fail-closed** — no warn-then-enforce or
   migration windows; outdated peers are allowed to break loudly. On a noisy
   deploy, **snap-rollback first** (`shoot-snap`/`activate-snap`), analyze
