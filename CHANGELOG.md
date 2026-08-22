@@ -1,5 +1,33 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **The identity ack freed a record it does not own** (`c_ievent_cli`).
+    `ac_identity_card_ack()` read the ievent stack record with
+    `msg_iev_get_stack()` and then released it. That function returns
+    `json_array_get(jn_stack, 0)`, a pointer the `kw` still owns — its own
+    signature says so: *"Return is NOT YOURS!"*. The decref freed
+    `__md_iev__.ievent_gate_stack[0]` while the array kept pointing at it, and
+    the `KW_DECREF()` that follows in `ac_on_message()` walked the tree and
+    freed it a second time.
+
+    The second free reads a refcount out of released memory, so what happens
+    next belongs to the allocator and not to the code: the block can still
+    read `1` and be freed again, or it can have been reused and corrupted in
+    silence. That is how one stray decref per connection survived since the
+    gclass was imported. It is no longer silent on glibc 2.43 — the agent
+    aborts with *"corrupted double-linked list"* while it processes the
+    controlcenter's ack, seconds after start, and a run that gets past the ack
+    dies later in `_int_malloc` instead.
+
+    The path runs on every successful identity ack, which is every
+    agent-to-controlcenter link and every citizen-yuno-to-agent link. This was
+    the only site in the tree that treated the borrowed record as owned:
+    `c_controlcenter` already pairs its `msg_iev_get_stack()` with an explicit
+    `JSON_INCREF()`.
+
 ## 7.16.0
 
 ### Added
