@@ -1,5 +1,70 @@
 # **Changelog**
 
+## Unreleased
+
+JS layer only (`gobj-js` 7.13.2 -> 7.13.5, `gobj-ui` 7.10.5 -> 7.14.3,
+`yunos-js` 0.13.3 -> 0.15.1). Each repo carries the detail in its own
+CHANGELOG.
+
+### Fixed
+
+- **A subscription filter that never filtered** (`gobj-js` 7.13.3).
+    `gobj_publish_event()` read the answer of `kw_match_simple()` — a JS
+    **boolean** — with the C runtime's `=== 0` guard, so a subscription whose
+    filter did not match was published to anyway. A treedb view subscribes to
+    `EV_TREEDB_NODE_DELETED` once per topic with a `{treedb_name, topic_name}`
+    filter, so deleting one row reached the table five times and the four
+    strays logged *"record not found"*. Measured on the wire first — one frame
+    out, one answer in — which is what said the copies were made in the
+    browser.
+
+    The audit of the same trap across the runtime (7.13.4, 7.13.5) fixed four
+    more sites: `mt_publication_pre_filter`, `mt_play`,
+    `mt_subscription_added`, and the `rc_walk_by_tree`/`rc_walk_by_list`
+    return, now normalized through a `walk_ret()` helper. The other half of
+    the trap is the caller: an action or framework method that answers
+    `undefined` (a bare `return;`) reads as *stop* to a `< 0` guard and as
+    *nothing* to a `=== 0` one. 31 off-contract returns were corrected across
+    the five JS repos, with regression tests for the publish path.
+
+- **The schema editor's buttons and icons are the size of buttons**
+    (`gobj-ui` 7.13.4 - 7.13.6). `is-small` had been applied to every control
+    of `SCHEMA_CARD` and `TREEDB_CARD`, form fields included, and the card
+    grid was 12rem where a treedb name needs 14. In the same round, the
+    header-filter hairline that 7.13.1 and 7.13.2 both failed to land: the
+    cause was neither the token nor the specificity but the **CSS import
+    order** — our Tabulator fixes were emitted before the theme they fix.
+
+### Added
+
+- **Rows can be selected and removed in bulk, in any table** (`gobj-ui`
+    7.11.0 - 7.13.0). A shared facility, `yui_table_select.js`
+    (`yui_selection_column`, `yui_selection_settings`, `yui_selection_bar`,
+    `yui_wire_selection`), instead of a per-table checkbox: the treedb topic
+    table takes it behind an opt-in flag (`with_selection_bar`), and so do the
+    tables of the SPAs. The bar reports what is selected and clears itself; a
+    tri-state parent checkbox writes its children in ONE gesture (the
+    `indeterminate` state is a property, so those formatters must return DOM
+    nodes, not markup).
+
+- **A column drag can be undone** (`gobj-ui` 7.14.0, 7.14.1). Reordering a
+    schema's columns raised *Version not raised* with no way back short of
+    reloading the store. The remembered order is now reset only when the store
+    is loaded, not on every write — which is what made the first Undo button
+    invisible.
+
+- **Connections and the Schemas picker read the same** (`yunos-js` 0.15.0,
+    0.15.1). The two tables show a backend and the treedbs it exposes, and one
+    is pasted **literally** into the other, but one was a tree and the other a
+    flat table with a nested sub-table; the checkbox meant *open* in one and
+    *select for deletion* in the other. Connections adopts the picker's shape:
+    services are child rows, the checkbox means BROWSE in both with the three
+    states on the connection row, and search, count and fold sit in the same
+    place — the fold and the search are one wrapping unit, so a phone takes
+    them to the next line together instead of leaving the fold stuck to the
+    title. Removing several connections moved to its own dialog, with its own
+    checkbox list, so marking rows to browse can never delete them.
+
 ## 7.16.1
 
 ### Fixed

@@ -160,6 +160,13 @@ Finds a gobj from a path, and begins the search at `gobj`.
 
 ## Walk the tree
 
+(js_walk_type_t)=
+### [`walk_type_t`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L304)
+
+The order the two walks take. One of `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP` or
+`WALK_BYLEVEL` must be given; with `WALK_BYLEVEL`, add `WALK_FIRST2LAST` or
+`WALK_LAST2FIRST`. Same names and same values as the C `walk_type_t`.
+
 (js_gobj_walk_gobj_children)=
 ### [`gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.13.2/src/gobj.js#L2737)
 
