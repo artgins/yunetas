@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.19.0, `gobj-ui` 7.20.0), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.19.1, `gobj-ui` 7.20.1), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
