@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.5, `gobj-ui` 7.18.3). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.17.6, `gobj-ui` 7.18.3). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -53,6 +53,18 @@ not do. Detail in those repos' CHANGELOGs.
     `zoomRange`. New host key: `zoom to selection`.
 
 ### Fixed
+
+- **F5 on a deep Schemas route landed on somebody else's default**
+    (`yunos-js` 0.17.6). Reloading on
+    `#/schemas/node/<node>%1F<yuno>/treedb_authzs/__graphs__` answered with
+    `.../treedb_system_schema/edit`. A node tab's route is registered when the
+    node is OPENED, so on a cold load it does not exist yet: the shell
+    resolves as far as the workspace home and hands the whole rest over as the
+    subpath. The restore read all of it as the node id, matched nothing, and
+    fell back to the first tab — which stamped its own default treedb, and
+    that treedb its own default view. Every segment past the id was thrown
+    away, which is why a bare node tab survived a reload and nothing deeper
+    did.
 
 - **After clicking a node, the graph's keys did nothing** (`gobj-ui` 7.18.1 —
     7.18.3). The keyboard reaches the graph through G6's canvas, the element
