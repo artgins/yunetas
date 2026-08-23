@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.21.0, `gobj-ui` 7.22.0), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.22.0, `gobj-ui` 7.23.0), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -42,7 +42,9 @@ Detail in those repos' CHANGELOGs.
     matched without moving the camera, and expand/collapse that folds every card
     but the root and marks each cut with a count. Its highlight is baked into
     the card's markup and not set as a G6 node state — the key shape of an
-    `html` node is a DOM element, and G6 paints no state style on it.
+    `html` node is a DOM element, and G6 paints no state style on it. Each
+    non-leaf card then got its own fold handle (7.23.0), because a graph you can
+    only open whole or close whole is not navigable.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is

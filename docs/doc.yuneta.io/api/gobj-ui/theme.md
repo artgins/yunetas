@@ -7,7 +7,7 @@ description: >-
 
 # Theme
 
-**Source code:** [`src/yui_theme.js`](https://github.com/artgins/gobj-ui.js/blob/7.22.0/src/yui_theme.js)
+**Source code:** [`src/yui_theme.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.0/src/yui_theme.js)
 
 The theme has three states, and only two of them are written down. An explicit
 choice of the user writes `data-theme` on the root element. The default setting
@@ -16,19 +16,19 @@ writes nothing, and the preference of the operating system decides.
 ---
 
 (js_yui_theme_now)=
-## [`yui_theme_now()`](https://github.com/artgins/gobj-ui.js/blob/7.22.0/src/yui_theme.js#L37)
+## [`yui_theme_now()`](https://github.com/artgins/gobj-ui.js/blob/7.23.0/src/yui_theme.js#L37)
 
 Gives the theme that is active, as `"dark"` or `"light"`. It reads
 `data-theme` of the root element, and it reads the preference of the operating
 system when the attribute is absent. Without a DOM it gives `"light"`.
 
 (js_yui_is_dark)=
-## [`yui_is_dark()`](https://github.com/artgins/gobj-ui.js/blob/7.22.0/src/yui_theme.js#L56)
+## [`yui_is_dark()`](https://github.com/artgins/gobj-ui.js/blob/7.23.0/src/yui_theme.js#L56)
 
 Tells if the application draws dark.
 
 (js_yui_watch_theme)=
-## [`yui_watch_theme(gobj, event)`](https://github.com/artgins/gobj-ui.js/blob/7.22.0/src/yui_theme.js#L85)
+## [`yui_watch_theme(gobj, event)`](https://github.com/artgins/gobj-ui.js/blob/7.23.0/src/yui_theme.js#L85)
 
 Follows the theme, and sends `event` to `gobj` on every change, with the payload
 `{theme}`. The default event is `EV_THEME`.
