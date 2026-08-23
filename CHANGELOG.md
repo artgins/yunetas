@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.4, `gobj-ui` 7.17.0). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.17.5, `gobj-ui` 7.18.3). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -44,7 +44,27 @@ not do. Detail in those repos' CHANGELOGs.
     action decides, the two full-screen keys included — they used to call the
     plugin straight from the callback.
 
+- **Zoom to the selection** (`gobj-ui` 7.18.0). `fit` gives back the whole
+    graph; there is now the same action for the part being worked on, as a
+    button next to it — edition only, disabled while nothing is selected, and
+    wearing the `fit` brackets with a marked object inside so the two read as
+    one action at two scopes. `fitView()` has no subset form, so the bounds are
+    measured off the elements and the zoom clamped to the graph's own
+    `zoomRange`. New host key: `zoom to selection`.
+
 ### Fixed
+
+- **After clicking a node, the graph's keys did nothing** (`gobj-ui` 7.18.1 —
+    7.18.3). The keyboard reaches the graph through G6's canvas, the element
+    carrying a `tabIndex`, and a card is a DOM element inside the container —
+    so clicking one sent the focus to `<body>` and Escape, ctrl+A and Delete
+    stopped working immediately after the click that had just selected
+    something. Three releases, each closed by MEASURING rather than reasoning
+    (a probe reporting `document.activeElement` and every keydown): the first
+    focused the wrong canvas of the four a graph stacks, the second ran before
+    the browser's own mousedown focus handling. The focus is restored on
+    `focusout` and only when it goes nowhere — moving to a real element is the
+    user leaving.
 
 - **The graph toolbar's house never took you home** (`gobj-ui` 7.15.0). The
     button people press to get the treedb graph back runs `zoomTo(1)`: it sets
