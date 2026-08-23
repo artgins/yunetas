@@ -1,5 +1,48 @@
 # **Changelog**
 
+## Unreleased
+
+JS layer only (`yunos-js` 0.15.1 -> 0.17.1). The connections table of
+`gui_treedb` learns to act on a SET, because a pasted deploy centre is two
+hundred rows. Detail in that repo's CHANGELOG.
+
+### Added
+
+- **Connections acts on many, and each gesture is one write** (`yunos-js`
+    0.16.0, 0.17.0). The browse column gets its header checkbox — three
+    states, covering what the filter leaves on screen, counted over services
+    so it cannot read "all" while half a connection is unticked. And
+    connecting several gets its own dialog, opened on the connect INTENT of
+    every connection: ticking everything is one click, disconnecting a
+    handful is the same box, and its count says what Apply will CHANGE rather
+    than what is ticked. Neither borrows the row checkbox, which means
+    *browse* and cannot mean two things. Both apply in a single write
+    (`EV_SET_CONNS_BROWSE`, `EV_SET_CONNS_ENABLED`), so the app root
+    reconciles the transports once instead of once per connection.
+
+### Fixed
+
+- **A header checkbox that could not be clicked** (`yunos-js` 0.16.1). Two
+    defects on one click, both found by driving the deployed app. It was born
+    **disabled**: Tabulator draws the header before the rows exist, and the
+    first load was the one data path that never repainted it afterwards. And
+    the click **cancelled itself**: `preventDefault()` on a checkbox makes the
+    browser revert the tick when the dispatch ends, while the repaint the
+    event triggers runs in a microtask BEFORE that — state written, table
+    repainted, count updated, and then the revert landed last.
+
+- **A proposed url built on the realm id** (`yunos-js` 0.17.1). The agent
+    console's *For TreeDB* copy read the FQDN from one place only, the
+    `__ssl_certificate__` config variable, and fell through to the realm id
+    when it was absent — proposing `demo.hidrauliaconnect.es` for a backend
+    whose certificate says `hidrauliaconnect.es`. The evidence was in the
+    same config, written where it is USED (`crypto.ssl_certificate` of the
+    gate), and is now read there too: the gate wearing the top port wins, a
+    wildcard certificate names no host, and the realm id is the last resort.
+
+- **The `yunos-js` CHANGELOG was in Spanish** from 0.13.15 to 0.15.1.
+    Translated in place: this is a public repo, and those are English.
+
 ## 7.16.2
 
 JS layer only (`gobj-js` 7.13.2 -> 7.13.5, `gobj-ui` 7.10.5 -> 7.14.3,
