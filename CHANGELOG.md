@@ -2,11 +2,22 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.18.3, `gobj-ui` 7.19.4). Two things learn
-to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
-centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
-node at a time and no other way. Its toolbar also stops promising what it does
-not do. Detail in those repos' CHANGELOGs.
+JS layer only (`yunos-js` 0.15.1 -> 0.18.3, `gobj-ui` 7.19.4), and it has two
+halves.
+
+Two things learn to act on a SET: the connections table of `gui_treedb`,
+because a pasted deploy centre is two hundred rows, and the treedb GRAPH, which
+could be rearranged one node at a time and no other way. Its camera toolbar
+also stops promising what it does not do.
+
+And the URL learns to hold a POSITION. Three separate places threw one away: a
+reload on a deep tab route answered with another tab's default, an action route
+came back to the route a view is declared at rather than the one you were
+looking at, and both consoles were deciding this in their own `c_app.js` --
+which is how one of them could be wrong while the other was right, and nothing
+said so. The deciding is one shared piece now.
+
+Detail in those repos' CHANGELOGs.
 
 ### Added
 
