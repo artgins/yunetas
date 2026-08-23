@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.18.3, `gobj-ui` 7.19.4), and it has two
-halves.
+JS layer only (`yunos-js` 0.15.1 -> 0.19.0, `gobj-ui` 7.20.0), and it has three
+parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
 because a pasted deploy centre is two hundred rows, and the treedb GRAPH, which
@@ -17,9 +17,32 @@ looking at, and both consoles were deciding this in their own `c_app.js` --
 which is how one of them could be wrong while the other was right, and nothing
 said so. The deciding is one shared piece now.
 
+And the JSON viewer learns a second way to READ. A tree is the right shape for
+finding one value in a large document and the wrong one for reading a document
+as it is written, so `C_YUI_JSON` now also shows the raw text of what it holds.
+
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
+    `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
+    the wrong shape for some of what people do with JSON: read a command answer
+    as it is written, take a slab of it into a ticket, find a string with the
+    browser's own Ctrl+F. A toolbar switch turns it into a
+    `JSON.stringify(…, 4)` dump of the working document; the `view_mode` attr
+    (`"tree"` | `"text"`) lets a host open straight into it, and
+    `EV_SET_VIEW_MODE {mode}` moves it at runtime, toggling when no mode is
+    given.
+
+    Nothing there is lazy: it prints what the client currently holds,
+    `__collapsed__` sentinels included, because that is honestly what it has.
+    Over 2M characters the dump is cut and the cut is announced. Search and
+    expand/collapse hide with the tree — they act on tree rows and have nothing
+    to act on here — while copy stays. Long lines scroll sideways inside the
+    viewer instead of wrapping: in a raw dump the indentation IS the structure,
+    and a wrapped line restarts at column 0 and lies about the depth of
+    everything under it.
 
 - **Connections acts on many, and each gesture is one write** (`yunos-js`
     0.16.0, 0.17.0). The browse column gets its header checkbox — three
