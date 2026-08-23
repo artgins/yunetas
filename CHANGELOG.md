@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.18.0, `gobj-ui` 7.19.0). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.18.1, `gobj-ui` 7.19.1). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -74,6 +74,18 @@ not do. Detail in those repos' CHANGELOGs.
     that treedb its own default view. Every segment past the id was thrown
     away, which is why a bare node tab survived a reload and nothing deeper
     did.
+
+- **`1:1` was a dead button, and the minimap drifted in full screen**
+    (`gobj-ui` 7.19.1). G6's toolbar calls `onClick` only when the PRESSED
+    element carries `g6-toolbar-item` — which is why its own CSS makes the icon
+    `<svg>` click-through. The text glyph `7.15.0` added had no such rule, so a
+    real press landed on the `<span>` and nothing happened; it survived a live
+    check because that check used `element.click()`, which dispatches where it
+    is told rather than where a pointer is. The minimap is placed in PIXELS
+    computed once from the canvas size, so growing the container left it
+    halfway up the left edge, over the graph it explains: it is anchored in CSS
+    now, inset, and follows the theme instead of being a white box on a
+    near-black canvas.
 
 - **After clicking a node, the graph's keys did nothing** (`gobj-ui` 7.18.1 —
     7.18.3). The keyboard reaches the graph through G6's canvas, the element
