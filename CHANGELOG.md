@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.19.1, `gobj-ui` 7.20.1), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.20.0, `gobj-ui` 7.21.0), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -17,13 +17,25 @@ looking at, and both consoles were deciding this in their own `c_app.js` --
 which is how one of them could be wrong while the other was right, and nothing
 said so. The deciding is one shared piece now.
 
-And the JSON viewer learns a second way to READ. A tree is the right shape for
-finding one value in a large document and the wrong one for reading a document
-as it is written, so `C_YUI_JSON` now also shows the raw text of what it holds.
+And the JSON viewer learns to READ the same document three ways. A tree is the
+right shape for finding one value in a large document, and the wrong one for
+reading it as it is written or for seeing its shape — so `C_YUI_JSON` now also
+shows the raw text of what it holds, and a graph of it.
 
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **The JSON viewer shows the same document three ways** (`gobj-ui` 7.20.0,
+    7.21.0). The third is a GRAPH — it hosts the `C_YUI_JSON_GRAPH` child that
+    already drew JSON as a hierarchy, so what is new is not the drawing but
+    that you no longer leave the viewer to get it. The switch became one button
+    per view: three views do not fit a toggle, because a cycling button cannot
+    be aimed. Two layout facts came out of it, both only a browser could tell
+    you — a canvas pushes no height, so the graph body needs a DEFINITE height
+    and not a minimum (a percentage height does not resolve against a box sized
+    by a minimum: G6 came up 1061x2); and at 390px the toolbar's search box was
+    taking 294 of 320 visible pixels, which put every button off the edge.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
