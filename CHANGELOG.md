@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.2, `gobj-ui` 7.15.0). The connections
-table of `gui_treedb` learns to act on a SET, because a pasted deploy centre is
-two hundred rows, and the treedb graph's toolbar stops promising what it does
+JS layer only (`yunos-js` 0.15.1 -> 0.17.3, `gobj-ui` 7.16.0). Two things learn
+to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
+centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
+node at a time and no other way. Its toolbar also stops promising what it does
 not do. Detail in those repos' CHANGELOGs.
 
 ### Added
@@ -20,6 +21,17 @@ not do. Detail in those repos' CHANGELOGs.
     *browse* and cannot mean two things. Both apply in a single write
     (`EV_SET_CONNS_BROWSE`, `EV_SET_CONNS_ENABLED`), so the app root
     reconciles the transports once instead of once per connection.
+
+- **Several graph nodes can be selected, and they move together**
+    (`gobj-ui` 7.16.0). In edition mode, **shift+click** adds a node to the
+    selection or takes it out, **shift+drag on the canvas** is a rubber band,
+    and dragging any selected node moves the **whole set** — as one undo,
+    because G6 batches it. The group move costs nothing because of where the
+    selection is kept: G6's `selected` element state IS the selection, which is
+    what `drag-element` asks the graph for. The ring had to be painted into the
+    card's own html, an html node drawing no state style — the same trap that
+    kept the amber highlight invisible until 7.3.0, so turning the rubber band
+    on and nothing else would have selected correctly and shown nothing.
 
 ### Fixed
 
