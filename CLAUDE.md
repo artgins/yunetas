@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.10.3`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.14.3`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -82,7 +82,11 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   in `dagre` instead of a diagonal pile; a topic can be pulled a PAGE at a
   time (`with_remote_paging`, needs the SDK's paged `nodes`); and a delete
   finally says what it takes with it, which with `force` is every child
-  UNLINKED.
+  UNLINKED. `7.11.x`-`7.14.x` adds the shared row-selection facility
+  (`yui_table_select.js`: a tri-state parent checkbox, a selection bar, and
+  bulk removal, taken by the treedb topic table behind `with_selection_bar`),
+  gives a schema column drag an Undo, and sizes the schema editor's controls
+  like controls instead of `is-small`.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package
@@ -112,13 +116,14 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.16.1`; the gobj-js package sits at
-`7.12.0` on npm, behind because nothing since 7.13.0 moved anything on its
-side: it moved at 7.10.0 for the `gobj_post_event()`
-alignment and again at 7.12.0, where `gclass_find_by_name()` /
+versioned to track `YUNETA_VERSION` (SDK `7.16.2`; the gobj-js package sits at
+`7.13.5` on npm, behind because only what moves on its side moves it: 7.10.0
+for the `gobj_post_event()` alignment, 7.12.0 where `gclass_find_by_name()` /
 `gobj_find_service()` stopped answering `undefined` for a lookup that finds
-nothing — a `=== null` guard against them was always false) and **published to
-npm**.
+nothing — a `=== null` guard against them was always false — and 7.13.3-7.13.5
+for the boolean/int trap, where a JS boolean was read with the C runtime's
+`=== 0` guard: a subscription filter that never filtered, plus four more sites
+of the same shape) and **published to npm**.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
@@ -128,7 +133,7 @@ caught up at the `7.6.7` release.) **Every** consumer takes it from the
 registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
 GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
 same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*` are on `^7.13.2` (2026-08-19), wattyzer on `^7.12.0`. Check
+ahead: `yunos/js/*` are on `^7.13.5` (2026-08-23), wattyzer on `^7.12.0`. Check
 the consumer's own `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -1486,7 +1491,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.16.1) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.16.2) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |

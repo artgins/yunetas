@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.2
 
 JS layer only (`gobj-js` 7.13.2 -> 7.13.5, `gobj-ui` 7.10.5 -> 7.14.3,
 `yunos-js` 0.13.3 -> 0.15.1). Each repo carries the detail in its own
