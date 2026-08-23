@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.20.1, `gobj-ui` 7.21.1), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.21.0, `gobj-ui` 7.22.0), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -27,7 +27,7 @@ Detail in those repos' CHANGELOGs.
 ### Added
 
 - **The JSON viewer shows the same document three ways** (`gobj-ui` 7.20.0,
-    7.21.0). The third is a GRAPH — it hosts the `C_YUI_JSON_GRAPH` child that
+    7.21.0, 7.22.0). The third is a GRAPH — it hosts the `C_YUI_JSON_GRAPH` child that
     already drew JSON as a hierarchy, so what is new is not the drawing but
     that you no longer leave the viewer to get it. The switch became one button
     per view: three views do not fit a toggle, because a cycling button cannot
@@ -36,6 +36,13 @@ Detail in those repos' CHANGELOGs.
     and not a minimum (a percentage height does not resolve against a box sized
     by a minimum: G6 came up 1061x2); and at 390px the toolbar's search box was
     taking 294 of 320 visible pixels, which put every button off the edge.
+
+    The graph then got the two facilities the tree already had (7.22.0): a find
+    box that highlights matching rows, outlines their cards and says how many
+    matched without moving the camera, and expand/collapse that folds every card
+    but the root and marks each cut with a count. Its highlight is baked into
+    the card's markup and not set as a G6 node state — the key shape of an
+    `html` node is a DOM element, and G6 paints no state style on it.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
