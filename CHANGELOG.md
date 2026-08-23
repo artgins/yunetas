@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.18.1, `gobj-ui` 7.19.1). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.18.2, `gobj-ui` 7.19.3). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -74,6 +74,14 @@ not do. Detail in those repos' CHANGELOGs.
     that treedb its own default view. Every segment past the id was thrown
     away, which is why a bare node tab survived a reload and nothing deeper
     did.
+
+- **Shift+clicking a card smeared a text selection across the graph**
+    (`gobj-ui` 7.19.2 — 7.19.3). Shift+click is the browser's own
+    extend-the-text-selection gesture, so the moment `7.16.0` gave it a meaning
+    here, marking three nodes also painted their labels blue. The canvas is a
+    canvas — except the popovers, which carry record data an operator copies
+    out, and `7.19.2` took the readable one (`g6-node-detail`) down with the
+    rest before a measurement caught it.
 
 - **`1:1` was a dead button, and the minimap drifted in full screen**
     (`gobj-ui` 7.19.1). G6's toolbar calls `onClick` only when the PRESSED
