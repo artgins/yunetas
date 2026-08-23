@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.1). The connections table of
-`gui_treedb` learns to act on a SET, because a pasted deploy centre is two
-hundred rows. Detail in that repo's CHANGELOG.
+JS layer only (`yunos-js` 0.15.1 -> 0.17.2, `gobj-ui` 7.15.0). The connections
+table of `gui_treedb` learns to act on a SET, because a pasted deploy centre is
+two hundred rows, and the treedb graph's toolbar stops promising what it does
+not do. Detail in those repos' CHANGELOGs.
 
 ### Added
 
@@ -21,6 +22,19 @@ hundred rows. Detail in that repo's CHANGELOG.
     reconciles the transports once instead of once per connection.
 
 ### Fixed
+
+- **The graph toolbar's house never took you home** (`gobj-ui` 7.15.0). The
+    button people press to get the treedb graph back runs `zoomTo(1)`: it sets
+    the SCALE and leaves the camera where it was, so from a corner of a large
+    graph it answered with the same corner at 100%. A house means *the initial
+    extent* in a map and *the starting view* in an editor, never a scale, and
+    it sat directly under `fit`, which is the control that really does give
+    the graph back. The action is right, so only its name moves: **`1:1`**,
+    written and not drawn, the way every editor that offers actual size labels
+    it. With it, the zoom level is shown as a readout, groups are separated by
+    gaps rather than one more hairline, and **both floating toolbars follow
+    the theme** — they were pinned light in both, two bright islands over a
+    dark canvas. New host keys: `actual size`, `zoom level`.
 
 - **A header checkbox that could not be clicked** (`yunos-js` 0.16.1). Two
     defects on one click, both found by driving the deployed app. It was born
