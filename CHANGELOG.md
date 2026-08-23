@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.6, `gobj-ui` 7.18.3). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.18.0, `gobj-ui` 7.19.0). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -43,6 +43,15 @@ not do. Detail in those repos' CHANGELOGs.
     find box a selection of the text. They arrive as `EV_KEY_DOWN` and the
     action decides, the two full-screen keys included — they used to call the
     plugin straight from the callback.
+
+- **The two decisions a runtime-opened tab costs its url, in one place**
+    (`gobj-ui` 7.19.0, `yunos-js` 0.18.0). Both consoles have a workspace whose
+    tabs the operator opens, and both answered the same two questions in their
+    own `c_app.js` — which is exactly why one could have the cold-load one
+    WRONG while the other had it right, and nothing said so. The deciding is
+    `yui_tab_routes.js` now (`yui_tab_split_subpath`, `yui_tab_position_plan`),
+    tests and all; the wiring stays in the hosts, which are each right about
+    when their own tabs become real.
 
 - **Zoom to the selection** (`gobj-ui` 7.18.0). `fit` gives back the whole
     graph; there is now the same action for the part being worked on, as a
