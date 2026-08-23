@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.17.3, `gobj-ui` 7.16.0). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.17.4, `gobj-ui` 7.17.0). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -32,6 +32,17 @@ not do. Detail in those repos' CHANGELOGs.
     card's own html, an html node drawing no state style — the same trap that
     kept the amber highlight invisible until 7.3.0, so turning the rubber band
     on and nothing else would have selected correctly and shown nothing.
+
+- **And the keys that selection needed** (`gobj-ui` 7.17.0). **Esc** clears it,
+    **ctrl/cmd+A** takes every node, **Delete** deletes it — behind the same
+    confirmation the per-node icon shows, from the same function, with the
+    children about to be UNLINKED and the parents about to be detached **summed
+    over the set**: these views delete with `force`, so twelve cards can detach
+    eleven children. The keys reach the graph only while it has FOCUS, G6
+    giving its canvas a `tabIndex`, which is what keeps ctrl+A typed in the
+    find box a selection of the text. They arrive as `EV_KEY_DOWN` and the
+    action decides, the two full-screen keys included — they used to call the
+    plugin straight from the callback.
 
 ### Fixed
 
