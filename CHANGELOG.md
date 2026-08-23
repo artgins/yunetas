@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.18.2, `gobj-ui` 7.19.3). Two things learn
+JS layer only (`yunos-js` 0.15.1 -> 0.18.3, `gobj-ui` 7.19.4). Two things learn
 to act on a SET: the connections table of `gui_treedb`, because a pasted deploy
 centre is two hundred rows, and the treedb GRAPH, which could be rearranged one
 node at a time and no other way. Its toolbar also stops promising what it does
@@ -74,6 +74,17 @@ not do. Detail in those repos' CHANGELOGs.
     that treedb its own default view. Every segment past the id was thrown
     away, which is why a bare node tab survived a reload and nothing deeper
     did.
+
+- **An action route came back to the MOUNT, not to where you were**
+    (`gobj-ui` 7.19.4). With `redirect: "back"` or `"none"` the shell restores
+    the previous resting route, and it read that off
+    `stages.main.active_route` — the route the view is DECLARED at. Under a
+    `C_YUI_NODE` tree everything below is subpath the node owns, so switching
+    the theme from a graph five levels down landed on the workspace root,
+    position gone; the same held for `/preferences`, `/sitemap` and the
+    dev-tools routes. It restores `current_route` now, the same route WITH its
+    subpath. An app whose views are all declared routes never saw this, which
+    is why it took a node tree to surface it.
 
 - **Shift+clicking a card smeared a text selection across the graph**
     (`gobj-ui` 7.19.2 — 7.19.3). Shift+click is the browser's own
