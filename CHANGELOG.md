@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.11), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.12, `gobj-ui` 7.23.12), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -188,7 +188,7 @@ Detail in those repos' CHANGELOGs.
 
     New host keys: `show toolbar`, `hide toolbar`.
 
-- **Multi-selection reaches a finger** (`gobj-ui` 7.23.11). Both of its
+- **Multi-selection reaches a finger** (`gobj-ui` 7.23.11, 7.23.12). Both of its
     gestures hang off Shift — shift+click adds a card, shift+drag draws the
     band — and a phone has no Shift; nor is there a spare gesture to give
     them, since G6 binds panning and the band to the same plain drag. So
@@ -199,6 +199,13 @@ Detail in those repos' CHANGELOGs.
     which of the two the graph is listening for; and not device-specific,
     because it spares a desktop reader the key just as well. New consumer
     key: `selection mode`.
+
+    The toggle looks **pressed** rather than taking a colour of the toolbar's
+    palette (`7.23.12`, new `set_pressed_state()`): every colour there names a
+    KIND of action — blue creates, orange means pending changes, violet is
+    undo/redo, red destroys — so painting a STATE with one of them put the same
+    violet on two neighbouring buttons for two different reasons, and carried
+    the whole state change in the hairline of an outline glyph.
 
 ### Fixed
 
