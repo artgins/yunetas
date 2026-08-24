@@ -25,8 +25,9 @@ shows the raw text of what it holds, and a graph of it.
 And last, the three G6 graphs learn to be OPERATED by a finger. They have
 always drawn correctly on a telephone; what could not be done on one was
 anything else — the zoom was two buttons because G6 gives it to the wheel, the
-context menu had no door at all, and the controls a finger has to land on were
-sized for a pixel.
+context menu had no door at all, the controls a finger has to land on were
+sized for a pixel, and the treedb graph's multi-selection hung off a key a
+telephone does not have.
 
 Detail in those repos' CHANGELOGs.
 
