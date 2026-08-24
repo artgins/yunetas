@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.9), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.10), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -188,6 +188,26 @@ Detail in those repos' CHANGELOGs.
     New host keys: `show toolbar`, `hide toolbar`.
 
 ### Fixed
+
+- **A group move that moved the whole graph** (`gobj-ui` 7.23.10). Three
+    defects behind one report: selecting two cards in a treedb graph and
+    dragging them moved everything, erratically, and the saved result was
+    right anyway. (1) Edition's `drag-canvas` is given an `enable` so it
+    stands aside for Shift, the marquee's key — and an `enable` REPLACES
+    G6's default, which is the `targetType === 'canvas'` test that keeps
+    panning off a node drag: both behaviours ran on the same gesture, so a
+    150px drag moved the card 255px and every other card 105px, and a pan
+    writes nothing, which is why saving and refreshing showed the right
+    thing. (2) The history plugin was installed at one MOMENT — the arrival
+    of the last topic of the load — and only if the graph was in edition
+    right then, so reaching edition through the mode selector, which is the
+    ordinary way in, left dead Undo/Redo buttons and a `history_pause()`
+    nothing answered, while Save still lit on its own. It follows the mode
+    now. (3) G6's `brush-select` rewrites the `selected` state of every
+    element on every canvas click, behind the gclass that owns the selection
+    and outside its history pause — a recorded command whose before and
+    after are identical, so a click on the background lit Save on a graph
+    nobody had touched.
 
 - **A mode that could not move the camera** (`gobj-ui` 7.23.9). The treedb
     graph's `operation` mode left its `behaviors` list empty where `reading`

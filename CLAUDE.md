@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.9`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.10`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -102,6 +102,16 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   platform), and **`@antv/g` re-issues pointer ids mid-gesture**, so a
   two-finger gesture tracked by `pointerId` — which is how G6's own
   `PinchHandler` tracks it — loses a finger halfway. Read `event.touches`.
+  `7.23.10` is the treedb graph's edition mode, and its lesson is one line:
+  **a G6 behavior's `enable` REPLACES the default, it does not add to it** —
+  the edition `drag-canvas` was given one so it would stand aside for Shift,
+  which silently dropped G6's `targetType === 'canvas'` test, so every drag of
+  a card panned the canvas as well as moving the card. Two more in the same
+  place: the history plugin was tied to a MOMENT of the load rather than to
+  the mode (so Undo was dead whenever edition was entered from the mode
+  selector, while Save still lit), and G6's `brush-select` keeps the
+  `selected` state itself — rewriting every element's state on every canvas
+  click, behind the gclass that owns the selection.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:
