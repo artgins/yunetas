@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.8), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.9), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -21,6 +21,12 @@ And the JSON viewer learns to READ the same document three ways. A tree is the
 right shape for finding one value in a large document, and the wrong one for
 reading it as it is written or for seeing its shape — so `C_YUI_JSON` now also
 shows the raw text of what it holds, and a graph of it.
+
+And last, the three G6 graphs learn to be OPERATED by a finger. They have
+always drawn correctly on a telephone; what could not be done on one was
+anything else — the zoom was two buttons because G6 gives it to the wheel, the
+context menu had no door at all, and the controls a finger has to land on were
+sized for a pixel.
 
 Detail in those repos' CHANGELOGs.
 
@@ -133,7 +139,74 @@ Detail in those repos' CHANGELOGs.
     measured off the elements and the zoom clamped to the graph's own
     `zoomRange`. New host key: `zoom to selection`.
 
+- **The G6 graphs, operable on a touch screen** (`gobj-ui` 7.23.9). Measured in
+    a real touch context rather than read off the CSS, and two of the five are
+    facts about G6 that nothing in its documentation says:
+
+    - **Pinch to zoom, in all three graphs.** `zoom-canvas` binds the WHEEL and
+      nothing else, and a telephone has no wheel. G6 does ship a pinch
+      recogniser, but asking for it (`trigger: ['pinch']`) REPLACES the wheel —
+      its `bindEvents` is an `if/else` — and its `PinchHandler` keeps its
+      instance and its callback list in STATICS, so on a page with two graphs
+      the second registers against the first one's emitter: pinching graph A
+      zooms both and pinching graph B does nothing. Recognised per graph
+      instead, over a `zoom-canvas` that keeps the wheel — the same shape the
+      `drag-canvas` replacement already had, so every graph gets it with no
+      change to its behaviors list.
+
+      It reads the NATIVE touch events, not G6's forwarded pointer stream:
+      **`@antv/g` re-issues pointer ids in the middle of a two-finger gesture**
+      (measured: a pinch that started on ids 2 and 3 finished on id 1), so
+      anything keyed on `pointerId` loses a finger halfway and reads the
+      gesture as a fraction of what it was. `event.touches` needs no
+      bookkeeping — it IS the list of fingers down, restated on every event.
+
+    - **A long press opens the context menu.** It never could, on any platform:
+      **G6 does not read the DOM's `contextmenu` event at all.** Its
+      `BehaviorController` synthesises the event from `pointerdown` with
+      `button === 2`, so the menu was a right click and only a right click,
+      whatever the browser does with a long press. The press re-emits G6's own
+      forwarded event under the name the plugin listens for, so `getItems(e)`
+      sees exactly what a right click gives it — the port under the finger
+      included, which is what tells the port menu from the node one.
+
+    - **Touch targets**, all behind `(pointer: coarse)` so a mouse sees no
+      change: resize handles were 8x8 and eight of them (now a 14px mark in a
+      44px box, corners only — eight fingertip-sized boxes around a 90px node
+      overlap into one blob, and a corner resizes both axes anyway);
+      `node properties` and `delete node` were two 28px circles **4px apart**,
+      one fingertip covering both with the destructive one underneath; a port's
+      hit area was a flat `+4` in WORLD units, a different target at every zoom
+      and 5 screen px at the 50% a telephone lands on after fit.
+
+    - **The floating toolbars fold.** Drawn inside the canvas, one on each
+      edge, the two of them took a third of a 356px telephone canvas and stood
+      on top of the nodes. Under 480px of container they collapse behind one
+      button. Measured on the CONTAINER and not the window: the same graph is a
+      full page in one app and a card in a column in another.
+
+    New host keys: `show toolbar`, `hide toolbar`.
+
 ### Fixed
+
+- **A mode that could not move the camera** (`gobj-ui` 7.23.9). The treedb
+    graph's `operation` mode left its `behaviors` list empty where `reading`
+    and `writing` next door both fill it. On a desktop the toolbar still
+    zoomed and nothing panned; on a telephone, where the gestures ARE the
+    camera, the graph was a picture.
+
+- **A view that talks to a backend has to be a SERVICE, and for two reasons**
+    (`gobj-ui` test-app). Only one of them is visible, and that is the trap:
+    `gobj_save_persistent_attrs()` refuses a gobj that is not a service and
+    says so, but `C_IEVENT_CLI` routes an answer back with
+    `gobj_find_service(gobj_name(src))` and simply finds nobody. The offline
+    demo mounted the treedb graph as a pure child and WORKED — its in-page
+    backend answered the `src` pointer it had been handed, which is what a
+    backend in the same page has and a real one never does. So the chapter
+    modelled a contract that does not exist. Both halves fixed together: the
+    graph goes through `yui_mount_service_view()`, the way both real consumers
+    mount it, and the demo backend resolves its destination by NAME and
+    refuses, loudly, to answer a caller that is not registered.
 
 - **Three framework contracts, each found the same way: by a loud error nobody
     had seen because nobody had built that shape yet** (`gobj-ui` 7.20.1,

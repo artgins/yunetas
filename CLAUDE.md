@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.8`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.9`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -92,7 +92,16 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   the same document three ways — the lazy tree, the raw text, and a graph —
   and the three graphs of the library (`C_G6_NODES_TREE`,
   `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS`) end it speaking ONE toolbar
-  vocabulary, built in `yui_graph_camera.js`.
+  vocabulary, built in `yui_graph_camera.js`. `7.23.9` makes those same three
+  graphs OPERABLE on a touch screen — pinch, a long press that opens the
+  context menu, touch-sized targets behind `(pointer: coarse)`, and the two
+  floating toolbars folded behind one button on a narrow container — which
+  cost two facts about G6 that its documentation does not carry: **it never
+  reads the DOM's `contextmenu` event** (it synthesises the event from
+  `pointerdown` with `button === 2`, so a long press reaches the plugin on no
+  platform), and **`@antv/g` re-issues pointer ids mid-gesture**, so a
+  two-finger gesture tracked by `pointerId` — which is how G6's own
+  `PinchHandler` tracks it — loses a finger halfway. Read `event.touches`.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:
@@ -318,6 +327,15 @@ Corollaries:
   `gobj_save_persistent_attrs(gobj, "attr_name")` (string / list / dict of
   names). The bare call saves every `SDF_PERSIST` attr, which is wasteful and
   can clobber attrs the caller didn't touch. Same API shape in C and JS.
+  **Only a SERVICE can load or save them** — `gobj_load/save/remove_
+  persistent_attrs()` all refuse a gobj that is not one and log *"Only gobj
+  services can load/save writable-persistent"*. So an `SDF_PERSIST` attr is
+  also a statement about how the gclass must be CREATED: a gclass that
+  persists anything cannot be hosted with `gobj_create_pure_child()`. In JS
+  that is what `yui_mount_service_view()` is for, and it is the same
+  constraint as the `src` of an inter-yuno answer (see *Inter-yuno
+  communication* above) — a view that talks to a backend has to be a service
+  twice over, and only the persistence half says so out loud.
 - **Command responses:** every non-empty `jn_comment` passed to
   `build_command_response()` in a `cmd_*` handler starts with the yuno
   identity: `json_sprintf("%s: ...", gobj_yuno_role_plus_name(), ...)`. Keep it
