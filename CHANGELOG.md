@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.6, `gobj-ui` 7.23.6), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.22.7, `gobj-ui` 7.23.7), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -57,8 +57,9 @@ Detail in those repos' CHANGELOGs.
     leaving the third is how they drifted in the first place — and the offline
     demo finally shows the treedb graph too (7.23.5), which is the one the
     other two borrow that camera FROM and the one nobody could see there. Same
-    drawings in the same PLACES, last (7.23.6): fold belongs on the right,
-    because the middle is the camera and a fold changes the document.
+    drawings in the same PLACES, last (7.23.6, 7.23.7): the GLOBAL fold leads
+    the toolbar ahead of the find box, and the PER-NODE one sits on the right of
+    each card's own header — two controls, two jobs, two places.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
