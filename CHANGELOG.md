@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.4, `gobj-ui` 7.23.4), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.22.5, `gobj-ui` 7.23.5), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -54,7 +54,9 @@ Detail in those repos' CHANGELOGs.
     a different picture from the treedb graph's for the same two buttons
     (7.23.3) — one action, one drawing, zoom readout included. Every graph's
     camera is built in one module now (7.23.4), because unifying two files and
-    leaving the third is how they drifted in the first place.
+    leaving the third is how they drifted in the first place — and the offline
+    demo finally shows the treedb graph too (7.23.5), which is the one the
+    other two borrow that camera FROM and the one nobody could see there.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
