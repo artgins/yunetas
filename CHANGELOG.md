@@ -135,6 +135,26 @@ Detail in those repos' CHANGELOGs.
 
 ### Fixed
 
+- **Three framework contracts, each found the same way: by a loud error nobody
+    had seen because nobody had built that shape yet** (`gobj-ui` 7.20.1,
+    7.23.0, 7.23.2). They are gobj rules, not component details, which is why
+    they are here and not only in that repo's changelog:
+
+    - **`gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`.**
+      A hosted child torn down in `mt_destroy` is torn down after the framework
+      has already destroyed it — *while it was still running*. Retire a hosted
+      child in **`mt_stop`**, where everything is whole.
+    - **`C_YUI_WINDOW.close_window()` calls `on_close` and THEN stops and
+      destroys itself.** A host that also destroys the window destroys it
+      twice. On the ✕ path the host drops its reference and keeps its hands
+      off; it destroys the window only when IT initiates the close.
+    - **Adding an output event to a gclass hosted as a CHILD is a BREAKING
+      change.** The child subscribes its host to everything it publishes, so a
+      new output event is a new *mandatory* declaration in every host's FSM.
+      Six gclasses answered *"Event NOT DEFINED in state"* to a graph click
+      because one viewer started republishing its child's event "so the host
+      has one contract" — which is the framework backwards.
+
 - **F5 on a deep Schemas route landed on somebody else's default**
     (`yunos-js` 0.17.6). Reloading on
     `#/schemas/node/<node>%1F<yuno>/treedb_authzs/__graphs__` answered with

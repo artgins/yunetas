@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.14.3`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.8`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -86,7 +86,28 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   (`yui_table_select.js`: a tri-state parent checkbox, a selection bar, and
   bulk removal, taken by the treedb topic table behind `with_selection_bar`),
   gives a schema column drag an Undo, and sizes the schema editor's controls
-  like controls instead of `is-small`.
+  like controls instead of `is-small`. `7.15.x`-`7.19.x` is the graph round
+  (multi-selection, `1:1` in place of a house, the camera saying its zoom) and
+  the URL-as-position round. `7.20.x`-`7.23.x` is the JSON viewer: it reads
+  the same document three ways — the lazy tree, the raw text, and a graph —
+  and the three graphs of the library (`C_G6_NODES_TREE`,
+  `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS`) end it speaking ONE toolbar
+  vocabulary, built in `yui_graph_camera.js`.
+
+  Three framework contracts came out of that round and are worth knowing
+  before writing any gclass that hosts a child:
+
+  - **`gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`.**
+    A child torn down in `mt_destroy` is torn down after the framework already
+    destroyed it — while it was still running. Retire a hosted child in
+    **`mt_stop`**.
+  - **`C_YUI_WINDOW.close_window()` calls `on_close` and THEN destroys
+    itself.** A host that also destroys the window destroys it twice. On the
+    ✕ path the host drops its reference and keeps its hands off.
+  - **Adding an output event to a gclass that is hosted as a CHILD is a
+    BREAKING change.** The child subscribes its host to everything it
+    publishes, so a new output event is a new mandatory declaration in every
+    host's FSM — or every host answers *"Event NOT DEFINED in state"*.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios
   — all pull it from the **npm registry**, and all import it by package
