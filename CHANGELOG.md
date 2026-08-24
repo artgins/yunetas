@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.10), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.8, `gobj-ui` 7.23.11), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -186,6 +186,18 @@ Detail in those repos' CHANGELOGs.
       full page in one app and a card in a column in another.
 
     New host keys: `show toolbar`, `hide toolbar`.
+
+- **Multi-selection reaches a finger** (`gobj-ui` 7.23.11). Both of its
+    gestures hang off Shift — shift+click adds a card, shift+drag draws the
+    band — and a phone has no Shift; nor is there a spare gesture to give
+    them, since G6 binds panning and the band to the same plain drag. So
+    Shift becomes a MODE: the graph's edit toolbar carries a **selection
+    mode** toggle (a dashed marquee, next to `+`), and while it is on a tap
+    picks a card and a drag on the background draws the band, with panning
+    standing aside. A button rather than a heuristic, so the toolbar says
+    which of the two the graph is listening for; and not device-specific,
+    because it spares a desktop reader the key just as well. New consumer
+    key: `selection mode`.
 
 ### Fixed
 

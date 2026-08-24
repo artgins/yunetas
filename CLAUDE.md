@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.10`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.11`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -111,7 +111,13 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   the mode (so Undo was dead whenever edition was entered from the mode
   selector, while Save still lit), and G6's `brush-select` keeps the
   `selected` state itself — rewriting every element's state on every canvas
-  click, behind the gclass that owns the selection.
+  click, behind the gclass that owns the selection. `7.23.11` gives that
+  graph's multi-selection a way in for a finger: both its gestures hang off
+  Shift, so Shift becomes a **mode** in the edit toolbar (a tap picks, a
+  canvas drag is the band, panning stands aside while it is on) — a button
+  rather than a heuristic, because a gesture cannot be two things and the
+  toolbar has to say which one the graph is listening for. New consumer i18n
+  key `selection mode`, added in the five locale dirs.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:
