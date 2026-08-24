@@ -229,6 +229,18 @@ Detail in those repos' CHANGELOGs.
     after are identical, so a click on the background lit Save on a graph
     nobody had touched.
 
+- **The demo's treedb chapter opens its edition mode** (`gobj-ui`
+    test-app). It was mounted read-only because there was nothing behind it
+    to write to — still true of the RECORDS, where the refusal is the honest
+    answer twice over (the graph draws a created or deleted node from the
+    treedb's own node events, which a backend living in one page does not
+    send, so a write that answered yes would leave the graph still). It is
+    not true of the ARRANGEMENT: moving cards, the selection mode, undo/redo
+    and Save all end in one write, `update-node` on `__graphs__`, and that
+    topic is the view's own bookkeeping. `C_DEMO_BACKEND` declares it and
+    takes that write, so the public demo now shows the whole of edition —
+    including the selection mode added in `7.23.11`.
+
 - **A mode that could not move the camera** (`gobj-ui` 7.23.9). The treedb
     graph's `operation` mode left its `behaviors` list empty where `reading`
     and `writing` next door both fill it. On a desktop the toolbar still
