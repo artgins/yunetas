@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.0, `gobj-ui` 7.23.0), and it has three
+JS layer only (`yunos-js` 0.15.1 -> 0.22.1, `gobj-ui` 7.23.1), and it has three
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -44,7 +44,10 @@ Detail in those repos' CHANGELOGs.
     the card's markup and not set as a G6 node state — the key shape of an
     `html` node is a DOM element, and G6 paints no state style on it. Each
     non-leaf card then got its own fold handle (7.23.0), because a graph you can
-    only open whole or close whole is not navigable.
+    only open whole or close whole is not navigable — drawn as the same filled
+    chip the gobj tree uses (7.23.1), after the bare glyph it shipped with
+    turned out to be two pixels of ink at the zoom that fits a document on a
+    phone.
 
 - **The JSON viewer shows the same document as raw text** (`gobj-ui` 7.20.0).
     `C_YUI_JSON` had one way to read a document — the lazy tree — and a tree is
