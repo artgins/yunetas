@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.12, `gobj-ui` 7.23.12), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.13, `gobj-ui` 7.23.13), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -228,6 +228,20 @@ Detail in those repos' CHANGELOGs.
     and outside its history pause — a recorded command whose before and
     after are identical, so a click on the background lit Save on a graph
     nobody had touched.
+
+- **The treedb graph's two selects speak the app's language** (`gobj-ui`
+    7.23.13). The layout one and the operation-mode one rendered their raw
+    names — `reading`, `edition`, `dagre`, `manual` — in every language and in
+    every app: not a missing key, a missing call, since neither went through
+    `t()` at all. The Spanish console of a production node said *"Modo de
+    operación: reading"*, label translated and value not. Two things came with
+    it: the option's `value` is set EXPLICITLY (an `<option>` with none answers
+    with its own TEXT, so a translated label would have sent `"Edición"` to the
+    FSM as the mode to enter), and the labels are literals rather than
+    `t(name)`, because a consumer's `validate-locales.mjs` reads literals and a
+    variable key is invisible to it. New consumer keys: `reading`, `operation`,
+    `writing`, `edition`, `manual`, `dagre`, `antv-dagre`, `d3-force`,
+    `force-atlas2`.
 
 - **The demo's treedb chapter opens its edition mode** (`gobj-ui`
     test-app). It was mounted read-only because there was nothing behind it
