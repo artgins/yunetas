@@ -196,9 +196,22 @@ library obey a finger:
 - The two toolbars fold behind one button. The container must be less than
   480 pixels wide. The toolbars are inside the canvas, one on each side, and
   on a telephone they hide the nodes.
+- A finger selects many nodes. The two gestures use the key `shift`, and a
+  telephone has no key. Thus the toolbar of edition has a button **selection
+  mode** (gobj-ui 7.23.11). While the mode is on, a touch selects a card and
+  a drag on the background draws the band.
+- A finger moves a node (gobj-ui 7.23.14). G6 puts `touch-action: none` on
+  its canvas, but it puts nothing on its nodes of HTML. Thus a drag that
+  started on a card was a scroll of the page. The browser stopped the pointer
+  after approximately 20 pixels.
+- A press does only one thing. The library decides at the release of the
+  finger: a movement is a drag, a quick release is the action of the element,
+  and a long press is the menu of the context. A timer cannot decide, because
+  the gesture is not complete when the timer operates.
 
-The selection of many nodes stays on the desktop. That gesture is the key
-`shift`, and a telephone has no key.
+A vibration of 15 milliseconds tells you that the press is long enough
+(gobj-ui 7.23.15). The vibration is a signal only. If you then move the
+finger, you get the drag. Some devices have no vibrator.
 :::
 
 (js_register_c_yui_gobj_tree_js)=

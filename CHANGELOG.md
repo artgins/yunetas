@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.13, `gobj-ui` 7.23.13), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.15, `gobj-ui` 7.23.15), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -27,7 +27,8 @@ always drawn correctly on a telephone; what could not be done on one was
 anything else — the zoom was two buttons because G6 gives it to the wheel, the
 context menu had no door at all, the controls a finger has to land on were
 sized for a pixel, and the treedb graph's multi-selection hung off a key a
-telephone does not have.
+telephone does not have. And the plainest thing of all could not be done
+either, which is why it was found last: a finger could not MOVE a node.
 
 Detail in those repos' CHANGELOGs.
 
@@ -382,6 +383,47 @@ Detail in those repos' CHANGELOGs.
 
 - **The `yunos-js` CHANGELOG was in Spanish** from 0.13.15 to 0.15.1.
     Translated in place: this is a public repo, and those are English.
+
+- **A finger could not move a node** (`gobj-ui` 7.23.14, 7.23.15). The
+    plainest thing there is to do in the treedb graph's edition mode, and two
+    separate defects were in front of it — the first one not in this code at
+    all.
+
+    **The browser was taking the gesture.** G6 puts `touch-action: none` on
+    its canvas and **nothing** on its HTML nodes, which are ordinary DIVs
+    layered over it. So a drag that began on a CARD was a page scroll as far
+    as the browser was concerned: it let two `pointermove`s through, decided,
+    and killed the pointer stream with a `pointercancel`. The node followed
+    the finger for about 20px and stopped dead while the page slid underneath
+    — which reads as a delta bug and is not one. The pointer log is what says
+    so: it ends at `pointercancel` / `lostpointercapture` while the touch
+    stream runs on to the end of the gesture. `.graph-container` refuses those
+    gestures whole now, with `touch-action: auto` kept for the panels and the
+    context menu, which a finger must still be able to scroll.
+
+    **And the press meant two things at once.** The long press fired on a
+    TIMER, 500ms in, while `drag-element` was already carrying the node: the
+    menu opened over a card that then ran away underneath it. A timer cannot
+    arbitrate a gesture, because at the moment it fires the gesture is not
+    over. Nothing decides now until the finger moves or lets go — moved →
+    drag, still and let go quickly → the element's own action, still and held
+    past 500ms → the context menu. The rule is `classify_press()` in the new
+    pure `press_arbiter.js`, with tests; its 10px slop is G6's own
+    `dragstartDistanceThreshold`, so "still" means the same to the arbiter and
+    to the drag.
+
+    Three more things the same press was doing, all fixed with it: the `click`
+    that `@antv/g` SYNTHESISES in its `onPointerUp` (it does not take `click`
+    from the DOM either, so swallowing the DOM one never helped) went on to
+    click the node the menu had just opened on; the browser's own menu opened
+    on top, while the finger was still down; and each release of a PINCH
+    looked like the end of a press.
+
+    Deciding at the release costs exactly one thing — while the finger is
+    down, nothing says that letting go would now give the menu rather than the
+    node's own action — so `7.23.15` adds a 15ms haptic tick at the 500ms
+    mark. It is a NOTICE and not the decision: a finger that buzzes and then
+    carries the node away still gets its drag.
 
 ## 7.16.2
 
