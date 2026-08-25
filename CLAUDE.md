@@ -136,7 +136,9 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   own `dragstartDistanceThreshold`. A third thing hid behind those two:
   `click` is not taken from the DOM either — `@antv/g`'s `onPointerUp`
   synthesises one — so swallowing the DOM click never stopped the element's
-  own action.
+  own action. `7.23.15` gives that press its only feedback: a 15ms haptic
+  tick at the 500ms mark, a NOTICE rather than the decision — a finger that
+  buzzes and then carries the node away still gets its drag.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:
