@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.21) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.22) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -263,7 +263,7 @@ Detail in those repos' CHANGELOGs.
 ### Fixed
 
 - **A JSON card was a single anchor for every line leaving it** (`gobj-ui`
-    7.23.21). Fourteen edges came out of one point, and which row a line
+    7.23.21, refined in 7.23.22). Fourteen edges came out of one point, and which row a line
     belonged to was a guess the reader made from where it landed. Every
     container key now opens a G6 **port** and its line leaves from there --
     on the bottom edge, and exactly ON it, because an html node draws its HTML
@@ -272,7 +272,10 @@ Detail in those repos' CHANGELOGs.
     opened in the parent down to all its children, so the fourteen columns of
     `cols` leave the single `cols` port. `getPointPosition()` moves to
     `lib_graph.js`, shared with the treedb graph it came from: it is the same
-    decision about where a hook's port sits.
+    decision about where a hook's port sits. Each port then moved onto the
+    LINE of its own row (7.23.22): spread along the bottom edge they were
+    distinguishable but still not attached to anything, since the reader had
+    to count dots, count rows and trust the two orders matched.
 
 - **A JSON graph drew a pure collection as a node of its own** (`gobj-ui`
     7.23.20). `cols` is one key of the topic dict like `pkey` is, and the card
