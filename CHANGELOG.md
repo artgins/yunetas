@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.22) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.24) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -34,6 +34,16 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **The cards of the node viewers can be MOVED** (`gobj-ui` 7.23.24), in the
+    JSON graph and the gobj tree alike. The position is deliberately not kept:
+    both are rebuilt from their source on every refresh, fold and layout
+    change, and neither is a document of its own to save it to -- pulling two
+    cards apart to read the lines between them is worth having even for one
+    session. The finger's half of it needed the mounts to refuse the browser's
+    gestures: G6 puts `touch-action: none` on its CANVAS and nothing on the
+    html nodes over it, so a drag that began on a card was a page scroll that
+    died after ~20px. Same defect the treedb graph paid for at 7.23.14.
 
 - **A camera ANCHOR in every node viewer** (`gobj-ui` 7.23.19): pick one
     element from the toolbar's crosshairs and every zoom leaves it in the
@@ -275,7 +285,10 @@ Detail in those repos' CHANGELOGs.
     decision about where a hook's port sits. Each port then moved onto the
     LINE of its own row (7.23.22): spread along the bottom edge they were
     distinguishable but still not attached to anything, since the reader had
-    to count dots, count rows and trust the two orders matched.
+    to count dots, count rows and trust the two orders matched. And a line
+    gained an ARROWHEAD and a port to arrive at, centred above the target
+    card's title (7.23.23): with ports only on the source side a line said
+    where it left from and nothing about where it went.
 
 - **A JSON graph drew a pure collection as a node of its own** (`gobj-ui`
     7.23.20). `cols` is one key of the topic dict like `pkey` is, and the card
