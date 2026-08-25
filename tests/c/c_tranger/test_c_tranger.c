@@ -12,6 +12,7 @@
  *                          conditions, which are independent and combine
  *      - get-page       -> {total_rows, pages, data} page of records
  *      - close-iterator -> close + deregister
+ *      - delete-key     -> delete a whole key, guarded by force
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -47,6 +48,11 @@
 #define KEY_C       "C"
 #define KEY_C_ROWS  4
 #define TM_SKEW     1000
+
+/*  key "D" exists only to be deleted: nothing else reads it, so delete-key
+ *  cannot disturb the iterators / feeds the other keys leave open.  */
+#define KEY_D       "D"
+#define KEY_D_ROWS  6
 
 /***************************************************************
  *              Data
@@ -883,6 +889,75 @@ PRIVATE int do_test(void)
             "topic_name", TOPIC_NAME,
             "key", KEY_B
         ), yuno);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      delete-key: the write list-keys had no counterpart for.
+     *
+     *  A key of its own (nothing before this point has ever looked at it), so
+     *  the delete cannot disturb the iterators and feeds left open above.
+     *-------------------------------------------------*/
+    if(append_key(tranger, KEY_D, KEY_D_ROWS) < 0) {
+        printf("%s: FAIL (append KEY_D)\n", APP);
+        return -1;
+    }
+
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("delete-key no-key result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s}",
+            "topic_name", TOPIC_NAME,
+            "key", "never_existed"
+        ), yuno);
+    check_int("delete-key missing-key result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    /*  A key with records refuses without force: the delete is irrecoverable  */
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_D
+        ), yuno);
+    check_int("delete-key no-force result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("delete-key refused, D still there", find_key_records(data, KEY_D), KEY_D_ROWS);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s, s:b}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_D,
+            "force", 1
+        ), yuno);
+    check_int("delete-key force result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "list-keys",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME), yuno);
+    check_int("delete-key list-keys result", kw_get_int(0, r, "result", -999, 0), 0);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_int("delete-key D is gone", find_key_records(data, KEY_D), -1);
+    /*  A took appends from the realtime sections above, so assert it is still
+     *  THERE rather than a count: what matters is that one key's delete took
+     *  only that key.  */
+    check_bool("delete-key A untouched", find_key_records(data, KEY_A) > 0, TRUE);
+    JSON_DECREF(r)
+
+    /*  Deleting it twice is an error, not a second success  */
+    r = gobj_command(yuno, "delete-key",
+        json_pack("{s:s, s:s, s:b}",
+            "topic_name", TOPIC_NAME,
+            "key", KEY_D,
+            "force", 1
+        ), yuno);
+    check_int("delete-key twice result", kw_get_int(0, r, "result", -999, 0), -1);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*

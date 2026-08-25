@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.16), and it has four
-parts.
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.16) in four
+parts, plus one thing the C side was missing: a tranger topic could be listed
+key by key and never PRUNED.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
 because a pasted deploy centre is two hundred rows, and the treedb GRAPH, which
@@ -33,6 +34,29 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **A tranger key can be deleted** — `C_TRANGER` gains `delete-key`
+    (`topic_name`, `key`, `force`). `tranger2_delete_key()` has been in the
+    timeranger2 API all along (master-only, and it propagates the delete to the
+    in-process subscribers and to the `rt_by_disk` followers), but the only way
+    to reach it was `delete-node` on a topic that belongs to a TREEDB. A plain
+    tranger topic had no path at all: `list-keys` could show a key born of a
+    port scan or a typo, and nothing could remove it — it stayed in the topic,
+    and in every view derived from the topic's keys, for ever.
+
+    The command refuses a key that is not there (`tranger2_delete_key()`
+    answers 0 for one that never existed, so a bare wrapper would report a
+    delete that deleted nothing), and refuses a key that still holds records
+    unless `force=1` — naming the record count in the refusal, which is what
+    tells the operator what forcing would cost. Same `delete` authz as
+    `delete-topic`.
+
+    `gui_treedb`'s Keys picker grows the matching button: a third action on
+    each key row, next to Rows and Live. It asks first, with the topic, the key
+    and the record count in the question, and closes that key's open cards
+    before the delete — a Rows card holds a server iterator on the key and a
+    Live card a realtime feed, and both would otherwise be left pointing at
+    something that no longer exists.
 
 - **The JSON viewer shows the same document three ways** (`gobj-ui` 7.20.0,
     7.21.0, 7.22.0). The third is a GRAPH — it hosts the `C_YUI_JSON_GRAPH` child that

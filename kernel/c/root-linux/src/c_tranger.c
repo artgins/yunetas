@@ -25,9 +25,16 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 Cursor pagination (open-iterator/get-page/close-iterator) and key listing:
 
 command-yuno id=1911 service=tranger command=list-keys topic_name=pp
+command-yuno id=1911 service=tranger command=delete-key topic_name=pp key=1 force=1
 command-yuno id=1911 service=tranger command=open-iterator iterator_id=it1 topic_name=pp key=1
 command-yuno id=1911 service=tranger command=get-page iterator_id=it1 from_rowid=1 limit=100
 command-yuno id=1911 service=tranger command=close-iterator iterator_id=it1
+
+delete-key removes a whole key and every record it holds: irrecoverable, and
+only the master of the tranger can do it. It is the one write that list-keys
+had no counterpart for — a topic could be listed key by key but never pruned,
+so a key born of a scan or a typo stayed in the topic for ever. A key that
+still holds records needs force=1; the refusal names the record count.
 
 list-keys returns, per key, its record count AND its time span taken from the
 topic's cache totals: {key, records, fr_t, to_t, fr_tm, to_tm}. A client can
@@ -119,6 +126,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -192,6 +200,13 @@ PRIVATE sdata_desc_t pm_delete_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_delete_key[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "key",          0,              0,          "Key (primary key) to delete"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: required when the key holds records"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_add_record[] = {
@@ -314,6 +329,7 @@ SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,    
 SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
 SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
+SDATACM2 (DTP_SCHEMA,   "delete-key",       SDF_AUTHZ_X,    0,      pm_delete_key,      cmd_delete_key,     "Delete a whole key (primary key) and every record it holds. Irrecoverable, master-only; force=1 when the key is not empty"),
 
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list. With return_data=1 loads and returns the matching records, auto-closing (one-shot read); else the list stays open collecting appends until close-list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
@@ -400,7 +416,7 @@ SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Per
 SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write topics"),
 SDATAAUTHZ (DTP_SCHEMA, "list",         0,      0,      pm_authz_list,      "Permission to list topics"),
 SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read topics"),
-SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics"),
+SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics and keys"),
 SDATA_END()
 };
 
@@ -913,6 +929,121 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj,
         ret,
         ret>=0?json_sprintf("Topic deleted: '%s'", topic_name):json_string(gobj_log_last_message()),
+        0,
+        0,
+        kw  // owned
+    );
+}
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_key(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "delete";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    const char *key = kw_get_str(gobj, kw, "key", "", 0);
+    if(empty_string(key)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What key?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  tranger2_delete_key() answers 0 for a key that was never there (it only
+     *  logs, then drops it from the cache), so a bare call would report a
+     *  delete that deleted nothing. Ask the disk who is there first.
+     */
+    json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+    BOOL exists = json_str_in_list(gobj, jn_keys, key, FALSE);
+    JSON_DECREF(jn_keys)
+    if(!exists) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Key not found in topic '%s': '%s'", topic_name, key),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Same guard as delete-topic: the delete is irrecoverable, so a key that
+     *  still holds records takes an explicit force. The count travels in the
+     *  refusal, which is what tells the operator what force would cost.
+     */
+    uint64_t records = tranger2_topic_key_size(priv->tranger, topic_name, key);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+    if(records != 0 && !force) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Key '%s' of topic '%s' holds %lu records, you must force to delete",
+                key,
+                topic_name,
+                (unsigned long)records
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int ret = tranger2_delete_key(priv->tranger, topic_name, key);
+
+    return msg_iev_build_response(gobj,
+        ret,
+        ret>=0?
+            json_sprintf("%s: key '%s' deleted from topic '%s', %lu records",
+                gobj_yuno_role_plus_name(),
+                key,
+                topic_name,
+                (unsigned long)records
+            ):
+            json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
