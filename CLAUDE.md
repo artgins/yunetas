@@ -54,7 +54,7 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.13`) — **active
+- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.23.16`) — **active
   development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
   legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
   Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
@@ -138,7 +138,14 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   synthesises one — so swallowing the DOM click never stopped the element's
   own action. `7.23.15` gives that press its only feedback: a 15ms haptic
   tick at the 500ms mark, a NOTICE rather than the decision — a finger that
-  buzzes and then carries the node away still gets its drag.
+  buzzes and then carries the node away still gets its drag. `7.23.16` is a
+  one-line CSS fix with a lesson worth keeping: **a `yui_toolbar()` alone in
+  its row cannot show this class of bug.** Nothing competes for the width, so
+  nothing shrinks — and the moment a pinned control shares the row, the
+  toolbar's `min-width: auto` (its CONTENT minimum, because its sections are
+  `flex-shrink: 0`) makes it refuse to shrink, so it is pushed out of the row
+  and the arrow at its right edge lands outside whatever clips the view. Test
+  a shared row, not a bare one.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:

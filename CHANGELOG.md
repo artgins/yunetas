@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-JS layer only (`yunos-js` 0.15.1 -> 0.22.15, `gobj-ui` 7.23.15), and it has four
+JS layer only (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.16), and it has four
 parts.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -209,6 +209,18 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **The toolbar lost its scroll arrows once it shared a row** (`gobj-ui`
+    7.23.16). A `yui_toolbar()` alone in its row works, so the defect hid
+    until the treedb graph was reached through the navigation, where the
+    pinned `GRAPH_BACK_TOPICS` link sits beside it. A flex item's
+    `min-width: auto` resolves to its CONTENT minimum, and every
+    `yui-horizontal-toolbar-section` is `flex-shrink: 0; white-space:
+    nowrap` — so the toolbar refused to shrink, kept `width: 100%` of the
+    row, was pushed out of it, and its right arrow (absolutely positioned at
+    its right edge) landed outside the ancestor that clips the view. The
+    arrow was drawn all along, off-screen, while the items it would have
+    scrolled to were plainly cut off.
 
 - **A group move that moved the whole graph** (`gobj-ui` 7.23.10). Three
     defects behind one report: selecting two cards in a treedb graph and
