@@ -351,11 +351,88 @@ principal expected to run authz-gated commands on a sealed node must exist in
 measurement method and the client-side trust asymmetry in
 [`IPC.md`](IPC.md) §4.7.
 
-**Known SSH-shaped leftover:** the CLI's node registry
-(`~/.yuneta/nodes.json`) stores only an `ssh` string per node
-(`yuneta@<host>`), with no agent URL. The registry assumes SSH even though the
-`sync_*` tools it ships with do not. It needs an agent-URL field before a
-sealed node can be registered.
+**Resolved (2026-08-25): the CLI's node registry no longer assumes SSH.**
+`~/.yuneta/nodes.json` now carries, per node, `url` (`wss://<host>:1993`),
+`issuer`, `client_id`, `user_id` and the TLS pinning pair
+(`ssl_trusted_certificate`, `ssl_server_name`); `ssh` is an optional fallback
+used only by `--tunnel`, and `url` wins when both are present. The two
+yunovatios nodes are registered with a `url` and **no** `ssh` field at all, so a
+sealed node is already registrable. Note the client_id is the **node's own**
+(`controlador.yunovatios.es`), not the SPA's (`yunetacontrol`, auth-code-only
+and therefore useless headless) — picking the wrong one is what makes a
+headless login hang rather than refuse.
+
+### 5.5 An internal yuno needs its own `C_AUTHZ`, or the seal locks it out
+
+**Found 2026-08-25 on `yunovatios-controlador` and `yunovatios-central`.**
+`authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
+opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
+**everyone** — fail-closed by design. Three yunos had no such service:
+`db_tracks_co` (controlador), `db_tracks_ce` (central) and `gate_caudal`
+(controlador). Every authz-guarded command answered `-403 No permission` to
+every principal, `yuneta_admin@artgins.com` with the `root` role included. Not
+a permissions problem: there was nobody to read the permissions. Their own logs
+said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
+found"}`.
+
+None of the three listens outside its node (`tcp://127.0.0.1:5030`,
+`tcp://127.0.0.1:5020`, and loopback + `/dev/ttyUSB0` respectively), so **SSH
+was the only way to touch them**. Under a seal there would have been none at
+all — a Tier-3 entry created by omission rather than by a missing command, and
+invisible until someone tries.
+
+The fix is per-yuno configuration, not framework: declare the `authz` service
+(`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
+**follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
+store's master stays the yuno that carries `Authz.initial_load`
+(`db_history_co.1630` / `db_history_ce.1620`). `master` governs who may WRITE
+the authz store — it is not a privilege level, and a follower authorizes just
+as well as a master.
+
+**Sealing prerequisite.** Before sealing a node, check that every yuno with no
+public listener actually has the service. `command-yuno id=<id>
+service=__yuno__ command=services` names it; a yuno that answers `-403` to a
+plain `list-keys` or `topics` is the symptom.
+
+**Live confirmation of the identity propagation asserted above.** With
+`C_AUTHZ` running, the yuno's own trace (`set-gclass-trace gclass=C_AUTHZ
+level=messages`, driven over `wss://<node>:1993` with no SSH) reads:
+
+```
+user 'yuneta_admin@artgins.com', service: 'C_TRANGER^tranger_tracks',
+authz 'list', allow -> YES
+```
+
+So the operator's identity does reach the *internal* yuno, not only the agent
+— and it is super-user today because of what the store holds (`yuneta`,
+`yuneta_admin@artgins.com` and `claudia@artgins.com` all carry
+`roles^root^users` = `realm_id:*, service:*, permission:*`), not because of the
+architecture. A narrower role is possible without touching any code.
+
+**PENDING — how an SPA user acts on an internal yuno.** Two doors exist today
+and the choice is not yet made:
+
+- **(a) A public service on the yuno.** `gate_enchufe` (estadodelaire,
+  hidraulia) and `gate_energia` (yunovatios) declare
+  `public_services: ['__top_side__']` with a `service_descriptor`, so the SPA
+  opens a session **straight to the yuno** and calls `set-power` — the agent is
+  not in the path. It works, it is in production, and it is the one that gets
+  reached for by default. It also un-seals that yuno quietly: the yuno stops
+  being internal for that service, and `cmd_set_power` carries no
+  `gobj_user_has_authz` guard, so the authenticated session **is** the
+  permission.
+- **(b) Through the agent (`command-yuno`), the yuno staying internal.**
+  Reachable now that `C_AUTHZ` is in place, and the real user arrives, so
+  per-user roles work. It only becomes a *boundary* once
+  `enable_command_authz` is on AND roles narrower than `root` exist — both of
+  which belong to the single final phase tracked in
+  [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.10.
+
+Recorded here rather than only in that backlog because door (a) is a *sealing*
+decision disguised as an application one: every service published that way is
+one more inbound port the seal has to keep open.
+
+---
 
 ---
 

@@ -743,6 +743,31 @@ Points found so far (verified this session unless noted):
    console access from full node management, since agent22's *entire* surface is
    the console — a "console-only / break-glass" role is the natural unit.
 
+9. **A yuno with NO `C_AUTHZ` service is fail-closed for everyone** — the
+   inverse failure of point 1, and it hides in plain sight. `authz_checker()`
+   opens with `gobj_find_service_by_gclass(C_AUTHZ)` and denies when it finds
+   nothing, so a yuno that never declared the service refuses every
+   `gobj_user_has_authz()` command to every principal, `root` included. Found
+   2026-08-25 on three yunovatios yunos (`db_tracks_co`, `db_tracks_ce`,
+   `gate_caudal`), all of them internal (loopback / serial listeners only), so
+   SSH was the only remaining way in. Fixed there by declaring the service as a
+   FOLLOWER of the node's authzs store. **For the matrix this means the
+   inventory is per YUNO, not per node**: a role is worth nothing in a yuno
+   that has nobody to read it. Detail and the sealing consequence in
+   [`NODE_SEALING.md`](NODE_SEALING.md) §5.5.
+
+10. **How an SPA user acts on an INTERNAL yuno is undecided**, and the default
+    answer bypasses the matrix entirely. Today the working pattern
+    (`gate_enchufe` in estadodelaire / hidraulia, `gate_energia` in yunovatios)
+    is `public_services: ['__top_side__']`: the SPA opens a session straight to
+    the yuno and calls e.g. `set-power`, which carries no
+    `gobj_user_has_authz()` guard — so the authenticated session IS the
+    permission, and the gate of point 1 never sees it. The alternative is
+    `command-yuno` through the agent, which does reach the yuno's `C_AUTHZ`
+    with the real operator identity (measured 2026-08-25). The matrix has to
+    say which door application actions use, or it will keep being decided one
+    app at a time. See [`NODE_SEALING.md`](NODE_SEALING.md) §5.5.
+
 When the final phase runs: author the matrix (roles × permissions ×
 realm/service scope), provision users, set `enable_command_authz` on the agents
 and scope `command-agent` on the controlcenters, then re-verify the
