@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.18) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.19) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -34,6 +34,23 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **A camera ANCHOR in every node viewer** (`gobj-ui` 7.23.19): pick one
+    element from the toolbar's crosshairs and every zoom leaves it in the
+    MIDDLE. `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS` and `C_G6_NODES_TREE`,
+    from the same button. A graph that FITS on screen is unreadable at the
+    zoom that makes it fit -- one topic's schema fits at 37%, where every card
+    is grey texture -- so the useful view is always a fraction of the document,
+    and which fraction was nobody's decision: `1:1` translated to the layout's
+    origin, a corner with nothing in it. Three states (`off`, `arming`, `on`)
+    because two could not say what a press does, and an armed anchor takes the
+    next node click before selection, ports or popover. A **zoom** re-centres
+    and a **pan** does not -- `aftertransform` fires for both, so the zoom
+    LEVEL is what tells them apart. The target is remembered by identity (the
+    `path`, the `full_name`), never by node id, because ids are generated per
+    build. The viewers also open at ACTUAL SIZE now, centred on the anchor or
+    the root, and a JSON card stops listing the containers it already draws as
+    cards -- what made an array of N dicts an N-row card beside N cards.
 
 - **The JSON viewer remembers which of its three views you read in**
     (`gobj-ui` 7.23.17). It opened on the tree every time, however many times
