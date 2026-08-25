@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.16) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.17) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -34,6 +34,17 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **The JSON viewer remembers which of its three views you read in**
+    (`gobj-ui` 7.23.17). It opened on the tree every time, however many times
+    you switched to the graph. The choice is kept in `localStorage` under one
+    key for the whole library, because which view someone reads JSON in is a
+    habit of the PERSON and not a property of the document. Precedence is host,
+    then memory, then the tree -- which is why the `view_mode` attr no longer
+    declares `"tree"` as its default: as a default and as a host's explicit
+    choice it was the same string, so nothing could tell *"show me the tree"*
+    from *"I have no opinion"*, and a memory that cannot see the difference has
+    to lose to both. Only a view the READER picks is remembered.
 
 - **A tranger key can be deleted** — `C_TRANGER` gains `delete-key`
     (`topic_name`, `key`, `force`). `tranger2_delete_key()` has been in the
@@ -233,6 +244,29 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **The JSON viewer read better in LIGHT than in dark** (`gobj-ui` 7.23.17),
+    which is normally the other way round, and the measurement said why: the
+    dark graph card mixed 30% of the group's tint into the SURFACE, so green
+    string values sat on a green card. The light card is near-white and lets
+    saturated dark text carry the colour; the dark one carried it twice. The
+    `list` card was worse -- a yellow tint at 30% lands mid-luminance, a muddy
+    olive where nothing contrasts with anything, and its purple values measured
+    **1.60:1** against 11.48 for the same values on the light card. The surface
+    now stays out of the hue on both themes and the group's colour lives in the
+    border and header bar, where the light theme always put it; worst case goes
+    to **4.74:1**. The search highlight moved with it: its amber failed at both
+    ends once the values brightened, and a chip dark enough for the text is
+    invisible against the card, so a match is now a LIGHT chip on both themes
+    carrying light-surface text -- the same flip the header bar already does.
+
+- **A container row would not say WHICH record it was** (`gobj-ui` 7.23.17).
+    An array of dicts carrying an `id` is a list of records -- a topic's nodes,
+    for instance -- and the row said only `2: {15}`, so telling record 2 from
+    record 9 meant opening all fifteen fields of both. It now carries the id
+    beside the size, open as well as closed: it is the row's label, and a label
+    that vanishes on expand makes the row jump and costs you the name of the
+    thing you just opened.
 
 - **A table whose `fillspace` was a string printed a stack trace per cell**
     (`ycommand`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
