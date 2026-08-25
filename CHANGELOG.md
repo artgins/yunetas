@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.19) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.20) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -261,6 +261,15 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **A JSON graph drew a pure collection as a node of its own** (`gobj-ui`
+    7.23.20). `cols` is one key of the topic dict like `pkey` is, and the card
+    the graph gave it held no data, said nothing its parent's row did not
+    already say, and pushed everything below it one level down. Every key is a
+    row again, containers included -- a container row shows what it IS
+    (`cols: [14]`) and nothing more, since what it HOLDS is the cards, and
+    that is the part which has to scale. A container with no scalars of its
+    own now gets no card at all and folds from the chip on its row.
 
 - **Highlighting a JSON value made it HARDER to read than not highlighting
     it** (`gobj-ui` 7.23.18). On the graph view's amber match chip an orange
