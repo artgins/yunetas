@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.24) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.25) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -45,7 +45,11 @@ Detail in those repos' CHANGELOGs.
     html nodes over it, so a drag that began on a card was a page scroll that
     died after ~20px. Same defect the treedb graph paid for at 7.23.14.
 
-- **A camera ANCHOR in every node viewer** (`gobj-ui` 7.23.19): pick one
+- **A camera ANCHOR in every node viewer** (`gobj-ui` 7.23.19, made to work in
+    7.23.25 -- it had no visible state and never centred anything: the class it
+    used was styled only for the G6 plugin toolbar, `graph.focusElement()` does
+    not move these graphs, and a camera move issued inside G6's click dispatch
+    is swallowed): pick one
     element from the toolbar's crosshairs and every zoom leaves it in the
     MIDDLE. `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS` and `C_G6_NODES_TREE`,
     from the same button. A graph that FITS on screen is unreadable at the
