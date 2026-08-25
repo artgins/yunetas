@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.17) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.18) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -244,6 +244,19 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **Highlighting a JSON value made it HARDER to read than not highlighting
+    it** (`gobj-ui` 7.23.18). On the graph view's amber match chip an orange
+    boolean measured **1.80:1** and a red number 2.98:1, in both themes. No
+    chip colour could have fixed it: `#FF8C00` is mid-luminance, so it reaches
+    at most **2.33:1 against any background that exists**, white included --
+    the ceiling is a fact of the colour, not of the surface. Orange moves to
+    `#8C4D00` and blue to `#4359C6`, and every value type now clears 4.5:1 on
+    all five surfaces the viewer paints (two light cards, the match chip, two
+    dark cards); the worst in the matrix is 4.66:1. The graph also stops
+    deriving its dark colours by mixing the light ones with white -- which is
+    how one document was green in the tree and a paler green in the graph --
+    and carries the tree's two palettes instead, so all three views agree.
 
 - **The JSON viewer read better in LIGHT than in dark** (`gobj-ui` 7.23.17),
     which is normally the other way round, and the measurement said why: the
