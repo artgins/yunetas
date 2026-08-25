@@ -125,7 +125,18 @@ The standalone repo carries **two maintained lines**, and they are consumed in
   they rendered their raw names (`reading`, `edition`, `dagre`) in every
   language because neither went through `t()` at all — and translating an
   `<option>` means setting its `value` explicitly, or the FSM is told to enter
-  a mode called *"Edición"*.
+  a mode called *"Edición"*. `7.23.14` is the one that lets a FINGER move a
+  node at all, and both halves are worth knowing: G6 puts `touch-action:
+  none` on its canvas and **nothing** on its HTML nodes, so a drag that began
+  on a card was a page scroll (two `pointermove`s, then `pointercancel`, the
+  node stopped ~20px in); and a long press fired on a TIMER cannot arbitrate
+  a gesture, because when it fires the gesture is not over — the press is
+  decided at the RELEASE now (moved → drag, still and quick → the element's
+  action, still and held → the menu), with the same 10px slop G6 gives its
+  own `dragstartDistanceThreshold`. A third thing hid behind those two:
+  `click` is not taken from the DOM either — `@antv/g`'s `onPointerUp`
+  synthesises one — so swallowing the DOM click never stopped the element's
+  own action.
 
   Three framework contracts came out of that round and are worth knowing
   before writing any gclass that hosts a child:
