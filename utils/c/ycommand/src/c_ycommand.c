@@ -1163,7 +1163,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
-        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
+        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
         if(fillspace && fillspace < strlen(header)) {
             fillspace = (int)strlen(header);
         }
@@ -1180,7 +1180,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
-        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
+        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
         if(fillspace && fillspace < strlen(header)) {
             fillspace = (int)strlen(header);
         }
@@ -1205,7 +1205,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
     json_array_foreach(jn_data, row, jn_row) {
         json_array_foreach(jn_schema, col, jn_col) {
             const char *id = kw_get_str(gobj, jn_col, "id", 0, 0);
-            int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
+            int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, KW_WILD_NUMBER);
             const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
             if(fillspace && fillspace < strlen(header)) {
                 fillspace = (int)strlen(header);

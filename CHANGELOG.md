@@ -234,6 +234,20 @@ Detail in those repos' CHANGELOGs.
 
 ### Fixed
 
+- **A table whose `fillspace` was a string printed a stack trace per cell**
+    (`ycommand`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
+    `fillspace` is a column WIDTH, a presentation hint, and a command that
+    declared it as `"30"` instead of `30` -- which `json_pack("s:s", ...)`
+    does the moment the field is written next to the other three, all of
+    them strings -- made `kw_get_int()` log *"path MUST BE a json integer"*
+    with `LOG_OPT_TRACE_STACK`. Three reads run per column (header,
+    separator, and once per data cell), so a four-column answer with two
+    rows emitted twelve stack traces and buried the answer, and every column
+    fell back to the default width of 10, which is what truncated the ids
+    the operator was reading. `ycli` had been passing `KW_WILD_NUMBER` here
+    for exactly this reason and its four siblings never got it; all fifteen
+    read sites now do, so a width is accepted as written, string or int.
+
 - **The toolbar lost its scroll arrows once it shared a row** (`gobj-ui`
     7.23.16). A `yui_toolbar()` alone in its row works, so the defect hid
     until the treedb graph was reached through the navigation, where the

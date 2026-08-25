@@ -485,7 +485,7 @@ PRIVATE int _list_messages(
                                 }
                             }
 
-                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), KW_WILD_NUMBER);
                             if(col == 0) {
                                 printf("%-*.*s", len, len, key);
                             } else {
@@ -504,7 +504,7 @@ PRIVATE int _list_messages(
                                     continue;
                                 }
                             }
-                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), KW_WILD_NUMBER);
                             if(col == 0) {
                                 printf("%*.*s", len, len, "=======================================");
                             } else {
@@ -525,7 +525,7 @@ PRIVATE int _list_messages(
                                 continue;
                             }
                         }
-                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), KW_WILD_NUMBER);
                         json_t *jn_value = kw_get_dict_value(gobj, node, key, 0, 0);
                         char *s = json2uglystr(jn_value);
                         if(col == 0) {
