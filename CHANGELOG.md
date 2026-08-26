@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.28) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.29) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -34,6 +34,21 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **A folded branch leaves its space behind, so nothing else moves**
+    (`gobj-ui` 7.23.29). Folding re-packed the tree: measured, five surviving
+    cards all slid 240px sideways for a fold that removed nothing they could
+    see, and the card under the finger slid out from under it. The clicked card
+    is put back where it was, and the survivors stay because a fold leaves a
+    PHANTOM child -- an invisible node of exactly the width its children had,
+    in the place they had in the order. A width reserved as a NUMBER was tried
+    first and does not work: the layout centres a parent over its children, so
+    a lump appended at the end moves every sibling by half of it.
+
+- **The gobj tree remembers how you left it** (`gobj-ui` 7.23.29): layout,
+    zoom, camera, folds and anchor, in `localStorage`. The layout and the folds
+    go back BEFORE the first build, because they decide what is built; the
+    camera after, and once only, or every fold would drag the reader back.
 
 - **The cards of the node viewers can be MOVED** (`gobj-ui` 7.23.24), in the
     JSON graph and the gobj tree alike. The position is deliberately not kept:
