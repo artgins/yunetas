@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.33, `gobj-js` 7.13.6) in five
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.34, `gobj-js` 7.13.7) in five
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
