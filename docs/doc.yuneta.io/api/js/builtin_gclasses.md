@@ -5,7 +5,7 @@ uses. They must be registered explicitly before any GObject of that
 type can be created.
 
 (js_register_c_yuno)=
-## [`C_YUNO`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_yuno.js#L286)
+## [`C_YUNO`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_yuno.js#L286)
 
 The application root. Always the first GClass registered.
 `register_c_yuno()` registers it.
@@ -22,7 +22,7 @@ register_c_yuno();
 `node_uuid`, `__username__`.
 
 (js_register_c_timer)=
-## [`C_TIMER`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_timer.js#L323)
+## [`C_TIMER`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_timer.js#L323)
 
 Manages timeouts and periodic timers. Delivers `EV_TIMEOUT` (one-shot)
 or `EV_TIMEOUT_PERIODIC` to its subscriber. `register_c_timer()` registers it.
@@ -52,17 +52,17 @@ clear_timeout(timer_gobj);
 **Attributes:** `subscriber`, `periodic`, `msec`
 
 (js_set_timeout)=
-### [`set_timeout(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_timer.js#L341)
+### [`set_timeout(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_timer.js#L341)
 
 Arms a timer of one shot. It publishes `EV_TIMEOUT` when the time passes.
 
 (js_set_timeout_periodic)=
-### [`set_timeout_periodic(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_timer.js#L359)
+### [`set_timeout_periodic(gobj, msec)`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_timer.js#L359)
 
 Arms a periodic timer. It publishes `EV_TIMEOUT_PERIODIC` at each period.
 
 (js_clear_timeout)=
-### [`clear_timeout(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_timer.js#L377)
+### [`clear_timeout(gobj)`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_timer.js#L377)
 
 Stops the timer.
 
@@ -79,7 +79,7 @@ Refresh from an action of the user, or subscribe to an event of the producer.
 :::
 
 (js_register_c_ievent_cli)=
-## [`C_IEVENT_CLI`](https://github.com/artgins/gobj-js/blob/7.13.5/src/c_ievent_cli.js#L1485)
+## [`C_IEVENT_CLI`](https://github.com/artgins/gobj-js/blob/7.13.8/src/c_ievent_cli.js#L1485)
 
 Inter-event client. It carries a remote Yuneta service over a websocket, so it
 looks like a local gobj. It is the way to speak to a backend yuno.

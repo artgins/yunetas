@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.35, `gobj-js` 7.13.8) in five
-parts, plus one thing the C side was missing: a tranger topic could be listed
-key by key and never PRUNED.
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.32, `gobj-ui` 7.23.35,
+`gobj-js` 7.13.8) in six parts, plus one thing the C side was missing: a
+tranger topic could be listed key by key and never PRUNED.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
 because a pasted deploy centre is two hundred rows, and the treedb GRAPH, which
@@ -30,6 +30,18 @@ context menu had no door at all, the controls a finger has to land on were
 sized for a pixel, and the treedb graph's multi-selection hung off a key a
 telephone does not have. And the plainest thing of all could not be done
 either, which is why it was found last: a finger could not MOVE a node.
+
+And the sixth is what a developer READS. Two rounds fell out of looking at the
+gobj tree: the trace of the FSM is the framework's whole debugging story, and
+in the browser it was hard to read for three separate reasons. It arrived in
+the legacy shape (three lines per transition where a node writes one, because
+the JS port's default never matched the kernel's, and then because four of its
+six trace sites had no other shape to write). It lost its INDENTATION on the
+way to the screen, so it read as a flat column where the console read as a
+tree. And it could not be quietened: the filter that promises to hide
+recurring events could not see the machine trace at all, so a yuno with one
+timer buried everything else under two lines a second — in the window, and
+then, once the window was fixed, in the console beside it.
 
 Detail in those repos' CHANGELOGs.
 
@@ -325,6 +337,62 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **The machine trace was written in the LEGACY shape in the browser**
+    (`gobj-js` 7.13.7, completed in 7.13.8). `trace_machine_format` was `0` in
+    the JS port and `1` in the C kernel (`gobj.c`: *"0 legacy, 1 simpler"*), so
+    a browser yuno wrote THREE lines for one transition -- the call, the state
+    change and a `<- mach(…) ret: N` return -- where a node wrote one. The same
+    trace, three times the wall, and the two sides did not look alike read side
+    by side.
+
+    Moving the default was not enough, twice over. Four of the SIX trace sites
+    had no simpler shape at all -- the state change, the event injection, the
+    publish and the subscriber forward still wrote `mach(…)` -- so the trace
+    came out MIXED, which looks exactly like a default that did not take. And a
+    stored preference beats a default: every browser that had ever touched the
+    dev window's `Simple mach` chip carried an explicit `0`, so the change
+    reached fresh profiles only until the preference moved to a new key
+    (`gobj-ui` 7.23.34, 7.23.35). Both shapes stay; the chip swaps them.
+
+    With them, the publish path stopped dumping an empty `{}` under every
+    publication -- unguarded `trace_json()`, one blank line per tick in a yuno
+    whose timer publishes.
+
+- **The `machine` trace could not be quietened, and then lied about it**
+    (`gobj-ui` 7.23.32 through 7.23.35, `gobj-js` 7.13.6). The dev window's
+    `Periodic` chip promises to hide recurring events and hid none of them:
+    it matches on a SIGNATURE and every line mirrored from the log was signed
+    by its LEVEL, so a hundred `EV_TIMEOUT` transitions and a hundred unrelated
+    debug lines were one thing to it. A machine line is parsed now and signed
+    by its EVENT, matched by name (never by count -- a busy FSM crosses a
+    recurrence threshold on nearly every event within seconds), and an error or
+    a warning is never hidden whatever event it names. The filter is ON by
+    default.
+
+    It then had to reach the CONSOLE, where the same flood was arriving one
+    pane over. It could not be done from the GUI side: gobj-js writes the
+    console line BEFORE it calls the log sink, so nothing downstream can
+    un-print it. It hands out a per-line say instead
+    (`set_console_log_filter`), and the window installs the same predicate its
+    own filter uses -- one rule, two sinks.
+
+    Two more in the same window: the trace lost its nesting INDENTATION on the
+    way to the DOM (`createElement2()` trims a string content, and those
+    leading spaces ARE the nesting), and the empty state said *"Waiting for
+    activity — enable Traffic or Automata for more"* while the status line
+    beside it said `0/36 shown · 36 hidden`.
+
+- **A graph viewer started while its DOM was still DETACHED never resized
+    again** (`gobj-ui` 7.23.31). Its `ResizeObserver` was looked up with
+    `document.getElementById()`, which answers `null` there, and the guard
+    around it skipped the attach silently -- so the canvas kept the size it was
+    born with for the life of the window while the window resized around it.
+    Two hosts hit it, the gclass viewer and the treedb graph's raw-JSON viewer,
+    and only when the reader had last used the GRAPH view, because `C_YUI_JSON`
+    remembers the view mode and builds its graph child inside `mt_start`. The
+    mount is read from the gclass's own `$container` now, and both hosts start
+    the viewer AFTER its presenter has put it in the document.
 
 - **A JSON card was a single anchor for every line leaving it** (`gobj-ui`
     7.23.21, refined in 7.23.22). Fourteen edges came out of one point, and which row a line

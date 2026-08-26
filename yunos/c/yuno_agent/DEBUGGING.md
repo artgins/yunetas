@@ -403,23 +403,35 @@ This is the most useful trace for the behavior of a gobj. It is defined in
 - After dispatch: a `🔄` line per executed event.
 - State change: a `🔀🔀` line.
 
-Two output formats, switched by the integer variable `trace_machine_format`:
+Two output formats, switched by the integer variable `trace_machine_format`.
 
-**Format 1 — short, ANSI-coloured:**
+**Format 1 — one line per transition. THE DEFAULT**, on a node and in the
+browser alike (`gobj.c`: `trace_machine_format = 1;  // 0 legacy, 1 simpler`;
+gobj-js followed at 7.13.7):
 
 ```
-🔜 EV_RX_DATA !!c_tcp:open
+🔜 EV_RX_DATA !!c_tcp :open
 🔄 EV_RX_DATA !!c_tcp :open from !!service_main
-🔀🔀 mach(!!c_tcp), new st(:closed), prev st(:open)
+🔝🔝 EV_ON_MESSAGE c_prot_tcp4h^output-0 :wait_payload
+🔝🔄 EV_ON_MESSAGE (EV_ON_MESSAGE) c_channel^output-0
 ```
 
-**Default — verbose:**
+Format 1 writes **no return line and no state line**: the transition line
+already carries the state it ran in.
+
+**Format 0 — legacy, three lines for one transition:**
 
 ```
 🔜 mach(!!c_tcp), st: :open, ev: EV_RX_DATA, from(!!service_main)
 🔄 mach(!!c_tcp), st: :open, ev: EV_RX_DATA, from(c_tcp_s^server)
 🔀🔀 mach(!!c_tcp), new st(:closed), prev st(:open)
+<- mach(!!c_tcp), st: :closed, ev: EV_RX_DATA, ret: 0
 ```
+
+Every line of either format is indented by its nesting depth, two spaces per
+level, so an event sent from inside another one's action sits under it. That
+indentation is the only thing that says a transition happened **during**
+another — keep it when you render the line anywhere else.
 
 `!!` before a name means that the gobj is **not running** at that moment. Two
 of them in a row are usually the bug.
