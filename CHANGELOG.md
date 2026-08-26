@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.26) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.27) in four
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -46,10 +46,17 @@ Detail in those repos' CHANGELOGs.
     died after ~20px. Same defect the treedb graph paid for at 7.23.14.
 
 - **A camera ANCHOR in every node viewer** (`gobj-ui` 7.23.19, made to work in
-    7.23.25 -- it had no visible state and never centred anything: the class it
-    used was styled only for the G6 plugin toolbar, `graph.focusElement()` does
-    not move these graphs, and a camera move issued inside G6's click dispatch
-    is swallowed): pick one
+    7.23.25 through 7.23.27, which is where the interesting part is). It had
+    no visible state and never centred anything: the class it used was styled
+    only for the G6 plugin toolbar; `graph.focusElement()` does not move these
+    graphs at all; a camera move issued inside G6's click dispatch is
+    swallowed; `drag-element` turned every click that drifts two pixels into a
+    drag, so the node could not be picked with a real hand; the rules that
+    drew the crosshair and the mark were scoped to a host gclass that is not
+    always there; and the camera translate is not in pixels, so stepping by
+    the measured gap oscillated instead of converging. The last one is a
+    closed form now, read off G6's own `getTranslateOptions()`:
+    `T = (canvasCentre - nodeWorldPosition) * zoom`): pick one
     element from the toolbar's crosshairs and every zoom leaves it in the
     MIDDLE. `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS` and `C_G6_NODES_TREE`,
     from the same button. A graph that FITS on screen is unreadable at the
