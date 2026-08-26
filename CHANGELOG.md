@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.29) in four
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.16, `gobj-ui` 7.23.30) in five
 parts, plus one thing the C side was missing: a tranger topic could be listed
 key by key and never PRUNED.
 
@@ -34,6 +34,34 @@ either, which is why it was found last: a finger could not MOVE a node.
 Detail in those repos' CHANGELOGs.
 
 ### Added
+
+- **The gobj tree says what a gobj IS and what it is DOING** (`gobj-ui`
+    7.23.30). The card carried a gclass, a name and a coloured dot, so learning
+    which node was a service, which had been disabled and which was running
+    without playing took opening the popover of every one of them. It carries a
+    coloured status pill now (stopped / running / playing), badges for the role
+    and for `disabled` / `bottom` / `commands`, the FSM state on its own line,
+    and a dashed dimmed border for a gobj that is out of the game. `running`
+    and `playing` had the SAME dot and are not the same thing: a gobj that runs
+    and does not play is PAUSED. The palette went with it -- five saturated
+    hues, one family per role; the fill had been a 9% tint, at which every card
+    was the same near-white rectangle and the tree read as a wireframe.
+
+    And the structural half, which is what this view is FOR next: it draws
+    DESCRIPTORS now, not gobjs, whose field names are the ones the kernel's
+    `gobj2json()` writes. Two producers -- one for the browser yuno, one for
+    the answer of the `view-gobj-tree` command -- so showing a **backend** yuno
+    is one line, and nothing below that line changes. The remote fetch is not
+    wired yet.
+
+- **A gclass viewer** (`gobj-ui` 7.23.30), which the framework did not have.
+    `view-gclass` answers a full description of a gclass -- attrs, commands,
+    methods, FSM -- and the only thing that ever read it was a terminal. The
+    gobj tree's popover now carries a `gclass` button that opens that same
+    document in a `C_YUI_JSON` window, so the FSM is a graph and the attrs
+    table is a tree. The browser's own gclasses are described from the gobj-js
+    registry in the same shape `gclass2json()` answers, so one viewer draws
+    either side.
 
 - **A folded branch leaves its space behind, so nothing else moves**
     (`gobj-ui` 7.23.29). Folding re-packed the tree: measured, five surviving
