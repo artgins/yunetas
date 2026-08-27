@@ -1481,17 +1481,38 @@ equivalent.
   `__version__` and rewrites `__description__` as **that version's changelog
   entry** (what it changes + rollback caveat) — operators read it in
   `list-configs`; rollback is config-row reassignment, not file reverts.
-  ⚠️ **A bumped version does not reach the yuno on its own.** `create-config`
-  appends a row and the primary does **not** move: `list-configs-instances`
-  shows both, `list-configs` still shows the old one, and even `kill-yuno` +
-  `run-yuno` materialises the old one. It is the same primary-index trap as
-  binaries, and only a node-wide `deactivate-snap` promotes it. So bump the
-  version when the change ships with a bounce anyway (provisioning, a release);
-  for a single-yuno config fix, **overwrite the row in use** with
+  ⚠️ **A bumped version does not reach the yuno on its own, and the reason is
+  not the config's primary index — it is the YUNO's record.** `get_yuno_config()`
+  in `c_agent.c` picks the config by `(id, name_version)`, where `name_version`
+  is a field **of the yuno row**. So a new config row can exist, and
+  `list-configs` can even show it as primary, while the yuno goes on
+  materialising the old one — and what the yuno actually runs is the file the
+  agent writes at launch, `bin/3-<role>^<name>.json`. **That file is the only
+  authority; `list-configs` is not.**
+
+  The order therefore matters and is not the obvious one:
+
+  1. `create-config` (the version travels INSIDE the content, as `__version__`;
+     the command takes only `id` and `content64` — there is no `version`
+     parameter),
+  2. **then** `find-new-yunos create=1` — this is what creates the yuno row
+     carrying the new `name_version`,
+  3. **then** `deactivate-snap` to promote it.
+
+  Run `find-new-yunos` before `create-config` and nothing happens: the config
+  sits in the store and the yuno keeps its old `name_version` for ever.
+
+  For a single-yuno config fix, prefer **overwriting the row in use** with
   `update-config` — which matches by `(id, __version__)`, so the file must
   carry the version already installed — and restart just that yuno. Do not
-  bounce a whole node to change one yuno's config. (`delete-config` refuses a
-  version still in use unless `force=1`.)
+  bounce a whole node to change one yuno's config.
+
+  ⚠️ **Deleting a config row can leave the index inconsistent**, and then
+  `update-config` answers *"Configuration not found"* for a version that
+  `list-configs-instances` plainly shows: `list-configs` keeps naming the
+  deleted version as primary. A `deactivate-snap` reloads the treedb and
+  settles it. (`delete-config` refuses a version still in use unless
+  `force=1`.)
 - **The agent itself is a standalone daemon, not a managed yuno** —
   `kill-yuno` / `update-binary` / `run-yuno` do nothing to it. Deploy it with
   `yuneta_agent --config-file=<its json> --stop` then `--start` (it
