@@ -289,6 +289,14 @@ here is a candidate for promotion to Tier 1:
   `write-file`**. Only binaries and configs have structured write commands. So
   certs, `/etc/security/limits.d/*.conf`, `resolv.conf`, nginx vhosts, secret
   overlays all fall here.
+- **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
+  Same gap as above and today's most frequent one: every front-end release of
+  yunovatios, wattyzer and the treedb GUI goes this way. It is also the one that
+  bites first when a node is reimaged — on 2026-08-27 the yunovatios controller's
+  SSH host key had changed and the deploy hung at the verification prompt, while
+  every backend task of the same session (binaries, configs, snapshots, commands)
+  went through the agent untouched. A `write-file`, or a vhost-aware command,
+  would promote it to Tier 1.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
   `core_pattern`/apport, certbot renewals, nginx/openresty reload.
 - Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
