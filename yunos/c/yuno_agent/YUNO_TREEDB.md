@@ -950,14 +950,28 @@ the running yuno has, and the count:
 | `only_in_c` | declared in C and missing from the projection: it never took |
 | `version` | the projection came from another release of the schema than the one running, or a topic's stored version is BEHIND it |
 
-Two rules keep the answer readable, and both are about the store rather than
-about schemas. A treedb record carries **every** column of its topic, filled
-with the empty value of its type, so an attribute nobody wrote is stored as
-`""`, `{}`, `[]` or `0`. That is not a difference. Read as one, those defaults
-buried 6 real differences under 592 on the first run. And the version stamps are not
-compared as content — the projector raises them itself — so only the anomaly is
-reported: a projection that came from a different release, or a topic the
-re-projection never reached.
+Three rules keep the answer readable, and all three are about the store rather
+than about schemas.
+
+A treedb record carries **every** column of its topic, filled with the empty
+value of its type, so an attribute nobody wrote is stored as `""`, `{}`, `[]`
+or `0`. That is not a difference. Read as one, those defaults buried 6 real
+differences under 592 on the first run.
+
+**And an attribute the schema never mentions is stored with its DECLARED
+default, which is not the empty value of its type.** The projection of a column
+copies what the schema declares and no more; the stored node went through
+treedb, which fills every attribute the descriptor gives a `default`. So the
+attribute is absent on one side and holds its default on the other, and the
+comparison read that as an operator addition. `fillspace` defaults to 10 and
+almost no schema writes it: on a treedb of 45 columns that was **43 differences
+no `Apply` could ever settle**. The projection is deliberately not filled with
+defaults instead — it is what the projector UPSERTS, so a default written there
+would overwrite the value an operator set by hand.
+
+And the version stamps are not compared as content — the projector raises them
+itself — so only the anomaly is reported: a projection that came from a
+different release, or a topic the re-projection never reached.
 
 The command compares against the schema the treedb was **opened** with, kept in
 memory for that purpose, so it can only answer for a treedb opened with one. A

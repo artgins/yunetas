@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.32, `gobj-ui` 7.23.40,
-`gobj-js` 7.13.8) in seven parts, plus one thing the C side was missing: a
-tranger topic could be listed key by key and never PRUNED.
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.38, `gobj-ui` 7.23.44,
+`gobj-js` 7.13.8) in eight parts, plus two things the C side was missing: a
+tranger topic could be listed key by key and never PRUNED, and `diff-schema`
+answered dozens of differences nobody had made.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
 because a pasted deploy centre is two hundred rows, and the treedb GRAPH, which
