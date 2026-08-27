@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.32, `gobj-ui` 7.23.35,
-`gobj-js` 7.13.8) in six parts, plus one thing the C side was missing: a
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.32, `gobj-ui` 7.23.40,
+`gobj-js` 7.13.8) in seven parts, plus one thing the C side was missing: a
 tranger topic could be listed key by key and never PRUNED.
 
 Two things learn to act on a SET: the connections table of `gui_treedb`,
@@ -43,6 +43,13 @@ recurring events could not see the machine trace at all, so a yuno with one
 timer buried everything else under two lines a second — in the window, and
 then, once the window was fixed, in the console beside it.
 
+And the seventh is the gclass itself. `view-gclass` answers a complete
+description -- attrs, commands, methods, trace levels, FSM -- and the only
+thing that drew it was a JSON tree: correct, and unreadable. It is laid out by
+ZONES now, with its machine as a matrix or a graph, and reading a real gclass
+with it found two defects in the drawing and one in the framework's own
+teardown.
+
 Detail in those repos' CHANGELOGs.
 
 ### Added
@@ -51,7 +58,9 @@ Detail in those repos' CHANGELOGs.
     7.23.30). The card carried a gclass, a name and a coloured dot, so learning
     which node was a service, which had been disabled and which was running
     without playing took opening the popover of every one of them. It carries a
-    coloured status pill now (stopped / running / playing), badges for the role
+    status SYMBOL now (`▶` playing, `‖` paused, `■` stopped, `⊘`
+    disabled -- a dot has one shape, so telling running from stopped meant
+    telling green from red at 10 pixels), badges for the role
     and for `disabled` / `bottom` / `commands`, the FSM state on its own line,
     and a dashed dimmed border for a gobj that is out of the game. `running`
     and `playing` had the SAME dot and are not the same thing: a gobj that runs
@@ -66,14 +75,43 @@ Detail in those repos' CHANGELOGs.
     is one line, and nothing below that line changes. The remote fetch is not
     wired yet.
 
-- **A gclass viewer** (`gobj-ui` 7.23.30), which the framework did not have.
-    `view-gclass` answers a full description of a gclass -- attrs, commands,
-    methods, FSM -- and the only thing that ever read it was a terminal. The
-    gobj tree's popover now carries a `gclass` button that opens that same
-    document in a `C_YUI_JSON` window, so the FSM is a graph and the attrs
-    table is a tree. The browser's own gclasses are described from the gobj-js
-    registry in the same shape `gclass2json()` answers, so one viewer draws
-    either side.
+- **A gclass viewer** (`gobj-ui` 7.23.30, rewritten by ZONES in 7.23.36),
+    which the framework did not have. `view-gclass` answers a full description
+    of a gclass -- attrs, commands, methods, trace levels, FSM -- and the only
+    thing that ever read it was a terminal. The gobj tree's popover carries a
+    `gclass` button that opens that same document in a `C_YUI_GCLASS` window:
+    zones for what a gclass HAS, and the raw answer one button away, because
+    the backend's own answer is the authoritative one.
+
+    **The machine is a matrix**, rows = events and columns = states -- the
+    shape the FSM is declared in, and the one that survives 12 events against 3
+    states as well as 86 commands against one. Two things it says that a JSON
+    dump cannot: an empty cell is INFORMATION (that event, in that state, is
+    refused with *"Event NOT DEFINED in state"*, so the empty cells are the map
+    of what breaks, and they are hatched), and a state nothing declares a way
+    INTO is MARKED -- an action may jump with `gobj_change_state()`, as
+    `C_IEVENT_CLI` does into `ST_SESSION`, and no description can see inside an
+    action, so the alternative was drawing the working half of a gclass as
+    unreachable. A second view draws the same machine as a G6 graph, one edge
+    per PAIR of states and no self-loops.
+
+    It reads BOTH dialects of the document: the C kernel and the browser
+    registry answer it in different words (`flag` joined with `|` against an
+    array, `type` as `"string"` against `"DTP_STRING"`, `command`/`parameter`
+    against `id`), and one of those is not a rename -- `states2json()` cannot
+    NAME an action, so a backend cell says that there is one and never which.
+
+    `opts.current_state` lights the column the reader's own gobj is standing
+    in: the description describes the CLASS and cannot carry it, so the tree
+    passes it.
+
+- **A find box in the frontend view** (`gobj-ui` 7.23.39). A tree of a real
+    yuno is a hundred cards and the only way to locate one was to read them
+    all. It matches gclass, name, full name and FSM state; a match wears an
+    amber ring OVER its role colour -- the card still has to say what it IS --
+    and a chip counts them, because a graph that did not move looks the same
+    whether nothing matched or the match was already on screen. The same
+    drawing as the JSON graph's, which sits in the same console.
 
 - **A folded branch leaves its space behind, so nothing else moves**
     (`gobj-ui` 7.23.29). Folding re-packed the tree: measured, five surviving
@@ -337,6 +375,47 @@ Detail in those repos' CHANGELOGs.
     the whole state change in the hairline of an outline glyph.
 
 ### Fixed
+
+- **The gclass window's ✕ left its viewer alive, and the button never opened
+    another one** (`gobj-ui` 7.23.38). `close_window()` calls `on_close` and
+    then destroys the WINDOW; the viewer is not the window's child -- it hangs
+    from the host -- so nothing took it down. It kept its service NAME, so the
+    next click answered *"service ALREADY registered"* and no second gclass
+    could be opened for the rest of the session; and it was still RUNNING when
+    the host's own window closed, which logged *"Destroying a RUNNING gobj"*.
+    The defect predates the new viewer: it is the arrangement `C_YUI_JSON` was
+    opened with, and it needed somebody to close the window and click the
+    button AGAIN to show itself.
+
+- **An event declared with NO action was drawn as if it had one**
+    (`gobj-ui` 7.23.37). The C side writes the literal `"action"` for every
+    action it cannot name, and the matrix marked anything that was not an empty
+    string -- so `{EV_TX_READY, 0, 0}`, which `C_WEBSOCKET` declares in all
+    four of its states, claimed an action the gclass never wrote.
+
+- **A reciprocal pair of states drew one arrow on top of the other**
+    (`gobj-ui` 7.23.37). Two G6 facts came out of it, both measured: a `type`
+    written on an edge DATUM is overridden by the graph-level `edge.type` (vary
+    it per element with a FUNCTION), and `curveOffset` is measured from each
+    edge's OWN direction, so a reciprocal pair needs the SAME sign on both --
+    opposite signs bow them to the same side of the screen.
+
+- **The popover called two different things "Estado"** (`gobj-ui` 7.23.39).
+    The run status and the FSM state sat next to each other under the same
+    label in every Spanish app, one saying *Parado* and the other *ST_IDLE*.
+    The second row has its own key now.
+
+- **"1 matches"** (`gobj-ui` 7.23.40). Four find chips counted with two spans
+    -- a number beside a word -- so nothing could see the count and one match
+    read as many, in both languages. They say it as one counted string now,
+    with the singular in `matches_one` and the plural in the base key.
+
+- **A service the app creates is the app's to START** (`yunos-js`). `c_yuno`'s
+    `mt_play` starts only the DEFAULT service, and `C_YUI_WINDOW_MANAGER` has
+    no `mt_start` -- its dock is built in `mt_create` and driven by events --
+    so it WORKED stopped in two consoles and nothing ever complained. It just
+    read `!!C_YUI_WINDOW_MANAGER` in every trace line, and *stopped* in the
+    frontend view.
 
 - **The machine trace was written in the LEGACY shape in the browser**
     (`gobj-js` 7.13.7, completed in 7.13.8). `trace_machine_format` was `0` in
