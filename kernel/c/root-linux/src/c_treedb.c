@@ -2305,6 +2305,53 @@ PRIVATE BOOL is_unset_value(json_t *value)  // not owned, may be NULL
 }
 
 /***************************************************************************
+ *  Is this stored value just the default the descriptor declares?
+ *
+ *  The projection of a column copies the attributes the schema DECLARES and
+ *  no more, while the stored node went through treedb, which fills every
+ *  attribute the descriptor gives a `default`. So an attribute the schema
+ *  never mentions is absent on one side and holds its default on the other,
+ *  and the comparison reads that as an operator addition.
+ *
+ *  It is not one, and there were 43 of them in a treedb of 45 columns:
+ *  `fillspace` defaults to 10 and almost no schema writes it, so the panel
+ *  answered 43 differences that no Apply could ever settle -- and buried the
+ *  ones somebody did make, which is the same failure is_unset_value() was
+ *  written for. That one only knows the EMPTY value of a type; this knows
+ *  the DECLARED default, which is a different thing and the one that bit.
+ *
+ *  The projection is deliberately NOT filled with defaults instead: it is
+ *  what the projector upserts, so a default written there would overwrite
+ *  the value an operator set by hand on an attribute the schema does not
+ *  declare. The asymmetry is real and belongs in the comparison.
+ ***************************************************************************/
+PRIVATE BOOL is_declared_default(
+    hgobj gobj,
+    json_t *desc,           // not owned, the descriptor list, may be NULL
+    const char *attr,
+    json_t *value           // not owned
+)
+{
+    if(!desc || !json_is_array(desc)) {
+        return FALSE;
+    }
+
+    int idx; json_t *entry;
+    json_array_foreach(desc, idx, entry) {
+        if(strcmp(kw_get_str(gobj, entry, "id", "", 0), attr)!=0) {
+            continue;
+        }
+        json_t *def = json_object_get(entry, "default");
+        if(!def) {
+            return FALSE;   /*  nothing declared, so nothing to forgive  */
+        }
+        return json_equal(def, value)?TRUE:FALSE;
+    }
+
+    return FALSE;
+}
+
+/***************************************************************************
  *  Append one difference.
  ***************************************************************************/
 PRIVATE int add_diff_row(
@@ -2347,7 +2394,8 @@ PRIVATE int diff_node_attrs(
     const char *col_name,   // NULL at topic level
     json_t *projected,      // not owned
     json_t *stored,         // not owned
-    const char **skip       // attributes that say how a node is STORED
+    const char **skip,      // attributes that say how a node is STORED
+    json_t *desc            // not owned, descriptor of the node's topic, may be NULL
 )
 {
     const char *attr; json_t *v;
@@ -2379,6 +2427,9 @@ PRIVATE int diff_node_attrs(
         }
         if(json_object_get(projected, attr) || is_unset_value(v)) {
             continue;
+        }
+        if(is_declared_default(gobj, desc, attr, v)) {
+            continue;   /*  the store filling a default is nobody's edit  */
         }
         add_diff_row(
             rows, treedb_name, "only_in_stored", topic_name, col_name, attr, v, NULL
@@ -2520,8 +2571,14 @@ PRIVATE json_t *diff_treedb_schema(
             continue;
         }
 
+        /*
+         *  No descriptor at topic level, and none is needed:
+         *  build_topic_projection() applies the topic defaults itself
+         *  (pkey, tkey, order), so the two sides are already symmetric.
+         */
         diff_node_attrs(
-            gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic, topic_skip
+            gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic,
+            topic_skip, NULL
         );
 
         /*
@@ -2574,7 +2631,8 @@ PRIVATE json_t *diff_treedb_schema(
                 col_name,
                 projected_col,
                 stored_col,
-                col_skip
+                col_skip,
+                cols_desc
             );
             json_decref(projected_col);
         }

@@ -376,6 +376,34 @@ Detail in those repos' CHANGELOGs.
 
 ### Fixed
 
+#### `diff-schema` answered 43 differences nobody had made
+
+A treedb of 45 columns reported 43 differences, every one of them
+`fillspace` "only in stored" with the value 10. No `Apply` could ever settle
+them, because there was nothing to apply: `fillspace` DEFAULTS to 10 in the
+system schema, almost no schema writes it, and the two sides of the
+comparison were not symmetric about that.
+
+The projection of a column copies the attributes the schema DECLARES and no
+more; the stored node went through treedb, which fills every attribute the
+descriptor gives a `default`. So an attribute the schema never mentions is
+absent on one side and holds its default on the other, and the comparison
+read that as an operator addition.
+
+It is the same failure `is_unset_value()` was written for — its own comment
+says *"those 586 defaults buried the 6 that somebody made"* — except that
+one only knows the EMPTY value of a type, and what bit here is the DECLARED
+default, which is a different thing. `is_declared_default()` knows it.
+
+The projection is deliberately NOT filled with defaults instead: it is what
+the projector UPSERTS, so a default written there would overwrite the value
+an operator set by hand on an attribute the schema does not declare. The
+asymmetry is real and belongs in the comparison, not in the projection.
+
+Measured after the fix: **43 differences -> 0** on a treedb whose schema
+matches, and on a second node the panel now reports exactly ONE — a column
+that really is only in the store. Which is what the panel is for.
+
 - **The gclass window's ✕ left its viewer alive, and the button never opened
     another one** (`gobj-ui` 7.23.38). `close_window()` calls `on_close` and
     then destroys the WINDOW; the viewer is not the window's child -- it hangs
