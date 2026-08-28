@@ -43,6 +43,20 @@ repositories** and is embedded here as **git submodules** (the same model as
   active-changing JS layer, so it evolves on its own line with its own
   `CHANGELOG.md`.
 
+**LAS VERSIONES DE JS NO ADELANTAN A LAS DE C, salvo en el tercer índice**
+(regla del 2026-08-28). Los dos primeros números de un paquete JS del SDK son
+los de `YUNETA_VERSION`; el tercero es la vida propia del paquete entre
+releases del SDK. Un número que no dice contra qué SDK está el paquete no le
+sirve a nadie: `gobj-js` iba por 7.13.x con el C en 7.16.2, y se saltó a
+**7.16.0** para volver a decirlo — el número no cuenta releases, dice a qué
+SDK pertenece.
+
+⚠️ **`gobj-ui` incumple la regla hoy y no se puede arreglar renumerando**: va
+por **7.23.44** con el C en 7.16.2, y publicar un 7.16.x detrás sería una
+versión *menor* que la publicada, así que npm dejaría 7.23.44 como `latest`.
+La regla es hacia adelante: `gobj-ui` se realinea sola cuando el C alcance su
+línea, o en su próximo major. Mientras tanto es la excepción, y está dicho.
+
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
 registry** — since 2026-08-03 there are no `file:` consumers left (wattyzer
@@ -421,6 +435,21 @@ Corollaries:
   far from the call that caused it, and with a stack that blames the framework.
   Every gclass in the tree passes a real table. Keep it that way, especially in
   the throwaway driver gclasses that tests define.
+
+- **A json as a TABLE: `json2flat()` / `flat2json()`** (`kwid.h`, and the same
+  grammar in `gobj-js`'s `helpers.js`). One row per leaf, the id being the path
+  of the item — the form to store, to compare and to diff, and the only one a
+  person reads when two configurations disagree. Ids are joined by `` ` ``, a
+  literal backtick in a key is DOUBLED (so no key is forbidden), an array index
+  is `[N]`, a key starting with `[` doubles it, and **an empty container is a
+  leaf** — `{}` and `[]` have no leaves of their own and `"properties": {}` is
+  everywhere. `flat2json()` refuses instead of guessing when an id is a leaf
+  and a container at once, because the answer would depend on the order the ids
+  are read in. `flat_diff()` / `flat_apply()` work on the flat form, where an
+  id addresses one value. **The two grammars must stay identical**: a flat json
+  is written by one side and read by the other. The old `json_flatten_dict()` /
+  `json_unflatten_dict()` are deprecated aliases — their first implementation
+  turned a dict keyed by a yuno id into an array of 1631 elements.
 
 - **`kw_get_dict()` / `kw_get_list()` TAKE OWNERSHIP of `default_value`.** They
   `JSON_DECREF(default_value)` on the path where they **find** the key — the

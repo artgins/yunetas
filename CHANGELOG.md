@@ -2,6 +2,81 @@
 
 ## Unreleased
 
+### Las versiones de JS vuelven a decir contra qué SDK están
+
+`gobj-js` **7.13.9 -> 7.16.0**, publicada. Desde ahora un paquete JS del SDK
+**no adelanta al C salvo en el tercer índice**: los dos primeros son los de
+`YUNETA_VERSION` y el tercero es la vida propia del paquete entre releases. Se
+saltan la 7.14 y la 7.15 a propósito — el número no cuenta releases del
+paquete, dice **a qué SDK pertenece**.
+
+`gobj-ui` **incumple la regla y no se puede arreglar renumerando**: va por
+7.23.44 con el C en 7.16.2, y publicar un 7.16.x detrás sería una versión menor
+que la publicada, así que npm dejaría 7.23.44 como `latest`. La regla es hacia
+adelante; queda dicho en el `CLAUDE.md`.
+
+### El json plano: `json2flat` / `flat2json`, en C y en JS
+
+Un json visto como **tabla**: una fila por HOJA, el id es la **ruta** del item
+y el valor su valor. Para guardar, para comparar y para hacer un diff es mucho
+mejor forma que la nativa —y es la única que una persona puede leer cuando dos
+configuraciones no coinciden.
+
+```
+{"a": {"b": 1}, "c": [10, 20]}   ->   {"a`b": 1, "c`[0]": 10, "c`[1]": 20}
+```
+
+**Ya existía media pieza y estaba rota.** `json_flatten_dict()` /
+`json_unflatten_dict()` llevaban en `kwid.c` desde hacía tiempo, con un aviso en
+la cabecera: *"las claves de sólo dígitos están reservadas para índices de
+array"*. Medido antes de tocar nada:
+
+| entrada | lo que devolvía |
+|---|---|
+| `{"1630": {...}}` — **un id de yuno** | un **array de 1631 elementos** |
+| `{"a": {}}` / `{"a": []}` | la clave **desaparecía** |
+| `` {"a`b": 1} `` | se partía en `{"a": {"b": 1}}` |
+| `{"a": {"": 1}}` | volvía `{"a": 1}`, un nivel menos |
+| `` "a`1000" `` | **1001 elementos** materializados para un solo dato |
+
+La regla que el formato imponía la incumplían **nuestros propios datos**: un
+diccionario indexado por id de yuno es de lo más normal aquí.
+
+**La gramática nueva**, la misma en los dos lenguajes:
+
+- separador `` ` ``, que ya es el delimitador de rutas de `kw_get_dict()`;
+- un `` ` `` dentro de una clave se **duplica** — y con eso el formato **no
+  prohíbe nada**;
+- un índice de array es **`[N]`**, canónico y sin ceros a la izquierda. Cuesta
+  un byte más que un número pelado y devuelve la regla de las claves;
+- una clave que empieza por `[` duplica el corchete (`[[0]`), así que nunca se
+  puede leer como índice;
+- **un contenedor vacío es una hoja**: `{}` y `[]` no tienen hojas propias, y
+  `"properties": {}` está por todas partes en nuestras configs y esquemas.
+
+**`flat2json()` rechaza en vez de adivinar**: un id que es hoja y contenedor a
+la vez (el resultado dependería del **orden** en que se leen las claves), un
+índice por encima del tope, una ruta más profunda que el tope —el código viejo
+truncaba a 256 segmentos en silencio.
+
+**Índice y clave son dos TIPOS, no dos grafías**: `flat_key_split()` devuelve el
+índice como entero y la clave como cadena. Lo destapó su propio test: como
+cadenas, la clave `"[0]"` y el índice `0` volvían las dos como `"[0]"`, que es
+exactamente la ambigüedad que el `[N]` viene a quitar.
+
+También `flat_diff()` —`{added, removed, changed}`— y `flat_apply()`, que
+trabaja sobre el **plano** a propósito: ahí un id direcciona un valor, así que
+aplicar es poner y quitar, sin nada que recorrer ni que adivinar.
+
+Los dos nombres viejos siguen, delegando en los nuevos y marcados como
+obsoletos: no hay datos guardados en el formato antiguo con los que ser
+compatible —el único llamador de producción, `flatten-subscribers` del broker
+MQTT, lo pinta en una consola.
+
+Tests nuevos: `tests/c/kw/test_json_flat.c` (33 comprobaciones) y
+`kernel/js/gobj-js/tests/json_flat.test.js` (36). Los ids que fijan son **los
+mismos** en los dos: un json plano lo escribe uno y lo lee el otro.
+
 Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.38, `gobj-ui` 7.23.44,
 `gobj-js` 7.13.8) in eight parts, plus two things the C side was missing: a
 tranger topic could be listed key by key and never PRUNED, and `diff-schema`

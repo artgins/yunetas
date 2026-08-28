@@ -568,9 +568,14 @@ static int test_reg_f002_find_record_not_found(void)
 
 /***************************************************************************
  *  json_unflatten_dict(): backtick-path flat dict -> nested json.
- *  Exercises the root-kind detection that reads the FIRST path token
- *  (parsed with strtok_r): a numeric first token makes the root an array,
- *  otherwise an object.
+ *  Exercises the root-kind detection, which reads the FIRST segment: an
+ *  index ('[N]') makes the root an array, anything else an object.
+ *
+ *  The index used to be a bare number, which forced all-digit keys to be
+ *  forbidden; it is '[N]' since the flat form was rewritten, so a key like
+ *  "1630" is now just a key. The whole grammar is tested in
+ *  test_json_flat.c; this one only guards the two callers of the old
+ *  names.
  ***************************************************************************/
 static int test_json_unflatten_dict(void)
 {
@@ -595,10 +600,10 @@ static int test_json_unflatten_dict(void)
     JSON_DECREF(got1)
     JSON_DECREF(exp1)
 
-    /* array root: first token "0" IS an array index -> root is an array */
+    /* array root: the first segment IS an index -> root is an array */
     json_t *flat2 = json_pack("{s:s, s:s}",
-        "0`name", "zero",
-        "1`name", "one"
+        "[0]`name", "zero",
+        "[1]`name", "one"
     );
     json_t *got2 = json_unflatten_dict(flat2);
     json_t *exp2 = json_pack("[{s:s}, {s:s}]",

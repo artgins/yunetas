@@ -3850,239 +3850,697 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
     return FALSE;
 }
 
+
+
+
+
+                        /*---------------------------------*
+                         *      Flat json (id -> value)
+                         *---------------------------------*/
+
+
+
+
 /***************************************************************************
- *  Recursively flatten a nested json object
+ *  THE FLAT FORM, AND WHY IT IS SHAPED LIKE THIS
+ *
+ *  A json seen as a table: one row per LEAF, the id being the path of the
+ *  item and the value its value. It is easier to store, to compare and to
+ *  diff than the nested form, and it is what a person can actually read
+ *  when two configurations disagree.
+ *
+ *      {"a": {"b": 1}, "c": [10, 20]}
+ *          ->  {"a`b": 1, "c`[0]": 10, "c`[1]": 20}
+ *
+ *  THE SEPARATOR IS '`' because it is already the path delimiter of this
+ *  file (kw_get_dict() and friends), it is rare in real keys, and it reads
+ *  as a joint rather than as part of a name.
+ *
+ *  A LITERAL '`' IN A KEY IS DOUBLED. That is what makes every possible
+ *  key representable and, with it, the flat form has NO forbidden keys --
+ *  the previous implementation had to reserve all-digit keys for array
+ *  indices, and the ids of this very system ("1630", a yuno id) broke that
+ *  rule: {"1630": {...}} came back as an ARRAY OF 1631 ELEMENTS.
+ *
+ *  AN ARRAY INDEX IS '[N]', not a bare number. It costs one byte over a
+ *  bare index and it buys the whole forbidden-key rule back: a dict key is
+ *  a dict key even if it is all digits. A dict key that literally looks
+ *  like an index ("[0]") is escaped by doubling its leading bracket, which
+ *  is the only other escape in the grammar.
+ *
+ *  AN EMPTY CONTAINER IS A LEAF. {} and [] hold no leaves, so a strict
+ *  leaves-only form loses them -- and 'properties': {} is everywhere in
+ *  the configs and schemas of this system. Stored as themselves, the round
+ *  trip holds and a diff can say "this became empty" instead of saying
+ *  nothing.
+ *
+ *  WHAT IT REFUSES, instead of guessing:
+ *      - a key used as leaf AND as container ("a" and "a`b"): the nested
+ *        result would depend on the ORDER the flat keys are read in.
+ *      - an array index above FLAT_MAX_INDEX: one key would otherwise
+ *        materialise a million nulls.
+ *      - a path deeper than FLAT_MAX_DEPTH: the old code truncated at 256
+ *        segments in silence and wrote the value somewhere else.
  ***************************************************************************/
-PRIVATE void flatten_recursive(
-    json_t *result,
-    json_t *jn_value,
-    const char *current_path
-)
+#define FLAT_MAX_DEPTH      256
+#define FLAT_MAX_INDEX      100000
+
+/***************************************************************************
+ *  A growing string, local to this section.
+ ***************************************************************************/
+typedef struct {
+    char *s;
+    size_t len;
+    size_t size;
+} flat_str_t;
+
+PRIVATE int flat_str_add(flat_str_t *b, const char *s, size_t n)
 {
-    if(json_is_object(jn_value)) {
-        const char *key;
-        json_t *child;
-        json_object_foreach(jn_value, key, child) {
-            char *new_path;
-            if(current_path && current_path[0]) {
-                size_t len = strlen(current_path) + 1 + strlen(key) + 1;
-                new_path = gbmem_malloc(len);
-                if(new_path) {
-                    snprintf(new_path, len, "%s`%s", current_path, key);
-                }
-            } else {
-                new_path = gbmem_strdup(key);
-            }
-
-            if(new_path) {
-                flatten_recursive(result, child, new_path);
-                gbmem_free(new_path);
-            }
+    if(b->len + n + 1 > b->size) {
+        size_t size = (b->size? b->size*2: 64);
+        while(size < b->len + n + 1) {
+            size *= 2;
         }
-    } else if(json_is_array(jn_value)) {
-        size_t index;
-        json_t *child;
-        json_array_foreach(jn_value, index, child) {
-            char idx_str[32];
-            snprintf(idx_str, sizeof(idx_str), "%zu", index);
-
-            char *new_path;
-            if(current_path && current_path[0]) {
-                size_t len = strlen(current_path) + 1 + strlen(idx_str) + 1;
-                new_path = gbmem_malloc(len);
-                if(new_path) {
-                    snprintf(new_path, len, "%s`%s", current_path, idx_str);
-                }
-            } else {
-                new_path = gbmem_strdup(idx_str);
-            }
-
-            if(new_path) {
-                flatten_recursive(result, child, new_path);
-                gbmem_free(new_path);
-            }
+        char *p = gbmem_realloc(b->s, size);
+        if(!p) {
+            return -1;
         }
-    } else {
-        // Leaf value: add to result with current path as key
-        if(current_path && current_path[0]) {
-            json_object_set(result, current_path, jn_value);
-        }
+        b->s = p;
+        b->size = size;
     }
+    memcpy(b->s + b->len, s, n);
+    b->len += n;
+    b->s[b->len] = 0;
+    return 0;
 }
 
-
-/***************************************************************************
- *  Flatten a nested json dict into a non-nested dict
- *  Keys become paths separated by '`'
- *
- *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
- *           for array indices. Do not use numeric-only keys in your data
- *           as they will be interpreted as array positions when unflattening.
- *
- *  Return a new json object (caller must decref)
- ***************************************************************************/
-PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
+PRIVATE int flat_str_addc(flat_str_t *b, char c)
 {
-    if(!jn_nested) {
-        return json_object();
-    }
-
-    json_t *result = json_object();
-    if(!result) {
-        return NULL;
-    }
-
-    flatten_recursive(result, jn_nested, "");
-
-    return result;
+    return flat_str_add(b, &c, 1);
 }
 
 /***************************************************************************
- *  Check if string is a valid array index (all digits)
+ *  Is this segment an array index, '[N]'?
  ***************************************************************************/
-PRIVATE BOOL is_array_index(const char *s)
+PRIVATE BOOL flat_seg_is_index(const char *seg, size_t *index)
 {
-    if(!s || !s[0]) {
+    if(!seg || seg[0] != '[') {
         return FALSE;
     }
-    for(const char *p = s; *p; p++) {
-        if(!isdigit((unsigned char)*p)) {
-            return FALSE;
+    const char *p = seg + 1;
+    if(!isdigit((unsigned char)*p)) {
+        return FALSE;
+    }
+    /*
+     *  No leading zeros: '[0]' is the only index that starts with one, so
+     *  the form is canonical and '[00]' is malformed rather than a second
+     *  spelling of the same slot.
+     */
+    if(*p == '0' && *(p+1) != ']') {
+        return FALSE;
+    }
+    unsigned long long idx = 0;
+    while(isdigit((unsigned char)*p)) {
+        if(idx <= (unsigned long long)FLAT_MAX_INDEX) {
+            idx = idx*10 + (unsigned long long)(*p - '0');
         }
+        p++;   // keep walking: the shape still has to be '[digits]'
+    }
+    if(*p != ']' || *(p+1) != 0) {
+        return FALSE;
+    }
+    if(index) {
+        *index = (size_t)idx;
     }
     return TRUE;
 }
 
 /***************************************************************************
- *  Ensure array has enough elements (fill with null)
+ *  Append one segment to a path, escaped.
+ *
+ *  'is_index' segments ('[N]') are written as they are; a dict key gets
+ *  its backticks doubled, and a leading '[' doubled so it can never be
+ *  mistaken for an index.
  ***************************************************************************/
-PRIVATE void ensure_array_size(json_t *jn_array, size_t index)
+PRIVATE int flat_append_segment(flat_str_t *b, const char *seg, BOOL is_index)
 {
-    while(json_array_size(jn_array) <= index) {
-        json_array_append_new(jn_array, json_null());
-    }
-}
-
-/***************************************************************************
- *  Set value at path, creating intermediate objects/arrays as needed
- ***************************************************************************/
-PRIVATE int set_path_value(
-    json_t *root,
-    const char *path,
-    json_t *jn_value
-)
-{
-    char *path_copy = gbmem_strdup(path);
-    if(!path_copy) {
-        return -1;
-    }
-
-    // Tokenize path by '`'
-    char *tokens[256];  // Max depth
-    int token_count = 0;
-
-    char *saveptr;
-    char *token = strtok_r(path_copy, "`", &saveptr);
-    while(token && token_count < 256) {
-        tokens[token_count++] = token;
-        token = strtok_r(NULL, "`", &saveptr);
-    }
-
-    if(token_count == 0) {
-        gbmem_free(path_copy);
-        return -1;
-    }
-
-    // Navigate/create path
-    json_t *current = root;
-
-    for(int i = 0; i < token_count - 1; i++) {
-        const char *key = tokens[i];
-        const char *next_key = tokens[i + 1];
-        BOOL next_is_array = is_array_index(next_key);
-
-        if(json_is_object(current)) {
-            json_t *child = json_object_get(current, key);
-            if(!child || json_is_null(child)) {
-                // Create new container based on next key type
-                child = next_is_array ? json_array() : json_object();
-                json_object_set_new(current, key, child);
-            }
-            current = child;
-        } else if(json_is_array(current)) {
-            size_t index = (size_t)atol(key);
-            ensure_array_size(current, index);
-            json_t *child = json_array_get(current, index);
-            if(!child || json_is_null(child)) {
-                // Create new container based on next key type
-                child = next_is_array ? json_array() : json_object();
-                json_array_set_new(current, index, child);
-            }
-            current = child;
-        } else {
-            gbmem_free(path_copy);
+    if(b->len > 0) {
+        if(flat_str_addc(b, '`') < 0) {
             return -1;
         }
     }
-
-    // Set final value
-    const char *final_key = tokens[token_count - 1];
-
-    if(json_is_object(current)) {
-        json_object_set(current, final_key, jn_value);
-    } else if(json_is_array(current)) {
-        size_t index = (size_t)atol(final_key);
-        ensure_array_size(current, index);
-        json_array_set(current, index, jn_value);
-    } else {
-        gbmem_free(path_copy);
-        return -1;
+    if(is_index) {
+        return flat_str_add(b, seg, strlen(seg));
     }
-
-    gbmem_free(path_copy);
+    if(seg[0] == '[') {
+        if(flat_str_addc(b, '[') < 0) {
+            return -1;
+        }
+    }
+    for(const char *p = seg; *p; p++) {
+        if(*p == '`') {
+            if(flat_str_addc(b, '`') < 0) {
+                return -1;
+            }
+        }
+        if(flat_str_addc(b, *p) < 0) {
+            return -1;
+        }
+    }
     return 0;
 }
 
 /***************************************************************************
- *  Unflatten a dict with path keys (separated by '`') into a nested dict
+ *  Compose a flat id from its segments.
  *
- *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
- *           for array indices. Do not use numeric-only keys in your data
- *           as they will be interpreted as array positions.
+ *  A segment that is a json INTEGER is an array index and is written
+ *  '[N]'; a STRING is a dict key and is escaped.
  *
- *  Return a new json object (caller must decref)
+ *  THE TWO ARE DIFFERENT TYPES AND NOT TWO SPELLINGS, because a string is
+ *  not enough to tell them apart: the key "[0]" and the index 0 would
+ *  both arrive as "[0]", which is exactly the ambiguity the '[N]' form
+ *  exists to remove. Found by its own test.
+ *
+ *  Return is yours (gbmem_free), NULL on error.
  ***************************************************************************/
-PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
+PUBLIC char *flat_key_join(json_t *jn_segments)
 {
-    if(!jn_flat || !json_is_object(jn_flat)) {
-        return json_object();
+    if(!json_is_array(jn_segments) || json_array_size(jn_segments) == 0) {
+        return gbmem_strdup("");
     }
 
-    // Determine if root should be array or object
-    // by checking the first component of the first key
-    json_t *result;
-    const char *first_key = json_object_iter_key(json_object_iter(jn_flat));
-
-    if(first_key) {
-        char *copy = gbmem_strdup(first_key);
-        char *saveptr = NULL;
-        char *first_token = strtok_r(copy, "`", &saveptr);
-        BOOL root_is_array = first_token && is_array_index(first_token);
-        gbmem_free(copy);
-        result = root_is_array ? json_array() : json_object();
-    } else {
-        result = json_object();
+    flat_str_t b = {0};
+    size_t idx; json_t *jn_seg;
+    json_array_foreach(jn_segments, idx, jn_seg) {
+        if(json_is_integer(jn_seg)) {
+            char seg[32];
+            snprintf(seg, sizeof(seg), "[%lld]", (long long)json_integer_value(jn_seg));
+            if(flat_append_segment(&b, seg, TRUE) < 0) {
+                GBMEM_FREE(b.s)
+                return NULL;
+            }
+            continue;
+        }
+        const char *key = json_string_value(jn_seg);
+        if(!key) {
+            continue;
+        }
+        if(flat_append_segment(&b, key, FALSE) < 0) {
+            GBMEM_FREE(b.s)
+            return NULL;
+        }
     }
+    if(!b.s) {
+        return gbmem_strdup("");
+    }
+    return b.s;
+}
 
-    if(!result) {
+/***************************************************************************
+ *  Split a flat id into its segments, undoing the escapes.
+ *
+ *  An array index comes back as an INTEGER and a dict key as a STRING, so
+ *  the escaped key "[0]" and the index 0 are two different things all the
+ *  way -- which is the whole point of writing indices as '[N]'.
+ *
+ *  Return is yours (json array), NULL if the id is malformed.
+ ***************************************************************************/
+PUBLIC json_t *flat_key_split(const char *key)
+{
+    if(!key) {
         return NULL;
     }
 
-    const char *path;
-    json_t *jn_value;
-    json_object_foreach(jn_flat, path, jn_value) {
-        set_path_value(result, path, jn_value);
+    json_t *segments = json_array();
+    flat_str_t b = {0};
+    BOOL ok = TRUE;
+
+    const char *p = key;
+    while(*p) {
+        if(*p == '`') {
+            if(*(p+1) == '`') {
+                if(flat_str_addc(&b, '`') < 0) {
+                    ok = FALSE; break;
+                }
+                p += 2;
+                continue;
+            }
+            /*  A real separator: close this segment. */
+            json_array_append_new(segments, json_string(b.s? b.s: ""));
+            b.len = 0;
+            if(b.s) {
+                b.s[0] = 0;
+            }
+            p++;
+            continue;
+        }
+        if(flat_str_addc(&b, *p) < 0) {
+            ok = FALSE; break;
+        }
+        p++;
+    }
+    if(ok) {
+        json_array_append_new(segments, json_string(b.s? b.s: ""));
+    }
+    GBMEM_FREE(b.s)
+
+    if(!ok) {
+        JSON_DECREF(segments)
+        return NULL;
     }
 
-    return result;
+    /*
+     *  Now decide what each segment IS, and only then undo the bracket
+     *  escape -- the other way round, '[[0]' would become '[0]' and read
+     *  as index zero.
+     */
+    size_t idx; json_t *jn_seg;
+    json_array_foreach(segments, idx, jn_seg) {
+        const char *seg = json_string_value(jn_seg);
+        if(!seg) {
+            continue;
+        }
+        size_t index;
+        if(flat_seg_is_index(seg, &index)) {
+            json_array_set_new(segments, idx, json_integer((json_int_t)index));
+        } else if(seg[0] == '[' && seg[1] == '[') {
+            json_array_set_new(segments, idx, json_string(seg + 1));
+        }
+    }
+
+    return segments;
+}
+
+/***************************************************************************
+ *  Walk a nested json emitting one entry per leaf.
+ ***************************************************************************/
+PRIVATE int flat_walk(json_t *flat, json_t *jn, flat_str_t *path, int depth)
+{
+    if(depth > FLAT_MAX_DEPTH) {
+        return -1;
+    }
+
+    if(json_is_object(jn) && json_object_size(jn) > 0) {
+        const char *key; json_t *child;
+        json_object_foreach(jn, key, child) {
+            size_t mark = path->len;
+            if(flat_append_segment(path, key, FALSE) < 0) {
+                return -1;
+            }
+            if(flat_walk(flat, child, path, depth+1) < 0) {
+                return -1;
+            }
+            path->len = mark;
+            if(path->s) {
+                path->s[mark] = 0;
+            }
+        }
+        return 0;
+    }
+
+    if(json_is_array(jn) && json_array_size(jn) > 0) {
+        size_t index; json_t *child;
+        json_array_foreach(jn, index, child) {
+            char seg[32];
+            snprintf(seg, sizeof(seg), "[%zu]", index);
+            size_t mark = path->len;
+            if(flat_append_segment(path, seg, TRUE) < 0) {
+                return -1;
+            }
+            if(flat_walk(flat, child, path, depth+1) < 0) {
+                return -1;
+            }
+            path->len = mark;
+            if(path->s) {
+                path->s[mark] = 0;
+            }
+        }
+        return 0;
+    }
+
+    /*
+     *  A leaf: a scalar, or an EMPTY container -- which has no leaves of
+     *  its own and would otherwise vanish.
+     *
+     *  DEPTH, not the length of the path: {"": 1} is a legitimate json
+     *  whose only id is the empty string, and reading "no path yet" from
+     *  an empty path dropped it. Found by its own test.
+     */
+    if(depth == 0) {
+        return 0;       // a scalar root has no path; nothing to say about it
+    }
+    json_object_set(flat, path->s? path->s: "", jn);
+    return 0;
+}
+
+/***************************************************************************
+ *  A nested json as a flat dict: one entry per leaf, keyed by its path.
+ *
+ *  Return is yours, NULL on error (too deep).
+ ***************************************************************************/
+PUBLIC json_t *json2flat(json_t *jn_nested)
+{
+    json_t *flat = json_object();
+    if(!flat) {
+        return NULL;
+    }
+    if(!jn_nested) {
+        return flat;
+    }
+
+    flat_str_t path = {0};
+    int ret = flat_walk(flat, jn_nested, &path, 0);
+    GBMEM_FREE(path.s)
+
+    if(ret < 0) {
+        JSON_DECREF(flat)
+        return NULL;
+    }
+    return flat;
+}
+
+/***************************************************************************
+ *  Say what went wrong, once, in the caller's own string.
+ ***************************************************************************/
+PRIVATE void flat_error(char *error, int error_size, const char *fmt, ...)
+{
+    if(!error || error_size <= 0 || error[0]) {
+        return;     // keep the FIRST error, which is the one that explains
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(error, (size_t)error_size, fmt, ap);
+    va_end(ap);
+}
+
+/***************************************************************************
+ *  Put one flat entry into the nested tree being built.
+ ***************************************************************************/
+PRIVATE int flat_set(
+    json_t **root,
+    const char *key,
+    json_t *jn_value,
+    char *error,
+    int error_size
+)
+{
+    json_t *segments = flat_key_split(key);
+    if(!segments) {
+        flat_error(error, error_size, "malformed flat id: '%s'", key);
+        return -1;
+    }
+    size_t n = json_array_size(segments);
+    if(n == 0) {
+        JSON_DECREF(segments)
+        flat_error(error, error_size, "empty flat id");
+        return -1;
+    }
+    if(n > FLAT_MAX_DEPTH) {
+        JSON_DECREF(segments)
+        flat_error(error, error_size, "flat id deeper than %d: '%s'",
+            FLAT_MAX_DEPTH, key
+        );
+        return -1;
+    }
+
+    /*
+     *  The root's type is decided by the FIRST segment, once.
+     */
+    size_t index = 0;
+    BOOL first_is_index = json_is_integer(json_array_get(segments, 0));
+    if(!*root) {
+        *root = first_is_index? json_array(): json_object();
+    } else if(first_is_index != json_is_array(*root)) {
+        JSON_DECREF(segments)
+        flat_error(error, error_size,
+            "flat id '%s' does not fit a %s root", key,
+            json_is_array(*root)? "array": "object"
+        );
+        return -1;
+    }
+
+    json_t *current = *root;
+
+    for(size_t i = 0; i < n; i++) {
+        json_t *jn_seg = json_array_get(segments, i);
+        const char *seg = json_string_value(jn_seg);
+        BOOL is_last = (i == n-1);
+        BOOL is_index = json_is_integer(jn_seg);
+        if(is_index) {
+            json_int_t v = json_integer_value(jn_seg);
+            index = (size_t)(v < 0? 0: v);
+        }
+        BOOL next_is_index = is_last? FALSE:
+            json_is_integer(json_array_get(segments, i+1));
+
+        if(is_index && index > FLAT_MAX_INDEX) {
+            JSON_DECREF(segments)
+            flat_error(error, error_size,
+                "array index %zu over the limit (%d) in '%s'",
+                index, FLAT_MAX_INDEX, key
+            );
+            return -1;
+        }
+
+        if(is_index != json_is_array(current)) {
+            JSON_DECREF(segments)
+            flat_error(error, error_size,
+                "'%s' uses a %s where the tree already has a %s", key,
+                is_index? "array index": "key",
+                json_is_array(current)? "array": "object"
+            );
+            return -1;
+        }
+
+        if(is_last) {
+            if(json_is_array(current)) {
+                while(json_array_size(current) <= index) {
+                    json_array_append_new(current, json_null());
+                }
+                json_array_set(current, index, jn_value);
+            } else {
+                if(json_object_get(current, seg)) {
+                    JSON_DECREF(segments)
+                    flat_error(error, error_size,
+                        "'%s' is written twice, or once as a value and once "
+                        "as a container", key
+                    );
+                    return -1;
+                }
+                json_object_set(current, seg, jn_value);
+            }
+            break;
+        }
+
+        /*
+         *  A step in the middle: the container must exist, or be made, and
+         *  it must not be a value somebody already wrote.
+         */
+        json_t *child;
+        if(json_is_array(current)) {
+            while(json_array_size(current) <= index) {
+                json_array_append_new(current, json_null());
+            }
+            child = json_array_get(current, index);
+            if(!child || json_is_null(child)) {
+                child = next_is_index? json_array(): json_object();
+                json_array_set_new(current, index, child);
+            }
+        } else {
+            child = json_object_get(current, seg);
+            if(!child) {
+                child = next_is_index? json_array(): json_object();
+                json_object_set_new(current, seg, child);
+            }
+        }
+
+        if(!json_is_object(child) && !json_is_array(child)) {
+            JSON_DECREF(segments)
+            flat_error(error, error_size,
+                "'%s' walks through a value: the same id is a leaf and a "
+                "container at once", key
+            );
+            return -1;
+        }
+        if(next_is_index != json_is_array(child)) {
+            JSON_DECREF(segments)
+            flat_error(error, error_size,
+                "'%s' needs a %s where the tree already has a %s", key,
+                next_is_index? "array": "object",
+                json_is_array(child)? "array": "object"
+            );
+            return -1;
+        }
+        current = child;
+    }
+
+    JSON_DECREF(segments)
+    return 0;
+}
+
+/***************************************************************************
+ *  A flat dict back into its nested json.
+ *
+ *  'error' is filled with the FIRST thing that did not fit, and the whole
+ *  call fails: a flat dict that cannot be rebuilt exactly is not a flat
+ *  dict, and rebuilding "most of it" is how a configuration comes back
+ *  subtly different from the one that was saved.
+ *
+ *  Return is yours, NULL on error.
+ ***************************************************************************/
+PUBLIC json_t *flat2json(json_t *jn_flat, char *error, int error_size)
+{
+    if(error && error_size > 0) {
+        error[0] = 0;
+    }
+    if(!jn_flat || !json_is_object(jn_flat)) {
+        flat_error(error, error_size, "a flat json is an object of id -> value");
+        return NULL;
+    }
+
+    json_t *root = NULL;
+    const char *key; json_t *jn_value;
+    json_object_foreach(jn_flat, key, jn_value) {
+        if(flat_set(&root, key, jn_value, error, error_size) < 0) {
+            JSON_DECREF(root)
+            return NULL;
+        }
+    }
+
+    if(!root) {
+        root = json_object();   // an empty flat is an empty object
+    }
+    return root;
+}
+
+/***************************************************************************
+ *  What changed between two flat dicts.
+ *
+ *  {"added": {id: value}, "removed": {id: value},
+ *   "changed": {id: {"from": value, "to": value}}}
+ *
+ *  Return is yours.
+ ***************************************************************************/
+PUBLIC json_t *flat_diff(json_t *jn_flat1, json_t *jn_flat2)
+{
+    json_t *diff = json_pack("{s:{}, s:{}, s:{}}",
+        "added", "removed", "changed"
+    );
+    json_t *added   = json_object_get(diff, "added");
+    json_t *removed = json_object_get(diff, "removed");
+    json_t *changed = json_object_get(diff, "changed");
+
+    if(json_is_object(jn_flat1)) {
+        const char *key; json_t *v1;
+        json_object_foreach(jn_flat1, key, v1) {
+            json_t *v2 = json_is_object(jn_flat2)?
+                json_object_get(jn_flat2, key): NULL;
+            if(!v2) {
+                json_object_set(removed, key, v1);
+            } else if(!json_equal(v1, v2)) {
+                json_object_set_new(changed, key,
+                    json_pack("{s:O, s:O}", "from", v1, "to", v2)
+                );
+            }
+        }
+    }
+    if(json_is_object(jn_flat2)) {
+        const char *key; json_t *v2;
+        json_object_foreach(jn_flat2, key, v2) {
+            if(!json_is_object(jn_flat1) || !json_object_get(jn_flat1, key)) {
+                json_object_set(added, key, v2);
+            }
+        }
+    }
+
+    return diff;
+}
+
+/***************************************************************************
+ *  Apply to a flat dict what flat_diff() said.
+ *
+ *  It works on the FLAT form and not on the nested one on purpose: that is
+ *  where an id addresses one value, so applying is setting and deleting,
+ *  with nothing to walk and nothing to guess. Nested is
+ *  json2flat -> flat_apply -> flat2json.
+ *
+ *  'jn_flat' is MUTATED and not owned. Returns 0, or -1 with 'error'.
+ ***************************************************************************/
+PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_size)
+{
+    if(error && error_size > 0) {
+        error[0] = 0;
+    }
+    if(!json_is_object(jn_flat)) {
+        flat_error(error, error_size, "a flat json is an object of id -> value");
+        return -1;
+    }
+    if(!json_is_object(jn_diff)) {
+        flat_error(error, error_size, "a diff is the object flat_diff() answers");
+        return -1;
+    }
+
+    json_t *removed = json_object_get(jn_diff, "removed");
+    json_t *added   = json_object_get(jn_diff, "added");
+    json_t *changed = json_object_get(jn_diff, "changed");
+
+    const char *key; json_t *jn_value;
+
+    if(json_is_object(removed)) {
+        json_object_foreach(removed, key, jn_value) {
+            json_object_del(jn_flat, key);
+        }
+    }
+    if(json_is_object(added)) {
+        json_object_foreach(added, key, jn_value) {
+            json_object_set(jn_flat, key, jn_value);
+        }
+    }
+    if(json_is_object(changed)) {
+        json_object_foreach(changed, key, jn_value) {
+            json_t *to = json_object_get(jn_value, "to");
+            if(!to) {
+                flat_error(error, error_size,
+                    "changed '%s' without a 'to'", key
+                );
+                return -1;
+            }
+            json_object_set(jn_flat, key, to);
+        }
+    }
+
+    return 0;
+}
+
+
+/***************************************************************************
+ *  DEPRECATED, kept because two callers name them.
+ *
+ *  They answer the CURRENT flat form -- array indices as '[N]', escapes,
+ *  empty containers preserved -- and not the one they used to: that one
+ *  turned a dict keyed by a yuno id into an array of 1631 elements, lost
+ *  every empty container, and split any key holding a backtick. There is
+ *  no stored data in the old form to be compatible with; the only caller
+ *  in production prints it on a console.
+ ***************************************************************************/
+PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
+{
+    return json2flat(jn_nested);
+}
+
+PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
+{
+    char error[256];
+    json_t *jn = flat2json(jn_flat, error, sizeof(error));
+    if(!jn) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Cannot unflatten json",
+            "error",        "%s", error,
+            NULL
+        );
+        return json_object();
+    }
+    return jn;
 }

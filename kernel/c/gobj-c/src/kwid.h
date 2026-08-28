@@ -684,26 +684,89 @@ PUBLIC BOOL kwid_match_nid(
 );
 
 /***************************************************************************
- *  Flatten a nested json dict into a non-nested dict
- *  Keys become paths separated by '`'
+ *              FLAT JSON: a json seen as a table
  *
- *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
- *           for array indices. Do not use numeric-only keys in your data
- *           as they will be interpreted as array positions when unflattening.
+ *  One row per LEAF: the id is the PATH of the item, the value is its
+ *  value. Easier to store, to compare and to diff than the nested form,
+ *  and the only one a person can read when two configurations disagree.
  *
- *  Return a new json object (caller must decref)
+ *      {"a": {"b": 1}, "c": [10, 20]}
+ *          ->  {"a`b": 1, "c`[0]": 10, "c`[1]": 20}
+ *
+ *  THE GRAMMAR, and the reason for each rule:
+ *
+ *      - segments are joined by '`', which is already the path delimiter
+ *        of kw_get_dict() and friends.
+ *      - a literal '`' inside a key is DOUBLED. With that, every key is
+ *        representable and the form forbids nothing -- the previous
+ *        implementation had to reserve all-digit keys for array indices,
+ *        and this system's own yuno ids ("1630") broke that rule: a dict
+ *        keyed by one came back as an ARRAY OF 1631 ELEMENTS.
+ *      - an array index is '[N]', canonical (no leading zeros). One byte
+ *        more than a bare number, and it buys the forbidden-key rule back.
+ *      - a dict key that begins with '[' doubles it ('[[0]'), so it can
+ *        never be read as an index.
+ *      - AN EMPTY CONTAINER IS A LEAF: {} and [] hold no leaves, so a
+ *        strict leaves-only form loses them, and 'properties': {} is
+ *        everywhere in this system's configs and schemas.
+ *
+ *  flat2json() REFUSES instead of guessing: an id used as leaf and as
+ *  container (the result would depend on the order the ids are read in),
+ *  an index over the limit (one id would materialise a million nulls), a
+ *  path deeper than the limit (the old code truncated in silence).
  ***************************************************************************/
-PUBLIC json_t *json_flatten_dict(json_t *jn_nested);
 
-/***************************************************************************
- *  Unflatten a dict with path keys (separated by '`') into a nested dict
+/*
+ *  Nested -> flat. Return is yours; NULL if the json is deeper than the
+ *  limit.
+ */
+PUBLIC json_t *json2flat(json_t *jn_nested);
+
+/*
+ *  Flat -> nested. Return is yours; NULL on the FIRST id that does not
+ *  fit, with 'error' saying which and why -- rebuilding "most of it" is
+ *  how a configuration comes back subtly different from the one saved.
+ */
+PUBLIC json_t *flat2json(json_t *jn_flat, char *error, int error_size);
+
+/*
+ *  Compose / take apart a flat id. A segment is either a STRING (a dict
+ *  key, escaped as needed) or an INTEGER (an array index, written '[N]').
  *
- *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
- *           for array indices. Do not use numeric-only keys in your data
- *           as they will be interpreted as array positions.
+ *  THEY ARE TWO TYPES AND NOT TWO SPELLINGS: as strings, the key "[0]"
+ *  and the index 0 would both be "[0]", which is the very ambiguity the
+ *  '[N]' form removes.
  *
- *  Return a new json object (caller must decref)
- ***************************************************************************/
+ *  join(): return is yours (gbmem_free). split(): return is yours (json
+ *  array), NULL if the id is malformed.
+ */
+PUBLIC char *flat_key_join(json_t *jn_segments);
+PUBLIC json_t *flat_key_split(const char *key);
+
+/*
+ *  What changed between two flat dicts:
+ *
+ *      {"added": {id: value}, "removed": {id: value},
+ *       "changed": {id: {"from": value, "to": value}}}
+ *
+ *  Return is yours.
+ */
+PUBLIC json_t *flat_diff(json_t *jn_flat1, json_t *jn_flat2);
+
+/*
+ *  Apply that diff to a flat dict, which is MUTATED and not owned. It
+ *  works on the flat form on purpose: there an id addresses one value, so
+ *  applying is setting and deleting, with nothing to walk and nothing to
+ *  guess. Nested is json2flat -> flat_apply -> flat2json.
+ */
+PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_size);
+
+/*
+ *  DEPRECATED: json2flat() / flat2json() say it better and flat2json()
+ *  can explain a failure. These two answer the CURRENT form, not the one
+ *  they used to.
+ */
+PUBLIC json_t *json_flatten_dict(json_t *jn_nested);
 PUBLIC json_t *json_unflatten_dict(json_t *jn_flat);
 
 #ifdef __cplusplus
