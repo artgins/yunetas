@@ -1050,8 +1050,14 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
 - `createElement2(["tag", attrs, children])`: the 2nd slot MUST be an attrs
   object; text/children go in slot 3 (`["p", {}, "msg"]`,
   `["ul", {}, [li1, li2]]`).
-- `gobj_create_default_service()` does NOT register in `__jn_services__` —
-  `gobj_find_service()` returns null for it; capture the return value instead.
+- `gobj_create_default_service()` DOES register in `__jn_services__`, so
+  `gobj_find_service("app")` finds it — this line used to say the opposite, and
+  it was checked and found wrong on 2026-08-28. `gobj_create2()` adds
+  `gobj_flag_service` to a default service before building the gobj, and the
+  registration is keyed off that flag. It matters beyond a lookup: a default
+  service is a legal `src` for an inter-yuno message, so it can subscribe to a
+  backend event and get the answer delivered to it by name (`C_YV_APP` counting
+  open alarms for the toolbar badge does exactly that).
 - `pure_child` gobjs are not auto-started by `c_yuno.mt_play` — call
   `gobj_start(child)` explicitly.
 - `c_ievent_cli` contract (C and JS): a **deliberate** `gobj_stop` /
