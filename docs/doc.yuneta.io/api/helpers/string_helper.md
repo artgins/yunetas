@@ -540,6 +540,46 @@ If no '/' is found in `path`, the entire string is returned, and `path` remains 
 
 ---
 
+(version_cmp)=
+## [`version_cmp()`](%s/helpers.c#L1200)
+
+Compares two dotted versions **segment by segment**, like `strcmp`.
+
+```C
+int version_cmp(
+    const char *version1,
+    const char *version2
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `version1` | `const char *` | First version. |
+| `version2` | `const char *` | Second version. |
+
+**Returns**
+
+Less than 0, 0, or greater than 0, as `version1` sorts before, equal to, or
+after `version2`.
+
+**Notes**
+
+Both `.` and `-` separate, so a release and its revision order together
+("1.9.0.0-2" is five segments), and a missing segment counts as 0, so "7.11" and
+"7.11.0" are the same version.
+
+⚠️ **Do not "simplify" this into a single number.** The agent used to weigh each
+segment by 1000 and accumulate: "1.9.0.0-2" needs 10^12, which overflowed an int
+and came out NEGATIVE, so the older release won every comparison and the agent
+promoted it back on every restart for eleven days on a client node. A wider
+accumulator only moves the ceiling, and it still assumes every segment stays
+under 1000. Comparing segment by segment assumes neither, which is what the JS
+and Python sides of this project already do.
+
+---
+
 (split2)=
 ## [`split2()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/helpers.c#L1255)
 

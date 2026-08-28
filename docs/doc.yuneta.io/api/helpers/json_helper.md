@@ -391,6 +391,8 @@ Returns 0 if all reference counts are within the allowed limit. Returns a negati
 
 This function recursively checks all elements in the JSON object, including arrays and nested objects. If `max_refcount` is greater than 0, elements exceeding this limit will be logged as errors.
 
+A NULL `kw` is reported and the function **returns**: it used to log the NULL and then fall through to `json_typeof()` on it, crashing on the very thing it exists to detect.
+
 ---
 
 (json_config)=

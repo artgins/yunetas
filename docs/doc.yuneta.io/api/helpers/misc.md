@@ -57,6 +57,37 @@ The returned UUID is generated once and stored persistently. On Linux, if the UU
 
 ---
 
+(get_inotify_self_usage)=
+## [`get_inotify_self_usage()`](%s/helpers.c#L7109)
+
+How many inotify instances and watches THIS process is holding.
+
+```C
+int get_inotify_self_usage(
+    int *instances,
+    int *watches
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `instances` | `int *` | Filled with the number of open inotify instances of this process. |
+| `watches` | `int *` | Filled with the number of watches those instances hold. |
+
+**Returns**
+
+0, or -1 on error.
+
+**Notes**
+
+It counts what this process uses, not the system-wide totals: the kernel limits
+(`max_user_instances`, `max_user_watches`) are per user, so a leak here is what
+eventually makes an unrelated daemon fail to watch anything.
+
+---
+
 (check_open_fds)=
 ## [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/helpers.c#L6972)
 

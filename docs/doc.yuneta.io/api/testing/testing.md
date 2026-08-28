@@ -164,6 +164,18 @@ If both `jn_found` and the expected JSON are `NULL`, only the log messages are c
 Uses `match_record()` to compare JSON objects.
 Calls `check_log_result()` to validate log messages.
 
+⚠️ **`jn_found` is OWNED, so a BORROWED pointer must be increfed at the call.**
+`json_array_get()`, `kw_get_dict()`, `treedb_get_node()` and friends answer a
+pointer they still own; handing one straight to `test_json()` spends a reference
+that was never given, and the next `json_decref()` of the container frees the
+same block twice. Three bench tests died of exactly this — with heap corruption
+surfacing somewhere else entirely — because they were written before this
+function started freeing its argument:
+
+```C
+result += test_json(json_incref(record));   // record is borrowed
+```
+
 ---
 
 (test_json_file)=

@@ -643,6 +643,18 @@ CLEAN rebuild: `yunetas clean && yunetas build`. Incremental builds have left
 stale binaries in `outputs/yunos/` — always verify the staged binary
 (`outputs/yunos/<role> --print-role`) before deploying it.
 
+**A TEST BINARY LINKS THE INSTALLED LIBRARIES**, from `outputs/lib`, not the
+ones in the build tree. Two consequences that cost hours on 2026-08-28: a fix in
+kernel source does not reach a test until `yunetas build` **installs** it (so
+`cmake --build build --target <test>` can keep running the old library), and
+configuring a build with `-fsanitize=address` instruments the test's own `.c`
+files **and nothing else** — ASan then reports nothing while the plain build
+keeps aborting, which reads as "not a real bug" and is only "you did not look at
+it". To sanitise for real, build the libraries in the ASan tree and **relink the
+test by hand** against them; and if the corruption is around json, instrument
+`jansson` too (with its own generated config headers, or it parses nothing). The
+recipe is written down in `docs/doc.yuneta.io/testing.md`.
+
 `ctest --test-dir build` only **runs** tests, it never rebuilds them — the
 unified root `build/` tree is built by `yunetas test` (or `cmake --build
 build`), not by `yunetas build`. A raw ctest after per-module builds executes

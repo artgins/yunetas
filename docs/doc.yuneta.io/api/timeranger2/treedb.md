@@ -1497,6 +1497,27 @@ This function is useful for retrieving secondary key values associated with a pr
 
 ---
 
+(treedb_create_system_schema)=
+## [`treedb_create_system_schema()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/timeranger2/src/tr_treedb.c#L439)
+
+The treedb **meta-schema**: the schema that describes what a schema may say.
+
+```C
+json_t *treedb_create_system_schema(void);
+```
+
+**Returns**
+
+The meta-schema, which the caller owns.
+
+**Notes**
+
+It is what validates a treedb schema before it is opened, so a schema that
+declares an unknown column type or flag is refused where it is written instead
+of failing later, once, on the record that happens to use it.
+
+---
+
 (treedb_topic_size)=
 ## [`treedb_topic_size()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/timeranger2/src/tr_treedb.c#L1697)
 

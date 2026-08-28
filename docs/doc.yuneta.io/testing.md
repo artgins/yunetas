@@ -183,6 +183,68 @@ event traces and error logs.
 
 **Source:** `tests/c/msg_interchange/`
 
+## Debugging a test that corrupts the heap
+
+A test that dies with *"corrupted double-linked list"* or *"free(): chunks in
+smallbin corrupted"* is reporting heap corruption that happened **earlier**: the
+abort lands at the next `malloc`/`free`, not at the write that caused it. The
+backtrace at that point names the detector, not the culprit.
+
+**AddressSanitizer finds it, but not by simply building with it.** The test
+tree links the **installed** libraries from `outputs/lib`, not the ones in the
+build tree, so configuring a build with `-fsanitize=address` instruments the
+test's own `.c` files and nothing else — and ASan reports nothing while the
+plain build keeps aborting, which reads as "it is not a real bug" and is only
+"you did not look at it".
+
+What actually works, and what it costs:
+
+```bash
+# 1. a non-static build, because -static and -fsanitize=address are exclusive
+cp .config .config.bak && sed -i 's/^CONFIG_FULLY_STATIC=y/CONFIG_FULLY_STATIC=n/' .config
+
+# 2. configure a separate tree WITH the sanitiser
+cmake -S . -B build_asan -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_FLAGS="-fsanitize=address -g -fno-omit-frame-pointer" \
+    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
+
+# 3. build the LIBRARIES too, not only the test
+cmake --build build_asan --target yunetas-gobj timeranger2 yev_loop ytls \
+    yunetas-core-linux <the test> -j8
+
+# 4. relink the test by hand against those libraries: take its link.txt and
+#    replace every /outputs/lib/lib*.a with the build_asan path
+```
+
+**And instrument jansson as well** when the corruption is around json: it lives
+in `outputs_ext/lib` and is not part of the build. Compile
+`kernel/c/linux-ext-libs/build/jansson/src/*.c` with the sanitiser **and with
+its own generated headers** — `-DHAVE_CONFIG_H -I<jansson>/build/private_include
+-I<jansson>/build/include` —, or it builds but parses nothing and every test
+fails with *"Cannot load json file, bad json"*, which looks like a different bug
+entirely.
+
+With all of it instrumented, ASan names the two lines that matter — where the
+memory was freed and where it was used afterwards — and a hunt that had taken
+hours takes a minute.
+
+Restore `.config` afterwards.
+
+### The mistake it usually is
+
+Three bench tests died this way on 2026-08-28, and all three were the same
+thing: **a borrowed pointer handed to a function that owns what it is given**.
+
+`json_array_get()`, `kw_get_dict()`, `treedb_get_node()` and friends answer a
+pointer they still own; [`test_json()`](api/testing/testing.md#test_json)
+**frees what it receives**. Passing one to the other spends a reference that was
+never given, and the next `json_decref()` of the container frees the same block
+twice. Incref it at the call:
+
+```C
+result += test_json(json_incref(record));   // record is borrowed
+```
+
 ## Build flag
 
 Tests are enabled by default via `.config` (`CONFIG_MODULE_TEST=y`).
