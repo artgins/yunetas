@@ -85,6 +85,65 @@ This multi-language approach makes sure of the library remains idiomatic in each
 
 
 
+## A JSON as a table: the flat form
+
+Sometimes the useful way to look at a JSON is not its own shape but a **table**:
+one row per **leaf**, where the id is the **path** of the item and the value is
+its value. It is a better form to store, to compare and to diff — and it is the
+only one a person can read when two configurations disagree.
+
+```
+{"a": {"b": 1}, "c": [10, 20]}
+    ->  {"a`b": 1, "c`[0]": 10, "c`[1]": 20}
+```
+
+[`json2flat()`](#json2flat) writes it and [`flat2json()`](#flat2json) reads it
+back. The same grammar is implemented in `gobj-js`, and the two must stay
+identical: a flat JSON is written by one side and read by the other.
+
+### The grammar, and the reason for each rule
+
+- **Segments are joined by a backtick**, which is already the path delimiter of
+  this library ([`kw_get_dict()`](#kw_get_dict) and friends). It is rare in real
+  keys and it reads as a joint rather than as part of a name.
+- **A literal backtick inside a key is doubled.** With that, every key is
+  representable and **the form forbids nothing** — which matters more than it
+  sounds: the first implementation had to reserve all-digit keys for array
+  indices, and a dictionary keyed by a yuno id (`"1630"`) came back as an array
+  of 1631 elements.
+- **An array index is `[N]`**, canonical, no leading zeros. It costs one byte
+  over a bare number and it buys the forbidden-key rule back.
+- **A dict key that begins with `[` doubles it** (`[[0]`), so it can never be
+  read as an index.
+- **An empty container is a leaf.** `{}` and `[]` hold no leaves of their own,
+  so a strict leaves-only form loses them — and an empty `properties` object is
+  ordinary in a configuration. Stored as themselves, the round trip holds and a
+  diff can say *this became empty* instead of saying nothing.
+
+### It refuses instead of guessing
+
+`flat2json()` fails, and says which id and why, when the flat dictionary cannot
+be rebuilt **exactly**: an id used as a leaf and as a container (the answer
+would depend on the order the ids are read in), an index over the limit (one id
+would otherwise materialise a million nulls), or a path deeper than the limit.
+Rebuilding *most of it* is how a configuration comes back subtly different from
+the one that was saved.
+
+### Comparing
+
+[`flat_diff()`](#flat_diff) answers `{added, removed, changed}` over two flat
+dictionaries, and [`flat_apply()`](#flat_apply) applies that to a flat
+dictionary — the flat form on purpose, because there an id addresses one value,
+so applying is setting and deleting with nothing to walk.
+
+For the other question — *are these two records equal?* —
+[`kwid_compare_records()`](#kwid_compare_records) works on the nested form and
+tolerates disorder. They do not compete: the flat form is for **seeing** a
+difference and carrying it; the nested one for **answering** whether there is
+any.
+
+---
+
 ## JSON Reference Count Macros: `JSON_DECREF` and `JSON_INCREF`
 
 ## 📌 Overview

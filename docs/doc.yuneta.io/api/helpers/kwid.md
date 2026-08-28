@@ -1405,6 +1405,178 @@ If `kw` is a dictionary, the function searches for a key matching `id`. If `kw` 
 
 ---
 
+(flat2json)=
+## [`flat2json()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4391)
+
+Rebuilds the nested JSON of a flat dictionary. See [`json2flat()`](#json2flat) for the form and its grammar.
+
+```C
+json_t *flat2json(
+    json_t *jn_flat,
+    char   *error,
+    int    error_size
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_flat` | `json_t *` | Flat dictionary, id -> value. |
+| `error` | `char *` | Filled with the first id that does not fit, and why. |
+| `error_size` | `int` | Size of `error`. |
+
+**Returns**
+
+The nested JSON, which the caller owns, or NULL with `error` set.
+
+**Notes**
+
+It refuses instead of guessing, and the whole call fails: an id used as a leaf and as a container would rebuild differently depending on the order the ids are read in; an array index over the limit would materialise a million nulls for one id; a path deeper than the limit used to be truncated in silence. A flat dictionary that cannot be rebuilt exactly is not a flat dictionary, and rebuilding most of it is how a configuration comes back subtly different from the one that was saved.
+
+---
+
+(flat_apply)=
+## [`flat_apply()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4469)
+
+Applies to a flat dictionary the changes [`flat_diff()`](#flat_diff) reported. The dictionary is mutated and is not owned.
+
+```C
+int flat_apply(
+    json_t *jn_flat,
+    json_t *jn_diff,
+    char   *error,
+    int    error_size
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_flat` | `json_t *` | Flat dictionary to change. |
+| `jn_diff` | `json_t *` | What `flat_diff()` answered. |
+| `error` | `char *` | Filled on failure. |
+| `error_size` | `int` | Size of `error`. |
+
+**Returns**
+
+0, or -1 with `error` set.
+
+**Notes**
+
+It works on the flat form and not on the nested one on purpose: there an id addresses one value, so applying is setting and deleting, with nothing to walk and nothing to guess. For a nested JSON the sequence is [`json2flat()`](#json2flat), `flat_apply()`, [`flat2json()`](#flat2json).
+
+---
+
+(flat_diff)=
+## [`flat_diff()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4424)
+
+Says what changed between two flat dictionaries.
+
+```C
+json_t *flat_diff(
+    json_t *jn_flat1,
+    json_t *jn_flat2
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_flat1` | `json_t *` | The flat dictionary taken as the origin. |
+| `jn_flat2` | `json_t *` | The flat dictionary taken as the target. |
+
+**Returns**
+
+`{"added": {id: value}, "removed": {id: value}, "changed": {id: {"from": value, "to": value}}}`, which the caller owns.
+
+**Notes**
+
+Comparing in the flat form is what makes a difference readable: one id per leaf, so a change names the exact item instead of two trees that differ somewhere. [`kwid_compare_records()`](#kwid_compare_records) still answers the other question — whether two records are equal — on the nested form.
+
+---
+
+(flat_key_join)=
+## [`flat_key_join()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4026)
+
+Composes a flat id from its segments.
+
+```C
+char *flat_key_join(
+    json_t *jn_segments
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_segments` | `json_t *` | Array of segments: a string is a dict key, an integer is an array index. |
+
+**Returns**
+
+The id, which the caller frees with `gbmem_free()`, or NULL on error.
+
+**Notes**
+
+A key and an index are two types and not two spellings: as strings, the key `"[0]"` and the index `0` would both be `"[0]"`, which is the ambiguity the `[N]` form exists to remove. Keys are escaped here, so any key can be composed.
+
+---
+
+(flat_key_split)=
+## [`flat_key_split()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4068)
+
+Takes a flat id apart, undoing the escapes.
+
+```C
+json_t *flat_key_split(
+    const char *key
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `key` | `const char *` | The flat id. |
+
+**Returns**
+
+The array of segments — a string per dict key, an integer per array index — which the caller owns, or NULL if the id is malformed.
+
+---
+
+(json2flat)=
+## [`json2flat()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L4201)
+
+A nested JSON as a flat dictionary: one entry per leaf, the id being the path of the item.
+
+```C
+json_t *json2flat(
+    json_t *jn_nested
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_nested` | `json_t *` | The JSON to flatten. |
+
+**Returns**
+
+The flat dictionary, which the caller owns, or NULL if the JSON is deeper than the limit.
+
+**Notes**
+
+`{"a": {"b": 1}, "c": [10, 20]}` becomes `{"a`b": 1, "c`[0]": 10, "c`[1]": 20}`. Segments are joined by a backtick, the delimiter this library already uses for paths; a literal backtick inside a key is doubled, so no key is forbidden; an array index is written `[N]`, canonical, and a key starting with `[` doubles it so it can never be read as an index; and an empty container is itself a leaf, because `{}` and `[]` hold no leaves and would otherwise vanish from the form.
+
+The same grammar is implemented in `gobj-js` (`json2flat` in `helpers.js`), and the two must stay identical: a flat JSON is written by one side and read by the other.
+
+---
+
 (json_flatten_dict)=
 ## [`json_flatten_dict()`](https://github.com/artgins/yunetas/blob/7.16.2/kernel/c/gobj-c/src/kwid.c#L3924)
 
@@ -1428,7 +1600,7 @@ A new flattened `json_t *` object where each key is a backtick-delimited path re
 
 **Notes**
 
-Use [`json_unflatten_dict()`](#json_unflatten_dict) to reconstruct the original nested structure from the flattened dictionary.
+Deprecated: [`json2flat()`](#json2flat) says it better, and its companion [`flat2json()`](#flat2json) can explain a failure instead of answering half a tree. This name is kept because two callers use it, and it answers the current form.
 
 ---
 
