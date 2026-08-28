@@ -346,6 +346,16 @@ PUBLIC int test_users(
         const char *operation = "create"; // "update" TODO
 
         json_t *jn_users_file = string2json(helper_quote2doublequote(users_file), TRUE);
+
+        /*
+         *  jn_treedbs is BORROWED: kw_get_dict() answers the child that
+         *  jn_users_file owns. load_treedbs() OWNS what it is given, so the
+         *  incref pays for that call and for nothing else -- decref'ing it
+         *  again afterwards spends the file's own reference, frees the child
+         *  under its parent, and the decref of the parent then walks into
+         *  freed memory. That was this test aborting with "corrupted
+         *  double-linked list".
+         */
         json_t *jn_treedbs = kw_get_dict(gobj, jn_users_file, "treedbs", 0, KW_REQUIRED);
         JSON_INCREF(jn_treedbs)
         if(load_treedbs(tranger, jn_treedbs, operation)<0) {
@@ -359,7 +369,6 @@ PUBLIC int test_users(
         result += test_json(json_incref(users));
 
         json_check_refcounts(jn_treedbs, 1000, &result);
-        JSON_DECREF(jn_treedbs)
         JSON_DECREF(jn_users_file)
     }
 

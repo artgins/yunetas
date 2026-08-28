@@ -452,13 +452,17 @@ PRIVATE int do_test(void)
             char MESSAGEx[80];
             snprintf(MESSAGEx, sizeof(MESSAGEx), MESSAGE, i+1);
 
+            /*
+             *  ONE decref, and it used to be two on the error paths: the
+             *  branch decref'd `msg` and the line below decref'd it again, so
+             *  the moment this test DETECTED a mismatch it also corrupted the
+             *  heap and died -- "free(): chunks in smallbin corrupted" instead
+             *  of the failure it had just found.
+             */
             if(!text) {
                 gobj_info_msg(0, "ERROR <-- No message received in loop %d", i+1);
-                json_decref(msg);
-
             } else if(strcmp(text, MESSAGEx)!=0) {
                 gobj_info_msg(0, "ERROR <-- Messages tx and rx don't match %d", i+1);
-                json_decref(msg);
             }
             json_decref(msg);
 

@@ -2752,6 +2752,12 @@ PUBLIC int json_check_refcounts(
         if(result) {
             (*result)--;
         }
+        /*
+         *  AND RETURN. It used to fall through to json_typeof(jn) below and
+         *  segfault on the very NULL it had just reported -- a checker that
+         *  crashes on the thing it exists to detect.
+         */
+        return -1;
     }
 
     switch(json_typeof(jn)) {

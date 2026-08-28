@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Los tres tests rotos del banco, y por qué se rompieron un día concreto
+
+`test_tr_treedb`, `yev_events/test_yevent_traffic5` y `traffic6` abortaban con
+corrupción de heap —*"corrupted double-linked list"*, *"free(): chunks in
+smallbin corrupted"*—. Los tres eran **contabilidad de referencias en los
+propios tests**, no en la librería.
+
+**Y tienen fecha de origen: el 2025-07-13 `test_json()` pasó a LIBERAR su
+argumento** (`e6b480f83`). Desde ese día, cada sitio que le pasaba un puntero
+**prestado** quedó roto. Las llamadas ofensivas son del 2024-11-02 y del
+2024-11-08: eran correctas cuando se escribieron.
+
+- **`test_tr_treedb.c`**: `json_array_get()` devuelve un elemento prestado y
+  `test_json()` es dueña de lo que recibe, así que el elemento perdía una
+  referencia que nunca dio — y el `json_decref(data)` de la línea siguiente lo
+  liberaba por segunda vez.
+- **`test_users.c`**: `kw_get_dict()` devuelve prestado. El `JSON_INCREF` pagaba
+  la llamada a `load_treedbs()`, que sí es dueña; el `JSON_DECREF` de después
+  gastaba la referencia **del padre**, y liberaba el hijo bajo él.
+- **`traffic5` / `traffic6`**: doble `json_decref(msg)` en las ramas de error.
+  El test se corrompía **justo cuando detectaba un desajuste**, así que moría en
+  vez de contarlo — y el desajuste es deliberado: cierra el socket a propósito y
+  los mensajes de error están en su lista de esperados.
+
+**Un defecto de verdad del SDK, encontrado por el camino:**
+`json_check_refcounts()` comprobaba `if(!jn)`, lo registraba y **seguía** hasta
+`json_typeof(jn)`: reventaba sobre el mismo NULL que acababa de denunciar. Un
+comprobador que muere de lo que existe para detectar. Ahora retorna.
+
+**Cómo se encontró, que vale para la próxima.** ASan no veía nada: el árbol de
+tests enlaza las librerías **instaladas** de `outputs/lib`, no las del árbol de
+build, así que instrumentar el build no instrumenta lo que se ejecuta. Hizo
+falta construir el SDK **y jansson** con `-fsanitize=address` —jansson con sus
+propias cabeceras de configuración, o produce json inválido— y **reenlazar el
+test a mano** contra esas librerías. Con eso, ASan señaló las tres líneas
+exactas en un minuto.
+
 ### Las versiones de JS vuelven a decir contra qué SDK están
 
 `gobj-js` **7.13.9 -> 7.16.0**, publicada. Desde ahora un paquete JS del SDK

@@ -703,7 +703,14 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(department_record);
+        /*
+         *  INCREF: json_array_get() answers a BORROWED element and
+         *  test_json() OWNS what it is given, so without it the element
+         *  loses a reference it never gave -- and the decref of `data`
+         *  below then frees it a second time. That was this test dying
+         *  with "corrupted double-linked list" somewhere else entirely.
+         */
+        result += test_json(json_incref(department_record));
         json_decref(data);
     }
 
