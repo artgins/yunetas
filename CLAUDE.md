@@ -205,14 +205,25 @@ for an app with no map — 1.5 MB).
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
 with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.16.2`; the gobj-js package sits at
-`7.13.5` on npm, behind because only what moves on its side moves it: 7.10.0
-for the `gobj_post_event()` alignment, 7.12.0 where `gclass_find_by_name()` /
+versioned to track `YUNETA_VERSION` (SDK `7.16.2`, package **`7.16.1`** on npm)
+and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
+— a number that told a consumer nothing about which SDK it was built against —
+and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
+deliberately, because the number does not count releases of the package, it
+names the SDK the package belongs to. What moved it along the way: 7.10.0 for
+the `gobj_post_event()` alignment; 7.12.0 where `gclass_find_by_name()` /
 `gobj_find_service()` stopped answering `undefined` for a lookup that finds
-nothing — a `=== null` guard against them was always false — and 7.13.3-7.13.5
-for the boolean/int trap, where a JS boolean was read with the C runtime's
-`=== 0` guard: a subscription filter that never filtered, plus four more sites
-of the same shape) and **published to npm**.
+nothing — a `=== null` guard against them was always false; 7.13.3-7.13.5 for
+the boolean/int trap, where a JS boolean was read with the C runtime's `=== 0`
+guard (a subscription filter that never filtered, plus four more sites of the
+same shape); and **7.16.1**, where an inter-event **addressed to a service that
+no longer exists** stopped being published to every subscriber of the transport
+and started being dropped with a warning. That last one matters to any SPA: a
+destroyed view's in-flight frames were landing on the application gobj's
+catch-all subscription and raising *"Event NOT DEFINED in state"* once per
+frame. **The C side carries the identical open TODO and was left alone**, so a
+C client and a JS client still differ on what they do with an orphaned addressed
+event.
 To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
 in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 `npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
