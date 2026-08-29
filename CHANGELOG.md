@@ -39,17 +39,57 @@ propias cabeceras de configuración, o produce json inválido— y **reenlazar e
 test a mano** contra esas librerías. Con eso, ASan señaló las tres líneas
 exactas en un minuto.
 
+### Dos arreglos del runtime JS que alcanzan a TODAS las SPA
+
+Los dos salieron de usar las consolas contra nodos de verdad, y los dos estaban
+en la librería, no en las aplicaciones.
+
+**`gobj-js` 7.16.1 — un evento dirigido a un servicio que ya no existe se
+descarta, no se difunde.** `C_IEVENT_CLI` buscaba el servicio destino y, al no
+encontrarlo, caía en el reparto por defecto: publicarlo a **todos** los
+suscriptores del transporte. Ese camino es el correcto para un mensaje que no
+nombra destino y el contrario para uno que sí — un mensaje dirigido es de su
+destinatario o de nadie.
+
+Lo que lo dispara es el final normal de la vida de una vista: se monta bajo un
+nombre de servicio, se suscribe a un evento del backend, el usuario navega a
+otro sitio, la vista se destruye, y las tramas que ya iban por el cable siguen
+llegando a un nombre al que no contesta nadie. Acababan en la suscripción de
+evento **nulo** del gobj de aplicación —que es nula a propósito: nombrar
+`EV_ON_OPEN` en una suscripción la reenvía río arriba y el remoto la rechaza— y
+su FSM no declara una trama de equipo, así que lo decía una vez por trama: **38
+errores en una ráfaga de 26 ms** en un nodo con 38 equipos. Ahora se descarta
+con un aviso que dice qué servicio y qué evento se perdieron. El camino sin
+destino no se toca, y `tests/ievent_dispatch.test.js` fija los tres casos
+juntos, porque el arreglo sólo es correcto si el tercero sigue funcionando.
+
+⚠️ **El lado C tiene el mismo TODO abierto** (`c_ievent_cli.c`) y se ha dejado
+como estaba: es kernel consolidado, y cómo enruta un backend no es decisión del
+lado JS. Hasta que se mueva, un cliente C y uno JS hacen cosas distintas con un
+evento dirigido huérfano.
+
+**`gobj-ui` 7.23.45 — la rueda sobre un popover del grafo, y una ficha que se
+puede leer y cerrar.** Ningún popover del grafo se podía desplazar con la rueda:
+había que arrastrar la barra. El comportamiento de zoom de G6 ata un `wheel` al
+**contenedor** y hace `preventDefault()` en cada muesca **sea cual sea el
+target**, y después declina hacer zoom porque el target no es el canvas — así
+que el gesto quedaba anulado y no lo usaba nadie. Se para en el popover, lo que
+arregla los cinco. Y la ficha de detalle de un nodo iba a tamaño de pie de foto
+con una ✕ de 13×16 px: los tamaños salieron de los estilos en línea al CSS
+—**una media query no alcanza un estilo en línea**— y la cabecera es pegajosa,
+porque con ella yéndose hacia arriba la ✕ desaparecía justo en el móvil.
+
 ### Las versiones de JS vuelven a decir contra qué SDK están
 
-`gobj-js` **7.13.9 -> 7.16.0**, publicada. Desde ahora un paquete JS del SDK
+`gobj-js` **7.13.9 -> 7.16.1**, publicada. Desde ahora un paquete JS del SDK
 **no adelanta al C salvo en el tercer índice**: los dos primeros son los de
 `YUNETA_VERSION` y el tercero es la vida propia del paquete entre releases. Se
 saltan la 7.14 y la 7.15 a propósito — el número no cuenta releases del
 paquete, dice **a qué SDK pertenece**.
 
 `gobj-ui` **incumple la regla y no se puede arreglar renumerando**: va por
-7.23.44 con el C en 7.16.2, y publicar un 7.16.x detrás sería una versión menor
-que la publicada, así que npm dejaría 7.23.44 como `latest`. La regla es hacia
+7.23.45 con el C en 7.16.2, y publicar un 7.16.x detrás sería una versión menor
+que la publicada, así que npm dejaría 7.23.45 como `latest`. La regla es hacia
 adelante; queda dicho en el `CLAUDE.md`.
 
 ### El json plano: `json2flat` / `flat2json`, en C y en JS
@@ -114,8 +154,8 @@ Tests nuevos: `tests/c/kw/test_json_flat.c` (33 comprobaciones) y
 `kernel/js/gobj-js/tests/json_flat.test.js` (36). Los ids que fijan son **los
 mismos** en los dos: un json plano lo escribe uno y lo lee el otro.
 
-Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.38, `gobj-ui` 7.23.44,
-`gobj-js` 7.13.8) in eight parts, plus two things the C side was missing: a
+Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.44, `gobj-ui` 7.23.45,
+`gobj-js` 7.16.1) in eight parts, plus two things the C side was missing: a
 tranger topic could be listed key by key and never PRUNED, and `diff-schema`
 answered dozens of differences nobody had made.
 

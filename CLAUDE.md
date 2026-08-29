@@ -52,8 +52,8 @@ sirve a nadie: `gobj-js` iba por 7.13.x con el C en 7.16.2, y se saltó a
 SDK pertenece.
 
 ⚠️ **`gobj-ui` incumple la regla hoy y no se puede arreglar renumerando**: va
-por **7.23.44** con el C en 7.16.2, y publicar un 7.16.x detrás sería una
-versión *menor* que la publicada, así que npm dejaría 7.23.44 como `latest`.
+por **7.23.45** con el C en 7.16.2, y publicar un 7.16.x detrás sería una
+versión *menor* que la publicada, así que npm dejaría 7.23.45 como `latest`.
 La regla es hacia adelante: `gobj-ui` se realinea sola cuando el C alcance su
 línea, o en su próximo major. Mientras tanto es la excepción, y está dicho.
 
