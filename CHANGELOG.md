@@ -35,157 +35,156 @@ Reported in three places, because they have different readers:
 It does not fix it: signalling a web server is not this yuno's business, and a
 report generator that restarts services is a different and worse thing.
 
-### Los tres tests rotos del banco, y por qué se rompieron un día concreto
+### The three broken tests of the bench, and why they broke on one particular day
 
-`test_tr_treedb`, `yev_events/test_yevent_traffic5` y `traffic6` abortaban con
-corrupción de heap —*"corrupted double-linked list"*, *"free(): chunks in
-smallbin corrupted"*—. Los tres eran **contabilidad de referencias en los
-propios tests**, no en la librería.
+`test_tr_treedb`, `yev_events/test_yevent_traffic5` and `traffic6` were aborting
+with heap corruption -- *"corrupted double-linked list"*, *"free(): chunks in
+smallbin corrupted"*. All three were **reference accounting in the tests
+themselves**, not in the library.
 
-**Y tienen fecha de origen: el 2025-07-13 `test_json()` pasó a LIBERAR su
-argumento** (`e6b480f83`). Desde ese día, cada sitio que le pasaba un puntero
-**prestado** quedó roto. Las llamadas ofensivas son del 2024-11-02 y del
-2024-11-08: eran correctas cuando se escribieron.
+**And they have a date of origin: on 2025-07-13 `test_json()` started FREEING
+its argument** (`e6b480f83`). From that day, every place that handed it a
+**borrowed** pointer was broken. The offending calls are from 2024-11-02 and
+2024-11-08: they were correct when they were written.
 
-- **`test_tr_treedb.c`**: `json_array_get()` devuelve un elemento prestado y
-  `test_json()` es dueña de lo que recibe, así que el elemento perdía una
-  referencia que nunca dio — y el `json_decref(data)` de la línea siguiente lo
-  liberaba por segunda vez.
-- **`test_users.c`**: `kw_get_dict()` devuelve prestado. El `JSON_INCREF` pagaba
-  la llamada a `load_treedbs()`, que sí es dueña; el `JSON_DECREF` de después
-  gastaba la referencia **del padre**, y liberaba el hijo bajo él.
-- **`traffic5` / `traffic6`**: doble `json_decref(msg)` en las ramas de error.
-  El test se corrompía **justo cuando detectaba un desajuste**, así que moría en
-  vez de contarlo — y el desajuste es deliberado: cierra el socket a propósito y
-  los mensajes de error están en su lista de esperados.
+- **`test_tr_treedb.c`**: `json_array_get()` returns a borrowed element and
+  `test_json()` owns what it receives, so the element lost a reference it never
+  gave -- and the `json_decref(data)` on the next line freed it a second time.
+- **`test_users.c`**: `kw_get_dict()` returns borrowed. The `JSON_INCREF` paid
+  for the call to `load_treedbs()`, which does own; the `JSON_DECREF` after it
+  spent the **parent's** reference, and freed the child under it.
+- **`traffic5` / `traffic6`**: a double `json_decref(msg)` on the error
+  branches. The test corrupted itself **exactly when it detected a mismatch**,
+  so it died instead of reporting one -- and the mismatch is deliberate: it
+  closes the socket on purpose and the error messages are in its expected list.
 
-**Un defecto de verdad del SDK, encontrado por el camino:**
-`json_check_refcounts()` comprobaba `if(!jn)`, lo registraba y **seguía** hasta
-`json_typeof(jn)`: reventaba sobre el mismo NULL que acababa de denunciar. Un
-comprobador que muere de lo que existe para detectar. Ahora retorna.
+**A real defect of the SDK, found along the way:** `json_check_refcounts()`
+tested `if(!jn)`, logged it and **carried on** to `json_typeof(jn)`: it blew up
+on the very NULL it had just reported. A checker that dies of what it exists to
+detect. It returns now.
 
-**Cómo se encontró, que vale para la próxima.** ASan no veía nada: el árbol de
-tests enlaza las librerías **instaladas** de `outputs/lib`, no las del árbol de
-build, así que instrumentar el build no instrumenta lo que se ejecuta. Hizo
-falta construir el SDK **y jansson** con `-fsanitize=address` —jansson con sus
-propias cabeceras de configuración, o produce json inválido— y **reenlazar el
-test a mano** contra esas librerías. Con eso, ASan señaló las tres líneas
-exactas en un minuto.
+**How it was found, which is what matters next time.** ASan saw nothing: the
+test tree links the **installed** libraries from `outputs/lib`, not the ones in
+the build tree, so instrumenting the build does not instrument what runs. It
+took building the SDK **and jansson** with `-fsanitize=address` -- jansson with
+its own generated config headers, or it produces invalid json -- and
+**relinking the test by hand** against those libraries. With that, ASan pointed
+at the three exact lines in a minute.
 
-### Dos arreglos del runtime JS que alcanzan a TODAS las SPA
+### Two fixes of the JS runtime that reach EVERY SPA
 
-Los dos salieron de usar las consolas contra nodos de verdad, y los dos estaban
-en la librería, no en las aplicaciones.
+Both came out of using the consoles against real nodes, and both were in the
+library, not in the applications.
 
-**`gobj-js` 7.16.1 — un evento dirigido a un servicio que ya no existe se
-descarta, no se difunde.** `C_IEVENT_CLI` buscaba el servicio destino y, al no
-encontrarlo, caía en el reparto por defecto: publicarlo a **todos** los
-suscriptores del transporte. Ese camino es el correcto para un mensaje que no
-nombra destino y el contrario para uno que sí — un mensaje dirigido es de su
-destinatario o de nadie.
+**`gobj-js` 7.16.1 -- an event addressed to a service that no longer exists is
+dropped, not broadcast.** `C_IEVENT_CLI` looked for the destination service
+and, on not finding it, fell through to the default delivery: publish it to
+**every** subscriber of the transport. That path is the right one for a message
+that names no destination and the wrong one for a message that does -- an
+addressed message belongs to its addressee or to nobody.
 
-Lo que lo dispara es el final normal de la vida de una vista: se monta bajo un
-nombre de servicio, se suscribe a un evento del backend, el usuario navega a
-otro sitio, la vista se destruye, y las tramas que ya iban por el cable siguen
-llegando a un nombre al que no contesta nadie. Acababan en la suscripción de
-evento **nulo** del gobj de aplicación —que es nula a propósito: nombrar
-`EV_ON_OPEN` en una suscripción la reenvía río arriba y el remoto la rechaza— y
-su FSM no declara una trama de equipo, así que lo decía una vez por trama: **38
-errores en una ráfaga de 26 ms** en un nodo con 38 equipos. Ahora se descarta
-con un aviso que dice qué servicio y qué evento se perdieron. El camino sin
-destino no se toca, y `tests/ievent_dispatch.test.js` fija los tres casos
-juntos, porque el arreglo sólo es correcto si el tercero sigue funcionando.
+What triggers it is the normal end of a view's life: it is mounted under a
+service name, it subscribes to a backend event, the user navigates elsewhere,
+the view is destroyed, and the frames already on the wire keep arriving for a
+name nobody answers to. They ended up on the application gobj's **null** event
+subscription -- which is null on purpose: naming `EV_ON_OPEN` in a subscription
+forwards it upstream and the remote rejects it -- and its FSM does not declare
+an equipment frame, so it said so once per frame: **38 errors in a 26 ms
+burst** on a node with 38 devices. Now it is dropped with a warning naming
+which service and which event were lost. The path with no destination is not
+touched, and `tests/ievent_dispatch.test.js` pins the three cases together,
+because the fix is only correct if the third one still works.
 
-⚠️ **El lado C tiene el mismo TODO abierto** (`c_ievent_cli.c`) y se ha dejado
-como estaba: es kernel consolidado, y cómo enruta un backend no es decisión del
-lado JS. Hasta que se mueva, un cliente C y uno JS hacen cosas distintas con un
-evento dirigido huérfano.
+⚠️ **The C side carries the same open TODO** (`c_ievent_cli.c`) and was left as
+it was: it is consolidated kernel, and how a backend routes is not a decision
+of the JS side. Until it moves, a C client and a JS client do different things
+with an orphaned addressed event.
 
-**`gobj-ui` 7.23.45 — la rueda sobre un popover del grafo, y una ficha que se
-puede leer y cerrar.** Ningún popover del grafo se podía desplazar con la rueda:
-había que arrastrar la barra. El comportamiento de zoom de G6 ata un `wheel` al
-**contenedor** y hace `preventDefault()` en cada muesca **sea cual sea el
-target**, y después declina hacer zoom porque el target no es el canvas — así
-que el gesto quedaba anulado y no lo usaba nadie. Se para en el popover, lo que
-arregla los cinco. Y la ficha de detalle de un nodo iba a tamaño de pie de foto
-con una ✕ de 13×16 px: los tamaños salieron de los estilos en línea al CSS
-—**una media query no alcanza un estilo en línea**— y la cabecera es pegajosa,
-porque con ella yéndose hacia arriba la ✕ desaparecía justo en el móvil.
+**`gobj-ui` 7.23.45 -- the wheel over a graph popover, and a card that can be
+read and closed.** No graph popover could be scrolled with the wheel: you had
+to drag the bar. G6's zoom behavior binds a `wheel` to the **container** and
+calls `preventDefault()` on every notch **whatever the target is**, and then
+declines to zoom because the target is not the canvas -- so the gesture was
+cancelled and used by nobody. It is stopped at the popover, which fixes all
+five. And a node's detail card came at caption size with a 13x16 px ✕: the
+sizes moved out of the inline styles into the CSS -- **a media query cannot
+reach an inline style** -- and the header is sticky, because with it scrolling
+away the ✕ disappeared exactly on a phone.
 
-### Las versiones de JS vuelven a decir contra qué SDK están
+### The JS versions say again which SDK they are built against
 
-`gobj-js` **7.13.9 -> 7.16.1**, publicada. Desde ahora un paquete JS del SDK
-**no adelanta al C salvo en el tercer índice**: los dos primeros son los de
-`YUNETA_VERSION` y el tercero es la vida propia del paquete entre releases. Se
-saltan la 7.14 y la 7.15 a propósito — el número no cuenta releases del
-paquete, dice **a qué SDK pertenece**.
+`gobj-js` **7.13.9 -> 7.16.1**, published. From now on a JS package of the SDK
+**does not run ahead of the C one except in the third index**: the first two
+are those of `YUNETA_VERSION` and the third is the package's own life between
+releases. 7.14 and 7.15 are skipped on purpose -- the number does not count
+releases of the package, it says **which SDK it belongs to**.
 
-`gobj-ui` **incumple la regla y no se puede arreglar renumerando**: va por
-7.23.45 con el C en 7.16.2, y publicar un 7.16.x detrás sería una versión menor
-que la publicada, así que npm dejaría 7.23.45 como `latest`. La regla es hacia
-adelante; queda dicho en el `CLAUDE.md`.
+`gobj-ui` **breaks the rule and it cannot be fixed by renumbering**: it is at
+7.23.45 with the C at 7.16.2, and publishing a 7.16.x behind it would be a
+version lower than the published one, so npm would keep 7.23.45 as `latest`.
+The rule is forwards; it is written down in `CLAUDE.md`.
 
-### El json plano: `json2flat` / `flat2json`, en C y en JS
+### The flat json: `json2flat` / `flat2json`, in C and in JS
 
-Un json visto como **tabla**: una fila por HOJA, el id es la **ruta** del item
-y el valor su valor. Para guardar, para comparar y para hacer un diff es mucho
-mejor forma que la nativa —y es la única que una persona puede leer cuando dos
-configuraciones no coinciden.
+A json seen as a **table**: one row per LEAF, the id is the **path** of the
+item and the value its value. To store, to compare and to diff it is a far
+better form than the native one -- and it is the only one a person can read
+when two configurations disagree.
 
 ```
 {"a": {"b": 1}, "c": [10, 20]}   ->   {"a`b": 1, "c`[0]": 10, "c`[1]": 20}
 ```
 
-**Ya existía media pieza y estaba rota.** `json_flatten_dict()` /
-`json_unflatten_dict()` llevaban en `kwid.c` desde hacía tiempo, con un aviso en
-la cabecera: *"las claves de sólo dígitos están reservadas para índices de
-array"*. Medido antes de tocar nada:
+**Half the piece already existed and it was broken.** `json_flatten_dict()` /
+`json_unflatten_dict()` had been in `kwid.c` for a long time, with a warning in
+the header: *"digit-only keys are reserved for array indexes"*. Measured before
+touching anything:
 
-| entrada | lo que devolvía |
+| input | what it returned |
 |---|---|
-| `{"1630": {...}}` — **un id de yuno** | un **array de 1631 elementos** |
-| `{"a": {}}` / `{"a": []}` | la clave **desaparecía** |
-| `` {"a`b": 1} `` | se partía en `{"a": {"b": 1}}` |
-| `{"a": {"": 1}}` | volvía `{"a": 1}`, un nivel menos |
-| `` "a`1000" `` | **1001 elementos** materializados para un solo dato |
+| `{"1630": {...}}` -- **a yuno id** | an **array of 1631 elements** |
+| `{"a": {}}` / `{"a": []}` | the key **disappeared** |
+| `` {"a`b": 1} `` | it was split into `{"a": {"b": 1}}` |
+| `{"a": {"": 1}}` | it came back `{"a": 1}`, one level short |
+| `` "a`1000" `` | **1001 elements** materialised for a single value |
 
-La regla que el formato imponía la incumplían **nuestros propios datos**: un
-diccionario indexado por id de yuno es de lo más normal aquí.
+The rule the format imposed was broken by **our own data**: a dictionary
+indexed by yuno id is as ordinary as it gets here.
 
-**La gramática nueva**, la misma en los dos lenguajes:
+**The new grammar**, the same in both languages:
 
-- separador `` ` ``, que ya es el delimitador de rutas de `kw_get_dict()`;
-- un `` ` `` dentro de una clave se **duplica** — y con eso el formato **no
-  prohíbe nada**;
-- un índice de array es **`[N]`**, canónico y sin ceros a la izquierda. Cuesta
-  un byte más que un número pelado y devuelve la regla de las claves;
-- una clave que empieza por `[` duplica el corchete (`[[0]`), así que nunca se
-  puede leer como índice;
-- **un contenedor vacío es una hoja**: `{}` y `[]` no tienen hojas propias, y
-  `"properties": {}` está por todas partes en nuestras configs y esquemas.
+- separator `` ` ``, which is already the path delimiter of `kw_get_dict()`;
+- a `` ` `` inside a key is **doubled** -- and with that the format **forbids
+  nothing**;
+- an array index is **`[N]`**, canonical and with no leading zeros. It costs
+  one byte more than a bare number and it gives the rule of keys back;
+- a key starting with `[` doubles the bracket (`[[0]`), so it can never be read
+  as an index;
+- **an empty container is a leaf**: `{}` and `[]` have no leaves of their own,
+  and `"properties": {}` is everywhere in our configs and schemas.
 
-**`flat2json()` rechaza en vez de adivinar**: un id que es hoja y contenedor a
-la vez (el resultado dependería del **orden** en que se leen las claves), un
-índice por encima del tope, una ruta más profunda que el tope —el código viejo
-truncaba a 256 segmentos en silencio.
+**`flat2json()` refuses instead of guessing**: an id that is a leaf and a
+container at once (the result would depend on the **order** the keys are read
+in), an index above the cap, a path deeper than the cap -- the old code
+truncated to 256 segments in silence.
 
-**Índice y clave son dos TIPOS, no dos grafías**: `flat_key_split()` devuelve el
-índice como entero y la clave como cadena. Lo destapó su propio test: como
-cadenas, la clave `"[0]"` y el índice `0` volvían las dos como `"[0]"`, que es
-exactamente la ambigüedad que el `[N]` viene a quitar.
+**Index and key are two TYPES, not two spellings**: `flat_key_split()` returns
+the index as an integer and the key as a string. Its own test exposed it: as
+strings, the key `"[0]"` and the index `0` both came back as `"[0]"`, which is
+exactly the ambiguity `[N]` is there to remove.
 
-También `flat_diff()` —`{added, removed, changed}`— y `flat_apply()`, que
-trabaja sobre el **plano** a propósito: ahí un id direcciona un valor, así que
-aplicar es poner y quitar, sin nada que recorrer ni que adivinar.
+Also `flat_diff()` -- `{added, removed, changed}` -- and `flat_apply()`, which
+works on the **flat** form on purpose: there an id addresses one value, so
+applying is putting and removing, with nothing to walk and nothing to guess.
 
-Los dos nombres viejos siguen, delegando en los nuevos y marcados como
-obsoletos: no hay datos guardados en el formato antiguo con los que ser
-compatible —el único llamador de producción, `flatten-subscribers` del broker
-MQTT, lo pinta en una consola.
+The two old names remain, delegating to the new ones and marked deprecated:
+there is no stored data in the old format to be compatible with -- the only
+production caller, `flatten-subscribers` of the MQTT broker, prints it on a
+console.
 
-Tests nuevos: `tests/c/kw/test_json_flat.c` (33 comprobaciones) y
-`kernel/js/gobj-js/tests/json_flat.test.js` (36). Los ids que fijan son **los
-mismos** en los dos: un json plano lo escribe uno y lo lee el otro.
+New tests: `tests/c/kw/test_json_flat.c` (33 checks) and
+`kernel/js/gobj-js/tests/json_flat.test.js` (36). The ids they pin are **the
+same** in both: a flat json is written by one side and read by the other.
 
 Mostly the JS layer (`yunos-js` 0.15.1 -> 0.22.44, `gobj-ui` 7.23.45,
 `gobj-js` 7.16.1) in eight parts, plus two things the C side was missing: a
