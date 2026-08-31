@@ -589,6 +589,13 @@ Each one is published as a chapter under **Operating Yuneta** in
 `/yuno-lifecycle`, `/debugging`, `/ipc`, `/realms`, `/scaffolding`,
 `/yuno-auth`, `/gobj`, `/yuno-treedb`).
 
+**Wondering how the pieces fit above one gobj?** Read
+[`docs/doc.yuneta.io/philosophy/architecture.md`](docs/doc.yuneta.io/philosophy/architecture.md)
+(published at [`/architecture`](https://doc.yuneta.io/architecture)) — the
+three layers, the one message mechanism, and why a gclass name is a role. It is
+the conceptual companion to `GOBJ.md` (#8) and `IPC.md` (#4), summarised under
+[Architecture](#architecture) below.
+
 **Deploying/updating yunos on a node?** Read
 [`docs/doc.yuneta.io/deploying-yunos.md`](docs/doc.yuneta.io/deploying-yunos.md)
 (published at `/deploying-yunos`) — the scenario-driven guide (hot-patch,
@@ -809,6 +816,34 @@ added:
   `getaddrinfo`/`freeaddrinfo` for files that include it.
 
 ## Architecture
+
+**The model these rules implement** is written up in
+[`docs/doc.yuneta.io/philosophy/architecture.md`](docs/doc.yuneta.io/philosophy/architecture.md)
+(published at [`/architecture`](https://doc.yuneta.io/architecture)). Four
+claims, none of which the code states out loud:
+
+- **A gclass IS a role, and must be named for it.** The `.h` publishes no
+  structure (only `GOBJ_DECLARE_GCLASS` + `register_c_xxx`) and `priv` is
+  opaque, so what the class does for others is the whole of its identity. Read
+  the rule backwards as a design test: a gclass you cannot name by its role has
+  none — it is a bag of code, or two roles fused. The gclass names the
+  *generic* role, the `gobj_name` the *situational* one.
+- **One communication mechanism, two addressing modes.** Pointer inside a yuno,
+  service name between yunos. The mechanism does not change when a message
+  leaves the process — which is the whole reason only a named service can hold
+  either end of an inter-yuno conversation.
+- **TreeDB is the STRUCTURE, not the channel.** It holds what exists and how it
+  relates; messages stay the only channel. It also publishes
+  `EV_TREEDB_NODE_*`, so a change of shared state returns through that one
+  channel — which is why polling is refused.
+- **Above the linked topics lives a layer of services and roles that is DATA,
+  not code.** It changes with CRUDLU while the system runs, and it is what the
+  end user sees (who never sees a gclass). Not a third store — the same linked
+  nodes read another way. The compiled layer says what the software CAN do; the
+  dynamic layer says what THIS installation does, and for whom.
+
+Read it before arguing about where a new gclass, a new service, or a new
+configurable structure belongs.
 
 ### Core Paradigm: GObject + Finite State Machines
 
