@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### webstats says when a log stopped rotating
+
+A rotation is two steps -- logrotate renames the file, the web server reopens
+-- and when the second one is lost **the server keeps writing down the old
+descriptor**: `<path>.1` grows while `<path>` stays as logrotate created it.
+Nothing reported it. The server serves, logrotate exits 0, and the daily report
+was still built, because this yuno reads both files.
+
+**And it does not heal.** Once `<path>` is empty, `notifempty` skips it, so the
+rotation is never attempted again: one lost signal costs the rest of the life
+of the node. It cost **eight days** on a real node, and it was found by
+somebody listing the directory.
+
+The signature needs no history: after a healthy rotation the live file is the
+one being written, so its mtime runs **ahead** of the `.1`; the other way round
+means the reopen was lost. New attr **`rotation_stall_minutes`** (default 120,
+`0` disables) is the margin that keeps a site with no traffic since the
+rotation from reading as broken -- there neither file moves, and neither is
+meaningfully newer.
+
+Reported in three places, because they have different readers:
+
+- a `WARNING` in the log at the moment it is seen -- the node is watched from
+  there, and the mail is once a day;
+- `stalled_rotations` in the stored record, and a line in **Needs attention**
+  of the mail;
+- `list-sources`, which now answers **error** and names both files and the
+  gap, so the command an operator already runs to check the yuno checks the
+  rotation too.
+
+It does not fix it: signalling a web server is not this yuno's business, and a
+report generator that restarts services is a different and worse thing.
+
 ### Los tres tests rotos del banco, y por qué se rompieron un día concreto
 
 `test_tr_treedb`, `yev_events/test_yevent_traffic5` y `traffic6` abortaban con

@@ -24,6 +24,7 @@
 #include <ctype.h>      /* isxdigit() */
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "c_log_reader.h"
 #include "c_webstats.h"
@@ -112,6 +113,7 @@ PRIVATE int start_next_file(hgobj gobj);
 PRIVATE int finish_run(hgobj gobj);
 PRIVATE int arm_schedule(hgobj gobj);
 PRIVATE json_t *build_file_list(hgobj gobj);
+PRIVATE json_t *check_log_rotation(hgobj gobj);
 PRIVATE BOOL access_line_is_of_day(const char *line, const char *date);
 PRIVATE BOOL error_line_is_of_day(const char *line, const char *date);
 PRIVATE int accumulate_access_line(hgobj gobj, const char *line);
@@ -224,6 +226,7 @@ SDATA (DTP_STRING,  "email_from",       SDF_RD,             "",         "Sender 
 SDATA (DTP_STRING,  "email_service",    SDF_RD,             "emailsender", "Service that sends the report"),
 SDATA (DTP_INTEGER, "top_n",            SDF_WR|SDF_PERSIST, "20",       "Rows per top table"),
 SDATA (DTP_INTEGER, "max_distinct_keys",SDF_RD,             "200000",   "Cap of keys per counter map"),
+SDATA (DTP_INTEGER, "rotation_stall_minutes",SDF_WR|SDF_PERSIST,"120",  "A '<path>.1' newer than its '<path>' by more than this says the server never reopened. 0 disables the check"),
 SDATA (DTP_LIST,    "probe_patterns",   SDF_RD,             "[]",       "What counts as a probe. Empty: the same set as the fail2ban filter"),
 SDATA (DTP_LIST,    "internal_networks",SDF_RD,             "[]",       "Address prefixes not counted as clients"),
 SDATA (DTP_LIST,    "asset_extensions", SDF_RD,             "[]",       "What a browser fetches to render. Empty: js, css"),
@@ -680,6 +683,94 @@ PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Say whether the web server stopped writing to the file it was rotated to.
+ *
+ *  A log rotation is two steps: logrotate renames the file, and the server
+ *  reopens.  If the second one is lost -- one signal that never arrived --
+ *  the server keeps writing down the old descriptor, so `<path>.1` grows
+ *  while `<path>` stays as logrotate created it.  Nothing reports this: the
+ *  server is serving, logrotate exits 0, and the daily report is still built
+ *  because this yuno reads BOTH files.
+ *
+ *  And it does not heal.  Once `<path>` is empty, `notifempty` skips it, so
+ *  the rotation is never attempted again: one lost signal costs the rest of
+ *  the life of the node.  It cost eight days on yunovatios-central, found by
+ *  someone listing the directory.
+ *
+ *  The signature is exact and needs no history: after a healthy rotation the
+ *  live file is the one being written, so its mtime runs AHEAD of the `.1`.
+ *  The other way round means the reopen was lost.  The margin is what keeps
+ *  a site with no traffic since the rotation from reading as broken -- there
+ *  neither file moves, and neither is meaningfully newer.
+ ***************************************************************************/
+PRIVATE json_t *check_log_rotation(hgobj gobj)
+{
+    json_t *jn_stalled = json_array();
+
+    int margin_minutes = (int)gobj_read_integer_attr(gobj, "rotation_stall_minutes");
+    if(margin_minutes <= 0) {
+        return jn_stalled;  /* the check is off by configuration */
+    }
+    time_t margin = (time_t)margin_minutes * 60;
+
+    json_t *jn_files = build_file_list(gobj);
+
+    /*
+     *  build_file_list() emits the pair in order: the live file, then its
+     *  rotated one.  Walking it in twos keeps the pairing in one place.
+     */
+    size_t total = json_array_size(jn_files);
+    for(size_t i = 0; i + 1 < total; i += 2) {
+        const char *live = kw_get_str(gobj, json_array_get(jn_files, i), "path", "", 0);
+        const char *rotated = kw_get_str(gobj, json_array_get(jn_files, i+1), "path", "", 0);
+        const char *kind = kw_get_str(gobj, json_array_get(jn_files, i), "kind", "", 0);
+
+        struct stat st_live, st_rotated;
+        if(stat(live, &st_live)!=0 || stat(rotated, &st_rotated)!=0) {
+            /*
+             *  No pair, nothing to compare.  A missing file is not news
+             *  here: it is the tree of the web server this node does not
+             *  run, and `list-sources` is where that is answered.
+             */
+            continue;
+        }
+
+        time_t behind = st_rotated.st_mtime - st_live.st_mtime;
+        if(behind <= margin) {
+            continue;
+        }
+
+        json_array_append_new(jn_stalled, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I}",
+            "live",             live,
+            "rotated",          rotated,
+            "kind",             kind,
+            "live_mtime",       (json_int_t)st_live.st_mtime,
+            "rotated_mtime",    (json_int_t)st_rotated.st_mtime,
+            "behind_seconds",   (json_int_t)behind
+        ));
+
+        /*
+         *  Logged as well as reported: the mail is once a day and the log
+         *  is where the node is watched from.  A warning and not an error
+         *  -- nothing of ours is broken, the web server has to be told to
+         *  reopen.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INFO,
+            "msg",              "%s", "Log rotation STALLED: the server never reopened, it still writes to the rotated file",
+            "live",             "%s", live,
+            "rotated",          "%s", rotated,
+            "behind_seconds",   "%d", (int)behind,
+            NULL
+        );
+    }
+
+    JSON_DECREF(jn_files)
+    return jn_stalled;
+}
+
+/***************************************************************************
  *  Say which files will be read and whether each one can be read now.
  *
  *  A control that declares itself healthy is not verified: this command is
@@ -704,10 +795,33 @@ PRIVATE json_t *cmd_list_sources(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
     JSON_DECREF(jn_files)
 
+    /*
+     *  Readable is not the same as healthy.  Every file in the list above
+     *  can be readable while the server writes to none of them, which is
+     *  what a stalled rotation looks like from here.
+     */
+    json_t *jn_stalled = check_log_rotation(gobj);
+    size_t stalled = json_array_size(jn_stalled);
+    json_t *jn_comment = 0;
+    if(stalled > 0) {
+        json_t *jn_first = json_array_get(jn_stalled, 0);
+        jn_comment = json_sprintf(
+            "%s: %d rotacion(es) atascada(s). '%s' lleva %d horas mas nuevo que "
+            "'%s': el servidor web nunca reabrio y sigue escribiendo en el fichero rotado",
+            gobj_yuno_role_plus_name(),
+            (int)stalled,
+            kw_get_str(gobj, jn_first, "rotated", "", 0),
+            (int)(kw_get_int(gobj, jn_first, "behind_seconds", 0, 0)/3600),
+            kw_get_str(gobj, jn_first, "live", "", 0)
+        );
+        json_array_extend(jn_list, jn_stalled);
+    }
+    JSON_DECREF(jn_stalled)
+
     return msg_iev_build_response(
         gobj,
-        0,
-        0,
+        stalled > 0? -1: 0,
+        jn_comment,
         0,
         jn_list,
         kw  // owned
@@ -2358,6 +2472,13 @@ PRIVATE void close_report(hgobj gobj)
     }
     json_object_set_new(priv->jn_report, "visitor_keys", sorted_strings(jn_keys));
 
+    /*
+     *  Asked at the END of the run, when both files have just been read:
+     *  the answer is about the state of the logs right now, not about the
+     *  day being reported.
+     */
+    json_object_set_new(priv->jn_report, "stalled_rotations", check_log_rotation(gobj));
+
     json_t *jn_top = kw_get_dict(gobj, priv->jn_report, "top", 0, KW_REQUIRED);
     json_object_set_new(jn_top, "paths", top_of(priv->jn_paths, priv->top_n));
     json_object_set_new(jn_top, "not_found", top_of(priv->jn_not_found, priv->top_n));
@@ -2474,13 +2595,14 @@ PRIVATE int start_run(hgobj gobj, const char *date, BOOL send)
     priv->jn_files = build_file_list(gobj);
 
     JSON_DECREF(priv->jn_report)
-    priv->jn_report = json_pack("{s:s, s:i, s:s, s:I, s:[], s:[], s:[], s:{}}",
+    priv->jn_report = json_pack("{s:s, s:i, s:s, s:I, s:[], s:[], s:[], s:[], s:{}}",
         "date", date,
         "version", 1,
         "node", get_hostname(),
         "generated_at", (json_int_t)time(NULL),
         "sources",
         "truncated",
+        "stalled_rotations",
         "server_errors",
         "top"
     );
@@ -3043,6 +3165,23 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
                 "<li>%lld lines of <code>%s</code> could not be read by the parser.</li>",
                 (long long)unparsed,
                 html_escape(json_string_value(json_object_get(jn_source, "file")), bf, sizeof(bf))
+            );
+        }
+    }
+
+    json_t *jn_stalled = json_object_get(report, "stalled_rotations");
+    if(json_array_size(jn_stalled) > 0) {
+        json_t *jn_entry;
+        char bf2[512];
+        json_array_foreach(jn_stalled, idx, jn_entry) {
+            gbuffer_printf(attention,
+                "<li><b>Log rotation stalled</b>: <code>%s</code> is %lld hours newer "
+                "than <code>%s</code>. The web server never reopened after the "
+                "rotation and still writes to the rotated file; it will not retry "
+                "on its own. Send it the reopen signal.</li>",
+                html_escape(json_string_value(json_object_get(jn_entry, "rotated")), bf, sizeof(bf)),
+                (long long)(json_integer_value(json_object_get(jn_entry, "behind_seconds"))/3600),
+                html_escape(json_string_value(json_object_get(jn_entry, "live")), bf2, sizeof(bf2))
             );
         }
     }

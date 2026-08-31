@@ -192,6 +192,7 @@ Attributes of `C_WEBSTATS`, all settable from the batch config.
 | `email_service` | str | `emailsender` | service that sends |
 | `top_n` | int | 20 | rows per top table |
 | `max_distinct_keys` | int | 200000 | cap per counter map (§8.3) |
+| `rotation_stall_minutes` | int | 120 | a `<path>.1` newer than its `<path>` by more than this says the server never reopened (§9.1.1). `0` disables the check |
 | `probe_patterns` | list | mirrors the fail2ban filter | what counts as a probe |
 | `internal_networks` | list | — | prefixes not counted as clients |
 | `keep_days` | int | 400 | days of aggregates kept |
@@ -477,6 +478,40 @@ For the same reason `list-sources` exists (§11): it says which files it will
 read, whether each one exists and whether it can be read, and it is run after
 install instead of assuming.
 
+### 9.1.1 A rotation that stopped rotating
+
+Readable is not the same as healthy. A log rotation is two steps — logrotate
+renames the file, the web server reopens — and **when the second one is lost
+the server keeps writing down the old descriptor**: `<path>.1` grows while
+`<path>` stays as logrotate created it. Nothing reports it. The server is
+serving, logrotate exits 0, and this yuno still builds the report, because it
+reads both files.
+
+**And it does not heal.** Once `<path>` is empty, `notifempty` skips it, so the
+rotation is never attempted again: one lost signal costs the rest of the life
+of the node. It cost **eight days** on `yunovatios-central` (23–31 August
+2026), and it was found by somebody listing the directory.
+
+The signature needs no history: after a healthy rotation the live file is the
+one being written, so **its mtime runs ahead of the `.1`**. The other way round
+means the reopen was lost. `rotation_stall_minutes` (default 120, `0` disables
+the check) is the margin that keeps a site with no traffic since the rotation
+from reading as broken — there neither file moves, and neither is meaningfully
+newer.
+
+It is reported in three places, because the three have different readers:
+
+- a `WARNING` in the log, at the moment it is seen — the node is watched from
+  there, and the mail is once a day;
+- `stalled_rotations` in the stored record, and a line in **Needs attention**
+  of the mail;
+- `list-sources`, which answers **error** and names both files and the gap, so
+  the command an operator runs to check the yuno also checks the rotation.
+
+What it does NOT do is fix it: sending the reopen signal to a web server is not
+this yuno's business, and a report generator that restarts services is a
+different and worse thing.
+
 ### 9.2 Delivery
 
 `required_services: ['emailsender']` in the yuno config, then:
@@ -533,7 +568,7 @@ showing zeros.
 | `report-day report_date=YYYY-MM-DD [send=1]` | rebuild any day still on disk. Sends only with `send=1` |
 | `get-report report_date=YYYY-MM-DD` | the stored aggregate record, newest version of that day |
 | `list-reports` | the dates held in `daily_stats` |
-| `list-sources` | the files it will read, and whether each is readable now |
+| `list-sources` | the files it will read, whether each is readable now, and whether any rotation is stalled (answers **error** if one is) |
 | `preview-report report_date=YYYY-MM-DD` | the mail body of a stored day, as HTML, without sending it |
 
 ⚠️ **The day parameter is `report_date`, not `date`.** `command-yuno` hands its
