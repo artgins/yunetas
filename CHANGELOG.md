@@ -1,6 +1,18 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.3
+
+Cut so that the webstats change reaches the yunovatios nodes: they carry a
+sparse SDK, so an SDK yuno cannot be built there and only arrives in the
+`.deb` / `.rpm`.
+
+C moves in four places -- the flat json (`json2flat` / `flat2json`),
+`c_tranger`'s `delete-key`, `diff-schema` answering differences nobody had
+made, and webstats saying when a log stopped rotating -- plus the three bench
+tests that were double frees in the tests themselves. The rest is the JS layer
+(`gobj-js` 7.13.9 -> 7.16.1, `gobj-ui` 7.23.16 -> 7.23.45,
+`yunos-js` 0.15.1 -> 0.22.44), whose detail lives in each repo's own CHANGELOG.
+
 
 ### webstats says when a log stopped rotating
 
