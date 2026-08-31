@@ -57,6 +57,14 @@ the section where the diagram appears in context. All are hand-authored SVG
 **Node is its history** — `node`ⁿ as an append timeline. A link is an event.
 :::
 
+:::{card}
+:link: ./philosophy/architecture.md
+![architecture layers](./_static/architecture_layers.svg)
+
+**Three layers** — compiled behavior, persisted information, and the dynamic
+structure of services and roles the end user reads.
+:::
+
 ::::
 
 ## Runtime: gobj, lifecycle & scaffolding

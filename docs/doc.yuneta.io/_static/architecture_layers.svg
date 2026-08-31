@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 452" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Three layers of a Yuneta system. Bottom: the compiled behavior layer, two yunos whose gobjs exchange events by pointer and which exchange ievents by service name. Middle: the persisted information layer, treedb topics linked by hooks and fkeys, written with CRUDLU and answering with EV_TREEDB_NODE events. Top: the dynamic layer of services and roles - realm, service, role, user - which is the same set of linked nodes read as a structure the end user sees.">
+  <defs>
+    <marker id="alOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e76f51"/>
+    </marker>
+    <marker id="alTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a9d8f"/>
+    </marker>
+    <marker id="alNavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b4a5e"/>
+    </marker>
+    <marker id="alGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8593a3"/>
+    </marker>
+  </defs>
+
+  <!-- ============ Band 1: dynamic layer (services and roles) ============ -->
+  <rect x="8" y="12" width="764" height="106" rx="10" fill="#fdeee9" stroke="#e76f51" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="26" y="36" font-size="12.5" font-weight="700" fill="#b1532f">Services and roles — dynamic</text>
+  <text x="754" y="36" text-anchor="end" font-size="11" fill="#c08a76">what the end user sees</text>
+
+  <rect x="44" y="54" width="122" height="42" rx="8" fill="#ffffff" stroke="#e76f51" stroke-width="1.5"/>
+  <text x="105" y="80" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b1532f">realm</text>
+  <line x1="166" y1="75" x2="222" y2="75" stroke="#e76f51" stroke-width="1.8" marker-end="url(#alOrange)"/>
+
+  <rect x="222" y="54" width="122" height="42" rx="8" fill="#ffffff" stroke="#e76f51" stroke-width="1.5"/>
+  <text x="283" y="80" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b1532f">service</text>
+  <line x1="344" y1="75" x2="400" y2="75" stroke="#e76f51" stroke-width="1.8" marker-end="url(#alOrange)"/>
+
+  <rect x="400" y="54" width="122" height="42" rx="8" fill="#ffffff" stroke="#e76f51" stroke-width="1.5"/>
+  <text x="461" y="80" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b1532f">role</text>
+  <line x1="522" y1="75" x2="578" y2="75" stroke="#e76f51" stroke-width="1.8" marker-end="url(#alOrange)"/>
+
+  <rect x="578" y="54" width="122" height="42" rx="8" fill="#ffffff" stroke="#e76f51" stroke-width="1.5"/>
+  <text x="639" y="80" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b1532f">user</text>
+
+  <!-- connector: band 2 -> band 1 -->
+  <line x1="120" y1="164" x2="120" y2="122" stroke="#8593a3" stroke-width="1.8" marker-end="url(#alGrey)"/>
+  <text x="136" y="146" font-size="11.5" fill="#6b7a8c">the same linked nodes, read as services and roles — no second store</text>
+
+  <!-- ============ Band 2: information layer (treedb) ============ -->
+  <rect x="8" y="168" width="764" height="106" rx="10" fill="#e6f4ea" stroke="#2a9d8f" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="26" y="192" font-size="12.5" font-weight="700" fill="#1d6b60">Information — treedb on timeranger2</text>
+  <text x="754" y="192" text-anchor="end" font-size="11" fill="#5aa398">changed with CRUDLU while the yuno runs</text>
+
+  <rect x="44" y="210" width="132" height="42" rx="8" fill="#ffffff" stroke="#2a9d8f" stroke-width="1.5"/>
+  <text x="110" y="236" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d6b60">topic</text>
+  <line x1="176" y1="231" x2="248" y2="231" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#alTeal)"/>
+  <text x="212" y="223" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">hook</text>
+
+  <rect x="248" y="210" width="132" height="42" rx="8" fill="#ffffff" stroke="#2a9d8f" stroke-width="1.5"/>
+  <text x="314" y="236" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d6b60">topic</text>
+  <line x1="248" y1="245" x2="176" y2="245" stroke="#2a9d8f" stroke-width="1.8" marker-end="url(#alTeal)"/>
+  <text x="212" y="262" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1d6b60">fkey</text>
+
+  <text x="440" y="228" font-size="11.5" fill="#1d6b60">a node names a role. The gclass below implements it.</text>
+  <text x="440" y="246" font-size="11.5" fill="#5aa398">A link is typed: this hook, these two topics, this name.</text>
+
+  <!-- connector: band 3 <-> band 2 -->
+  <line x1="120" y1="320" x2="120" y2="278" stroke="#8593a3" stroke-width="1.8" marker-end="url(#alGrey)"/>
+  <text x="136" y="296" font-size="11.5" fill="#6b7a8c">gobjs write nodes (CRUDLU)</text>
+  <line x1="470" y1="278" x2="470" y2="320" stroke="#8593a3" stroke-width="1.8" marker-end="url(#alGrey)"/>
+  <text x="486" y="302" font-size="11.5" fill="#6b7a8c">a change returns as an event — <tspan font-weight="700">EV_TREEDB_NODE_*</tspan></text>
+
+  <!-- ============ Band 3: behavior layer (the gobj tree) ============ -->
+  <rect x="8" y="324" width="764" height="112" rx="10" fill="#eef2f7" stroke="#3b4a5e" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="26" y="348" font-size="12.5" font-weight="700" fill="#33414f">Behavior — the tree of gobjs</text>
+  <text x="754" y="348" text-anchor="end" font-size="11" fill="#8593a3">fixed at build time</text>
+
+  <rect x="30" y="360" width="286" height="62" rx="8" fill="#ffffff" stroke="#3b4a5e" stroke-width="1.5"/>
+  <text x="44" y="378" font-size="11" font-weight="700" fill="#5b6b7f">yuno A</text>
+  <rect x="44" y="384" width="104" height="28" rx="6" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.2"/>
+  <text x="96" y="403" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">gobj</text>
+  <line x1="148" y1="398" x2="196" y2="398" stroke="#3b4a5e" stroke-width="1.8" marker-end="url(#alNavy)"/>
+  <rect x="196" y="384" width="104" height="28" rx="6" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.2"/>
+  <text x="248" y="403" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">gobj</text>
+  <text x="172" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#5b6b7f">event</text>
+
+  <rect x="464" y="360" width="286" height="62" rx="8" fill="#ffffff" stroke="#3b4a5e" stroke-width="1.5"/>
+  <text x="478" y="378" font-size="11" font-weight="700" fill="#5b6b7f">yuno B</text>
+  <rect x="478" y="384" width="104" height="28" rx="6" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.2"/>
+  <text x="530" y="403" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">gobj</text>
+  <line x1="582" y1="398" x2="630" y2="398" stroke="#3b4a5e" stroke-width="1.8" marker-end="url(#alNavy)"/>
+  <rect x="630" y="384" width="104" height="28" rx="6" fill="#eef2f7" stroke="#5b6b7f" stroke-width="1.2"/>
+  <text x="682" y="403" text-anchor="middle" font-size="11.5" font-weight="700" fill="#33414f">gobj</text>
+  <text x="606" y="378" text-anchor="middle" font-size="10" font-weight="600" fill="#5b6b7f">event</text>
+
+  <line x1="316" y1="391" x2="464" y2="391" stroke="#3b4a5e" stroke-width="2.4" marker-end="url(#alNavy)" marker-start="url(#alNavy)"/>
+  <text x="390" y="381" text-anchor="middle" font-size="11" font-weight="700" fill="#33414f">ievent</text>
+  <text x="390" y="410" text-anchor="middle" font-size="10" fill="#5b6b7f">address = service name</text>
+  <text x="172" y="418" text-anchor="middle" font-size="10" fill="#8593a3">address = pointer</text>
+  <text x="606" y="418" text-anchor="middle" font-size="10" fill="#8593a3">address = pointer</text>
+</svg>

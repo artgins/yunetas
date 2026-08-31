@@ -57,6 +57,8 @@ project:
           file: philosophy/typed_graph_model.md
         - title: Domain Model
           file: philosophy/domain_model.md
+        - title: Architecture
+          file: philosophy/architecture.md
         - title: Inspiration
           file: philosophy/philosophy.md
 

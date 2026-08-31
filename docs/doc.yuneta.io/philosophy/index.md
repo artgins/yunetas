@@ -29,5 +29,8 @@ gobjs connect into a graph comes next. → *Continues in*
   hierarchy that represents both runtime structure and persisted data.
 - [Domain Model](domain_model.md) — how a problem domain maps onto yunos,
   gclasses, and events.
+- [Architecture](architecture.md) — the three layers of a system: compiled
+  behavior, persisted information, and the dynamic structure of services and
+  roles the end user reads.
 - [Inspiration](philosophy.md) — the prior art and motivations Yuneta draws
   from.

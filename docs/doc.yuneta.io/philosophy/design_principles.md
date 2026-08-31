@@ -236,13 +236,15 @@ If the trade-offs above match what you need, the recommended path is:
    typed graph.
 2. [Domain Model](domain_model.md) — learn the vocabulary these
    principles operate on (realms, entities, messages, CRUDLU).
-3. [Installation](../installation.md) — get a working build environment.
-4. [Basic Concepts](../guide/guide_basic_concepts.md) — concrete mechanics
+3. [Architecture](architecture.md) — how a whole system is assembled above
+   one gobj: three layers and one message mechanism.
+4. [Installation](../installation.md) — get a working build environment.
+5. [Basic Concepts](../guide/guide_basic_concepts.md) — concrete mechanics
    of [GClass](../guide/guide_basic_concepts.md#basic_gclass),
    [gobj](../guide/guide_basic_concepts.md#basic_gobj), and
    [yuno](../guide/guide_basic_concepts.md#yuno).
-5. [GClass Guide](../guide/guide_gclass.md) — build your first GClass.
-6. The **API reference** sections in the sidebar.
+6. [GClass Guide](../guide/guide_gclass.md) — build your first GClass.
+7. The **API reference** sections in the sidebar.
 
 Optional:
 

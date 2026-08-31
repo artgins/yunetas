@@ -220,6 +220,8 @@ production" than "this is theory".
   for each individual decision.
 - [Domain Model](domain_model.md) — the concrete vocabulary you use
   to model reality with the primitives described here.
+- [Architecture](architecture.md) — the third layer built on these two
+  planes: services and roles as data, changed while the system runs.
 - [Inspiration](philosophy.md) — where the words came from, written
   in a non-technical register.
 - [GObj framework crash course](../../../yunos/c/yuno_agent/GOBJ.md) — concrete
