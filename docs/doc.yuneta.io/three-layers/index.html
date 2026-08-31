@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The three layers of a Yuneta system, running: one message mechanism with two addressing modes, treedb as the structure, and a layer of services and roles that is data rather than code.">
+
+<!--
+    The three layers, and what a change costs.
+
+    A standalone document (no external requests) served at /three-layers,
+    installed by deploy.sh the same way as /login-flow and /landing: myst
+    copies no raw files, so the build output gets it from there.
+
+    The slug is /three-layers and not /architecture because the myst page
+    of the same doctrine already holds /architecture. This page is the
+    walkthrough; philosophy/architecture.md is the text it walks through.
+
+    Nothing here is a mock-up of an idea. The events are the ones a
+    treedb publishes (EV_TREEDB_NODE_CREATED / UPDATED / DELETED /
+    LINKED / UNLINKED, from c_node.c), the addressing rule is the one
+    c_ievent_srv.c implements with gobj_find_service(), and the gclass
+    names in the rubric are read off the tree.
+
+    The point the page has to land, and the reason it is interactive
+    rather than a figure: the top band and the middle band render THE
+    SAME node array. The "read as" switch changes the rendering, not the
+    data. A reader who flips it has seen why the third layer is not a
+    third store.
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>The three layers, and what a change costs — Yuneta</title>
+
+<link rel="icon" href="/favicon.ico">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/pwa/icon-192.png">
+<script src="/pwa/register-sw.js" defer></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+
+  :root, :root[data-theme="light"] {
+    --paper: #F3F4F7; --raise: #FBFBFD; --sunk: #E9EBF1;
+    --ink: #171A21; --muted: #5D6474; --rule: #D3D7E1;
+    --beh: #2D4EC8; --inf: #0E6F63; --dyn: #9A5B00;
+    --deny: #A3282F; --ok: #0E6F63;
+    --beh-bg: #E6EAFA; --inf-bg: #E1F1EC; --dyn-bg: #FAF0E0;
+    --shadow: 0 1px 2px rgba(23,26,33,.05), 0 10px 30px -22px rgba(23,26,33,.55);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0F1116; --raise: #171A21; --sunk: #0A0C10;
+    --ink: #E7E9EE; --muted: #969DAF; --rule: #262B36;
+    --beh: #7C93F5; --inf: #46C4B2; --dyn: #D9A23F;
+    --deny: #E9737A; --ok: #46C4B2;
+    --beh-bg: #171E33; --inf-bg: #10241F; --dyn-bg: #241C0F;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -22px rgba(0,0,0,1);
+  }
+
+  :root {
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --measure: 68ch;
+    --s--1: clamp(.76rem, .74rem + .1vw, .82rem);
+    --s-0:  clamp(1rem, .97rem + .16vw, 1.1rem);
+    --s-1:  clamp(1.16rem, 1.1rem + .3vw, 1.35rem);
+    --s-2:  clamp(1.45rem, 1.3rem + .7vw, 1.9rem);
+    --s-3:  clamp(2rem, 1.6rem + 2vw, 3.3rem);
+  }
+
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: var(--s-0); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------------- chrome ---------------- */
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .7rem clamp(1rem, 3vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--raise);
+    font-family: var(--mono); font-size: var(--s--1);
+  }
+  .topbar a { color: var(--muted); text-decoration: none; }
+  .topbar a:hover { color: var(--ink); text-decoration: underline; }
+  .theme-toggle { display: none; }
+  :root[data-theme] .theme-toggle {
+    display: grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; padding: 0;
+    border: 1px solid var(--rule); border-radius: 2px;
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  .theme-toggle svg { width: 1.05rem; height: 1.05rem; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+
+  main { padding: 0 clamp(1rem, 3vw, 2.5rem) 5rem; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  .prose { max-width: var(--measure); }
+
+  h1 {
+    font-size: var(--s-3); line-height: 1.08; letter-spacing: -.02em;
+    margin: clamp(2rem, 5vw, 3.5rem) 0 .6rem; max-width: 22ch;
+  }
+  h2 {
+    font-size: var(--s-2); line-height: 1.15; letter-spacing: -.015em;
+    margin: 3.2rem 0 .8rem;
+  }
+  h3 { font-size: var(--s-1); margin: 2rem 0 .5rem; }
+  .standfirst { font-size: var(--s-1); color: var(--muted); max-width: 56ch; margin: 0 0 .5rem; }
+  p { margin: 0 0 1.1rem; }
+  a { color: var(--beh); }
+  code { font-family: var(--mono); font-size: .92em; }
+  .prose code { background: var(--sunk); padding: .08em .3em; border-radius: 2px; }
+
+  .kicker {
+    font-family: var(--mono); font-size: var(--s--1); color: var(--muted);
+    text-transform: uppercase; letter-spacing: .1em; margin: 0 0 .4rem;
+  }
+
+  /* ---------------- the stack ---------------- */
+
+  .stack { margin: 2rem 0 0; display: grid; gap: 0; }
+
+  .band {
+    border: 1px solid var(--rule); border-radius: 4px;
+    background: var(--raise); box-shadow: var(--shadow);
+    padding: .9rem 1rem 1.1rem;
+  }
+  .band--beh { border-left: 3px solid var(--beh); }
+  .band--inf { border-left: 3px solid var(--inf); }
+  .band--dyn { border-left: 3px solid var(--dyn); }
+
+  .band-head {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: space-between; gap: .5rem 1rem; margin-bottom: .8rem;
+  }
+  .band-name { font-family: var(--mono); font-size: var(--s--1); font-weight: 700; letter-spacing: .04em; }
+  .band--beh .band-name { color: var(--beh); }
+  .band--inf .band-name { color: var(--inf); }
+  .band--dyn .band-name { color: var(--dyn); }
+  .band-note { font-size: var(--s--1); color: var(--muted); font-family: var(--mono); }
+
+  .link-row {
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    padding: .45rem 0; font-family: var(--mono); font-size: var(--s--1); color: var(--muted);
+  }
+  .link-row .bar { width: 1px; height: 1.1rem; background: var(--rule); }
+
+  /* nodes */
+  .nodes { display: flex; flex-wrap: wrap; gap: .5rem; align-items: stretch; }
+  .node {
+    border: 1px solid var(--rule); border-radius: 3px; background: var(--paper);
+    padding: .4rem .6rem; font-family: var(--mono); font-size: var(--s--1);
+    display: flex; flex-direction: column; gap: .15rem; min-width: 8.5rem;
+  }
+  .node .topic { color: var(--muted); font-size: .82em; }
+  .node .id { font-weight: 700; }
+  .node .fk { color: var(--muted); font-size: .82em; }
+  .band--inf .node { background: var(--inf-bg); border-color: var(--inf); }
+  .band--dyn .node { background: var(--dyn-bg); border-color: var(--dyn); }
+  .node.is-new { outline: 2px solid var(--dyn); outline-offset: 1px; }
+
+  /* the user-facing rendering of the same nodes */
+  .uview { display: grid; gap: .6rem; }
+  .uview .urow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+  .uview .ulabel { font-size: var(--s--1); color: var(--muted); min-width: 9.5rem; }
+  .chip {
+    border: 1px solid var(--dyn); background: var(--dyn-bg); color: var(--ink);
+    border-radius: 999px; padding: .18rem .7rem; font-size: var(--s--1);
+  }
+  .chip.is-off { border-color: var(--rule); background: var(--sunk); color: var(--muted); }
+
+  /* yunos */
+  .yunos { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+  .yuno {
+    border: 1px solid var(--beh); border-radius: 4px; background: var(--beh-bg);
+    padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem; flex: 1 1 15rem;
+  }
+  .yuno-name { font-family: var(--mono); font-size: var(--s--1); color: var(--beh); font-weight: 700; }
+  .gobjs { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+  .gobj {
+    border: 1px solid var(--rule); background: var(--raise); border-radius: 3px;
+    padding: .25rem .55rem; font-family: var(--mono); font-size: var(--s--1);
+  }
+  .gobj.is-service { border-color: var(--beh); font-weight: 700; }
+  .gobj.is-lit { background: var(--beh); color: var(--raise); border-color: var(--beh); }
+  .arrow { font-family: var(--mono); color: var(--muted); }
+  .wire {
+    display: flex; flex-direction: column; align-items: center; gap: .1rem;
+    font-family: var(--mono); font-size: var(--s--1); color: var(--muted);
+    padding: 0 .3rem; min-width: 9rem;
+  }
+  .wire .glyph { color: var(--beh); letter-spacing: -.05em; }
+  .wire.is-broken .glyph, .wire.is-broken .addr { color: var(--deny); }
+
+  /* controls */
+  .controls {
+    display: flex; flex-wrap: wrap; gap: .45rem; align-items: center;
+    margin-top: .9rem; padding-top: .8rem; border-top: 1px dashed var(--rule);
+  }
+  button.act {
+    font: inherit; font-size: var(--s--1); font-family: var(--mono);
+    border: 1px solid var(--rule); background: var(--raise); color: var(--ink);
+    border-radius: 3px; padding: .38rem .7rem; cursor: pointer;
+  }
+  button.act:hover:not(:disabled) { border-color: var(--ink); }
+  button.act:disabled { opacity: .45; cursor: not-allowed; }
+  button.act.is-on { background: var(--beh); border-color: var(--beh); color: var(--raise); }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button + button { border-left: 1px solid var(--rule); }
+  .ctl-label { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); margin-right: .2rem; }
+
+  /* the bill */
+  .bill {
+    margin-top: 1.4rem; border: 1px solid var(--rule); border-radius: 4px;
+    background: var(--raise); box-shadow: var(--shadow); padding: .9rem 1rem;
+    display: grid; gap: .9rem;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+  .bill .cell { display: flex; flex-direction: column; gap: .1rem; }
+  .bill .n { font-family: var(--mono); font-size: var(--s-2); line-height: 1; font-weight: 700; }
+  .bill .k { font-size: var(--s--1); color: var(--muted); }
+  .bill .n.zero { color: var(--ok); }
+  .bill .n.some { color: var(--dyn); }
+
+  /* log */
+  .log {
+    margin-top: 1rem; border: 1px solid var(--rule); border-radius: 4px;
+    background: var(--sunk); padding: .6rem .8rem; max-height: 12rem; overflow: auto;
+    font-family: var(--mono); font-size: var(--s--1); line-height: 1.7;
+  }
+  .log div { white-space: pre-wrap; }
+  .log .ev { color: var(--inf); font-weight: 700; }
+  .log .err { color: var(--deny); font-weight: 700; }
+  .log .dim { color: var(--muted); }
+  .log .empty { color: var(--muted); }
+
+  /* rubric */
+  table.rubric { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: var(--s--1); }
+  table.rubric th, table.rubric td {
+    border-bottom: 1px solid var(--rule); padding: .55rem .6rem; text-align: left; vertical-align: top;
+  }
+  table.rubric th { color: var(--muted); font-weight: 600; }
+  table.rubric code { font-family: var(--mono); }
+  .verdict { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+  .verdict.yes { color: var(--ok); }
+  .verdict.no { color: var(--deny); }
+  .verdict.half { color: var(--dyn); }
+
+  .callout {
+    border-left: 3px solid var(--dyn); background: var(--raise);
+    padding: .9rem 1rem; border-radius: 0 4px 4px 0; margin: 1.5rem 0;
+    box-shadow: var(--shadow); max-width: var(--measure);
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .next { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin-top: 1rem; }
+  .next a {
+    display: block; border: 1px solid var(--rule); border-radius: 4px; background: var(--raise);
+    padding: .8rem .9rem; text-decoration: none; color: var(--ink); box-shadow: var(--shadow);
+  }
+  .next a:hover { border-color: var(--beh); }
+  .next .t { font-weight: 700; display: block; margin-bottom: .15rem; }
+  .next .d { font-size: var(--s--1); color: var(--muted); }
+
+  footer {
+    border-top: 1px solid var(--rule); margin-top: 4rem; padding-top: 1.2rem;
+    font-size: var(--s--1); color: var(--muted); font-family: var(--mono);
+  }
+
+  @media (max-width: 640px) {
+    .uview .ulabel { min-width: 100%; }
+    .wire { min-width: 100%; padding: .4rem 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <p class="kicker">Walkthrough</p>
+  <h1>The three layers, and what a change costs.</h1>
+  <p class="standfirst">
+    A Yuneta system is compiled at the bottom and data at the top. Change the
+    top and count the rebuilds.
+  </p>
+
+  <div class="prose">
+    <p>
+      Below is one system, drawn as the three layers it is made of. The bottom
+      band is compiled: its gclasses are registered at start-up and its shape
+      lives in <code>main.c</code>. The middle band is a treedb, and it changes
+      while the process runs. The top band is what an end user sees.
+    </p>
+    <p>
+      The top band and the middle band render <strong>the same array of
+      nodes</strong>. The <em>read as</em> switch changes the rendering, not the
+      data. That is the claim this page exists to make: the third layer is not a
+      third store.
+    </p>
+  </div>
+
+  <!-- ============================ THE STACK ============================ -->
+
+  <div class="stack">
+
+    <!-- ---- dynamic ---- -->
+    <section class="band band--dyn" aria-label="Services and roles">
+      <div class="band-head">
+        <span class="band-name">SERVICES AND ROLES — data</span>
+        <span class="band-note">what the end user sees</span>
+      </div>
+      <div id="dyn-body"></div>
+      <div class="controls">
+        <span class="ctl-label">read as</span>
+        <span class="seg" role="group" aria-label="Rendering">
+          <button type="button" class="act" id="read-user">end user</button>
+          <button type="button" class="act" id="read-op">operator</button>
+        </span>
+        <span class="ctl-label" style="margin-left:.6rem">change it</span>
+        <button type="button" class="act" id="add-service">+ service</button>
+        <button type="button" class="act" id="add-role">+ role</button>
+        <button type="button" class="act" id="grant">link user &rarr; role</button>
+        <button type="button" class="act" id="revoke">unlink</button>
+        <button type="button" class="act" id="reset">reset</button>
+      </div>
+    </section>
+
+    <div class="link-row">
+      <span class="bar"></span><span>&uarr; the same linked nodes, read another way</span><span class="bar"></span>
+    </div>
+
+    <!-- ---- information ---- -->
+    <section class="band band--inf" aria-label="Information, treedb">
+      <div class="band-head">
+        <span class="band-name">INFORMATION — treedb on timeranger2</span>
+        <span class="band-note">CRUDLU, while the yuno runs</span>
+      </div>
+      <div class="nodes" id="inf-nodes"></div>
+    </section>
+
+    <div class="link-row">
+      <span class="bar"></span><span>&darr; a change returns as an event &nbsp;&middot;&nbsp; &uarr; gobjs write nodes</span><span class="bar"></span>
+    </div>
+
+    <!-- ---- behavior ---- -->
+    <section class="band band--beh" aria-label="Behavior, the gobj tree">
+      <div class="band-head">
+        <span class="band-name">BEHAVIOR — the tree of gobjs</span>
+        <span class="band-note" id="beh-note">fixed at build time</span>
+      </div>
+      <div class="yunos">
+        <div class="yuno">
+          <span class="yuno-name">yuno A</span>
+          <div class="gobjs">
+            <span class="gobj" id="g-a1">C_TREEDB</span>
+            <span class="arrow">&rarr;</span>
+            <span class="gobj" id="g-a2">C_NODE</span>
+          </div>
+          <span class="band-note">address = pointer</span>
+        </div>
+        <div class="wire" id="wire">
+          <span class="glyph" id="wire-glyph">&#9552;&#9552;&#9552;&#9658;</span>
+          <span id="wire-kind">ievent</span>
+          <span class="addr" id="wire-addr">address = "__input_side__"</span>
+        </div>
+        <div class="yuno">
+          <span class="yuno-name">yuno B</span>
+          <div class="gobjs">
+            <span class="gobj is-service" id="g-b1">__input_side__</span>
+            <span class="arrow">&rarr;</span>
+            <span class="gobj" id="g-b2">C_AUTHZ</span>
+          </div>
+          <span class="band-note" id="b-note">a named service</span>
+        </div>
+      </div>
+      <div class="controls">
+        <span class="ctl-label">deliver</span>
+        <button type="button" class="act" id="send">send the event</button>
+        <span class="ctl-label" style="margin-left:.6rem">destination</span>
+        <span class="seg" role="group" aria-label="Destination">
+          <button type="button" class="act" id="dst-named">a named service</button>
+          <button type="button" class="act" id="dst-unnamed">an unnamed child</button>
+        </span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================ THE BILL ============================ -->
+
+  <div class="bill" id="bill">
+    <div class="cell"><span class="n" id="n-changes">0</span><span class="k">structure changes</span></div>
+    <div class="cell"><span class="n zero" id="n-builds">0</span><span class="k">rebuilds</span></div>
+    <div class="cell"><span class="n zero" id="n-restarts">0</span><span class="k">restarts</span></div>
+    <div class="cell"><span class="n zero" id="n-compiled">unchanged</span><span class="k">compiled layer</span></div>
+  </div>
+
+  <div class="log" id="log" aria-live="polite"></div>
+
+  <!-- ============================ PROSE ============================ -->
+
+  <div class="prose">
+
+    <h2>One mechanism, two scopes</h2>
+    <p>
+      Yuneta has one way for objects to talk, and it is the message. What
+      changes when a message leaves the process is not the mechanism. It is the
+      address. Inside a yuno a gobj addresses another by pointer. Between yunos
+      the same events travel as <strong>ievents</strong>, and the address is a
+      <strong>name</strong> that <code>c_ievent_srv.c</code> resolves with
+      <code>gobj_find_service()</code>.
+    </p>
+    <p>
+      One rule follows, and the switch above breaks it on purpose: only a named
+      service can hold either end of an inter-yuno conversation. A pointer does
+      not travel over a websocket. A name does.
+    </p>
+
+    <h2>TreeDB is the structure, not the channel</h2>
+    <p>
+      A frequent first reading is that treedb is how yunos talk at the upper
+      level. It is not. TreeDB holds what exists and how it relates. Messages
+      stay the only channel — which is why every change you made above came
+      back down as an <code>EV_TREEDB_NODE_*</code> event rather than being
+      polled for. The producer publishes. The consumer subscribes.
+    </p>
+
+    <h2>A class is a role</h2>
+    <p>
+      A gclass header exposes two things: <code>GOBJ_DECLARE_GCLASS(C_FOO)</code>
+      and <code>register_c_foo()</code>. It publishes no structure, and
+      <code>priv</code> is opaque. A class with no visible structure keeps one
+      identity only: what it does for the other objects. That identity is a
+      role — which is why the word survives the trip from a treedb node written
+      by an operator to a gclass registered by a developer in C.
+    </p>
+    <p>
+      Read the rule backwards to test a design. A gclass you cannot name by its
+      role has none: it is a bag of code, or two roles fused. Names from the
+      tree, graded:
+    </p>
+  </div>
+
+  <table class="rubric">
+    <thead>
+      <tr><th>Name</th><th>Verdict</th><th>Why</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>C_PROT_HTTP_CL</code> · <code>C_TCP_S</code> · <code>C_PROT_MODBUS_M</code></td>
+        <td class="verdict yes">says it</td>
+        <td>The suffix carries the role. A protocol name alone does not say client, server or master.</td>
+      </tr>
+      <tr>
+        <td><code>C_TCP</code></td>
+        <td class="verdict half">silent</td>
+        <td>The role is there by default — it is the client — and default is exactly what a reader cannot see. Compare its sibling <code>C_TCP_S</code>.</td>
+      </tr>
+      <tr>
+        <td><code>C_IDP_KEYCLOAK</code> · <code>C_DBA_POSTGRES</code></td>
+        <td class="verdict yes">correct shape</td>
+        <td>Role first, implementation second. Preferring the domain word to the vendor name does not ban the vendor. It subordinates it.</td>
+      </tr>
+      <tr>
+        <td><code>C_TIMER0</code> · <code>C_RESOURCE2</code></td>
+        <td class="verdict no">no role</td>
+        <td>The <code>0</code> and the <code>2</code> name an implementation and a version. Nothing says how the part played differs, and <code>C_TIMER0</code> is a repeated source of mistakes for that reason.</td>
+      </tr>
+      <tr>
+        <td><code>C_PEPON</code> · <code>C_TESTON</code></td>
+        <td class="verdict no">no role</td>
+        <td>They say nothing at all.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="prose">
+    <div class="callout">
+      <p>
+        <strong>The rule has a limit, and the limit is useful.</strong> A gclass
+        names the <em>generic</em> role: the part the class knows how to play
+        anywhere. A <code>gobj_name</code> names the <em>situational</em> role:
+        the part this instance plays in this tree. Push the situational role
+        into the class name and you get one gclass for each place it is used.
+      </p>
+    </div>
+
+    <h2>Why the two layers stay apart</h2>
+    <p>
+      The compiled layer states what the software <strong>can</strong> do. It is
+      a capability, and it is identical in every installation of the same
+      binary. The dynamic layer states what <strong>this</strong> installation
+      does, and <strong>for whom</strong>. It is deployment and authorization,
+      and it differs for each customer, each realm and each day.
+    </p>
+    <p>
+      Merge the two and every new customer needs a new build. Keep them apart
+      and one binary serves every installation, because the part that varies is
+      data. The counter above is the whole argument in one number.
+    </p>
+    <p>
+      Which is also the discipline the layer demands: a declarative JSON
+      structure is sugar over a runtime API, and that API must stay available
+      while the yuno runs. When a feature must change a structure the
+      configuration describes and no API exists, write the API. A layer you can
+      change only at start-up is a build step with a different file format.
+    </p>
+
+    <h2>Where this is written down</h2>
+  </div>
+
+  <div class="next">
+    <a href="/architecture"><span class="t">Architecture</span><span class="d">The page this one walks through: the three layers, in prose.</span></a>
+    <a href="/typed-graph-model"><span class="t">The Typed-Graph Model</span><span class="d">The two planes underneath: data and behavior as one typed graph.</span></a>
+    <a href="/domain-model"><span class="t">Domain Model</span><span class="d">Realms, entities, relationships and CRUDLU.</span></a>
+    <a href="/ipc"><span class="t">Inter-process communication</span><span class="d">The concrete gates, ievents and message flow.</span></a>
+    <a href="/yuno-treedb"><span class="t">timeranger2 + treedb</span><span class="d">The concrete API of the information layer.</span></a>
+    <a href="/gobj"><span class="t">GObj crash course</span><span class="d">The concrete API of the behavior layer.</span></a>
+  </div>
+
+  <footer>
+    Yuneta Simplified — the events, the addressing rule and the gclass names on
+    this page are read off the source tree.
+  </footer>
+
+</div>
+</main>
+
+<script>
+"use strict";
+(function () {
+
+  /* ------------------------------------------------------------------
+   *  The store. One array of nodes, rendered twice: as topics and
+   *  hooks for the operator, as services and roles for the end user.
+   *  Nothing else on this page is allowed to hold structure, or the
+   *  page would be arguing against itself.
+   * ------------------------------------------------------------------ */
+
+  const SEED = [
+    {id: "artgins",  topic: "realms",   fkey: null,      label: "artgins"},
+    {id: "agent",    topic: "services", fkey: "artgins", label: "agent console"},
+    {id: "ytreedb",  topic: "services", fkey: "artgins", label: "treedb browser"},
+    {id: "operator", topic: "roles",    fkey: "agent",   label: "operator"},
+    {id: "viewer",   topic: "roles",    fkey: "ytreedb", label: "viewer"},
+    {id: "ana",      topic: "users",    fkey: "operator", label: "ana"}
+  ];
+
+  const EXTRA_SERVICES = [
+    {id: "logcenter", label: "log centre"},
+    {id: "webstats",  label: "web statistics"},
+    {id: "mqtt",      label: "mqtt broker"}
+  ];
+  const EXTRA_ROLES = [
+    {id: "auditor",   label: "auditor"},
+    {id: "installer", label: "installer"},
+    {id: "guest",     label: "guest"}
+  ];
+
+  let nodes = SEED.map(n => Object.assign({}, n));
+  let changes = 0;
+  let logLines = [];
+  let readAs = "user";          /* "user" | "operator" */
+  let dstNamed = true;          /* the inter-yuno destination is a service */
+  let lastNew = null;
+
+  const el = id => document.getElementById(id);
+
+  /* ---------------- log ---------------- */
+
+  function logEvent(ev, detail) {
+    logLines.push({kind: "ev", ev: ev, detail: detail});
+    drawLog();
+  }
+  function logErr(text) {
+    logLines.push({kind: "err", detail: text});
+    drawLog();
+  }
+  function logPlain(text) {
+    logLines.push({kind: "dim", detail: text});
+    drawLog();
+  }
+
+  function drawLog() {
+    const box = el("log");
+    box.textContent = "";
+    if (logLines.length === 0) {
+      const d = document.createElement("div");
+      d.className = "empty";
+      d.textContent = "The log of the run. Change something above.";
+      box.appendChild(d);
+      return;
+    }
+    /*  Keep it bounded: a reader who clicks forty times wants the last
+     *  few lines, not a scrollback.  */
+    const shown = logLines.slice(-40);
+    shown.forEach(l => {
+      const d = document.createElement("div");
+      if (l.kind === "ev") {
+        const s = document.createElement("span");
+        s.className = "ev";
+        s.textContent = l.ev;
+        d.appendChild(s);
+        d.appendChild(document.createTextNode("  " + l.detail));
+      } else if (l.kind === "err") {
+        const s = document.createElement("span");
+        s.className = "err";
+        s.textContent = "ERROR";
+        d.appendChild(s);
+        d.appendChild(document.createTextNode("  " + l.detail));
+      } else {
+        d.className = "dim";
+        d.textContent = l.detail;
+      }
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ---------------- helpers over the store ---------------- */
+
+  const byTopic = t => nodes.filter(n => n.topic === t);
+  const find = id => nodes.find(n => n.id === id) || null;
+
+  /* ---------------- render: information band ---------------- */
+
+  function drawInfo() {
+    const box = el("inf-nodes");
+    box.textContent = "";
+    nodes.forEach(n => {
+      const d = document.createElement("div");
+      d.className = "node" + (n.id === lastNew ? " is-new" : "");
+
+      const t = document.createElement("span");
+      t.className = "topic";
+      t.textContent = n.topic;
+      d.appendChild(t);
+
+      const i = document.createElement("span");
+      i.className = "id";
+      i.textContent = n.id;
+      d.appendChild(i);
+
+      const f = document.createElement("span");
+      f.className = "fk";
+      f.textContent = n.fkey ? "fkey → " + n.fkey : "—";
+      d.appendChild(f);
+
+      box.appendChild(d);
+    });
+  }
+
+  /* ---------------- render: dynamic band ---------------- */
+
+  function drawDynamic() {
+    const box = el("dyn-body");
+    box.textContent = "";
+
+    if (readAs === "operator") {
+      /*  The SAME nodes, drawn the way the band below draws them. This
+       *  is the point of the switch: no data changes, only the reading. */
+      const wrap = document.createElement("div");
+      wrap.className = "nodes";
+      nodes.forEach(n => {
+        const d = document.createElement("div");
+        d.className = "node";
+        const t = document.createElement("span");
+        t.className = "topic";
+        t.textContent = n.topic;
+        const i = document.createElement("span");
+        i.className = "id";
+        i.textContent = n.id;
+        const f = document.createElement("span");
+        f.className = "fk";
+        f.textContent = n.fkey ? "fkey → " + n.fkey : "—";
+        d.appendChild(t); d.appendChild(i); d.appendChild(f);
+        wrap.appendChild(d);
+      });
+      box.appendChild(wrap);
+      return;
+    }
+
+    const view = document.createElement("div");
+    view.className = "uview";
+
+    const realm = byTopic("realms")[0];
+    view.appendChild(row("You are in", [chip(realm ? realm.label : "—", true)]));
+
+    const services = byTopic("services");
+    view.appendChild(row("Services available", services.map(s => chip(s.label, true))));
+
+    const user = byTopic("users")[0];
+    const myRole = user && user.fkey ? find(user.fkey) : null;
+    view.appendChild(row(
+      "Your role",
+      myRole ? [chip(myRole.label, true)] : [chip("no role — nothing is offered", false)]
+    ));
+
+    const svcOfRole = myRole ? find(myRole.fkey) : null;
+    view.appendChild(row(
+      "Which lets you into",
+      svcOfRole ? [chip(svcOfRole.label, true)] : [chip("nothing", false)]
+    ));
+
+    box.appendChild(view);
+  }
+
+  function row(label, chips) {
+    const r = document.createElement("div");
+    r.className = "urow";
+    const l = document.createElement("span");
+    l.className = "ulabel";
+    l.textContent = label;
+    r.appendChild(l);
+    if (chips.length === 0) {
+      r.appendChild(chip("—", false));
+    } else {
+      chips.forEach(c => r.appendChild(c));
+    }
+    return r;
+  }
+
+  function chip(text, on) {
+    const c = document.createElement("span");
+    c.className = "chip" + (on ? "" : " is-off");
+    c.textContent = text;
+    return c;
+  }
+
+  /* ---------------- render: the bill ---------------- */
+
+  function drawBill() {
+    el("n-changes").textContent = String(changes);
+    el("n-changes").className = "n" + (changes > 0 ? " some" : "");
+    el("n-builds").textContent = "0";
+    el("n-restarts").textContent = "0";
+    el("n-compiled").textContent = "unchanged";
+  }
+
+  /* ---------------- render: the behavior band ---------------- */
+
+  function drawBehavior() {
+    const named = dstNamed;
+    el("g-b1").textContent = named ? "__input_side__" : "(a pure child)";
+    el("g-b1").className = "gobj" + (named ? " is-service" : "");
+    el("b-note").textContent = named ? "a named service" : "no name — unreachable from outside";
+    el("wire-addr").textContent = named
+      ? "address = \"__input_side__\""
+      : "address = ?";
+    el("wire").className = "wire" + (named ? "" : " is-broken");
+    el("dst-named").className = "act" + (named ? " is-on" : "");
+    el("dst-unnamed").className = "act" + (named ? "" : " is-on");
+    el("read-user").className = "act" + (readAs === "user" ? " is-on" : "");
+    el("read-op").className = "act" + (readAs === "operator" ? " is-on" : "");
+  }
+
+  /*  A delivery, drawn: the source lights, then the destination. It is a
+   *  notice, not the mechanism — the mechanism is in the log line. */
+  let litTimers = [];
+  function flash(ids) {
+    litTimers.forEach(clearTimeout);
+    litTimers = [];
+    ["g-a1", "g-a2", "g-b1", "g-b2"].forEach(i => {
+      el(i).classList.remove("is-lit");
+    });
+    ids.forEach((id, k) => {
+      litTimers.push(setTimeout(() => {
+        const n = el(id);
+        if (n) { n.classList.add("is-lit"); }
+      }, k * 220));
+    });
+    litTimers.push(setTimeout(() => {
+      ids.forEach(i => { const n = el(i); if (n) { n.classList.remove("is-lit"); } });
+    }, ids.length * 220 + 700));
+  }
+
+  /* ---------------- actions ---------------- */
+
+  function publish(ev, detail, lit) {
+    logEvent(ev, detail);
+    flash(lit || ["g-a1", "g-a2"]);
+  }
+
+  function nextFrom(list) {
+    return list.find(c => !find(c.id)) || null;
+  }
+
+  function render() {
+    drawInfo();
+    drawDynamic();
+    drawBehavior();
+    drawBill();
+  }
+
+  el("add-service").addEventListener("click", () => {
+    const cand = nextFrom(EXTRA_SERVICES);
+    if (!cand) {
+      logPlain("no more services in the sample set — reset to start over");
+      return;
+    }
+    const realm = byTopic("realms")[0];
+    nodes.push({id: cand.id, topic: "services", fkey: realm.id, label: cand.label});
+    lastNew = cand.id;
+    changes += 1;
+    render();
+    publish("EV_TREEDB_NODE_CREATED", "services^" + cand.id + "  fkey → realms^" + realm.id);
+  });
+
+  el("add-role").addEventListener("click", () => {
+    const cand = nextFrom(EXTRA_ROLES);
+    if (!cand) {
+      logPlain("no more roles in the sample set — reset to start over");
+      return;
+    }
+    const services = byTopic("services");
+    const host = services[services.length - 1];
+    nodes.push({id: cand.id, topic: "roles", fkey: host.id, label: cand.label});
+    lastNew = cand.id;
+    changes += 1;
+    render();
+    publish("EV_TREEDB_NODE_CREATED", "roles^" + cand.id + "  fkey → services^" + host.id);
+  });
+
+  el("grant").addEventListener("click", () => {
+    const user = byTopic("users")[0];
+    const roles = byTopic("roles");
+    if (!user) { return; }
+    /*  Link to the role the reader has not held yet, so the button keeps
+     *  saying something after the first click. */
+    const current = user.fkey;
+    const next = roles.find(r => r.id !== current);
+    if (!next) {
+      logPlain("only one role exists — add one first");
+      return;
+    }
+    user.fkey = next.id;
+    lastNew = user.id;
+    changes += 1;
+    render();
+    publish(
+      "EV_TREEDB_NODE_LINKED",
+      "roles^" + next.id + " → users^" + user.id +
+        "   (the CHILD is what gets saved)"
+    );
+  });
+
+  el("revoke").addEventListener("click", () => {
+    const user = byTopic("users")[0];
+    if (!user || !user.fkey) {
+      logPlain("the user holds no role already");
+      return;
+    }
+    const was = user.fkey;
+    user.fkey = null;
+    lastNew = user.id;
+    changes += 1;
+    render();
+    publish("EV_TREEDB_NODE_UNLINKED", "roles^" + was + " ✗ users^" + user.id);
+  });
+
+  el("reset").addEventListener("click", () => {
+    nodes = SEED.map(n => Object.assign({}, n));
+    changes = 0;
+    lastNew = null;
+    logLines = [];
+    render();
+    drawLog();
+  });
+
+  el("read-user").addEventListener("click", () => { readAs = "user"; render(); });
+  el("read-op").addEventListener("click", () => { readAs = "operator"; render(); });
+
+  el("dst-named").addEventListener("click", () => { dstNamed = true; render(); });
+  el("dst-unnamed").addEventListener("click", () => { dstNamed = false; render(); });
+
+  el("send").addEventListener("click", () => {
+    if (dstNamed) {
+      logEvent(
+        "EV_ON_MESSAGE",
+        "yuno A → yuno B   ievent, dst_service=\"__input_side__\"" +
+          "   resolved by gobj_find_service()"
+      );
+      flash(["g-a1", "g-a2", "g-b1", "g-b2"]);
+    } else {
+      logErr(
+        "gobj service not found  —  the destination has no name, so nothing " +
+          "resolves it. A pointer does not travel between processes."
+      );
+      flash(["g-a1", "g-a2"]);
+    }
+  });
+
+  /* ---------------- theme ---------------- */
+
+  const STORE_KEY = "myst:theme";
+  const toggle = document.getElementById("theme-toggle");
+
+  function applyTheme(name) {
+    document.documentElement.setAttribute("data-theme", name);
+  }
+
+  toggle.addEventListener("click", () => {
+    const now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /* private mode: the choice just does not persist */
+    }
+    applyTheme(now);
+  });
+
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+
+  render();
+  drawLog();
+}());
+</script>
+</body>
+</html>

@@ -96,6 +96,13 @@ Yuneta in one page: services, roles and messages without the runtime that
 usually pays for them, with a bill next to every decision.
 :::
 
+:::{card} Interactive — The three layers, and what a change costs
+:link: /three-layers
+
+Compiled at the bottom, data at the top. Add a service, hand a user a role,
+and watch the rebuild counter stay on zero.
+:::
+
 :::{card} Interactive — The login, gobj by gobj
 :link: /login-flow
 

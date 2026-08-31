@@ -192,8 +192,18 @@ three, and it is **role**. The first keeps the system observable at every
 scale. The second keeps the vocabulary of the end user and the vocabulary of
 the C developer in agreement.
 
+:::{note} The same three layers, running
+[**The three layers, and what a change costs**](https://doc.yuneta.io/three-layers)
+is this page as a walkthrough. Add a service, hand a user a role, and watch the
+rebuild counter stay at zero. The switch that matters is *read as*: it renders
+the same node array as topics and hooks, and then as services and roles, which
+is the claim of the third layer in one click.
+:::
+
 ## Where to go next
 
+- [The three layers, running](https://doc.yuneta.io/three-layers) — this page
+  as a walkthrough you step through.
 - [The Typed-Graph Model](typed_graph_model.md) — the two planes of the model
   this page builds a third layer on.
 - [Domain Model](domain_model.md) — realms, entities, relationships and
