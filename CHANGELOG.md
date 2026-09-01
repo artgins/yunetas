@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.5
 
 ### The memory audit follows its own switch
 

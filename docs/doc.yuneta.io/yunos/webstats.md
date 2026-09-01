@@ -11,7 +11,7 @@ A sealed node has no SSH, so a tool you must log in to run is a task that stops
 working the day the node is sealed. This one runs inside the node and sends the
 answer out.
 
-**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.16.4/yunos/c/webstats/README.md)
+**Full design:** [`yunos/c/webstats/README.md`](https://github.com/artgins/yunetas/blob/7.16.5/yunos/c/webstats/README.md)
 
 ## Architecture
 
