@@ -1,5 +1,47 @@
 # **Changelog**
 
+## Unreleased
+
+### `initial_load`: a treedb declares what it cannot come up without
+
+The records a system cannot start without -- the seed role, the admin account,
+the root of the tree a scope hangs from -- were written by a batch that
+somebody had to remember to run. A batch writes them once. The day one is
+deleted the system is up, answering, and showing nothing, and the deletion
+raises no error because a missing record is not an error.
+
+`C_NODE` gains an **`initial_load`** attr: one entry per topic, a list of
+records, **with the links riding inside each record as fkey values**
+(`parent_topic^parent_id^hook`, the same form the child stores). It is applied
+in `mt_start` right after the treedb opens, master only, on every start:
+
+- a record that is **missing** is created and autolinked from its own fkeys;
+- a record that is **present** is never rewritten -- only its declared links
+  are checked, and a missing one is re-linked;
+- either way the record is marked **immutable**, so `delete-node` refuses it
+  and `force` does not override.
+
+The re-link is the half that is easy to miss. Deletion is not the only way to
+blind a seed: a scope is a **link**, and `treedb_unlink_nodes()` carries no
+immutable guard, so an untouchable record can still be left hanging off
+nothing. Re-linking on start repairs that; immutability is the defence between
+restarts. And it re-links without ever re-writing, because an autolink over an
+existing node runs `treedb_clean_node()` first, which would drop every link the
+seed does not declare -- the ones a person added on purpose.
+
+Reachable two ways: the new `initial_load` parameter of `C_TREEDBS`'
+`open-treedb`, or the attr set directly by a gclass that builds its own
+`C_NODE`.
+
+**`C_AUTHZ` is now one caller of it.** The same loop lived in its `mt_start`,
+written for one treedb; it hands `Authz.initial_load` down to its `C_NODE`
+child instead, and the loop is gone from `c_authz.c`. The attr keeps its name,
+its shape and its behaviour -- `command_delete_user`, which seeds an immutable
+user through it and checks that the delete is refused, passes unchanged. The
+explicit `time` stamp the old loop injected went with it: a col flagged `time`
+with no value supplied already gets the current time from treedb itself, so it
+was always redundant.
+
 ## 7.16.3
 
 Cut so that the webstats change reaches the yunovatios nodes: they carry a

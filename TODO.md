@@ -351,8 +351,9 @@ The gate (`enable_command_authz`) is **default-off** (design in YUNO_AUTH.md
   user(s) that reach the agent's `:1993` port (the agent store currently has
   `yuneta` + `yuneta_admin@…` + `yunetas_admin@…`, NOT `yuneta_agent@…`);
 - confirm each of the 5 C_AUTHZ stores (agent, agent22[shared], controlcenter,
-  mqtt_broker, emailsender) holds the `root`/`yuneta` model at runtime — re-seed
-  via `update-node` if a store was non-empty and missed `Authz.initial_load`;
+  mqtt_broker, emailsender) holds the `root`/`yuneta` model at runtime — a
+  store that missed `Authz.initial_load` re-seeds itself on its next master
+  start (`C_NODE` applies the attr), so this is a check, not a repair;
 - run a real **low-privilege deny test** on staging (needs a non-root external
   principal — infeasible on the yuneta-only local plano);
 - then set `enable_command_authz: true` per yuno (pilot the agent first),

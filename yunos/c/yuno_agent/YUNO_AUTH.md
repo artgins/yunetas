@@ -426,10 +426,11 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup. In production deployments
 `yuneta` usually owns every role.
 
-**The seed cannot be deleted.** On every master start, `C_AUTHZ` `mt_start`
-runs an idempotent loop over `Authz.initial_load`, which holds the seed
-`root` role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.16.3/yunos/c/yuno_agent/src/c_agent.c) `main.c`). The loop creates
-any missing seed record and marks it **immutable** with
+**The seed cannot be deleted.** `Authz.initial_load` holds the seed `root`
+role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.16.3/yunos/c/yuno_agent/src/c_agent.c) `main.c`). `C_AUTHZ` hands the
+attr down to its treedb's `C_NODE` at `mt_create`, and `C_NODE` applies it on
+every master start: it creates any missing seed record, re-links a declared
+link that is gone, and marks the record **immutable** with
 `treedb_set_node_immutable()`. CRUD operations can therefore never remove the
 powers of the local trusted user. `delete-node` refuses an immutable record,
 and **`force` does not override it**. Deployed stores become protected on
@@ -438,6 +439,11 @@ md2 metadata and not a column (see [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10).
 Only the two seed **records** are frozen. The `roles` and `users` **topics**
 stay ordinary: they are editable, and other roles and users delete normally.
 agent22 shares the store as non-master and does not run the loop.
+
+The loop used to live in `C_AUTHZ` `mt_start`, written for one treedb. It is
+`C_NODE`'s now, so **any** treedb gets it by declaring `initial_load` — the
+authz seed is one caller of a general facility, and `Authz.initial_load` keeps
+its name and its shape.
 
 ### 4.3 [`gobj_user_has_authz`](#gobj_user_has_authz)
 

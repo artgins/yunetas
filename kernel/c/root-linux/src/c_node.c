@@ -63,6 +63,20 @@ PRIVATE int export_treedb(
     hgobj src
 );
 
+PRIVATE int apply_initial_load(hgobj gobj);
+PRIVATE int restore_seed_links(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *record,     // NOT owned, the declared seed
+    json_t *node        // NOT owned, pure node
+);
+PRIVATE BOOL seed_ref_present(
+    hgobj gobj,
+    json_t *node,       // NOT owned, pure node
+    const char *col,
+    const char *ref
+);
+
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
@@ -319,6 +333,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler, EXTERNALLY set, IMPORTANT!"),
 SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
+SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
@@ -505,6 +520,17 @@ PRIVATE int mt_start(hgobj gobj)
         gobj,
         flags
     );
+
+    /*--------------------------------------------------------------*
+     *  Seed and protect the records the configuration declares.
+     *
+     *  Master only: a non-master treedb is a REPLICA and must not
+     *  write. Idempotent, so it runs on every start and an already
+     *  seeded store is left alone.
+     *--------------------------------------------------------------*/
+    if(treedb && master) {
+        apply_initial_load(gobj);
+    }
 
     return treedb?0:-1;
 }
@@ -4157,6 +4183,280 @@ PRIVATE int treedb_callback(
     }
 
     gobj_publish_event(gobj, operation, kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Is this parent ref already written in the node's fkey column?
+ *
+ *  The stored form is the one _link_nodes() writes -- the very string the
+ *  seed declares -- so this is a comparison and not a resolution.
+ ***************************************************************************/
+PRIVATE BOOL seed_ref_present(
+    hgobj gobj,
+    json_t *node,       // NOT owned, pure node
+    const char *col,
+    const char *ref
+)
+{
+    json_t *current = kw_get_dict_value(gobj, node, col, 0, 0);
+    if(!current) {
+        return FALSE;
+    }
+
+    switch(json_typeof(current)) { // json_typeof PROTECTED
+    case JSON_STRING:
+        return strcmp(json_string_value(current), ref)==0? TRUE: FALSE;
+    case JSON_ARRAY:
+        {
+            int idx; json_t *v;
+            json_array_foreach(current, idx, v) {
+                if(json_is_string(v) && strcmp(json_string_value(v), ref)==0) {
+                    return TRUE;
+                }
+            }
+        }
+        return FALSE;
+    case JSON_OBJECT:
+        return json_object_get(current, ref)? TRUE: FALSE;
+    default:
+        return FALSE;
+    }
+}
+
+/***************************************************************************
+ *  Re-link a seed that exists but lost a link.
+ *
+ *  Deletion is not the only way to blind a seed: the scope of a user is a
+ *  LINK, and treedb_unlink_nodes() carries no immutable guard, so an
+ *  untouchable record can still be left hanging. Re-linking here is what
+ *  makes the seed heal on the next start.
+ *
+ *  It re-links, it never re-writes: an autolink over an existing node goes
+ *  through treedb_clean_node() first, which would drop every link the seed
+ *  does NOT declare -- the links a person added on purpose.
+ ***************************************************************************/
+PRIVATE int restore_seed_links(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *record,     // NOT owned, the declared seed
+    json_t *node        // NOT owned, pure node
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *col;
+    json_t *declared;
+    json_object_foreach(record, col, declared) {
+        json_t *flag = kwid_get(gobj,
+            priv->tranger,
+            0,
+            "topics`%s`%s`%s`flag", topic_name, "cols", col
+        );
+        if(!flag || !kw_has_word(gobj, flag, "fkey", 0)) {
+            continue;
+        }
+
+        /*
+         *  A declared fkey reaches here in the three forms treedb stores:
+         *  one ref, a list of refs, or an object keyed by ref.
+         */
+        json_t *refs = json_array();
+        switch(json_typeof(declared)) { // json_typeof PROTECTED
+        case JSON_STRING:
+            json_array_append(refs, declared);
+            break;
+        case JSON_ARRAY:
+            {
+                int i; json_t *v;
+                json_array_foreach(declared, i, v) {
+                    if(json_is_string(v)) {
+                        json_array_append(refs, v);
+                    }
+                }
+            }
+            break;
+        case JSON_OBJECT:
+            {
+                const char *k; json_t *v;
+                json_object_foreach(declared, k, v) {
+                    json_array_append_new(refs, json_string(k));
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        int idx; json_t *v;
+        json_array_foreach(refs, idx, v) {
+            const char *ref = json_string_value(v);
+            if(seed_ref_present(gobj, node, col, ref)) {
+                continue;
+            }
+
+            char parent_topic[NAME_MAX];
+            char parent_id[NAME_MAX];
+            char hook_name[NAME_MAX];
+            if(!decode_parent_ref(
+                ref,
+                parent_topic, sizeof(parent_topic),
+                parent_id, sizeof(parent_id),
+                hook_name, sizeof(hook_name)
+            )) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "initial_load: bad parent ref",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col,
+                    "ref",          "%s", ref,
+                    NULL
+                );
+                continue;
+            }
+
+            json_t *parent = treedb_get_node(
+                priv->tranger,
+                priv->treedb_name,
+                parent_topic,
+                parent_id
+            );
+            if(!parent) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "initial_load: parent of a seed link not found",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "ref",          "%s", ref,
+                    NULL
+                );
+                continue;
+            }
+
+            if(treedb_link_nodes(priv->tranger, hook_name, parent, node)<0) {
+                // Error already logged
+                continue;
+            }
+
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "initial_load: seed link restored",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+                "ref",          "%s", ref,
+                NULL
+            );
+        }
+
+        JSON_DECREF(refs)
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Create what the configuration declares and make it undeletable.
+ *
+ *  The records a system cannot come up without -- the root role, the admin
+ *  account, the country a scope hangs from -- do not belong in a batch that
+ *  somebody remembers to run: a batch writes them once, and the day one is
+ *  deleted the system is up, answering, and showing nothing. Declared here
+ *  they are re-created on every start and marked immutable, so deleting one
+ *  is refused, and unlinking one lasts until the next restart.
+ *
+ *  Idempotent by construction: a record already present is never rewritten,
+ *  only its declared links are checked and its immutable mark re-asserted.
+ ***************************************************************************/
+PRIVATE int apply_initial_load(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *initial_load = gobj_read_json_attr(gobj, "initial_load");
+    if(json_object_size(initial_load)==0) {
+        return 0;
+    }
+
+    const char *topic_name;
+    json_t *topic_records;
+    json_object_foreach(initial_load, topic_name, topic_records) {
+        if(!treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "initial_load: topic not found in treedb",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            continue;
+        }
+
+        int idx; json_t *record;
+        json_array_foreach(topic_records, idx, record) {
+            const char *id = kw_get_str(gobj, record, "id", "", 0);
+            if(empty_string(id)) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "initial_load: record without id",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    NULL
+                );
+                continue;
+            }
+
+            json_t *node = treedb_get_node( // Return is NOT YOURS
+                priv->tranger,
+                priv->treedb_name,
+                topic_name,
+                id
+            );
+            if(!node) {
+                node = treedb_create_node( // Return is NOT YOURS
+                    priv->tranger,
+                    priv->treedb_name,
+                    topic_name,
+                    json_incref(record)
+                );
+                if(!node) {
+                    // Error already logged
+                    continue;
+                }
+                /*
+                 *  The links ride inside the record, as fkey values. Same
+                 *  sequence as mt_update_node's create+autolink path.
+                 */
+                treedb_clean_node(priv->tranger, node, FALSE);
+                treedb_autolink(priv->tranger, node, json_incref(record), FALSE);
+                treedb_save_node(priv->tranger, node);
+
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "initial_load: seed record created",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", id,
+                    NULL
+                );
+            } else {
+                restore_seed_links(gobj, topic_name, record, node);
+            }
+
+            if(!kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+                if(treedb_set_node_immutable(priv->tranger, node, TRUE)<0) {
+                    // Error already logged
+                }
+            }
+        }
+    }
+
     return 0;
 }
 

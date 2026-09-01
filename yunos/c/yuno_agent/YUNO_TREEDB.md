@@ -787,6 +787,53 @@ protects against CRUD/control-plane deletion, not against an operator wiping
 the realm — "only a full store wipe removes them". Regression coverage:
 [`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/tree/7.16.3/tests/c/tr_treedb_immutable).
 
+**Declaring the seed: the `initial_load` attr of `C_NODE`.** Marking a record
+immutable protects it; it does not put it there. The records a system cannot
+come up without — the seed role, the admin account, the root of the tree a
+scope hangs from — are declared in the treedb's configuration, and `C_NODE`
+applies them in `mt_start` right after it opens the treedb, master only:
+
+```json
+"initial_load": {
+    "org_nodes": [
+        {"id": "es", "name": "Spain", "level": "country"}
+    ],
+    "users": [
+        {"id": "yuneta", "scopes": ["org_nodes^es^users"]}
+    ]
+}
+```
+
+One entry per topic, a list of records, and **the links ride inside the
+record as fkey values** (`parent_topic^parent_id^hook`) — the same form the
+child stores, so what you declare is what you would read back. Reach it
+through `open-treedb`'s `initial_load` parameter, or set the attr directly
+when a gclass builds its own `C_NODE` (`C_AUTHZ` hands down its
+`Authz.initial_load` that way).
+
+What the loop does on **every** start:
+
+- A record that is **missing** is created and autolinked from its own fkey
+  values.
+- A record that is **present** is never rewritten. Only its declared links
+  are checked, and a missing one is re-linked.
+- Either way the record is marked immutable.
+
+The re-link is the half that is easy to miss. Deletion is not the only way to
+blind a seed: a scope is a **link**, and `treedb_unlink_nodes()` carries no
+immutable guard — so an untouchable record can still be left hanging off
+nothing. Re-linking on start is what makes that repair itself; immutability is
+the defence between restarts.
+
+It re-links, and it never re-writes, for a reason: an autolink over an
+existing node goes through `treedb_clean_node()` first, which drops every link
+the seed does **not** declare — including the ones a person added on purpose
+(§4.10 and the partial-update trap in §3.6).
+
+Do not put anything in `initial_load` that a person is meant to edit or remove
+later: everything it names becomes undeletable. It is for what the system
+cannot start without.
+
 ### 3.11 The `__system__` treedb: a schema stored as data
 
 A schema has two homes. The one you write is the C literal

@@ -97,6 +97,7 @@ SDATAPM (DTP_STRING,    "filename_mask",0,              "%Y-%m-%d", "Organizatio
 SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema, projected into __system__ and reconciled there"),
+SDATAPM (DTP_JSON,      "initial_load", 0,              0,          "Seed records, created if missing and marked immutable"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_treedb[] = {
@@ -617,6 +618,15 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         "exit_on_error", exit_on_error,
         "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
     );
+
+    /*
+     *  Asked without a default: kw_get_dict() decrefs the default on the path
+     *  where it finds the key, so a fallback here would be spent every call.
+     */
+    json_t *jn_initial_load = kw_get_dict(gobj, kw, "initial_load", 0, 0);
+    if(jn_initial_load) {
+        json_object_set(kw_resource, "initial_load", jn_initial_load);
+    }
 
     hgobj gobj_client_node = gobj_create_service(
         treedb_name,
