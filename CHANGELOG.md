@@ -1,5 +1,20 @@
 # **Changelog**
 
+## Unreleased
+
+### The memory audit follows its own switch
+
+`CONFIG_DEBUG_TRACK_MEMORY` is the Kconfig knob that "enables track memory to
+find leaks", and every guard in `gbmem.c` also demanded
+`CONFIG_BUILD_TYPE_DEBUG`. A RelWithDebInfo build with tracking enabled
+therefore tracked nothing: `get_cur_system_memory()` answered 0 for the life
+of the process, `"cur_system_memory": 0` on every log line, and the
+shutdown audit (`print_track_mem()`) was not even compiled in -- which also
+made the `get_cur_system_memory()==0` checks of every ctest pass on any
+leak. The second half of the guard is gone; tracking now follows the one
+switch the menu shows. Proven with a probe that leaks a block on purpose:
+silent before, *"system memory not free"* + the block after.
+
 ## 7.16.4
 
 ### `initial_load`: a treedb declares what it cannot come up without
