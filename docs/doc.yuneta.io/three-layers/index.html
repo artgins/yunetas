@@ -18,7 +18,7 @@
 
     Nothing here is a mock-up of an idea. The events are the ones a
     treedb publishes (EV_TREEDB_NODE_CREATED / UPDATED / DELETED /
-    LINKED / UNLINKED, from c_node.c), the addressing rule is the one
+    LINKED / UNLINKED, defined in tr_treedb.c), the addressing rule is the one
     c_ievent_srv.c implements with gobj_find_service(), and the gclass
     names in the rubric are read off the tree.
 
@@ -493,9 +493,9 @@
         <td>The role is there by default — it is the client — and default is exactly what a reader cannot see. Compare its sibling <code>C_TCP_S</code>.</td>
       </tr>
       <tr>
-        <td><code>C_IDP_KEYCLOAK</code> · <code>C_DBA_POSTGRES</code></td>
+        <td><code>C_IDP_KEYCLOAK</code></td>
         <td class="verdict yes">correct shape</td>
-        <td>Role first, implementation second. Preferring the domain word to the vendor name does not ban the vendor. It subordinates it.</td>
+        <td>Role first, implementation second. Preferring the domain word to the vendor name does not ban the vendor. It subordinates it. Compare <code>C_POSTGRES</code>, where the vendor name stands alone.</td>
       </tr>
       <tr>
         <td><code>C_TIMER0</code> · <code>C_RESOURCE2</code></td>
@@ -869,6 +869,11 @@
       logPlain("only one role exists — add one first");
       return;
     }
+    /*  Replacing the role is two link operations, and each one publishes:
+     *  the old link goes first, or the log lies about what happened. */
+    if (current) {
+      logEvent("EV_TREEDB_NODE_UNLINKED", "roles^" + current + " ✗ users^" + user.id);
+    }
     user.fkey = next.id;
     lastNew = user.id;
     changes += 1;
@@ -919,8 +924,8 @@
       flash(["g-a1", "g-a2", "g-b1", "g-b2"]);
     } else {
       logErr(
-        "gobj service not found  —  the destination has no name, so nothing " +
-          "resolves it. A pointer does not travel between processes."
+        "event ignored, service not found  —  the destination has no name, " +
+          "so nothing resolves it. A pointer does not travel between processes."
       );
       flash(["g-a1", "g-a2"]);
     }

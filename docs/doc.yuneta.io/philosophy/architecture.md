@@ -55,7 +55,7 @@ Examples from the current tree:
 | GClass | What the name does |
 |---|---|
 | `C_PROT_HTTP_CL`, `C_PROT_HTTP_SR`, `C_TCP_S`, `C_PROT_MODBUS_M` | The suffix carries the role. A protocol name alone does not say client, server or master. |
-| `C_IDP_KEYCLOAK`, `C_DBA_POSTGRES` | Role first, implementation second. This is the correct form of the preference for the domain word over the vendor name. The vendor name qualifies a role, and never replaces one. |
+| `C_IDP_KEYCLOAK` | Role first, implementation second. This is the correct form of the preference for the domain word over the vendor name. The vendor name qualifies a role, and never replaces one. Compare `C_POSTGRES`, where the vendor name stands alone and the role does not appear. |
 | `C_TIMER0`, `C_RESOURCE2` | The `0` and the `2` name an implementation and a version. The reader learns nothing about the part the gobj plays, and `C_TIMER0` is a repeated source of mistakes for that reason. |
 
 ### Two levels of role
@@ -91,7 +91,9 @@ One rule follows from this: **only a named service can be the source or the
 destination of an inter-yuno message.** A pointer does not travel over a
 websocket. A name does. A routed view, a pure child, or any unnamed gobj can
 never hold one end of an inter-yuno conversation. The log message
-"gobj service not found" reports a violation of this rule. Correct the sender.
+*"event ignored, service not found"* — from `c_ievent_srv.c`; the JS runtime
+says *"gobj service not found"* — reports a violation of this rule. Correct
+the sender.
 
 | Scope | Structure | Message | Address |
 |---|---|---|---|
@@ -120,7 +122,8 @@ and not a workaround.
 
 **The store sends messages of its own.** A treedb publishes
 `EV_TREEDB_NODE_CREATED`, `EV_TREEDB_NODE_UPDATED`, `EV_TREEDB_NODE_DELETED`,
-`EV_TREEDB_NODE_LINKED` and `EV_TREEDB_NODE_UNLINKED`. A change of shared state
+and — when it is opened with `with_link_events` — `EV_TREEDB_NODE_LINKED` and
+`EV_TREEDB_NODE_UNLINKED`. A change of shared state
 returns through the one channel that exists. This is also why Yuneta refuses
 polling. The producer publishes, and the consumer subscribes.
 
