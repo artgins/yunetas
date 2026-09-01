@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.16.4
 
 ### `initial_load`: a treedb declares what it cannot come up without
 
