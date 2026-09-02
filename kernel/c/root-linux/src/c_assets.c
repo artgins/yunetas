@@ -83,6 +83,7 @@ typedef struct {
 PRIVATE BOOL treedb_is_master(hgobj gobj);
 PRIVATE json_t *build_readonly_response(hgobj gobj, json_t *kw);
 PRIVATE json_t *build_not_ready_response(hgobj gobj, json_t *kw);
+PRIVATE const char *asked_asset_id(hgobj gobj, json_t *kw);
 
 PRIVATE int sha256_hex(hgobj gobj, const char *data, size_t len, char *bf, int bflen);
 PRIVATE int md5_base64url(hgobj gobj, const char *data, size_t len, char *bf, int bflen);
@@ -153,7 +154,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_get_asset[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Asset id (sha256 of its content)"),
+SDATAPM (DTP_STRING,    "asset_id",     0,              0,          "Asset id (sha256 of its content)"),
 SDATAPM (DTP_STRING,    "prefer",       0,              "url",      "'url' a signed url when it can, 'inline' always the bytes"),
 SDATA_END()
 };
@@ -165,7 +166,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_asset[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Asset id"),
+SDATAPM (DTP_STRING,    "asset_id",     0,              0,          "Asset id"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Delete it even if some node still links it"),
 SDATA_END()
 };
@@ -566,6 +567,28 @@ PRIVATE json_t *build_not_ready_response(hgobj gobj, json_t *kw)
         0,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  Which asset the caller is asking about.
+ *
+ *  The parameter is `asset_id` and NOT `id`, and that is not cosmetic:
+ *  `command-yuno` hands its WHOLE kw to gobj_list_nodes() as the filter that
+ *  picks the yuno, so a parameter named like a field of the yuno record
+ *  becomes a filter on that field. An `id` of a sha256 matches no yuno, and
+ *  the answer is *"Yuno not found"* -- which names the yuno and never the
+ *  parameter, so it reads as the service being missing.
+ *
+ *  `id` is still accepted, for a caller that reaches this service directly
+ *  and never crosses the agent.
+ ***************************************************************************/
+PRIVATE const char *asked_asset_id(hgobj gobj, json_t *kw)
+{
+    const char *id = kw_get_str(gobj, kw, "asset_id", "", 0);
+    if(empty_string(id)) {
+        id = kw_get_str(gobj, kw, "id", "", 0);
+    }
+    return id;
 }
 
 /***************************************************************************
@@ -1481,12 +1504,12 @@ PRIVATE json_t *cmd_get_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    const char *id = kw_get_str(gobj, kw, "id", "", 0);
+    const char *id = asked_asset_id(gobj, kw);
     if(empty_string(id)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: what id?", gobj_yuno_role_plus_name()),
+            json_sprintf("%s: what asset_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -1630,7 +1653,13 @@ PRIVATE json_t *cmd_list_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    BOOL orphan = kw_get_bool(gobj, kw, "orphan", 0, 0);
+    /*
+     *  KW_WILD_NUMBER on every boolean: `command-yuno` forwards a parameter
+     *  as the STRING it was typed as, and kw_get_bool() answers the default
+     *  for a string unless it is told to read one. Without it `orphan=1`
+     *  quietly listed EVERYTHING, which reads as "no orphans found".
+     */
+    BOOL orphan = kw_get_bool(gobj, kw, "orphan", 0, KW_WILD_NUMBER);
 
     /*
      *  'hook_size' instead of the hooks themselves: this list can be the
@@ -1696,18 +1725,18 @@ PRIVATE json_t *cmd_delete_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    const char *id = kw_get_str(gobj, kw, "id", "", 0);
+    const char *id = asked_asset_id(gobj, kw);
     if(empty_string(id)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: what id?", gobj_yuno_role_plus_name()),
+            json_sprintf("%s: what asset_id?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
         );
     }
-    BOOL force = kw_get_bool(gobj, kw, "force", 0, 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     json_t *node = gobj_get_node(
         priv->gobj_treedb,
@@ -1889,7 +1918,7 @@ PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, 0);
+    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
 
     json_t *stats = json_pack("{s:s, s:b, s:i, s:i, s:i, s:i, s:i}",
         "source_dir",   root,
@@ -1973,7 +2002,7 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, 0);
+    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
 
     json_t *iter = gobj_list_nodes(
         priv->gobj_treedb,

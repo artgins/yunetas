@@ -554,7 +554,7 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  3: with no web server configured, INLINE
      *-----------------------------------------------*/
-    resp = ask(gobj, "get-asset", json_pack("{s:s}", "id", ASSET_SHA256));
+    resp = ask(gobj, "get-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "get-asset failed");
     } else {
@@ -576,7 +576,7 @@ PRIVATE int run_tests(hgobj gobj)
     gobj_write_str_attr(priv->gobj_assets, "sign_secret", SIGN_SECRET);
 
     time_t before = time(NULL);
-    resp = ask(gobj, "get-asset", json_pack("{s:s}", "id", ASSET_SHA256));
+    resp = ask(gobj, "get-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
     time_t after = time(NULL);
     if(resp_result(resp) != 0) {
         result += fail(gobj, "get-asset (url) failed");
@@ -630,6 +630,18 @@ PRIVATE int run_tests(hgobj gobj)
     }
     JSON_DECREF(resp)
 
+    /*
+     *  The same flag as a STRING, which is how `command-yuno` forwards it:
+     *  it does not coerce, so a boolean read without KW_WILD_NUMBER answers
+     *  its default and the filter silently does nothing -- `orphan=1` then
+     *  lists EVERYTHING, which reads as "no orphans found".
+     */
+    resp = ask(gobj, "list-assets", json_pack("{s:s}", "orphan", "1"));
+    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 1) {
+        result += fail(gobj, "orphan=1 as a string did not filter");
+    }
+    JSON_DECREF(resp)
+
     /*-----------------------------------------------*
      *  6: linked -> not an orphan any more
      *-----------------------------------------------*/
@@ -666,7 +678,7 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  7: a linked asset cannot be deleted
      *-----------------------------------------------*/
-    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "id", ASSET_SHA256));
+    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
     if(resp_result(resp) == 0) {
         result += fail(gobj, "delete-asset removed an asset a node still links");
     }
@@ -698,7 +710,7 @@ PRIVATE int run_tests(hgobj gobj)
         result += fail(gobj, "cannot unlink the asset");
     }
 
-    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "id", ASSET_SHA256));
+    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "cannot delete an unlinked asset");
     }
@@ -756,7 +768,7 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  11: gc takes the orphans, and only those
      *-----------------------------------------------*/
-    resp = ask(gobj, "gc-assets", json_pack("{s:b}", "dry_run", 1));
+    resp = ask(gobj, "gc-assets", json_pack("{s:s}", "dry_run", "1"));
     if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
         result += fail(gobj, "gc-assets dry_run did not find both orphans");
     }
@@ -928,7 +940,33 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  14: the authz gate answers -403
+     *  14: 'id' still works for a DIRECT caller
+     *
+     *  The parameter is 'asset_id' because a bare
+     *  'id' crossing 'command-yuno' becomes a filter
+     *  on the YUNO record and answers "Yuno not
+     *  found". A caller that never crosses the agent
+     *  has no such problem, and its 'id' must keep
+     *  working.
+     *-----------------------------------------------*/
+    resp = ask(gobj, "put-asset",
+        json_pack("{s:s, s:s, s:s}",
+            "content64",     ASSET_B64,
+            "content_type",  "image/png",
+            "original_name", "byid.png"
+        )
+    );
+    JSON_DECREF(resp)
+    resp = ask(gobj, "get-asset", json_pack("{s:s}", "id", ASSET_SHA256));
+    if(resp_result(resp) != 0) {
+        result += fail(gobj, "a direct caller lost the bare 'id'");
+    }
+    JSON_DECREF(resp)
+    resp = ask(gobj, "gc-assets", json_object());
+    JSON_DECREF(resp)
+
+    /*-----------------------------------------------*
+     *  15: the authz gate answers -403
      *
      *  The test yuno installs a checker that denies
      *  exactly one principal, so this exercises the

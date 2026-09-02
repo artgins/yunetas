@@ -28,6 +28,30 @@ limit that silently governs RAM is the kind that is found the hard way.
 `image/svg+xml` stays out of the default, for the reason it always was: an
 svg served from the app's own origin runs script.
 
+### `C_ASSETS`: two defects a live run found and no unit test could
+
+Both were found driving the gclass through a real agent, and neither fails
+loudly — which is the point.
+
+**`get-asset id=` answered *"Yuno not found"*.** `command-yuno` hands its
+WHOLE kw to `gobj_list_nodes()` as the filter that picks the yuno, so a
+parameter named like a field of the yuno record becomes a filter on that
+field: an `id` of a sha256 matches no yuno. The error names the YUNO and
+never the parameter, so it reads as the service being missing. The
+parameter is **`asset_id`** now, with the bare `id` kept as a fallback for a
+caller that never crosses the agent. `CLAUDE.md` warns about exactly this
+and calls `id` "the best-known case"; the warning was there and the
+parameter was named `id` anyway.
+
+**`orphan=1` listed everything.** `command-yuno` does not coerce, so a
+boolean arrives as the STRING it was typed as, and `kw_get_bool()` answers
+the default for a string unless it is given `KW_WILD_NUMBER`. `orphan` was
+read without it, so the filter did nothing and `list-assets orphan=1`
+returned the whole store — which reads as *"nothing is an orphan"*, the
+opposite of the truth, and would have sent somebody hunting for a bug in the
+hooks. `orphan`, `force` and both `dry_run`s take `KW_WILD_NUMBER` now, and
+the test drives them as strings the way the agent does.
+
 ## 7.17.0
 
 ### `C_ASSETS`: the bytes a treedb node owns but cannot hold
