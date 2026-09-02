@@ -860,7 +860,54 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  13: import-assets cannot be walked out of its
+     *  13: a BUNDLE, which is what a batch sends
+     *
+     *  A batch line carries ONE file, so a census of
+     *  twelve thousand images is either twelve
+     *  thousand commands or a few dozen bundles.
+     *  One bad entry must not stop the rest: a load
+     *  of that size that aborted halfway would be
+     *  neither retryable nor comparable.
+     *-----------------------------------------------*/
+    {
+        json_t *bundle = json_array();
+        static const char *names[] = {"b1.png", "b2.png", "b3.png", 0};
+        for(int i = 0; names[i]; i++) {
+            char content[64];
+            snprintf(content, sizeof(content), "bundled-%d\n", i);
+            gbuffer_t *g = gbuffer_binary_to_base64(content, strlen(content));
+            json_array_append_new(bundle, json_pack("{s:s, s:s, s:s}",
+                "original_name", names[i],
+                "source_path",   names[i],
+                "content64",     (char *)gbuffer_cur_rd_pointer(g)
+            ));
+            GBUFFER_DECREF(g)
+        }
+        /*  A rotten entry in the middle, on purpose. */
+        json_array_insert_new(bundle, 1,
+            json_pack("{s:s, s:s}", "original_name", "bad.png", "content64", "!!not-base64!!")
+        );
+
+        resp = ask(gobj, "put-assets", json_pack("{s:o}", "assets", bundle));
+        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+        if(kw_get_int(gobj, data, "stored", 0, 0) != 3) {
+            result += fail(gobj, "a bundle did not store every good entry");
+        }
+        if(kw_get_int(gobj, data, "failed", 0, 0) != 1) {
+            result += fail(gobj, "a bundle did not report its bad entry");
+        }
+        JSON_DECREF(resp)
+    }
+    resp = ask(gobj, "list-assets", json_object());
+    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 3) {
+        result += fail(gobj, "the bundle did not leave exactly its good assets");
+    }
+    JSON_DECREF(resp)
+    resp = ask(gobj, "gc-assets", json_object());
+    JSON_DECREF(resp)
+
+    /*-----------------------------------------------*
+     *  14: import-assets cannot be walked out of its
      *      root
      *
      *  It reads an arbitrary path, so the confinement
@@ -940,7 +987,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  14: 'id' still works for a DIRECT caller
+     *  15: 'id' still works for a DIRECT caller
      *
      *  The parameter is 'asset_id' because a bare
      *  'id' crossing 'command-yuno' becomes a filter
@@ -966,7 +1013,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  15: the authz gate answers -403
+     *  16: the authz gate answers -403
      *
      *  The test yuno installs a checker that denies
      *  exactly one principal, so this exercises the

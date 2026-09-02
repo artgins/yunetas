@@ -28,6 +28,26 @@ limit that silently governs RAM is the kind that is found the hard way.
 `image/svg+xml` stays out of the default, for the reason it always was: an
 svg served from the app's own origin runs script.
 
+### `C_ASSETS`: `put-assets`, because a batch line carries ONE file
+
+`import-assets` reads a directory that is already on the node, which is
+right for a migration and wrong for a norm: the initial data of a yuno
+belongs in `yunos/batches/`, on the authoring side, and the deploy sends it
+from there. A batch line carries ONE file (`content64=$$(...)`), so a census
+of twelve thousand images is either twelve thousand commands or a few dozen
+bundles.
+
+`put-assets` takes a bundle: a JSON array of
+`{original_name, source_path, content_type, content64}` — the same form the
+rest of the batches use, so it needs no parser of its own and a person can
+read it. The bundle is TRANSPORT, not storage: the images stay files where
+they are authored, and the deploy packs them the same way `$$()` base64s
+them. Nobody commits base64.
+
+**One bad entry does not stop the bundle.** A load of that size that aborted
+halfway would be neither retryable nor comparable, so every failure is
+logged with its name and the answer reports `stored` and `failed`.
+
 ### `C_ASSETS`: two defects a live run found and no unit test could
 
 Both were found driving the gclass through a real agent, and neither fails

@@ -115,7 +115,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -126,6 +126,8 @@ static int register_yuno_and_more(void)
             "msg", "Assets service ready",
             "msg", "Playing yuno",
             "msg", "Cannot delete node: has down links",
+            "msg", "b64_decode() FAILED",
+            "msg", "bad base64 in bundled asset",
             "msg", "All c_assets tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

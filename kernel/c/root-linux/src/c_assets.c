@@ -126,6 +126,7 @@ PRIVATE BOOL import_cb(
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_put_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_put_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -150,6 +151,12 @@ SDATAPM (DTP_STRING,    "content64",    0,              0,          "Asset conte
 SDATAPM (DTP_STRING,    "content_type", 0,              0,          "Mime type. Empty: guessed from original_name"),
 SDATAPM (DTP_STRING,    "original_name",0,              0,          "Name the asset had where it came from"),
 SDATAPM (DTP_STRING,    "source_path",  0,              0,          "Path the asset came from, the bridge a loader links by"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_put_assets[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "A JSON array of assets in base64. Use content64=$$(bundle.json)"),
+SDATAPM (DTP_JSON,      "assets",       0,              0,          "...or the array itself, for a direct caller"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_get_asset[] = {
@@ -191,6 +198,7 @@ SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,      cmd_auth
 
 /*-CMD2---type----------name----------------flag------------ali-items-----------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "put-asset",        SDF_AUTHZ_X,    0,  pm_put_asset,   cmd_put_asset,      "Store one asset, return its id. Same bytes, same id: idempotent"),
+SDATACM2 (DTP_SCHEMA,   "put-assets",       SDF_AUTHZ_X,    0,  pm_put_assets,  cmd_put_assets,     "Store a BUNDLE of assets in one command: what a batch sends, one file per group"),
 SDATACM2 (DTP_SCHEMA,   "get-asset",        SDF_AUTHZ_X,    0,  pm_get_asset,   cmd_get_asset,      "Get one asset as a signed url, or inline when there is no web server in front"),
 SDATACM2 (DTP_SCHEMA,   "list-assets",      SDF_AUTHZ_X,    0,  pm_list_assets, cmd_list_assets,    "List the asset metadata. NEVER the bytes"),
 SDATACM2 (DTP_SCHEMA,   "delete-asset",     SDF_AUTHZ_X,    0,  pm_delete_asset,cmd_delete_asset,   "Delete one asset. Refused while a node links it"),
@@ -1469,6 +1477,163 @@ PRIVATE json_t *cmd_put_asset(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_sprintf("%s: asset stored", gobj_yuno_role_plus_name()),
         gobj_topic_desc(priv->gobj_treedb, priv->topic_name),
         node,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Store a BUNDLE of assets in one command.
+ *
+ *  This is the shape a BATCH sends, and it exists because that is the only
+ *  shape a batch can send: a batch line carries ONE file
+ *  (`content64=$$(...)`), so a census of twelve thousand images is either
+ *  twelve thousand commands or a few dozen bundles. The bundle is
+ *  TRANSPORT, not storage -- the images live as files where they are
+ *  authored, and the deploy packs them the same way `$$()` base64s them.
+ *
+ *  The bundle is a JSON array, the same form the rest of the batches use,
+ *  so it needs no parser of its own and can be read by a person:
+ *
+ *      [{"original_name": "...", "source_path": "...",
+ *        "content_type": "...", "content64": "..."}, ...]
+ *
+ *  `content_type` may be omitted and is then guessed from the name.
+ *
+ *  ONE BAD ENTRY DOES NOT STOP THE BUNDLE. A load of this size that
+ *  aborted halfway would be neither retryable nor comparable; the report
+ *  says how many went in, how many were already there, and how many
+ *  failed, and the failures are logged one by one with their name.
+ ***************************************************************************/
+PRIVATE json_t *cmd_put_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->ready) {
+        return build_not_ready_response(gobj, kw);
+    }
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
+    const char *permission = "write";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("%s: no permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Either the bundle in base64 (what a batch sends) or the array
+     *  itself (what a caller inside this yuno has to hand).
+     */
+    json_t *bundle = 0;
+    const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
+    if(!empty_string(content64)) {
+        gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
+        if(!gbuf) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: bad data in content64", gobj_yuno_role_plus_name()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        bundle = anystring2json(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), TRUE);
+        GBUFFER_DECREF(gbuf)
+    } else {
+        bundle = json_incref(kw_get_list(gobj, kw, "assets", 0, 0));
+    }
+    if(!json_is_array(bundle)) {
+        JSON_DECREF(bundle)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the bundle must be a JSON array of assets",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *uploaded_by = kw_get_str(gobj, kw, "__username__", "", 0);
+    int stored = 0, failed = 0;
+
+    size_t idx; json_t *entry;
+    json_array_foreach(bundle, idx, entry) {
+        const char *entry_c64 = kw_get_str(gobj, entry, "content64", "", 0);
+        const char *name = kw_get_str(gobj, entry, "original_name", "", 0);
+        if(empty_string(entry_c64)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "asset in bundle without content64",
+                "original_name","%s", name,
+                NULL
+            );
+            failed++;
+            continue;
+        }
+        gbuffer_t *gbuf = gbuffer_base64_to_binary(entry_c64, strlen(entry_c64));
+        if(!gbuf) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "bad base64 in bundled asset",
+                "original_name","%s", name,
+                NULL
+            );
+            failed++;
+            continue;
+        }
+        char comment[120];
+        comment[0] = 0;
+        json_t *node = store_asset(
+            gobj,
+            gbuf,   // owned
+            kw_get_str(gobj, entry, "content_type", "", 0),
+            name,
+            kw_get_str(gobj, entry, "source_path", "", 0),
+            uploaded_by,
+            src,
+            comment,
+            sizeof(comment)
+        );
+        if(!node) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "cannot store a bundled asset",
+                "original_name","%s", name,
+                "cause",        "%s", comment,
+                NULL
+            );
+            failed++;
+            continue;
+        }
+        JSON_DECREF(node)
+        stored++;
+    }
+    JSON_DECREF(bundle)
+
+    return msg_iev_build_response(
+        gobj,
+        failed? -1: 0,
+        json_sprintf("%s: %d assets stored, %d failed",
+            gobj_yuno_role_plus_name(), stored, failed
+        ),
+        0,
+        json_pack("{s:i, s:i}", "stored", stored, "failed", failed),
         kw  // owned
     );
 }
