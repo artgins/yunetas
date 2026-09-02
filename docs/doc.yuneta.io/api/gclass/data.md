@@ -210,7 +210,7 @@ gclass.
 
 | Command | Description |
 |---------|-------------|
-| `put-asset` | Store one asset from `content64`, return its id. Same bytes, same id: idempotent. |
+| `put-asset` | Store one asset from `content64`, return its id. Same bytes, same id: idempotent, and re-storing a path already known writes nothing at all. |
 | `put-assets` | Store a **bundle** in one command — see below. |
 | `get-asset` | Return a signed URL, or the bytes inline. See below. Takes `asset_id`, **not** `id` — see the note under Commands. |
 | `list-assets` | The asset metadata, never the bytes. `orphan=1` lists the ones no node links. |
@@ -296,8 +296,12 @@ with its name and the answer reports `stored` and `failed`.
 ### `import-assets` moves no bytes
 
 It walks a directory that is **already on the node** and turns it into N
-assets, recording each file's path relative to `import_root` as
-`source_path` — the field a loader links by. Pushing hundreds of megabytes
+assets, recording each file's path relative to `import_root` in
+`source_path` — the field a loader links by, and a **list**: an asset is
+its content, so N files with identical bytes are one asset, and every
+path that led to it is kept. Keeping only one would leave the other
+loaders naming a path no asset carries, and they would find nothing —
+silently, because "not imported yet" is a legal state. Pushing hundreds of megabytes
 through the control plane, one base64 message per file, is the thing this
 command exists to avoid.
 

@@ -1223,14 +1223,99 @@ PRIVATE json_t *store_asset(
     /*--------------------------------------------*
      *      One node, created or refreshed
      *--------------------------------------------*/
-    json_t *record = json_pack("{s:s, s:s, s:I, s:s, s:s, s:s}",
+    /*
+     *  `source_path` is a LIST, and that is the whole point.
+     *
+     *  An asset is its CONTENT, so N files with identical bytes are ONE
+     *  asset -- but each of those files came from its own path, and the
+     *  path is what a loader links by. Keeping one path meant keeping the
+     *  LAST one written and losing the rest: in the yunovatios census 148
+     *  measurement points share one photograph, so 147 of them named a path
+     *  no asset carried, were never looked up, and came out with no image
+     *  at all. The load reported success.
+     *
+     *  So every path that ever led to this content is kept, and a re-upload
+     *  of a path already known writes NOTHING: an append-only store must
+     *  not grow a row per re-run of an idempotent load.
+     */
+    json_t *existing = gobj_get_node(
+        priv->gobj_treedb,
+        priv->topic_name,
+        json_pack("{s:s}", "id", id),
+        0,
+        src
+    );
+
+    json_t *paths = json_array();
+    BOOL path_known = FALSE;
+    if(existing) {
+        json_t *old_paths = json_object_get(existing, "source_path");
+        if(json_is_array(old_paths)) {
+            size_t idx; json_t *v;
+            json_array_foreach(old_paths, idx, v) {
+                const char *s = json_string_value(v);
+                if(empty_string(s)) {
+                    continue;
+                }
+                json_array_append(paths, v);
+                if(!empty_string(source_path) && strcmp(s, source_path)==0) {
+                    path_known = TRUE;
+                }
+            }
+        } else if(json_is_string(old_paths) && !empty_string(json_string_value(old_paths))) {
+            /*  A store written before source_path was a list.  */
+            json_array_append(paths, old_paths);
+            if(!empty_string(source_path) &&
+                    strcmp(json_string_value(old_paths), source_path)==0) {
+                path_known = TRUE;
+            }
+        }
+    }
+    if(!empty_string(source_path) && !path_known) {
+        json_array_append_new(paths, json_string(source_path));
+    }
+
+    if(existing && (path_known || empty_string(source_path))) {
+        /*
+         *  Nothing new to say about it: the bytes are already there and so
+         *  is the path. Writing would only add a row.
+         */
+        JSON_DECREF(paths)
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "asset already stored, nothing written",
+                "id",           "%s", id,
+                NULL
+            );
+        }
+        return existing;
+    }
+
+    /*
+     *  `original_name` keeps the FIRST one: with N sources there are N
+     *  names, and churning it on every upload would rewrite the row for
+     *  nothing. The names are all recoverable from `source_path` anyway.
+     */
+    const char *keep_name = 0;
+    if(existing) {
+        keep_name = kw_get_str(gobj, existing, "original_name", "", 0);
+    }
+    if(empty_string(keep_name)) {
+        keep_name = empty_string(original_name)? "": original_name;
+    }
+
+    json_t *record = json_pack("{s:s, s:s, s:I, s:s, s:o, s:s}",
         "id",               id,
         "content_type",     content_type,
         "size",             (json_int_t)size,
-        "original_name",    empty_string(original_name)? "": original_name,
-        "source_path",      empty_string(source_path)? "": source_path,
+        "original_name",    keep_name,
+        "source_path",      paths,      // owned
         "uploaded_by",      empty_string(uploaded_by)? "": uploaded_by
     );
+    JSON_DECREF(existing)
+
     json_t *node = gobj_update_node(
         priv->gobj_treedb,
         priv->topic_name,

@@ -172,9 +172,9 @@ PRIVATE char schema_assets_test[] = "\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 'source_path': {                                    \n\
-                    'header': 'Source',                             \n\
+                    'header': 'Sources',                            \n\
                     'fillspace': 30,                                \n\
-                    'type': 'string',                               \n\
+                    'type': 'array',                                \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 'uploaded_by': {                                    \n\
@@ -745,11 +745,26 @@ PRIVATE int run_tests(hgobj gobj)
      *  The bridge a loader links by: the path the asset came from,
      *  relative to the import root.
      */
-    resp = ask(gobj, "list-assets",
-        json_pack("{s:{s:s}}", "filter", "source_path", "taller/fotos/alpha.png")
-    );
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 1) {
-        result += fail(gobj, "an imported asset does not carry its source_path");
+    /*
+     *  `source_path` is a LIST, so it is searched and not compared: a
+     *  filter on a scalar would never match one.
+     */
+    resp = ask(gobj, "list-assets", json_object());
+    {
+        BOOL found = FALSE;
+        size_t i; json_t *node;
+        json_array_foreach(kw_get_list(gobj, resp, "data", 0, 0), i, node) {
+            size_t j; json_t *sp;
+            json_array_foreach(json_object_get(node, "source_path"), j, sp) {
+                const char *v = json_string_value(sp);
+                if(v && strcmp(v, "taller/fotos/alpha.png")==0) {
+                    found = TRUE;
+                }
+            }
+        }
+        if(!found) {
+            result += fail(gobj, "an imported asset does not carry its source_path");
+        }
     }
     JSON_DECREF(resp)
 
@@ -860,7 +875,76 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  13: a BUNDLE, which is what a batch sends
+     *  13: the same bytes under SEVERAL paths
+     *
+     *  An asset is its CONTENT, so N files with
+     *  identical bytes are ONE asset -- and each
+     *  came from its own path.  Keeping only the
+     *  last one is what left 147 devices of a real
+     *  census with no photograph: they named a path
+     *  no asset carried, so they were never even
+     *  looked up, and the load reported success.
+     *-----------------------------------------------*/
+    {
+        static const char *paths[] = {"a/one.png", "b/two.png", "c/three.png", 0};
+        for(int i = 0; paths[i]; i++) {
+            resp = ask(gobj, "put-asset",
+                json_pack("{s:s, s:s, s:s, s:s}",
+                    "content64",     ASSET_B64,      /*  the same bytes, always  */
+                    "content_type",  "image/png",
+                    "original_name", "first.png",
+                    "source_path",   paths[i]
+                )
+            );
+            if(resp_result(resp) != 0) {
+                result += fail(gobj, "cannot store the same bytes under another path");
+            }
+            JSON_DECREF(resp)
+        }
+
+        resp = ask(gobj, "list-assets", json_object());
+        json_t *iter = kw_get_list(gobj, resp, "data", 0, 0);
+        if(json_array_size(iter) != 1) {
+            result += fail(gobj, "the same bytes under three paths made more than one asset");
+        } else {
+            json_t *sp = json_object_get(json_array_get(iter, 0), "source_path");
+            if(json_array_size(sp) != 3) {
+                result += fail(gobj, "an asset did not keep every path that led to it");
+            }
+        }
+        JSON_DECREF(resp)
+
+        /*
+         *  And a path already known writes NOTHING: an append-only store
+         *  must not grow a row per re-run of an idempotent load.
+         */
+        json_t *before = ask(gobj, "list-assets", json_object());
+        json_int_t t0 = kw_get_int(gobj,
+            json_array_get(kw_get_list(gobj, before, "data", 0, 0), 0), "t", 0, 0);
+        JSON_DECREF(before)
+        resp = ask(gobj, "put-asset",
+            json_pack("{s:s, s:s, s:s}",
+                "content64", ASSET_B64, "content_type", "image/png",
+                "source_path", "a/one.png"
+            )
+        );
+        JSON_DECREF(resp)
+        json_t *after = ask(gobj, "list-assets", json_object());
+        json_t *node = json_array_get(kw_get_list(gobj, after, "data", 0, 0), 0);
+        if(json_array_size(json_object_get(node, "source_path")) != 3) {
+            result += fail(gobj, "re-storing a known path changed the path list");
+        }
+        if(kw_get_int(gobj, node, "t", 0, 0) != t0) {
+            result += fail(gobj, "re-storing a known path wrote a new row");
+        }
+        JSON_DECREF(after)
+
+        resp = ask(gobj, "gc-assets", json_object());
+        JSON_DECREF(resp)
+    }
+
+    /*-----------------------------------------------*
+     *  14: a BUNDLE, which is what a batch sends
      *
      *  A batch line carries ONE file, so a census of
      *  twelve thousand images is either twelve
@@ -907,7 +991,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  14: import-assets cannot be walked out of its
+     *  15: import-assets cannot be walked out of its
      *      root
      *
      *  It reads an arbitrary path, so the confinement
@@ -978,16 +1062,19 @@ PRIVATE int run_tests(hgobj gobj)
     {
         size_t i; json_t *node;
         json_array_foreach(kw_get_list(gobj, resp, "data", 0, 0), i, node) {
-            const char *sp = kw_get_str(gobj, node, "source_path", "", 0);
-            if(sp[0] == '/') {
-                result += fail(gobj, "an asset carries an absolute source_path");
+            size_t j; json_t *sp;
+            json_array_foreach(json_object_get(node, "source_path"), j, sp) {
+                const char *v = json_string_value(sp);
+                if(v && v[0] == '/') {
+                    result += fail(gobj, "an asset carries an absolute source_path");
+                }
             }
         }
     }
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  15: 'id' still works for a DIRECT caller
+     *  16: 'id' still works for a DIRECT caller
      *
      *  The parameter is 'asset_id' because a bare
      *  'id' crossing 'command-yuno' becomes a filter
@@ -1013,7 +1100,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  16: the authz gate answers -403
+     *  17: the authz gate answers -403
      *
      *  The test yuno installs a checker that denies
      *  exactly one principal, so this exercises the

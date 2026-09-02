@@ -28,6 +28,29 @@ limit that silently governs RAM is the kind that is found the hard way.
 `image/svg+xml` stays out of the default, for the reason it always was: an
 svg served from the app's own origin runs script.
 
+### `C_ASSETS`: `source_path` is a LIST, and 147 photographs say why
+
+An asset is its **content**, so N files with identical bytes are ONE asset —
+and each of those files came from its own path, which is what a loader links
+by. `source_path` held one, so it held the **last one written** and lost the
+rest.
+
+It is not a corner case. In the yunovatios census **148 measurement points
+share one byte-identical photograph**: content-addressed that is a single
+asset, so 147 of them named a path no asset carried, were never even looked
+up, and came out with no image. **The load reported success**, and it was
+found counting rows afterwards.
+
+`source_path` is an array now and `store_asset` **accumulates** every path
+that ever led to that content. A store written before this still reads: a
+bare string is taken as a list of one.
+
+And a re-upload of a path already known now writes **nothing at all** —
+before, every re-run of an idempotent load appended a row per asset to an
+append-only store. Proven on the real case: the shared asset came back
+carrying **115 paths** with **115 devices** on its hook, where it used to
+carry one of each.
+
 ### `C_ASSETS`: `put-assets`, because a batch line carries ONE file
 
 `import-assets` reads a directory that is already on the node, which is

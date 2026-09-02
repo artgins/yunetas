@@ -85,7 +85,11 @@ extern "C"{
  *                                'flag':['persistent','time','now']},
  *              'original_name': {'header':'Name','fillspace':20,'type':'string',
  *                                'flag':['persistent']},
- *              'source_path':   {'header':'Source','fillspace':30,'type':'string',
+ *              # A LIST, and that is deliberate: an asset is its CONTENT, so
+ *              # N files with identical bytes are ONE asset -- and each came
+ *              # from its own path. Keeping one path loses the rest, and the
+ *              # path is what a loader links by.
+ *              'source_path':   {'header':'Sources','fillspace':30,'type':'array',
  *                                'flag':['persistent']},
  *              'uploaded_by':   {'header':'By','fillspace':20,'type':'string',
  *                                'flag':['persistent']},
