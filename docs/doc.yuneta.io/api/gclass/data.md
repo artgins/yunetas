@@ -184,8 +184,27 @@ topic is in
 | `public_url` | `string` | URL prefix a web server serves the blobs from. Empty: `get-asset` answers inline. |
 | `sign_secret` | `string` | Shared secret of the web server's `secure_link_md5`. Empty: `get-asset` answers inline. |
 | `url_ttl` | `integer` | Seconds a signed URL stays valid. Default `900`. |
-| `max_size` | `integer` | Largest asset accepted. Default 32 MB. |
-| `allowed_content_types` | `json` | Mime types accepted. `image/svg+xml` is **not** in the default on purpose: an SVG served from the app's own origin runs script. |
+| `max_size` | `integer` | Largest asset accepted. Default 128 MB. It is a **memory** limit as much as a policy one — see below. |
+| `allowed_content_types` | `json` | Mime types accepted. The default carries images, PDF, video and audio. `image/svg+xml` is **not** in it on purpose: an SVG served from the app's own origin runs script. |
+
+### What it accepts, and what that costs
+
+Images (`jpeg`, `png`, `webp`, `gif`), `application/pdf`, video (`mp4`,
+`webm`, `quicktime`, `ogg`, `x-matroska`) and audio (`mpeg`, `mp4`, `ogg`,
+`wav`, `webm`, `flac`).
+
+The pairs that share a container are split by **extension**, because the
+extension is the only thing a web server reads to pick a `Content-Type`:
+`.webm` is video and `.weba` audio, `.mp4` video and `.m4a` audio, `.ogv`
+video and `.ogg` audio.
+
+**There is no streaming path**: an asset is hashed and written whole, so
+`max_size` bounds RAM as much as policy. `put-asset` costs the worst — the
+base64 arrives inside the kw and is then decoded, so one call peaks at
+roughly 2.3x the file; `import-assets` only pays the file itself. Before
+raising `max_size` for big media, check the yuno's own `MEM_MAX_BLOCK`: a
+single base64 string above it is refused by the allocator, not by this
+gclass.
 
 ### Commands
 

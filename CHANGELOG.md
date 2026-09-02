@@ -1,5 +1,33 @@
 # **Changelog**
 
+## Unreleased
+
+### `C_ASSETS` takes video and audio too
+
+A node of a treedb owns more than photographs. `allowed_content_types` now
+carries video (`mp4`, `webm`, `quicktime`, `ogg`, `x-matroska`) and audio
+(`mpeg`, `mp4`, `ogg`, `wav`, `webm`, `flac`) alongside the images and the
+pdf, and both mime tables know them.
+
+The pairs that share a container are split by **extension**, deliberately:
+the extension is the only thing a web server reads to pick a
+`Content-Type`, so `.webm` is video and `.weba` audio, `.mp4` video and
+`.m4a` audio, `.ogv` video and `.ogg` audio. Getting that wrong does not
+fail — it serves a sound file labelled as a film.
+
+**`max_size` moves from 32M to 128M, and it is a memory limit as much as a
+policy one.** There is no streaming path: an asset is hashed and written
+whole. `put-asset` costs the worst, because the base64 arrives inside the kw
+and is then decoded — one call peaks at roughly 2.3x the file — while
+`import-assets` only pays the file itself. Raising it further for big media
+means checking the yuno's own `MEM_MAX_BLOCK` first: a single base64 string
+above that is refused by the allocator, not by this gclass. Said out loud in
+the attribute description, in `c_assets.h` and on the doc page, because a
+limit that silently governs RAM is the kind that is found the hard way.
+
+`image/svg+xml` stays out of the default, for the reason it always was: an
+svg served from the app's own origin runs script.
+
 ## 7.17.0
 
 ### `C_ASSETS`: the bytes a treedb node owns but cannot hold

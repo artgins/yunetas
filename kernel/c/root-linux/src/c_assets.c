@@ -214,8 +214,8 @@ SDATA (DTP_STRING,      "import_root",      SDF_RD,             "",             
 SDATA (DTP_STRING,      "public_url",       SDF_WR,             "",             "Url prefix a web server serves the blobs from, e.g. '/assets/'. Empty: 'get-asset' answers inline"),
 SDATA (DTP_STRING,      "sign_secret",      SDF_WR,             "",             "Shared secret of the web server's secure_link_md5. Empty: 'get-asset' answers inline"),
 SDATA (DTP_INTEGER,     "url_ttl",          SDF_WR,             "900",          "Seconds a signed url stays valid"),
-SDATA (DTP_INTEGER,     "max_size",         SDF_RD,             "33554432",     "Largest asset accepted, in bytes (32M)"),
-SDATA (DTP_JSON,        "allowed_content_types",SDF_RD,         "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\"]",
+SDATA (DTP_INTEGER,     "max_size",         SDF_RD,             "134217728",    "Largest asset accepted, in bytes (128M). It is a MEMORY limit as much as a policy one: an asset is hashed and written whole, so this much RAM is what one put-asset or one imported file can cost"),
+SDATA (DTP_JSON,        "allowed_content_types",SDF_RD,         "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\",\"video/mp4\",\"video/webm\",\"video/quicktime\",\"video/ogg\",\"video/x-matroska\",\"audio/mpeg\",\"audio/mp4\",\"audio/ogg\",\"audio/wav\",\"audio/webm\",\"audio/flac\"]",
                                                                                 "Mime types accepted. 'image/svg+xml' is NOT here on purpose: an svg served from the app's own origin runs script"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
@@ -733,6 +733,39 @@ PRIVATE const char *ext_of_content_type(const char *content_type)
     if(strcmp(content_type, "application/pdf")==0) {
         return "pdf";
     }
+    if(strcmp(content_type, "video/mp4")==0) {
+        return "mp4";
+    }
+    if(strcmp(content_type, "video/webm")==0) {
+        return "webm";
+    }
+    if(strcmp(content_type, "video/quicktime")==0) {
+        return "mov";
+    }
+    if(strcmp(content_type, "video/ogg")==0) {
+        return "ogv";
+    }
+    if(strcmp(content_type, "video/x-matroska")==0) {
+        return "mkv";
+    }
+    if(strcmp(content_type, "audio/mpeg")==0) {
+        return "mp3";
+    }
+    if(strcmp(content_type, "audio/mp4")==0) {
+        return "m4a";
+    }
+    if(strcmp(content_type, "audio/ogg")==0) {
+        return "ogg";
+    }
+    if(strcmp(content_type, "audio/wav")==0) {
+        return "wav";
+    }
+    if(strcmp(content_type, "audio/webm")==0) {
+        return "weba";
+    }
+    if(strcmp(content_type, "audio/flac")==0) {
+        return "flac";
+    }
     return "bin";
 }
 
@@ -763,6 +796,45 @@ PRIVATE const char *content_type_of_name(const char *name)
     }
     if(strcasecmp(dot, "pdf")==0) {
         return "application/pdf";
+    }
+    /*
+     *  Video and audio. The pairs that share a container are split by
+     *  EXTENSION on purpose, because the extension is the only thing a web
+     *  server reads to pick a Content-Type: '.webm' is video and '.weba'
+     *  audio, '.mp4' video and '.m4a' audio, '.ogv' video and '.ogg' audio.
+     */
+    if(strcasecmp(dot, "mp4")==0) {
+        return "video/mp4";
+    }
+    if(strcasecmp(dot, "webm")==0) {
+        return "video/webm";
+    }
+    if(strcasecmp(dot, "mov")==0) {
+        return "video/quicktime";
+    }
+    if(strcasecmp(dot, "ogv")==0) {
+        return "video/ogg";
+    }
+    if(strcasecmp(dot, "mkv")==0) {
+        return "video/x-matroska";
+    }
+    if(strcasecmp(dot, "mp3")==0) {
+        return "audio/mpeg";
+    }
+    if(strcasecmp(dot, "m4a")==0) {
+        return "audio/mp4";
+    }
+    if(strcasecmp(dot, "ogg")==0) {
+        return "audio/ogg";
+    }
+    if(strcasecmp(dot, "wav")==0) {
+        return "audio/wav";
+    }
+    if(strcasecmp(dot, "weba")==0) {
+        return "audio/webm";
+    }
+    if(strcasecmp(dot, "flac")==0) {
+        return "audio/flac";
     }
     return "";
 }

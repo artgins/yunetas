@@ -43,6 +43,21 @@ extern "C"{
  */
 
 /*
+ *  WHAT IT ACCEPTS, AND WHAT THAT COSTS.
+ *
+ *  Images, pdf, video and audio -- `allowed_content_types` says which, and
+ *  the default carries all four families. Two of them are deliberate
+ *  omissions: `image/svg+xml`, because an svg served from the app's own
+ *  origin runs script, and anything the host has no business serving.
+ *
+ *  An asset is hashed and written WHOLE: there is no streaming path, so
+ *  `max_size` (128M by default) is a MEMORY limit as much as a policy one.
+ *  A `put-asset` costs the worst: the base64 arrives inside the kw and is
+ *  then decoded, so one call peaks at roughly 2.3x the file. `import-assets`
+ *  only pays the file itself. Raise `max_size` for big media only after
+ *  checking the yuno's own `MEM_MAX_BLOCK` -- a single base64 string above
+ *  it is refused by the allocator, not by this gclass.
+ *
  *  THE TOPIC IS THE HOST'S, NOT THIS GCLASS'S.
  *
  *  C_ASSETS never creates it: the fkeys of an asset point at the host's

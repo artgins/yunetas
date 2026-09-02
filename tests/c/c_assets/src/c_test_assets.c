@@ -778,7 +778,77 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  12: import-assets cannot be walked out of its
+     *  12: video and audio are assets too
+     *
+     *  The extension is what a web server reads to
+     *  pick a Content-Type, so the containers that
+     *  hold both -- mp4/m4a, webm/weba, ogv/ogg --
+     *  have to come back apart.
+     *-----------------------------------------------*/
+    static const struct {
+        const char *name;
+        const char *content_type;
+        const char *ext;
+    } media[] = {
+        {"clip.mp4",  "video/mp4",       "mp4"},
+        {"clip.webm", "video/webm",      "webm"},
+        {"clip.mov",  "video/quicktime", "mov"},
+        {"voice.mp3", "audio/mpeg",      "mp3"},
+        {"voice.m4a", "audio/mp4",       "m4a"},
+        {"voice.weba","audio/webm",      "weba"},
+        {0, 0, 0}
+    };
+    for(int i = 0; media[i].name; i++) {
+        /*
+         *  Distinct bytes per file, so each one is its own asset: the id is
+         *  the content, and the same bytes twice would be one asset.
+         */
+        char content[64];
+        snprintf(content, sizeof(content), "media-%s\n", media[i].name);
+        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(content, strlen(content));
+        if(!gbuf_b64) {
+            result += fail(gobj, "cannot base64 the media fixture");
+            continue;
+        }
+        resp = ask(gobj, "put-asset",
+            json_pack("{s:s, s:s}",
+                "content64",     (char *)gbuffer_cur_rd_pointer(gbuf_b64),
+                "original_name", media[i].name
+            )
+        );
+        GBUFFER_DECREF(gbuf_b64)
+        if(resp_result(resp) != 0) {
+            result += fail(gobj, "put-asset refused a media file");
+            JSON_DECREF(resp)
+            continue;
+        }
+        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+        const char *ct = kw_get_str(gobj, data, "content_type", "", 0);
+        const char *id = kw_get_str(gobj, data, "id", "", 0);
+        if(strcmp(ct, media[i].content_type) != 0) {
+            result += fail(gobj, "a media file got the wrong content_type from its name");
+        }
+        char want[PATH_MAX];
+        snprintf(want, sizeof(want), "%c%c/%c%c/%s.%s",
+            id[0], id[1], id[2], id[3], id, media[i].ext
+        );
+        char blob_media[PATH_MAX];
+        build_path(blob_media, sizeof(blob_media), priv->path_store, want, NULL);
+        if(!is_regular_file(blob_media)) {
+            result += fail(gobj, "a media blob is not on disk under its own extension");
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
+     *  And they are gone again, so the counts the later checks assert on
+     *  are the ones those checks were written for.
+     */
+    resp = ask(gobj, "gc-assets", json_object());
+    JSON_DECREF(resp)
+
+    /*-----------------------------------------------*
+     *  13: import-assets cannot be walked out of its
      *      root
      *
      *  It reads an arbitrary path, so the confinement
@@ -858,7 +928,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  13: the authz gate answers -403
+     *  14: the authz gate answers -403
      *
      *  The test yuno installs a checker that denies
      *  exactly one principal, so this exercises the
