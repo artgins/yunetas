@@ -225,7 +225,7 @@ and gated by the `write` / `read` authz of the service.
 `get-asset` answers in one of two shapes:
 
 ```json
-{"mode": "url",    "url": "/assets/ab/cd/<id>.jpg?e=<expires>&s=<token>"}
+{"mode": "url",    "url": "/media/ab/cd/<id>.jpg?e=<expires>&s=<token>"}
 {"mode": "inline", "content_type": "image/jpeg", "content64": "..."}
 ```
 
@@ -234,10 +234,13 @@ and answers inline when they are not. So the caller has **one** code path,
 and a node with no web server in front of it still shows its images instead
 of showing nothing.
 
-The signed form reproduces, byte for byte, what this nginx block hashes:
+The signed form reproduces, byte for byte, what this nginx block hashes.
+**Do not use `/assets/`**: a Vite SPA on the same vhost already owns that
+prefix for its content-hashed bundles, and the two locations would fight
+over it.
 
 ```nginx
-location /assets/ {
+location /media/ {
     secure_link      $arg_s,$arg_e;
     secure_link_md5  "$secure_link_expires$uri <sign_secret>";
     if ($secure_link = "")  { return 403; }   # bad signature

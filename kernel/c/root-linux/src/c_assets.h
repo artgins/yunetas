@@ -105,9 +105,13 @@ extern "C"{
  *  link:  'foto': {'type':'string','flag':['fkey']}.
  *
  *  Serving the bytes through a web server (`public_url` + `sign_secret`)
- *  needs this, and nothing else, in front of the blob directory:
+ *  needs this, and nothing else, in front of the blob directory.
  *
- *      location /assets/ {
+ *  NOT `/assets/`: a Vite SPA on the same vhost already owns that
+ *  prefix for its content-hashed bundles, so the two locations would
+ *  fight over it. Pick a prefix the app does not use.
+ *
+ *      location /media/ {
  *          secure_link      $arg_s,$arg_e;
  *          secure_link_md5  "$secure_link_expires$uri <sign_secret>";
  *          if ($secure_link = "")  { return 403; }
