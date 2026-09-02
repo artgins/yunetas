@@ -211,7 +211,8 @@ gclass.
 | Command | Description |
 |---------|-------------|
 | `put-asset` | Store one asset from `content64`, return its id. Same bytes, same id: idempotent. |
-| `get-asset` | Return a signed URL, or the bytes inline. See below. |
+| `put-assets` | Store a **bundle** in one command — see below. |
+| `get-asset` | Return a signed URL, or the bytes inline. See below. Takes `asset_id`, **not** `id` — see the note under Commands. |
 | `list-assets` | The asset metadata, never the bytes. `orphan=1` lists the ones no node links. |
 | `delete-asset` | Delete one. Refused while a node links it, unless `force`. |
 | `import-assets` | Turn a directory already on this node into N assets. |
@@ -219,6 +220,13 @@ gclass.
 
 Writes are refused on a replica (the tranger is not the master of its store)
 and gated by the `write` / `read` authz of the service.
+
+**`get-asset` and `delete-asset` take `asset_id`, not `id`.** `command-yuno`
+hands its whole kw to `gobj_list_nodes()` as the filter that picks the yuno,
+so a parameter named like a field of the yuno record becomes a filter on that
+field: an `id` of a sha256 matches no yuno and the answer is *"Yuno not
+found"* — which names the yuno and never the parameter. The bare `id` still
+works for a caller that never crosses the agent.
 
 ### Two ways out to a browser, and the service picks
 
@@ -258,6 +266,32 @@ short lifetime is what limits a leaked URL.
 `secure_link` needs nginx built `--with-http_secure_link_module`. Yuneta's
 nginx and openresty are, but a node still running an older build must serve
 inline until its web server is replaced.
+
+### `put-assets`: a batch line carries ONE file
+
+The initial data of a yuno belongs where the deploy can find it, and a batch
+line carries **one** file (`content64=$$(...)`) — so a census of twelve
+thousand images is either twelve thousand commands or a few dozen bundles.
+
+`put-assets` takes a bundle: a JSON array of the same shape the rest of the
+batches use, so it needs no parser of its own and a person can read it.
+
+```json
+[{"original_name": "E22007445.jpg",
+  "source_path":   "censo_memorias/15-bm-el-ferrol-am/fotos/E22007445.jpg",
+  "content_type":  "image/jpeg",
+  "content64":     "..."}]
+```
+
+`content_type` may be omitted and is then guessed from the name.
+
+The bundle is **transport, not storage**: keep the assets as files where they
+are authored — inspectable, and delta-stored one by one — and pack them at
+send time, the same way `$$()` base64s a file. Nobody commits base64.
+
+**One bad entry does not stop the bundle.** A load of that size that aborted
+halfway would be neither retryable nor comparable, so every failure is logged
+with its name and the answer reports `stored` and `failed`.
 
 ### `import-assets` moves no bytes
 
