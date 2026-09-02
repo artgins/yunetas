@@ -166,7 +166,7 @@ point at the host's own topics, so only the host can write those hooks.
 pointed at cannot hold what it is about to write — a blob on disk whose row
 failed to be written is a file nothing can ever find again. The canonical
 topic is in
-[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.16.5/kernel/c/root-linux/src/c_assets.h).
+[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.17.0/kernel/c/root-linux/src/c_assets.h).
 
 | Property | Value |
 |----------|-------|

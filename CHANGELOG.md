@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.17.0
 
 ### `C_ASSETS`: the bytes a treedb node owns but cannot hold
 
