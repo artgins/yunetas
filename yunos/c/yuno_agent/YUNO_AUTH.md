@@ -429,11 +429,14 @@ pass. The authz check is a separate lookup. In production deployments
 **The seed cannot be deleted.** `Authz.initial_load` holds the seed `root`
 role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.16.5/yunos/c/yuno_agent/src/c_agent.c) `main.c`). `C_AUTHZ` hands the
 attr down to its treedb's `C_NODE` at `mt_create`, and `C_NODE` applies it on
-every master start: it creates any missing seed record, re-links a declared
-link that is gone, and marks the record **immutable** with
+every master start: it creates any missing seed record, writes a declared
+link that is missing, and marks the record **immutable** with
 `treedb_set_node_immutable()`. CRUD operations can therefore never remove the
 powers of the local trusted user. `delete-node` refuses an immutable record,
-and **`force` does not override it**. Deployed stores become protected on
+and **`force` does not override it**. The link `yuneta` → `roles^root^users`
+is protected too: `C_NODE` refuses to unlink a link a seed declares, to
+update the seed dropping it, or to delete the role it hangs from
+([`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10). Deployed stores become protected on
 their next restart, with no schema change and no wipe, because the mark is
 md2 metadata and not a column (see [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.10).
 Only the two seed **records** are frozen. The `roles` and `users` **topics**

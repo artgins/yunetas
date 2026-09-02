@@ -811,28 +811,57 @@ through `open-treedb`'s `initial_load` parameter, or set the attr directly
 when a gclass builds its own `C_NODE` (`C_AUTHZ` hands down its
 `Authz.initial_load` that way).
 
-What the loop does on **every** start:
+What the loop does on **every** start, in **two passes** — the way
+`treedb_open_db()` brings a store up from disk, records first and links
+second, so that both ends of a link exist before it is written and the order
+of the topics in `initial_load` does not matter (`users` could come before
+`org_nodes` above):
 
-- A record that is **missing** is created and autolinked from its own fkey
-  values.
-- A record that is **present** is never rewritten. Only its declared links
-  are checked, and a missing one is re-linked.
-- Either way the record is marked immutable.
+1. **Records.** A record that is **missing** is created, without its fkey
+   values. A record that is **present** is never rewritten. Either way it is
+   marked immutable.
+2. **Links.** Every link a seed declares and does not have is written —
+   all of them for a record just created, the missing one for a record that
+   lost it.
 
-The re-link is the half that is easy to miss. Deletion is not the only way to
-blind a seed: a scope is a **link**, and `treedb_unlink_nodes()` carries no
-immutable guard — so an untouchable record can still be left hanging off
-nothing. Re-linking on start is what makes that repair itself; immutability is
-the defence between restarts.
+It links, and it never re-writes, for a reason: an autolink over an existing
+node goes through `treedb_clean_node()` first, which drops every link the seed
+does **not** declare — including the ones a person added on purpose (§4.10
+and the partial-update trap in §3.6).
 
-It re-links, and it never re-writes, for a reason: an autolink over an
-existing node goes through `treedb_clean_node()` first, which drops every link
-the seed does **not** declare — including the ones a person added on purpose
-(§4.10 and the partial-update trap in §3.6).
+**A link a seed is declared with is as immutable as the seed.** The
+immutable mark is one md2 bit on the *record*, and `tr_treedb` does not know
+which links matter; the declaration does. So `C_NODE`, the owner of
+`initial_load`, refuses the three writes that can cut a declared link, and
+`force` overrides none of them:
+
+- `unlink-nodes` of it: *"initial_load: cannot unlink a seed link"*.
+- an `update-node` with `autolink` that does not repeat it (the partial-update
+  trap: what kw omits, `treedb_clean_node()` drops): *"initial_load: update
+  would drop a seed link"*. Repeat the declared refs in the update and it goes
+  through.
+- `delete-node` of the **parent** the seed hangs from — the one cut that never
+  passes through `unlink_nodes`, because with `force`
+  `treedb_delete_node()` unlinks every child itself: *"initial_load: cannot
+  delete the parent of a seed link"*.
+
+No new column flag was needed, and none would do: a flag on the column would
+freeze that column for every record of the topic, and the record's metadata
+holds one bit, not a list of refs. The declaration is the list. The links a
+person adds to a seed **afterwards** are ordinary: they can be cut, and a
+node no seed hangs from can be deleted.
+
+A node a seed hangs from should be a seed too. A parent that is not declared
+is created by something else (a batch, a person), so on a fresh store the
+first pass finds it missing and the second logs *"initial_load: parent of a
+seed link not found"* until whatever creates it has run — the link is then
+written on the next start. Declare the parent and the seed comes up whole on
+the first start.
 
 Do not put anything in `initial_load` that a person is meant to edit or remove
-later: everything it names becomes undeletable. It is for what the system
-cannot start without.
+later: everything it names becomes undeletable, and so do the links it names.
+It is for what the system cannot start without. Regression coverage:
+[`tests/c/c_node_initial_load`](https://github.com/artgins/yunetas/tree/7.16.5/tests/c/c_node_initial_load).
 
 ### 3.11 The `__system__` treedb: a schema stored as data
 
