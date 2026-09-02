@@ -1089,10 +1089,22 @@ PRIVATE json_t *asset_hook_names(hgobj gobj)
  ***************************************************************************/
 PRIVATE BOOL node_is_linked(json_t *node, json_t *hook_names)
 {
+    /*
+     *  NO HOOKS TO LOOK AT MEANS "CANNOT TELL", AND CANNOT TELL MEANS
+     *  LINKED.  This answer decides what gc-assets DELETES, so the failure
+     *  has to fall on the side of keeping: with an empty list this used to
+     *  answer FALSE for every asset in the store, which made `gc-assets`
+     *  delete all of them -- rows and blobs -- and report success.
+     */
+    if(!json_array_size(hook_names)) {
+        return TRUE;
+    }
+
     size_t idx; json_t *jn_name;
     json_array_foreach(hook_names, idx, jn_name) {
         json_t *v = json_object_get(node, json_string_value(jn_name));
         if(!v) {
+            /*  The node does not carry this hook: cannot tell from it.  */
             continue;
         }
         /*
@@ -2281,6 +2293,34 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
 
+    /*
+     *  The hooks FIRST, and refuse if they cannot be read: without them
+     *  nothing can be shown to be an orphan, and a garbage collector that
+     *  cannot tell must not guess.
+     */
+    json_t *hook_names = asset_hook_names(gobj);
+    if(!json_array_size(hook_names)) {
+        JSON_DECREF(hook_names)
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "gc-assets REFUSED: cannot read the hooks of the asset topic",
+            "topic_name",   "%s", priv->topic_name,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: refused, cannot read the hooks of topic '%s' -- "
+                "without them nothing can be shown to be an orphan",
+                gobj_yuno_role_plus_name(), priv->topic_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     json_t *iter = gobj_list_nodes(
         priv->gobj_treedb,
         priv->topic_name,
@@ -2288,7 +2328,6 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_pack("{s:b}", "hook_size", 1),
         src
     );
-    json_t *hook_names = asset_hook_names(gobj);
     json_t *deleted = json_array();
     int failed = 0;
 
@@ -2299,6 +2338,14 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         }
         const char *id = kw_get_str(gobj, node, "id", "", 0);
         if(empty_string(id)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Asset node WITHOUT id, skipped",
+                "topic_name",   "%s", priv->topic_name,
+                NULL
+            );
+            failed++;
             continue;
         }
         if(dry_run) {

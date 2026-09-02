@@ -28,6 +28,35 @@ limit that silently governs RAM is the kind that is found the hard way.
 `image/svg+xml` stays out of the default, for the reason it always was: an
 svg served from the app's own origin runs script.
 
+### `C_ASSETS`: an audit for silent errors, and `gc-assets` could empty the store
+
+Asked to sweep my own code for failure paths that write nothing to the log.
+Eight, and two of them mattered.
+
+🔴 **`gc-assets` deleted everything it could not judge.** `node_is_linked()`
+answered FALSE for a node it had no hooks to look at — and
+`asset_hook_names()` answers an empty list whenever the topic descriptor
+cannot be read. So a treedb that would not answer meant every asset looked
+like an orphan, and the garbage collector removed the whole store, rows and
+blobs, reporting success. The comment right above that function already said
+*"not being able to prove an asset is an orphan is a reason to keep it"* — the
+empty-list case walked straight past it. **Cannot tell now means linked**, and
+`gc-assets` **refuses outright** when it cannot read the hooks, because a
+collector that cannot tell must not guess.
+
+An asset node with no `id` was skipped silently by both `gc-assets` and the
+census index — one leaves an unreachable blob behind, the other makes every
+image that node holds unreachable. Both say so now.
+
+Three refusals of `store_asset` — empty, over `max_size`, `content_type` not
+allowed — put the reason in the answer and nothing in the log. The answer
+reaches whoever called; the log is what somebody reads when twelve thousand
+images went by and a few did not arrive.
+
+And `yui_asset_element()`'s `onerror` drew the marker and told nobody. It
+reports through `log_error` now: a failure only a user can see is a failure
+nobody measures.
+
 ### `C_ASSETS`: `source_path` is a LIST, and 147 photographs say why
 
 An asset is its **content**, so N files with identical bytes are ONE asset —
