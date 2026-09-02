@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### `C_AUTHZ` says WHICH authz db it did not find
+
+*"No authz db, authz only to local access"* carried the path it looked for as
+`"path", "%d", path` — a `const char *` formatted as an int, so the one field
+that names the missing directory printed the pointer (`"path": 676502376`).
+It is the field the message exists for: a follower (`master=false`) that
+loses the start-up race against the master that creates the store, and a
+deployment that genuinely has no authz db, produce the identical line. The
+format is `%s` now, and the line also carries `master`, which is what tells
+the two apart.
+
+Found on a from-scratch yunovatios install: `db_tracks_ce` and `db_tracks_co`
+checked 24 ms and 22 ms before their store existed, came up with authz
+disabled for the life of the process, and answered `list-users` with nothing
+while the master listed three accounts.
+
 ### `initial_load`: a link a seed declares is as immutable as the seed
 
 The immutable mark of 7.16.4 protected the *record*: `delete-node` refused a
