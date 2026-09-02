@@ -1750,6 +1750,27 @@ PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  This command READS AN ARBITRARY PATH,
      *  so it is confined to a configured root
      *  and refused outright when there is none.
+     *
+     *  Two things do the confining, and only one
+     *  of them is visible here:
+     *
+     *  - the '..' guard below, which refuses
+     *    instead of silently resolving somewhere
+     *    else, so the caller learns what happened;
+     *  - build_path(), which strips the leading '/'
+     *    of every segment after the first and
+     *    clamps '..' against it. That is what makes
+     *    an ABSOLUTE source_dir land INSIDE the
+     *    root ('/etc' -> '<import_root>/etc')
+     *    rather than at '/etc'.
+     *
+     *  So do not "simplify" either one away on the
+     *  grounds that the other covers it. And note
+     *  walk_dir_tree() lstat()s: a symlink is
+     *  neither a regular file nor a directory, so
+     *  the walk cannot be led out by one either.
+     *  tests/c/c_assets checks all three with
+     *  hostile input.
      *----------------------------------------*/
     if(empty_string(priv->import_root)) {
         return msg_iev_build_response(

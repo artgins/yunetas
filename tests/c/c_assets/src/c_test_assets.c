@@ -778,7 +778,87 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  12: the authz gate answers -403
+     *  12: import-assets cannot be walked out of its
+     *      root
+     *
+     *  It reads an arbitrary path, so the confinement
+     *  is checked with hostile input and not by
+     *  reading the code: a '..', an ABSOLUTE path,
+     *  and a symlink pointing outside.
+     *-----------------------------------------------*/
+    result += write_fixture(gobj, "outside-bait.png", "should-never-be-imported\n");
+
+    char bait[PATH_MAX];
+    build_path(bait, sizeof(bait), priv->path_root, "escaped-bait.png", NULL);
+    FILE *fbait = fopen(bait, "w");
+    if(fbait) {
+        fwrite("outside\n", 1, 8, fbait);
+        fclose(fbait);
+    }
+    char link_path[PATH_MAX];
+    build_path(link_path, sizeof(link_path), priv->path_import, "escape.png", NULL);
+    unlink(link_path);
+    if(symlink(bait, link_path) != 0) {
+        result += fail(gobj, "cannot create the symlink bait");
+    }
+
+    static const char *escapes[] = {
+        "../../../../etc",
+        "..",
+        "/etc",
+        "taller/../../..",
+        0
+    };
+    for(int i = 0; escapes[i]; i++) {
+        resp = ask(gobj, "import-assets", json_pack("{s:s}", "source_dir", escapes[i]));
+        if(resp_result(resp) == 0) {
+            /*
+             *  Refusing is the common answer here; when it does NOT refuse,
+             *  what it walked has to be inside the root.
+             */
+            json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+            const char *walked = data? kw_get_str(gobj, data, "source_dir", "", 0): "";
+            if(strncmp(walked, priv->path_import, strlen(priv->path_import)) != 0) {
+                result += fail(gobj, "import-assets walked out of its import_root");
+            }
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
+     *  The symlink must not be followed: walk_dir_tree() lstat()s, so a
+     *  link is neither a regular file nor a directory, and the callback
+     *  only ever sees regular files.
+     */
+    resp = ask(gobj, "import-assets", json_object());
+    JSON_DECREF(resp)
+    resp = ask(gobj, "list-assets",
+        json_pack("{s:{s:s}}", "filter", "original_name", "escape.png")
+    );
+    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 0) {
+        result += fail(gobj, "import-assets followed a symlink out of its root");
+    }
+    JSON_DECREF(resp)
+
+    /*
+     *  And nothing it did import may carry an ABSOLUTE source_path: that
+     *  string reaches a browser, and a leading '/' there would mean the
+     *  walk left the root and is leaking the node's filesystem layout.
+     */
+    resp = ask(gobj, "list-assets", json_object());
+    {
+        size_t i; json_t *node;
+        json_array_foreach(kw_get_list(gobj, resp, "data", 0, 0), i, node) {
+            const char *sp = kw_get_str(gobj, node, "source_path", "", 0);
+            if(sp[0] == '/') {
+                result += fail(gobj, "an asset carries an absolute source_path");
+            }
+        }
+    }
+    JSON_DECREF(resp)
+
+    /*-----------------------------------------------*
+     *  13: the authz gate answers -403
      *
      *  The test yuno installs a checker that denies
      *  exactly one principal, so this exercises the

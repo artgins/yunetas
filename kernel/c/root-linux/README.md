@@ -10,7 +10,7 @@ Runtime GClasses for **Linux**. This layer sits on top of `gobj-c` + `yev_loop` 
 | Timers | `C_TIMER`, `C_TIMER0` |
 | Protocols | `C_PROT_HTTP_SRV`, `C_PROT_HTTPS_CLI`, `C_PROT_TCP4H`, `C_IEVENT_CLI/SRV`, `C_AUTH_*`, `C_AUTHZ`, `C_AUTHS`, `C_CHANNEL`, … |
 | Filesystem | `C_FS` (inotify via `fs_watcher`) |
-| Databases | `C_TREEDB`, `C_NODE`, `C_RESOURCE`, `C_COUNTER`, `C_QIOGATE`, `C_QCONNEX`, … |
+| Databases | `C_TREEDB`, `C_NODE`, `C_ASSETS`, `C_RESOURCE`, `C_COUNTER`, `C_QIOGATE`, `C_QCONNEX`, … |
 | Yuno internals | `C_YUNO`, `C_CLI`, `C_TASK`, `C_TASK_AUTHENTICATE`, entry point |
 
 ## Headers to look at

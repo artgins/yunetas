@@ -57,6 +57,18 @@ base64 message per file, is the thing it exists to avoid. It reads an
 arbitrary path, so it is confined to a configured `import_root` and refused
 outright when there is none.
 
+**Three separate things do the confining**, and a security review of the
+pushed commit was right to look even though it holds: only ONE of them is
+visible at the call site. The explicit `..` guard refuses rather than
+silently resolving somewhere else; `build_path()` strips the leading `/` of
+every segment after the first and clamps `..` against it, so an ABSOLUTE
+`source_dir` lands INSIDE the root (`/etc` → `<import_root>/etc`), not at
+`/etc`; and `walk_dir_tree()` `lstat()`s, so a symlink is neither a regular
+file nor a directory and cannot lead the walk out. The test drives all three
+with hostile input rather than asserting it from reading the code, and the
+comment at the call site names the other two so neither gets "simplified"
+away on the grounds that the other covers it.
+
 The topic belongs to the HOST, not to this gclass: an asset's fkeys point
 at the host's own topics, so only the host can write those hooks.
 `C_ASSETS` never creates it and refuses to work when the topic it was

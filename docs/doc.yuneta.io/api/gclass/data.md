@@ -133,3 +133,127 @@ Simple resource persistence — stores each resource as a flat JSON file.
 | `persistent` | `bool` | Persist to disk. |
 | `service` | `string` | Service name. |
 | `database` | `string` | Database name. |
+
+---
+
+(gclass-c-assets)=
+## C_ASSETS
+
+The bytes a treedb node owns but cannot hold — a photo, a plan, a signed
+pdf. The bytes go in a directory this service owns, next to the treedb of
+the same realm; one node per asset goes in the treedb; and these commands
+are the only way in.
+
+They cannot go *in* the treedb: it is held in memory, and timeranger2
+rewrites the whole record on every update, so a 40 KB photo would be
+rewritten every time its node changed state and would ride along in every
+page of `nodes`. (The `blob` column type is not binary — it is free-form
+JSON.)
+
+The asset id is the **sha256 of its content**. The same bytes stored twice
+are one asset, a bulk reload creates nothing, a served URL can be cached for
+ever, and replacing an asset is a new id plus a relinked node — which is
+what makes the node's own history say which file it carried, and when.
+
+The consumer's column stops being a path and becomes an **fkey** into the
+asset topic, so an asset is linked, listed, graphed, scope-checked and
+cascade-deleted like any other node, and an asset no node links any more is
+visibly garbage.
+
+**The topic belongs to the host, not to this gclass.** An asset's fkeys
+point at the host's own topics, so only the host can write those hooks.
+`C_ASSETS` never creates the topic and refuses to work when the one it was
+pointed at cannot hold what it is about to write — a blob on disk whose row
+failed to be written is a file nothing can ever find again. The canonical
+topic is in
+[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.16.5/kernel/c/root-linux/src/c_assets.h).
+
+| Property | Value |
+|----------|-------|
+| **States** | `ST_STOPPED`, `ST_IDLE` |
+
+### Key attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `treedb` | `pointer` | The `C_NODE` that owns the treedb. Set by the host; takes precedence over `treedb_service`. |
+| `treedb_service` | `string` | Its service name, when the host did not build it itself. |
+| `topic_name` | `string` | Topic holding the asset metadata. Default `assets`. |
+| `store_path` | `string` | Absolute blob directory. Empty: built under the realm store from `store_service` / `store_tenant` / `store_dir`. |
+| `import_root` | `string` | Root that `import-assets` is confined to. Empty: `import-assets` is refused. |
+| `public_url` | `string` | URL prefix a web server serves the blobs from. Empty: `get-asset` answers inline. |
+| `sign_secret` | `string` | Shared secret of the web server's `secure_link_md5`. Empty: `get-asset` answers inline. |
+| `url_ttl` | `integer` | Seconds a signed URL stays valid. Default `900`. |
+| `max_size` | `integer` | Largest asset accepted. Default 32 MB. |
+| `allowed_content_types` | `json` | Mime types accepted. `image/svg+xml` is **not** in the default on purpose: an SVG served from the app's own origin runs script. |
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `put-asset` | Store one asset from `content64`, return its id. Same bytes, same id: idempotent. |
+| `get-asset` | Return a signed URL, or the bytes inline. See below. |
+| `list-assets` | The asset metadata, never the bytes. `orphan=1` lists the ones no node links. |
+| `delete-asset` | Delete one. Refused while a node links it, unless `force`. |
+| `import-assets` | Turn a directory already on this node into N assets. |
+| `gc-assets` | Delete the assets no node links any more. Never automatic. |
+
+Writes are refused on a replica (the tranger is not the master of its store)
+and gated by the `write` / `read` authz of the service.
+
+### Two ways out to a browser, and the service picks
+
+`get-asset` answers in one of two shapes:
+
+```json
+{"mode": "url",    "url": "/assets/ab/cd/<id>.jpg?e=<expires>&s=<token>"}
+{"mode": "inline", "content_type": "image/jpeg", "content64": "..."}
+```
+
+It signs a URL when `public_url` **and** `sign_secret` are both configured,
+and answers inline when they are not. So the caller has **one** code path,
+and a node with no web server in front of it still shows its images instead
+of showing nothing.
+
+The signed form reproduces, byte for byte, what this nginx block hashes:
+
+```nginx
+location /assets/ {
+    secure_link      $arg_s,$arg_e;
+    secure_link_md5  "$secure_link_expires$uri <sign_secret>";
+    if ($secure_link = "")  { return 403; }   # bad signature
+    if ($secure_link = "0") { return 410; }   # expired
+    alias <store_path>/;
+    expires max;    # the name IS the hash: it can never go stale
+    access_log off;
+}
+```
+
+The client address is deliberately **not** in the signature: it would tie the
+URL to one IP and break every phone that changes network mid-session. The
+short lifetime is what limits a leaked URL.
+
+`secure_link` needs nginx built `--with-http_secure_link_module`. Yuneta's
+nginx and openresty are, but a node still running an older build must serve
+inline until its web server is replaced.
+
+### `import-assets` moves no bytes
+
+It walks a directory that is **already on the node** and turns it into N
+assets, recording each file's path relative to `import_root` as
+`source_path` — the field a loader links by. Pushing hundreds of megabytes
+through the control plane, one base64 message per file, is the thing this
+command exists to avoid.
+
+It reads an arbitrary path, so it is confined, and three separate things do
+the confining:
+
+- an explicit `..` guard, which refuses rather than silently resolving
+  somewhere else;
+- `build_path()`, which strips the leading `/` of every segment after the
+  first and clamps `..` against it — so an **absolute** `source_dir` lands
+  *inside* the root (`/etc` → `<import_root>/etc`), not at `/etc`;
+- `walk_dir_tree()`, which `lstat()`s, so a symlink is neither a regular
+  file nor a directory and cannot lead the walk out.
+
+`tests/c/c_assets` checks all three with hostile input.
