@@ -166,7 +166,7 @@ point at the host's own topics, so only the host can write those hooks.
 pointed at cannot hold what it is about to write — a blob on disk whose row
 failed to be written is a file nothing can ever find again. The canonical
 topic is in
-[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.17.1/kernel/c/root-linux/src/c_assets.h).
+[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/root-linux/src/c_assets.h).
 
 | Property | Value |
 |----------|-------|
@@ -227,6 +227,22 @@ so a parameter named like a field of the yuno record becomes a filter on that
 field: an `id` of a sha256 matches no yuno and the answer is *"Yuno not
 found"* — which names the yuno and never the parameter. The bare `id` still
 works for a caller that never crosses the agent.
+
+### `gc-assets` refuses rather than guesses
+
+A collector decides what to delete, so what it does when it **cannot decide**
+is the whole of its safety. `gc-assets` treats *"cannot tell"* as **linked**:
+
+- If the hooks of the `assets` topic cannot be read, it **refuses the whole
+  run** and logs why. It does not fall back to "nothing is linked" — that
+  reading would delete the entire store, rows and blobs, and report success.
+- An asset node with no `id` is counted and reported, never skipped in
+  silence: its blob would stay behind, unreachable and uncollectable.
+- An asset whose hooks are all empty is an orphan **only** when the hooks
+  themselves were read successfully.
+
+`orphan=1` on `list-assets` answers the same question without deleting
+anything, and is the way to see what a run would take before running it.
 
 ### Two ways out to a browser, and the service picks
 

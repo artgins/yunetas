@@ -1,32 +1,6 @@
 # **Changelog**
 
-## 7.17.1
-
-### `C_ASSETS` takes video and audio too
-
-A node of a treedb owns more than photographs. `allowed_content_types` now
-carries video (`mp4`, `webm`, `quicktime`, `ogg`, `x-matroska`) and audio
-(`mpeg`, `mp4`, `ogg`, `wav`, `webm`, `flac`) alongside the images and the
-pdf, and both mime tables know them.
-
-The pairs that share a container are split by **extension**, deliberately:
-the extension is the only thing a web server reads to pick a
-`Content-Type`, so `.webm` is video and `.weba` audio, `.mp4` video and
-`.m4a` audio, `.ogv` video and `.ogg` audio. Getting that wrong does not
-fail — it serves a sound file labelled as a film.
-
-**`max_size` moves from 32M to 128M, and it is a memory limit as much as a
-policy one.** There is no streaming path: an asset is hashed and written
-whole. `put-asset` costs the worst, because the base64 arrives inside the kw
-and is then decoded — one call peaks at roughly 2.3x the file — while
-`import-assets` only pays the file itself. Raising it further for big media
-means checking the yuno's own `MEM_MAX_BLOCK` first: a single base64 string
-above that is refused by the allocator, not by this gclass. Said out loud in
-the attribute description, in `c_assets.h` and on the doc page, because a
-limit that silently governs RAM is the kind that is found the hard way.
-
-`image/svg+xml` stays out of the default, for the reason it always was: an
-svg served from the app's own origin runs script.
+## 7.17.2
 
 ### `C_ASSETS`: an audit for silent errors, and `gc-assets` could empty the store
 
@@ -79,6 +53,51 @@ before, every re-run of an idempotent load appended a row per asset to an
 append-only store. Proven on the real case: the shared asset came back
 carrying **115 paths** with **115 devices** on its hook, where it used to
 carry one of each.
+
+### The reason this release exists at all
+
+Both fixes above were in `main` and reachable by nobody. A node that carries
+a runtime-only SDK — `outputs/`, `outputs_ext/`, `tools/`, no `kernel/` and no
+`.git` — cannot rebuild the framework, so a fix reaches it as a **package** or
+it does not reach it. The census on the central node stored its twelve
+thousand assets and linked **none** of them, because its `store_asset` was the
+one that writes `source_path` as a string.
+
+Three releases in a row have been cut for this reason. It is worth saying
+plainly: **for those nodes a commit is not a fix; a tag is.**
+
+`kernel/js/gobj-ui` moves to **7.23.48**, which carries `yui_asset.js` — the
+browser half of `C_ASSETS`: it resolves a treedb reference to an asset id
+through all three shapes a schema can hand it (bare id, `topic^id^hook`, and
+a list of either), asks the service for the mode it prefers, and draws a
+marker when an image does not arrive **and logs it**.
+## 7.17.1
+
+### `C_ASSETS` takes video and audio too
+
+A node of a treedb owns more than photographs. `allowed_content_types` now
+carries video (`mp4`, `webm`, `quicktime`, `ogg`, `x-matroska`) and audio
+(`mpeg`, `mp4`, `ogg`, `wav`, `webm`, `flac`) alongside the images and the
+pdf, and both mime tables know them.
+
+The pairs that share a container are split by **extension**, deliberately:
+the extension is the only thing a web server reads to pick a
+`Content-Type`, so `.webm` is video and `.weba` audio, `.mp4` video and
+`.m4a` audio, `.ogv` video and `.ogg` audio. Getting that wrong does not
+fail — it serves a sound file labelled as a film.
+
+**`max_size` moves from 32M to 128M, and it is a memory limit as much as a
+policy one.** There is no streaming path: an asset is hashed and written
+whole. `put-asset` costs the worst, because the base64 arrives inside the kw
+and is then decoded — one call peaks at roughly 2.3x the file — while
+`import-assets` only pays the file itself. Raising it further for big media
+means checking the yuno's own `MEM_MAX_BLOCK` first: a single base64 string
+above that is refused by the allocator, not by this gclass. Said out loud in
+the attribute description, in `c_assets.h` and on the doc page, because a
+limit that silently governs RAM is the kind that is found the hard way.
+
+`image/svg+xml` stays out of the default, for the reason it always was: an
+svg served from the app's own origin runs script.
 
 ### `C_ASSETS`: `put-assets`, because a batch line carries ONE file
 
