@@ -700,7 +700,7 @@ Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-['If the GObj is already playing, a warning is logged.', 'If the GObj is disabled, it cannot be played.', 'If the GObj is not running, it will be started unless `gcflag_required_start_to_play` is set.', "If the GObj's  281  method is defined, it will be invoked."]
+['If the GObj is already playing, a warning is logged.', 'If the GObj is disabled, it cannot be played.', 'If the GObj is not running, it will be started unless `gcflag_required_start_to_play` is set.', "If the GObj's `mt_play` method is defined, it will be invoked."]
 
 ---
 

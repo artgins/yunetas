@@ -10,7 +10,8 @@
  *          - every seed record is immutable;
  *          - the links a seed is declared with cannot be cut: not by
  *            unlink-nodes, not by an autolink update that omits them, not
- *            by deleting the parent with force;
+ *            by deleting the parent with force, and not by a link-nodes
+ *            into a single-valued fkey, which replaces instead of adding;
  *          - the links a person adds to a seed afterwards CAN be cut, and a
  *            record no seed hangs from can be deleted;
  *          - a second start creates nothing and writes no link.
@@ -27,6 +28,7 @@
  ***************************************************************************/
 #define TREEDB_NAME     "treedb_seed_test"
 #define SEED_REF        "departments^hq^users"
+#define SEED_REF_MACHINE "departments^hq^machines"
 
 /***************************************************************************
  *              Structures
@@ -95,7 +97,12 @@ typedef struct _PRIVATE_DATA {
 } PRIVATE_DATA;
 
 /***************************************************************************
- *  Schema: departments + users, the users hook being hook+fkey
+ *  Schema: departments + users + machines.
+ *
+ *  `users.departments` is a LIST fkey, the shape a link ADDS to;
+ *  `machines.department` is a STRING fkey, the shape a link REPLACES.
+ *  Only the second one can lose a seed link to link-nodes, which is why
+ *  the test carries both.
  ***************************************************************************/
 PRIVATE char schema_seed_test[] = "\
 {                                                                   \n\
@@ -150,6 +157,40 @@ PRIVATE char schema_seed_test[] = "\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\
+                },                                                  \n\
+                'machines': {                                       \n\
+                    'header': 'Machines',                           \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'machines': 'department'                    \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'machines',                               \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'name': {                                           \n\
+                    'header': 'Name',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'department': {                                     \n\
+                    'header': 'Department',                         \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
@@ -172,6 +213,13 @@ PRIVATE char initial_load[] = "\
     ],                                                              \n\
     'departments': [                                                \n\
         {'id': 'hq', 'name': 'Headquarters'}                        \n\
+    ],                                                              \n\
+    'machines': [                                                   \n\
+        {                                                           \n\
+            'id': 'srv1',                                           \n\
+            'name': 'Server 1',                                     \n\
+            'department': 'departments^hq^machines'                 \n\
+        }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
 ";
@@ -320,6 +368,21 @@ PRIVATE BOOL user_linked_to(hgobj gobj, const char *user_id, const char *ref)
 }
 
 /***************************************************************************
+ *  What does the machine's `department` hold? It is a SINGLE-VALUED fkey,
+ *  the shape a link REPLACES instead of adding to.
+ ***************************************************************************/
+PRIVATE const char *machine_link_of(hgobj gobj, const char *machine_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *machine = treedb_get_node(priv->tranger, TREEDB_NAME, "machines", machine_id);
+    if(!machine) {
+        return "";
+    }
+    return kw_get_str(gobj, machine, "department", "", 0);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE BOOL node_is_immutable(hgobj gobj, const char *topic_name, const char *id)
@@ -364,6 +427,14 @@ PRIVATE int check_seed_state(hgobj gobj, const char *when)
     if(json_array_size(json_object_get(hq, "users")) != 1) {
         result += fail(gobj, when);
         result += fail(gobj, "hq's users hook does not hold exactly root");
+    }
+    if(!node_is_immutable(gobj, "machines", "srv1")) {
+        result += fail(gobj, when);
+        result += fail(gobj, "srv1 is not immutable");
+    }
+    if(strcmp(machine_link_of(gobj, "srv1"), SEED_REF_MACHINE)!=0) {
+        result += fail(gobj, when);
+        result += fail(gobj, "srv1 is not linked to hq");
     }
     return result;
 }
@@ -510,6 +581,69 @@ PRIVATE int run_tests(hgobj gobj)
     if(!user_linked_to(gobj, "root", SEED_REF)) {
         result += fail(gobj, "seed link gone after unlinking an added one");
     }
+
+    /*-----------------------------------------------*
+     *  8. A SINGLE-VALUED fkey: a link there does
+     *     not add, it replaces, so link-nodes is
+     *     the fourth way to cut a seed link
+     *-----------------------------------------------*/
+    if(gobj_link_nodes(node,
+        "machines",
+        "departments", json_pack("{s:s}", "id", "lab"),
+        "machines", json_pack("{s:s}", "id", "srv1"),
+        gobj
+    ) == 0) {
+        result += fail(gobj, "link overwriting a seed link was accepted");
+    }
+    if(strcmp(machine_link_of(gobj, "srv1"), SEED_REF_MACHINE)!=0) {
+        result += fail(gobj, "seed link gone after refused link");
+    }
+
+    /*
+     *  Re-linking to the very parent the seed declares loses nothing
+     */
+    if(gobj_link_nodes(node,
+        "machines",
+        "departments", json_pack("{s:s}", "id", "hq"),
+        "machines", json_pack("{s:s}", "id", "srv1"),
+        gobj
+    ) < 0) {
+        result += fail(gobj, "link repeating the seed link was refused");
+    }
+
+    /*
+     *  A machine no seed declares moves between departments freely
+     */
+    json_t *srv2 = gobj_update_node(node,
+        "machines",
+        json_pack("{s:s, s:s, s:s}", "id", "srv2", "name", "Server 2",
+            "department", SEED_REF_MACHINE),
+        json_pack("{s:b, s:b}", "create", 1, "autolink", 1),
+        gobj
+    );
+    if(!srv2) {
+        result += fail(gobj, "could not create a non-seed machine");
+    }
+    JSON_DECREF(srv2)
+    if(gobj_link_nodes(node,
+        "machines",
+        "departments", json_pack("{s:s}", "id", "lab"),
+        "machines", json_pack("{s:s}", "id", "srv2"),
+        gobj
+    ) < 0) {
+        result += fail(gobj, "link moving a non-seed machine was refused");
+    }
+    if(strcmp(machine_link_of(gobj, "srv2"), "departments^lab^machines")!=0) {
+        result += fail(gobj, "non-seed machine did not move");
+    }
+    if(gobj_delete_node(node,
+        "machines",
+        json_pack("{s:s}", "id", "srv2"),
+        json_pack("{s:b}", "force", 1),
+        gobj
+    ) < 0) {
+        result += fail(gobj, "delete of a non-seed machine was refused");
+    }
     if(gobj_delete_node(node,
         "departments",
         json_pack("{s:s}", "id", "lab"),
@@ -520,7 +654,7 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
-     *  8. A non-seed user linked to hq can be
+     *  9. A non-seed user linked to hq can be
      *     unlinked and deleted
      *-----------------------------------------------*/
     json_t *alice = gobj_update_node(node,
@@ -551,9 +685,9 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
-     *  9. A second start: creates nothing, writes
-     *     no link (the expected log says so), and
-     *     the seed is still whole
+     *  10. A second start: creates nothing, writes
+     *      no link (the expected log says so), and
+     *      the seed is still whole
      *-----------------------------------------------*/
     gobj_stop(node);
     gobj_start(node);

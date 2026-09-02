@@ -78,6 +78,16 @@ PRIVATE const char *seed_link_missing_in_kw(
     char *bf,
     int bfsize
 );
+PRIVATE const char *seed_link_overwritten_by(
+    hgobj gobj,
+    const char *parent_topic,
+    const char *hook,
+    const char *child_topic,
+    json_t *child_node, // NOT owned, pure node
+    const char *new_ref,
+    char *bf,
+    int bfsize
+);
 PRIVATE const char *seed_hanging_from(
     hgobj gobj,
     const char *parent_topic,
@@ -1299,6 +1309,34 @@ PRIVATE int mt_link_nodes(
 
     JSON_DECREF(parent_record)
     JSON_DECREF(child_record)
+
+    /*
+     *  A link into a single-valued fkey does not add, it REPLACES: the
+     *  fourth way to cut a link a seed is declared with, and the one that
+     *  passes through neither unlink_nodes nor update_node nor delete_node.
+     */
+    char ref[NAME_MAX*3];
+    char lost[NAME_MAX*3];
+    snprintf(ref, sizeof(ref), "%s^%s^%s",
+        parent_topic_name, kw_get_str(gobj, parent_node, "id", "", 0), hook
+    );
+    const char *child_id = kw_get_str(gobj, child_node, "id", "", 0);
+    if(seed_link_overwritten_by(
+        gobj, parent_topic_name, hook, child_topic_name, child_node, ref, lost, sizeof(lost)
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "initial_load: link would overwrite a seed link",
+            "treedb_name",  "%s", priv->treedb_name,
+            "topic_name",   "%s", child_topic_name,
+            "id",           "%s", child_id,
+            "ref",          "%s", lost,
+            NULL
+        );
+        return -1;
+    }
+
     return treedb_link_nodes(
         priv->tranger,
         hook,
@@ -4307,10 +4345,14 @@ PRIVATE BOOL value_holds_ref(
  *  The parent refs a seed declares in one fkey column, as a list.
  ***************************************************************************/
 PRIVATE json_t *seed_declared_refs( // Return MUST be decref
-    json_t *declared    // NOT owned, the seed's fkey value
+    json_t *declared    // NOT owned, the seed's fkey value, may be NULL
 )
 {
     json_t *refs = json_array();
+    if(!declared) {
+        return refs;
+    }
+
     switch(json_typeof(declared)) { // json_typeof PROTECTED
     case JSON_STRING:
         json_array_append(refs, declared);
@@ -4449,6 +4491,78 @@ PRIVATE const char *seed_link_missing_in_kw(
         }
         JSON_DECREF(refs)
     }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Which seed link of the child would this link OVERWRITE?
+ *
+ *  A link writes the parent ref into ONE column of the child: the one the
+ *  parent's hook maps this child topic to. A list column takes the new ref
+ *  beside the ones already there and an object column keys it, but a STRING
+ *  column has room for one, and _link_nodes() writes it without looking at
+ *  what it replaces. So a link to another parent through a single-valued
+ *  fkey is the fourth way to cut a link a seed is declared with -- the one
+ *  that passes through neither unlink_nodes nor update_node nor delete_node.
+ *
+ *  The test is the node's stored value and not the schema type, because
+ *  that is what _link_nodes() itself branches on.
+ *
+ *  Writes the ref that would be lost into bf and returns it, or NULL.
+ ***************************************************************************/
+PRIVATE const char *seed_link_overwritten_by(
+    hgobj gobj,
+    const char *parent_topic,
+    const char *hook,
+    const char *child_topic,
+    json_t *child_node, // NOT owned, pure node
+    const char *new_ref,
+    char *bf,
+    int bfsize
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *record = find_seed_record(
+        gobj, child_topic, kw_get_str(gobj, child_node, "id", "", 0)
+    );
+    if(!record) {
+        return NULL;
+    }
+
+    /*
+     *  The child's fkey column, resolved the way _link_nodes() resolves it.
+     */
+    json_t *hook_desc = kwid_get(gobj,
+        priv->tranger,
+        0,
+        "topics`%s`%s`%s`hook", parent_topic, "cols", hook
+    );
+    if(!hook_desc) {
+        return NULL; // Reported by treedb_link_nodes
+    }
+    const char *col = kw_get_str(gobj, hook_desc, child_topic, 0, 0);
+    if(empty_string(col) || !is_fkey_col(gobj, child_topic, col)) {
+        return NULL; // Reported by treedb_link_nodes
+    }
+
+    if(!json_is_string(kw_get_dict_value(gobj, child_node, col, 0, 0))) {
+        return NULL; // Room for more than one: the link adds, it drops nothing
+    }
+
+    json_t *refs = seed_declared_refs(json_object_get(record, col));
+    int idx; json_t *v;
+    json_array_foreach(refs, idx, v) {
+        const char *ref = json_string_value(v);
+        if(strcmp(ref, new_ref)==0) {
+            continue; // The declared link is the very one being written
+        }
+        snprintf(bf, bfsize, "%s", ref);
+        JSON_DECREF(refs)
+        return bf;
+    }
+    JSON_DECREF(refs)
+
     return NULL;
 }
 

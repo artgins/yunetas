@@ -8,22 +8,34 @@ The immutable mark of 7.16.4 protected the *record*: `delete-node` refused a
 seed, `force` included. Its links were not covered — the mark is one md2 bit,
 and `tr_treedb` does not know which links matter — so `unlink-nodes`, an
 `update-node` with `autolink` that did not repeat the fkeys (what kw omits,
-`treedb_clean_node()` drops), or a `force` delete of the parent could still
-leave the seed hanging off nothing until the next start re-linked it. A scope
-in yunovatios is exactly such a link. `C_NODE`, the owner of `initial_load`,
-now refuses those three writes when they would cut a link a seed is declared
-with (*"initial_load: cannot unlink a seed link"*, *"... update would drop a
-seed link"*, *"... cannot delete the parent of a seed link"*); `force`
-overrides none. No column flag was added: a flag would freeze the column for
-every record of the topic, and the declaration already says which links
-matter. The links a person adds to a seed afterwards stay ordinary.
+`treedb_clean_node()` drops), a `force` delete of the parent, or a
+`link-nodes` into a single-valued fkey could still leave the seed hanging off
+nothing until the next start re-linked it. A scope in yunovatios is exactly
+such a link. `C_NODE`, the owner of `initial_load`, now refuses those four
+writes when they would cut a link a seed is declared with (*"initial_load:
+cannot unlink a seed link"*, *"... update would drop a seed link"*, *"...
+cannot delete the parent of a seed link"*, *"... link would overwrite a seed
+link"*); `force` overrides none. No column flag was added: a flag would
+freeze the column for every record of the topic, and the declaration already
+says which links matter. The links a person adds to a seed afterwards stay
+ordinary.
+
+The fourth one is the least obvious, and it is why the guard cannot be read
+off the other three: **a link does not always add.** `_link_nodes()` branches
+on the shape of the child's fkey column — a list takes the new ref beside the
+ones already there, an object keys it, but a **string** column has room for
+one and is written over without a comparison. So `link-nodes` to another
+parent through a single-valued fkey cuts the declared link as surely as an
+unlink does, and a test whose fkeys are all lists cannot see it.
 
 `apply_initial_load()` now runs in **two passes**, the way `treedb_open_db()`
 loads a store: every record first (created without its fkey values), every
 link second. A child declared before its parent used to be created with its
 link failing (*"parent node not found"*) and healed on the second start; now
 the seed comes up whole on the first, whatever the topic order. New test
-`tests/c/c_node_initial_load`. `YUNO_TREEDB.md` §3.10 carries the contract.
+`tests/c/c_node_initial_load`, which carries **both** fkey shapes on purpose:
+a list (`users.departments`) and a string (`machines.department`).
+`YUNO_TREEDB.md` §3.10 carries the contract.
 
 ## 7.16.5
 

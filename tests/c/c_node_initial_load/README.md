@@ -11,10 +11,16 @@ What it checks:
 - Every seed record is immutable.
 - The links a seed is declared with cannot be cut: not by `unlink-nodes`, not
   by an autolink `update-node` that omits them, not by deleting the parent
-  with `force`.
+  with `force`, and not by a `link-nodes` into a **single-valued** fkey,
+  which replaces instead of adding.
 - The links a person adds to a seed afterwards CAN be cut, and a record no
   seed hangs from can be deleted.
 - A second start creates nothing and writes no link.
+
+The schema carries the two fkey shapes on purpose: `users.departments` is a
+list, which a link ADDS to, and `machines.department` is a string, which a
+link REPLACES. Only the second one can lose a seed link to `link-nodes`, so a
+test with list fkeys alone cannot see that guard fail.
 
 See `yunos/c/yuno_agent/YUNO_TREEDB.md` §3.10 for the contract.
 

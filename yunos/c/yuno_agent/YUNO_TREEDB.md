@@ -832,7 +832,7 @@ and the partial-update trap in §3.6).
 **A link a seed is declared with is as immutable as the seed.** The
 immutable mark is one md2 bit on the *record*, and `tr_treedb` does not know
 which links matter; the declaration does. So `C_NODE`, the owner of
-`initial_load`, refuses the three writes that can cut a declared link, and
+`initial_load`, refuses the four writes that can cut a declared link, and
 `force` overrides none of them:
 
 - `unlink-nodes` of it: *"initial_load: cannot unlink a seed link"*.
@@ -844,6 +844,14 @@ which links matter; the declaration does. So `C_NODE`, the owner of
   passes through `unlink_nodes`, because with `force`
   `treedb_delete_node()` unlinks every child itself: *"initial_load: cannot
   delete the parent of a seed link"*.
+- `link-nodes` into a **single-valued** fkey: *"initial_load: link would
+  overwrite a seed link"*. A link does not always add. `_link_nodes()`
+  branches on the shape of the child's fkey column: a list takes the new ref
+  beside the ones already there and an object keys it, but a **string** column
+  has room for one, and the new ref is written over what it held without a
+  comparison. So a link to another parent through a single-valued fkey cuts
+  the declared link as surely as an unlink. Re-linking to the very parent the
+  seed declares loses nothing and goes through.
 
 No new column flag was needed, and none would do: a flag on the column would
 freeze that column for every record of the topic, and the record's metadata
