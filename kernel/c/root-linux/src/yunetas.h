@@ -65,6 +65,7 @@ extern "C"{
 #include <c_uart.h>
 #include <c_timer0.h>
 #include <c_timer.h>
+#include <c_assets.h>
 #include <c_authz.h>
 #include <c_ievent_cli.h>
 #include <c_ievent_srv.h>

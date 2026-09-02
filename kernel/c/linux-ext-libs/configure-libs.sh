@@ -465,6 +465,7 @@ git checkout "$TAG_NGINX"
     --with-http_realip_module \
     --with-http_stub_status_module \
     --with-http_gzip_static_module \
+    --with-http_secure_link_module \
     --with-stream \
     --with-stream_ssl_module \
     --with-threads \
@@ -494,6 +495,7 @@ cd "openresty-$TAG_OPENRESTY"
     --with-http_realip_module \
     --with-http_stub_status_module \
     --with-http_gzip_static_module \
+    --with-http_secure_link_module \
     --with-stream \
     --with-stream_ssl_module \
     --with-threads \

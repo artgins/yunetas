@@ -2,6 +2,100 @@
 
 ## Unreleased
 
+### `C_ASSETS`: the bytes a treedb node owns but cannot hold
+
+A treedb node often owns something that is not json — a photo, a plan, a
+signed pdf — and today those bytes live wherever whoever loaded them put
+them. In yunovatios that is 356 MB of census images under
+`/yuneta/store/resources/censo_memorias/`, referenced from `devices.foto`
+as a free string, pushed to the node by an `rsync` from a developer's
+laptop. Nothing owns them: no command writes one, so a user cannot add or
+replace a photo from the SPA or from `ycommand`; nothing checks the path
+resolves, so a renamed topic breaks every image in silence; and the web
+server serves the whole prefix to anyone who reaches the vhost, which
+walks straight past the scope the treedb enforces on the nodes themselves.
+
+They cannot go IN the treedb: it is held in memory and timeranger2
+rewrites the whole record on every update, so a 40 KB photo would be
+rewritten every time its node changed state, and would ride along in every
+page of `nodes`. (The treedb `blob` column type is not binary — it is
+free-form json.)
+
+`C_ASSETS` does what the agent already does with yuno binaries: the bytes
+in a directory the service owns, one node per asset in the treedb, and
+commands as the only way in. The asset id is the **sha256 of the content**,
+so the same bytes stored twice are one asset, a whole census reload creates
+nothing, a served url can be cached for ever, and replacing an asset is a
+new id plus a relinked node — which is what makes the node's own history
+say which photo it carried, and when.
+
+The consumer's column stops being a path and becomes an **fkey** to the
+asset topic, so an asset is linked, listed, graphed, scope-checked and
+cascade-deleted like any other node, and an asset no node links any more is
+visibly garbage (`list-assets orphan=1`, `gc-assets`).
+
+Commands: `put-asset`, `get-asset`, `list-assets`, `delete-asset`,
+`import-assets`, `gc-assets`. Writes are refused on a replica and gated by
+the `write` / `read` authz of the service.
+
+**`get-asset` answers in one of two shapes, and the SERVICE decides which:**
+a signed url when `public_url` and `sign_secret` are configured, the bytes
+inline when they are not. So the caller has one code path, and a node with
+no web server in front of it still shows its images instead of showing
+nothing. The signed form reproduces, byte for byte, what nginx's
+`secure_link_md5 "$secure_link_expires$uri <secret>"` hashes — verified
+against `openssl` on four cases. The client address is deliberately not in
+the signature: it would tie the url to one ip and break every phone that
+changes network mid-session; the 15 minute default lifetime is what limits
+a leaked url.
+
+**`import-assets` is the bulk path, and it moves no bytes at all.** One
+command walks a directory that is already on the node and turns it into N
+assets — for the yunovatios census, 12 281 files that are already sitting
+in the store. Sending hundreds of megabytes through the control plane, one
+base64 message per file, is the thing it exists to avoid. It reads an
+arbitrary path, so it is confined to a configured `import_root` and refused
+outright when there is none.
+
+The topic belongs to the HOST, not to this gclass: an asset's fkeys point
+at the host's own topics, so only the host can write those hooks.
+`C_ASSETS` never creates it and refuses to work when the topic it was
+pointed at cannot hold what it is about to write — a blob on disk whose row
+failed to be written is a file nothing can ever find again. The canonical
+topic and the nginx block are in `c_assets.h`.
+
+`image/svg+xml` is not in the default `allowed_content_types` on purpose: an
+svg served from the app's own origin runs script.
+
+`tests/c/c_assets` covers the lot, and two of its checks exist because the
+bug was written first and both were silent. **`gobj_topic_desc()` answers
+`{topic_name, pkey, ..., cols}` while `topic_desc_hook_names()` walks a LIST
+OF COLS** — handing it the dict does not fail, `json_array_foreach()` over an
+object iterates nothing, so it answers "no hooks" and every asset looks like
+an orphan. And **with the `hook_size` option a hook is not a number: it
+renders as `[{"size": N}]`**, so an EMPTY hook is a NON-EMPTY list and "the
+list has elements" is the wrong test — it made every asset look linked and
+`gc-assets` delete nothing. `node_is_linked()` now reads the shape it asked
+for, and counts anything else as linked: that answer decides what a garbage
+collector removes, and not being able to prove an asset is an orphan is a
+reason to keep it.
+
+`public_url` and `sign_secret` are `SDF_WR` and repeated in `mt_writing`.
+They were `SDF_RD` with a cached `const char *`, which is a pointer INTO the
+attribute — writing one at runtime left the copy dangling. It also means a
+node can be switched between the two serving modes without a restart.
+
+### nginx and openresty are built with `secure_link`
+
+`--with-http_secure_link_module` added to both `configure-libs.sh`
+configure blocks. It is what lets a web server check `C_ASSETS`'s signed
+urls by itself, with no round trip to the yuno. Core module, no new
+dependency, no path/name/symbol change — but it does mean the nginx that
+ships in the `.deb`/`.rpm` has to be the rebuilt one before a node can
+serve assets that way. Until then those nodes answer inline, which is the
+fallback `get-asset` was designed around.
+
+
 ### `C_AUTHZ` says WHICH authz db it did not find
 
 *"No authz db, authz only to local access"* carried the path it looked for as

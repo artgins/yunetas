@@ -15,6 +15,7 @@
 #include "c_uart.h"
 #include "c_timer0.h"
 #include "c_timer.h"
+#include "c_assets.h"
 #include "c_authz.h"
 #include "c_auth_bff.h"
 #include "c_idp_keycloak.h"
@@ -64,6 +65,7 @@ PUBLIC int yunetas_register_c_core(void)
     gobj_add_global_variable("__tls_library__",   json_string(TLS_LIBRARY_NAME));
     gobj_add_global_variable("__tls_libraries__", json_string(TLS_LIBRARIES_NAME));
 
+    result += register_c_assets();
     result += register_c_authz();
     result += register_c_auth_bff();
     result += register_c_idp_keycloak();
