@@ -267,6 +267,7 @@ project:
             - file: api/gobj-ui/time.md
             - file: api/gobj-ui/theme.md
             - file: api/gobj-ui/dom.md
+            - file: api/gobj-ui/assets.md
             - file: api/gobj-ui/dev.md
             - file: api/gobj-ui/maplibre.md
 

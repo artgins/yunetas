@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.17.1
 
 ### `C_ASSETS` takes video and audio too
 
