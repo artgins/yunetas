@@ -1149,12 +1149,30 @@ PRIVATE json_t *store_asset(
     size_t size = gbuffer_leftbytes(gbuf);
     if(size == 0) {
         snprintf(comment, commentlen, "asset is empty");
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Asset REFUSED: empty",
+            "original_name","%s", empty_string(original_name)? "": original_name,
+            "source_path",  "%s", empty_string(source_path)? "": source_path,
+            NULL
+        );
         GBUFFER_DECREF(gbuf)
         return 0;
     }
     if((json_int_t)size > priv->max_size) {
         snprintf(comment, commentlen,
             "asset of %ld bytes is over max_size (%ld)", (long)size, (long)priv->max_size
+        );
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Asset REFUSED: over max_size",
+            "size",         "%ld", (long)size,
+            "max_size",     "%ld", (long)priv->max_size,
+            "original_name","%s", empty_string(original_name)? "": original_name,
+            "source_path",  "%s", empty_string(source_path)? "": source_path,
+            NULL
         );
         GBUFFER_DECREF(gbuf)
         return 0;
@@ -1167,6 +1185,15 @@ PRIVATE json_t *store_asset(
         snprintf(comment, commentlen,
             "content_type '%s' not in 'allowed_content_types'",
             empty_string(content_type)? "": content_type
+        );
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Asset REFUSED: content_type not allowed",
+            "content_type", "%s", empty_string(content_type)? "": content_type,
+            "original_name","%s", empty_string(original_name)? "": original_name,
+            "source_path",  "%s", empty_string(source_path)? "": source_path,
+            NULL
         );
         GBUFFER_DECREF(gbuf)
         return 0;
