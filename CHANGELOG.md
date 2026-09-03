@@ -64,6 +64,29 @@ dict-only reader, which answers NULL for a list: on reconnect the
 subscription was resent **without its filter** and the remote published
 everything.
 
+### `crypto` is a dict, so it says `DTP_DICT` now
+
+The guard was necessary because the **type lied**. `DTP_JSON` means *any*
+json, null included, and `json2item()` proves the difference: it refuses a
+non-object for a `DTP_DICT` **with a log**, while for a `DTP_JSON` it accepts
+whatever arrives. `crypto` was declared `DTP_JSON` in seven gclasses
+(`c_tcp`, `c_tcp_s`, `c_udp_s`, `c_prot_http_cl`, `c_auth_bff`,
+`c_task_authenticate`, `c_smtp_session`) and is a dict in all seven — and
+they hand it down to one another, so a non-dict accepted at the top reached
+`ytls` at the bottom. It fails at the first hop now.
+
+Safe on a node with a persisted value, checked rather than assumed: neither
+`c_tcp_s` nor `c_udp_s` ever calls `gobj_load/save_persistent_attrs` (and
+they are children, not services, so they could not), nothing in the tree
+writes the attr with `gobj_write_json_attr()`, and there is no
+`"crypto": null` in any config or store. A stored one would fall back to
+`{}` with a log — which is what it effectively was.
+
+With the type honest, the two `json_object_set_new(jn_crypto, "trace_tls",
+…)` at listen time can no longer fail — and they say so if they ever do,
+along with the `ssl_server_name` one in `c_tcp`. All three used to return
+-1 into nothing.
+
 ### `gobj-js` 7.16.2: the same question, spelled the same
 
 `empty_json()` lands in `gobj-js/src/helpers.js` with an identical truth

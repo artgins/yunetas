@@ -72,7 +72,7 @@ SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,          
 SDATA (DTP_INTEGER,     "backlog",              SDF_WR|SDF_PERSIST, "4096",         "Value for listen() backlog argument. It must be lower or equal to net.core.somaxconn. Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'."),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0,              "Share the port"),
 SDATA (DTP_INTEGER,     "use_dups",             SDF_WR|SDF_PERSIST, 0,              "Use yev_dup_accept_event() to set more accept yev_events, only with legacy method (with child_tree_filter). (I don't see more speed using it)"),
-SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0,              "Crypto config"),
+SDATA (DTP_DICT,        "crypto",               SDF_WR|SDF_PERSIST, "{}",           "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
@@ -358,11 +358,18 @@ PRIVATE int mt_start(hgobj gobj)
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
         uint32_t trace_level = gobj_trace_level(gobj);
-        json_object_set_new(
+        if(json_object_set_new(
             jn_crypto,
             "trace_tls",
-            json_boolean(priv->trace_tls || trace_level & TRACE_TLS)
-        );
+            json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
+        )<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot set 'trace_tls', 'crypto' is not a dict",
+                NULL
+            );
+        }
 
         EXEC_AND_RESET(ytls_cleanup, priv->ytls)
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);

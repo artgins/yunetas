@@ -499,6 +499,12 @@ Corollaries:
   cert-reload guard of `c_tcp_s`/`c_udp_s`, `ycli`'s shortkeys dict (whose
   dead guard was masking a double free of a borrowed attr), and a first shot
   per device answered for a subscription that carried no filter.
+  **And the rule that prevents the next one: if you mean a dict, declare
+  `DTP_DICT`; if you mean a list, `DTP_LIST`.** `DTP_JSON` means *any* json,
+  null included, and `json2item()` proves the difference — it refuses a
+  non-object for a `DTP_DICT` **with a log**, while it accepts anything at
+  all for a `DTP_JSON`. A type that lies is what makes the guard necessary;
+  `crypto` was `DTP_JSON` in seven gclasses and is a dict in all seven.
 
 - **`jwt_checker_verify2()` returns claims even on FAILED verification**
   (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —

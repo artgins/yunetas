@@ -90,7 +90,7 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "FALSE",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is TRUE to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
-SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
+SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        SDF_RD,         0,          "socket fd of clisrv"),
 SDATA (DTP_INTEGER, "fd_listen",        SDF_RD,         0,          "socket accept listen"),
@@ -1665,7 +1665,17 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0, 0,
                     FALSE) == 0 && _host[0] != '\0'
                 ) {
-                    json_object_set_new(jn_crypto, "ssl_server_name", json_string(_host));
+                    if(json_object_set_new(
+                        jn_crypto, "ssl_server_name", json_string(_host)
+                    )<0) {
+                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INTERNAL,
+                            "msg",          "%s", "Cannot set 'ssl_server_name', 'crypto' is not a dict",
+                            "url",          "%s", priv->url?priv->url:"",
+                            NULL
+                        );
+                    }
                 }
             }
             priv->ytls = ytls_init(gobj, jn_crypto, FALSE);

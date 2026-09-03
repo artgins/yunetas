@@ -196,7 +196,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
-SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{}",           "Crypto config"),
+SDATA (DTP_DICT,        "crypto",           SDF_RD,         "{}",           "Crypto config"),
 SDATA (DTP_STRING,      "issuer",           SDF_RD,         "",             "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration. Overridden by token_endpoint+end_session_endpoint when both are set"),
 SDATA (DTP_STRING,      "token_endpoint",   SDF_RD,         "",             "Explicit OAuth2 token endpoint URL. Skips discovery when set together with end_session_endpoint"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD,     "",             "Explicit OIDC end_session endpoint URL. Skips discovery when set together with token_endpoint"),

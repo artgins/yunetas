@@ -66,7 +66,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),
 SDATA (DTP_STRING,      "lHost",            SDF_RD,  0, "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Listening port, got internally from url"),
-SDATA (DTP_JSON,        "crypto",           SDF_WR|SDF_PERSIST, 0, "Crypto config"),
+SDATA (DTP_DICT,        "crypto",           SDF_WR|SDF_PERSIST, "{}", "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
@@ -320,11 +320,18 @@ PRIVATE int mt_start(hgobj gobj)
 
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
         uint32_t trace_level = gobj_trace_level(gobj);
-        json_object_set_new(
+        if(json_object_set_new(
             jn_crypto,
             "trace_tls",
-            json_boolean(priv->trace_tls || trace_level & TRACE_TLS)
-        );
+            json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
+        )<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot set 'trace_tls', 'crypto' is not a dict",
+                NULL
+            );
+        }
 
         EXEC_AND_RESET(ytls_cleanup, priv->ytls)
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);

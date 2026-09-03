@@ -80,7 +80,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD, "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_STRING,  "url",              SDF_RD,     "",         "SMTP server URL (smtps://host:465). If set, mt_start auto-creates a C_TCP bottom."),
-SDATA (DTP_JSON,    "crypto",           SDF_RD,     "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto for the smtps:// bottom C_TCP. Verifies the server cert against the system CA by default; override ssl_trusted_certificate for a private mail CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
+SDATA (DTP_DICT,    "crypto",           SDF_RD,     "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto for the smtps:// bottom C_TCP. Verifies the server cert against the system CA by default; override ssl_trusted_certificate for a private mail CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_STRING,  "helo_name",        SDF_RD,     "localhost","EHLO domain advertised to the server"),
 SDATA (DTP_STRING,  "username",         SDF_RD,     "",         "SMTP AUTH PLAIN username"),
 SDATA (DTP_STRING,  "password",         SDF_RD,     "",         "SMTP AUTH PLAIN password"),
