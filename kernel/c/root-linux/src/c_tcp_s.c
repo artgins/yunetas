@@ -807,8 +807,13 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
         return -1;
     }
 
+    /*
+     *  `crypto` is DTP_JSON with a null default, so an unset one arrives as
+     *  json_null(), a valid pointer: `if(!jn_crypto)` was dead code and the
+     *  reload went on to hand a json null to ytls.
+     */
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-    if(!jn_crypto) {
+    if(empty_json(jn_crypto)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,

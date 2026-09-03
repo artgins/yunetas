@@ -2292,7 +2292,7 @@ PRIVATE int delete_client_treedb_schema(
  ***************************************************************************/
 PRIVATE BOOL is_unset_value(json_t *value)  // not owned, may be NULL
 {
-    if(!value || json_is_null(value)) {
+    if(json_absent(value)) {
         return TRUE;
     }
     if(json_is_string(value)) {

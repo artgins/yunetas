@@ -787,7 +787,7 @@ PRIVATE const char *param_user_id(hgobj gobj, json_t *kw)
 PRIVATE int param_tribool(hgobj gobj, json_t *kw, const char *name)
 {
     json_t *v = kw_get_dict_value(gobj, kw, name, NULL, 0);
-    if(!v || json_is_null(v)) {
+    if(json_absent(v)) {
         return -1;
     }
     if(json_is_boolean(v)) {
@@ -818,7 +818,7 @@ PRIVATE int param_tribool(hgobj gobj, json_t *kw, const char *name)
 PRIVATE json_t *param_array(hgobj gobj, json_t *kw, const char *name)
 {
     json_t *v = kw_get_dict_value(gobj, kw, name, NULL, 0);
-    if(!v || json_is_null(v)) {
+    if(json_absent(v)) {
         return NULL;
     }
     if(json_is_array(v)) {

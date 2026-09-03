@@ -4633,26 +4633,6 @@ PRIVATE json_t *get_fkey_refs(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE BOOL json_empty(json_t *value)
-{
-    if(!value) {
-        return TRUE;
-    }
-    switch(json_typeof(value)) {
-    case JSON_ARRAY:
-        return json_array_size(value)==0?TRUE:FALSE;
-    case JSON_OBJECT:
-        return json_object_size(value)==0?TRUE:FALSE;
-    case JSON_STRING:
-        return strlen(json_string_value(value))==0?TRUE:FALSE;
-    default:
-        return TRUE;
-    }
-}
-
-/***************************************************************************
  *  Used in delete_node to get all down refs
  ***************************************************************************/
 PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
@@ -4688,7 +4668,7 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
             );
             gobj_trace_json(gobj, node, "field not found in the node 1");
         }
-        if(json_empty(field_data)) {
+        if(empty_json(field_data)) {
             continue;
         }
 
@@ -4738,7 +4718,7 @@ PRIVATE json_t *get_node_up_refs(  // Return MUST be decref
             gobj_trace_json(gobj, node, "field not found in the node 2");
         }
 
-        if(json_empty(field_data)) {
+        if(empty_json(field_data)) {
             continue;
         }
 
@@ -6432,7 +6412,7 @@ PRIVATE int remove_wrong_up_ref(
         gobj_trace_json(gobj, node, "field not found in the node 4");
     }
 
-    if(json_empty(field_data)) {
+    if(empty_json(field_data)) {
         return -1;
     }
 

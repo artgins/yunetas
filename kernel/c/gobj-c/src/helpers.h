@@ -120,15 +120,48 @@ static inline BOOL empty_string(const char *str)
     return (str && *str)?0:1;
 }
 
+/*
+ *  How much content a json carries: elements of a container, 1 for a
+ *  non-empty string, 0 for everything else (NULL, json null, scalars).
+ *  It is the size half of empty_json(); use that one to ask a question.
+ */
+static inline size_t json_size(const json_t *jn)
+{
+    if(!jn) {
+        return 0;
+    }
+    switch(json_typeof(jn)) {
+    case JSON_ARRAY:
+        return json_array_size(jn);
+    case JSON_OBJECT:
+        return json_object_size(jn);
+    case JSON_STRING:
+        return strlen(json_string_value(jn))?1:0;
+    default:
+        return 0;
+    }
+}
+
+/*
+ *  "There is nothing usable here": C NULL, json null, {} , [] , "" and any
+ *  scalar. THIS is the guard to write over a json, never `if(!jn)` -- a
+ *  DTP_JSON attr with a null default is json_null(), a valid pointer, so
+ *  `if(!jn)` is dead code. See CLAUDE.md, "C API footguns".
+ */
 static inline BOOL empty_json(const json_t *jn)
 {
-    if((json_is_array(jn) && json_array_size(jn)==0) ||
-        (json_is_object(jn) && json_object_size(jn)==0) ||
-        json_is_null(jn)) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
+    return json_size(jn)==0;
+}
+
+/*
+ *  "There is no value here": C NULL or an explicit json null, and nothing
+ *  else. Use it only where null and empty mean different things (a field
+ *  written null on purpose vs a field never written); otherwise the
+ *  question is empty_json().
+ */
+static inline BOOL json_absent(const json_t *jn)
+{
+    return (!jn || json_is_null(jn))?TRUE:FALSE;
 }
 
 /*****************************************************************
@@ -613,8 +646,6 @@ PUBLIC char *json2str(const json_t *jn); // jn not owned
     Remember gbmem_free the returned string
 **rst**/
 PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
-
-PUBLIC size_t json_size(json_t *value);
 
 /**rst**
     Check all refcounts

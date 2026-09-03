@@ -811,6 +811,68 @@ The call is not exclusive to C: `gobj-js` has had `gobj_post_event()` for
 years, and so has the ESP32 port, with the same signature. What the three do
 not agree on yet is written down in `TODO.md`.
 
+### 8.15 An absent `DTP_JSON` is `json_null()`, so `if(!jn)` is dead code
+
+`set_default()` materialises a `DTP_JSON` attr with an empty default as
+**`json_null()`** — a perfectly valid pointer. So this, over any of them, is
+a branch that can never be taken:
+
+```c
+json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+if(!jn_crypto) {                    // NEVER true
+    gobj_log_error(...);            // dead code
+    return -1;
+}
+```
+
+It applies to attributes and to every structure the framework builds with
+`gobj_sdata_create()` — including a **subscription**, whose optional
+`__config__`, `__global__`, `__local__` and `__filter__` are declared that
+way. A `mt_subscription_added()` that tests `if(!__filter__)` to mean "this
+subscriber set no filter" answers the wrong thing on every subscription.
+
+**Write the question, not the pointer test.** Two are in
+[`helpers.h`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.h),
+next to `empty_string()`, both `static inline`:
+
+| Ask | Function | True for |
+|---|---|---|
+| "is there anything usable here?" | `empty_json(jn)` | C NULL, `json_null`, `{}`, `[]`, `""`, any scalar |
+| "is there a value at all?" | `json_absent(jn)` | C NULL and `json_null`, nothing else |
+
+`empty_json()` is the one you want almost always — note it also covers `[]`
+and `{}`, which a null test does not: an empty filter is as much "no filter"
+as an absent one. Reach for `json_absent()` only where null and empty mean
+different things, such as a field written null on purpose against a field
+never written.
+
+When the shape itself is the contract — this attr must be a list, this one
+must be a dict — test the shape: `if(!json_is_array(jn) ||
+json_array_size(jn)==0)`. Do not fix it by giving the reader a type it does
+not have: `kw_get_dict()` on a list-shaped `__filter__` returns NULL and
+throws the filter away.
+
+Three readers of the same value disagree, and knowing which one you called
+is half the debugging:
+
+| Reader | On a `json_null` | With `KW_REQUIRED` |
+|---|---|---|
+| `kw_get_dict()` / `kw_get_list()` | type-checked → returns the default | logs an error |
+| `kw_get_dict_value()` | returns **the null** | silent |
+| a path read, `kw_get_str(kw, "a`b")` | a null at `a` reads as not-found | silent |
+
+That last row is why the error never surfaces where the cause is: the value
+that is "present" through one door is "absent" through another, and what
+speaks is the read *after* the one that went wrong.
+
+**In `gobj-js` there is no such trap** — a JSON attr with a null default is
+javascript `null`, which is falsy, so `if(!x)` works there. That divergence
+is exactly what a port across the two runtimes gets wrong, in both
+directions. `empty_json()` and `json_size()` exist in
+`gobj-js/src/helpers.js` with the identical truth table; `json_absent()`'s
+twin is `is_null()`, since javascript has no second null to tell apart.
+Write the same question in both.
+
 ---
 
 ## 9. Recipes

@@ -1520,7 +1520,25 @@ HACK Only these keys are let, remain of keywords will be ignored!
     __local__   Dict. Dictionary or list with Keys (path) to be deleted from kw before to publish.
 
     __filter__  Selection Filter: Enable to publish only messages matching the filter.
-                Used by gobj_publish_event().
+                Used by gobj_publish_event(). Any json: the callers pass a
+                list of alternatives as often as a dict.
+
+    WARNING The four keys above are OPTIONAL, and an optional one is NOT
+            absent from the subscription: subscription_desc declares them
+            DTP_JSON with a null default, so a subscription that set none
+            carries json_null() in each -- a valid pointer.
+
+            So, reading a subscription (in mt_subscription_added(), in
+            mt_subscription_deleted(), or over gobj_find_subscriptions()):
+
+                - `if(!__filter__)` is DEAD CODE, it never fires.
+                - `kw_get_dict_value(..., KW_REQUIRED)` never complains
+                  either: it FINDS the null and returns it.
+                - `kw_get_dict(...)` does reject it by type, but it rejects
+                  a list-shaped __filter__ the same way, silently.
+
+            Ask empty_json() (helpers.h) for "is there anything here", or
+            test the shape you require. Never the pointer.
 
 */
 

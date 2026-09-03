@@ -474,6 +474,32 @@ Corollaries:
   Real bug: a gate handing its own compiled-in model config as the fallback for
   a per-device one, one bad decref per frame received.
 
+- **An absent `DTP_JSON` is `json_null()`, not C NULL — so `if(!jn)` is dead
+  code.** `set_default()` materialises a `DTP_JSON` with an empty default as
+  a json null, a valid pointer, and that covers every attr declared that way
+  plus everything `gobj_sdata_create()` builds — including a subscription,
+  whose optional `__config__`/`__global__`/`__local__`/`__filter__` are all
+  of them. Ask the question instead, with the two `static inline` in
+  `helpers.h`: **`empty_json(jn)`** — true for C NULL, `json_null`, `{}`,
+  `[]`, `""` and any scalar — which is the one you want almost always,
+  because an empty filter is as much "no filter" as an absent one; and
+  **`json_absent(jn)`** — true only for C NULL and `json_null` — where null
+  and empty mean different things. When the shape is the contract, test the
+  shape (`json_is_array(jn) && json_array_size(jn)>0`); do not reach for a
+  reader that has the type you want, because `kw_get_dict()` on a
+  list-shaped `__filter__` returns NULL and drops the filter.
+  The three readers disagree and that is why the error never lands on the
+  cause: `kw_get_dict()`/`kw_get_list()` reject a null by type (and log with
+  `KW_REQUIRED`), `kw_get_dict_value()` **returns the null** and stays quiet
+  even with `KW_REQUIRED`, and a path read treats a null segment as
+  not-found. **In `gobj-js` there is no trap** — a null default is
+  javascript `null`, falsy — so a port across the two runtimes gets this
+  wrong in both directions; `empty_json()`/`json_size()` exist there with the
+  same truth table (`json_absent()`'s twin is `is_null()`). Real bugs: the
+  cert-reload guard of `c_tcp_s`/`c_udp_s`, `ycli`'s shortkeys dict (whose
+  dead guard was masking a double free of a borrowed attr), and a first shot
+  per device answered for a subscription that carried no filter.
+
 - **`jwt_checker_verify2()` returns claims even on FAILED verification**
   (`kernel/c/libjwt`). Only `jwt_checker_error(checker)` is authoritative —
   never treat a non-NULL payload as "verified" (that accepts forged tokens),

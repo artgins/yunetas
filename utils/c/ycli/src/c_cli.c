@@ -894,8 +894,13 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    /*
+     *  `shortkeys` is DTP_JSON with a null default, so a config that never
+     *  saved one arrives as json_null(), a valid pointer: `if(!...)` was
+     *  dead code and the dict was never created. Ask for the SHAPE.
+     */
     priv->jn_shortkeys = gobj_read_json_attr(gobj, "shortkeys");
-    if(!priv->jn_shortkeys) {
+    if(!json_is_object(priv->jn_shortkeys)) {
         json_t *jn_dict = json_object();
         gobj_write_json_attr(gobj, "shortkeys", jn_dict);
         priv->jn_shortkeys = gobj_read_json_attr(gobj, "shortkeys");
@@ -931,7 +936,13 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->jn_window_counters);
-    JSON_DECREF(priv->jn_shortkeys);
+    /*
+     *  WARNING no decref of jn_shortkeys: gobj_read_json_attr() returns a
+     *  BORROWED reference, the attr owns it. The decref that used to be here
+     *  was harmless only while the guard above was dead and the value was the
+     *  json_null() singleton (refcount -1); with the dict actually created it
+     *  is a double free at exit.
+     */
     JSON_DECREF(priv->remote_caches);
     JSON_DECREF(priv->pending_cache_fetches);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
@@ -1569,7 +1580,7 @@ PRIVATE json_t* cmd_close_output(hgobj gobj, const char* cmd, json_t* kw, hgobj 
 PRIVATE json_t *cmd_add_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->jn_shortkeys) {
+    if(!json_is_object(priv->jn_shortkeys)) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1622,7 +1633,7 @@ PRIVATE json_t *cmd_add_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_remove_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->jn_shortkeys) {
+    if(!json_is_object(priv->jn_shortkeys)) {
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1675,7 +1686,7 @@ PRIVATE json_t *cmd_remove_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_list_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->jn_shortkeys) {
+    if(!json_is_object(priv->jn_shortkeys)) {
         return msg_iev_build_response(
             gobj,
             -1,

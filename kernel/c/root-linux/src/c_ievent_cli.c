@@ -450,23 +450,32 @@ PRIVATE int mt_subscription_deleted(
         return -1;
     }
 
-    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, KW_REQUIRED);
-    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, KW_REQUIRED);
-    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, KW_REQUIRED);
-    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", KW_REQUIRED);
+    /*
+     *  The three of them are OPTIONAL, and a subscription that set none
+     *  carries json_null() in each (subscription_desc declares them
+     *  DTP_JSON with a null default), so KW_REQUIRED logged an error per
+     *  key per subscription. And `__filter__` is ANY json -- the callers
+     *  pass a LIST of alternatives -- so reading it with the dict-only
+     *  reader dropped it silently and the resent subscription lost its
+     *  filter.
+     */
+    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
+    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
+    json_t *__filter__ = kw_get_dict_value(gobj, subs, "__filter__", 0, 0);
+    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", 0);
     hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
 
     /*
      *      __REQUEST__ __MESSAGE__
      */
     json_t *kw = json_object();
-    if(__config__) {
+    if(!empty_json(__config__)) {
         json_object_set(kw, "__config__", __config__);
     }
-    if(__global__) {
+    if(!empty_json(__global__)) {
         json_object_set(kw, "__global__", __global__);
     }
-    if(__filter__) {
+    if(!empty_json(__filter__)) {
         json_object_set(kw, "__filter__", __filter__);
     }
     json_t *jn_ievent_id = build_cli_ievent_request(
@@ -671,23 +680,32 @@ PRIVATE int send_remote_subscription(
         // HACK only resend explicit subscriptions
         return -1;
     }
-    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, KW_REQUIRED);
-    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, KW_REQUIRED);
-    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, KW_REQUIRED);
-    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", KW_REQUIRED);
+    /*
+     *  The three of them are OPTIONAL, and a subscription that set none
+     *  carries json_null() in each (subscription_desc declares them
+     *  DTP_JSON with a null default), so KW_REQUIRED logged an error per
+     *  key per subscription. And `__filter__` is ANY json -- the callers
+     *  pass a LIST of alternatives -- so reading it with the dict-only
+     *  reader dropped it silently and the resent subscription lost its
+     *  filter.
+     */
+    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
+    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
+    json_t *__filter__ = kw_get_dict_value(gobj, subs, "__filter__", 0, 0);
+    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", 0);
     hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
 
     /*
      *      __REQUEST__ __MESSAGE__
      */
     json_t *kw = json_object();
-    if(__config__) {
+    if(!empty_json(__config__)) {
         json_object_set(kw, "__config__", __config__);
     }
-    if(__global__) {
+    if(!empty_json(__global__)) {
         json_object_set(kw, "__global__", __global__);
     }
-    if(__filter__) {
+    if(!empty_json(__filter__)) {
         json_object_set(kw, "__filter__", __filter__);
     }
     json_t *jn_ievent_id = build_cli_ievent_request(

@@ -530,7 +530,7 @@ PRIVATE int set_tranger_field_value(
      *  Required
      */
     if(kw_has_word(gobj, desc_flag, "required", 0)) {
-        if(!value || json_is_null(value)) {
+        if(json_absent(value)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB,

@@ -1,5 +1,77 @@
 # **Changelog**
 
+## Unreleased
+
+### An absent `DTP_JSON` is `json_null()`, and four predicates disagreed about it
+
+`set_default()` materialises a `DTP_JSON` with an empty default as
+**`json_null()`** — a valid pointer — so `if(!jn)` over one of them is a
+branch that can never be taken. It reads exactly like the guard everybody
+writes, it compiles, and it survives every test that exercises the
+present-value path. It reaches further than attributes: a **subscription** is
+built with `gobj_sdata_create()` too, and its optional `__config__`,
+`__global__`, `__local__` and `__filter__` are declared that way.
+
+The tree already had the answer written four times, and the four disagreed:
+
+| | C NULL | `json_null` | `{}` `[]` | `""` | scalar |
+|---|---|---|---|---|---|
+| `empty_json()` — `helpers.h`, public inline | **FALSE** | TRUE | TRUE | FALSE | FALSE |
+| `json_size()==0` — `helpers.c`, public | TRUE | TRUE | TRUE | TRUE | TRUE |
+| `json_empty()` — `tr_treedb.c`, private | TRUE | TRUE | TRUE | TRUE | TRUE |
+| `is_unset_value()` — `c_treedb.c`, private | TRUE | TRUE | TRUE | TRUE | per type |
+
+The one in the **public header was the wrong one**, and wrong on precisely
+the case being chased: jansson's `json_is_array()`/`json_is_object()`/
+`json_is_null()` are each NULL-safe on their own, so all three fell through
+and `empty_json(NULL)` answered *"not empty"*.
+
+**Consolidated, not extended.** `json_size()` moves to `static inline` in
+`helpers.h` (and takes `const json_t *`); `empty_json()` is now
+`json_size(jn)==0`, so there is one switch and the two cannot drift again;
+the private `json_empty()` of `tr_treedb.c` is gone. Alongside it,
+**`json_absent(jn)`** — true for C NULL and `json_null` and nothing else — for
+the seven places that already wrote `(!x || json_is_null(x))` by hand.
+
+The rule, in `CLAUDE.md` and [`GOBJ.md`](yunos/c/yuno_agent/GOBJ.md) §8.15:
+**never `if(!jn)` over a json.** `empty_json()` almost always — an empty
+filter is as much "no filter" as an absent one, which a null test does not
+cover — `json_absent()` where null and empty differ, and the shape itself
+when the shape is the contract.
+
+### The guards that were dead, and the double free one of them was hiding
+
+🔴 **`ycli` shortkeys.** `mt_create` read the `shortkeys` attr and created the
+dict `if(!priv->jn_shortkeys)` — never — so on a config that had never saved
+one the dict stayed a json null and `add-shortkey` wrote into it silently.
+Fixing only that guard would have **broken ycli at exit**: `mt_destroy`
+carried a `JSON_DECREF` of a reference `gobj_read_json_attr()` hands out
+BORROWED, harmless only while the value was the `json_null()` singleton
+(refcount `(size_t)-1`). With the dict actually created it is a double free.
+Both go in the same change; the three `cmd_*_shortkey` guards now ask for the
+shape.
+
+**`c_tcp_s` / `c_udp_s` cert reload.** `crypto` is `DTP_JSON` with a null
+default, so `reload-certs`'s *"'crypto' attribute is empty"* could not be
+reached and the reload went on to hand a json null to `ytls`.
+
+**`C_IEVENT_CLI` resent subscriptions without their filter.** Two bugs in the
+same four lines. The three optional keys were read with `KW_REQUIRED`, which
+logged an error each per subscription — the flag was simply wrong on keys
+that are optional by contract. And `__filter__` is **any json** — the callers
+pass a list of alternatives — while it was read with `kw_get_dict()`, the
+dict-only reader, which answers NULL for a list: on reconnect the
+subscription was resent **without its filter** and the remote published
+everything.
+
+### `gobj-js` 7.16.2: the same question, spelled the same
+
+`empty_json()` lands in `gobj-js/src/helpers.js` with an identical truth
+table (verified side by side, both runtimes, eight values). Javascript has no
+second null, so `if(!x)` happens to work there — and that is the divergence a
+port crosses in both directions. `json_absent()`'s twin is the `is_null()`
+that was already there.
+
 ## 7.17.2
 
 ### `C_ASSETS`: an audit for silent errors, and `gc-assets` could empty the store

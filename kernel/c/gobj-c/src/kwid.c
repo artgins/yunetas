@@ -635,7 +635,7 @@ PRIVATE json_t *kw_find_path_depth(
     if(json_is_object(kw)) {
         // Dict
         next_json = json_object_get(kw, segment);
-        if(!next_json || json_is_null(next_json)) {
+        if(json_absent(next_json)) {
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -652,7 +652,7 @@ PRIVATE json_t *kw_find_path_depth(
         // Array
         int idx = atoi(segment);
         next_json = json_array_get(kw, idx);
-        if(!next_json || json_is_null(next_json)) {
+        if(json_absent(next_json)) {
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -4342,7 +4342,7 @@ PRIVATE int flat_set(
                 json_array_append_new(current, json_null());
             }
             child = json_array_get(current, index);
-            if(!child || json_is_null(child)) {
+            if(json_absent(child)) {
                 child = next_is_index? json_array(): json_object();
                 json_array_set_new(current, index, child);
             }

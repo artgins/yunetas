@@ -2709,29 +2709,6 @@ PUBLIC char *json2uglystr(const json_t *jn) // jn not owned
 }
 
 /***************************************************************************
- *  String element = 1 if not empty string
- ***************************************************************************/
-PUBLIC size_t json_size(json_t *value)
-{
-    if(!value) {
-        return 0;
-    }
-    switch(json_typeof(value)) {
-    case JSON_ARRAY:
-        return json_array_size(value);
-    case JSON_OBJECT:
-        return json_object_size(value);
-    case JSON_STRING:
-        {
-            const char *s = json_string_value(value);
-            return strlen(s)?1:0;
-        }
-    default:
-        return 0;
-    }
-}
-
-/***************************************************************************
  *  Check deeply the refcount of kw
  *  TODO use debug_json()
  ***************************************************************************/
