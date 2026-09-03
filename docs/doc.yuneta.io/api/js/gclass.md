@@ -11,12 +11,12 @@ A **gclass** is a definition that the application registers one time at start
 up. It carries the schema of the attributes, the finite state machine, the
 methods of the lifecycle, the commands and the authorizations.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js)
 
 ---
 
 (js_GObj)=
-## [`GObj`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L202)
+## [`GObj`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L202)
 
 The class of an instance. [`is_gobj()`](helpers_json.md#js_is_gobj) tells if a
 value is one. Application code does not build one with `new`. It calls a
@@ -25,7 +25,7 @@ creation function of the [lifecycle](lifecycle.md).
 ---
 
 (js_gclass_create)=
-## [`gclass_create()`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1104)
+## [`gclass_create()`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1104)
 
 Registers a gclass.
 
@@ -56,7 +56,7 @@ there passes the registration, and the creation of the first instance fails.
 :::
 
 (js_gclass_flag_t)=
-## [`gclass_flag_t`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L248)
+## [`gclass_flag_t`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L248)
 
 The flags of a gclass.
 
@@ -69,18 +69,18 @@ The flags of a gclass.
 | `gcflag_singleton` | There is one instance only. |
 
 (js_gclass_find_by_name)=
-## [`gclass_find_by_name(gclass_name, verbose)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1477)
+## [`gclass_find_by_name(gclass_name, verbose)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1477)
 
 Finds a gclass by its name. With `verbose` set to `true` the function writes a
 log error when the gclass does not exist.
 
 (js_gclass_unregister)=
-## [`gclass_unregister(gclass)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1218)
+## [`gclass_unregister(gclass)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1218)
 
 Takes a gclass out of the register. It accepts the gclass or its name.
 
 (js_gclass_check_fsm)=
-## [`gclass_check_fsm(gclass)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1384)
+## [`gclass_check_fsm(gclass)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1384)
 
 Checks the finite state machine of a gclass, and gives the quantity of the
 errors that it finds. It finds an action that goes to a state that does not
@@ -94,22 +94,22 @@ These four functions build a gclass one piece at a time. Application code rarely
 needs them. A generator of code and a dynamic gclass use them.
 
 (js_gclass_add_state)=
-### [`gclass_add_state(gclass, state_name)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1281)
+### [`gclass_add_state(gclass, state_name)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1281)
 
 Adds one state.
 
 (js_gclass_add_ev_action)=
-### [`gclass_add_ev_action(gclass, state_name, event_name, action, next_state)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1301)
+### [`gclass_add_ev_action(gclass, state_name, event_name, action, next_state)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1301)
 
 Adds one row of `(event, action, next state)` to a state.
 
 (js_gclass_add_event_type)=
-### [`gclass_add_event_type(gclass, event_name, event_flag)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1348)
+### [`gclass_add_event_type(gclass, event_name, event_flag)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1348)
 
 Adds one event to the list of the events of the gclass.
 
 (js_gclass_event_type)=
-### [`gclass_event_type(gclass, event_name)`](https://github.com/artgins/gobj-js/blob/7.16.1/src/gobj.js#L1361)
+### [`gclass_event_type(gclass, event_name)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L1361)
 
 Gives the record of an event of the gclass, with its flags.
 

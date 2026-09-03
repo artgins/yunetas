@@ -1,6 +1,6 @@
 # **Changelog**
 
-## Unreleased
+## 7.17.3
 
 ### An absent `DTP_JSON` is `json_null()`, and four predicates disagreed about it
 

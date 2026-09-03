@@ -4,11 +4,11 @@ Recursive directory traversal with filters for hidden files, regular files vs. d
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c)
 
 (get_ordered_filename_array)=
-## [`get_ordered_filename_array()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3434)
+## [`get_ordered_filename_array()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3411)
 
 Retrieves an ordered list of filenames from a specified directory, optionally filtered by a pattern and search options.
 
@@ -43,7 +43,7 @@ This function uses `qsort()` to sort the filenames. The returned array must be f
 ---
 
 (walk_dir_tree)=
-## [`walk_dir_tree()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3170)
+## [`walk_dir_tree()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3147)
 
 The `walk_dir_tree()` function traverses a directory tree starting from `root_dir`, applying a user-defined callback function `cb` to each file or directory that matches the specified `pattern` and `opt` options.
 
@@ -80,7 +80,7 @@ The callback function `cb` must return `TRUE` to continue traversal or `FALSE` t
 ---
 
 (dir_array_free)=
-## [`dir_array_free()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3222)
+## [`dir_array_free()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3199)
 
 Frees all memory associated with a directory array structure.
 
@@ -103,7 +103,7 @@ This function does not return a value.
 ---
 
 (dir_array_sort)=
-## [`dir_array_sort()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3349)
+## [`dir_array_sort()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3326)
 
 Sorts the filenames in a directory array in lexicographic order using `qsort()`.
 
@@ -126,7 +126,7 @@ This function does not return a value.
 ---
 
 (find_files_with_suffix_array)=
-## [`find_files_with_suffix_array()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3264)
+## [`find_files_with_suffix_array()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3241)
 
 Finds all regular files in a directory with a given suffix.
 
@@ -155,7 +155,7 @@ Returns `0` on success, or `-1` on error.
 ---
 
 (walk_dir_array)=
-## [`walk_dir_array()`](https://github.com/artgins/yunetas/blob/7.17.2/kernel/c/gobj-c/src/helpers.c#L3387)
+## [`walk_dir_array()`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/gobj-c/src/helpers.c#L3364)
 
 Recursively traverses a directory tree and populates an array with paths matching a regex pattern.
 

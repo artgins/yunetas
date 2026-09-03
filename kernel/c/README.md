@@ -744,7 +744,9 @@ json_t *string2json(const char *str, BOOL verbose);
 json_t *anystring2json(const char *bf, size_t len, BOOL verbose);
 char   *json2str(const json_t *jn);
 char   *json2uglystr(const json_t *jn);
-size_t  json_size(json_t *value);
+size_t  json_size(const json_t *jn);                            // static inline  [JS]
+BOOL    empty_json(const json_t *jn);                           // static inline  [JS]
+BOOL    json_absent(const json_t *jn);                          // static inline
 BOOL    json_is_identical(json_t *kw1, json_t *kw2);                                // [JS]
 int     cmp_two_simple_json(json_t *jn_var1, json_t *jn_var2);                       // [JS]
 int     json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite);

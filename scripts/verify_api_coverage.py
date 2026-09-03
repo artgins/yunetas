@@ -168,12 +168,34 @@ def parse_anchors(path: Path) -> set[str]:
     return set(ANCHOR_RE.findall(path.read_text(encoding="utf-8")))
 
 
+# A header's surface is not only its `PUBLIC` prototypes: it also carries
+# `static inline` functions, and a consumer calls those exactly the same way.
+# The guard does NOT require them to be documented -- 68 of them live across
+# the verified headers and documenting them all is open work -- but when one IS
+# documented it must be matched, not reported as a stale symbol. So they are
+# parsed separately and used only to absolve an EXTRA.
+STATIC_INLINE_RE = re.compile(
+    r"""
+    ^[ \t]*static[ \t]+inline[ \t]+   # the storage class
+    (?:[\w*\s]+?)                      # return type (non-greedy)
+    \b([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\(   # function name followed by '('
+    """,
+    re.VERBOSE | re.MULTILINE,
+)
+
+
 def parse_public_fns(path: Path) -> set[str]:
     if not path.exists():
         return set()
     # Skip `PUBLIC` as used for variables (rare). We require a '(' after
     # the name on the same line, which PUBLIC_RE already enforces.
     return set(PUBLIC_RE.findall(path.read_text(encoding="utf-8")))
+
+
+def parse_static_inline_fns(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    return set(STATIC_INLINE_RE.findall(path.read_text(encoding="utf-8")))
 
 
 @dataclass
@@ -212,6 +234,10 @@ def main() -> int:
     reports: list[HeaderReport] = []
     allowed_hits: dict[str, str] = {}  # name -> landing it was documented on
 
+    header_inlines: dict[Path, set[str]] = {
+        h: parse_static_inline_fns(h) for h in HEADER_TO_LANDINGS
+    }
+
     for header, landings in HEADER_TO_LANDINGS.items():
         rep = HeaderReport(header=header, landings=landings)
         rep.exported = set(header_exports[header])
@@ -238,6 +264,12 @@ def main() -> int:
                     # unverified header — allowed, but recorded for the audit.
                     if name in ALLOWED_EXTRAS:
                         allowed_hits.setdefault(name, rel)
+                        continue
+                    # A `static inline` of this header, documented on purpose.
+                    # Part of the surface, invisible to PUBLIC_RE, and not
+                    # required to be documented -- so it is neither MISSING
+                    # nor EXTRA.
+                    if name in header_inlines[header]:
                         continue
                     # Otherwise it's a genuine EXTRA (stale/removed symbol),
                     # attributed to the first landing that documents it.
