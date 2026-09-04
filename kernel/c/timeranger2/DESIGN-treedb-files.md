@@ -149,40 +149,63 @@ Serving bytes to a browser is not storing them:
 That is `get-asset`, and it stays where it is. Treedb owns the store; `C_ASSETS`
 owns the way out.
 
-## 7. What changes, by layer
+## 7. The gc is treedb's, and the derived hooks are what it reads
+
+An asset nothing links any more is garbage, and deciding that is reading the
+hooks. Today `C_ASSETS gc-assets` has to be HANDED the hook names to do it
+(`node_is_linked()`, `c_assets.c:1090`); treedb derived them (§3), so it already
+knows them — and it knows them for every host, without being told.
+
+Three consequences, and one of them deletes a rule:
+
+- **The refusal comes for free.** Deleting an asset that a node still links must
+  be refused, which `C_ASSETS` states as a rule of its own. Treedb's ordinary
+  delete guard already refuses a node that has links unless `force` is given, so
+  there is nothing to write.
+- **The sweep is ON DEMAND, never automatic.** Dropping the blob the moment the
+  last link goes is tempting and wrong: `treedb_delete_node` with `force`
+  UNLINKS children rather than deleting them, so an asset sitting unlinked is a
+  normal intermediate state of a bulk operation. An automatic gc would delete
+  bytes that are re-linked a second later.
+- **It says what it would take before taking it.** A dry run costs nothing here,
+  because the hooks and the blob paths are both known.
+
+A note, and it is a comfort rather than a licence: the id is the sha256 of the
+content, so a gc that took too much is undone by adding the same file again — it
+comes back under the same id, and every fkey that pointed at it is valid once
+more.
+
+## 8. What changes, by layer
 
 | Layer | Change |
 |---|---|
 | `timeranger2` | the `.blobs` store: put by content (sha256), get by id |
-| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5 |
+| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5; the gc of §7 |
 | `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` + `cols` `topic_version` bumped |
 | `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets`; keeps `get-asset` |
 | `gobj-js` | `file` in `treedb_field_types` |
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
 
-## 8. Migration
+## 9. Migration
 
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
 links one, so it needs a **new store**. It is cheaper than it sounds: the blobs
 are addressed by content and do not move, so the migration is wipe → re-ingest
 the directory → re-link, which is what a census reload does anyway.
 
-## 9. Open items
+## 10. Open items
 
-1. **The gc.** An asset nothing links any more is garbage. `C_ASSETS` has
-   `gc-assets`; as a treedb facility it wants to be a command of the treedb, and
-   it has to read the derived hooks to decide.
-2. **Who enforces `max_size` and the content-type allowlist.** They are policy,
+1. **Who enforces `max_size` and the content-type allowlist.** They are policy,
    and policy at the door is `C_ASSETS`'s today. If the door is now
    `create-node`, treedb enforces them — and then they are attrs of what? The
    treedb, or the column?
-3. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
+2. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
    plus a column.
-4. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
+3. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
    localhost only). The deployed SPAs are https; a dev server on `http://` is
    not.
-5. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
+4. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
