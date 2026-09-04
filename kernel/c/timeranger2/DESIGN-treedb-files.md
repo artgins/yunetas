@@ -137,6 +137,29 @@ Today `put-asset` always sends the whole file and dedupes on arrival, at roughly
 2.3× the file in RAM. On a census reload, where nearly every asset is already
 stored, step 3 is the difference between seconds and half an hour.
 
+### The second door: a directory already on the node
+
+The bulk load is treedb's too. A directory that is already on the machine
+becomes N assets in **one command and no bytes on the wire** — which is what
+rebuilding a store from scratch means (§11), and 346 MB is not something to send
+one file at a time.
+
+Two things it carries over from `C_ASSETS`, and one it must add:
+
+- **`import_root`, and empty still means REFUSED.** The import is confined to
+  that root, and the guard is the whole security of the feature: without it, a
+  command that reads a path is a command that reads anything on the node.
+- **It creates index nodes, it does not link them.** Linking is the loader's
+  business, as it is for any other node.
+- **It must ANSWER the map** `path -> id`, and this is the piece that closes a
+  loop the other decisions opened. `C_ASSETS` let a loader link by matching
+  `source_path`; §3 removed that column on purpose, because the same bytes are
+  one asset and a single path is a lie. So the bridge has to come back in the
+  ANSWER instead of being stored: the loader already knows that
+  `E22000041.jpg` belongs to device `E22000041` — it only needs the id that
+  file got. Told once, at import time, and then thrown away. The path stays a
+  fact of the load, which is where §3 said it belonged.
+
 ## 6. The read path stays with C_ASSETS
 
 Serving bytes to a browser is not storing them:
@@ -285,9 +308,9 @@ before sending the record that needs them.*
 | Layer | Change |
 |---|---|
 | `timeranger2` | the `.blobs` store: put by content (sha256), get by id |
-| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5; the gc of §7; the limits of §8 |
+| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5 and its bulk door; the gc of §7; the limits of §8 |
 | `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` + `cols` `topic_version` bumped |
-| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets` and both limits; keeps `get-asset` |
+| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets` and both limits; keeps `get-asset` — and is then one command |
 | `gobj-js` | `file` in `treedb_field_types` |
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
@@ -304,9 +327,9 @@ anyway — the yunovatios stores have been wiped for less (schema 17, the same
 day this note was written).
 
 What that does NOT remove is the way back in. Rebuilding from scratch is exactly
-re-ingesting 12 134 blobs and 346 MB, so the bulk load stops being a convenience
-and becomes the only path: see the open item about `import-assets`, which is now
-load-bearing.
+re-ingesting 12 134 blobs and 346 MB, so the bulk load is not a convenience, it
+is the only path — which is why it is treedb's too, and why it has to answer the
+`path -> id` map (§5).
 
 ## 12. Open items
 
@@ -317,12 +340,7 @@ load-bearing.
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
-3. **`import-assets` has no owner, and §11 made it load-bearing.** It is in the
-   list of what `C_ASSETS` loses and in none of what anything gains — and with
-   no migration, rebuilding a store from scratch IS a bulk load of a directory
-   already on the node (one command, N assets, no bytes on the wire). It has to
-   land in treedb as a command, or there is no way back in.
-4. **How this is tested.** The sibling design note ends by naming its regression
+3. **How this is tested.** The sibling design note ends by naming its regression
    test; this one should too, before anybody starts: what proves that the base64
    dies at the door, that the ceiling is applied before decoding, and that the
    content type is read from the bytes.
