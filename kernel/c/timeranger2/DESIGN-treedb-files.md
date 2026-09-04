@@ -210,7 +210,45 @@ narrows. A column that declares nothing takes the treedb's whole list.
 *(This split is a recommendation, not something we settled out loud. What we
 settled is that treedb enforces, at the door.)*
 
-## 9. What changes, by layer
+## 9. Between nodes: the bytes go FIRST, and it stays an order
+
+The bytes crossing to another node is not a new problem and it is not a hard
+one: **the agent has been doing this design for years**. `install-binary` takes
+the file as `content64` in the kw, decodes it, writes it under
+`/yuneta/repos/{tags}/{role}/{version}/` and creates a node in the `binaries`
+topic whose columns are `id`, `version`, `size`, `date`, `description`, `tags`
+— **the metadata, never the bytes**. Index in the treedb, content on disk, and
+it reaches a remote agent over `wss` exactly as it reaches the local one.
+`ycommand`'s `content64=$$(path)` is already the client half of §5, done with a
+shell instead of `crypto.subtle`.
+
+What that precedent settles is the transport. What it does not settle is the
+case where a RECORD moves rather than a person uploading: the controller
+forwards a device to the central and the record carries an fkey to an asset the
+central does not have. Nobody is holding the file at that moment.
+
+**The answer is not for the receiver to pull.** A pull reads well — the receiver
+knows the sha256, so it can ask for it and verify what arrives — and it costs
+more than it looks: the receiver is left holding a record it cannot complete, so
+it needs a queue of assets it owes, retries, and state that survives a restart.
+A one-way message has become a protocol, and it lands on the side that did not
+ask for the record.
+
+**So the order is: the bytes, then the record.** Two commands, both one-way,
+both from the side that HAS the file — the same shape as `install-binary`:
+
+1. store the file (idempotent by content: a repeat costs nothing);
+2. write the record, which arrives at a node that already has the asset.
+
+The sender may skip the *"do you have it?"* of §5 and send bytes that were
+already there; that costs bandwidth and nothing else. The difference is the
+whole point: **a handshake BEFORE sending is an optimisation the sender may
+skip; a handshake AFTER receiving is a protocol the receiver cannot.**
+
+One rule covers the browser and the node: *whoever has the bytes sends them
+before sending the record that needs them.*
+
+## 10. What changes, by layer
 
 | Layer | Change |
 |---|---|
@@ -222,14 +260,14 @@ settled is that treedb enforces, at the door.)*
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
 
-## 10. Migration
+## 11. Migration
 
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
 links one, so it needs a **new store**. It is cheaper than it sounds: the blobs
 are addressed by content and do not move, so the migration is wipe → re-ingest
 the directory → re-link, which is what a census reload does anyway.
 
-## 11. Open items
+## 12. Open items
 
 1. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
    plus a column.
@@ -240,3 +278,18 @@ the directory → re-link, which is what a census reload does anyway.
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
+4. **The gc against the snapshots.** `treedb_delete_node` already refuses a node
+   carrying a snap tag, so an asset inside a snapshot is safe. But the gc decides
+   by the hooks of the LIVE state: delete a device, its asset is orphaned, the gc
+   sweeps it — and then somebody activates a snap where that device existed and
+   linked it. Content addressing makes that recoverable only if the file is still
+   somewhere. Decide whether the gc reads the snapshotted states too.
+5. **`import-assets` has no owner.** It is in the list of what `C_ASSETS` loses
+   and in none of what anything gains — and it is the census path (a directory
+   already on the node, one command and N assets with no bytes on the wire),
+   which is exactly what makes the migration of §11 cheap. It has to land in
+   treedb as a command, or that migration does not exist.
+6. **How this is tested.** The sibling design note ends by naming its regression
+   test; this one should too, before anybody starts: what proves that the base64
+   dies at the door, that the ceiling is applied before decoding, and that the
+   content type is read from the bytes.
