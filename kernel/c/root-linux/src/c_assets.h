@@ -83,8 +83,16 @@ extern "C"{
  *                                'flag':['persistent']},
  *              't':             {'header':'Time','fillspace':20,'type':'integer',
  *                                'flag':['persistent','time','now']},
+ *              # The ONLY writable column, and deliberately the only one:
+ *              # every other one describes the BYTES -- `id` is their
+ *              # sha256, `content_type`/`size`/`t` measure them,
+ *              # `source_path`/`uploaded_by` are facts of the load -- so
+ *              # editing one would be lying about the content. A name is a
+ *              # LABEL, which is a different kind of thing. Without it the
+ *              # topic has no writable column at all and its edit form
+ *              # opens holding nothing but the read-only id.
  *              'original_name': {'header':'Name','fillspace':20,'type':'string',
- *                                'flag':['persistent']},
+ *                                'flag':['writable','persistent']},
  *              # A LIST, and that is deliberate: an asset is its CONTENT, so
  *              # N files with identical bytes are ONE asset -- and each came
  *              # from its own path. Keeping one path loses the rest, and the

@@ -179,7 +179,9 @@ PUBLIC int treedb_set_callback(
         "now"
         "date"
         "color"
-        "image"
+        "image"        // a FILE: an url or a data uri, drawn with <img>
+        "icon"         // the NAME of an icon of the app's set ("yi-bolt"),
+                       // which is a different thing from a file
         "tel"
         "table"
         "id"

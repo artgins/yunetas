@@ -118,7 +118,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '15',                             \n\
+    'schema_version': '16',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -315,7 +315,7 @@ char treedb_system_schema[]= "\
             'id': 'cols',                               \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '9',                       \n\
+            'topic_version': '10',                      \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
@@ -442,6 +442,7 @@ char treedb_system_schema[]= "\
                         'date',                         \n\
                         'color',                        \n\
                         'image',                        \n\
+                        'icon',                         \n\
                         'tel',                          \n\
                         'table',                        \n\
                         'id',                           \n\

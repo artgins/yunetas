@@ -2,8 +2,39 @@
 
 ## [Unreleased]
 
-Only the JS layer so far, which carries its own versions and reaches the apps
-through npm — nothing in C, so nothing to tag.
+### `icon` becomes a treedb field type, and the C side is the one that ENFORCES it
+
+A col flagged `icon` holds the NAME of an icon of the app's set (`yi-bolt`),
+not a file. The nearest thing the vocabulary carried was `image`, which is a
+different case: a frontend built an `<img src="yi-bolt">` and drew the
+browser's broken-image glyph.
+
+The word is added in three places, and the third is the one that matters:
+
+- `tr_treedb.h` — the documented list of field types. A comment.
+- `kernel/js/gobj-js` 7.16.3 — `treedb_field_types`, which is what makes
+  `treedb_get_field_desc()` answer `type: "icon"`. Drawn by `gobj-ui`
+  7.23.53.
+- **`treedb_system_schema.c` — the `enum` of the `cols` topic's `flag`
+  column, which is the list `check_desc_field()` VALIDATES against.**
+
+That third one is the lesson. The vocabulary in `tr_treedb.h` reads like the
+source of truth and is a comment; the enforced copy is a JSON literal in
+`treedb_system_schema.c`, reached through
+`_treedb_create_topic_cols_desc()`. A schema using a flag that is only in the
+comment is REJECTED at `treedb_open_db` — *"Wrong enum type"* — and the yuno
+exits at `mt_play` with *"Parse schema fails"*, which is a yuno that will not
+start rather than a column that does not draw. Verified the hard way on a
+live node.
+
+The system schema therefore moves too: `schema_version` 15 → 16 and the
+`cols` topic 9 → 10, so the persisted `__system__` of every store learns the
+new flag on the next start instead of offering the old list to the schema
+editor.
+
+### The JS layer
+
+Carries its own versions and reaches the apps through npm.
 
 ### `gobj-ui` 7.23.49: a search that could not see inside an fkey
 
