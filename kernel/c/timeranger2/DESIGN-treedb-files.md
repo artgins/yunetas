@@ -185,6 +185,23 @@ Three consequences, and one of them deletes a rule:
 - **It says what it would take before taking it.** A dry run costs nothing here,
   because the hooks and the blob paths are both known.
 
+**And it reads the SNAPSHOTS, not only the live state.** Otherwise: delete a
+device, its asset is orphaned, the gc takes it — and then somebody activates a
+snap where that device existed and linked it, and the link dangles. So "nothing
+links it" means *no live node and no snapshotted version of one*, which turns
+the sweep from a walk over the in-memory hooks into a walk that also reads the
+tagged record instances. The derived hooks still say which columns to look at;
+what changes is how many versions of a node are asked.
+
+Two things follow from that:
+
+- **A snapshot holds bytes alive.** What frees an asset is not deleting the node
+  that linked it, it is deleting the SNAP that still remembers the link. That is
+  the same rule `treedb_delete_node` already applies to a node carrying a snap
+  tag, extended to the bytes hanging off it.
+- **The gc is conservative by construction.** It takes only what no version of
+  anything has pointed at since the oldest surviving snapshot.
+
 A note, and it is a comfort rather than a licence: the id is the sha256 of the
 content, so a gc that took too much is undone by adding the same file again — it
 comes back under the same id, and every fkey that pointed at it is valid once
@@ -275,12 +292,21 @@ before sending the record that needs them.*
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
 
-## 11. Migration
+## 11. Migration: there is none
+
+There is none, and that is a decision: **the stores are wiped and everything is
+built again from scratch.**
 
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
-links one, so it needs a **new store**. It is cheaper than it sounds: the blobs
-are addressed by content and do not move, so the migration is wipe → re-ingest
-the directory → re-link, which is what a census reload does anyway.
+links one, so a store that survived would carry links to a topic that no longer
+exists. Migrating it in place is work to produce a state that a reload produces
+anyway — the yunovatios stores have been wiped for less (schema 17, the same
+day this note was written).
+
+What that does NOT remove is the way back in. Rebuilding from scratch is exactly
+re-ingesting 12 134 blobs and 346 MB, so the bulk load stops being a convenience
+and becomes the only path: see the open item about `import-assets`, which is now
+load-bearing.
 
 ## 12. Open items
 
@@ -291,18 +317,12 @@ the directory → re-link, which is what a census reload does anyway.
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
-3. **The gc against the snapshots.** `treedb_delete_node` already refuses a node
-   carrying a snap tag, so an asset inside a snapshot is safe. But the gc decides
-   by the hooks of the LIVE state: delete a device, its asset is orphaned, the gc
-   sweeps it — and then somebody activates a snap where that device existed and
-   linked it. Content addressing makes that recoverable only if the file is still
-   somewhere. Decide whether the gc reads the snapshotted states too.
-4. **`import-assets` has no owner.** It is in the list of what `C_ASSETS` loses
-   and in none of what anything gains — and it is the census path (a directory
-   already on the node, one command and N assets with no bytes on the wire),
-   which is exactly what makes the migration of §11 cheap. It has to land in
-   treedb as a command, or that migration does not exist.
-5. **How this is tested.** The sibling design note ends by naming its regression
+3. **`import-assets` has no owner, and §11 made it load-bearing.** It is in the
+   list of what `C_ASSETS` loses and in none of what anything gains — and with
+   no migration, rebuilding a store from scratch IS a bulk load of a directory
+   already on the node (one command, N assets, no bytes on the wire). It has to
+   land in treedb as a command, or there is no way back in.
+4. **How this is tested.** The sibling design note ends by naming its regression
    test; this one should too, before anybody starts: what proves that the base64
    dies at the door, that the ceiling is applied before decoding, and that the
    content type is read from the bytes.
