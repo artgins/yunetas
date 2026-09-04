@@ -248,6 +248,37 @@ Two rules the write path cannot bend:
   way round leaves a node pointing at nothing, and nothing repairs that on its
   own; interrupted this way it leaves an orphan blob, which the gc takes.
 
+### An asset node is a node like any other
+
+Arriving twice is not a special case to suppress. The second arrival of a file
+whose id is already there is an **update of its node**, and an update appends an
+instance like every other record in the store: the history then says that this
+file arrived again, under this name, at this time. (Worth knowing when writing
+it: `treedb_create_node` on an existing pkey does NOT append — `save_id` stays
+false, with a TODO beside it asking whether it should. The append comes from
+`update_node`.)
+
+**And that gives back what §3 threw away.** `source_path` was dropped because
+one path is a lie and a list of them is a field nobody reads. The list returns
+by itself as HISTORY: every name that file has ever arrived under is an instance
+of its node, read with `tr2list` like any other history. No column, and a better
+place than the one it had.
+
+The blob is untouched by any of this, because it is not part of the record. The
+same id is the same bytes by construction, so writing it again writes the same
+bytes to the same place: skipping it is an optimisation, not a rule about the
+node. What the rule really says is that **the content cannot change** — a
+different content would be a different id.
+
+Which is also the answer to the only question a hash raises. Collisions exist by
+the pigeonhole principle, no SHA-256 collision has ever been exhibited, and an
+accidental one among 10⁹ assets sits around 10⁻⁶⁰ — far below the disk
+corrupting a file in silence. And if one were ever manufactured it could not
+SUBSTITUTE anything: treedb re-hashes what arrives, so an id cannot be claimed
+without the bytes that make it, and the bytes already there are not rewritten.
+The failure mode is "the newcomer's file is not stored", never "the stored file
+is replaced".
+
 Today `put-asset` always sends the whole file and dedupes on arrival, at roughly
 2.3× the file in RAM. On a census reload, where nearly every asset is already
 stored, step 3 is the difference between seconds and half an hour.
