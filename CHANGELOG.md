@@ -37,10 +37,13 @@ versions. Paid for in yunovatios, where a cached 6.4.1 worker made the 6.7.0
 `GlyphManager` answer `t.codePointAt is not a function` once per tile. The
 emitted names now carry the installed version.
 
-### `yunos-js` 0.22.45
+### `yunos-js` 0.22.46 / 0.17.18
 
-The agent console stops its JSON viewer before destroying it, and `gui_agent`
-moves to 0.22.45. Detail in that repo's own CHANGELOG.
+The agent console stops its JSON viewer before destroying it (`gui_agent`
+0.22.45), and both SPAs then raise their ranges to the libraries above —
+`@yuneta/gobj-ui` `^7.23.49` and `@yuneta/gobj-js` `^7.16.2` — which is what
+carries the fkey search fix into `gui_treedb`'s table. Ranges only: no code
+of either app changes. Detail in that repo's own CHANGELOG.
 
 ## 7.17.3
 
