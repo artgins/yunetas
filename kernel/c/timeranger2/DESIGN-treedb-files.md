@@ -175,37 +175,68 @@ content, so a gc that took too much is undone by adding the same file again — 
 comes back under the same id, and every fkey that pointed at it is valid once
 more.
 
-## 8. What changes, by layer
+## 8. The door checks the size and the type, and the door is treedb
+
+Both limits move in with the store. Two notes on *how*, because each one is the
+difference between a check and a formality:
+
+**Size is checked on the base64, before decoding.** `max_size` is a MEMORY limit
+as much as a policy one — the file is hashed and written whole — so a check that
+runs after decoding has already spent what it was defending. The encoded length
+gives the byte count exactly (`len * 3 / 4`, minus the padding), so the refusal
+can happen while the bytes are still a string.
+
+**The type is checked on the BYTES, not on the word.** Today the content type is
+either handed over by the client or guessed from the filename
+(`c_assets.c:151`, `:1624`) — it is never read from the content. That makes the
+allowlist a formality, and it matters most where the list is most deliberate:
+`image/svg+xml` is left out because an svg served from the app's own origin runs
+script, and a client that calls its svg `image/png` walks straight past the
+omission. Treedb holds the whole buffer at the door anyway, because it has to
+hash it: sniffing the first bytes costs one comparison, and turns the declared
+type into a claim to verify instead of a fact to trust.
+
+**And there are two levels, not one.** The two things `max_size` fuses today
+want different homes:
+
+| | Where | What it is |
+|---|---|---|
+| the ceiling | the **treedb** | what ONE write may cost this process, and the families the store will ever hold. A safety rule: a column author must not be able to opt into `image/svg+xml` |
+| the policy | the **column** | what THIS field is for. A device photo has no business being 100 MB; a signed plan is a pdf and not a video |
+
+The column's cannot raise the treedb's — the ceiling wins, and the column
+narrows. A column that declares nothing takes the treedb's whole list.
+
+*(This split is a recommendation, not something we settled out loud. What we
+settled is that treedb enforces, at the door.)*
+
+## 9. What changes, by layer
 
 | Layer | Change |
 |---|---|
 | `timeranger2` | the `.blobs` store: put by content (sha256), get by id |
-| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5; the gc of §7 |
+| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5; the gc of §7; the limits of §8 |
 | `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` + `cols` `topic_version` bumped |
-| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets`; keeps `get-asset` |
+| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets` and both limits; keeps `get-asset` |
 | `gobj-js` | `file` in `treedb_field_types` |
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
 
-## 9. Migration
+## 10. Migration
 
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
 links one, so it needs a **new store**. It is cheaper than it sounds: the blobs
 are addressed by content and do not move, so the migration is wipe → re-ingest
 the directory → re-link, which is what a census reload does anyway.
 
-## 10. Open items
+## 11. Open items
 
-1. **Who enforces `max_size` and the content-type allowlist.** They are policy,
-   and policy at the door is `C_ASSETS`'s today. If the door is now
-   `create-node`, treedb enforces them — and then they are attrs of what? The
-   treedb, or the column?
-2. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
+1. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
    plus a column.
-3. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
+2. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
    localhost only). The deployed SPAs are https; a dev server on `http://` is
    not.
-4. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
+3. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
