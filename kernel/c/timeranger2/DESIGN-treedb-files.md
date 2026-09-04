@@ -155,6 +155,41 @@ and dropped at the door — the same key/value beside key/value that an event an
 its kw already are, and that a kw carrying its `gbuffer` next to its json
 already is one level down.
 
+**`__files__` is a MANIFEST, and the bytes are spelled two ways.** A browser
+sends json, so it carries `content64`. A C caller over an ievent channel puts a
+real `gbuffer` in the kw and the manifest says where each file is inside it:
+
+```json
+{"id": "E22000041",
+ "foto": "<sha256>",
+ "qr":   "<sha256>",
+ "__files__": {"foto": {"offset": 0,     "size": 40123, "original_name": "..."},
+               "qr":   {"offset": 40123, "size": 3319,  "original_name": "..."}}}
+```
+
+That is the cheaper door and it is worth taking: base64 is +33% on the wire and
+today's `put-asset` peaks at roughly **2.3× the file in RAM** — the encoded
+string in the kw plus the decoded copy. A gbuffer is 1× and there is nothing to
+decode. On a census push of 346 MB that is ~460 MB of string against 346 MB of
+buffer.
+
+Two things about that slot, and both are load-bearing:
+
+- **There is ONE binary field per kw, at the TOP level.** `gobj_start_up()`
+  registers exactly one (`kw_add_binary_type("gbuffer", "__gbuffer___", …)`,
+  `gobj.c:592`) and `kw_serialize()` looks it up with a plain
+  `json_object_get(kw, "gbuffer")`. It will not find one nested inside
+  `__files__`. Hence the manifest with offsets: one buffer holds every file of
+  the record, and `__files__` says which slice is whose. A record setting a
+  photo AND a qr at once is not exotic — commissioning does it.
+- **`kw["gbuffer"]` is auto-decref'd by the serializer table.** The write path
+  takes it with `extract=TRUE` exactly once and owns it from there; reading it
+  with `extract=FALSE` and then decref'ing is the *"BAD gbuf_decref()"* double
+  free. And a kw that carries one is refcounted with `kw_incref` /
+  `kw_decref`, **never** with the json pair — `kw_decref` drops the binary on
+  every call, and `json_incref` does not balance it. Two shipped bugs came from
+  exactly this.
+
 The alternative was to let the column hold either an id or an object, and it is
 the shape to avoid: `normalize_node_field_value()` runs every incoming field
 against its column's declared type, so an fkey column receiving an object is
@@ -350,10 +385,12 @@ skip; a handshake AFTER receiving is a protocol the receiver cannot.**
 One rule covers the browser and the node: *whoever has the bytes sends them
 with the record that needs them.*
 
-(One asymmetry, for later: over an ievent channel a kw can carry a real
-`gbuffer` beside its json, which would spare the base64 its 33% and the decode
-its copy. A browser cannot — it sends json. So the C side could take the cheaper
-door without changing anything else.)
+One asymmetry, and it is decided: **between C nodes the bytes go as a real
+`gbuffer`**, not as base64 (§5). A browser cannot — it sends json — so both
+spellings of `__files__` exist for good, and the write path forks once at the
+door: take the buffer as it is, or decode the string. Everything after that
+point — hash, size, type, write — works on bytes and does not care which door
+they came through.
 
 ## 10. What changes, by layer
 
