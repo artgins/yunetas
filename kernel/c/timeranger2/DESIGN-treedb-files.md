@@ -1,6 +1,7 @@
 # Design: a `file` column, and `__assets__` as a treedb system topic
 
-Status: **PROPOSED**, nothing implemented. Agreed in design on 2026-09-04.
+Status: **PROPOSED**, nothing implemented. Every decision of model closed
+between 2026-09-04 and 2026-09-05; no open items (§14).
 
 The shape in one sentence: **you mark a column `file`, and treedb gives you a
 pseudo-filesystem** — you hand it a file, you get it back, the *index* lives in
@@ -90,6 +91,20 @@ The `desc` a client reads is the in-memory one, so a GUI sees the hooks.
 The one consequence is an ordering note for whoever writes it: the derivation is
 a **second pass at open**. `__assets__` is created before the host's topics are
 known, so the hooks can only be added once every schema has been parsed.
+
+**And it is shown the way `__snaps__` and `__graphs__` are: in system mode
+only.** The name decides it — a GUI skips the `__`-prefixed topics unless it was
+asked for the system ones (`c_yui_treedb_topics.js`) — and that is the intended
+place. What a person wants to look at is the photo OF A DEVICE, not the row of
+an index; whoever wants the index is the one who goes to system mode. Once a
+`file` column draws its asset properly, the topic itself stops being the way to
+look at one.
+
+It also settles a worry that is not worth a rule. Creating a row by hand in
+`__assets__` would make an index entry with no bytes behind it — the id is the
+hash of content nobody wrote — but reaching it takes system mode AND an
+administrator typing into an index. `__snaps__` has carried the same
+theoretical hole for years and nobody has fallen in it.
 
 Its columns are the index entry, and they are the ones `C_ASSETS` already
 writes: `id` (the sha256, pkey), `content_type`, `size`, `t`, `original_name`,
@@ -553,9 +568,10 @@ note that, if it broke, would break **quietly**:
    rule — this design allocates buffers at a boundary, which is exactly where
    one hides.
 
-## 14. Open items
+## 14. Open items: none
 
-1. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
-   hand makes an index entry with no bytes behind it, since the id IS the hash
-   of content that was never written. A system topic is the signal the GUI
-   already understands.
+Every decision of model is taken. What remains is the work of §11 and the suite
+of §13 — and the two things that will be got wrong if they are read past: the
+manifest carries offsets because a kw holds ONE binary field at its top level
+(§5), and the derived hooks are never persisted, so nothing about `__assets__`
+is ever versioned (§3).
