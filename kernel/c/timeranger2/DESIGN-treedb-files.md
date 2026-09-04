@@ -137,6 +137,31 @@ this cheaper than `put-asset`:
 4. if it does not, the bytes ride along in the same `create-node` /
    `update-node`.
 
+### The client's hash is an OPTIMISATION, never a requirement
+
+A client may not be able to hash: `crypto.subtle` exists only in a secure
+context, so a dev server on plain `http://` cannot — and hashing wants the whole
+file in an `ArrayBuffer`, which for a large video is the whole file in the
+browser's memory.
+
+Then it does not hash, and **sends no id at all**. The manifest is keyed by
+COLUMN, so *"this column takes this file"* is all the message needs; the write
+path hashes what arrives — which it does anyway, because it never trusts the
+client's id — and fills the fkey itself. The same code minus one comparison.
+
+What that costs is exactly what step 3 was buying: with no id up front the bytes
+must ALWAYS travel, because nothing can be known to be a duplicate until it has
+arrived. A census reload is 12 134 assets already stored: with the hash first it
+sends ~0, without it sends **346 MB** to discover that nothing was new. The
+optimisation trades microseconds of sha256 for minutes of wire, which is why it
+is the default and not the rule.
+
+**What must NOT be done is to send the file NAME as the id.** If a name ever
+became the identity, the three things content addressing gives would go with it:
+two different `foto.jpg` would collide, the same bytes under two names would
+become two assets (the 148 photographs of Can Tunis, again), and the
+cache-for-ever url of §6 would start meaning different bytes over time.
+
 ### What travels on the wire
 
 The column's value is **always the id**, and the bytes ride BESIDE the record,
@@ -231,7 +256,7 @@ stored, step 3 is the difference between seconds and half an hour.
 
 The bulk load is treedb's too. A directory that is already on the machine
 becomes N assets in **one command and no bytes on the wire** — which is what
-rebuilding a store from scratch means (§11), and 346 MB is not something to send
+rebuilding a store from scratch means (§12), and 346 MB is not something to send
 one file at a time.
 
 Two things it carries over from `C_ASSETS`, and one it must add:
@@ -401,7 +426,42 @@ forks once at the door: take the buffer as it is, or decode the string.
 Everything after that point — hash, size, type, write — works on bytes and does
 not care which door they came through.
 
-## 10. What changes, by layer
+## 10. The form: one request, and three things that are not obvious
+
+Creating a record with a `file` column is **one** request. The second exists
+only if the client takes the optimisation, and it is a lookup, not a write:
+
+```
+plain:      create-node { record + __files__ }                        1
+optimised:  is <sha> there? -> create-node { record + __files__ if not }   2
+```
+
+The split is the one that already exists: the **form** talks to no backend — it
+is a widget — and the **table** does, because it owns the transport and already
+sends `EV_CREATE_RECORD`. Same shape as `EV_REQUEST_PAGE`: the view asks, the
+host carries.
+
+Three things that will be got wrong if they are not written down:
+
+- **The file is read at SAVE, not at pick.** An `<input type="file">` hands over
+  a `File`, which is a reference and not the bytes. Picking shows a name and a
+  size and reads nothing, so cancelling a form does not mean a 40 MB video was
+  read for nothing. Reading — and hashing, if it hashes — belongs to Save.
+- **The `File` cannot travel in a kw.** A kw is plain json: no gobjs, no
+  widgets, no DOM nodes, because the machine trace serialises it and a `File` is
+  a host object. So the form KEEPS it and hands up an identity — the record goes
+  with the column empty and the table asks the form for the picked files through
+  a local method. The same reason a card sends `{key, mode}` and not the object.
+- **Saving stops being synchronous.** Reading a file is a promise, and a
+  resolved promise is an OS notification that must enter the machine as an
+  EVENT, not as a chain of callbacks. So Save on a form with a file column is
+  two states — *reading* and *waiting for the write* — which is also what makes
+  it possible to show anything at all while 40 MB go up.
+
+Replacing a file is the same flow: the new asset is linked, the old one is left
+unlinked, and the gc takes it when nothing (and no snapshot, §7) holds it.
+
+## 11. What changes, by layer
 
 | Layer | Change |
 |---|---|
@@ -413,7 +473,7 @@ not care which door they came through.
 | `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
 | hosts | delete the `assets` topic from their schema; flag their columns `file` |
 
-## 11. Migration: there is none
+## 12. Migration: there is none
 
 There is none, and that is a decision: **the stores are wiped and everything is
 built again from scratch.**
@@ -429,7 +489,7 @@ re-ingesting 12 134 blobs and 346 MB, so the bulk load is not a convenience, it
 is the only path — which is why it is treedb's too, and why it has to answer the
 `path -> id` map (§5).
 
-## 12. The tests: `tests/c/tr_treedb_files`
+## 13. The tests: `tests/c/tr_treedb_files`
 
 One suite, named like its neighbours (`tr_treedb_immutable`,
 `tr_treedb_hook_hygiene`, `tr_treedb_snap`). Each case nails a claim of this
@@ -462,12 +522,9 @@ note that, if it broke, would break **quietly**:
    rule — this design allocates buffers at a boundary, which is exactly where
    one hides.
 
-## 13. Open items
+## 14. Open items
 
-1. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
-   localhost only). The deployed SPAs are https; a dev server on `http://` is
-   not.
-2. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
+1. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
