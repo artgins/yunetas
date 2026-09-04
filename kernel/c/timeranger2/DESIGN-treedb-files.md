@@ -167,11 +167,18 @@ real `gbuffer` in the kw and the manifest says where each file is inside it:
                "qr":   {"offset": 40123, "size": 3319,  "original_name": "..."}}}
 ```
 
-That is the cheaper door and it is worth taking: base64 is +33% on the wire and
-today's `put-asset` peaks at roughly **2.3× the file in RAM** — the encoded
-string in the kw plus the decoded copy. A gbuffer is 1× and there is nothing to
-decode. On a census push of 346 MB that is ~460 MB of string against 346 MB of
-buffer.
+**It buys no bandwidth, and that is not what it is for.** A gbuffer is binary
+INSIDE a yuno and base64 on the wire: `gbuffer_serialize()` encodes it on the
+way out and `gbuffer_deserialize()` decodes it on the way in
+(`gbuffer.c:617`, `:657`). So the bytes on the channel are the same size either
+way.
+
+What it buys is the boundary. The encode and the decode belong to the
+FRAMEWORK, at the edge of the channel, so the write path receives **bytes**
+whichever door the file came through and there is no `content64` anywhere for
+it to remember to decode — one representation inside the yuno, and a mechanism
+that already exists, is already refcounted and is already tested, instead of a
+convention of ours.
 
 Two things about that slot, and both are load-bearing:
 
@@ -386,11 +393,13 @@ One rule covers the browser and the node: *whoever has the bytes sends them
 with the record that needs them.*
 
 One asymmetry, and it is decided: **between C nodes the bytes go as a real
-`gbuffer`**, not as base64 (§5). A browser cannot — it sends json — so both
-spellings of `__files__` exist for good, and the write path forks once at the
-door: take the buffer as it is, or decode the string. Everything after that
-point — hash, size, type, write — works on bytes and does not care which door
-they came through.
+`gbuffer`** (§5) — which on the wire is base64 all the same, because that is
+what the serializer does with one; what changes is that the encoding is the
+framework's business and not the write path's. A browser has no gbuffer and
+sends json, so both spellings of `__files__` exist for good, and the write path
+forks once at the door: take the buffer as it is, or decode the string.
+Everything after that point — hash, size, type, write — works on bytes and does
+not care which door they came through.
 
 ## 10. What changes, by layer
 
@@ -420,7 +429,40 @@ re-ingesting 12 134 blobs and 346 MB, so the bulk load is not a convenience, it
 is the only path — which is why it is treedb's too, and why it has to answer the
 `path -> id` map (§5).
 
-## 12. Open items
+## 12. The tests: `tests/c/tr_treedb_files`
+
+One suite, named like its neighbours (`tr_treedb_immutable`,
+`tr_treedb_hook_hygiene`, `tr_treedb_snap`). Each case nails a claim of this
+note that, if it broke, would break **quietly**:
+
+1. **The bytes are not in the record.** Write a node with a `file` column; the
+   blob is on disk under `.blobs/`, the index node is in `__assets__`, the fkey
+   is on the child — and the stored record contains no `content64` and no
+   `__files__`. This is the 460 MB of §1, and it has to be asserted, not
+   assumed.
+2. **The id is the hash of the BYTES.** Send a wrong id with good bytes: the
+   write is refused. A client that lies must not be able to file one file's
+   content under another file's hash (§5).
+3. **The ceiling is applied before decoding** (§8). A file over `max_size` is
+   refused, and refused while it is still encoded — the check that runs after
+   the decode has already spent what it was defending.
+4. **The type is read from the bytes** (§8). A png called `image/jpeg` is
+   refused; an svg called `image/png` is refused, which is the case the
+   allowlist exists for.
+5. **The derived hooks persist nothing** (§3). Two topics with `file` columns:
+   the in-memory desc of `__assets__` carries both hooks, `topic_cols.json`
+   carries neither, and after a close/reopen they are derived again.
+6. **The gc, three ways** (§7). An asset nothing links is collected; one a live
+   node links is not; **one that only a SNAPSHOTTED version of a node links is
+   not** — that third is the one nobody would notice being wrong.
+7. **One kw, two files** (§5). A record setting two `file` columns at once
+   travels with one gbuffer and a manifest of two slices, and produces two
+   assets and two links.
+8. **No leak.** `gobj_end()` before `get_cur_system_memory()`, per the repo
+   rule — this design allocates buffers at a boundary, which is exactly where
+   one hides.
+
+## 13. Open items
 
 1. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
    localhost only). The deployed SPAs are https; a dev server on `http://` is
@@ -429,7 +471,3 @@ is the only path — which is why it is treedb's too, and why it has to answer t
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
-3. **How this is tested.** The sibling design note ends by naming its regression
-   test; this one should too, before anybody starts: what proves that the base64
-   dies at the door, that the ceiling is applied before decoding, and that the
-   content type is read from the bytes.
