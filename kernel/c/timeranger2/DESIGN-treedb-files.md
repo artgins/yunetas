@@ -1,0 +1,188 @@
+# Design: a `file` column, and `__assets__` as a treedb system topic
+
+Status: **PROPOSED**, nothing implemented. Agreed in design on 2026-09-04.
+
+The shape in one sentence: **you mark a column `file`, and treedb gives you a
+pseudo-filesystem** — you hand it a file, you get it back, the *index* lives in
+memory and the *content* on disk.
+
+It replaces the storage half of `C_ASSETS` (SDK 7.17.0, shipped and running).
+`C_ASSETS` keeps the other half — publishing the bytes to a browser — which is
+a different job and does not belong in `tr_treedb`.
+
+## 1. The premise, and the number that fixes it
+
+A treedb is a **memory database**, and timeranger2 rewrites the **whole record**
+on every update. So a photo cannot be a field of a node: it would sit in RAM for
+the life of the yuno and be rewritten every time the node changed state.
+
+Measured on the yunovatios central (2026-09-04):
+
+| | |
+|---|---|
+| blobs | **12 134** |
+| on disk | **346 MB** |
+| the same as base64 in records | **~460 MB of RAM, permanently** |
+
+That is the whole reason the bytes live outside the record. It is **not** a
+reason for them to live outside timeranger2: *index in memory, content on disk*
+is timeranger2's own model with a different payload.
+
+## 2. What a `file` column is
+
+A new **field type** in the treedb vocabulary. The value stored in the record is
+an **fkey into `__assets__`** — not the bytes, not a path.
+
+An fkey and not a bare sha256, deliberately: the link then gets, for free, the
+things a link already has — cascade delete, the graph, the scope check, and the
+count the delete dialog prints ("N children will be UNLINKED").
+
+It is a different thing from the two neighbours it will sit next to in the list:
+
+- `image` — the field **holds** the file: a url or a data uri, drawn with
+  `<img>`. That is the model the yunovatios census used before `C_ASSETS`, where
+  `devices.foto` was a path under `censo_memorias/` that nothing owned.
+- `icon` — the **name** of an icon of the app's set (`yi-bolt`).
+
+⚠️ A new field type goes in **three** places, and the third is the only one that
+can stop a yuno from starting:
+
+1. the documented list in `tr_treedb.h` — a comment;
+2. `treedb_field_types` in `gobj-js/src/lib_treedb.js` — what makes
+   `treedb_get_field_desc()` answer `type: "file"`;
+3. **the `enum` of the `cols` topic's `flag` column in
+   `treedb_system_schema.c`** — the list `check_desc_field()` validates against.
+   A schema using a flag that is only in the comment is refused at
+   `treedb_open_db` (*"Wrong enum type"*) and the yuno exits at `mt_play`.
+   Bump the system `schema_version` and the `cols` `topic_version` with it.
+
+## 3. `__assets__` is a system topic, and its hooks are DERIVED
+
+This is the pivot of the design.
+
+Today the asset topic cannot be a system topic, and `c_assets.h:61` says why:
+
+> THE TOPIC IS THE HOST'S, NOT THIS GCLASS'S. C_ASSETS never creates it: the
+> fkeys of an asset point at the host's own topics, so only the host can write
+> those hooks.
+
+Treedb does not have that problem, because **treedb reads every schema**. For
+every column flagged `file` in topic `T` named `C`, `__assets__` gains the
+reciprocal hook:
+
+```
+__assets__.as_<T>_<C>   hook -> {"<T>": "<C>"}
+```
+
+So the host declares **nothing but the column**. `__assets__` is created by
+`tr_treedb` alongside `__snaps__` and `__graphs__` (`tr_treedb.c:745`, `:834`),
+with `system_topic: true` so it cannot be deleted.
+
+Its columns are the index entry, and they are the ones `C_ASSETS` already
+writes: `id` (the sha256, pkey), `content_type`, `size`, `t`, `original_name`,
+`uploaded_by` — plus the derived hooks. `original_name` is the only writable
+one: every other column describes the bytes, and editing it would lie about
+them.
+
+**There is no `source_path` and no subpath.** Dropped on purpose: the same bytes
+are ONE asset and each copy came from its own place (148 points of Can Tunis
+share one photograph), so a single path is a lie and a list is a field nobody
+reads. The blobs live in one default directory of the treedb; where a file came
+from, if it matters, is a column of the node that links it.
+
+## 4. On disk
+
+```
+<store>/<realm>/treedb_<name>/
+    __assets__/          the index: the topic's timeranger2 files
+    .blobs/00..ff/       the content, addressed by sha256
+    devices/  places/  ...
+```
+
+Both halves inside the treedb directory, so a `cp -a` of it carries the nodes
+**and** their bytes. Today they are split — the index inside, the blobs a
+sibling of the treedb at realm level — which is what `C_ASSETS` was reaching for
+and did not quite get.
+
+⚠️ **The blob directory must start with a dot.** `tranger2_list_topics()` scans
+the treedb directory and returns every entry as a topic, skipping only the ones
+whose name starts with `.` (`timeranger2.c:1289-1293`). The skip rule is already
+there; the name has to use it.
+
+The 256-way shard is not new: `C_ASSETS` already writes `00`..`ff` (verified:
+257 directories for 12 134 blobs, ~47 each).
+
+## 5. The write path
+
+The client computes the sha256 **before sending anything**, which is what makes
+this cheaper than `put-asset`:
+
+1. the browser hashes the file (`crypto.subtle.digest`) and fills the `id`;
+2. it asks the treedb whether that node exists;
+3. **if it exists, no bytes travel** — the record is saved with the fkey and
+   that is all;
+4. if it does not, the base64 rides along in the `create-node` / `update-node`.
+
+Two rules the write path cannot bend:
+
+- **Treedb re-hashes what arrives.** The client's sha256 is an optimisation,
+  never an authority: a client that lies would make the store serve one file's
+  bytes under another file's hash. Hashing on write is cheap next to writing.
+- **The base64 is TRANSPORT and dies at the door.** It arrives in the kw, treedb
+  writes the blob and the index node, and it is dropped from the record. A field
+  that *carries* the bytes and a field that *keeps* them are one word apart and
+  460 MB apart (§1).
+
+Today `put-asset` always sends the whole file and dedupes on arrival, at roughly
+2.3× the file in RAM. On a census reload, where nearly every asset is already
+stored, step 3 is the difference between seconds and half an hour.
+
+## 6. The read path stays with C_ASSETS
+
+Serving bytes to a browser is not storing them:
+
+- a **signed url** that a web server checks by itself, when `public_url` and
+  `sign_secret` are configured;
+- the **bytes inline** in the answer when they are not, so a node with no web
+  server in front of it still shows its images.
+
+That is `get-asset`, and it stays where it is. Treedb owns the store; `C_ASSETS`
+owns the way out.
+
+## 7. What changes, by layer
+
+| Layer | Change |
+|---|---|
+| `timeranger2` | the `.blobs` store: put by content (sha256), get by id |
+| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5 |
+| `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` + `cols` `topic_version` bumped |
+| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets`; keeps `get-asset` |
+| `gobj-js` | `file` in `treedb_field_types` |
+| `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
+| hosts | delete the `assets` topic from their schema; flag their columns `file` |
+
+## 8. Migration
+
+Renaming `assets` to `__assets__` changes the fkey literal in every record that
+links one, so it needs a **new store**. It is cheaper than it sounds: the blobs
+are addressed by content and do not move, so the migration is wipe → re-ingest
+the directory → re-link, which is what a census reload does anyway.
+
+## 9. Open items
+
+1. **The gc.** An asset nothing links any more is garbage. `C_ASSETS` has
+   `gc-assets`; as a treedb facility it wants to be a command of the treedb, and
+   it has to read the derived hooks to decide.
+2. **Who enforces `max_size` and the content-type allowlist.** They are policy,
+   and policy at the door is `C_ASSETS`'s today. If the door is now
+   `create-node`, treedb enforces them — and then they are attrs of what? The
+   treedb, or the column?
+3. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
+   plus a column.
+4. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
+   localhost only). The deployed SPAs are https; a dev server on `http://` is
+   not.
+5. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
+   hand makes an index entry with no bytes behind it, since the id IS the hash
+   of content that was never written. A system topic is the signal the GUI
+   already understands.
