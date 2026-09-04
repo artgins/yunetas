@@ -149,6 +149,21 @@ Serving bytes to a browser is not storing them:
 That is `get-asset`, and it stays where it is. Treedb owns the store; `C_ASSETS`
 owns the way out.
 
+**It takes the asset ID, and nothing else** — not a node plus a column. Three
+things follow, and they all point the same way:
+
+- **The way out needs to know nothing about the structure.** No topic, no
+  column, no hook: id in, bytes or url out. Which is right for the half that
+  is not treedb's — publishing is not structure.
+- **It is what keeps a served url immutable.** The id is the sha256 of the
+  content, so the url can be cached for ever (`c_assets.h`). Keyed by node and
+  column instead, the same url would mean different bytes the moment the node
+  was relinked, and "cache for ever" would become a bug.
+- **The client half is already written.** `yui_asset_id()` in gobj-ui reads the
+  id out of an fkey in the three shapes a link comes back in
+  (`"__assets__^<id>^as_..."`, the bare `<id>` that `fkey_only_id` collapses it
+  to, or an expanded `{id: ...}`), so nothing changes on the frontend.
+
 ## 7. The gc is treedb's, and the derived hooks are what it reads
 
 An asset nothing links any more is garbage, and deciding that is reading the
@@ -269,27 +284,25 @@ the directory → re-link, which is what a census reload does anyway.
 
 ## 12. Open items
 
-1. **What `get-asset` takes** once the fkey is the truth: an asset id, or a node
-   plus a column.
-2. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
+1. **The browser's sha256 needs a secure context** (`crypto.subtle` is https or
    localhost only). The deployed SPAs are https; a dev server on `http://` is
    not.
-3. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
+2. **The GUI must stop offering "+ Nuevo" on `__assets__`.** Creating a row by
    hand makes an index entry with no bytes behind it, since the id IS the hash
    of content that was never written. A system topic is the signal the GUI
    already understands.
-4. **The gc against the snapshots.** `treedb_delete_node` already refuses a node
+3. **The gc against the snapshots.** `treedb_delete_node` already refuses a node
    carrying a snap tag, so an asset inside a snapshot is safe. But the gc decides
    by the hooks of the LIVE state: delete a device, its asset is orphaned, the gc
    sweeps it — and then somebody activates a snap where that device existed and
    linked it. Content addressing makes that recoverable only if the file is still
    somewhere. Decide whether the gc reads the snapshotted states too.
-5. **`import-assets` has no owner.** It is in the list of what `C_ASSETS` loses
+4. **`import-assets` has no owner.** It is in the list of what `C_ASSETS` loses
    and in none of what anything gains — and it is the census path (a directory
    already on the node, one command and N assets with no bytes on the wire),
    which is exactly what makes the migration of §11 cheap. It has to land in
    treedb as a command, or that migration does not exist.
-6. **How this is tested.** The sibling design note ends by naming its regression
+5. **How this is tested.** The sibling design note ends by naming its regression
    test; this one should too, before anybody starts: what proves that the base64
    dies at the door, that the ceiling is applied before decoding, and that the
    content type is read from the bytes.
