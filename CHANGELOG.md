@@ -32,9 +32,52 @@ The system schema therefore moves too: `schema_version` 15 → 16 and the
 new flag on the next start instead of offering the old list to the schema
 editor.
 
+### An asset gets one field a person may edit
+
+`assets.original_name` becomes `writable` in the canonical topic that
+`c_assets.h` publishes for hosts to copy. It is the only column that can be:
+every other one describes the BYTES — `id` is their sha256, `content_type`,
+`size` and `t` measure them, `source_path` and `uploaded_by` are facts of the
+load — and editing one would lie about the content. A name is a LABEL, which
+is a different kind of thing.
+
+Without it the topic has no writable column at all, so its record form opened
+holding nothing but the read-only id.
+
 ### The JS layer
 
 Carries its own versions and reaches the apps through npm.
+
+#### `gobj-js` 7.16.3 and `gobj-ui` 7.23.50 → 7.23.59
+
+The treedb topic table, one round, in the order the defects were found:
+
+- **`icon` as a field type** (7.16.3 / 7.23.53), the C side of which is above.
+  A name the app's set does not carry falls back to the TEXT of it, because
+  `yui_icons.css` paints a `currentColor` box for ANY `yi-` name and drawing
+  an undefined one renders a solid black square.
+- **A record is READ, not just written** (7.23.54–7.23.56). A click on a row
+  opens it outside edition mode — it was the biggest target on screen and the
+  only thing that answered nothing — and the form shows EVERY field, the
+  non-writable ones read-only. What is shown is not what is sent: only
+  writable cols, fkeys and the pkey travel back, because
+  `treedb_update_node()` does not check `writable` and `t` is an integer
+  rendered as a date. Two controls had to learn it: `readonly` is an attribute
+  of a text control and of nothing else, so a `<select>`, a checkbox and a
+  colour swatch accept it and ignore it.
+- **The paginator** (7.23.50–7.23.52). Picking "All" no longer takes the size
+  selector away with it; the size is remembered per topic; and **remote paging
+  is out of use**, because a partial topic BREAKS LINKING — a record's link
+  picker is built from the rows the parent topic's table holds, which under
+  paging is one page. Local pagination is untouched: `getData()` answers the
+  whole dataset whatever page is on screen, so paginating the DISPLAY is safe
+  and only paginating the FETCH is not.
+- **A colour shows its value** beside the swatch (7.23.58), and `save` moves to
+  the RIGHT end of the form toolbar (7.23.57, 7.23.59) — the form opens as a
+  modal dialog now, and a dialog's primary action goes bottom-right. The first
+  attempt moved nothing: the `toolbar` attr carried the five names written out
+  again, so `plan_toolbar()` never saw the `undefined` that would have used
+  `DEFAULT_TOOLBAR`.
 
 ### `gobj-ui` 7.23.49: a search that could not see inside an fkey
 
