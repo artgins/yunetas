@@ -78,6 +78,19 @@ So the host declares **nothing but the column**. `__assets__` is created by
 `tr_treedb` alongside `__snaps__` and `__graphs__` (`tr_treedb.c:745`, `:834`),
 with `system_topic: true` so it cannot be deleted.
 
+**The derived hooks are never persisted, and there is nothing to version.** A
+hook's CONTENT is in-memory already — `link_nodes` saves the child's fkey and
+never the parent — so the hook is a reverse index treedb rebuilds from the fkeys
+at load. Its DECLARATION can live in the same place: the hooks are added to the
+in-memory desc and never written to `topic_cols.json`. So `__assets__` has a
+fixed persisted schema and a fixed `topic_version`, like `__snaps__` (3) and
+`__graphs__` (12), and no host adding a `file` column ever has to bump anything.
+The `desc` a client reads is the in-memory one, so a GUI sees the hooks.
+
+The one consequence is an ordering note for whoever writes it: the derivation is
+a **second pass at open**. `__assets__` is created before the host's topics are
+known, so the hooks can only be added once every schema has been parsed.
+
 Its columns are the index entry, and they are the ones `C_ASSETS` already
 writes: `id` (the sha256, pkey), `content_type`, `size`, `t`, `original_name`,
 `uploaded_by` — plus the derived hooks. `original_name` is the only writable
@@ -121,7 +134,38 @@ this cheaper than `put-asset`:
 2. it asks the treedb whether that node exists;
 3. **if it exists, no bytes travel** — the record is saved with the fkey and
    that is all;
-4. if it does not, the base64 rides along in the `create-node` / `update-node`.
+4. if it does not, the bytes ride along in the same `create-node` /
+   `update-node`.
+
+### What travels on the wire
+
+The column's value is **always the id**, and the bytes ride BESIDE the record,
+never inside the column:
+
+```json
+{"id": "E22000041",
+ "foto": "<sha256>",
+ "__files__": {"foto": {"content64": "...",
+                        "original_name": "E22000041.jpg",
+                        "content_type": "image/jpeg"}}}
+```
+
+`__files__` is not a column. It is an instruction to the write path, consumed
+and dropped at the door — the same key/value beside key/value that an event and
+its kw already are, and that a kw carrying its `gbuffer` next to its json
+already is one level down.
+
+The alternative was to let the column hold either an id or an object, and it is
+the shape to avoid: `normalize_node_field_value()` runs every incoming field
+against its column's declared type, so an fkey column receiving an object is
+refused or quietly coerced; and on the other side `yui_asset_id()` already
+reads three shapes a link comes back in, and would learn a fourth that only
+exists on the way out. A type that lies is what makes a guard necessary.
+
+**One message, not two**, and that is the argument for it over storing the file
+with its own command first: a Save that creates a new asset would otherwise be
+two orders with a window between them, the blob written and the record not.
+Here it either happened or the command failed.
 
 Two rules the write path cannot bend:
 
@@ -132,6 +176,10 @@ Two rules the write path cannot bend:
   writes the blob and the index node, and it is dropped from the record. A field
   that *carries* the bytes and a field that *keeps* them are one word apart and
   460 MB apart (§1).
+- **The blob first, the node second** — which is not a precaution, it is what
+  timeranger already does: the content, then the index. Interrupted the other
+  way round leaves a node pointing at nothing, and nothing repairs that on its
+  own; interrupted this way it leaves an orphan blob, which the gc takes.
 
 Today `put-asset` always sends the whole file and dedupes on arrival, at roughly
 2.3× the file in RAM. On a census reload, where nearly every asset is already
@@ -265,7 +313,7 @@ narrows. A column that declares nothing takes the treedb's whole list.
 *(This split is a recommendation, not something we settled out loud. What we
 settled is that treedb enforces, at the door.)*
 
-## 9. Between nodes: the bytes go FIRST, and it stays an order
+## 9. Between nodes: the bytes travel WITH the record
 
 The bytes crossing to another node is not a new problem and it is not a hard
 one: **the agent has been doing this design for years**. `install-binary` takes
@@ -289,11 +337,10 @@ it needs a queue of assets it owes, retries, and state that survives a restart.
 A one-way message has become a protocol, and it lands on the side that did not
 ask for the record.
 
-**So the order is: the bytes, then the record.** Two commands, both one-way,
-both from the side that HAS the file — the same shape as `install-binary`:
-
-1. store the file (idempotent by content: a repeat costs nothing);
-2. write the record, which arrives at a node that already has the asset.
+**So the bytes travel WITH the record**, in the `__files__` of §5, in the one
+message that is already going. Nothing new is needed for a node that was not
+already needed for a browser: it is one order, one-way, from the side that HAS
+the file, and either it happened or it failed.
 
 The sender may skip the *"do you have it?"* of §5 and send bytes that were
 already there; that costs bandwidth and nothing else. The difference is the
@@ -301,7 +348,12 @@ whole point: **a handshake BEFORE sending is an optimisation the sender may
 skip; a handshake AFTER receiving is a protocol the receiver cannot.**
 
 One rule covers the browser and the node: *whoever has the bytes sends them
-before sending the record that needs them.*
+with the record that needs them.*
+
+(One asymmetry, for later: over an ievent channel a kw can carry a real
+`gbuffer` beside its json, which would spare the base64 its 33% and the decode
+its copy. A browser cannot — it sends json. So the C side could take the cheaper
+door without changing anything else.)
 
 ## 10. What changes, by layer
 
