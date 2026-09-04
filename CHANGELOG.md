@@ -1,5 +1,47 @@
 # **Changelog**
 
+## [Unreleased]
+
+Only the JS layer so far, which carries its own versions and reaches the apps
+through npm — nothing in C, so nothing to tag.
+
+### `gobj-ui` 7.23.49: a search that could not see inside an fkey
+
+A treedb row is not flat. With `list_dict` an fkey arrives as a LIST OF
+OBJECTS — `[{id, topic_name, hook_name}]` — and the topic table's search box
+stringified every value with `String(val)`, which for that is
+`"[object Object]"`. So searching a topic of devices for the **place** they
+sit in — the value an operator actually has in mind — never matched anything,
+while the cell plainly rendered that id: what you see and what is searched
+were not the same thing.
+
+`yui_row_search.js` walks into lists and objects and reads only the **`id`** of
+an fkey: `topic_name` and `hook_name` are the same two words on every row, so
+matching them would turn any such term into a wildcard over the whole topic.
+
+Two more in the same table. The page-size selector offers **All** on a
+remotely paged topic — `filterMode: "local"` means the filters only see the
+page that is loaded, and `nodes` has taken `limit: 0` for "every one" since
+paging landed, answering the plain list. And each **header filter carries a
+✕**: a column filter was undone by deleting what you typed, and with several
+of them set, getting back to the whole table was an exercise in remembering
+which ones you had touched.
+
+### `gobj-ui` test-app: the maplibre worker asset carries its version
+
+The worker and its shared chunk were the only assets of the bundle emitted
+under a FIXED name, so a static host serving `/assets/` with a long max-age
+hands a returning browser the OLD worker against the new bundle — and worker
+and main thread speak a private protocol that changes between maplibre
+versions. Paid for in yunovatios, where a cached 6.4.1 worker made the 6.7.0
+`GlyphManager` answer `t.codePointAt is not a function` once per tile. The
+emitted names now carry the installed version.
+
+### `yunos-js` 0.22.45
+
+The agent console stops its JSON viewer before destroying it, and `gui_agent`
+moves to 0.22.45. Detail in that repo's own CHANGELOG.
+
 ## 7.17.3
 
 ### An absent `DTP_JSON` is `json_null()`, and four predicates disagreed about it
