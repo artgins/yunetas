@@ -1,7 +1,8 @@
 # Design: a `file` column, and `__assets__` as a treedb system topic
 
 Status: **PROPOSED**, nothing implemented. Every decision of model closed
-between 2026-09-04 and 2026-09-05; no open items (§14).
+between 2026-09-04 and 2026-09-05. Reviewed against the code on 2026-09-05
+(§15): four decisions are reopened, and §14 is superseded by §15.
 
 The shape in one sentence: **you mark a column `file`, and treedb gives you a
 pseudo-filesystem** — you hand it a file, you get it back, the *index* lives in
@@ -568,10 +569,138 @@ note that, if it broke, would break **quietly**:
    rule — this design allocates buffers at a boundary, which is exactly where
    one hides.
 
-## 14. Open items: none
+## 14. Open items: none — SUPERSEDED, see §15
 
 Every decision of model is taken. What remains is the work of §11 and the suite
 of §13 — and the two things that will be got wrong if they are read past: the
 manifest carries offsets because a kw holds ONE binary field at its top level
 (§5), and the derived hooks are never persisted, so nothing about `__assets__`
 is ever versioned (§3).
+
+## 15. Review against the code (2026-09-05)
+
+Every section above was checked against `tr_treedb.c`, `timeranger2.c`,
+`treedb_system_schema.c`, `c_treedb.c`, `c_node.c`, `c_assets.c`,
+`msg_ievent.c`, `kwid.c`, the JS side and the yunovatios schema. The model
+holds. Seven statements do not, and each one changes what §11 has to build.
+None of them is open in §14, so §14 is wrong to say "none".
+
+### 15.1 Reopened decisions
+
+1. **Who composes the fkey.** §5 puts a bare `<sha256>` in the column. Treedb
+   refuses it: `filtra_fkeys()` (`tr_treedb.c:2266`) and `decode_parent_ref()`
+   (`tr_treedb.c:3838`) demand exactly two `^`, and a bare string logs *"Wrong
+   fkey reference"* and fails the create. Either the write path expands a bare
+   id into `__assets__^<sha>^as_<T>_<C>` for a `file` column — a normalisation
+   step that is not in §11 — or the client sends the full reference, and then
+   the client has to know the derived hook name, which is the opposite of
+   *"the host declares nothing but the column"*. `fkey_only_id` (§6) is no
+   symmetry: it is a READ option.
+
+2. **`file` is not `fkey` unless something says so.** Every link behaviour in
+   `tr_treedb.c` keys on the literal word `fkey` in the flag — 30 sites of
+   `kw_has_word(..., "fkey")` / `"hook"`: autolink, normalize, link, unlink,
+   `load_all_links`, the delete guard. In JS, `treedb_get_field_desc()` takes
+   as `type` the FIRST word it finds in `treedb_field_types`, and
+   `c_yui_form.js:1304` asks `type === "fkey"`. Two ways out: (a) the author
+   writes `['fkey', 'file']` and `file` qualifies the fkey, as `enum` does;
+   (b) the derivation pass injects `fkey` into the in-memory flag of every
+   `file` column. **(a) is recommended**: one word in the schema, no code in
+   30 places — and `devices.foto` is `['fkey']` in yunovatios today
+   (`db_history_schema.c:1048`), so the host ADDS a word rather than
+   replacing one.
+
+3. **The gc's only protection is the snapshot walk.** `treedb_shoot_snap()`
+   skips every `__` topic (*"Ignore meta-tables"*, after `tr_treedb.c:9717`),
+   so a node of `__assets__` never carries a tag and the guard *"cannot
+   delete node, it has a tag"* never fires for an asset. §7 reaches the right
+   rule for the wrong reason: it presents reading the snapshots as an
+   extension of the tag guard, and the tag guard is inert here. Reading the
+   host topics' tagged instances is not an extension, it is the whole guard.
+   And *"a dry run costs nothing"* stops being true: it is a disk pass over
+   every tagged instance of every topic with a `file` column.
+
+4. **There is no sha256 at the timeranger2 layer.** `C_ASSETS` takes it from
+   the TLS backend and refuses to compile without one (`c_assets.c:38-44`).
+   `kernel/c/timeranger2/CMakeLists.txt` links no TLS library. Moving the hash
+   into `tr_treedb` is a new dependency of the persistence layer on the
+   crypto layer, with two backends selectable at run time; the alternative is
+   a standalone sha256 in gobj-c's helpers. §11 lists neither.
+
+### 15.2 Statements to correct
+
+- **Three writes, not two.** §5 says *"the blob first, the node second"*. The
+  host record's autolink needs the parent to EXIST — `treedb_autolink()`
+  calls `treedb_get_node()` and fails with *"parent node not found"*. The
+  order is blob → index node in `__assets__` → host record with its link. The
+  state between the second and the third is an index node nothing links,
+  which the gc takes; benign, but *"either it happened or the command
+  failed"* is not exact.
+
+- **§4 leans on a dead function.** `tranger2_list_topics()` has no caller in
+  the tree. Topics come from the schema, and the replica watcher watches
+  `<topic>/disks/<rt_id>/` per topic (`timeranger2.c:4940`). `.blobs` under
+  the treedb directory collides with nothing today. Keep the dot as a
+  convention; drop the ⚠️.
+
+- **`__assets__` will not be in the `__system__` projection.** c_treedb opens
+  every treedb from its projection (`c_treedb.c:940`), and `__snaps__` /
+  `__graphs__` are created inside `treedb_open_db()`, outside it; `__assets__`
+  follows them. So *"a GUI sees the hooks"* (§3) is true for the `desc` /
+  `topics` commands of C_NODE — the treedb-topics view — and false for the
+  Schemas workspace, which reads `__system__`. Say both.
+
+- **Two paragraphs of §5 disagree.** One says that when the asset exists *"no
+  bytes travel — the record is saved with the fkey and that is all"*. The
+  other says *"the second arrival is an update of its node"* and sells the
+  history of names. If the client skips the bytes, no `__files__` arrives and
+  the index node is not touched: the history is recorded ONLY when bytes
+  travel. Choose, and name the cost — a census reload that does send bytes
+  appends one instance per asset, 12 134 appends with nothing changed.
+
+- **`C_ASSETS` loses more than §11 lists.** `list-assets` and `delete-asset`
+  (`c_assets.c:203-204`) become `nodes` / `delete-node` on `__assets__` and
+  go too.
+
+### 15.3 Constraints the note understates
+
+- **The size ceiling arrives late.** §8 checks the base64 *"before spending
+  what it defends"*. Before treedb sees anything, the transport has received
+  the whole packet and jansson has parsed it into a string. `c_prot_tcp4h`
+  takes `max_pkt_size` from `gbmem_get_maximum_block()` by default — that is
+  `MEM_MAX_BLOCK`, 200 MB in the agent and 1 GB in `db_history_ce`. The real
+  defence is the transport's; treedb's `max_size` has to sit BELOW it or it
+  is unreachable. The `c_websocket` frame limit was not checked.
+
+- **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
+  (`tr_treedb.c:5160`). The write path looks the asset up before creating it,
+  or a census reload prints thousands of traces.
+
+- **The derived hooks must be derived at run time too.** `parse_hooks()` runs
+  at open (`tr_treedb.c:1113`) and from `parse_schema()` (`:1970`); a `file`
+  column or a topic added while the yuno runs has to re-derive. *"A second
+  pass at open"* is not enough.
+
+- **`content64` already means the RECORD at C_NODE's door.** `create-node` /
+  `update-node` take a top-level `content64` that is the whole record in
+  base64, with priority over `record` (`c_node.c:2184-2238`). The one nested
+  in `__files__` does not collide; a reader of `c_node.c` will trip on it.
+
+- **A non-master replica gets the index and not the bytes.** The watcher
+  replicates the topic's files; `.blobs` travels by another means or not at
+  all.
+
+### 15.4 Verified as written
+
+The line citations hold: `tr_treedb.c:745` / `:834`, `timeranger2.c:1289`,
+`c_assets.h:61`, `c_assets.c:151` / `:1090` / `:1624`, `gobj.c:592`,
+`gbuffer.c:617` / `:657`. `system_topic` protects the topic and not its
+records, so the gc may delete nodes of `__assets__`. A kw carries ONE
+top-level binary field, and the ievent channel serialises and deserialises it
+(`msg_ievent.c:126`, `:212`). `image` and `icon` are in the `flag` enum; the
+bump is system `schema_version` 16 → 17 and `cols` `topic_version` 10 → 11.
+`delete-node` with `force` unlinks the children. `yui_asset_id()` exists with
+tests for the three shapes (its literals say `assets`, not `__assets__`). The
+open sequence already has the place for the derivation: `parse_hooks()` runs
+after every topic is created and before `load_all_links()`. The neighbour
+suites named in §13 exist.
