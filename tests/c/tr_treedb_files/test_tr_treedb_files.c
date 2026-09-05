@@ -15,6 +15,7 @@
  *            6. the gc, three ways (unlinked / live link / snapshot link)
  *            7. one kw, two files (a gbuffer and a manifest of slices)
  *            8. no leak
+ *            9. one asset, ONE blob, and a snapshot refuses the delete
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -50,6 +51,10 @@
 #define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
+
+/*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
+ *  bytes and 'audio/mp4' just as compatibly.  */
+#define MP4_A   "\x00\x00\x00\x18" "ftypisom" "fixture, one container two names"
 
 /***************************************************************
  *              Prototypes
@@ -442,6 +447,67 @@ PRIVATE int test_derived_hooks_persist_nothing(json_t *tranger)
 }
 
 /***************************************************************************
+ *  9. One asset, ONE blob: the first arrival names the file
+ *
+ *  A container that more than one mime type can claim used to be written
+ *  twice, once per extension, and the row named only one of them: the
+ *  other could never be served, never be seen by the gc and never be
+ *  removed by the delete.
+ ***************************************************************************/
+PRIVATE int test_one_asset_one_blob(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "9. one asset, one blob";
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]",
+            "msg", "asset already stored under another content_type, keeping the stored one"
+        ),
+        NULL, NULL, 1
+    );
+
+    size_t len = sizeof(MP4_A)-1;
+    const char *id = sha(MP4_A, len);
+
+    json_t *first = create_device_with_foto(tranger, "dev-mp4a", MP4_A, len, "video/mp4", 0);
+    if(!first) {
+        printf("%s  FAIL: the mp4 was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    /*  the same bytes, the other name of the same container  */
+    json_t *second = create_device_with_foto(tranger, "dev-mp4b", MP4_A, len, "audio/mp4", 0);
+    if(!second) {
+        printf("%s  FAIL: the second arrival was refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    if(!blob_exists(tranger, id, "video/mp4")) {
+        printf("%s  FAIL: the blob of the first arrival is gone%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(blob_exists(tranger, id, "audio/mp4")) {
+        printf("%s  FAIL: the second arrival wrote a SECOND blob for one asset%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id);
+    if(!asset || strcmp(kw_get_str(0, asset, "content_type", "", 0), "video/mp4")!=0) {
+        printf("%s  FAIL: the stored content_type changed under the served url%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    /*  and both devices name the one asset  */
+    if(strcmp(fkey_id(first, "foto"), id)!=0 ||
+            (second && strcmp(fkey_id(second, "foto"), id)!=0)) {
+        printf("%s  FAIL: the two devices do not share the asset%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  7. One kw, two files: a gbuffer and a manifest of two slices
  ***************************************************************************/
 PRIVATE int test_one_kw_two_files(json_t *tranger)
@@ -507,7 +573,14 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
 {
     int result = 0;
     const char *test = "6. the gc, three ways";
-    set_expected_results(test, NULL, NULL, NULL, 1);
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "cannot delete asset, a snapshot still links it",
+            "msg", "cannot delete asset, a snapshot still links it"
+        ),
+        NULL, NULL, 1
+    );
 
     /*
      *  C: linked by dev-3, then a snapshot, then dev-3 moves to A.
@@ -607,6 +680,32 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
         result += -1;
     }
 
+    /*
+     *  And a DELETE by hand is refused for the same reason the gc left it,
+     *  with force too: the tag guard is inert for an asset (shoot_snap
+     *  skips the __ topics), so the snapshot walk is the guard in its
+     *  place, and force means "unlink the children", never "ignore what a
+     *  snapshot needs".
+     */
+    json_t *held_asset = treedb_get_node(
+        tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, sha(PNG_C, sizeof(PNG_C)-1)
+    );
+    if(treedb_delete_node(tranger, held_asset, 0)==0) {
+        printf("%s  FAIL: delete-node took an asset a SNAPSHOT still links%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_delete_node(tranger, held_asset, json_pack("{s:b}", "force", 1))==0) {
+        printf("%s  FAIL: force took an asset a SNAPSHOT still links%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!blob_exists(tranger, sha(PNG_C, sizeof(PNG_C)-1), "image/png")) {
+        printf("%s  FAIL: the refused delete took the bytes anyway%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
     result += test_json(NULL);
     return result;
 }
@@ -676,6 +775,7 @@ PRIVATE int do_test(void)
     result += test_type_from_bytes(tranger);
     result += test_derived_hooks_persist_nothing(tranger);
     result += test_one_kw_two_files(tranger);
+    result += test_one_asset_one_blob(tranger);
     result += test_gc_three_ways(tranger);
 
     {

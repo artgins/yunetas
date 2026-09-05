@@ -192,14 +192,22 @@ on disk. Design note:
   node, which `gc-assets` takes; never a link to nothing.
 - **A second arrival of the same bytes is an update of the asset node**, so
   the history of `__assets__` says every name a file arrived under. The blob
-  is written once.
+  is written once, and the **first** arrival names it for ever: the extension
+  is part of the served path and the URL is cached for ever, so a later
+  arrival that declares another member of the same container (`audio/mp4`
+  for what was stored as `video/mp4`) keeps the stored `content_type` and
+  says so in the log.
 - **`gc-assets` reads the snapshots.** `shoot-snap` skips every `__` topic, so
   an asset node never carries a tag and the tag guard never protects it: the
   collector walks the tagged instances of every topic with a `file` column,
   and keeps what any snapshotted version of a node still points at. A
   snapshot holds bytes alive.
 - **Deleting an asset node deletes its bytes.** Refused while a node links it,
-  like any parent with children.
+  like any parent with children — and refused, `force` included, while a
+  **snapshot** links it: `delete-node` on an `__assets__` row runs the same
+  walk `gc-assets` does, because the ordinary tag guard never fires for an
+  asset. `force` means "unlink the children", never "ignore what a snapshot
+  needs".
 
 Serving the bytes to a browser is [`C_ASSETS`](#gclass-c-assets)' job.
 

@@ -105,6 +105,14 @@ PRIVATE json_t *apply_child_list_options(
     json_t *jn_options // NOT owned
 );
 #define TREEDB_FILES_DEFAULT_MAX_SIZE   (128LL*1024*1024)
+/*
+ *  Option of treedb_delete_node(), INTERNAL: "I have already walked the
+ *  snapshots, do not walk them again". Only treedb_gc_files() sets it,
+ *  because it walks them once for the whole run; anybody else deleting a
+ *  node of __assets__ must let the guard run. See assets_held_by_snaps().
+ */
+#define TREEDB_SNAPS_WALKED             "__snaps_walked__"
+PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
@@ -5925,6 +5933,36 @@ PUBLIC int treedb_delete_node(
         return -1;
     }
 
+    /*-------------------------------------------------*
+     *  An asset a SNAPSHOT still needs
+     *
+     *  The tag guard above is inert here: treedb_shoot_snap() skips every
+     *  `__` topic, so a node of __assets__ never carries one. Deleting the
+     *  row deletes the bytes, and activating a snap that remembers a node
+     *  linking them would then find nothing -- so this is the tag guard in
+     *  its place, and like it, `force` does NOT override: force means
+     *  "unlink the children", never "ignore what a snapshot needs".
+     *-------------------------------------------------*/
+    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 &&
+            !kw_get_bool(gobj, jn_options, TREEDB_SNAPS_WALKED, 0, 0)) {
+        json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
+        BOOL in_a_snap = json_object_get(held, id)? TRUE: FALSE;
+        JSON_DECREF(held)
+        if(in_a_snap) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot delete asset, a snapshot still links it",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            return -1;
+        }
+    }
+
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
@@ -10264,6 +10302,36 @@ PRIVATE json_t *store_file_bytes(
     }
 
     /*--------------------------------------------*
+     *  The FIRST arrival names the file, for ever
+     *
+     *  The extension is part of the path a web server serves, and the url
+     *  of an asset is cached for ever because the name IS the hash -- so
+     *  the name cannot change under it. And one container can be declared
+     *  as more than one type: the same bytes sent as 'video/mp4' and as
+     *  'audio/mp4' are compatible with each other and with what the bytes
+     *  say, and would land on '<id>.mp4' and '<id>.m4a'. Two blobs for one
+     *  asset, and the row names only one of them -- so the other could
+     *  never be served, never be found by the gc, and never be removed by
+     *  the delete. The stored content_type wins; the declared one was
+     *  already checked against the bytes, and is only a claim about them.
+     *--------------------------------------------*/
+    json_t *node = treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, id);
+    const char *stored_type = node? kw_get_str(gobj, node, "content_type", "", 0): "";
+    if(!empty_string(stored_type) && strcmp(stored_type, declared_type)!=0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "asset already stored under another content_type, keeping the stored one",
+            "id",           "%s", id,
+            "stored",       "%s", stored_type,
+            "declared",     "%s", declared_type,
+            "original_name","%s", original_name,
+            NULL
+        );
+        declared_type = stored_type;
+    }
+
+    /*--------------------------------------------*
      *  The blob first, the node second: a node
      *  pointing at nothing repairs itself never,
      *  an orphan blob is what the gc is for.
@@ -10280,7 +10348,6 @@ PRIVATE json_t *store_file_bytes(
         }
     }
 
-    json_t *node = treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, id);
     if(node) {
         node = treedb_update_node(
             tranger,
@@ -10842,6 +10909,75 @@ PRIVATE int gc_scan_callback(
 }
 
 /***************************************************************************
+ *  What the SNAPSHOTS still point at: the ids of the assets that some
+ *  tagged instance of some node links.
+ *
+ *  treedb_shoot_snap() skips every `__` topic, so a node of __assets__
+ *  never carries a tag and the "cannot delete node, it has a tag" guard
+ *  never fires for an asset. This walk is the whole guard in its place,
+ *  and it is a disk pass over every tagged instance of every topic with a
+ *  `file` column -- which is why whoever has already done it says so
+ *  rather than making it run again (TREEDB_SNAPS_WALKED).
+ *
+ *  Return a dict used as a set, {id: true}. YOURS, never NULL.
+ ***************************************************************************/
+PRIVATE json_t *assets_held_by_snaps(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    json_t *held = json_object();
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
+            continue;
+        }
+        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
+        const char *child_topic; json_t *jn_child_col;
+        json_object_foreach(hook, child_topic, jn_child_col) {
+            const char *child_col = json_string_value(jn_child_col);
+            json_t *match_cond = json_pack("{s:b, s:I, s:I}",
+                "backward", 0,
+                "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
+                "load_record_callback", (json_int_t)(uintptr_t)gc_scan_callback
+            );
+            json_t *extra = json_pack("{s:s, s:I}",
+                "col", child_col,
+                "held", (json_int_t)(uintptr_t)held
+            );
+            json_t *list = tranger2_open_list(
+                tranger,
+                child_topic,
+                match_cond,     // owned
+                extra,          // owned
+                "treedb-snaps-walk",
+                FALSE,
+                treedb_name
+            );
+            if(!list) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "cannot read the instances of a topic",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", child_topic,
+                    NULL
+                );
+                continue;
+            }
+            tranger2_close_list(tranger, list);
+        }
+    }
+    JSON_DECREF(assets_cols)
+
+    return held;
+}
+
+/***************************************************************************
  *  The garbage collector of the bytes: an asset that no live node links
  *  AND no snapshotted version of a node links is garbage.
  *
@@ -10877,52 +11013,18 @@ PUBLIC json_t *treedb_gc_files(
     /*--------------------------------------------*
      *  What the snapshots still point at
      *--------------------------------------------*/
-    json_t *held = json_object();
+    json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
+
+    /*--------------------------------------------*
+     *  The hooks of __assets__: the live links
+     *--------------------------------------------*/
     json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
     json_t *hook_names = json_array();
-
     const char *hook_name; json_t *hook_col;
     json_object_foreach(assets_cols, hook_name, hook_col) {
         json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
-        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
-            continue;
-        }
-        json_array_append_new(hook_names, json_string(hook_name));
-
-        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
-        const char *child_topic; json_t *jn_child_col;
-        json_object_foreach(hook, child_topic, jn_child_col) {
-            const char *child_col = json_string_value(jn_child_col);
-            json_t *match_cond = json_pack("{s:b, s:I, s:I}",
-                "backward", 0,
-                "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
-                "load_record_callback", (json_int_t)(uintptr_t)gc_scan_callback
-            );
-            json_t *extra = json_pack("{s:s, s:I}",
-                "col", child_col,
-                "held", (json_int_t)(uintptr_t)held
-            );
-            json_t *list = tranger2_open_list(
-                tranger,
-                child_topic,
-                match_cond,     // owned
-                extra,          // owned
-                "treedb-gc-files",
-                FALSE,
-                treedb_name
-            );
-            if(!list) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "gc: cannot read the instances of a topic",
-                    "treedb_name",  "%s", treedb_name,
-                    "topic_name",   "%s", child_topic,
-                    NULL
-                );
-                continue;
-            }
-            tranger2_close_list(tranger, list);
+        if(kw_has_word(gobj, desc_flag, "hook", 0)) {
+            json_array_append_new(hook_names, json_string(hook_name));
         }
     }
     JSON_DECREF(assets_cols)
@@ -10978,7 +11080,9 @@ PUBLIC json_t *treedb_gc_files(
             );
             continue;
         }
-        if(treedb_delete_node(tranger, orphan, 0)==0) {
+        if(treedb_delete_node(
+            tranger, orphan, json_pack("{s:b}", TREEDB_SNAPS_WALKED, 1)
+        )==0) {
             json_array_append(deleted, jn_id);
         } else {
             // Error already logged: the answer says it by not listing this id

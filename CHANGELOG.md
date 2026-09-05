@@ -50,9 +50,21 @@ cascade-deleted like any other node. Design and its review:
   `treedb_shoot_snap()` skips every `__` topic, so an asset node never carries
   a tag. The collector walks the tagged instances of every topic with a `file`
   column and keeps what any snapshotted version of a node still points at.
+  **`delete-node` on an `__assets__` row runs the same walk**, and `force`
+  does not override it: the tag guard is inert for an asset (`shoot_snap`
+  skips the `__` topics), so this is that guard in its place, and `force`
+  means "unlink the children", never "ignore what a snapshot needs".
   `import-assets` (confined to `import_root`, answers the map `path -> id`)
   and `gc-assets` are now commands of **`C_NODE`**; `delete-node` on an
   `__assets__` row removes its bytes.
+- **The FIRST arrival names the file, for ever.** The extension is part of
+  the path a web server serves and the url is cached for ever, so it cannot
+  change under it — and one container can be declared as more than one type
+  (the same bytes as `video/mp4` and as `audio/mp4` are compatible with each
+  other and with what the bytes say). A later arrival keeps the stored
+  `content_type`, with a warning: otherwise one asset got two blobs and the
+  row named only one, so the other could never be served, never be seen by
+  the gc and never be removed by the delete.
 - **`C_ASSETS` keeps only `get-asset`** — the way OUT: a signed url or the
   bytes inline, from the treedb's `.blobs/`. `put-asset`, `put-assets`,
   `list-assets`, `delete-asset`, `import-assets`, `gc-assets` and the store
