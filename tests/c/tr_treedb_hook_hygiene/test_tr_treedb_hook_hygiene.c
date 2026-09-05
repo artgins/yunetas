@@ -451,14 +451,15 @@ PRIVATE int do_test(void)
 
     /*------------------------------------*
      *  Open treedb with the schema
-     *  (2 user topics + __snaps__ + __graphs__ = 4 "Creating topic")
+     *  (2 user topics + __snaps__ + __graphs__ + __assets__ = 5 "Creating topic")
      *------------------------------------*/
     const char *treedb_name = "treedb_hook_hygiene";
     {
         const char *test = "open treedb";
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",

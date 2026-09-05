@@ -110,10 +110,10 @@ static int register_yuno_and_more(void)
         json_pack("["
             "{s:s},"    /* Starting yuno */
             "{s:s}, {s:s},"                             /* __system__ tranger + schema */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* __snaps__ __graphs__ treedbs topics cols */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* __snaps__ __graphs__ treedbs topics cols __assets__ */
             "{s:s},"    /* Playing yuno */
             "{s:s}, {s:s},"                             /* client tranger + schema */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* __snaps__ __graphs__ users departments fidelity */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* __snaps__ __graphs__ users departments fidelity __assets__ */
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* schema file + every topic republished */
@@ -121,7 +121,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
             "{s:s}, {s:s},"                             /* the legacy projection moves */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* and its treedb opens */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
@@ -133,9 +133,11 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
+            "msg", "Creating topic",
             "msg", "Playing yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
@@ -163,6 +165,7 @@ static int register_yuno_and_more(void)
             "msg", "Updating TreeDB schema in __system__",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

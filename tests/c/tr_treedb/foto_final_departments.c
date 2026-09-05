@@ -11,6 +11,9 @@ char foto_final_departments[]= "\
         '__graphs__': { \n\
             'id': {} \n\
         }, \n\
+        '__assets__': { \n\
+            'id': {} \n\
+        }, \n\
         'users': { \n\
             'id': {} \n\
         }, \n\

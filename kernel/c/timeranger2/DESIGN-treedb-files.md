@@ -1,8 +1,14 @@
 # Design: a `file` column, and `__assets__` as a treedb system topic
 
-Status: **PROPOSED**, nothing implemented. Every decision of model closed
-between 2026-09-04 and 2026-09-05. Reviewed against the code on 2026-09-05
-(§15): four decisions are reopened, and §14 is superseded by §15.
+Status: **IMPLEMENTED** on branch `feature/treedb-files` (2026-09-05), with
+the four decisions §15.1 reopened taken as §15 recommended: treedb expands a
+bare id into the full fkey; a `file` column is flagged `['fkey','file']`; the
+gc's only guard is the snapshot walk; sha256 is a standalone helper of gobj-c.
+Column-level policy lives in the column's `properties` (`max_size`,
+`content_types`), the catch-all the `__system__` projection carries verbatim.
+Suite: `tests/c/tr_treedb_files` (§13, all eight) + `tests/c/c_assets`
+rewritten. Left for the JS repos: the gobj-ui form control (§10), and the
+hosts' schemas (§11, §12).
 
 The shape in one sentence: **you mark a column `file`, and treedb gives you a
 pseudo-filesystem** — you hand it a file, you get it back, the *index* lives in

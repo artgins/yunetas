@@ -342,7 +342,8 @@ PRIVATE int do_test(void)
         const char *test = "open treedb";
         set_expected_results(
             test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",

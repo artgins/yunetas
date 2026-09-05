@@ -2,6 +2,98 @@
 
 ## [Unreleased]
 
+### A `file` column, and `__assets__` as a treedb system topic
+
+The storage half of `C_ASSETS` moves into `tr_treedb`, where it belonged:
+**you mark a column `['fkey','file']`, and treedb gives you a pseudo-filesystem**.
+The index lives in memory as the system topic `__assets__` (created at open
+next to `__snaps__` and `__graphs__`, shown in system mode only), the content
+on disk under `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`, and the column holds
+an fkey into `__assets__` — so an asset is linked, graphed, scope-checked and
+cascade-deleted like any other node. Design and its review:
+`kernel/c/timeranger2/DESIGN-treedb-files.md`.
+
+- **The hooks of `__assets__` are DERIVED, in memory, never persisted.** For
+  every column `C` of topic `T` flagged `file`, `__assets__` gains
+  `as_<T>_<C> -> {T: C}` between the creation of the user topics and
+  `parse_hooks()`. The host declares nothing but the column; nothing about
+  `__assets__` is ever versioned. `file` goes WITH `fkey`: every link
+  behaviour of treedb and of the GUI keys on that word, and a `file` column
+  without it is refused at open.
+- **The hooks follow the schema at RUN TIME, both ways.** `create-topic`
+  and `delete-topic` are live commands of `C_TREEDB`, so the derivation runs
+  after each one and not only at open: it adds what the schema now asks for
+  — into the desc **and into the `__assets__` nodes already loaded, or
+  `_link_nodes()` answers *"hook field not found"*** — and removes what the
+  schema stopped asking for, children included. A hook left behind holds
+  children that are gone, and the gc reads a hook that is not empty as
+  "some node links this asset", so those bytes would never be collected
+  again. `__assets__` is a topic of the TRANGER, so the removal takes only
+  what maps to a topic of this treedb or to one no longer open at all.
+- **The bytes ride BESIDE the record** (`__files__`, a manifest keyed by
+  column: `content64` from a browser, or `offset`/`size` slices of the kw's
+  one `gbuffer` from a C caller) and are consumed at the door by
+  `treedb_store_files()`, called from `treedb_create_node()`,
+  `treedb_update_node()` and `treedb_autolink()`. Treedb **re-hashes what
+  arrives** — the client's id is an optimisation, never an authority — checks
+  the size on the base64 BEFORE decoding and the type ON THE BYTES (an svg
+  called `image/png` is refused), writes the blob, creates or refreshes the
+  index node, and rewrites the column into the full fkey reference. A bare id
+  of an existing asset links it; three writes, blob first.
+- ⚠️ **A command that receives a `gbuffer` must TAKE it out of its kw before
+  its first exit** (`take_files_gbuffer()` in `c_node.c`). `expand_command()`
+  builds the command kw by copying the caller's keys **by value**
+  (`json_object_update_missing`, `command_parser.c`), so a top-level binary
+  field is named by two kws and both are `KW_DECREF`'d — the command's answer
+  releases one, `command_parser` the other, and one reference is dropped
+  twice. And there is no second owner downstream: every exit of
+  `mt_create_node()` / `mt_update_node()` ends in `KW_DECREF(kw)`, which drops
+  the binary field it finds, so `treedb_store_files()` consuming it and that
+  `KW_DECREF` are the only two releases and never both. `create-node` /
+  `update-node` are the first commands in the tree to take a `gbuffer`; every
+  other consumer is on the event path, which does not copy.
+- **Two levels of limit**: the treedb's ceiling (`C_NODE` attrs
+  `files_max_size`, `files_content_types`; `treedb_set_files_limits()`) and
+  the column's policy in its `properties` (`max_size`, `content_types`), which
+  narrows the ceiling and never raises it.
+- **`gc-assets` reads the SNAPSHOTS**, and that is its only guard:
+  `treedb_shoot_snap()` skips every `__` topic, so an asset node never carries
+  a tag. The collector walks the tagged instances of every topic with a `file`
+  column and keeps what any snapshotted version of a node still points at.
+  **`delete-node` on an `__assets__` row runs the same walk**, and `force`
+  does not override it: the tag guard is inert for an asset (`shoot_snap`
+  skips the `__` topics), so this is that guard in its place, and `force`
+  means "unlink the children", never "ignore what a snapshot needs".
+  `import-assets` (confined to `import_root`, answers the map `path -> id`)
+  and `gc-assets` are now commands of **`C_NODE`**; `delete-node` on an
+  `__assets__` row removes its bytes.
+- **The FIRST arrival names the file, for ever.** The extension is part of
+  the path a web server serves and the url is cached for ever, so it cannot
+  change under it — and one container can be declared as more than one type
+  (the same bytes as `video/mp4` and as `audio/mp4` are compatible with each
+  other and with what the bytes say). A later arrival keeps the stored
+  `content_type`, with a warning: otherwise one asset got two blobs and the
+  row named only one, so the other could never be served, never be seen by
+  the gc and never be removed by the delete.
+- **`C_ASSETS` keeps only `get-asset`** — the way OUT: a signed url or the
+  bytes inline, from the treedb's `.blobs/`. `put-asset`, `put-assets`,
+  `list-assets`, `delete-asset`, `import-assets`, `gc-assets` and the store
+  attributes are gone from it (`nodes` / `delete-node` on `__assets__` do the
+  listing and the deleting).
+- **`sha256_digest()` / `sha256_hex()` in gobj-c helpers**, standalone: the
+  persistence layer links no TLS backend. Checked against `sha256sum`.
+- **System schema 16 → 17, `cols` topic 10 → 11**: `file` joins the enforced
+  `flag` enum. `treedb_field_types` of gobj-js gets the word (7.16.4).
+- **Migration: none.** The `assets` topic of a host and its `as_<col>` hooks
+  are replaced by the derived `__assets__`; the fkey literal in every record
+  changes, so a store built on `C_ASSETS` is wiped and rebuilt through
+  `import-assets`. The hosts (yunovatios) change `['fkey']` to
+  `['fkey','file']` on `foto`/`qr`/`plano`, drop their `assets` topic and
+  rebuild.
+- New suite `tests/c/tr_treedb_files` (the eight claims of the design that
+  would break quietly); `tests/c/c_assets` rewritten for the round trip.
+  Every treedb open now logs one more *"Creating topic"* (`__assets__`).
+
 ### `icon` becomes a treedb field type, and the C side is the one that ENFORCES it
 
 A col flagged `icon` holds the NAME of an icon of the app's set (`yi-bolt`),

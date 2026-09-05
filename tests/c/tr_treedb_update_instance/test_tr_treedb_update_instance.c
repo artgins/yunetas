@@ -193,10 +193,11 @@ PRIVATE int do_test(void)
     const char *treedb_name = "treedb_update_instance";
     {
         const char *test = "open treedb";
-        /*  treedb_open_db creates __snaps__ + __graphs__ + items  */
+        /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__  */
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic"

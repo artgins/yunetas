@@ -95,11 +95,26 @@ tree nodes with linking, snapshots, and import/export.
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` |
 
+### Key attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `tranger` | `pointer` | The tranger the treedb lives on. Set by the host. |
+| `treedb_name` | `string` | Treedb name. |
+| `treedb_schema` | `json` | The schema, projected into `__system__` and opened from there. |
+| `initial_load` | `json` | Seed records, created if missing and marked immutable. |
+| `with_link_events` | `bool` | Publish `EV_TREEDB_NODE_LINKED` / `UNLINKED`. |
+| `files_max_size` | `integer` | Largest file a `file` column accepts. Default 128 MB. A **memory** limit as much as a policy one — see *File columns* below. |
+| `files_content_types` | `json` | Mime types a `file` column may hold, checked on the **bytes**. The default carries images, PDF, video and audio; `image/svg+xml` is **not** in it on purpose (an SVG served from the app's own origin runs script). A column narrows the list, never widens it. |
+| `import_root` | `string` | Root that `import-assets` is confined to. Empty: `import-assets` is refused. |
+
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. |
+| `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. |
+| `import-assets` | Turn a directory already on this node into N assets of `__assets__`: one command, no bytes on the wire. Confined to `import_root`. It creates index nodes, links nothing, and **answers the map `path -> id`** so the loader can link what it imported. `dry_run=1` says what it would take. |
+| `gc-assets` | Delete the assets that **no live node and no snapshot** links — row and bytes. Never automatic: `delete-node force=1` unlinks children rather than deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. `dry_run=1` lists what it would take. |
 | `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
 | `instances` | List node instances. |
 | `link-nodes` / `unlink-nodes` | Manage parent-child relationships. |
@@ -112,6 +127,92 @@ tree nodes with linking, snapshots, and import/export.
 | `treedbs` / `topics` | List the treedbs of the tranger / the topics of a treedb. |
 | `desc` / `descs` | Describe one topic's schema / every topic's. |
 | `print-tranger` | Dump the tranger the treedb lives on as bounded JSON (`kw_collapse()`-truncated: unexpanded containers answer as `[[size]]`, and `lists_limit` and `dicts_limit` bound the expansion). Pass `path=` (backtick-delimited, `kw_find_path` style, arrays by numeric index) to lazily drill into one subtree — this is what feeds the gui_treedb "Raw JSON" viewer. |
+
+(treedb-file-columns)=
+### File columns: `__assets__`
+
+A treedb node often owns something that is not JSON — a photo, a plan, a
+signed pdf. Those bytes cannot go *in* the treedb: it is held in memory and
+timeranger2 rewrites the whole record on every update, so a 40 KB photo would
+be rewritten every time its node changed state and would ride along in every
+page of `nodes`. Measured on one census: 12 134 blobs, 346 MB on disk, would
+be ~460 MB of RAM for the life of the yuno.
+
+So **you mark a column `file`, and treedb gives you a pseudo-filesystem**: you
+hand it a file, you get it back; the *index* lives in memory and the *content*
+on disk. Design note:
+[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/DESIGN-treedb-files.md).
+
+```
+'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey', 'file']}
+```
+
+- **The column is an fkey into `__assets__`**, a system topic every treedb
+  creates at open next to `__snaps__` and `__graphs__` (shown in system mode
+  only). Its rows are the index entries: `id` (the **sha256 of the content**),
+  `content_type`, `size`, `t`, `original_name` (the only writable one),
+  `uploaded_by`. Its **hooks are derived**: for every column `C` of topic `T`
+  flagged `file`, `__assets__` gains `as_<T>_<C> -> {T: C}` in memory, never
+  written to `topic_cols.json`. The host declares nothing but the column, and
+  nothing about `__assets__` is ever versioned. The derivation **follows the
+  schema at run time**: `create-topic` and `delete-topic` are live commands,
+  so a topic added while the yuno runs gets its hook, and one deleted takes
+  its hook — and the children it held — away with it.
+- **The bytes live under the treedb**, at `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`,
+  so a `cp -a` of the treedb directory carries the nodes **and** their bytes.
+- **The bytes ride beside the record**, never inside the column, in a
+  `__files__` manifest keyed by column, consumed at the door. A browser sends
+  `content64`; a C caller puts a real `gbuffer` in the kw and the manifest says
+  which slice is whose (`offset`, `size`) — a kw holds ONE binary field, so one
+  buffer carries every file of the record:
+
+```json
+{"topic_name": "devices",
+ "record": {"id": "E22000041",
+            "foto": "",
+            "__files__": {"foto": {"content64": "...", "original_name": "E22000041.jpg",
+                                   "content_type": "image/jpeg"}}},
+ "options": {"create": 1, "autolink": 1}}
+```
+
+- **Treedb re-hashes what arrives.** A client may put the sha256 in the column
+  up front, ask `node` whether that asset exists and skip the bytes if it does
+  (a census reload then sends ~0 instead of 346 MB) — but the id is a claim,
+  never an authority: a wrong id with good bytes is refused, and a bare id of
+  an asset nobody stored is refused. A bare id of an existing asset links it.
+- **Size and type are checked at the door, on the bytes.** The size is checked
+  on the base64 before decoding; the type is *sniffed* from the first bytes
+  and the declared one must agree — a png called `image/jpeg` is refused, and
+  an svg called `image/png` is refused, which is the case the allowlist exists
+  for. Two levels: the treedb's ceiling (`files_max_size`,
+  `files_content_types`) and the column's policy, in its `properties`
+  (`{'max_size': 4096, 'content_types': ['application/pdf']}`), which narrows
+  the ceiling and never raises it. The ceiling itself sits **behind** the
+  transport's: the message was accepted whole and parsed before treedb saw it,
+  so keep `files_max_size` under the transport's `max_pkt_size`.
+- **Three writes, in order**: the blob, the `__assets__` node, the host record
+  with its link. Interrupted early it leaves an orphan blob or an orphan index
+  node, which `gc-assets` takes; never a link to nothing.
+- **A second arrival of the same bytes is an update of the asset node**, so
+  the history of `__assets__` says every name a file arrived under. The blob
+  is written once, and the **first** arrival names it for ever: the extension
+  is part of the served path and the URL is cached for ever, so a later
+  arrival that declares another member of the same container (`audio/mp4`
+  for what was stored as `video/mp4`) keeps the stored `content_type` and
+  says so in the log.
+- **`gc-assets` reads the snapshots.** `shoot-snap` skips every `__` topic, so
+  an asset node never carries a tag and the tag guard never protects it: the
+  collector walks the tagged instances of every topic with a `file` column,
+  and keeps what any snapshotted version of a node still points at. A
+  snapshot holds bytes alive.
+- **Deleting an asset node deletes its bytes.** Refused while a node links it,
+  like any parent with children — and refused, `force` included, while a
+  **snapshot** links it: `delete-node` on an `__assets__` row runs the same
+  walk `gc-assets` does, because the ordinary tag guard never fires for an
+  asset. `force` means "unlink the children", never "ignore what a snapshot
+  needs".
+
+Serving the bytes to a browser is [`C_ASSETS`](#gclass-c-assets)' job.
 
 ---
 
@@ -139,34 +240,16 @@ Simple resource persistence — stores each resource as a flat JSON file.
 (gclass-c-assets)=
 ## C_ASSETS
 
-The bytes a treedb node owns but cannot hold — a photo, a plan, a signed
-pdf. The bytes go in a directory this service owns, next to the treedb of
-the same realm; one node per asset goes in the treedb; and these commands
-are the only way in.
+The way **out** of the bytes a treedb keeps for its `file` columns: a signed
+URL a web server checks by itself, or the bytes inline when there is no web
+server in front. Storing is treedb's ([File columns](#treedb-file-columns)):
+`file` columns, `__assets__`, and the `import-assets` / `gc-assets` commands
+of `C_NODE`. This gclass only publishes what is stored, and is one command.
 
-They cannot go *in* the treedb: it is held in memory, and timeranger2
-rewrites the whole record on every update, so a 40 KB photo would be
-rewritten every time its node changed state and would ride along in every
-page of `nodes`. (The `blob` column type is not binary — it is free-form
-JSON.)
-
-The asset id is the **sha256 of its content**. The same bytes stored twice
-are one asset, a bulk reload creates nothing, a served URL can be cached for
-ever, and replacing an asset is a new id plus a relinked node — which is
-what makes the node's own history say which file it carried, and when.
-
-The consumer's column stops being a path and becomes an **fkey** into the
-asset topic, so an asset is linked, listed, graphed, scope-checked and
-cascade-deleted like any other node, and an asset no node links any more is
-visibly garbage.
-
-**The topic belongs to the host, not to this gclass.** An asset's fkeys
-point at the host's own topics, so only the host can write those hooks.
-`C_ASSETS` never creates the topic and refuses to work when the one it was
-pointed at cannot hold what it is about to write — a blob on disk whose row
-failed to be written is a file nothing can ever find again. The canonical
-topic is in
-[`c_assets.h`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/root-linux/src/c_assets.h).
+The asset id is the **sha256 of its content**, so a served URL means the
+same bytes for ever and can be cached for ever. `get-asset` takes the asset
+id and nothing else — not a node plus a column: keyed by node, the same URL
+would mean different bytes the moment the node was relinked.
 
 | Property | Value |
 |----------|-------|
@@ -178,71 +261,24 @@ topic is in
 |-----------|------|-------------|
 | `treedb` | `pointer` | The `C_NODE` that owns the treedb. Set by the host; takes precedence over `treedb_service`. |
 | `treedb_service` | `string` | Its service name, when the host did not build it itself. |
-| `topic_name` | `string` | Topic holding the asset metadata. Default `assets`. |
-| `store_path` | `string` | Absolute blob directory. Empty: built under the realm store from `store_service` / `store_tenant` / `store_dir`. |
-| `import_root` | `string` | Root that `import-assets` is confined to. Empty: `import-assets` is refused. |
 | `public_url` | `string` | URL prefix a web server serves the blobs from. Empty: `get-asset` answers inline. |
 | `sign_secret` | `string` | Shared secret of the web server's `secure_link_md5`. Empty: `get-asset` answers inline. |
 | `url_ttl` | `integer` | Seconds a signed URL stays valid. Default `900`. |
-| `max_size` | `integer` | Largest asset accepted. Default 128 MB. It is a **memory** limit as much as a policy one — see below. |
-| `allowed_content_types` | `json` | Mime types accepted. The default carries images, PDF, video and audio. `image/svg+xml` is **not** in it on purpose: an SVG served from the app's own origin runs script. |
-
-### What it accepts, and what that costs
-
-Images (`jpeg`, `png`, `webp`, `gif`), `application/pdf`, video (`mp4`,
-`webm`, `quicktime`, `ogg`, `x-matroska`) and audio (`mpeg`, `mp4`, `ogg`,
-`wav`, `webm`, `flac`).
-
-The pairs that share a container are split by **extension**, because the
-extension is the only thing a web server reads to pick a `Content-Type`:
-`.webm` is video and `.weba` audio, `.mp4` video and `.m4a` audio, `.ogv`
-video and `.ogg` audio.
-
-**There is no streaming path**: an asset is hashed and written whole, so
-`max_size` bounds RAM as much as policy. `put-asset` costs the worst — the
-base64 arrives inside the kw and is then decoded, so one call peaks at
-roughly 2.3x the file; `import-assets` only pays the file itself. Before
-raising `max_size` for big media, check the yuno's own `MEM_MAX_BLOCK`: a
-single base64 string above it is refused by the allocator, not by this
-gclass.
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `put-asset` | Store one asset from `content64`, return its id. Same bytes, same id: idempotent, and re-storing a path already known writes nothing at all. |
-| `put-assets` | Store a **bundle** in one command — see below. |
-| `get-asset` | Return a signed URL, or the bytes inline. See below. Takes `asset_id`, **not** `id` — see the note under Commands. |
-| `list-assets` | The asset metadata, never the bytes. `orphan=1` lists the ones no node links. |
-| `delete-asset` | Delete one. Refused while a node links it, unless `force`. |
-| `import-assets` | Turn a directory already on this node into N assets. |
-| `gc-assets` | Delete the assets no node links any more. Never automatic. |
+| `get-asset` | Return a signed URL, or the bytes inline. See below. Takes `asset_id`, **not** `id`. |
 
-Writes are refused on a replica (the tranger is not the master of its store)
-and gated by the `write` / `read` authz of the service.
+Gated by the `read` authz of the service.
 
-**`get-asset` and `delete-asset` take `asset_id`, not `id`.** `command-yuno`
-hands its whole kw to `gobj_list_nodes()` as the filter that picks the yuno,
-so a parameter named like a field of the yuno record becomes a filter on that
-field: an `id` of a sha256 matches no yuno and the answer is *"Yuno not
-found"* — which names the yuno and never the parameter. The bare `id` still
-works for a caller that never crosses the agent.
-
-### `gc-assets` refuses rather than guesses
-
-A collector decides what to delete, so what it does when it **cannot decide**
-is the whole of its safety. `gc-assets` treats *"cannot tell"* as **linked**:
-
-- If the hooks of the `assets` topic cannot be read, it **refuses the whole
-  run** and logs why. It does not fall back to "nothing is linked" — that
-  reading would delete the entire store, rows and blobs, and report success.
-- An asset node with no `id` is counted and reported, never skipped in
-  silence: its blob would stay behind, unreachable and uncollectable.
-- An asset whose hooks are all empty is an orphan **only** when the hooks
-  themselves were read successfully.
-
-`orphan=1` on `list-assets` answers the same question without deleting
-anything, and is the way to see what a run would take before running it.
+**`get-asset` takes `asset_id`, not `id`.** `command-yuno` hands its whole kw
+to `gobj_list_nodes()` as the filter that picks the yuno, so a parameter named
+like a field of the yuno record becomes a filter on that field: an `id` of a
+sha256 matches no yuno and the answer is *"Yuno not found"* — which names the
+yuno and never the parameter. The bare `id` still works for a caller that
+never crosses the agent.
 
 ### Two ways out to a browser, and the service picks
 
@@ -261,7 +297,7 @@ of showing nothing.
 The signed form reproduces, byte for byte, what this nginx block hashes.
 **Do not use `/assets/`**: a Vite SPA on the same vhost already owns that
 prefix for its content-hashed bundles, and the two locations would fight
-over it.
+over it. The `alias` is the treedb's own blob directory.
 
 ```nginx
 location /media/ {
@@ -269,7 +305,7 @@ location /media/ {
     secure_link_md5  "$secure_link_expires$uri <sign_secret>";
     if ($secure_link = "")  { return 403; }   # bad signature
     if ($secure_link = "0") { return 410; }   # expired
-    alias <store_path>/;
+    alias <store>/<realm>/treedb_<name>/.blobs/;
     expires max;    # the name IS the hash: it can never go stale
     access_log off;
 }
@@ -283,53 +319,7 @@ short lifetime is what limits a leaked URL.
 nginx and openresty are, but a node still running an older build must serve
 inline until its web server is replaced.
 
-### `put-assets`: a batch line carries ONE file
-
-The initial data of a yuno belongs where the deploy can find it, and a batch
-line carries **one** file (`content64=$$(...)`) — so a census of twelve
-thousand images is either twelve thousand commands or a few dozen bundles.
-
-`put-assets` takes a bundle: a JSON array of the same shape the rest of the
-batches use, so it needs no parser of its own and a person can read it.
-
-```json
-[{"original_name": "E22007445.jpg",
-  "source_path":   "censo_memorias/15-bm-el-ferrol-am/fotos/E22007445.jpg",
-  "content_type":  "image/jpeg",
-  "content64":     "..."}]
-```
-
-`content_type` may be omitted and is then guessed from the name.
-
-The bundle is **transport, not storage**: keep the assets as files where they
-are authored — inspectable, and delta-stored one by one — and pack them at
-send time, the same way `$$()` base64s a file. Nobody commits base64.
-
-**One bad entry does not stop the bundle.** A load of that size that aborted
-halfway would be neither retryable nor comparable, so every failure is logged
-with its name and the answer reports `stored` and `failed`.
-
-### `import-assets` moves no bytes
-
-It walks a directory that is **already on the node** and turns it into N
-assets, recording each file's path relative to `import_root` in
-`source_path` — the field a loader links by, and a **list**: an asset is
-its content, so N files with identical bytes are one asset, and every
-path that led to it is kept. Keeping only one would leave the other
-loaders naming a path no asset carries, and they would find nothing —
-silently, because "not imported yet" is a legal state. Pushing hundreds of megabytes
-through the control plane, one base64 message per file, is the thing this
-command exists to avoid.
-
-It reads an arbitrary path, so it is confined, and three separate things do
-the confining:
-
-- an explicit `..` guard, which refuses rather than silently resolving
-  somewhere else;
-- `build_path()`, which strips the leading `/` of every segment after the
-  first and clamps `..` against it — so an **absolute** `source_dir` lands
-  *inside* the root (`/etc` → `<import_root>/etc`), not at `/etc`;
-- `walk_dir_tree()`, which `lstat()`s, so a symlink is neither a regular
-  file nor a directory and cannot lead the walk out.
-
-`tests/c/c_assets` checks all three with hostile input.
+`tests/c/c_assets` covers the whole round trip: a record with its bytes
+beside it through `update-node`, both doors (`content64` and a `gbuffer` of
+two slices), `get-asset` inline and signed, `import-assets` with hostile
+paths (`..`, absolute, a symlink out of the root), and `gc-assets`.

@@ -414,7 +414,8 @@ PRIVATE int do_test(void)
         const char *test = "open treedb";
 
         json_t *error_list = json_pack(
-            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

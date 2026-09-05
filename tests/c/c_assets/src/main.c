@@ -115,7 +115,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -125,9 +125,13 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Assets service ready",
             "msg", "Playing yuno",
+            /*  the unknown topic of case 4bis: the write, and then the
+             *  desc the answer carries back  */
+            "msg", "Topic name not found in treedbs",
+            "msg", "Topic name not found in treedbs",
             "msg", "Cannot delete node: has down links",
-            "msg", "b64_decode() FAILED",
-            "msg", "bad base64 in bundled asset",
+            "msg", "import refused: source_dir carries '..'",
+            "msg", "import refused: not a directory",
             "msg", "All c_assets tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

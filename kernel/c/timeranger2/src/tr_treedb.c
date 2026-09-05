@@ -10,8 +10,12 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <limits.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #include <gobj.h>
 #include "timeranger2.h"
@@ -100,6 +104,20 @@ PRIVATE json_t *apply_child_list_options(
     json_t *child_list,  // NOT owned
     json_t *jn_options // NOT owned
 );
+#define TREEDB_FILES_DEFAULT_MAX_SIZE   (128LL*1024*1024)
+/*
+ *  Option of treedb_delete_node(), INTERNAL: "I have already walked the
+ *  snapshots, do not walk them again". Only treedb_gc_files() sets it,
+ *  because it walks them once for the whole run; anybody else deleting a
+ *  node of __assets__ must let the guard run. See assets_held_by_snaps().
+ */
+#define TREEDB_SNAPS_WALKED             "__snaps_walked__"
+PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
+PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
+PRIVATE const char *files_default_types[];
 PRIVATE json_t *_list_children(
     hgobj gobj,
     json_t *tranger,
@@ -1107,6 +1125,40 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         );
     }
 
+    /*-------------------------------------------*
+     *  Create "system" topic __assets__ and
+     *  derive its hooks from the 'file' columns
+     *-------------------------------------------*/
+    {
+        json_t *treedbs_files = kw_get_dict(gobj, tranger, "treedbs_files", json_object(), KW_CREATE);
+        json_t *treedb_files = kw_get_dict(gobj, treedbs_files, treedb_name, json_object(), KW_CREATE);
+        json_object_set_new(treedb_files, "max_size", json_integer(TREEDB_FILES_DEFAULT_MAX_SIZE));
+        json_t *jn_default_types = json_array();
+        for(int i = 0; files_default_types[i]; i++) {
+            json_array_append_new(jn_default_types, json_string(files_default_types[i]));
+        }
+        json_object_set_new(treedb_files, "content_types", jn_default_types);
+    }
+
+    if(!create_assets_topic(gobj, tranger, treedb_name)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cannot create __assets__ topic",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
+    if(derive_file_hooks(gobj, tranger, treedb_name) < 0) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Bad 'file' column: __assets__ hooks NOT derived",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
+
     /*------------------------------*
      *  Parse hooks
      *------------------------------*/
@@ -1194,6 +1246,7 @@ PUBLIC int treedb_close_db(
      *  Delete treedb
      *------------------------------*/
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
+    json_object_del(kw_get_dict(gobj, tranger, "treedbs_files", 0, 0), treedb_name);
     json_decref(treedb);  // Don't use JSON_DECREF
 
     // HACK incref/decref by each treedb_open_db/treedb_close_db
@@ -1510,6 +1563,16 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
     JSON_DECREF(jn_topic_var)
 
+    /*
+     *  The schema just moved: a `file` column of this topic needs its hook
+     *  in __assets__, and `create-topic` is a live command. During the open
+     *  __assets__ does not exist yet and this does nothing -- treedb_open_db()
+     *  runs the full pass once every topic is in.
+     */
+    if(topic) {
+        derive_file_hooks(gobj, tranger, treedb_name);   // Errors already logged
+    }
+
     return topic;
 }
 
@@ -1606,7 +1669,16 @@ PUBLIC int treedb_delete_topic(
     }
 
     treedb_close_topic(tranger, treedb_name, topic_name);
-    return tranger2_delete_topic(tranger, topic_name);
+    int ret = tranger2_delete_topic(tranger, topic_name);
+
+    /*
+     *  And the hooks this topic gave __assets__ go with it: left behind,
+     *  they keep children that no longer exist, and the gc reads a hook
+     *  that is not empty as "some node links this asset".
+     */
+    derive_file_hooks(gobj, tranger, treedb_name);   // Errors already logged
+
+    return ret;
 }
 
 /***************************************************************************
@@ -5043,6 +5115,15 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
 
     /*-------------------------------*
+     *  The bytes of the 'file' columns
+     *-------------------------------*/
+    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+        // Error already logged
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-------------------------------*
      *  Get the id to create node
      *  it's mandatory
      *-------------------------------*/
@@ -5694,6 +5775,18 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     /*-------------------------------*
+     *  The bytes of the 'file' columns
+     *-------------------------------*/
+    {
+        const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+        if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+            // Error already logged
+            JSON_DECREF(kw)
+            return 0;
+        }
+    }
+
+    /*-------------------------------*
      *  Update fields
      *-------------------------------*/
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
@@ -5859,6 +5952,36 @@ PUBLIC int treedb_delete_node(
         return -1;
     }
 
+    /*-------------------------------------------------*
+     *  An asset a SNAPSHOT still needs
+     *
+     *  The tag guard above is inert here: treedb_shoot_snap() skips every
+     *  `__` topic, so a node of __assets__ never carries one. Deleting the
+     *  row deletes the bytes, and activating a snap that remembers a node
+     *  linking them would then find nothing -- so this is the tag guard in
+     *  its place, and like it, `force` does NOT override: force means
+     *  "unlink the children", never "ignore what a snapshot needs".
+     *-------------------------------------------------*/
+    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 &&
+            !kw_get_bool(gobj, jn_options, TREEDB_SNAPS_WALKED, 0, 0)) {
+        json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
+        BOOL in_a_snap = json_object_get(held, id)? TRUE: FALSE;
+        JSON_DECREF(held)
+        if(in_a_snap) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot delete asset, a snapshot still links it",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            return -1;
+        }
+    }
+
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
@@ -5974,6 +6097,13 @@ PUBLIC int treedb_delete_node(
          *-------------------------------*/
         if(treedb_trace) {
             gobj_trace_msg(gobj, "delete node, topic %s, id %s", topic_name, id);
+        }
+
+        /*-------------------------------*
+         *  An asset: the bytes go with the row
+         *-------------------------------*/
+        if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0) {
+            remove_blob(gobj, tranger, node);
         }
 
         // TODO no debería borrarse por evento de tranger, para que tb borre en memoria de non-master?
@@ -7633,6 +7763,15 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
      *-------------------------------*/
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
+
+    /*
+     *  A 'file' column may still hold a bare id here (idempotent otherwise)
+     */
+    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+        // Error already logged
+        JSON_DECREF(kw)
+        return -1;
+    }
 
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
@@ -9562,6 +9701,1770 @@ PUBLIC json_t *treedb_get_topic_hooks(
 //     // FUTURE?
 //     return 0;
 // }
+
+
+
+
+                        /*----------------------------*
+                         *          Files
+                         *----------------------------*/
+
+
+
+
+/***************************************************************************
+ *  A `file` column, and `__assets__`.
+ *
+ *  A treedb is a memory database and timeranger2 rewrites the whole record
+ *  on every update, so a photo cannot be a field of a node. A column
+ *  flagged `file` holds an fkey into `__assets__`, the INDEX of the bytes,
+ *  and the bytes live under `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`.
+ *
+ *  `__assets__` is a system topic created at open, and its hooks are
+ *  DERIVED: for every column `C` of topic `T` flagged `file`, the hook
+ *  `as_<T>_<C> -> {T: C}` is added to the IN-MEMORY desc and never written
+ *  to topic_cols.json. So the host declares nothing but the column, and
+ *  nothing about `__assets__` is ever versioned. The pass runs between the
+ *  creation of the user topics and parse_hooks(), which is what turns a
+ *  hook into a link the loader can rebuild.
+ *
+ *  The write path (treedb_store_files) takes the bytes BESIDE the record,
+ *  in a `__files__` manifest keyed by column, hashes what arrives (the
+ *  client's id is a claim, never an authority), checks the size and the
+ *  type ON THE BYTES, writes the blob, creates or refreshes the index node
+ *  and rewrites the column into the full fkey reference. See
+ *  kernel/c/timeranger2/DESIGN-treedb-files.md.
+ ***************************************************************************/
+#define TREEDB_ASSETS_TOPIC_VERSION     1
+#define TREEDB_BLOBS_DIR                ".blobs"
+
+PRIVATE const char *files_default_types[] = {
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    "application/pdf",
+    "video/mp4", "video/webm", "video/quicktime", "video/ogg", "video/x-matroska",
+    "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm", "audio/flac",
+    0
+};
+
+/*
+ *  Containers shared by more than one mime type: the bytes say the family,
+ *  the declared type picks the member (and the extension a web server reads).
+ */
+PRIVATE const char *files_family_isobmff[] = {"video/mp4", "video/quicktime", "audio/mp4", 0};
+PRIVATE const char *files_family_ebml[]    = {"video/webm", "video/x-matroska", "audio/webm", 0};
+PRIVATE const char *files_family_ogg[]     = {"audio/ogg", "video/ogg", 0};
+
+typedef struct {
+    hgobj gobj;
+    json_t *tranger;
+    const char *treedb_name;
+    const char *root;           /* absolute import root, to cut the relative path */
+    const char *uploaded_by;
+    BOOL dry_run;
+    json_t *stats;              /* imported / skipped / failed / bytes */
+    json_t *files;              /* relative path -> asset id */
+} files_import_ctx_t;
+
+/***************************************************************************
+ *  The extension is what a web server reads to set the Content-Type, so it
+ *  is derived from the type stored, never from the name that was given.
+ ***************************************************************************/
+PUBLIC const char *treedb_file_ext(const char *content_type)
+{
+    static const char *pairs[][2] = {
+        {"image/jpeg", "jpg"}, {"image/png", "png"}, {"image/webp", "webp"},
+        {"image/gif", "gif"}, {"application/pdf", "pdf"},
+        {"video/mp4", "mp4"}, {"video/webm", "webm"}, {"video/quicktime", "mov"},
+        {"video/ogg", "ogv"}, {"video/x-matroska", "mkv"},
+        {"audio/mpeg", "mp3"}, {"audio/mp4", "m4a"}, {"audio/ogg", "ogg"},
+        {"audio/wav", "wav"}, {"audio/webm", "weba"}, {"audio/flac", "flac"},
+        {0, 0}
+    };
+    if(empty_string(content_type)) {
+        return "bin";
+    }
+    for(int i = 0; pairs[i][0]; i++) {
+        if(strcmp(pairs[i][0], content_type)==0) {
+            return pairs[i][1];
+        }
+    }
+    return "bin";
+}
+
+/***************************************************************************
+ *  Mime type from a file name. The pairs that share a container are split
+ *  by EXTENSION on purpose: '.webm' is video and '.weba' audio, '.mp4'
+ *  video and '.m4a' audio, '.ogv' video and '.ogg' audio.
+ ***************************************************************************/
+PUBLIC const char *treedb_content_type_of_name(const char *name)
+{
+    static const char *pairs[][2] = {
+        {"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"}, {"png", "image/png"},
+        {"webp", "image/webp"}, {"gif", "image/gif"}, {"pdf", "application/pdf"},
+        {"mp4", "video/mp4"}, {"webm", "video/webm"}, {"mov", "video/quicktime"},
+        {"ogv", "video/ogg"}, {"mkv", "video/x-matroska"},
+        {"mp3", "audio/mpeg"}, {"m4a", "audio/mp4"}, {"ogg", "audio/ogg"},
+        {"wav", "audio/wav"}, {"weba", "audio/webm"}, {"flac", "audio/flac"},
+        {0, 0}
+    };
+    if(empty_string(name)) {
+        return "";
+    }
+    const char *dot = strrchr(name, '.');
+    if(!dot || !dot[1]) {
+        return "";
+    }
+    dot++;
+    for(int i = 0; pairs[i][0]; i++) {
+        if(strcasecmp(pairs[i][0], dot)==0) {
+            return pairs[i][1];
+        }
+    }
+    return "";
+}
+
+/***************************************************************************
+ *  The type read from the BYTES. Return the mime type of what the first
+ *  bytes say (one representative per shared container), or "" when the
+ *  content is not recognised. An svg or any html/xml text is recognised on
+ *  purpose, so that it can be REFUSED by name: called `image/png` by a
+ *  client, it would otherwise walk past the allowlist.
+ ***************************************************************************/
+PUBLIC const char *treedb_sniff_content_type(const char *data, size_t len)
+{
+    const uint8_t *p = (const uint8_t *)data;
+    if(!p || len < 4) {
+        return "";
+    }
+    if(p[0]==0xFF && p[1]==0xD8 && p[2]==0xFF) {
+        return "image/jpeg";
+    }
+    if(len >= 8 && memcmp(p, "\x89PNG\r\n\x1a\n", 8)==0) {
+        return "image/png";
+    }
+    if(len >= 12 && memcmp(p, "RIFF", 4)==0) {
+        if(memcmp(p+8, "WEBP", 4)==0) {
+            return "image/webp";
+        }
+        if(memcmp(p+8, "WAVE", 4)==0) {
+            return "audio/wav";
+        }
+        return "";
+    }
+    if(len >= 6 && (memcmp(p, "GIF87a", 6)==0 || memcmp(p, "GIF89a", 6)==0)) {
+        return "image/gif";
+    }
+    if(len >= 5 && memcmp(p, "%PDF-", 5)==0) {
+        return "application/pdf";
+    }
+    if(len >= 12 && memcmp(p+4, "ftyp", 4)==0) {
+        return "video/mp4";          /* the isobmff family */
+    }
+    if(p[0]==0x1A && p[1]==0x45 && p[2]==0xDF && p[3]==0xA3) {
+        return "video/webm";         /* the ebml family */
+    }
+    if(memcmp(p, "OggS", 4)==0) {
+        return "audio/ogg";          /* the ogg family */
+    }
+    if(memcmp(p, "fLaC", 4)==0) {
+        return "audio/flac";
+    }
+    if(memcmp(p, "ID3", 3)==0) {
+        return "audio/mpeg";
+    }
+    if(p[0]==0xFF && (p[1] & 0xE0)==0xE0 && (p[1] & 0x18)!=0x08 && (p[1] & 0x06)!=0) {
+        return "audio/mpeg";         /* an MPEG audio frame sync */
+    }
+
+    /*
+     *  Text that a browser would RUN: named so the allowlist refuses it.
+     */
+    size_t i = 0;
+    if(len >= 3 && p[0]==0xEF && p[1]==0xBB && p[2]==0xBF) {
+        i = 3;
+    }
+    while(i < len && (p[i]==' ' || p[i]=='\t' || p[i]=='\r' || p[i]=='\n')) {
+        i++;
+    }
+    if(i < len && p[i]=='<') {
+        if(len - i >= 4 && strncasecmp((const char *)p+i, "<svg", 4)==0) {
+            return "image/svg+xml";
+        }
+        if(len - i >= 5 && strncasecmp((const char *)p+i, "<?xml", 5)==0) {
+            return "image/svg+xml";
+        }
+        return "text/html";
+    }
+    return "";
+}
+
+/***************************************************************************
+ *  Does the declared type agree with what the bytes say?
+ ***************************************************************************/
+PRIVATE BOOL content_type_compatible(const char *declared, const char *sniffed)
+{
+    if(empty_string(declared) || empty_string(sniffed)) {
+        return FALSE;
+    }
+    if(strcmp(declared, sniffed)==0) {
+        return TRUE;
+    }
+    const char **families[] = {
+        files_family_isobmff, files_family_ebml, files_family_ogg, 0
+    };
+    for(int f = 0; families[f]; f++) {
+        BOOL d = str_in_list(families[f], declared, FALSE);
+        BOOL s = str_in_list(families[f], sniffed, FALSE);
+        if(d && s) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL is_sha256_hex(const char *id)
+{
+    if(!id || strlen(id) != SHA256_HEX_LEN) {
+        return FALSE;
+    }
+    for(int i = 0; i < SHA256_HEX_LEN; i++) {
+        if(!((id[i] >= '0' && id[i] <= '9') || (id[i] >= 'a' && id[i] <= 'f'))) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Where the bytes of an asset live: <treedb dir>/.blobs/ab/cd/<id>.<ext>
+ *
+ *  Two levels of fanout because a flat directory of some ten thousand
+ *  files is a directory nobody can look at. The directory starts with a
+ *  dot so that no scan of the treedb directory ever takes it for a topic.
+ ***************************************************************************/
+PUBLIC int treedb_blob_path(
+    json_t *tranger,
+    const char *id,
+    const char *content_type,
+    char *bf,
+    size_t bflen
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!is_sha256_hex(id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Asset id is not a lowercase sha256",
+            "id",           "%s", id?id:"",
+            NULL
+        );
+        return -1;
+    }
+    const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
+    char d1[3] = {id[0], id[1], 0};
+    char d2[3] = {id[2], id[3], 0};
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.%s", id, treedb_file_ext(content_type));
+
+    if(!build_path(bf, bflen, directory, TREEDB_BLOBS_DIR, d1, d2, filename, NULL)) {
+        return -1;  // Error already logged
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The ceiling of the treedb: what ONE write may cost this process, and
+ *  the families the store will ever hold. A column may narrow it (see
+ *  `properties.max_size` / `properties.content_types`), never raise it.
+ ***************************************************************************/
+PUBLIC int treedb_set_files_limits(
+    json_t *tranger,
+    const char *treedb_name,
+    json_int_t max_size,        // 0: keep the current ceiling
+    json_t *content_types       // owned; NULL: keep the current list
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, 0);
+    if(!treedb) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "TreeDB not found",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        JSON_DECREF(content_types)
+        return -1;
+    }
+    json_t *treedbs_files = kw_get_dict(gobj, tranger, "treedbs_files", json_object(), KW_CREATE);
+    json_t *treedb_files = kw_get_dict(gobj, treedbs_files, treedb_name, json_object(), KW_CREATE);
+    if(max_size > 0) {
+        json_object_set_new(treedb_files, "max_size", json_integer(max_size));
+    }
+    if(content_types) {
+        if(!json_is_array(content_types)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "files content_types must be a list",
+                "treedb_name",  "%s", treedb_name,
+                NULL
+            );
+            JSON_DECREF(content_types)
+            return -1;
+        }
+        json_object_set_new(treedb_files, "content_types", content_types);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_int_t files_ceiling_max_size(hgobj gobj, json_t *tranger, const char *treedb_name)
+{
+    json_t *treedb_files = kw_get_subdict_value(gobj, tranger, "treedbs_files", treedb_name, 0, 0);
+    json_int_t max_size = kw_get_int(gobj, treedb_files, "max_size", 0, 0);
+    return max_size > 0? max_size: TREEDB_FILES_DEFAULT_MAX_SIZE;
+}
+
+/***************************************************************************
+ *  Return NOT YOURS
+ ***************************************************************************/
+PRIVATE json_t *files_ceiling_content_types(hgobj gobj, json_t *tranger, const char *treedb_name)
+{
+    json_t *treedb_files = kw_get_subdict_value(gobj, tranger, "treedbs_files", treedb_name, 0, 0);
+    return json_object_get(treedb_files, "content_types");
+}
+
+/***************************************************************************
+ *  The policy of ONE column: what THIS field is for. Read from the
+ *  column's `properties` (`max_size`, `content_types`), the catch-all the
+ *  __system__ projection carries verbatim. Return the effective limit
+ *  (the ceiling narrowed by the column) and TRUE if `content_type` passes
+ *  both lists.
+ ***************************************************************************/
+PRIVATE json_int_t files_effective_max_size(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *col     // NOT owned, may be NULL
+)
+{
+    json_int_t ceiling = files_ceiling_max_size(gobj, tranger, treedb_name);
+    json_int_t col_max = col? kw_get_int(gobj, col, "properties`max_size", 0, 0): 0;
+    if(col_max > 0 && col_max < ceiling) {
+        return col_max;
+    }
+    return ceiling;
+}
+
+PRIVATE BOOL files_type_allowed(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *col,    // NOT owned, may be NULL
+    const char *content_type
+)
+{
+    if(empty_string(content_type)) {
+        return FALSE;
+    }
+    json_t *ceiling = files_ceiling_content_types(gobj, tranger, treedb_name);
+    if(!json_str_in_list(gobj, ceiling, content_type, 0)) {
+        return FALSE;
+    }
+    json_t *col_types = col? kw_get_list(gobj, col, "properties`content_types", 0, 0): 0;
+    if(json_array_size(col_types) > 0) {
+        if(!json_str_in_list(gobj, col_types, content_type, 0)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Write the blob: to a temporary name first, renamed when complete, so
+ *  an interrupted write never leaves a half file under the final name.
+ ***************************************************************************/
+PRIVATE int write_blob(
+    hgobj gobj,
+    json_t *tranger,
+    const char *path,
+    const char *data,
+    size_t size
+)
+{
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *p = strrchr(dir, '/');
+    if(p) {
+        *p = 0;
+        if(!is_directory(dir)) {
+            if(mkrdir(dir, (int)kw_get_int(gobj, tranger, "xpermission", 02770, 0))<0) {
+                return -1;  // Error already logged
+            }
+        }
+    }
+
+    char tmp[PATH_MAX];
+    if(snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "blob path too long",
+            "path",         "%s", path,
+            NULL
+        );
+        return -1;
+    }
+    int fd = newfile(tmp, (int)kw_get_int(gobj, tranger, "rpermission", 0660, 0), TRUE);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot create blob file",
+            "path",         "%s", tmp,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    size_t written = 0;
+    while(written < size) {
+        ssize_t ln = write(fd, data + written, size - written);
+        if(ln <= 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot write blob file",
+                "path",         "%s", tmp,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            unlink(tmp);
+            return -1;
+        }
+        written += (size_t)ln;
+    }
+    close(fd);
+
+    if(rename(tmp, path) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot rename blob file",
+            "path",         "%s", path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        unlink(tmp);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Remove the bytes of an asset node. The index row is gone or going;
+ *  bytes without a row are unreachable garbage.
+ ***************************************************************************/
+PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node)
+{
+    const char *id = kw_get_str(gobj, node, "id", "", 0);
+    const char *content_type = kw_get_str(gobj, node, "content_type", "", 0);
+    char path[PATH_MAX];
+    if(treedb_blob_path(tranger, id, content_type, path, sizeof(path))<0) {
+        return -1;  // Error already logged
+    }
+    if(is_regular_file(path) && unlink(path) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Asset row deleted but its blob could not be removed",
+            "path",         "%s", path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Store one file: the bytes on disk, one node in __assets__.
+ *
+ *  IDEMPOTENT on the bytes: the id is the sha256 of the content, so the
+ *  same bytes are one asset and the blob is written once. The NODE is a
+ *  node like any other: a second arrival is an update of it, appended as
+ *  an instance, so the history says every name the file arrived under.
+ *
+ *  Refusals caused by what a client sent are WARNINGS with the reason in
+ *  `reason` for the answer; a broken invariant of our own is an error.
+ *
+ *  Return the node (NOT YOURS) or NULL.
+ ***************************************************************************/
+PRIVATE json_t *store_file_bytes(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *data,
+    size_t size,
+    const char *declared_type,      // may be empty: taken from the name, else from the bytes
+    const char *original_name,
+    const char *uploaded_by,
+    json_t *col,                    // NOT owned, may be NULL: the column's policy
+    const char *expected_id,        // may be empty: the client's claim, checked
+    char *reason,
+    size_t reason_len
+)
+{
+    reason[0] = 0;
+    if(empty_string(original_name)) {
+        original_name = "";
+    }
+    if(size == 0) {
+        snprintf(reason, reason_len, "file is empty");
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File REFUSED: empty",
+            "original_name","%s", original_name,
+            NULL
+        );
+        return NULL;
+    }
+    json_int_t max_size = files_effective_max_size(gobj, tranger, treedb_name, col);
+    if((json_int_t)size > max_size) {
+        snprintf(reason, reason_len,
+            "file of %ld bytes is over max_size (%ld)", (long)size, (long)max_size
+        );
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File REFUSED: over max_size",
+            "size",         "%ld", (long)size,
+            "max_size",     "%ld", (long)max_size,
+            "original_name","%s", original_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*--------------------------------------------*
+     *  The type is read from the BYTES; the
+     *  declared one is a claim to verify.
+     *--------------------------------------------*/
+    const char *sniffed = treedb_sniff_content_type(data, size);
+    if(empty_string(declared_type)) {
+        declared_type = treedb_content_type_of_name(original_name);
+    }
+    if(empty_string(declared_type)) {
+        declared_type = sniffed;
+    }
+    if(empty_string(sniffed) || !content_type_compatible(declared_type, sniffed)) {
+        snprintf(reason, reason_len,
+            "content_type '%s' does not match the bytes (%s)",
+            declared_type, empty_string(sniffed)? "not recognised": sniffed
+        );
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File REFUSED: content_type does not match the bytes",
+            "content_type", "%s", declared_type,
+            "sniffed",      "%s", empty_string(sniffed)? "": sniffed,
+            "original_name","%s", original_name,
+            NULL
+        );
+        return NULL;
+    }
+    if(!files_type_allowed(gobj, tranger, treedb_name, col, declared_type)) {
+        snprintf(reason, reason_len, "content_type '%s' not allowed", declared_type);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File REFUSED: content_type not allowed",
+            "content_type", "%s", declared_type,
+            "original_name","%s", original_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*--------------------------------------------*
+     *      The id is the content
+     *--------------------------------------------*/
+    char id[SHA256_HEX_LEN + 1];
+    if(sha256_hex(data, size, id, sizeof(id)) < 0) {
+        snprintf(reason, reason_len, "cannot hash the file");
+        return NULL;    // Error already logged
+    }
+    if(!empty_string(expected_id) && strcmp(expected_id, id)!=0) {
+        snprintf(reason, reason_len, "the id does not match the bytes");
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File REFUSED: the id does not match the bytes",
+            "expected_id",  "%s", expected_id,
+            "id",           "%s", id,
+            "original_name","%s", original_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*--------------------------------------------*
+     *  The FIRST arrival names the file, for ever
+     *
+     *  The extension is part of the path a web server serves, and the url
+     *  of an asset is cached for ever because the name IS the hash -- so
+     *  the name cannot change under it. And one container can be declared
+     *  as more than one type: the same bytes sent as 'video/mp4' and as
+     *  'audio/mp4' are compatible with each other and with what the bytes
+     *  say, and would land on '<id>.mp4' and '<id>.m4a'. Two blobs for one
+     *  asset, and the row names only one of them -- so the other could
+     *  never be served, never be found by the gc, and never be removed by
+     *  the delete. The stored content_type wins; the declared one was
+     *  already checked against the bytes, and is only a claim about them.
+     *--------------------------------------------*/
+    json_t *node = treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, id);
+    const char *stored_type = node? kw_get_str(gobj, node, "content_type", "", 0): "";
+    if(!empty_string(stored_type) && strcmp(stored_type, declared_type)!=0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "asset already stored under another content_type, keeping the stored one",
+            "id",           "%s", id,
+            "stored",       "%s", stored_type,
+            "declared",     "%s", declared_type,
+            "original_name","%s", original_name,
+            NULL
+        );
+        declared_type = stored_type;
+    }
+
+    /*--------------------------------------------*
+     *  The blob first, the node second: a node
+     *  pointing at nothing repairs itself never,
+     *  an orphan blob is what the gc is for.
+     *--------------------------------------------*/
+    char path[PATH_MAX];
+    if(treedb_blob_path(tranger, id, declared_type, path, sizeof(path))<0) {
+        snprintf(reason, reason_len, "cannot build the blob path");
+        return NULL;    // Error already logged
+    }
+    if(!(is_regular_file(path) && filesize(path) == (off_t)size)) {
+        if(write_blob(gobj, tranger, path, data, size)<0) {
+            snprintf(reason, reason_len, "cannot write the blob");
+            return NULL;    // Error already logged
+        }
+    }
+
+    if(node) {
+        node = treedb_update_node(
+            tranger,
+            node,
+            json_pack("{s:s, s:s}",
+                "original_name", original_name,
+                "uploaded_by", empty_string(uploaded_by)? "": uploaded_by
+            ),
+            TRUE
+        );
+    } else {
+        node = treedb_create_node(
+            tranger,
+            treedb_name,
+            TREEDB_ASSETS_TOPIC,
+            json_pack("{s:s, s:s, s:I, s:s, s:s}",
+                "id", id,
+                "content_type", declared_type,
+                "size", (json_int_t)size,
+                "original_name", original_name,
+                "uploaded_by", empty_string(uploaded_by)? "": uploaded_by
+            )
+        );
+    }
+    if(!node) {
+        snprintf(reason, reason_len, "cannot write the asset node");
+        return NULL;    // Error already logged
+    }
+
+    if(treedb_trace) {
+        gobj_trace_msg(gobj, "file stored: %s (%ld bytes, %s)", id, (long)size, declared_type);
+    }
+    return node;
+}
+
+/***************************************************************************
+ *  The id a client put in a `file` column: bare, or a full fkey reference.
+ ***************************************************************************/
+PRIVATE const char *file_col_id(const char *value, char *bf, size_t bflen)
+{
+    bf[0] = 0;
+    if(empty_string(value)) {
+        return bf;
+    }
+    if(strchr(value, '^')) {
+        char topic[NAME_MAX];
+        char hook[NAME_MAX];
+        if(!decode_parent_ref(value, topic, sizeof(topic), bf, bflen, hook, sizeof(hook))) {
+            /*
+             *  Answer "no id" and leave the value alone: filtra_fkeys()
+             *  is the one that names it, with "Wrong fkey reference", when
+             *  the record is written. Refusing it twice would say it twice.
+             */
+            bf[0] = 0;  // Error already logged
+        }
+        return bf;
+    }
+    snprintf(bf, bflen, "%s", value);
+    return bf;
+}
+
+/***************************************************************************
+ *  The write path of a record with `file` columns.
+ *
+ *  `kw` is the record as it arrived, and it is MODIFIED in place: every
+ *  `file` column leaves holding the full fkey reference into __assets__,
+ *  and the transport keys are dropped at the door:
+ *
+ *      "__files__": {"<col>": {"content64": "...",              (json door)
+ *                              "original_name": "...", "content_type": "..."}}
+ *      "__files__": {"<col>": {"offset": N, "size": N, ...}}   (gbuffer door)
+ *      "gbuffer":  <the ONE binary field of the kw, holding every slice>
+ *      "__username__": who uploads, kept in the asset node
+ *
+ *  A column that carries a bare id and no manifest names an asset that
+ *  must already exist. Idempotent: a second pass over the same kw finds
+ *  full references and no manifest, and does nothing.
+ *
+ *  Return 0, or -1 with the cause in gobj_log_last_message().
+ ***************************************************************************/
+PUBLIC int treedb_store_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw  // NOT owned, modified
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(!json_is_object(kw)) {
+        return 0;
+    }
+
+    /*
+     *  The binary field is consumed here, used or not: from this point the
+     *  record kw is decref'd with the json pair and would leak it.
+     */
+    gbuffer_t *gbuf = 0;
+    json_t *jn_gbuf = json_object_get(kw, "gbuffer");
+    if(jn_gbuf) {
+        gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuf);
+        json_object_del(kw, "gbuffer");
+    }
+    json_t *manifests = json_object_get(kw, "__files__");
+    const char *uploaded_by = kw_get_str(gobj, kw, "__username__", "", 0);
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic without cols",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        json_object_del(kw, "__files__");
+        json_object_del(kw, "__username__");
+        GBUFFER_DECREF(gbuf)
+        return -1;
+    }
+
+    int ret = 0;
+    BOOL any_file_col = FALSE;
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "file", 0)) {
+            continue;
+        }
+        any_file_col = TRUE;
+
+        char hook_name[NAME_MAX];
+        snprintf(hook_name, sizeof(hook_name), "as_%s_%s", topic_name, col_name);
+
+        json_t *jn_value = json_object_get(kw, col_name);
+        const char *value = json_is_string(jn_value)? json_string_value(jn_value): "";
+        char claimed_id[SHA256_HEX_LEN + 1 + NAME_MAX];
+        file_col_id(value, claimed_id, sizeof(claimed_id));
+
+        json_t *manifest = json_is_object(manifests)? json_object_get(manifests, col_name): 0;
+        if(json_is_object(manifest)) {
+            /*--------------------------------------------*
+             *  Bytes arrived for this column
+             *--------------------------------------------*/
+            const char *content64 = kw_get_str(gobj, manifest, "content64", "", 0);
+            const char *declared_type = kw_get_str(gobj, manifest, "content_type", "", 0);
+            const char *original_name = kw_get_str(gobj, manifest, "original_name", "", 0);
+            json_int_t max_size = files_effective_max_size(gobj, tranger, treedb_name, col);
+
+            const char *data = 0;
+            size_t size = 0;
+            gbuffer_t *gbuf_decoded = 0;
+
+            if(!empty_string(content64)) {
+                /*
+                 *  The size is checked on the base64, BEFORE decoding:
+                 *  a check after the decode has spent what it defends.
+                 */
+                size_t b64len = strlen(content64);
+                size_t padding = 0;
+                if(b64len >= 2 && content64[b64len-1]=='=') {
+                    padding = (content64[b64len-2]=='=')? 2: 1;
+                }
+                size_t decoded_len = (b64len / 4) * 3 - padding;
+                if((json_int_t)decoded_len > max_size) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "File REFUSED: over max_size",
+                        "size",         "%ld", (long)decoded_len,
+                        "max_size",     "%ld", (long)max_size,
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        NULL
+                    );
+                    gobj_log_set_last_message(
+                        "file of %ld bytes in '%s' is over max_size (%ld)",
+                        (long)decoded_len, col_name, (long)max_size
+                    );
+                    ret = -1;
+                    break;
+                }
+                gbuf_decoded = gbuffer_base64_to_binary(content64, b64len);
+                if(!gbuf_decoded) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "File REFUSED: bad base64",
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        NULL
+                    );
+                    gobj_log_set_last_message("bad base64 in '%s'", col_name);
+                    ret = -1;
+                    break;
+                }
+                data = gbuffer_cur_rd_pointer(gbuf_decoded);
+                size = gbuffer_leftbytes(gbuf_decoded);
+
+            } else if(gbuf) {
+                json_int_t offset = kw_get_int(gobj, manifest, "offset", 0, KW_WILD_NUMBER);
+                json_int_t slice = kw_get_int(gobj, manifest, "size", 0, KW_WILD_NUMBER);
+                size_t total = gbuffer_leftbytes(gbuf);
+                if(offset < 0 || slice <= 0 || (size_t)offset > total ||
+                        (size_t)slice > total - (size_t)offset) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "File REFUSED: manifest slice out of the gbuffer",
+                        "offset",       "%ld", (long)offset,
+                        "size",         "%ld", (long)slice,
+                        "total",        "%ld", (long)total,
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        NULL
+                    );
+                    gobj_log_set_last_message("manifest slice of '%s' out of the gbuffer", col_name);
+                    ret = -1;
+                    break;
+                }
+                data = gbuffer_cur_rd_pointer(gbuf) + offset;
+                size = (size_t)slice;
+
+            } else {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "File REFUSED: manifest without content64 and without gbuffer",
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    NULL
+                );
+                gobj_log_set_last_message("manifest of '%s' carries no bytes", col_name);
+                ret = -1;
+                break;
+            }
+
+            char reason[256];
+            json_t *asset = store_file_bytes(
+                gobj, tranger, treedb_name,
+                data, size,
+                declared_type, original_name, uploaded_by,
+                col, claimed_id,
+                reason, sizeof(reason)
+            );
+            GBUFFER_DECREF(gbuf_decoded)
+            if(!asset) {
+                gobj_log_set_last_message("cannot store file of '%s': %s", col_name, reason);
+                ret = -1;
+                break;
+            }
+            json_object_set_new(kw, col_name,
+                json_sprintf("%s^%s^%s",
+                    TREEDB_ASSETS_TOPIC, kw_get_str(gobj, asset, "id", "", 0), hook_name
+                )
+            );
+
+        } else if(!empty_string(claimed_id) && !strchr(value, '^')) {
+            /*--------------------------------------------*
+             *  A bare id and no bytes: the asset must be
+             *  there already. Then the column takes the
+             *  full reference treedb's links speak.
+             *--------------------------------------------*/
+            if(!treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, claimed_id)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "File REFUSED: asset not found and no bytes sent",
+                    "id",           "%s", claimed_id,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    NULL
+                );
+                gobj_log_set_last_message("asset '%s' of '%s' not found", claimed_id, col_name);
+                ret = -1;
+                break;
+            }
+            json_object_set_new(kw, col_name,
+                json_sprintf("%s^%s^%s", TREEDB_ASSETS_TOPIC, claimed_id, hook_name)
+            );
+        }
+    }
+    JSON_DECREF(cols)
+
+    if(!any_file_col && json_is_object(manifests) && json_object_size(manifests) > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "__files__ received by a topic with no 'file' column, dropped",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+    }
+
+    json_object_del(kw, "__files__");
+    json_object_del(kw, "__username__");
+    GBUFFER_DECREF(gbuf)
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Create the __assets__ system topic of a treedb: the index of the bytes.
+ *  Its persisted schema is fixed; the hooks are derived at open and never
+ *  written to disk (see derive_file_hooks).
+ ***************************************************************************/
+PRIVATE json_t *create_assets_topic(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    json_t *cols = json_pack(
+        "{s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* id */
+        " s:{s:s, s:s, s:i, s:s, s:[s]},"       /* content_type */
+        " s:{s:s, s:s, s:i, s:s, s:[s]},"       /* size */
+        " s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"   /* t */
+        " s:{s:s, s:s, s:i, s:s, s:[s,s]},"     /* original_name */
+        " s:{s:s, s:s, s:i, s:s, s:[s]}}",      /* uploaded_by */
+        "id",
+            "id", "id",
+            "header", "Id",
+            "fillspace", 32,
+            "type", "string",
+            "flag", "persistent", "required",
+        "content_type",
+            "id", "content_type",
+            "header", "Type",
+            "fillspace", 12,
+            "type", "string",
+            "flag", "persistent",
+        "size",
+            "id", "size",
+            "header", "Size",
+            "fillspace", 8,
+            "type", "integer",
+            "flag", "persistent",
+        "t",
+            "id", "t",
+            "header", "Time",
+            "fillspace", 20,
+            "type", "integer",
+            "flag", "persistent", "time", "now",
+        "original_name",
+            "id", "original_name",
+            "header", "Name",
+            "fillspace", 20,
+            "type", "string",
+            "flag", "writable", "persistent",
+        "uploaded_by",
+            "id", "uploaded_by",
+            "header", "By",
+            "fillspace", 20,
+            "type", "string",
+            "flag", "persistent"
+    );
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "json_pack() FAILED",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    return treedb_create_topic(
+        tranger,
+        treedb_name,
+        TREEDB_ASSETS_TOPIC,
+        TREEDB_ASSETS_TOPIC_VERSION,
+        "",         // tkey
+        0,          // pkey2s
+        cols,       // owned
+        0,          // snap_tag: the meta-tables are never tagged
+        TRUE,       // system_topic
+        FALSE       // create_schema
+    );
+}
+
+/***************************************************************************
+ *  Bring the hooks of __assets__ in line with the schema AS IT IS NOW: for
+ *  every column `C` of topic `T` flagged `file` the reciprocal hook
+ *  `as_<T>_<C> -> {T: C}`, and no other hook. IN MEMORY only -- a hook's
+ *  CONTENT lives in memory already (link_nodes saves the child's fkey and
+ *  never the parent), so its DECLARATION can live in the same place, and
+ *  nothing about __assets__ is ever versioned.
+ *
+ *  The schema moves at RUN TIME, so this does too: `create-topic` and
+ *  `delete-topic` are live commands of C_TREEDB. Derived only at open, a
+ *  topic added while the yuno runs had a `file` column whose hook did not
+ *  exist -- its writes named a hook nothing could link through -- and a
+ *  topic DELETED at runtime left its hook behind, still holding children
+ *  that are gone, which the gc reads as "some node links this asset" and
+ *  so never collects those bytes again.
+ *
+ *  A `file` column must also be flagged `fkey`: every link behaviour of
+ *  this file keys on that word, and so does the GUI. Refused otherwise,
+ *  loudly. Return 0 or the number of errors in negative.
+ ***************************************************************************/
+PRIVATE int derive_file_hooks(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int ret = 0;
+
+    /*
+     *  Not open yet: treedb_open_db() creates the user topics BEFORE
+     *  __assets__ and runs the full pass right after, so a call from
+     *  treedb_create_topic() during the open has nothing to do here. Asked
+     *  through tranger2_topic() this would log an error of its own.
+     */
+    json_t *assets_topic = json_object_get(
+        json_object_get(tranger, "topics"), TREEDB_ASSETS_TOPIC
+    );
+    if(!assets_topic) {
+        return 0;
+    }
+    json_t *assets_cols = json_object_get(assets_topic, "cols");
+    if(!json_is_object(assets_cols)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "__assets__ topic without cols",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *wanted = json_object();     // the hooks the schema asks for now
+    json_t *mine = json_object();       // the user topics of THIS treedb
+    json_t *indexx = treedb_get_id_index(tranger, treedb_name, TREEDB_ASSETS_TOPIC);
+
+    json_t *topics = treedb_topics(tranger, treedb_name, 0);
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = json_string_value(jn_topic);
+        if(strncmp(topic_name, "__", 2)==0) {
+            continue;
+        }
+        json_object_set_new(mine, topic_name, json_true());
+        json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+        const char *col_name; json_t *col;
+        json_object_foreach(cols, col_name, col) {
+            json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+            if(!kw_has_word(gobj, desc_flag, "file", 0)) {
+                continue;
+            }
+            if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "a 'file' column must be flagged 'fkey' too",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    NULL
+                );
+                ret += -1;
+                continue;
+            }
+            const char *type = kw_get_str(gobj, col, "type", "", 0);
+            if(strcmp(type, "string")!=0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "a 'file' column must be of type 'string': one file per column",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    "type",         "%s", type,
+                    NULL
+                );
+                ret += -1;
+                continue;
+            }
+
+            char hook_name[NAME_MAX];
+            snprintf(hook_name, sizeof(hook_name), "as_%s_%s", topic_name, col_name);
+            json_object_set_new(wanted, hook_name, json_true());
+            json_t *existing = json_object_get(assets_cols, hook_name);
+            if(existing) {
+                /*
+                 *  The same column derived again (a reopen) is the normal
+                 *  case. A DIFFERENT one under the same name is not:
+                 *  'as_<T>_<C>' is ambiguous -- topic 'a_b' col 'c' and
+                 *  topic 'a' col 'b_c' write the same name, and so does
+                 *  anything snprintf truncates -- and the loser would link
+                 *  through the winner's hook, onto another topic's column.
+                 */
+                json_t *mapped = json_object_get(json_object_get(existing, "hook"), topic_name);
+                if(!json_is_string(mapped) || strcmp(json_string_value(mapped), col_name)!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "two 'file' columns derive the same __assets__ hook",
+                        "treedb_name",  "%s", treedb_name,
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        "hook",         "%s", hook_name,
+                        NULL
+                    );
+                    ret += -1;
+                }
+                continue;
+            }
+            char header[NAME_MAX];
+            snprintf(header, sizeof(header), "%s of", col_name);
+            json_t *hook_col = json_pack("{s:s, s:s, s:i, s:s, s:[s], s:{s:s}}",
+                "id", hook_name,
+                "header", header,
+                "fillspace", 10,
+                "type", "object",
+                "flag", "hook",
+                "hook", topic_name, col_name
+            );
+            json_object_set_new(assets_cols, hook_name, hook_col);
+
+            /*
+             *  And into the nodes that are already loaded. A hook is a
+             *  field of the node, put there from the desc when the record
+             *  was read; a hook added later exists in the desc and in no
+             *  node, and _link_nodes() answers "hook field not found" --
+             *  which is what a topic created while the yuno runs got.
+             */
+            const char *id; json_t *node;
+            json_object_foreach(indexx, id, node) {
+                if(!json_object_get(node, hook_name)) {
+                    json_object_set_new(node, hook_name, json_object());
+                }
+            }
+        }
+        JSON_DECREF(cols)
+    }
+    JSON_DECREF(topics)
+
+    /*-------------------------------------------------*
+     *  And no OTHER hook: what the schema stopped
+     *  saying, __assets__ stops carrying
+     *
+     *  The persisted schema of __assets__ has no hooks, so every hook here
+     *  is a derived one. Left behind, the hook of a topic that is gone
+     *  keeps holding children that are gone -- and the gc reads a hook
+     *  that is not empty as "some node links this asset", so those bytes
+     *  would never be collected again. The children go with it, or the
+     *  nodes keep answering a hook nothing declares.
+     *
+     *  __assets__ is a topic of the TRANGER, not of the treedb, so a
+     *  tranger holding two treedbs shares it. A hook of the OTHER treedb
+     *  is none of our business: take only what maps to a topic of this one
+     *  (its column stopped being a `file`) or to a topic no longer open at
+     *  all (it was deleted).
+     *-------------------------------------------------*/
+    json_t *tranger_topics = json_object_get(tranger, "topics");
+    void *n; const char *hook_name; json_t *hook_col;
+    json_object_foreach_safe(assets_cols, n, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
+            continue;
+        }
+        if(json_object_get(wanted, hook_name)) {
+            continue;
+        }
+        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
+        const char *mapped_topic; json_t *jn_mapped_col;
+        BOOL take = FALSE;
+        json_object_foreach(hook, mapped_topic, jn_mapped_col) {
+            if(json_object_get(mine, mapped_topic) ||
+                    !json_object_get(tranger_topics, mapped_topic)) {
+                take = TRUE;
+            }
+            break;
+        }
+        if(!take) {
+            continue;
+        }
+        const char *id; json_t *node;
+        json_object_foreach(indexx, id, node) {
+            json_object_del(node, hook_name);
+        }
+        json_object_del(assets_cols, hook_name);
+    }
+    JSON_DECREF(wanted)
+    JSON_DECREF(mine)
+
+    return ret;
+}
+
+/***************************************************************************
+ *  One tagged instance of a host topic: collect the assets it links.
+ *  A version of a node that a SNAPSHOT still remembers holds its bytes
+ *  alive: the gc must not take what activating that snap would need.
+ ***************************************************************************/
+PRIVATE int gc_scan_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record  // must be owned
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(md_record->user_flag == 0 || !json_is_object(jn_record)) {
+        JSON_DECREF(jn_record)
+        return 0;
+    }
+    const char *col = kw_get_str(gobj, list, "col", "", KW_REQUIRED);
+    json_t *held = (json_t *)(uintptr_t)kw_get_int(gobj, list, "held", 0, KW_REQUIRED);
+    if(!held) {
+        JSON_DECREF(jn_record)
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  A tagged instance older than the 'file' column does not carry it.
+     *  Not an error -- it holds no asset, so there is nothing to hold
+     *  alive -- but filtra_fkeys() reads json_typeof() with no NULL guard.
+     */
+    json_t *jn_value = json_object_get(jn_record, col);
+    if(!jn_value) {
+        JSON_DECREF(jn_record)
+        return 0;
+    }
+    json_t *refs = filtra_fkeys("", col, "list", jn_value);
+    int idx; json_t *jn_ref;
+    json_array_foreach(refs, idx, jn_ref) {
+        char parent_topic[NAME_MAX];
+        char parent_id[NAME_MAX];
+        char hook_name[NAME_MAX];
+        if(decode_parent_ref(
+            json_string_value(jn_ref),
+            parent_topic, sizeof(parent_topic),
+            parent_id, sizeof(parent_id),
+            hook_name, sizeof(hook_name)
+        )) {
+            if(strcmp(parent_topic, TREEDB_ASSETS_TOPIC)==0) {
+                json_object_set_new(held, parent_id, json_true());
+            }
+        }
+    }
+    JSON_DECREF(refs)
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
+/***************************************************************************
+ *  What the SNAPSHOTS still point at: the ids of the assets that some
+ *  tagged instance of some node links.
+ *
+ *  treedb_shoot_snap() skips every `__` topic, so a node of __assets__
+ *  never carries a tag and the "cannot delete node, it has a tag" guard
+ *  never fires for an asset. This walk is the whole guard in its place,
+ *  and it is a disk pass over every tagged instance of every topic with a
+ *  `file` column -- which is why whoever has already done it says so
+ *  rather than making it run again (TREEDB_SNAPS_WALKED).
+ *
+ *  Return a dict used as a set, {id: true}. YOURS, never NULL.
+ ***************************************************************************/
+PRIVATE json_t *assets_held_by_snaps(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    json_t *held = json_object();
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
+            continue;
+        }
+        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
+        const char *child_topic; json_t *jn_child_col;
+        json_object_foreach(hook, child_topic, jn_child_col) {
+            const char *child_col = json_string_value(jn_child_col);
+            json_t *match_cond = json_pack("{s:b, s:I, s:I}",
+                "backward", 0,
+                "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
+                "load_record_callback", (json_int_t)(uintptr_t)gc_scan_callback
+            );
+            json_t *extra = json_pack("{s:s, s:I}",
+                "col", child_col,
+                "held", (json_int_t)(uintptr_t)held
+            );
+            json_t *list = tranger2_open_list(
+                tranger,
+                child_topic,
+                match_cond,     // owned
+                extra,          // owned
+                "treedb-snaps-walk",
+                FALSE,
+                treedb_name
+            );
+            if(!list) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "cannot read the instances of a topic",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", child_topic,
+                    NULL
+                );
+                continue;
+            }
+            tranger2_close_list(tranger, list);
+        }
+    }
+    JSON_DECREF(assets_cols)
+
+    return held;
+}
+
+/***************************************************************************
+ *  The garbage collector of the bytes: an asset that no live node links
+ *  AND no snapshotted version of a node links is garbage.
+ *
+ *  Never automatic: `treedb_delete_node` with `force` UNLINKS the children
+ *  rather than deleting them, so an unlinked asset is a normal intermediate
+ *  state of a bulk operation. Somebody asks for this.
+ *
+ *  It reads the snapshots for real: every tagged instance of every topic
+ *  with a `file` column is walked on disk, which is what makes the answer
+ *  conservative. Return the list of the ids taken (or, dry_run, the ids it
+ *  would take). Return is YOURS.
+ ***************************************************************************/
+PUBLIC json_t *treedb_gc_files(
+    json_t *tranger,
+    const char *treedb_name,
+    BOOL dry_run
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *indexx = treedb_get_id_index(tranger, treedb_name, TREEDB_ASSETS_TOPIC);
+    if(!indexx) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "__assets__ index not found",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*--------------------------------------------*
+     *  What the snapshots still point at
+     *--------------------------------------------*/
+    json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
+
+    /*--------------------------------------------*
+     *  The hooks of __assets__: the live links
+     *--------------------------------------------*/
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+    json_t *hook_names = json_array();
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(kw_has_word(gobj, desc_flag, "hook", 0)) {
+            json_array_append_new(hook_names, json_string(hook_name));
+        }
+    }
+    JSON_DECREF(assets_cols)
+
+    /*--------------------------------------------*
+     *  What no live node links
+     *--------------------------------------------*/
+    json_t *orphans = json_array();
+    const char *id; json_t *node;
+    json_object_foreach(indexx, id, node) {
+        BOOL linked = FALSE;
+        int idx; json_t *jn_hook;
+        json_array_foreach(hook_names, idx, jn_hook) {
+            json_t *v = json_object_get(node, json_string_value(jn_hook));
+            if((json_is_object(v) && json_object_size(v) > 0) ||
+                    (json_is_array(v) && json_array_size(v) > 0) ||
+                    (json_is_string(v) && !empty_string(json_string_value(v)))) {
+                linked = TRUE;
+                break;
+            }
+        }
+        if(linked) {
+            continue;
+        }
+        if(json_object_get(held, id)) {
+            continue;
+        }
+        json_array_append_new(orphans, json_string(id));
+    }
+    JSON_DECREF(hook_names)
+    JSON_DECREF(held)
+
+    if(dry_run) {
+        return orphans;
+    }
+
+    /*--------------------------------------------*
+     *  Take them: row and bytes (see treedb_delete_node)
+     *--------------------------------------------*/
+    json_t *deleted = json_array();
+    int idx; json_t *jn_id;
+    json_array_foreach(orphans, idx, jn_id) {
+        const char *orphan_id = json_string_value(jn_id);
+        json_t *orphan = treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, orphan_id);
+        if(!orphan) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "gc: the orphan asset is gone between the two passes",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%s", orphan_id,
+                NULL
+            );
+            continue;
+        }
+        if(treedb_delete_node(
+            tranger, orphan, json_pack("{s:b}", TREEDB_SNAPS_WALKED, 1)
+        )==0) {
+            json_array_append(deleted, jn_id);
+        } else {
+            // Error already logged: the answer says it by not listing this id
+            continue;
+        }
+    }
+    JSON_DECREF(orphans)
+    return deleted;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE gbuffer_t *read_whole_file(hgobj gobj, const char *path, size_t max_size)
+{
+    off_t size = filesize(path);
+    if(size <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "File is empty or cannot be stat'ed",
+            "path",         "%s", path,
+            NULL
+        );
+        return 0;
+    }
+    if((size_t)size > max_size) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "File over max_size",
+            "path",         "%s", path,
+            "size",         "%ld", (long)size,
+            "max_size",     "%ld", (long)max_size,
+            NULL
+        );
+        return 0;
+    }
+    int fd = open(path, O_RDONLY);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot open file",
+            "path",         "%s", path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return 0;
+    }
+    gbuffer_t *gbuf = gbuffer_create((size_t)size, (size_t)size);
+    if(!gbuf) {
+        close(fd);
+        return 0;   // Error already logged
+    }
+    char chunk[16*1024];
+    off_t readed = 0;
+    while(readed < size) {
+        ssize_t ln = read(fd, chunk, sizeof(chunk));
+        if(ln <= 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot read file",
+                "path",         "%s", path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            GBUFFER_DECREF(gbuf)
+            return 0;
+        }
+        gbuffer_append(gbuf, chunk, (size_t)ln);
+        readed += ln;
+    }
+    close(fd);
+    return gbuf;
+}
+
+/***************************************************************************
+ *  One file of the import walk.
+ ***************************************************************************/
+PRIVATE BOOL files_import_cb(
+    hgobj gobj_,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+)
+{
+    files_import_ctx_t *ctx = user_data;
+    hgobj gobj = ctx->gobj;
+
+    if(type != WD_TYPE_REGULAR_FILE) {
+        return TRUE;
+    }
+
+    const char *rel = fullpath;
+    size_t root_len = strlen(ctx->root);
+    if(strncmp(fullpath, ctx->root, root_len)==0) {
+        rel = fullpath + root_len;
+        while(*rel == '/') {
+            rel++;
+        }
+    }
+
+    const char *content_type = treedb_content_type_of_name(name);
+    if(!files_type_allowed(gobj, ctx->tranger, ctx->treedb_name, 0, content_type)) {
+        json_object_set_new(ctx->stats, "skipped",
+            json_integer(kw_get_int(gobj, ctx->stats, "skipped", 0, 0) + 1)
+        );
+        return TRUE;
+    }
+    if(ctx->dry_run) {
+        json_object_set_new(ctx->stats, "would_import",
+            json_integer(kw_get_int(gobj, ctx->stats, "would_import", 0, 0) + 1)
+        );
+        return TRUE;
+    }
+
+    gbuffer_t *gbuf = read_whole_file(
+        gobj, fullpath,
+        (size_t)files_ceiling_max_size(gobj, ctx->tranger, ctx->treedb_name)
+    );
+    if(!gbuf) {
+        json_object_set_new(ctx->stats, "failed",
+            json_integer(kw_get_int(gobj, ctx->stats, "failed", 0, 0) + 1)
+        );
+        return TRUE;    // Error already logged; one bad file must not stop the import
+    }
+    size_t size = gbuffer_leftbytes(gbuf);
+
+    char reason[256];
+    json_t *node = store_file_bytes(
+        gobj, ctx->tranger, ctx->treedb_name,
+        gbuffer_cur_rd_pointer(gbuf), size,
+        content_type, name, ctx->uploaded_by,
+        0, "",
+        reason, sizeof(reason)
+    );
+    GBUFFER_DECREF(gbuf)
+    if(!node) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "cannot import file",
+            "path",         "%s", fullpath,
+            "cause",        "%s", reason,
+            NULL
+        );
+        json_object_set_new(ctx->stats, "failed",
+            json_integer(kw_get_int(gobj, ctx->stats, "failed", 0, 0) + 1)
+        );
+        return TRUE;
+    }
+
+    json_object_set_new(ctx->files, rel, json_string(kw_get_str(gobj, node, "id", "", 0)));
+    json_object_set_new(ctx->stats, "imported",
+        json_integer(kw_get_int(gobj, ctx->stats, "imported", 0, 0) + 1)
+    );
+    json_object_set_new(ctx->stats, "bytes",
+        json_integer(kw_get_int(gobj, ctx->stats, "bytes", 0, 0) + (json_int_t)size)
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The second door: a directory already on the node becomes N assets in
+ *  one call and no bytes on the wire. It creates index nodes, it does not
+ *  link them, and it ANSWERS the map `path -> id`, told once and then
+ *  thrown away: where a file came from is a fact of the load, not of the
+ *  asset.
+ *
+ *  Confined to `import_root`, and an empty root means REFUSED: a call that
+ *  reads a path is a call that reads anything on the node.
+ *
+ *  Return {"imported","would_import","skipped","failed","bytes","files"}
+ *  (YOURS), or NULL with the cause in gobj_log_last_message().
+ ***************************************************************************/
+PUBLIC json_t *treedb_import_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *import_root,
+    const char *source_dir,
+    BOOL dry_run,
+    const char *uploaded_by
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(empty_string(import_root)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "import refused: no import_root configured",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        gobj_log_set_last_message("import of files is disabled, 'import_root' is empty");
+        return NULL;
+    }
+    if(!source_dir) {
+        source_dir = "";
+    }
+    if(strstr(source_dir, "..")) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "import refused: source_dir carries '..'",
+            "source_dir",   "%s", source_dir,
+            NULL
+        );
+        gobj_log_set_last_message("'source_dir' cannot contain '..'");
+        return NULL;
+    }
+    char root[PATH_MAX];
+    if(!build_path(root, sizeof(root), import_root, source_dir, NULL)) {
+        gobj_log_set_last_message("import path too long");
+        return NULL;    // Error already logged
+    }
+    if(!is_directory(root)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "import refused: not a directory",
+            "path",         "%s", root,
+            NULL
+        );
+        gobj_log_set_last_message("'%s' is not a directory", root);
+        return NULL;
+    }
+
+    json_t *stats = json_pack("{s:s, s:b, s:i, s:i, s:i, s:i, s:i, s:{}}",
+        "source_dir",   root,
+        "dry_run",      dry_run,
+        "imported",     0,
+        "would_import", 0,
+        "skipped",      0,
+        "failed",       0,
+        "bytes",        0,
+        "files"
+    );
+    files_import_ctx_t ctx = {
+        .gobj = gobj,
+        .tranger = tranger,
+        .treedb_name = treedb_name,
+        .root = import_root,
+        .uploaded_by = uploaded_by,
+        .dry_run = dry_run,
+        .stats = stats,
+        .files = json_object_get(stats, "files")
+    };
+
+    if(walk_dir_tree(
+        gobj,
+        root,
+        0,
+        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        files_import_cb,
+        &ctx
+    ) < 0) {
+        JSON_DECREF(stats)
+        gobj_log_set_last_message("cannot walk '%s'", root);
+        return NULL;    // Error already logged
+    }
+
+    return stats;
+}
 
 
 
