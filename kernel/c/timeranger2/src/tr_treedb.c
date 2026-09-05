@@ -10508,10 +10508,12 @@ PRIVATE json_t *store_file_bytes(
         node = treedb_update_node(
             tranger,
             node,
-            json_pack("{s:s, s:s}",
-                "original_name", original_name,
-                "uploaded_by", empty_string(uploaded_by)? "": uploaded_by
-            ),
+            /*
+             *  original_name only: `uploaded_by` is who put the BYTES
+             *  there, and the bytes did not change. The name is what the
+             *  history of names is made of.
+             */
+            json_pack("{s:s}", "original_name", original_name),
             TRUE
         );
     } else {
@@ -10851,7 +10853,8 @@ PUBLIC int treedb_store_files(
                 if(b64len >= 2 && content64[b64len-1]=='=') {
                     padding = (content64[b64len-2]=='=')? 2: 1;
                 }
-                size_t decoded_len = (b64len / 4) * 3 - padding;
+                size_t decoded_len = (b64len / 4) * 3;
+                decoded_len = (decoded_len > padding)? decoded_len - padding: 0;
                 if((json_int_t)decoded_len > max_size) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -11380,9 +11383,15 @@ PRIVATE int derive_file_hooks(
 }
 
 /***************************************************************************
- *  One tagged instance of a host topic: collect the assets it links.
- *  A version of a node that a SNAPSHOT still remembers holds its bytes
- *  alive: the gc must not take what activating that snap would need.
+ *  One instance of a host topic, as the snapshots see it.
+ *
+ *  An activation loads, per key, the NEWEST instance carrying the snap's
+ *  tag (load_id_callback: "using backward, the first record is the last
+ *  record"), so that instance is the one whose assets a snapshot needs --
+ *  an older instance with the same tag is not loaded by anything. The
+ *  instances arrive here in rowid order, so the last one seen per
+ *  (tag, topic, key, col) wins, and a tag that names no row of __snaps__
+ *  any more holds nothing: deleting the snap is what frees the asset.
  ***************************************************************************/
 PRIVATE int gc_scan_callback(
     json_t *tranger,
@@ -11400,55 +11409,75 @@ PRIVATE int gc_scan_callback(
         JSON_DECREF(jn_record)
         return 0;
     }
+    json_t *snaps = (json_t *)(uintptr_t)kw_get_int(gobj, list, "snaps", 0, KW_REQUIRED);
+    json_t *latest = (json_t *)(uintptr_t)kw_get_int(gobj, list, "latest", 0, KW_REQUIRED);
     const char *col = kw_get_str(gobj, list, "col", "", KW_REQUIRED);
-    json_t *held = (json_t *)(uintptr_t)kw_get_int(gobj, list, "held", 0, KW_REQUIRED);
-    if(!held) {
+    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    if(!snaps || !latest) {
         JSON_DECREF(jn_record)
         return -1;  // Error already logged
     }
 
-    /*
-     *  A tagged instance older than the 'file' column does not carry it.
-     *  Not an error -- it holds no asset, so there is nothing to hold
-     *  alive -- but filtra_fkeys() reads json_typeof() with no NULL guard.
-     */
-    json_t *jn_value = json_object_get(jn_record, col);
-    if(!jn_value) {
+    char tag[32];
+    snprintf(tag, sizeof(tag), "%u", (unsigned)md_record->user_flag);
+    if(!json_object_get(snaps, tag)) {
         JSON_DECREF(jn_record)
-        return 0;
+        return 0;   // A snap that is gone holds nothing
     }
-    json_t *refs = filtra_fkeys("", col, "list", jn_value);
-    int idx; json_t *jn_ref;
-    json_array_foreach(refs, idx, jn_ref) {
-        char parent_topic[NAME_MAX];
-        char parent_id[NAME_MAX];
-        char hook_name[NAME_MAX];
-        if(decode_parent_ref(
-            json_string_value(jn_ref),
-            parent_topic, sizeof(parent_topic),
-            parent_id, sizeof(parent_id),
-            hook_name, sizeof(hook_name)
-        )) {
-            if(strcmp(parent_topic, TREEDB_ASSETS_TOPIC)==0) {
-                json_object_set_new(held, parent_id, json_true());
+
+    /*
+     *  A tagged instance older than the 'file' column does not carry it:
+     *  it holds no asset. filtra_fkeys() reads json_typeof() with no NULL
+     *  guard, so the field is asked for first. And it still WINS the slot
+     *  of its key: an activation would load it, with no asset in this
+     *  column, so whatever an older instance named is released.
+     */
+    json_t *ids = json_array();
+    json_t *jn_value = json_object_get(jn_record, col);
+    if(jn_value) {
+        json_t *refs = filtra_fkeys("", col, "list", jn_value);
+        int idx; json_t *jn_ref;
+        json_array_foreach(refs, idx, jn_ref) {
+            char parent_topic[NAME_MAX];
+            char parent_id[NAME_MAX];
+            char hook_name[NAME_MAX];
+            if(decode_parent_ref(
+                json_string_value(jn_ref),
+                parent_topic, sizeof(parent_topic),
+                parent_id, sizeof(parent_id),
+                hook_name, sizeof(hook_name)
+            )) {
+                if(strcmp(parent_topic, TREEDB_ASSETS_TOPIC)==0) {
+                    json_array_append_new(ids, json_string(parent_id));
+                }
             }
         }
+        JSON_DECREF(refs)
     }
-    JSON_DECREF(refs)
+
+    char slot[NAME_MAX*3];
+    snprintf(slot, sizeof(slot), "%s^%s^%s", topic_name, key, col);
+    json_t *per_tag = kw_get_dict(gobj, latest, tag, json_object(), KW_CREATE);
+    json_object_set_new(per_tag, slot, ids);    // the newest instance wins
+
     JSON_DECREF(jn_record)
     return 0;
 }
 
 /***************************************************************************
- *  What the SNAPSHOTS still point at: the ids of the assets that some
- *  tagged instance of some node links.
+ *  What the SNAPSHOTS still point at: the ids of the assets that the
+ *  instance an activation would LOAD, of some snap that still exists,
+ *  links. Not every tagged instance: treedb_save_node() inherits the tag,
+ *  so after a snap every later instance of a node carries it too, and
+ *  holding all of them would hold for ever whatever a node ever named.
  *
  *  treedb_shoot_snap() skips every `__` topic, so a node of __assets__
  *  never carries a tag and the "cannot delete node, it has a tag" guard
  *  never fires for an asset. This walk is the whole guard in its place,
- *  and it is a disk pass over every tagged instance of every topic with a
+ *  and it is a disk pass over every instance of every topic with a
  *  `file` column -- which is why whoever has already done it says so
- *  rather than making it run again (the `snaps_walked` of delete_node()).
+ *  rather than making it run again (the `snaps_walked` of delete_node()),
+ *  and why a treedb with no snapshot at all does not walk.
  *
  *  Return a dict used as a set, {id: true}. YOURS, never NULL.
  ***************************************************************************/
@@ -11459,6 +11488,26 @@ PRIVATE json_t *assets_held_by_snaps(
 )
 {
     json_t *held = json_object();
+
+    /*
+     *  The snaps that EXIST, of every treedb of the tranger: __snaps__ is
+     *  the tranger's and a tag is its row id, unique across all of them.
+     */
+    json_t *snaps = json_object();
+    const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        json_t *snaps_indexx = treedb_get_id_index(tranger, any_name, "__snaps__");
+        const char *snap_id; json_t *snap;
+        json_object_foreach(snaps_indexx, snap_id, snap) {
+            json_object_set_new(snaps, snap_id, json_true());
+        }
+    }
+    if(json_object_size(snaps)==0) {
+        JSON_DECREF(snaps)
+        return held;    // No snapshot: nothing to walk
+    }
+
+    json_t *latest = json_object();     // {tag: {topic^key^col: [asset ids]}}
     json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
 
     const char *hook_name; json_t *hook_col;
@@ -11476,9 +11525,11 @@ PRIVATE json_t *assets_held_by_snaps(
                 "to_rowid", (json_int_t)0x7fffffffffffLL,  // one-shot load, no realtime
                 "load_record_callback", (json_int_t)(uintptr_t)gc_scan_callback
             );
-            json_t *extra = json_pack("{s:s, s:I}",
+            json_t *extra = json_pack("{s:s, s:s, s:I, s:I}",
                 "col", child_col,
-                "held", (json_int_t)(uintptr_t)held
+                "topic_name", child_topic,
+                "snaps", (json_int_t)(uintptr_t)snaps,
+                "latest", (json_int_t)(uintptr_t)latest
             );
             json_t *list = tranger2_open_list(
                 tranger,
@@ -11504,6 +11555,22 @@ PRIVATE json_t *assets_held_by_snaps(
         }
     }
     JSON_DECREF(assets_cols)
+
+    /*
+     *  What the winning instances name, flattened
+     */
+    const char *tag; json_t *per_tag;
+    json_object_foreach(latest, tag, per_tag) {
+        const char *slot; json_t *ids;
+        json_object_foreach(per_tag, slot, ids) {
+            int idx; json_t *jn_id;
+            json_array_foreach(ids, idx, jn_id) {
+                json_object_set_new(held, json_string_value(jn_id), json_true());
+            }
+        }
+    }
+    JSON_DECREF(latest)
+    JSON_DECREF(snaps)
 
     return held;
 }
@@ -11879,7 +11946,20 @@ PUBLIC json_t *treedb_import_files(
     if(!source_dir) {
         source_dir = "";
     }
-    if(strstr(source_dir, "..")) {
+    BOOL dotdot = FALSE;
+    for(const char *p = source_dir; *p; ) {
+        const char *q = strchr(p, '/');
+        size_t n = q? (size_t)(q - p): strlen(p);
+        if(n == 2 && p[0]=='.' && p[1]=='.') {
+            dotdot = TRUE;
+            break;
+        }
+        if(!q) {
+            break;
+        }
+        p = q + 1;
+    }
+    if(dotdot) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,

@@ -441,23 +441,41 @@ Three consequences, and one of them deletes a rule:
   of every topic with a `file` column. Same cost as the run itself, minus the
   deletes.
 
-**And it reads the SNAPSHOTS, not only the live state.** Otherwise: delete a
-device, its asset is orphaned, the gc takes it — and then somebody activates a
-snap where that device existed and linked it, and the link dangles. So "nothing
-links it" means *no live node and no snapshotted version of one*, which turns
-the sweep from a walk over the in-memory hooks into a walk that also reads the
-tagged record instances. The derived hooks still say which columns to look at;
-what changes is how many versions of a node are asked.
+**And it reads the SNAPSHOTS, not only the live state.** Otherwise: shoot a
+snap with a device holding photo C, shoot another, move the device to photo A
+— nothing live links C, the gc takes it — and then somebody activates the
+first snap, which loads the device as it was, holding C, and the link
+dangles. So "nothing links it" means *no live node, of any treedb of the
+tranger, and no instance an activation would load*, which turns the sweep from
+a walk over the in-memory hooks into a walk that also reads the record
+instances on disk. The derived hooks still say which columns to look at; what
+changes is how many versions of a node are asked.
+
+**And "an instance an activation would load" is exact, not "any tagged
+instance".** Two facts of the snapshot subsystem decide it: `treedb_save_node()`
+INHERITS the node's tag, so after a snap every later instance of a node
+carries that tag too; and an activation loads, per key, the NEWEST instance
+carrying the snap's tag (`load_id_callback`: *"using backward, the first record
+is the last record"*). So the holding set is, for every snap that still exists,
+the newest instance per key under its tag — and only that one. A node that
+moves on under the same tag releases what its older instances named; what a
+snap freezes is the state a LATER snap cloned away from (`treedb_shoot_snap()`
+clones a node already tagged by another snap under the new tag, and the
+original keeps the old one). Held on every tagged instance instead, the gc
+would have kept for ever whatever a node ever named after its first snap.
 
 Two things follow from that:
 
-- **A snapshot holds bytes alive.** What frees an asset is not deleting the node
-  that linked it, it is deleting the SNAP that still remembers the link. It
-  reads like the rule `treedb_delete_node` applies to a node carrying a snap
-  tag, and it is not the same mechanism: the tag guard is inert here (above),
-  so this walk is the whole of it.
-- **The gc is conservative by construction.** It takes only what no version of
-  anything has pointed at since the oldest surviving snapshot.
+- **A snapshot holds bytes alive, and deleting the snap frees them.** There is
+  no `delete-snap` command: the snap is a row of `__snaps__`, and `delete-node`
+  on it is the delete (`treedb_list_nodes(... "__snaps__", {"name": ...})` finds
+  it). A tag that names no row of `__snaps__` holds nothing — nobody can
+  activate it. It reads like the rule `treedb_delete_node` applies to a node
+  carrying a snap tag, and it is not the same mechanism: the tag guard is inert
+  here (above), so this walk is the whole of it. And a treedb with no snapshot
+  does not walk at all.
+- **The gc takes exactly what nothing can reach**: no live copy in any treedb
+  of the tranger, and no instance any existing snap would load.
 
 A note, and it is a comfort rather than a licence: the id is the sha256 of the
 content, so a gc that took too much is undone by adding the same file again — it
@@ -890,10 +908,11 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 - **The hosts' remote stores** (§11, §12): the yunovatios nodes still run the
   `<realm>/assets/` model, and rebuilding them is the migration §12 says there
   is not.
-- **A non-master replica gets the index and not the bytes.** The watcher
-  replicates the topic's files; `.blobs` travels by another means or not at
-  all, so `get-asset` inline answers *"asset has no bytes on disk"* there.
-  Not decided, not implemented, and the docs do not say it.
+- **A non-master replica gets the index and not the bytes**, and so does an
+  `export-db` / `import-db` round trip. The watcher replicates the topic's
+  files and `export-db` writes the topics' records; `.blobs` travels by
+  another means or not at all, so `get-asset` inline answers *"asset has no
+  bytes on disk"* there. Not decided, not implemented; the docs say it.
 - **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
   (§15.3). The write path looks the asset up before creating it, so the
   census reload is quiet — but the trap is still there for the next caller.
@@ -964,11 +983,36 @@ second half:
   copy) but not by bare id — the client's fallback of sending the bytes covers
   it, which is why it is left.
 
-Still open from the same review, in order of weight: §7's *"deleting the snap frees the
-asset"* names an operation that does not exist, and `treedb_save_node()`
-inherits the tag, so the gc holds for ever what any tagged instance ever
-linked; the form has no *reading* state, so a second Save during a long read
-sends two writes; the `gbuffer` door works through the commands only, not
-through `EV_TREEDB_UPDATE_NODE`; a plain update can drop a SEED link of a
-`file` column, because the seed guard of `mt_update_node()` runs only with
-`autolink` (no seed carries a file today).
+And the rest of the same review, closed the same day:
+
+- **The gc held for ever what any tagged instance ever named.** It read every
+  instance with a tag as "a snapshot needs this", but `treedb_save_node()`
+  inherits the tag and an activation loads only the newest instance per key
+  under it (§7). It holds exactly that now, of the snaps that still exist —
+  so a node that moves on releases, and deleting the `__snaps__` row frees
+  what only that snap held. §7's *"deleting the snap frees the asset"* was
+  naming a command that does not exist; it names `delete-node` on the row
+  now, and it is true. Tests 6 and 13.
+- **The `gbuffer` door worked through the commands only.** `ac_treedb_update_node()`
+  handed the write path `kw["record"]` while the binary field rode at the
+  event kw's top level, so a manifest of slices through `EV_TREEDB_UPDATE_NODE`
+  met *"carries no bytes"*. It hands the buffer and `__username__` over now —
+  without the extra reference the command path takes, because nothing copies
+  an event's kw (`take_files_gbuffer(kw_is_a_copy)`). `tests/c/c_assets` 4ter.
+- **A plain update could drop a SEED link of a `file` column.** The seed
+  guard of `mt_update_node()` ran only with `autolink`, and since §16.8 a
+  plain update moves the `file` columns it carries. It runs for those too,
+  and only those.
+- **The form had no *reading* state** (gobj-ui 7.23.64): its toolbar is
+  disabled and the save button spins while the picked files are read, a
+  second Save is refused and says so, and a read whose form was closed
+  meanwhile is dropped instead of landing on a destroyed gobj.
+- Three small ones: `files_content_types` handed as TEXT through `open-treedb`
+  (what a CLI does) was read as an empty list and the default stood in, in
+  silence — it is parsed, or refused with a log; `import-assets` refused any
+  `source_dir` containing `..` as a substring (`v1..v2` included) — a
+  segment equal to `..` now; and a second arrival of the same bytes no longer
+  rewrites `uploaded_by`, which is who put the BYTES there.
+
+What stays open is in §16.7, and none of it is a defect of this design: the
+remote stores, and the bytes of a replica or of an `export-db`.

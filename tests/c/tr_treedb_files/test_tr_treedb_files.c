@@ -21,6 +21,8 @@
  *           12. two treedbs on one tranger share __assets__: the gc and the
  *               delete read every treedb's links, and a delete empties
  *               every treedb's index
+ *           13. the gc holds what an activation would LOAD; a deleted snap
+ *               holds nothing
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -54,6 +56,7 @@
 #define PNG_B   "\x89PNG\r\n\x1a\n" "IHDR fixture B, a different photograph"
 #define PNG_C   "\x89PNG\r\n\x1a\n" "IHDR fixture C, held only by a snapshot"
 #define PNG_D   "\x89PNG\r\n\x1a\n" "IHDR fixture D, shared by two treedbs of one tranger"
+#define PNG_E   "\x89PNG\r\n\x1a\n" "IHDR fixture E, named by an instance no activation would load"
 #define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
@@ -826,16 +829,21 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     );
 
     /*
-     *  C: linked by dev-3, then a snapshot, then dev-3 moves to A.
-     *  After that nothing LIVE links C, and only the snapshot remembers it.
+     *  C: linked by dev-3, then TWO snapshots, then dev-3 moves to A.
+     *  The second snap clones dev-3 under its own tag (the first tag
+     *  stays on the original), and the move appends an instance that
+     *  inherits the node's tag -- the first one. So what an activation of
+     *  snap_c2 would load still names C, while nothing LIVE does: only
+     *  that snapshot remembers it.
      */
     json_t *node = create_device_with_foto(tranger, "dev-3", PNG_C, sizeof(PNG_C)-1, "image/png", 0);
     if(!node) {
         printf("%s  FAIL: cannot create dev-3%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c", "dev-3 still holds C")<0) {
-        printf("%s  FAIL: cannot shoot snap%s\n", On_Red BWhite, Color_Off);
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c", "dev-3 holds C")<0 ||
+            treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c2", "dev-3 still holds C")<0) {
+        printf("%s  FAIL: cannot shoot the snaps%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
     json_t *kw = json_pack("{s:s, s:s}", "id", "dev-3", "foto", sha(PNG_A, sizeof(PNG_A)-1));
@@ -1079,6 +1087,98 @@ PRIVATE int test_two_treedbs_one_tranger(json_t *tranger)
 }
 
 /***************************************************************************
+ *  13. The gc holds what an activation would LOAD, and a deleted snap
+ *      holds nothing
+ *
+ *  treedb_save_node() inherits the tag, so after a snap every later
+ *  instance of a node carries it too; and an activation loads, per key,
+ *  the NEWEST instance with the tag. So a node that moves on releases
+ *  what its older tagged instances named -- held "for ever" otherwise --
+ *  and a snap whose row is gone can be activated by nobody, so it holds
+ *  nothing: deleting the snap is what frees the asset.
+ ***************************************************************************/
+PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "13. the gc holds what a snapshot would load";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    char id_e[SHA256_HEX_LEN + 1];
+    char id_c[SHA256_HEX_LEN + 1];
+    char id_a[SHA256_HEX_LEN + 1];
+    snprintf(id_e, sizeof(id_e), "%s", sha(PNG_E, sizeof(PNG_E)-1));
+    snprintf(id_c, sizeof(id_c), "%s", sha(PNG_C, sizeof(PNG_C)-1));
+    snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
+
+    /*  dev-13 holds E, a snap, then dev-13 moves to A: the newest instance
+     *  with snap_e's tag names A, so snap_e does not hold E  */
+    json_t *dev = create_device_with_foto(tranger, "dev-13", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
+    if(!dev) {
+        printf("%s  FAIL: cannot create dev-13%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "dev-13 holds E")<0) {
+        printf("%s  FAIL: cannot shoot snap_e%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_t *kw = json_pack("{s:s, s:s}", "id", "dev-13", "foto", id_a);
+    if(!treedb_update_node(tranger, dev, kw, TRUE)) {
+        printf("%s  FAIL: cannot move dev-13 to A%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!json_str_in_list(0, would, id_e, 0)) {
+        printf("%s  FAIL: E is held by an instance no activation would load%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(json_str_in_list(0, would, id_c, 0)) {
+        printf("%s  FAIL: C let go while snap_c2 still exists%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+
+    /*  the row of snap_c2 goes: nobody can activate it, so C is free --
+     *  snap_c still exists, but the newest instance under ITS tag is the
+     *  move to A (test 6), which names no C  */
+    json_t *snaps = treedb_list_nodes(tranger, TREEDB_NAME, "__snaps__",
+        json_pack("{s:s}", "name", "snap_c2"), 0
+    );
+    if(json_array_size(snaps)!=1) {
+        printf("%s  FAIL: snap_c2 not found%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else {
+        json_t *snap = json_array_get(snaps, 0);
+        if(treedb_delete_node(tranger, snap, 0)<0) {
+            printf("%s  FAIL: cannot delete the row of snap_c2%s\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+    JSON_DECREF(snaps)
+    would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!json_str_in_list(0, would, id_c, 0)) {
+        printf("%s  FAIL: C still held after its snap was deleted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+
+    /*  and the gc takes both, bytes included  */
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(!json_str_in_list(0, taken, id_c, 0) || !json_str_in_list(0, taken, id_e, 0)) {
+        printf("%s  FAIL: the gc did not take C and E%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    if(blob_exists(tranger, id_c, "image/png") || blob_exists(tranger, id_e, "image/png")) {
+        printf("%s  FAIL: a freed blob survived%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1154,6 +1254,7 @@ PRIVATE int do_test(void)
     /*  after the gc: it leaves an orphan of its own, and case 6 counts  */
     result += test_hooks_follow_the_schema(tranger);
     result += test_two_treedbs_one_tranger(tranger);
+    result += test_gc_holds_what_a_snap_would_load(tranger);
 
     {
         const char *test = "close and shutdown";

@@ -741,6 +741,49 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
+     *  4ter: the EVENT door carries the gbuffer too
+     *
+     *  EV_TREEDB_UPDATE_NODE is an event, not a command: nothing copies
+     *  its kw, and the record is a key INSIDE it while the binary field
+     *  rides at its top level. Handed nothing, the write path met a
+     *  manifest that "carries no bytes".
+     *-----------------------------------------------*/
+    {
+        gbuffer_t *gbuf = gbuffer_create(JPG_FIXTURE_LEN + 6, JPG_FIXTURE_LEN + 6);
+        gbuffer_append(gbuf, JPG_FIXTURE, JPG_FIXTURE_LEN);
+        gbuffer_append(gbuf, " event", 6);
+        char id_ev[SHA256_HEX_LEN + 1];
+        sha256_hex(gbuffer_cur_rd_pointer(gbuf), JPG_FIXTURE_LEN + 6, id_ev, sizeof(id_ev));
+
+        gobj_send_event(priv->gobj_node, "EV_TREEDB_UPDATE_NODE",
+            json_pack("{s:s, s:I, s:{s:s, s:s, s:{s:{s:I, s:I, s:s}}}, s:{s:b}}",
+                "topic_name", "devices",
+                "gbuffer", (json_int_t)(uintptr_t)gbuf,
+                "record",
+                    "id", "dev-ev",
+                    "qr", "",
+                    "__files__",
+                        "qr",
+                            "offset", (json_int_t)0,
+                            "size", (json_int_t)(JPG_FIXTURE_LEN + 6),
+                            "original_name", "dev-ev.jpg",
+                "options",
+                    "create", 1
+            ),
+            gobj
+        );
+        resp = ask_node(gobj, "node",
+            json_pack("{s:s, s:s}", "topic_name", "devices", "node_id", "dev-ev")
+        );
+        if(resp_result(resp) != 0) {
+            result += fail(gobj, "the event door did not create dev-ev");
+        } else if(strcmp(fkey_id(resp_data(resp), "qr"), id_ev) != 0) {
+            result += fail(gobj, "the event door did not store and link the gbuffer's bytes");
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*-----------------------------------------------*
      *  5: a linked asset cannot be deleted
      *-----------------------------------------------*/
     resp = ask_node(gobj, "delete-node",
@@ -810,7 +853,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     resp = ask_node(gobj, "nodes", json_pack("{s:s}", "topic_name", TREEDB_ASSETS_TOPIC));
-    if(json_array_size(resp_data(resp)) != 3) {
+    if(json_array_size(resp_data(resp)) != 4) {   // three linked (foto, qr, the event door's) + the orphan
         result += fail(gobj, "gc-assets dry_run deleted something");
     }
     JSON_DECREF(resp)
@@ -830,8 +873,8 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     resp = ask_node(gobj, "nodes", json_pack("{s:s}", "topic_name", TREEDB_ASSETS_TOPIC));
-    if(json_array_size(resp_data(resp)) != 2) {
-        result += fail(gobj, "gc-assets did not leave the two linked assets");
+    if(json_array_size(resp_data(resp)) != 3) {
+        result += fail(gobj, "gc-assets did not leave the three linked assets");
     }
     JSON_DECREF(resp)
 

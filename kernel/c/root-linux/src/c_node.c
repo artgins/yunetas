@@ -75,6 +75,7 @@ PRIVATE const char *seed_link_missing_in_kw(
     const char *topic_name,
     const char *id,
     json_t *kw,         // NOT owned
+    BOOL only_file_cols_in_kw,
     char *bf,
     int bfsize
 );
@@ -371,7 +372,7 @@ SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable; the links they declare cannot be cut"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_INTEGER,     "files_max_size",   SDF_RD,             "134217728",    "Largest file a 'file' column accepts, in bytes (128M). A MEMORY limit as much as a policy one: the file is hashed and written whole, and it arrived in base64 inside a message the transport had already accepted, so keep it below the transport's max_pkt_size"),
+SDATA (DTP_INTEGER,     "files_max_size",   SDF_RD,             "134217728",    "Largest file a 'file' column accepts, in bytes (128M). A MEMORY limit as much as a policy one: the file is hashed and written whole, and it arrived in base64 inside a message the transport had already accepted, so keep it below the transport's ceiling (tcp4h: max_pkt_size; websocket: a frame has no ceiling of its own, its gbuffer is capped by MEM_MAX_BLOCK)"),
 SDATA (DTP_JSON,        "files_content_types",SDF_RD,           "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\",\"video/mp4\",\"video/webm\",\"video/quicktime\",\"video/ogg\",\"video/x-matroska\",\"audio/mpeg\",\"audio/mp4\",\"audio/ogg\",\"audio/wav\",\"audio/webm\",\"audio/flac\"]",
                                                                                 "Mime types a 'file' column may hold, checked on the BYTES. A column narrows this list through its properties.content_types, never widens it. 'image/svg+xml' is NOT here on purpose: an svg served from the app's own origin runs script"),
 SDATA (DTP_STRING,      "import_root",      SDF_RD,             "",             "Root that 'import-assets' is confined to. Empty: 'import-assets' is refused"),
@@ -554,12 +555,37 @@ PRIVATE int mt_start(hgobj gobj)
      */
     if(treedb) {
         json_t *jn_types = gobj_read_json_attr(gobj, "files_content_types");
+        json_t *jn_parsed = 0;
+        if(json_is_string(jn_types)) {
+            /*
+             *  Through `open-treedb` from a CLI the list arrives as its
+             *  TEXT. Taken as it was, json_array_size() of a string is 0
+             *  and the default list stood in for the configured one, in
+             *  silence.
+             */
+            const char *text = json_string_value(jn_types);
+            jn_parsed = anystring2json(text, strlen(text), FALSE);
+            if(!json_is_array(jn_parsed)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "files_content_types must be a list of mime types, default kept",
+                    "treedb_name",  "%s", priv->treedb_name,
+                    "value",        "%s", text,
+                    NULL
+                );
+                JSON_DECREF(jn_parsed)
+            } else {
+                jn_types = jn_parsed;
+            }
+        }
         treedb_set_files_limits(
             priv->tranger,
             priv->treedb_name,
             gobj_read_integer_attr(gobj, "files_max_size"),
             json_array_size(jn_types)>0? json_incref(jn_types): NULL
         );
+        JSON_DECREF(jn_parsed)
     }
 
     treedb_callback_flag_t flags = TREEDB_CALLBACK_NO_FLAG;
@@ -1004,12 +1030,16 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
     /*
      *  An autolink replaces the links by the ones kw carries; a seed link
      *  kw does not repeat would be dropped. The links a seed is declared
-     *  with are as immutable as the seed.
+     *  with are as immutable as the seed. A PLAIN update moves the `file`
+     *  columns it carries (treedb links them itself), so those are asked
+     *  the same question, and only those.
      */
-    if(!create && autolink && !volatil) {
+    if(!create && !volatil) {
         char ref[NAME_MAX*3];
         if(seed_link_missing_in_kw(
-            gobj, topic_name, kw_get_str(gobj, node, "id", "", 0), kw, ref, sizeof(ref)
+            gobj, topic_name, kw_get_str(gobj, node, "id", "", 0), kw,
+            autolink? FALSE: TRUE,
+            ref, sizeof(ref)
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2212,11 +2242,12 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  *  releases one, command_parser the other, and a single reference is
  *  dropped twice. Extracted here, the command kw names it no more, and the
  *  caller's kw stays the one owner. The reference this returns is a NEW
- *  one, for whoever the bytes are handed to.
+ *  one, for whoever the bytes are handed to. The event path
+ *  (ac_treedb_update_node) copies nothing, and says so with `kw_is_a_copy`.
  *
  *  Return the buffer (YOURS, one reference) or NULL.
  ***************************************************************************/
-PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
+PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw, BOOL kw_is_a_copy)
 {
     json_t *jn_gbuffer = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
     if(!jn_gbuffer) {
@@ -2239,7 +2270,14 @@ PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
         );
         return NULL;
     }
-    gbuffer_incref(gbuf);
+    /*
+     *  A command kw is a COPY and the caller's kw still names the buffer:
+     *  ours is a new reference. An event kw is the only owner, so the
+     *  reference extracted IS the one, and taking another would leak it.
+     */
+    if(kw_is_a_copy) {
+        gbuffer_incref(gbuf);
+    }
     return gbuf;
 }
 
@@ -2401,7 +2439,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*----------------------------------------*
      *  The kw's ONE binary field, before any exit
      *----------------------------------------*/
-    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, TRUE);
 
     /*----------------------------------------*
      *  A replica cannot be written
@@ -2528,7 +2566,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*----------------------------------------*
      *  The kw's ONE binary field, before any exit
      *----------------------------------------*/
-    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, TRUE);
 
     /*----------------------------------------*
      *  A replica cannot be written
@@ -4636,6 +4674,21 @@ PRIVATE json_t *seed_declared_refs( // Return MUST be decref
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE BOOL is_file_col(hgobj gobj, const char *topic_name, const char *col)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *flag = kwid_get(gobj,
+        priv->tranger,
+        0,
+        "topics`%s`%s`%s`flag", topic_name, "cols", col
+    );
+    if(!flag || !kw_has_word(gobj, flag, "file", 0)) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
 PRIVATE BOOL is_fkey_col(hgobj gobj, const char *topic_name, const char *col)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4717,6 +4770,7 @@ PRIVATE const char *seed_link_missing_in_kw(
     const char *topic_name,
     const char *id,
     json_t *kw,         // NOT owned
+    BOOL only_file_cols_in_kw,  // a plain update: only the `file` columns it carries move
     char *bf,
     int bfsize
 )
@@ -4729,6 +4783,10 @@ PRIVATE const char *seed_link_missing_in_kw(
     const char *col; json_t *declared;
     json_object_foreach(record, col, declared) {
         if(!is_fkey_col(gobj, topic_name, col)) {
+            continue;
+        }
+        if(only_file_cols_in_kw &&
+                (!is_file_col(gobj, topic_name, col) || !json_object_get(kw, col))) {
             continue;
         }
         json_t *refs = seed_declared_refs(declared);
@@ -5271,6 +5329,20 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hg
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, kw, "⏩ treedb_update_node topic %s", topic_name);
+    }
+
+    /*
+     *  The bytes of the 'file' columns, through the event door too: the
+     *  kw's one binary field rides at ITS top level, and the record is a
+     *  key inside it, so handed nothing the write path met a manifest
+     *  that "carries no bytes". No copy was made here (see
+     *  take_files_gbuffer), so the reference extracted is the only one.
+     */
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw, FALSE);
+    if(json_is_object(record)) {
+        hand_files_to_record(gobj, kw, record, gbuf_files);
+    } else {
+        GBUFFER_DECREF(gbuf_files)
     }
 
     json_t *node = gobj_update_node( // Return is YOURS

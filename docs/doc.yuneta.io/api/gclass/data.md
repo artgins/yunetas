@@ -162,7 +162,8 @@ on disk. Design note:
   so a `cp -a` of the treedb directory carries the nodes **and** their bytes.
 - **The bytes ride beside the record**, never inside the column, in a
   `__files__` manifest keyed by column, consumed at the door. A browser sends
-  `content64`; a C caller puts a real `gbuffer` in the kw and the manifest says
+  `content64`; a C caller (command or `EV_TREEDB_UPDATE_NODE` alike) puts a
+  real `gbuffer` in the kw and the manifest says
   which slice is whose (`offset`, `size`) — a kw holds ONE binary field, so one
   buffer carries every file of the record:
 
@@ -206,11 +207,15 @@ on disk. Design note:
   arrival that declares another member of the same container (`audio/mp4`
   for what was stored as `video/mp4`) keeps the stored `content_type` and
   says so in the log.
-- **`gc-assets` reads the snapshots.** `shoot-snap` skips every `__` topic, so
-  an asset node never carries a tag and the tag guard never protects it: the
-  collector walks the tagged instances of every topic with a `file` column,
-  and keeps what any snapshotted version of a node still points at. A
-  snapshot holds bytes alive.
+- **`gc-assets` reads the snapshots, exactly.** `shoot-snap` skips every `__`
+  topic, so an asset node never carries a tag and the tag guard never protects
+  it: the collector walks the instances on disk of every topic with a `file`
+  column and keeps what an ACTIVATION would load — per key, the newest
+  instance under each existing snap's tag, and only that one (`save-node`
+  inherits the tag, so a node that moves on releases what its older instances
+  named). A snapshot holds bytes alive; **deleting the snap frees them**, and
+  the delete is `delete-node` on its `__snaps__` row (there is no `delete-snap`
+  command). A treedb with no snapshot does not walk.
 - **Deleting an asset node deletes its bytes.** Refused while a node links it,
   like any parent with children — and refused, `force` included, while a
   **snapshot** links it: `delete-node` on an `__assets__` row runs the same
@@ -232,7 +237,8 @@ on disk. Design note:
   none of the `.blobs` behind them: `get-asset` answers *"asset has no bytes
   on disk"* there unless a web server in front is serving a copy of the blob
   directory. Getting the bytes to a replica is not solved — plan for it, or
-  serve the assets from the master.
+  serve the assets from the master. The same holds for `export-db` /
+  `import-db`: they carry the rows of `__assets__` and not the `.blobs`.
 
 Serving the bytes to a browser is [`C_ASSETS`](#gclass-c-assets)' job.
 

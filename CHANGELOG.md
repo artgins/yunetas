@@ -61,6 +61,52 @@ the first delete of a copy that lacked the other treedb's hook failed with
 *"field not found in the node"*. Test 12 of `tr_treedb_files` opens a second
 treedb on the test's tranger and walks the whole of it.
 
+### `gc-assets` holds exactly what an activation would load
+
+It held every tagged instance as "a snapshot needs this" — but
+`treedb_save_node()` inherits the tag, so after a snap every later instance of
+a node carries it too, and an activation loads only the NEWEST instance per
+key under the snap's tag. So the gc kept for ever whatever a node ever named
+after its first snap, and nothing could release it. It holds, for every snap
+that still exists, the newest instance per key under its tag, and only that:
+a node that moves on releases, and deleting the `__snaps__` row of a snap
+(`delete-node`; there is no `delete-snap`) frees what only it held. A treedb
+with no snapshot does not walk at all. Tests 6 and 13 of `tr_treedb_files`.
+
+### The `gbuffer` door works through `EV_TREEDB_UPDATE_NODE` too
+
+The event handler handed the write path `kw["record"]` while the kw's one
+binary field rode at its top level, so a manifest of slices through the event
+met *"carries no bytes"*, and `uploaded_by` stayed empty. It hands both over
+now — without the extra reference the command path takes, because nothing
+copies an event's kw (`take_files_gbuffer(kw_is_a_copy)`).
+
+### A plain update cannot drop a seed link of a `file` column
+
+The seed guard of `mt_update_node()` ran only with `autolink`; since the write
+path links a `file` column itself, a plain update moves the ones it carries,
+so those are asked the same question, and only those.
+
+### Three small ones of the `file` columns
+
+`files_content_types` handed as TEXT through `open-treedb` (what a CLI does)
+was read as an empty list and the default stood in, in silence — parsed now,
+or refused with a log. `import-assets` refused any `source_dir` with `..` as a
+substring (`v1..v2` included) — a path segment equal to `..` now. A second
+arrival of the same bytes no longer rewrites `uploaded_by`: that is who put
+the BYTES there, and the bytes did not change; `original_name` still moves,
+which is what the history of names is made of. And the `files_max_size`
+description names the websocket's ceiling: a frame has none of its own, its
+gbuffer is capped by `MEM_MAX_BLOCK`.
+
+### `gobj-ui` 7.23.64: the form is busy while it reads the picked files
+
+A second Save during the read sent a second write, and a Cancel threw the save
+away without a word. The toolbar is disabled and the save button spins until
+the read lands; a second Save is refused and says so; a read whose form was
+closed meanwhile is dropped with a warning. Both SPAs take the range
+(`gui_agent` 0.22.53, `gui_treedb` 0.17.25).
+
 ### `gobj-ui` 7.23.63: saving a record unlinked its read-only `file` column
 
 The topic view sends back only the writable cols, the fkeys and the pkey,
