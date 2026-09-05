@@ -30,6 +30,18 @@ cascade-deleted like any other node. Design and its review:
   called `image/png` is refused), writes the blob, creates or refreshes the
   index node, and rewrites the column into the full fkey reference. A bare id
   of an existing asset links it; three writes, blob first.
+- ⚠️ **A command that receives a `gbuffer` must TAKE it out of its kw before
+  its first exit** (`take_files_gbuffer()` in `c_node.c`). `expand_command()`
+  builds the command kw by copying the caller's keys **by value**
+  (`json_object_update_missing`, `command_parser.c`), so a top-level binary
+  field is named by two kws and both are `KW_DECREF`'d — the command's answer
+  releases one, `command_parser` the other, and one reference is dropped
+  twice. And there is no second owner downstream: every exit of
+  `mt_create_node()` / `mt_update_node()` ends in `KW_DECREF(kw)`, which drops
+  the binary field it finds, so `treedb_store_files()` consuming it and that
+  `KW_DECREF` are the only two releases and never both. `create-node` /
+  `update-node` are the first commands in the tree to take a `gbuffer`; every
+  other consumer is on the event path, which does not copy.
 - **Two levels of limit**: the treedb's ceiling (`C_NODE` attrs
   `files_max_size`, `files_content_types`; `treedb_set_files_limits()`) and
   the column's policy in its `properties` (`max_size`, `content_types`), which

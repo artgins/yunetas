@@ -2203,58 +2203,79 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Take the kw's ONE binary field out of the command kw, BEFORE the
+ *  command can exit by any door.
+ *
+ *  `expand_command()` builds the command kw by copying the caller's keys
+ *  by VALUE (json_object_update_missing, command_parser.c), so the buffer
+ *  is named by two kws and BOTH are KW_DECREF'd -- the command's answer
+ *  releases one, command_parser the other, and a single reference is
+ *  dropped twice. Extracted here, the command kw names it no more, and the
+ *  caller's kw stays the one owner. The reference this returns is a NEW
+ *  one, for whoever the bytes are handed to.
+ *
+ *  Return the buffer (YOURS, one reference) or NULL.
+ ***************************************************************************/
+PRIVATE gbuffer_t *take_files_gbuffer(hgobj gobj, json_t *kw)
+{
+    json_t *jn_gbuffer = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
+    if(!jn_gbuffer) {
+        return NULL;    // No binary field: the ordinary case, not an error
+    }
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuffer);
+    JSON_DECREF(jn_gbuffer)
+    if(!gbuf) {
+        /*
+         *  The key is there and names nothing: a peer wrote a `gbuffer` of
+         *  its own, or the deserializer did not build one. Said here, or
+         *  the only word about it is treedb refusing a manifest that
+         *  "carries no bytes", which names the column and never the cause.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "'gbuffer' in the kw is not a binary field, ignored",
+            NULL
+        );
+        return NULL;
+    }
+    gbuffer_incref(gbuf);
+    return gbuf;
+}
+
+/***************************************************************************
  *  The bytes of the 'file' columns ride BESIDE the record: in the kw's one
  *  binary field (`gbuffer`, the manifest `__files__` inside the record says
  *  which slice is whose) or as `content64` inside the manifest. The
  *  record's write path (treedb_store_files) consumes them, so hand it the
- *  binary field and who uploads. The gbuffer is EXTRACTED from the command
- *  kw: from here the record kw owns it, and treedb drops it at the door.
+ *  binary field and who uploads.
+ *
+ *  `gbuf` is OWNED from here on, and released exactly once downstream: by
+ *  treedb_store_files() when the write reaches it, and otherwise by the
+ *  KW_DECREF(kw) that every exit of mt_create_node()/mt_update_node()
+ *  ends in -- kw_decref drops the binary field it finds. Never add a
+ *  second release beside those: that was the "BAD gbuf_decref()".
  ***************************************************************************/
-PRIVATE void hand_files_to_record(hgobj gobj, json_t *kw, json_t *record)
+PRIVATE void hand_files_to_record(hgobj gobj, json_t *kw, json_t *record, gbuffer_t *gbuf)
 {
     if(!json_is_object(record)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "record is not an object, the bytes are DROPPED",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)
         return;
     }
-    json_t *jn_gbuffer = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
-    if(jn_gbuffer) {
-        /*
-         *  The command parser copied the field by VALUE from the kw it was
-         *  given, and that kw drops its own reference when the command
-         *  returns (command_parser.c). The record needs a reference of its
-         *  own, or the two releases meet on one refcount.
-         */
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuffer);
-        if(gbuf) {
-            gbuffer_incref(gbuf);
-        }
-        json_object_set_new(record, "gbuffer", jn_gbuffer);
+    if(gbuf) {
+        json_object_set_new(record, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
     }
     if(json_object_get(record, "__files__")) {
         json_object_set_new(record, "__username__",
             json_string(kw_get_str(gobj, kw, "__username__", "", 0))
         );
     }
-}
-
-/***************************************************************************
- *  A write refused BEFORE reaching treedb_store_files() leaves the binary
- *  field in the record that the response carries back: release it.
- *  `kw["record"]` is the same object the write received.
- ***************************************************************************/
-PRIVATE void release_files_left_in_record(hgobj gobj, json_t *kw)
-{
-    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
-    if(!record) {
-        return;
-    }
-    json_t *jn_gbuffer = json_object_get(record, "gbuffer");
-    if(jn_gbuffer) {
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuffer);
-        GBUFFER_DECREF(gbuf)
-        json_object_del(record, "gbuffer");
-    }
-    json_object_del(record, "__files__");
-    json_object_del(record, "__username__");
 }
 
 /***************************************************************************
@@ -2378,9 +2399,15 @@ PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     /*----------------------------------------*
+     *  The kw's ONE binary field, before any exit
+     *----------------------------------------*/
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
+
+    /*----------------------------------------*
      *  A replica cannot be written
      *----------------------------------------*/
     if(!treedb_is_master(gobj)) {
+        GBUFFER_DECREF(gbuf_files)
         return build_readonly_response(gobj, kw);
     }
 
@@ -2389,6 +2416,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2412,6 +2440,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         if(!gbuf_content) {
             // Invalid base64: gbuffer_base64_to_binary returns NULL; do NOT
             // pass it to gbuffer_cur_rd_pointer (would deref NULL -> crash).
+            GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -2424,6 +2453,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content);
         if(!jn_content) {
+            GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -2443,6 +2473,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!jn_content) {
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2459,6 +2490,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *permission = "create";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         json_decref(jn_content);
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -403,
@@ -2469,7 +2501,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    hand_files_to_record(gobj, kw, jn_content);
+    hand_files_to_record(gobj, kw, jn_content, gbuf_files);
 
     json_t *node = gobj_create_node(
         gobj,
@@ -2478,7 +2510,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
-    release_files_left_in_record(gobj, kw);
 
     return msg_iev_build_response(gobj,
         node?0:-1,
@@ -2495,9 +2526,15 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     /*----------------------------------------*
+     *  The kw's ONE binary field, before any exit
+     *----------------------------------------*/
+    gbuffer_t *gbuf_files = take_files_gbuffer(gobj, kw);
+
+    /*----------------------------------------*
      *  A replica cannot be written
      *----------------------------------------*/
     if(!treedb_is_master(gobj)) {
+        GBUFFER_DECREF(gbuf_files)
         return build_readonly_response(gobj, kw);
     }
 
@@ -2506,6 +2543,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2528,6 +2566,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
         if(!gbuf_content) {
             // Invalid base64 -> NULL; avoid the NULL deref in gbuffer_cur_rd_pointer.
+            GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -2540,6 +2579,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content)
         if(!jn_content) {
+            GBUFFER_DECREF(gbuf_files)
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -2559,6 +2599,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!jn_content) {
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -2575,6 +2616,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *permission = "update";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         json_decref(jn_content);
+        GBUFFER_DECREF(gbuf_files)
         return msg_iev_build_response(
             gobj,
             -403,
@@ -2585,7 +2627,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    hand_files_to_record(gobj, kw, jn_content);
+    hand_files_to_record(gobj, kw, jn_content, gbuf_files);
 
     json_t *node = gobj_update_node(
         gobj,
@@ -2594,7 +2636,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
-    release_files_left_in_record(gobj, kw);
 
     return msg_iev_build_response(gobj,
         node?0:-1,

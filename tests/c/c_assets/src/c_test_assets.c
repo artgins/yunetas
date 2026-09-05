@@ -705,6 +705,42 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     /*-----------------------------------------------*
+     *  4bis: a gbuffer on a write that FAILS
+     *
+     *  The binary field must be released EXACTLY once, and neither exit
+     *  releases it twice: the command door (no topic_name, answered
+     *  before the record is even looked at) and the write itself (an
+     *  unknown topic, refused inside mt_update_node). A second release
+     *  logs "BAD gbuf_decref()", which is an error and fails this test.
+     *-----------------------------------------------*/
+    {
+        static const char *refused[] = {"", "no_such_topic", 0};
+        for(int i = 0; refused[i]; i++) {
+            gbuffer_t *gbuf = gbuffer_create(PNG_FIXTURE_LEN, PNG_FIXTURE_LEN);
+            gbuffer_append(gbuf, PNG_FIXTURE, PNG_FIXTURE_LEN);
+            resp = ask_node(gobj, "update-node",
+                json_pack("{s:s, s:I, s:{s:s, s:{s:{s:I, s:I, s:s}}}, s:{s:b}}",
+                    "topic_name", refused[i],
+                    "gbuffer", (json_int_t)(uintptr_t)gbuf,
+                    "record",
+                        "id", "dev-refused",
+                        "__files__",
+                            "foto",
+                                "offset", (json_int_t)0,
+                                "size", (json_int_t)PNG_FIXTURE_LEN,
+                                "original_name", "refused.png",
+                    "options",
+                        "create", 1
+                )
+            );
+            if(resp_result(resp) == 0) {
+                result += fail(gobj, "a write refused by its topic was accepted");
+            }
+            JSON_DECREF(resp)
+        }
+    }
+
+    /*-----------------------------------------------*
      *  5: a linked asset cannot be deleted
      *-----------------------------------------------*/
     resp = ask_node(gobj, "delete-node",

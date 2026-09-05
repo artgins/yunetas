@@ -1141,7 +1141,15 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             NULL
         );
     }
-    derive_file_hooks(gobj, tranger, treedb_name);
+    if(derive_file_hooks(gobj, tranger, treedb_name) < 0) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Bad 'file' column: __assets__ hooks NOT derived",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
 
     /*------------------------------*
      *  Parse hooks
@@ -10321,7 +10329,12 @@ PRIVATE const char *file_col_id(const char *value, char *bf, size_t bflen)
         char topic[NAME_MAX];
         char hook[NAME_MAX];
         if(!decode_parent_ref(value, topic, sizeof(topic), bf, bflen, hook, sizeof(hook))) {
-            bf[0] = 0;
+            /*
+             *  Answer "no id" and leave the value alone: filtra_fkeys()
+             *  is the one that names it, with "Wrong fkey reference", when
+             *  the record is written. Refusing it twice would say it twice.
+             */
+            bf[0] = 0;  // Error already logged
         }
         return bf;
     }
@@ -10723,7 +10736,30 @@ PRIVATE int derive_file_hooks(
 
             char hook_name[NAME_MAX];
             snprintf(hook_name, sizeof(hook_name), "as_%s_%s", topic_name, col_name);
-            if(json_object_get(assets_cols, hook_name)) {
+            json_t *existing = json_object_get(assets_cols, hook_name);
+            if(existing) {
+                /*
+                 *  The same column derived again (a reopen) is the normal
+                 *  case. A DIFFERENT one under the same name is not:
+                 *  'as_<T>_<C>' is ambiguous -- topic 'a_b' col 'c' and
+                 *  topic 'a' col 'b_c' write the same name, and so does
+                 *  anything snprintf truncates -- and the loser would link
+                 *  through the winner's hook, onto another topic's column.
+                 */
+                json_t *mapped = json_object_get(json_object_get(existing, "hook"), topic_name);
+                if(!json_is_string(mapped) || strcmp(json_string_value(mapped), col_name)!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "two 'file' columns derive the same __assets__ hook",
+                        "treedb_name",  "%s", treedb_name,
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        "hook",         "%s", hook_name,
+                        NULL
+                    );
+                    ret += -1;
+                }
                 continue;
             }
             char header[NAME_MAX];
@@ -10773,7 +10809,17 @@ PRIVATE int gc_scan_callback(
         return -1;  // Error already logged
     }
 
-    json_t *refs = filtra_fkeys("", col, "list", json_object_get(jn_record, col));
+    /*
+     *  A tagged instance older than the 'file' column does not carry it.
+     *  Not an error -- it holds no asset, so there is nothing to hold
+     *  alive -- but filtra_fkeys() reads json_typeof() with no NULL guard.
+     */
+    json_t *jn_value = json_object_get(jn_record, col);
+    if(!jn_value) {
+        JSON_DECREF(jn_record)
+        return 0;
+    }
+    json_t *refs = filtra_fkeys("", col, "list", jn_value);
     int idx; json_t *jn_ref;
     json_array_foreach(refs, idx, jn_ref) {
         char parent_topic[NAME_MAX];
@@ -10922,10 +10968,21 @@ PUBLIC json_t *treedb_gc_files(
         const char *orphan_id = json_string_value(jn_id);
         json_t *orphan = treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, orphan_id);
         if(!orphan) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "gc: the orphan asset is gone between the two passes",
+                "treedb_name",  "%s", treedb_name,
+                "id",           "%s", orphan_id,
+                NULL
+            );
             continue;
         }
         if(treedb_delete_node(tranger, orphan, 0)==0) {
             json_array_append(deleted, jn_id);
+        } else {
+            // Error already logged: the answer says it by not listing this id
+            continue;
         }
     }
     JSON_DECREF(orphans)
