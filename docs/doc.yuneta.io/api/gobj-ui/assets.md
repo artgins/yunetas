@@ -7,7 +7,7 @@ description: >-
 
 # Assets
 
-**Source code:** [`src/yui_asset.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js)
+**Source code:** [`src/yui_asset.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js)
 
 A treedb node often owns something that is not JSON: a photo, a plan, a clip.
 Those bytes cannot live in the treedb's records, so the treedb keeps them on
@@ -43,12 +43,12 @@ the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded
 is still an empty list. All of them are read.
 
 (js_yui_asset_ids)=
-### [`yui_asset_ids(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js#L63)
+### [`yui_asset_ids(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js#L63)
 
 Every asset id the column names, in order. Always an array, possibly empty.
 
 (js_yui_asset_id)=
-### [`yui_asset_id(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js#L75)
+### [`yui_asset_id(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js#L75)
 
 The first id the column names, or `null`. An empty column answers nothing
 rather than throwing.
@@ -58,7 +58,7 @@ rather than throwing.
 ## Showing it
 
 (js_yui_asset_src)=
-### [`yui_asset_src(answer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js#L88)
+### [`yui_asset_src(answer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js#L88)
 
 Turns either shape of a `get-asset` answer into something an element can
 load: the signed URL as it comes, or a `data:` URL built from the inline
@@ -69,7 +69,7 @@ An `<img src="">` reloads the page in some browsers, which is a worse failure
 than the one being reported.
 
 (js_yui_asset_element)=
-### [`yui_asset_element(answer, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js#L152)
+### [`yui_asset_element(answer, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js#L152)
 
 The element for one asset, built from the **content type the backend stored**
 and not from the name a person typed: `<img>`, `<video>` or `<audio>`. Video
@@ -86,7 +86,7 @@ path, the thing a person can act on. `opts.alt` sets the alt text of an image,
 the element.
 
 (js_yui_asset_missing)=
-### [`yui_asset_missing(detail, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js#L112)
+### [`yui_asset_missing(detail, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.59/src/yui_asset.js#L112)
 
 The marker for an asset that is not there, on its own.
 

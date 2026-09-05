@@ -10,7 +10,7 @@ description: >-
 A gclass declares its commands in a table, in the same way that it declares its
 attributes. Every descriptor is an `SDataDesc`, and the macros below build one.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js)
 
 The command table goes to [`gclass_create()`](gclass.md#js_gclass_create), and
 [`command_parser()`](events.md#js_command_parser) reads it. A gclass that gives a
@@ -29,14 +29,14 @@ const command_table = [
 ## The descriptor
 
 (js_SDataDesc)=
-### [`SDataDesc`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L139)
+### [`SDataDesc`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L139)
 
 The class that holds one descriptor. Every macro below builds one of these, and
 each macro fills a different set of its fields. Build a descriptor with a macro
 and never with the constructor: the order of the fields is an internal detail.
 
 (js_SDATA_END)=
-### [`SDATA_END()`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L156)
+### [`SDATA_END()`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L156)
 
 The end of a table. Every table finishes with it.
 
@@ -45,7 +45,7 @@ The end of a table. Every table finishes with it.
 ## Commands
 
 (js_SDATACM)=
-### [`SDATACM(type, name, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L158)
+### [`SDATACM(type, name, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L158)
 
 Declares one command.
 
@@ -59,7 +59,7 @@ Declares one command.
 | `description` | The help line of the command. |
 
 (js_SDATACM2)=
-### [`SDATACM2(type, name, flag, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L159)
+### [`SDATACM2(type, name, flag, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L159)
 
 Declares one command, and adds a `flag`. Use it when the command needs an
 authorization flag, such as `SDF_AUTHZ_X`.
@@ -69,7 +69,7 @@ authorization flag, such as `SDF_AUTHZ_X`.
 ## Parameters
 
 (js_SDATAPM)=
-### [`SDATAPM(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L160)
+### [`SDATAPM(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L160)
 
 Declares one parameter of a command. It takes the same shape as
 [`SDATA()`](attrs.md#js_SDATA).
@@ -92,7 +92,7 @@ type, so validate it in the handler.
 :::
 
 (js_SDATAPM0)=
-### [`SDATAPM0(type, name, flag, authpth, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L162)
+### [`SDATAPM0(type, name, flag, authpth, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L162)
 
 Declares one parameter with an authorization path, and no default value.
 
@@ -101,7 +101,7 @@ Declares one parameter with an authorization path, and no default value.
 ## Authorizations
 
 (js_SDATAAUTHZ)=
-### [`SDATAAUTHZ(type, name, flag, alias, items, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L161)
+### [`SDATAAUTHZ(type, name, flag, alias, items, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L161)
 
 Declares one authorization of the gclass. The authorization table goes to
 [`gclass_create()`](gclass.md#js_gclass_create).
@@ -111,7 +111,7 @@ Declares one authorization of the gclass. The authorization table goes to
 ## Table columns
 
 (js_SDATADF)=
-### [`SDATADF(type, name, flag, header, fillspace, description)`](https://github.com/artgins/gobj-js/blob/7.16.2/src/gobj.js#L163)
+### [`SDATADF(type, name, flag, header, fillspace, description)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L163)
 
 Declares one column of a table of data. `header` is the title of the column, and
 `fillspace` is its part of the width. A schema of a command response uses these
