@@ -17,6 +17,7 @@
  *            8. no leak
  *            9. one asset, ONE blob, and a snapshot refuses the delete
  *           10. the hooks follow the schema at RUN TIME, both ways
+ *           11. the write path links a file column itself, autolink or not
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -140,13 +141,8 @@ PRIVATE json_t *create_device_with_foto(
                 "original_name", "foto.png",
                 "content_type", content_type
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", json_incref(kw));
-    if(node) {
-        treedb_autolink(tranger, node, kw, TRUE);
-    } else {
-        json_decref(kw);
-    }
-    return node;
+    /*  No autolink: the write path links a `file` column ITSELF  */
+    return treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
 }
 
 /***************************************************************************
@@ -202,12 +198,7 @@ PRIVATE int test_bytes_not_in_record(json_t *tranger)
      *  A bare id and no bytes links an asset that exists
      */
     json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "dev-1b", "foto", id, "qr", "");
-    json_t *node2 = treedb_create_node(tranger, TREEDB_NAME, "devices", json_incref(kw));
-    if(node2) {
-        treedb_autolink(tranger, node2, kw, TRUE);
-    } else {
-        json_decref(kw);
-    }
+    json_t *node2 = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
     if(!node2 || strcmp(fkey_id(node2, "foto"), id)!=0) {
         printf("%s  FAIL: a bare id of an existing asset did not link%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -355,12 +346,7 @@ PRIVATE int test_type_from_bytes(json_t *tranger)
         "__files__", "plano",
             "content64", b64(PDF_A, sizeof(PDF_A)-1)
     );
-    node = treedb_create_node(tranger, TREEDB_NAME, "places", json_incref(kw));
-    if(node) {
-        treedb_autolink(tranger, node, kw, TRUE);
-    } else {
-        json_decref(kw);
-    }
+    node = treedb_create_node(tranger, TREEDB_NAME, "places", kw);
     if(!node || strcmp(fkey_id(node, "plano"), sha(PDF_A, sizeof(PDF_A)-1))!=0) {
         printf("%s  FAIL: a pdf typed by its bytes alone was refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -565,12 +551,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
             "content64", b64(PDF_B, sizeof(PDF_B)-1),
             "original_name", "work-1.pdf"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "works", json_incref(kw));
-    if(node) {
-        treedb_autolink(tranger, node, kw, TRUE);
-    } else {
-        json_decref(kw);
-    }
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "works", kw);
     const char *pdf_id = sha(PDF_B, sizeof(PDF_B)-1);
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, pdf_id);
     json_t *hook = asset? json_object_get(asset, "as_works_plan"): 0;
@@ -613,6 +594,134 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
 }
 
 /***************************************************************************
+ *  11. The write path links a `file` column ITSELF, autolink or not
+ *
+ *  treedb_update_node() skips every fkey in its field loop, which is right
+ *  for a link a person edits by linking. Left there, an update WITHOUT
+ *  autolink stored the bytes and the index node, answered success, and
+ *  left the column as it was: an orphan asset and a device with no photo.
+ *  And treedb_create_node() linked nothing at all, so a plain create-node
+ *  did the same. Both link now; "" unlinks; a column the kw does not carry
+ *  is left alone.
+ ***************************************************************************/
+PRIVATE int test_write_path_links(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "11. the write path links a file column itself";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    /*  sha() answers in ONE static buffer: copy what is kept  */
+    char id_a[SHA256_HEX_LEN + 1];
+    char id_b[SHA256_HEX_LEN + 1];
+    char id_qr[SHA256_HEX_LEN + 1];
+    snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
+    snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
+    snprintf(id_qr, sizeof(id_qr), "%s", sha(JPG_A, sizeof(JPG_A)-1));
+
+    /*  a plain create, foto AND qr, no autolink anywhere  */
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s}}}",
+        "id", "dev-11",
+        "foto", id_a,
+        "qr", "",
+        "__files__", "qr",
+            "content64", b64(JPG_A, sizeof(JPG_A)-1),
+            "original_name", "dev-11.jpg"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(!node) {
+        printf("%s  FAIL: plain create refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    json_t *asset_a = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_a);
+    json_t *hook = asset_a? json_object_get(asset_a, "as_devices_foto"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: create did not link foto (the asset's hook does not hold dev-11)%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *asset_qr = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_qr);
+    hook = asset_qr? json_object_get(asset_qr, "as_devices_qr"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: create did not link qr%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  a plain update moves foto to B: A lets go, B takes it, qr untouched  */
+    kw = json_pack("{s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-11",
+        "foto", "",
+        "__files__", "foto",
+            "content64", b64(PNG_B, sizeof(PNG_B)-1),
+            "original_name", "dev-11.png",
+            "content_type", "image/png"
+    );
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: plain update with a file refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(strcmp(fkey_id(node, "foto"), id_b)!=0) {
+        printf("%s  FAIL: update did not move foto to B: %s%s\n",
+            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+        result += -1;
+    }
+    hook = json_object_get(asset_a, "as_devices_foto");
+    if(json_is_object(hook) && json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: A still holds dev-11 after the move%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *asset_b = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b);
+    hook = asset_b? json_object_get(asset_b, "as_devices_foto"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: B does not hold dev-11 after the move%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    hook = json_object_get(asset_qr, "as_devices_qr");
+    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: a column the kw did not carry was touched (qr unlinked)%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  "" unlinks, and the record says so  */
+    kw = json_pack("{s:s, s:s}", "id", "dev-11", "foto", "");
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: clearing update refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!empty_string(kw_get_str(0, node, "foto", "", 0))) {
+        printf("%s  FAIL: foto not cleared: %s%s\n",
+            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+        result += -1;
+    }
+    hook = json_object_get(asset_b, "as_devices_foto");
+    if(json_is_object(hook) && json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: B still holds dev-11 after the clear%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  and it is on DISK, not only in memory: reopen and ask again  */
+    treedb_close_db(tranger, TREEDB_NAME);
+    helper_quote2doublequote(schema_sample);
+    json_t *jn_schema = legalstring2json(schema_sample, TRUE);
+    if(!treedb_open_db(tranger, TREEDB_NAME, jn_schema, 0)) {
+        printf("%s  FAIL: cannot reopen%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-11");
+    asset_qr = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_qr);
+    hook = asset_qr? json_object_get(asset_qr, "as_devices_qr"): 0;
+    if(!node || !empty_string(kw_get_str(0, node, "foto", "", 0)) ||
+            !json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+        printf("%s  FAIL: the links of the plain writes did not survive a reopen%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  7. One kw, two files: a gbuffer and a manifest of two slices
  ***************************************************************************/
 PRIVATE int test_one_kw_two_files(json_t *tranger)
@@ -640,11 +749,8 @@ PRIVATE int test_one_kw_two_files(json_t *tranger)
                 "size", (json_int_t)len_jpg,
                 "original_name", "dev-2.jpg"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", json_incref(kw));
-    if(node) {
-        treedb_autolink(tranger, node, kw, TRUE);
-    } else {
-        json_decref(kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(!node) {
         printf("%s  FAIL: create with two slices refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
@@ -700,9 +806,11 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
         printf("%s  FAIL: cannot shoot snap%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "dev-3", "foto", sha(PNG_A, sizeof(PNG_A)-1), "qr", "");
-    treedb_clean_node(tranger, node, FALSE);
-    treedb_autolink(tranger, node, kw, TRUE);
+    json_t *kw = json_pack("{s:s, s:s}", "id", "dev-3", "foto", sha(PNG_A, sizeof(PNG_A)-1));
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: plain update of dev-3 refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
     if(strcmp(fkey_id(node, "foto"), sha(PNG_A, sizeof(PNG_A)-1))!=0) {
         printf("%s  FAIL: dev-3 did not move to A%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -885,6 +993,7 @@ PRIVATE int do_test(void)
     result += test_type_from_bytes(tranger);
     result += test_derived_hooks_persist_nothing(tranger);
     result += test_one_kw_two_files(tranger);
+    result += test_write_path_links(tranger);
     result += test_one_asset_one_blob(tranger);
     result += test_gc_three_ways(tranger);
     /*  after the gc: it leaves an orphan of its own, and case 6 counts  */

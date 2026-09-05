@@ -193,6 +193,12 @@ on disk. Design note:
 - **Three writes, in order**: the blob, the `__assets__` node, the host record
   with its link. Interrupted early it leaves an orphan blob or an orphan index
   node, which `gc-assets` takes; never a link to nothing.
+- **The write path links the `file` column itself, `autolink` or not.** An
+  ordinary fkey moves only through `link-nodes` or an `autolink`; a `file`
+  column is edited by handing over a file, and the link is part of it:
+  `create-node` and `update-node` link what the column names, `""` unlinks,
+  and a column the record does not carry is left alone. The `autolink` in
+  the example above is for the OTHER fkeys of the record, not for `foto`.
 - **A second arrival of the same bytes is an update of the asset node**, so
   the history of `__assets__` says every name a file arrived under. The blob
   is written once, and the **first** arrival names it for ever: the extension

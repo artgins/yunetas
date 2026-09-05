@@ -115,6 +115,7 @@ PRIVATE json_t *apply_child_list_options(
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
 PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
 PRIVATE const char *files_default_types[];
@@ -5506,6 +5507,28 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
     json_decref(node);
 
+    /*-------------------------------*
+     *  The links of the 'file' columns
+     *
+     *  A create links no ordinary fkey (that is autolink's job), but a
+     *  `file` column arrived WITH its bytes and the record now names an
+     *  asset that exists: leaving it unlinked is a success that lies. The
+     *  link saves the child, like every link -- one more instance, the
+     *  same as the autolink a caller used to have to remember.
+     *-------------------------------*/
+    {
+        BOOL moved = FALSE;
+        if(link_file_columns(gobj, tranger, node, kw, TRUE, &moved)<0) {
+            /*
+             *  Error already logged. The record exists and is indexed, so
+             *  it is returned: answering NULL would tell the caller that
+             *  nothing was created.
+             */
+        } else if(moved) {
+            treedb_save_node(tranger, node);
+        }
+    }
+
     JSON_DECREF(pkey2_list)
     JSON_DECREF(kw)
     return node;
@@ -5848,6 +5871,26 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         JSON_DECREF(updates)
         JSON_DECREF(kw)
         return 0;
+    }
+
+    /*-------------------------------*
+     *  The links of the 'file' columns
+     *
+     *  The loop above skips every fkey, and that is right for a link a
+     *  person edits by linking. A `file` column is edited by handing over
+     *  a file, and the link is part of the hand-over: left to `autolink`,
+     *  an update without it stored the bytes and the index node, answered
+     *  success, and left the column as it was -- an orphan asset and a
+     *  device with no photo. So the write path links them ITSELF here.
+     *-------------------------------*/
+    {
+        BOOL moved = FALSE;
+        if(link_file_columns(gobj, tranger, node, kw, FALSE, &moved)<0) {
+            // Error already logged
+            JSON_DECREF(updates)
+            JSON_DECREF(kw)
+            return 0;
+        }
     }
 
     json_object_update(node, updates);
@@ -10426,6 +10469,170 @@ PRIVATE const char *file_col_id(const char *value, char *bf, size_t bflen)
     }
     snprintf(bf, bflen, "%s", value);
     return bf;
+}
+
+/***************************************************************************
+ *  One end of a `file` link: link the node to the asset `ref` names, or
+ *  unlink it from it. The parent is a node of __assets__, which has no
+ *  pkey2s, so the primary is the holder. Nothing is saved here.
+ ***************************************************************************/
+PRIVATE int move_file_link(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    json_t *node,           // NOT owned, pure node
+    const char *col_name,
+    const char *ref,
+    BOOL link
+)
+{
+    char parent_topic_name[NAME_MAX];
+    char parent_id[NAME_MAX];
+    char hook_name[NAME_MAX];
+    if(!decode_parent_ref(
+        ref,
+        parent_topic_name, sizeof(parent_topic_name),
+        parent_id, sizeof(parent_id),
+        hook_name, sizeof(hook_name)
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
+            "treedb_name",  "%s", treedb_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *parent_node = treedb_get_node( // Return is NOT YOURS, pure node
+        tranger,
+        treedb_name,
+        parent_topic_name,
+        parent_id
+    );
+    if(!parent_node) {
+        if(link) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "file column: asset not found, cannot link",
+                "treedb_name",  "%s", treedb_name,
+                "col",          "%s", col_name,
+                "ref",          "%s", ref,
+                NULL
+            );
+            return -1;
+        }
+        /*
+         *  The column names an asset that is gone: there is no hook to
+         *  take the node out of, so the column is cleared here, as
+         *  _unlink_nodes() would have. Said, because a reference to
+         *  nothing is a state nothing else repairs.
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "file column: linked asset not found, reference dropped",
+            "treedb_name",  "%s", treedb_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        json_object_set_new(node, col_name, json_string(""));
+        return 0;
+    }
+
+    if(link) {
+        return _link_nodes(gobj, tranger, hook_name, parent_node, node, FALSE);
+    }
+    return _unlink_nodes(gobj, tranger, hook_name, parent_node, node, FALSE);
+}
+
+/***************************************************************************
+ *  Link what the `file` columns of the kw name, and unlink what they stop
+ *  naming. Called by the write path ITSELF -- treedb_create_node() and
+ *  treedb_update_node() -- `autolink` or not: an ordinary fkey is edited
+ *  by linking, a `file` column is edited by handing over a file, and the
+ *  link is part of that hand-over.
+ *
+ *  Only the columns the kw CARRIES move; a column the kw does not name is
+ *  left as it is (a partial update, not an autolink). The kw has been
+ *  through treedb_store_files(), so a column holds "" or the full
+ *  reference. On a NEW node (`is_new`) every non-empty reference is
+ *  linked: the node's own field is what the create copied from the kw,
+ *  and says nothing about the parent's hook.
+ *
+ *  Nothing is saved here: the caller saves the child once. `*moved` says
+ *  whether a link changed. Return 0 or -1 (error logged).
+ ***************************************************************************/
+PRIVATE int link_file_columns(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node
+    json_t *kw,         // NOT owned
+    BOOL is_new,
+    BOOL *moved
+)
+{
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0);
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        // Error already logged
+        return -1;
+    }
+
+    int ret = 0;
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "file", 0) ||
+                !kw_has_word(gobj, desc_flag, "fkey", 0)) {
+            continue;
+        }
+        json_t *jn_new = json_object_get(kw, col_name);
+        if(!jn_new) {
+            continue;   // Not carried: left as it is
+        }
+        if(!json_is_string(jn_new)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "file column must be a string (one file per column), ignored",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "col",          "%s", col_name,
+                "value",        "%j", jn_new,
+                NULL
+            );
+            continue;
+        }
+        const char *new_ref = json_string_value(jn_new);
+        const char *cur_ref = is_new? "": kw_get_str(gobj, node, col_name, "", 0);
+        if(strcmp(new_ref, cur_ref)==0) {
+            continue;
+        }
+        if(!empty_string(cur_ref)) {
+            if(move_file_link(gobj, tranger, treedb_name, node, col_name, cur_ref, FALSE)<0) {
+                ret = -1;   // Error already logged
+                break;
+            }
+        }
+        if(!empty_string(new_ref)) {
+            if(move_file_link(gobj, tranger, treedb_name, node, col_name, new_ref, TRUE)<0) {
+                ret = -1;   // Error already logged
+                break;
+            }
+        }
+        *moved = TRUE;
+    }
+    JSON_DECREF(cols)
+
+    return ret;
 }
 
 /***************************************************************************

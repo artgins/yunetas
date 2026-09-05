@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### The write path of a `file` column links it itself, `autolink` or not
+
+`treedb_update_node()` skips every fkey in its field loop — right for a link
+a person edits by linking — and `treedb_create_node()` links nothing at all,
+so the link of a `file` column existed only where an `autolink` followed. A
+`create-node`, or an `update-node` without `autolink`, stored the bytes and
+the index node, answered success and left the column as it was: an orphan
+asset that `gc-assets` would take, and a device with no photo. The GUI always
+sends `autolink`, so it never saw it; `ycommand` and the
+`EV_TREEDB_UPDATE_NODE` event do not.
+
+`link_file_columns()` runs inside both writes now: it links what the kw's
+`file` columns name, unlinks what they stop naming (`""`), and leaves a
+column the kw does not carry alone. A create with a `file` column costs one
+more instance, as the autolink a caller used to have to remember did. Test 11
+of `tests/c/tr_treedb_files` covers create, move, clear and a reopen.
+`DESIGN-treedb-files.md` §16.8 lists what the same review left open.
+
+### `gobj-ui` 7.23.63: saving a record unlinked its read-only `file` column
+
+The topic view sends back only the writable cols, the fkeys and the pkey,
+and the write goes out with `autolink`, which rebuilds the links from what
+the record carries. A `file` column IS an fkey but answers `type: "file"`
+since gobj-js 7.16.5, so a `file` column without `writable` — the one only a
+load fills, which the open declares legal — fell out of the record, and every
+save of any other field of its record cut its link, in silence. The exemption
+asks `is_file` now. Both SPAs take the range (`gui_agent` 0.22.52,
+`gui_treedb` 0.17.24).
+
 ## v7.18.0 (2026-09-05)
 
 ### `open-treedb` could not set the attributes a `file` column needs

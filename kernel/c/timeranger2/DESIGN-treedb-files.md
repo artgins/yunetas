@@ -288,12 +288,24 @@ with its own command first: a Save that creates a new asset would otherwise be
 two orders with a window between them, the blob written and the record not.
 
 One message, but **three writes**, in this order: the blob, the index node in
-`__assets__`, then the host record with its link — the autolink needs the parent
+`__assets__`, then the host record with its link — the link needs the parent
 to EXIST. Interrupted between the second and the third it leaves an index node
 nothing links, which the gc takes; interrupted before the second, an orphan
 blob, which the gc also takes. Never a link to nothing. So *"either it happened
 or the command failed"* is the right shape, but it is not exact: what a failure
 can leave behind is garbage, never a dangling reference.
+
+**And the third write is the write path's own, `autolink` or not.** An
+ordinary fkey is edited by linking — `treedb_update_node()` skips every fkey
+in its field loop and `treedb_create_node()` links nothing, so a link moves
+only through `link-nodes` or an `autolink`. A `file` column is edited by
+handing over a file, and the link is part of the hand-over: `link_file_columns()`
+runs inside `treedb_create_node()` and `treedb_update_node()`, links what the
+kw's `file` columns name, unlinks what they stop naming (`""`), and leaves a
+column the kw does not carry alone. Before that (§16.8) a `create-node`, or an
+`update-node` without `autolink`, stored the bytes and the index node, answered
+success, and left the column as it was — an orphan asset and a device with no
+photo, the one message split in two after all.
 
 Two rules the write path cannot bend:
 
@@ -581,8 +593,8 @@ unlinked, and the gc takes it when nothing (and no snapshot, §7) holds it.
 | `C_NODE` | `import-assets` and `gc-assets`; the attrs `files_max_size`, `files_content_types`, `import_root`; the bytes handed from the command kw to the record | done |
 | `C_ASSETS` | loses `put-asset` / `put-assets` / `list-assets` / `delete-asset` / `import-assets` / `gc-assets`, both limits and the store attrs; keeps `get-asset` — and is then one command | done |
 | `gobj-js` | `file` in `treedb_field_types` (7.16.4) | done |
-| `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) | **open** |
-| hosts | delete the `assets` topic from their schema; flag their columns `['fkey','file']`; rebuild the store | **open** |
+| `gobj-ui` | the form control: pick, hash, ask, attach (`yui_file_field.js`, 7.23.60); the table cell draws the id, the asset itself is a `get-asset` away | done |
+| hosts | delete the `assets` topic from their schema; flag their columns `['fkey','file']`; rebuild the store | local done, **remote open** |
 
 `list-assets` and `delete-asset` are gone because `nodes` and `delete-node` on
 `__assets__` are the same two commands with nothing added.
@@ -875,9 +887,9 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 
 ### 16.7 Still open
 
-- **The gobj-ui form control** (§10) and the **hosts' schemas** (§11, §12).
-  Until the control exists, a `file` column is written by a C caller or by
-  `import-assets`, not by a person in a form.
+- **The hosts' remote stores** (§11, §12): the yunovatios nodes still run the
+  `<realm>/assets/` model, and rebuilding them is the migration §12 says there
+  is not.
 - **A non-master replica gets the index and not the bytes.** The watcher
   replicates the topic's files; `.blobs` travels by another means or not at
   all, so `get-asset` inline answers *"asset has no bytes on disk"* there.
@@ -885,3 +897,38 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 - **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
   (§15.3). The write path looks the asset up before creating it, so the
   census reload is quiet — but the trap is still there for the next caller.
+
+### 16.8 Found by the review of 2026-09-05
+
+Two defects, one in each layer, and the same symptom for both: a save that
+says yes and leaves the photo behind.
+
+- **The write path stored the asset and did not link it.** `treedb_update_node()`
+  skips every fkey in its field loop — right for a link a person edits by
+  linking — and `treedb_create_node()` links nothing at all, so the link of a
+  `file` column existed only where an `autolink` followed. A `create-node`, or
+  an `update-node` without `autolink`, wrote the blob and the index node,
+  answered success and left the column as it was: an orphan asset, and a
+  device with no photo. The GUI always sends `autolink`, so it never saw it;
+  `ycommand` and the `EV_TREEDB_UPDATE_NODE` event do not. `link_file_columns()`
+  now runs inside both writes (§5); test 11 of `tr_treedb_files` covers create,
+  move, clear and a reopen.
+- **The GUI dropped a read-only `file` column from the record, and `autolink`
+  then cut its link.** The topic view sends back only the writable cols, the
+  fkeys and the pkey; a `file` column IS an fkey but answers `type: "file"`
+  since gobj-js 7.16.5, so a `file` column without `writable` — the one only a
+  load fills, which the open declares legal with a warning — fell out of the
+  record, and every save of any other field of its record unlinked it. gobj-ui
+  7.23.63 asks `is_file` beside the type.
+
+Still open from the same review, in order of weight: `gc-assets` and the
+live-link guard of `delete-node` read only the calling treedb's copy of
+`__assets__`, so on a tranger hosting two treedbs they take what the other
+treedb links (no yuno does that today); the internal `__snaps_walked__` option
+travels in `delete-node`'s `options` and a wire client can pass it; a `file`
+column that is not `fkey` is refused at open but not by a run-time
+`create-topic`; §7's *"deleting the snap frees the asset"* names an operation
+that does not exist, and `treedb_save_node()` inherits the tag, so the gc holds
+for ever what any tagged instance ever linked; the form has no *reading* state,
+so a second Save during a long read sends two writes; the `gbuffer` door works
+through the commands only, not through `EV_TREEDB_UPDATE_NODE`.
