@@ -141,7 +141,7 @@ be ~460 MB of RAM for the life of the yuno.
 So **you mark a column `file`, and treedb gives you a pseudo-filesystem**: you
 hand it a file, you get it back; the *index* lives in memory and the *content*
 on disk. Design note:
-[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.18.1/kernel/c/timeranger2/DESIGN-treedb-files.md).
+[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.18.2/kernel/c/timeranger2/DESIGN-treedb-files.md).
 
 ```
 'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey', 'file']}

@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The three topics every treedb creates for itself — __snaps__, __graphs__ and __assets__: what each one holds, the door the system opens it through, and why writing them by hand is hacking the store.">
+
+<!--
+    The topics a treedb keeps for itself.
+
+    A standalone document (no external requests) served at
+    /treedb-system-topics, installed by deploy.sh the same way as
+    /treedb-files and /three-layers: myst copies no raw files, so the
+    build output gets it from there.
+
+    Every column, version number and rule here is read off
+    kernel/c/timeranger2/src/tr_treedb.c (treedb_open_db creates both
+    topics inline; treedb_shoot_snap / treedb_activate_snap /
+    treedb_get_activated_snap_tag; treedb_delete_topic's system_topic
+    guard) and off kernel/js/gobj-ui/src/c_g6_nodes_tree.js, which is
+    the only writer of __graphs__ there is.
+
+    The point the page has to land, and it is the user's own framing:
+    a system topic is not a topic you write. The system owns it and
+    opens a DOOR onto it -- shoot-snap, the graph's Save, the write path
+    of a file column. Reaching past the door with create-node /
+    update-node / delete-node is hacking the store, and the page says so
+    where a reader will be tempted.
+
+    Also published as an artifact on claude.ai, built from THIS file
+    by build_artifact.py (`python3 build_artifact.py treedb-system-topics`).
+    Republish to the same url or the old link rots:
+    https://claude.ai/code/artifact/96854ec0-22b6-438e-a639-deb37b61a7ba
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>The topics a treedb keeps for itself</title>
+
+<link rel="icon" href="/favicon.ico">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/pwa/icon-192.png">
+<script src="/pwa/register-sw.js" defer></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /*  Light is the base set: every token is declared here, so the page
+      never renders half a theme in the un-stamped state.  */
+  :root, :root[data-theme="light"] {
+    --paper:  #F2F1EF;
+    --raise:  #FBFBFA;
+    --sunk:   #E6E4E0;
+    --ink:    #1A1815;
+    --muted:  #635E56;
+    --rule:   #D5D1CA;
+    --sys:    #6A3FA0;   /* the system's own hand              */
+    --you:    #1F6C7A;   /* what a user writes                 */
+    --deny:   #9F2B30;
+    --sys-bg: #ECE5F6;
+    --you-bg: #DEEDF0;
+    --deny-bg:#F6E4E4;
+    --shadow: 0 1px 2px rgba(26,24,21,.05), 0 12px 30px -24px rgba(26,24,21,.6);
+  }
+  :root[data-theme="dark"] {
+    --paper:  #100F0D;
+    --raise:  #191713;
+    --sunk:   #0B0A09;
+    --ink:    #E9E6E0;
+    --muted:  #9A938A;
+    --rule:   #2B2822;
+    --sys:    #B48BE8;
+    --you:    #52C0D0;
+    --deny:   #E8767C;
+    --sys-bg: #211632;
+    --you-bg: #0E2A2F;
+    --deny-bg:#2A1416;
+    --shadow: 0 1px 2px rgba(0,0,0,.55), 0 12px 30px -24px rgba(0,0,0,1);
+  }
+
+  :root {
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --measure: 66ch;
+    --t--1: clamp(.75rem, .73rem + .1vw, .81rem);
+    --t-0:  clamp(.95rem, .92rem + .14vw, 1.03rem);
+    --t-1:  clamp(1.12rem, 1.06rem + .3vw, 1.3rem);
+    --t-2:  clamp(1.35rem, 1.2rem + .7vw, 1.72rem);
+    --t-3:  clamp(1.85rem, 1.5rem + 1.7vw, 2.9rem);
+  }
+
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: var(--t-0); line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .55rem clamp(1rem, 4vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--raise);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar a { color: var(--muted); text-decoration: none; font-size: var(--t--1); letter-spacing: .02em; }
+  .topbar a:hover { color: var(--ink); }
+  .theme-toggle {
+    border: 1px solid var(--rule); border-radius: 3px; padding: .28rem .4rem;
+    background: var(--paper); color: var(--muted); cursor: pointer;
+    display: inline-flex; line-height: 0;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+  .theme-toggle svg { width: 16px; height: 16px; }
+  :root[data-theme="dark"] .icon-sun { display: none; }
+  :root[data-theme="light"] .icon-moon { display: none; }
+  :focus-visible { outline: 2px solid var(--sys); outline-offset: 2px; }
+
+  main { padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 2.5rem) 5rem; }
+  .wrap { max-width: 62rem; margin: 0 auto; }
+  .prose { max-width: var(--measure); }
+  .prose p, .prose ul, .prose ol { margin: 0 0 1.05em; }
+  .prose li { margin-bottom: .35em; }
+
+  .kicker {
+    font-size: var(--t--1); text-transform: uppercase; letter-spacing: .14em;
+    color: var(--sys); font-weight: 600; margin: 0 0 .7rem;
+  }
+  h1 {
+    font-size: var(--t-3); line-height: 1.04; letter-spacing: -.025em;
+    font-weight: 700; margin: 0 0 .8rem; max-width: 17ch; text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--serif); font-size: var(--t-1); line-height: 1.5;
+    color: var(--muted); max-width: 46ch; margin: 0 0 2.6rem;
+  }
+  h2 {
+    font-size: var(--t-2); letter-spacing: -.02em; font-weight: 680;
+    margin: 3.4rem 0 .9rem; text-wrap: balance; max-width: 26ch;
+  }
+  h2 .mono { font-family: var(--mono); font-size: .82em; font-weight: 700; }
+  h3 { font-size: var(--t-1); font-weight: 640; margin: 2rem 0 .5rem; letter-spacing: -.01em; }
+  code, kbd, samp { font-family: var(--mono); font-size: .88em; }
+  .prose code { background: var(--sunk); padding: .1em .32em; border-radius: 2px; overflow-wrap: anywhere; }
+  a { color: var(--sys); text-underline-offset: 2px; }
+
+  /*  ---- the door diagram: the page's one graphic ---- */
+  .doorfig {
+    margin: 2.2rem 0 2.6rem; border: 1px solid var(--rule); border-radius: 5px;
+    background: var(--raise); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .doorfig svg { display: block; width: 100%; height: auto; }
+  .figcap {
+    padding: .65rem 1rem; border-top: 1px solid var(--rule);
+    font-size: var(--t--1); color: var(--muted); background: var(--paper);
+  }
+
+  /*  ---- the three topic panels ---- */
+  .topicpanel {
+    margin: 1.6rem 0 2.4rem; border: 1px solid var(--rule); border-radius: 5px;
+    background: var(--raise); overflow: hidden; box-shadow: var(--shadow);
+  }
+  .tp-head {
+    display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
+    padding: .75rem 1rem; border-bottom: 1px solid var(--rule); background: var(--paper);
+  }
+  .tp-name { font-family: var(--mono); font-weight: 700; font-size: var(--t-0); color: var(--sys); }
+  .tp-what { font-size: var(--t--1); color: var(--muted); }
+  .tp-ver {
+    margin-left: auto; font-size: var(--t--1); font-family: var(--mono);
+    color: var(--muted); white-space: nowrap;
+  }
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--t--1); }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    text-transform: uppercase; letter-spacing: .08em; font-size: .84em;
+    color: var(--muted); font-weight: 700; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.w { white-space: nowrap; }
+  td code { font-size: .95em; overflow-wrap: anywhere; }
+  .flagpill {
+    display: inline-block; font-family: var(--mono); font-size: .82em;
+    border: 1px solid var(--rule); border-radius: 3px; padding: 0 .3em;
+    color: var(--muted); margin-right: .2em;
+  }
+  .flagpill.rw { color: var(--you); border-color: var(--you); }
+
+  /*  ---- doors: what a person is actually allowed to call ---- */
+  .doors { display: grid; gap: 0; }
+  .door {
+    display: grid; grid-template-columns: minmax(12rem, 18rem) 1fr; gap: 1rem;
+    padding: .7rem 1rem; border-bottom: 1px solid var(--rule); align-items: baseline;
+  }
+  .door:last-child { border-bottom: 0; }
+  .door .l { min-width: 0; overflow-wrap: anywhere; }
+  .door code { color: var(--you); font-weight: 600; }
+  .door .d { color: var(--muted); font-size: var(--t--1); }
+  @media (max-width: 640px) {
+    .door { grid-template-columns: 1fr; gap: .15rem; }
+  }
+  .tp-sub {
+    font-size: var(--t--1); text-transform: uppercase; letter-spacing: .1em;
+    font-weight: 700; color: var(--muted); padding: .7rem 1rem .2rem;
+    border-top: 1px solid var(--rule); background: var(--paper);
+  }
+  /*  __assets__ has no column table, so its "the doors" label sits
+      straight under the head: two rules with nothing between them.  */
+  .tp-head + .tp-sub { border-top: 0; }
+
+  /*  ---- the warning band: one per topic, in the reader's way ---- */
+  .keepout {
+    display: flex; gap: .7rem; align-items: flex-start;
+    padding: .8rem 1rem; background: var(--deny-bg); border-top: 1px solid var(--rule);
+    font-size: var(--t--1);
+  }
+  .keepout .mark {
+    font-family: var(--mono); font-weight: 700; color: var(--deny);
+    flex: 0 0 auto; white-space: nowrap;
+  }
+  /*  A nuance is not a warning: same band, the system's own colour.  */
+  .keepout.note { background: var(--sys-bg); }
+  .keepout.note .mark { color: var(--sys); }
+  .keepout code { background: transparent; padding: 0; }
+
+  pre.code {
+    font-family: var(--mono); font-size: var(--t--1); line-height: 1.65;
+    background: var(--raise); border: 1px solid var(--rule); border-radius: 5px;
+    padding: .9rem 1rem; overflow-x: auto; margin: 1.2rem 0; white-space: pre;
+  }
+  pre.code .c { color: var(--muted); }
+  pre.code .s { color: var(--you); }
+  pre.code .k { color: var(--sys); font-weight: 600; }
+
+  /*  ---- the tag walk ---- */
+  .tagwalk { margin: 1.6rem 0 2.2rem; display: grid; gap: .1rem; }
+  .tagrow {
+    display: grid; grid-template-columns: 7rem 1fr; gap: 1rem;
+    padding: .75rem 0; border-top: 1px solid var(--rule); align-items: baseline;
+  }
+  .tagrow:last-child { border-bottom: 1px solid var(--rule); }
+  .tagrow .when {
+    font-family: var(--mono); font-size: var(--t--1); color: var(--sys); font-weight: 700;
+  }
+  .tagrow .what b { font-weight: 640; }
+  .tagrow .what span { display: block; color: var(--muted); font-size: var(--t--1); line-height: 1.55; }
+  @media (max-width: 560px) {
+    .tagrow { grid-template-columns: 1fr; gap: .15rem; }
+  }
+
+  .footnote {
+    margin-top: 3.5rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+    font-size: var(--t--1); color: var(--muted); max-width: var(--measure);
+  }
+  .footnote a { color: var(--muted); }
+  .footnote a:hover { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <p class="kicker">Field guide &middot; TreeDB</p>
+  <h1>The topics a treedb keeps for itself.</h1>
+  <p class="standfirst">
+    Three topics you never declare, and must never write. Each one has a door,
+    and the door is the whole interface.
+  </p>
+
+  <div class="prose">
+    <p>
+      Open any treedb and it will already contain topics you did not put in the
+      schema. Their names start with a double underscore, they are marked
+      <code>system_topic</code>, and <code>delete-topic</code> refuses them by
+      name. They are the store's own machinery: the ledger of its snapshots, the
+      drawing of its graph, the index of its bytes.
+    </p>
+    <p>
+      <b>A system topic is not a topic you write.</b> The system owns it, keeps
+      it consistent with things that live outside it &mdash; a flag inside every
+      record's metadata, a file on disk, a schema in another treedb &mdash; and
+      opens a <em>door</em> onto it: a command, a Save button, the write path of a
+      column. Reaching past the door with <code>create-node</code>,
+      <code>update-node</code> or <code>delete-node</code> on the topic itself is
+      not using the treedb. It is hacking it, and what breaks is not the row you
+      edited.
+    </p>
+  </div>
+
+  <div class="doorfig">
+    <svg viewBox="0 0 760 260" role="img"
+         aria-label="A diagram: the user calls commands, the commands are the doors, and only the system writes the three system topics, each of which is kept consistent with something outside it.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arx" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--deny)"/>
+        </marker>
+      </defs>
+
+      <!-- columns -->
+      <text x="86" y="26" fill="var(--muted)" font-size="11" font-family="var(--sans)"
+            font-weight="700" letter-spacing="1.4" text-anchor="middle">YOU</text>
+      <text x="300" y="26" fill="var(--muted)" font-size="11" font-family="var(--sans)"
+            font-weight="700" letter-spacing="1.4" text-anchor="middle">THE DOOR</text>
+      <text x="540" y="26" fill="var(--muted)" font-size="11" font-family="var(--sans)"
+            font-weight="700" letter-spacing="1.4" text-anchor="middle">THE TOPIC</text>
+      <text x="700" y="26" fill="var(--muted)" font-size="11" font-family="var(--sans)"
+            font-weight="700" letter-spacing="1.4" text-anchor="middle">AND ALSO</text>
+
+      <!-- caller -->
+      <rect x="26" y="96" width="120" height="46" rx="4"
+            fill="var(--you-bg)" stroke="var(--you)"/>
+      <text x="86" y="118" fill="var(--ink)" font-size="12.5" font-family="var(--sans)"
+            text-anchor="middle">operator, GUI,</text>
+      <text x="86" y="134" fill="var(--ink)" font-size="12.5" font-family="var(--sans)"
+            text-anchor="middle">another yuno</text>
+
+      <!-- doors -->
+      <g font-family="var(--mono)" font-size="12">
+        <rect x="196" y="48" width="208" height="36" rx="4" fill="var(--raise)" stroke="var(--you)"/>
+        <text x="300" y="71" fill="var(--you)" text-anchor="middle">shoot-snap / activate-snap</text>
+
+        <rect x="196" y="101" width="208" height="36" rx="4" fill="var(--raise)" stroke="var(--you)"/>
+        <text x="300" y="124" fill="var(--you)" text-anchor="middle">the graph's Save</text>
+
+        <rect x="196" y="154" width="208" height="36" rx="4" fill="var(--raise)" stroke="var(--you)"/>
+        <text x="300" y="177" fill="var(--you)" text-anchor="middle">create/update-node</text>
+        <text x="300" y="205" fill="var(--muted)" font-family="var(--sans)" font-size="11"
+              text-anchor="middle">on YOUR topic, with a file column</text>
+      </g>
+
+      <!-- topics -->
+      <g font-family="var(--mono)" font-size="12.5" font-weight="700">
+        <rect x="456" y="48" width="168" height="36" rx="4" fill="var(--sys-bg)" stroke="var(--sys)"/>
+        <text x="540" y="71" fill="var(--sys)" text-anchor="middle">__snaps__</text>
+
+        <rect x="456" y="101" width="168" height="36" rx="4" fill="var(--sys-bg)" stroke="var(--sys)"/>
+        <text x="540" y="124" fill="var(--sys)" text-anchor="middle">__graphs__</text>
+
+        <rect x="456" y="154" width="168" height="36" rx="4" fill="var(--sys-bg)" stroke="var(--sys)"/>
+        <text x="540" y="177" fill="var(--sys)" text-anchor="middle">__assets__</text>
+      </g>
+
+      <!-- the outside thing each one is tied to -->
+      <g font-family="var(--sans)" font-size="11" fill="var(--muted)">
+        <text x="700" y="62" text-anchor="middle">a tag inside</text>
+        <text x="700" y="76" text-anchor="middle">every record</text>
+        <text x="700" y="115" text-anchor="middle">nothing —</text>
+        <text x="700" y="129" text-anchor="middle">it is the drawing</text>
+        <text x="700" y="168" text-anchor="middle">bytes in</text>
+        <text x="700" y="182" text-anchor="middle">.blobs/</text>
+      </g>
+
+      <!-- arrows: you -> doors -->
+      <g stroke="var(--you)" fill="none" stroke-width="1.3" color="var(--you)">
+        <path d="M 146 112 C 172 112 172 66 190 66" marker-end="url(#ar)"/>
+        <path d="M 146 119 L 190 119" marker-end="url(#ar)"/>
+        <path d="M 146 126 C 172 126 172 172 190 172" marker-end="url(#ar)"/>
+      </g>
+      <!-- arrows: doors -> topics -->
+      <g stroke="var(--sys)" fill="none" stroke-width="1.3" color="var(--sys)">
+        <path d="M 404 66 L 450 66" marker-end="url(#ar)"/>
+        <path d="M 404 119 L 450 119" marker-end="url(#ar)"/>
+        <path d="M 404 172 L 450 172" marker-end="url(#ar)"/>
+      </g>
+      <!-- arrows: topics -> outside -->
+      <g stroke="var(--muted)" fill="none" stroke-width="1.1" stroke-dasharray="3 3" color="var(--muted)">
+        <path d="M 624 66 L 654 66" marker-end="url(#ar)"/>
+        <path d="M 624 172 L 654 172" marker-end="url(#ar)"/>
+      </g>
+
+      <!-- the forbidden shortcut -->
+      <path d="M 86 150 C 86 232 300 240 452 200" fill="none"
+            stroke="var(--deny)" stroke-width="1.4" stroke-dasharray="5 4"
+            marker-end="url(#arx)"/>
+      <g transform="translate(258 236)">
+        <text x="0" y="0" fill="var(--deny)" font-size="11.5" font-family="var(--sans)"
+              font-weight="700" text-anchor="middle">update-node on a system topic</text>
+      </g>
+      <g stroke="var(--deny)" stroke-width="2" transform="translate(196 216)">
+        <path d="M -6 -6 L 6 6 M 6 -6 L -6 6"/>
+      </g>
+    </svg>
+    <p class="figcap">
+      Every system topic is the visible half of something. Write the visible half
+      by hand and the other half does not follow: the tag stays on the records,
+      the bytes stay on disk, and the store is now telling two different stories.
+    </p>
+  </div>
+
+  <h2><span class="mono">__snaps__</span> &mdash; the ledger of snapshots</h2>
+
+  <div class="prose">
+    <p>
+      A snapshot in a treedb is not a copy of anything. It is a
+      <b>number stamped into the records themselves</b> &mdash; and
+      <code>__snaps__</code> is the ledger that says which number means what.
+    </p>
+  </div>
+
+  <div class="topicpanel">
+    <div class="tp-head">
+      <span class="tp-name">__snaps__</span>
+      <span class="tp-what">one row per snapshot &mdash; the row's <code>id</code> IS the tag</span>
+      <span class="tp-ver">topic_version 3</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Column</th><th>Flags</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="w"><code>id</code></td>
+            <td class="w"><span class="flagpill">rowid</span></td>
+            <td>Assigned by the store, and it is the <b>tag</b>. It rides the
+                <code>user_flag</code> of every record the snapshot froze &mdash; one
+                <code>uint16_t</code> per record instance, so ids stop at
+                <code>0xFFFE</code> and <code>0</code> means &ldquo;no snapshot&rdquo;.</td>
+          </tr>
+          <tr><td class="w"><code>name</code></td><td class="w"><span class="flagpill">required</span></td>
+              <td>What you called it. Shooting a second snapshot under a name already
+                  in the ledger is refused.</td></tr>
+          <tr><td class="w"><code>date</code></td><td class="w"><span class="flagpill">required</span></td>
+              <td>UTC, as a <em>string</em> &mdash; <code>05 Sep 2026 17:04:11 +0000</code>. It is
+                  a label to read, not a field to sort on.</td></tr>
+          <tr><td class="w"><code>active</code></td><td class="w"><span class="flagpill">required</span></td>
+              <td>The one bit that matters at run time: which snapshot the treedb
+                  <b>loads at its next open</b>. At most one row carries it.</td></tr>
+          <tr><td class="w"><code>description</code></td><td class="w"></td>
+              <td>Why you shot it. The only part a person writes, and they write it
+                  as an argument to <code>shoot-snap</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="tp-sub">The doors</p>
+    <div class="doors">
+      <div class="door">
+        <span class="l"><code>shoot-snap name=&lt;n&gt;</code></span>
+        <span class="d">Adds the row, then stamps its id on the current record of every
+        topic. Idempotent by name: an existing name is refused, not overwritten.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>activate-snap name=&lt;n&gt;</code></span>
+        <span class="d">Moves the <code>active</code> bit. It changes what the treedb will
+        <em>load</em>, so it takes effect on the next open &mdash; which is why the agent, whose
+        own snapshots work the same way, ends its version by restarting what is running.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>deactivate-snap</code></span>
+        <span class="d">Clears the bit (<code>activate-snap name=__clear__</code> in the API):
+        back to the live tree.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>snaps</code></span>
+        <span class="d">Reads the ledger. The only door that is safe to hold open.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>snap-content [topic_name=&lt;t&gt;]</code></span>
+        <span class="d">What a given snapshot actually holds, by topic. Takes the snap by
+        <code>name</code> or by <code>snap_id</code>.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>delete-node</code> on a snap row</span>
+        <span class="d">The one hand-written call the design intends: there is no
+        <code>delete-snap</code>. Dropping the row is how a snapshot is discarded, and it
+        is what frees the assets only that snapshot was holding.</span>
+      </div>
+    </div>
+
+    <div class="keepout">
+      <span class="mark">keep out</span>
+      <span>Do not write <code>active</code> yourself, and never edit an <code>id</code>.
+      The bit and the tag are two halves of one fact: the ledger says
+      <em>&ldquo;tag 7 is the snapshot called <code>pre-upgrade</code>&rdquo;</em> and thousands
+      of records carry the 7. Renumber the ledger and every one of those records now
+      names a snapshot that does not exist.</span>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      The mechanism is worth following once, because it explains both the
+      <code>uint16_t</code> and the reload.
+    </p>
+  </div>
+
+  <div class="tagwalk">
+    <div class="tagrow">
+      <span class="when">shoot</span>
+      <span class="what"><b>The row is written first, to get an id.</b>
+        <span>The id is the tag, so the ledger entry has to exist before anything can
+        be stamped with it.</span></span>
+    </div>
+    <div class="tagrow">
+      <span class="when">stamp</span>
+      <span class="what"><b>Every current record of every topic takes the tag.</b>
+        <span>In place when the record carries no tag yet &mdash; no extra storage, nothing
+        copied. Topics whose name starts with <code>__</code> are skipped: the machinery
+        is not part of the picture it takes.</span></span>
+    </div>
+    <div class="tagrow">
+      <span class="when">clone</span>
+      <span class="what"><b>A record already tagged by an older snapshot is appended again.</b>
+        <span>One instance carries exactly one <code>user_flag</code>, so a second snapshot
+        cannot share it: a clone is appended with the new tag and the original keeps the
+        old one. This is the only case where a snapshot costs storage &mdash; and it is why
+        the older snapshot still loads.</span></span>
+    </div>
+    <div class="tagrow">
+      <span class="when">activate</span>
+      <span class="what"><b>The <code>active</code> bit moves; nothing else happens yet.</b>
+        <span>The tag is a filter applied when the treedb <em>loads</em> its topics
+        (<code>user_flag == tag</code>, newest instance per key). A running treedb has
+        already loaded.</span></span>
+    </div>
+    <div class="tagrow">
+      <span class="when">reload</span>
+      <span class="what"><b>On the next open the store is the snapshot.</b>
+        <span>Writes from there inherit the tag, so the snapshot moves forward with you
+        until you clear it.</span></span>
+    </div>
+  </div>
+
+  <h2><span class="mono">__graphs__</span> &mdash; where the drawing is kept</h2>
+
+  <div class="prose">
+    <p>
+      Every treedb is a graph: topics are nodes and <code>hook</code>/<code>fkey</code>
+      columns are edges. That much is derived from the schema and needs no storage.
+      What <em>cannot</em> be derived is where a person decided each card should sit &mdash;
+      and that is all <code>__graphs__</code> holds.
+    </p>
+  </div>
+
+  <div class="topicpanel">
+    <div class="tp-head">
+      <span class="tp-name">__graphs__</span>
+      <span class="tp-what">one row per topic drawn &mdash; the layout, not the graph</span>
+      <span class="tp-ver">topic_version 12</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Column</th><th>Flags</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr><td class="w"><code>id</code></td><td class="w"><span class="flagpill">rowid</span></td>
+              <td>In practice the name of the topic being drawn: the writer sends it, so
+                  a second Save updates the same row instead of adding one.</td></tr>
+          <tr><td class="w"><code>topic</code></td>
+              <td class="w"><span class="flagpill">required</span><span class="flagpill rw">writable</span></td>
+              <td>Which topic this layout belongs to. What the reader indexes by.</td></tr>
+          <tr><td class="w"><code>active</code></td><td class="w"><span class="flagpill rw">writable</span></td>
+              <td>Whether the layout is <b>applied</b>. A row that is not active is kept and
+                  ignored &mdash; which is how a saved arrangement survives a spell of
+                  automatic layout.</td></tr>
+          <tr><td class="w"><code>time</code></td>
+              <td class="w"><span class="flagpill">time</span><span class="flagpill rw">writable</span></td>
+              <td>When it was saved.</td></tr>
+          <tr><td class="w"><code>properties</code> <span class="flagpill">blob</span></td>
+              <td class="w"><span class="flagpill rw">writable</span></td>
+              <td>The drawing itself: <code>nodes</code> keyed by node id with their
+                  <code>x</code>, <code>y</code> and size, <code>edges</code> with their
+                  styles, and <code>__origin__</code> &mdash; the <code>node_uuid</code> of the
+                  machine whose user arranged it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="tp-sub">The doors</p>
+    <div class="doors">
+      <div class="door">
+        <span class="l">the graph's <b>Save</b></span>
+        <span class="d">In edition mode, in any treedb graph. One write per topic, not one
+        per node, and it creates the row if there is none.</span>
+      </div>
+      <div class="door">
+        <span class="l">the layout selector</span>
+        <span class="d"><code>manual</code> reads these rows back; <code>dagre</code> ignores
+        them and re-arranges on every load. Choosing <code>manual</code> is what makes a Save
+        mean anything.</span>
+      </div>
+    </div>
+
+    <div class="keepout note">
+      <span class="mark">the exception</span>
+      <span>This is the one system topic whose door <em>is</em> the raw call: Save sends an
+      ordinary <code>update-node</code> on <code>__graphs__</code>, with <code>create</code>
+      set. It can afford to, because it is the one with nothing on the other side to keep
+      in step &mdash; no tag in the records, no bytes on disk. Writing it by hand still gains
+      you nothing, and can lose you something: <code>__graphs__</code> is deliberately
+      excluded from the topics a graph draws, so a row for a topic that is not there is a
+      card of nothing.</span>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      It is the only system topic with no other half. Delete every row and you lose
+      an arrangement, not a fact &mdash; the graph comes back laid out automatically,
+      and somebody drags it into shape again.
+    </p>
+  </div>
+
+<pre class="code"><span class="c">/*  what one Save writes -- one row, all of a topic's cards  */</span>
+{
+    <span class="s">"id"</span>: <span class="s">"devices"</span>,
+    <span class="s">"topic"</span>: <span class="s">"devices"</span>,
+    <span class="s">"active"</span>: true,
+    <span class="s">"properties"</span>: {
+        <span class="k">"nodes"</span>: { <span class="s">"dev-0417"</span>: {<span class="s">"x"</span>: 240, <span class="s">"y"</span>: 96, <span class="s">"size"</span>: [180, 60]}, … },
+        <span class="k">"edges"</span>: { … },
+        <span class="k">"__origin__"</span>: <span class="s">"a4f1…"</span>   <span class="c">// the node_uuid that arranged it</span>
+    }
+}</pre>
+
+  <h2><span class="mono">__assets__</span> &mdash; the index of the bytes</h2>
+
+  <div class="prose">
+    <p>
+      The third one, added in 7.18.0, is the index of the files a
+      <code>file</code> column points at: one row per <em>content</em>, keyed by the
+      sha256 of the bytes, with the bytes themselves in <code>.blobs/</code> beside
+      the treedb. Its hooks are not declared either &mdash; they are derived from the
+      <code>file</code> columns of your own topics.
+    </p>
+    <p>
+      It has the strictest door of the three, because it is the one with real bytes
+      on the other side: <b>you never write it at all</b>. You write <em>your</em>
+      topic, handing the file over in the same message, and the write path does the
+      rest. There is a whole page on that one:
+      <a href="/treedb-files">the life of a file in a treedb</a>.
+    </p>
+  </div>
+
+  <div class="topicpanel">
+    <div class="tp-head">
+      <span class="tp-name">__assets__</span>
+      <span class="tp-what">one row per content &mdash; the bytes are in <code>.blobs/</code></span>
+      <span class="tp-ver">topic_version 1</span>
+    </div>
+    <p class="tp-sub">The doors</p>
+    <div class="doors">
+      <div class="door">
+        <span class="l"><code>create-node</code> / <code>update-node</code></span>
+        <span class="d">On <b>your</b> topic, with the file beside the record. The write path
+        stores the bytes, writes the row and links the column itself.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>import-assets</code></span>
+        <span class="d">A whole directory the node already has. Not one byte crosses the
+        network.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>get-asset</code></span>
+        <span class="d">Reads one back: a signed URL where the service can sign, the bytes
+        inline where it cannot.</span>
+      </div>
+      <div class="door">
+        <span class="l"><code>gc-assets</code></span>
+        <span class="d">Takes what no live node and no snapshot holds &mdash; and the bytes no
+        row names. Run it with <code>dry_run=1</code> first.</span>
+      </div>
+    </div>
+
+    <div class="keepout">
+      <span class="mark">keep out</span>
+      <span>An <code>__assets__</code> row and its blob are one object in two places, and
+      only the write path keeps them together. A row written by hand names bytes that are
+      not there; a row deleted by hand can take bytes another treedb of the same tranger is
+      still using &mdash; which is exactly why <code>delete-node</code> on an asset runs the
+      collector's own guards, and why <code>force</code> overrides none of them.</span>
+    </div>
+  </div>
+
+  <h2>Three rules that hold for all of them</h2>
+
+  <div class="prose">
+    <ul>
+      <li>
+        <b>You never declare them and you never version them.</b> They are created by
+        <code>treedb_open_db()</code> on every open, with their own
+        <code>topic_version</code> that belongs to the framework. Your
+        <code>schema_version</code> has nothing to say about them.
+      </li>
+      <li>
+        <b><code>delete-topic</code> refuses them.</b> They carry
+        <code>system_topic: true</code>, persisted with the topic and tested before
+        anything is removed. That is a guard, not a suggestion.
+      </li>
+      <li>
+        <b>The <code>__</code> prefix is load-bearing.</b> It is what
+        <code>shoot-snap</code> tests to skip a topic, so the machinery is never part of
+        the picture it takes. Do not name a topic of your own that way &mdash; and do not
+        confuse these with <code>__system__</code>, which is not a topic at all but a
+        separate treedb, the one that holds every treedb's schema as data.
+      </li>
+    </ul>
+  </div>
+
+  <div class="prose footnote">
+    <p>
+      Source: <code>kernel/c/timeranger2/src/tr_treedb.c</code> &mdash;
+      <code>treedb_open_db()</code> creates both topics inline,
+      <code>treedb_shoot_snap()</code> and <code>treedb_activate_snap()</code> are the
+      snapshot mechanism, and <code>treedb_delete_topic()</code> holds the
+      <code>system_topic</code> guard. The only writer of <code>__graphs__</code> is
+      <code>kernel/js/gobj-ui/src/c_g6_nodes_tree.js</code>.
+      Companion page: <a href="/treedb-files">the life of a file in a treedb</a>.
+    </p>
+  </div>
+
+</div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "myst:theme";
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+  }
+  document.getElementById("theme-toggle").addEventListener("click", function () {
+    var now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(now);
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /*  a private window forbids it; the page still works  */
+    }
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+    var stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+}());
+</script>
+</body>
+</html>

@@ -1173,6 +1173,17 @@ h1.hero-title {
                 <span class="run-go">open &rarr;</span>
             </a>
 
+            <a class="run-card" href="/treedb-files">
+                <span class="run-kick">&#9654;&ensp;Interactive</span>
+                <span class="run-t">The life of a file in a treedb</span>
+                <span class="run-d">A photo cannot be a field of a node, so it becomes an
+                address &mdash; and the address is the sha256 of the photo. Step one write
+                through: the size read off the base64 before the decode, the type read off
+                the bytes, the blob written before the row it is indexed by. Then make it
+                fail, and see what a refusal leaves behind.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
             <!-- next walkthrough goes here -->
         </div>
     </section>
@@ -1209,6 +1220,16 @@ h1.hero-title {
                 <span class="run-d">Navigation in a gobj-ui app comes down to one decision:
                 where the reader's position lives. The url, the node tree and the pager's
                 stack — and where <code>nav_mode</code> actually fits.</span>
+                <span class="run-go">open &rarr;</span>
+            </a>
+
+            <a class="ref-card" href="/treedb-system-topics">
+                <span class="run-kick">Reference</span>
+                <span class="run-t">The topics a treedb keeps for itself</span>
+                <span class="run-d">Every treedb opens with three topics you never declared:
+                <code>__snaps__</code>, <code>__graphs__</code> and <code>__assets__</code>.
+                What each one holds, the door the system opens it through, and why writing
+                one by hand is not using the store but hacking it.</span>
                 <span class="run-go">open &rarr;</span>
             </a>
 
@@ -1503,6 +1524,8 @@ h1.hero-title {
                     <li><a href="/guide-yev-loop">The event loop</a></li>
                     <li><a href="/guide-timeranger2">timeranger2</a></li>
                     <li><a href="/yuno-treedb">TreeDB</a></li>
+                    <li><a href="/treedb-files">The life of a file in a treedb &nbsp;&#9656;</a></li>
+                    <li><a href="/treedb-system-topics">The topics a treedb keeps for itself &nbsp;&#9656;</a></li>
                     <li><a href="/guide-tls">TLS</a></li>
                     <li><a href="/guide-oauth2-pkce-bff">OAuth2 / PKCE BFF</a></li>
                 </ul>

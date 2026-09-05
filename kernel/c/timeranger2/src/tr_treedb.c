@@ -6033,8 +6033,12 @@ PRIVATE int delete_node(
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
+        /*
+         *  The node is left as it was, still indexed: it is the index's
+         *  own reference, never the caller's, and this refusal used to
+         *  release it. Same convention as the guards below.
+         */
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
         return -1;
     }
 
@@ -6502,8 +6506,12 @@ PUBLIC int treedb_delete_instance(
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
+        /*
+         *  The node is left as it was, still indexed: it is the index's
+         *  own reference, never the caller's, and this refusal used to
+         *  release it. Same convention as the guards below.
+         */
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
         return -1;
     }
 

@@ -275,8 +275,8 @@ echo "pwa manifest, icons and service worker installed at /pwa (cache ${SW_VERSI
 #   slug to the right list below, and card it in the matching band.  The
 #   check after the loop enforces that last step, per band.
 #
-WALKTHROUGHS="login-flow three-layers"
-REFERENCES="package-transition navigation"
+WALKTHROUGHS="login-flow three-layers treedb-files"
+REFERENCES="package-transition navigation treedb-system-topics"
 ESSAYS="high-semantics"
 
 for _walkthrough in ${WALKTHROUGHS} ${REFERENCES} ${ESSAYS}; do

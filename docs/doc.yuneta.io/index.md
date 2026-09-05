@@ -10,7 +10,7 @@ title: Yuneta Simplified
 
 ## *An Asynchronous Development Framework*
 
-**Current version: [7.18.1](https://github.com/artgins/yunetas/tree/7.18.1)**
+**Current version: [7.18.2](https://github.com/artgins/yunetas/tree/7.18.2)**
 
 *Documentation updated: 2026-09-05*
 :::
@@ -115,6 +115,21 @@ events on the edges. Five scenarios.
 
 Not a diagram of the UI library, the library itself, in your browser. Open
 it on a phone too: the layouts change per breakpoint.
+:::
+
+:::{card} Interactive — The life of a file in a treedb
+:link: /treedb-files
+
+A photo cannot be a field of a node, so it becomes an address — and the address
+is the sha256 of the photo. One write, step by step, and every way it can be
+refused.
+:::
+
+:::{card} Field guide — The topics a treedb keeps for itself
+:link: /treedb-system-topics
+
+`__snaps__`, `__graphs__` and `__assets__`: what each one holds, the door the
+system opens it through, and why writing one by hand is hacking the store.
 :::
 
 :::{card} Field guide — Getting back

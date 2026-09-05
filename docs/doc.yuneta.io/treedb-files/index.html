@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How a file column works in a treedb: the bytes on disk under their own sha256, the __assets__ row that indexes them, the hook derived from the column itself, and what the collector keeps.">
+
+<!--
+    The life of a file in a treedb.
+
+    A standalone document (no external requests) served at /treedb-files,
+    installed by deploy.sh the same way as /three-layers and /login-flow:
+    myst copies no raw files, so the build output gets it from there.
+
+    Nothing here is invented. The manifest keys, the refusal order, the
+    blob path, the derived hook name and the __assets__ columns are read
+    off kernel/c/timeranger2/src/tr_treedb.c (treedb_store_files,
+    store_file_bytes, treedb_blob_path, derive_file_hooks,
+    create_assets_topic). The fixture is a real 16x16 PNG: its bytes are
+    the data: URI below, and its sha256 really is the id the page shows,
+    which a reader can check with sha256sum.
+
+    The point the page has to land: the id IS the content, so everything
+    else follows -- one blob per content, a url that can be cached for
+    ever, an "edit" that is a new blob plus a re-pointed link, and a
+    history that says every name the file arrived under.
+
+    Also published as an artifact on claude.ai, built from THIS file
+    by build_artifact.py (`python3 build_artifact.py treedb-files`).
+    Republish to the same url or the old link rots:
+    https://claude.ai/code/artifact/0e936c2d-ea01-4e1a-a530-3e803233f5fb
+-->
+<script>
+(function () {
+    "use strict";
+
+    var stored = null;
+    try {
+        stored = localStorage.getItem("myst:theme");
+    } catch (e) {
+        stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+        stored = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+}());
+</script>
+
+<title>The life of a file in a treedb</title>
+
+<link rel="icon" href="/favicon.ico">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/pwa/icon-192.png">
+<script src="/pwa/register-sw.js" defer></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /*  Light is the base set: every token is declared here, so the page
+      never renders half a theme in the un-stamped state.  */
+  :root, :root[data-theme="light"] {
+    --paper:  #EFF2F1;
+    --raise:  #FAFBFA;
+    --sunk:   #E2E8E5;
+    --ink:    #141918;
+    --muted:  #58635F;
+    --rule:   #CCD5D1;
+    --bytes:  #0B6E5F;   /* the content-addressed half: disk           */
+    --index:  #3D4EA8;   /* the indexed half: memory                   */
+    --deny:   #9F2B30;
+    --bytes-bg: #DFEDE9;
+    --index-bg: #E3E7F8;
+    --deny-bg:  #F6E4E4;
+    --shadow: 0 1px 2px rgba(20,25,24,.05), 0 12px 30px -24px rgba(20,25,24,.6);
+  }
+  :root[data-theme="dark"] {
+    --paper:  #0C100F;
+    --raise:  #141918;
+    --sunk:   #080B0A;
+    --ink:    #E2E9E6;
+    --muted:  #8B9793;
+    --rule:   #212927;
+    --bytes:  #3FC3A9;
+    --index:  #8B99F0;
+    --deny:   #E8767C;
+    --bytes-bg: #0E2420;
+    --index-bg: #161B33;
+    --deny-bg:  #2A1416;
+    --shadow: 0 1px 2px rgba(0,0,0,.55), 0 12px 30px -24px rgba(0,0,0,1);
+  }
+
+  :root {
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --measure: 66ch;
+    --t--1: clamp(.75rem, .73rem + .1vw, .81rem);
+    --t-0:  clamp(.95rem, .92rem + .14vw, 1.03rem);
+    --t-1:  clamp(1.12rem, 1.06rem + .3vw, 1.3rem);
+    --t-2:  clamp(1.35rem, 1.2rem + .7vw, 1.72rem);
+    --t-3:  clamp(1.85rem, 1.5rem + 1.7vw, 2.9rem);
+  }
+
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--t-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*  ---- chrome ---- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .55rem clamp(1rem, 4vw, 2.5rem);
+    border-bottom: 1px solid var(--rule); background: var(--raise);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar a {
+    color: var(--muted); text-decoration: none; font-size: var(--t--1);
+    letter-spacing: .02em;
+  }
+  .topbar a:hover { color: var(--ink); }
+  .theme-toggle {
+    border: 1px solid var(--rule); border-radius: 3px; padding: .28rem .4rem;
+    background: var(--paper); color: var(--muted); cursor: pointer;
+    display: inline-flex; line-height: 0;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+  .theme-toggle svg { width: 16px; height: 16px; }
+  :root[data-theme="dark"] .icon-sun { display: none; }
+  :root[data-theme="light"] .icon-moon { display: none; }
+  :focus-visible { outline: 2px solid var(--bytes); outline-offset: 2px; }
+
+  main { padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 2.5rem) 5rem; }
+  .wrap { max-width: 62rem; margin: 0 auto; }
+  .prose { max-width: var(--measure); }
+  .prose p, .prose ul, .prose ol { margin: 0 0 1.05em; }
+  .prose li { margin-bottom: .35em; }
+
+  .kicker {
+    font-size: var(--t--1); text-transform: uppercase; letter-spacing: .14em;
+    color: var(--bytes); font-weight: 600; margin: 0 0 .7rem;
+  }
+  h1 {
+    font-size: var(--t-3); line-height: 1.04; letter-spacing: -.025em;
+    font-weight: 700; margin: 0 0 .8rem; max-width: 18ch; text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--serif); font-size: var(--t-1); line-height: 1.5;
+    color: var(--muted); max-width: 44ch; margin: 0 0 2.6rem;
+  }
+  h2 {
+    font-size: var(--t-2); letter-spacing: -.02em; font-weight: 680;
+    margin: 3.2rem 0 .9rem; text-wrap: balance; max-width: 24ch;
+  }
+  h3 {
+    font-size: var(--t-1); font-weight: 640; margin: 2rem 0 .5rem;
+    letter-spacing: -.01em;
+  }
+  code, kbd, samp { font-family: var(--mono); font-size: .88em; }
+  .prose code {
+    background: var(--sunk); padding: .1em .32em; border-radius: 2px;
+    overflow-wrap: anywhere;
+  }
+  a { color: var(--bytes); text-underline-offset: 2px; }
+
+  /*  ---- panels: instruments, not cards ----
+      Only the two that carry live state get the raised treatment; the
+      rest are set off with a rule, so the hierarchy still reads. */
+  .panel {
+    margin: 2rem 0 2.4rem; border: 1px solid var(--rule); border-radius: 5px;
+    background: var(--raise); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    padding: .7rem 1rem; border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+  }
+  .panel-title { font-weight: 640; font-size: var(--t-0); letter-spacing: -.01em; }
+  .panel-note { font-size: var(--t--1); color: var(--muted); }
+  .panel-body { padding: 1rem; }
+
+  /*  ---- the hash strip: the hero ---- */
+  .strip { display: grid; gap: 1.1rem; }
+  .strip-top {
+    display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
+  }
+  .fixture {
+    width: 72px; height: 72px; image-rendering: pixelated;
+    border: 1px solid var(--rule); border-radius: 3px; display: block;
+    background: var(--sunk);
+  }
+  .fixture-meta { font-size: var(--t--1); color: var(--muted); display: grid; gap: .2rem; }
+  .fixture-meta b { color: var(--ink); font-weight: 600; }
+  .hexline {
+    font-family: var(--mono); font-size: clamp(.62rem, .35rem + 1.1vw, .95rem);
+    letter-spacing: .04em; word-break: break-all; line-height: 1.8;
+    background: var(--sunk); border-radius: 4px; padding: .7rem .8rem;
+  }
+  .hexline .d1, .hexline .d2 {
+    padding: .12em .3em; border-radius: 3px; font-weight: 700;
+    color: var(--raise); background: var(--bytes);
+  }
+  .hexline .d2 { background: var(--index); }
+  .pathline {
+    font-family: var(--mono); font-size: var(--t--1); word-break: break-all;
+    color: var(--muted);
+  }
+  .pathline b { color: var(--ink); font-weight: 600; }
+  .pathline .d1 { color: var(--bytes); font-weight: 700; }
+  .pathline .d2 { color: var(--index); font-weight: 700; }
+
+  /*  ---- the stepper ---- */
+  .rail {
+    display: flex; gap: .3rem; flex-wrap: wrap; padding: .8rem 1rem;
+    border-bottom: 1px solid var(--rule); background: var(--paper);
+  }
+  .rail button {
+    font: inherit; font-size: var(--t--1); cursor: pointer;
+    border: 1px solid var(--rule); background: var(--raise); color: var(--muted);
+    border-radius: 3px; padding: .22rem .55rem; display: inline-flex;
+    align-items: center; gap: .38rem;
+  }
+  .rail button:hover { border-color: var(--muted); color: var(--ink); }
+  .rail button[aria-current="true"] {
+    background: var(--bytes); border-color: var(--bytes); color: var(--raise);
+    font-weight: 600;
+  }
+  .rail button .n {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    opacity: .75; font-size: .9em;
+  }
+  .rail button[aria-current="true"] .n { opacity: .9; }
+  .rail button.is-dead { opacity: .38; }
+
+  .controls {
+    display: flex; gap: .9rem; align-items: center; flex-wrap: wrap;
+    padding: .7rem 1rem; border-bottom: 1px solid var(--rule);
+  }
+  .controls .grp { display: flex; align-items: center; gap: .35rem; }
+  .controls label {
+    font-size: var(--t--1); color: var(--muted); text-transform: uppercase;
+    letter-spacing: .09em; font-weight: 600;
+  }
+  select, .navbtn {
+    font: inherit; font-size: var(--t--1); padding: .25rem .5rem;
+    border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--raise); color: var(--ink); cursor: pointer;
+  }
+  .navbtn:hover:not(:disabled) { border-color: var(--muted); }
+  .navbtn:disabled { opacity: .4; cursor: default; }
+  .spacer { flex: 1 1 auto; }
+
+  .stage { display: grid; grid-template-columns: 1fr 1fr; }
+  .stage > * { padding: 1rem; min-width: 0; }
+  .stage > :first-child { border-right: 1px solid var(--rule); }
+  @media (max-width: 760px) {
+    .stage { grid-template-columns: 1fr; }
+    .stage > :first-child { border-right: 0; border-bottom: 1px solid var(--rule); }
+  }
+  .pane-h {
+    font-size: var(--t--1); text-transform: uppercase; letter-spacing: .11em;
+    font-weight: 700; color: var(--muted); margin: 0 0 .6rem;
+  }
+  .pane-h .side { color: var(--bytes); }
+  .pane-h .side.mem { color: var(--index); }
+
+  pre.kw {
+    font-family: var(--mono); font-size: var(--t--1); line-height: 1.65;
+    background: var(--sunk); border-radius: 4px; padding: .7rem .8rem;
+    margin: 0; overflow-x: auto; white-space: pre;
+  }
+  pre.kw .hit { background: var(--bytes-bg); color: var(--ink); border-radius: 2px; }
+  pre.kw .gone { color: var(--muted); text-decoration: line-through; }
+  pre.kw .cmt { color: var(--muted); }
+
+  .storebox { display: grid; gap: .85rem; }
+  .sb {
+    border: 1px solid var(--rule); border-radius: 4px; overflow: hidden;
+  }
+  .sb-h {
+    font-size: var(--t--1); font-weight: 640; padding: .35rem .6rem;
+    background: var(--paper); border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; gap: .6rem;
+  }
+  .sb-h .tag {
+    font-family: var(--mono); font-weight: 500; color: var(--muted);
+  }
+  .sb-b {
+    padding: .55rem .6rem; font-family: var(--mono); font-size: var(--t--1);
+    line-height: 1.7; overflow-x: auto;
+  }
+  .sb-b .empty { font-family: var(--sans); color: var(--muted); font-style: italic; }
+  .sb.disk { border-left: 3px solid var(--bytes); }
+  .sb.mem  { border-left: 3px solid var(--index); }
+  .kvrow { display: flex; gap: .5rem; }
+  .kvrow .k { color: var(--muted); min-width: 11ch; }
+  .kvrow .v { overflow-wrap: anywhere; }
+  .fresh { background: var(--bytes-bg); border-radius: 2px; }
+
+  .verdict {
+    padding: .8rem 1rem; border-top: 1px solid var(--rule);
+    font-size: var(--t--1); display: flex; gap: .6rem; align-items: flex-start;
+  }
+  .verdict .mark {
+    font-family: var(--mono); font-weight: 700; flex: 0 0 auto;
+  }
+  .verdict.ok  { background: var(--bytes-bg); }
+  .verdict.ok .mark { color: var(--bytes); }
+  .verdict.no  { background: var(--deny-bg); }
+  .verdict.no .mark { color: var(--deny); }
+  .verdict code { background: transparent; padding: 0; }
+
+  /*  ---- code blocks ---- */
+  pre.code {
+    font-family: var(--mono); font-size: var(--t--1); line-height: 1.65;
+    background: var(--raise); border: 1px solid var(--rule); border-radius: 5px;
+    padding: .9rem 1rem; overflow-x: auto; margin: 1.2rem 0; white-space: pre;
+  }
+  pre.code .c { color: var(--muted); }
+  pre.code .s { color: var(--bytes); }
+  pre.code .k { color: var(--index); font-weight: 600; }
+
+  /*  ---- tables ---- */
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--t--1); }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    text-transform: uppercase; letter-spacing: .08em; font-size: .84em;
+    color: var(--muted); font-weight: 700; white-space: nowrap;
+  }
+  td code { font-size: .95em; overflow-wrap: anywhere; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.w { white-space: nowrap; }
+
+  /*  ---- the rules list ---- */
+  .rules { list-style: none; margin: 1.4rem 0 0; padding: 0; display: grid; gap: .1rem; }
+  .rules li {
+    padding: .8rem 0 .8rem 1.1rem; border-top: 1px solid var(--rule);
+    border-left: 3px solid var(--index); padding-left: 1rem;
+    max-width: var(--measure);
+  }
+  .rules li:last-child { border-bottom: 1px solid var(--rule); }
+  .rules b { display: block; font-weight: 650; margin-bottom: .1rem; }
+  .rules span { color: var(--muted); font-size: var(--t--1); line-height: 1.55; display: block; }
+
+  .footnote {
+    margin-top: 3.5rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+    font-size: var(--t--1); color: var(--muted); max-width: var(--measure);
+  }
+  .footnote a { color: var(--muted); }
+  .footnote a:hover { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="/">&larr; Yuneta documentation</a>
+  <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2.4v2.3M12 19.3v2.3M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.3M19.3 12h2.3M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>
+    </svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.4 14.3A8.6 8.6 0 0 1 9.7 3.6a8.6 8.6 0 1 0 10.7 10.7z"/>
+    </svg>
+  </button>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <p class="kicker">Walkthrough &middot; TreeDB</p>
+  <h1>The life of a file in a treedb.</h1>
+  <p class="standfirst">
+    A photo cannot be a field of a node. So it becomes an address &mdash; and the
+    address is the photo.
+  </p>
+
+  <div class="prose">
+    <p>
+      A treedb is held in memory in full, and timeranger2 rewrites the
+      <em>whole record</em> on every update. Put a photo in a column and every
+      change of that device &mdash; a state flag, a timestamp &mdash; rewrites the photo
+      with it, in base64, in the log and in RAM. Measured on one real census:
+      <b>12&nbsp;134 images, 346&nbsp;MB on disk</b>, which carried inside the records
+      would be some <b>460&nbsp;MB of RAM, permanently</b>, rewritten on every touch.
+    </p>
+    <p>
+      So the bytes live beside the treedb and the column holds an
+      <b>address</b>. What makes the design worth reading is which address:
+      the <b>sha256 of the content itself</b>. Everything below follows from that
+      one decision.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">The id is the content</span>
+      <span class="panel-note">a real fixture &mdash; check it with <code>sha256sum</code></span>
+    </div>
+    <div class="panel-body">
+      <div class="strip">
+        <div class="strip-top">
+          <img class="fixture" alt="The 16 by 16 PNG fixture used throughout this page"
+               src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAOUlEQVR42mPgzouHI/vDK+EIlzgDSaqBXAaSVEM1EK8apIEk1SgaiPQ9A0mqoRpIClmG0XgYFPEAAAzkQZDXKSxrAAAAAElFTkSuQmCC">
+          <div class="fixture-meta">
+            <span><b>foto.png</b> &mdash; 16&times;16, <b>114 bytes</b></span>
+            <span>declared <b>image/png</b>, and the bytes agree</span>
+            <span>uploaded by <b>operator@example.com</b></span>
+          </div>
+        </div>
+        <div class="hexline"><span class="d1">fc</span><span class="d2">1c</span>1152d120bf253e9efbd39b3d75c854a3d7a7e409671264f828e2b7feefd0</div>
+        <div class="pathline">
+          &lt;treedb dir&gt;/<b>.blobs</b>/<span class="d1">fc</span>/<span class="d2">1c</span>/<b>fc1c1152&hellip;feefd0.png</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      The first two hex digits are one directory, the next two another: two levels
+      of fan-out, because a flat directory of ten thousand files is a directory
+      nobody can look at. The name starts with a dot so no scan of the treedb
+      directory ever mistakes it for a topic. The extension comes from the stored
+      content type, and it is part of a path a web server serves.
+    </p>
+    <p>
+      Four consequences, and they are the whole argument:
+      the same bytes stored twice are <b>one</b> asset;
+      a URL for that asset can be cached <b>for ever</b>, because nothing can ever
+      change under it;
+      &ldquo;editing&rdquo; a photo is a <b>new blob and a re-pointed link</b>, so the
+      history of the node says which photo it had and when;
+      and two nodes sharing an image share the bytes without either of them knowing.
+    </p>
+  </div>
+
+  <h2>Declaring the column</h2>
+
+  <div class="prose">
+    <p>
+      One flag on one column, in the host topic's own schema. Nothing about
+      <code>__assets__</code> is declared anywhere &mdash; the topic is created by
+      every treedb at open, and its hooks are <em>derived</em> from the
+      <code>file</code> columns themselves.
+    </p>
+  </div>
+
+<pre class="code"><span class="c">/*  topic "devices", in the treedb schema  */</span>
+<span class="s">"foto"</span>: {
+    <span class="s">"header"</span>: <span class="s">"Photo"</span>,
+    <span class="s">"fillspace"</span>: 20,
+    <span class="s">"type"</span>: <span class="s">"string"</span>,          <span class="c">// one file per column, always a string</span>
+    <span class="s">"flag"</span>: [<span class="k">"fkey"</span>, <span class="k">"file"</span>, <span class="s">"writable"</span>, <span class="s">"persistent"</span>]
+}</pre>
+
+  <div class="prose">
+    <p>
+      All four words earn their place. <code>file</code> is what puts the column
+      on the write path. <code>fkey</code> is <b>mandatory</b> beside it &mdash; every
+      linking behaviour keys on that word &mdash; and so is the type
+      <code>string</code>: one file per column. A column that breaks either rule is
+      refused at <code>create-topic</code> and is a <em>critical</em> at open.
+      <code>writable</code> is the one people forget. It is not required &mdash; a column
+      that only a bulk load ever fills is legitimately without it &mdash; but a form
+      draws a column that lacks it read-only, so no person can ever put a file in it.
+      Since 7.18.0 the treedb warns when it derives the hook.
+    </p>
+    <p>
+      From that column alone the treedb derives, in memory, a reciprocal hook on
+      <code>__assets__</code>:
+    </p>
+  </div>
+
+<pre class="code">column   devices.foto          <span class="c">flag ["fkey","file",…]</span>
+hook     __assets__.<span class="k">as_devices_foto</span>  <span class="c">-&gt; {"devices": "foto"}</span>
+value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></pre>
+
+  <div class="prose">
+    <p>
+      The hook is named <code>as_&lt;topic&gt;_&lt;column&gt;</code> and it is never
+      persisted. A hook's <em>content</em> already lives only in memory &mdash;
+      linking saves the child's fkey and never the parent &mdash; so its
+      <em>declaration</em> lives in the same place. It is re-derived at every open
+      and on every live <code>create-topic</code> / <code>delete-topic</code>,
+      which is what keeps a topic added while the yuno runs from having a column
+      whose hook does not exist.
+    </p>
+  </div>
+
+  <h2>One write, step by step</h2>
+
+  <div class="prose">
+    <p>
+      Below is a single <code>create-node</code> on <code>devices</code>, carrying
+      the fixture above. The left pane is the <code>kw</code> &mdash; the record as it
+      arrived, <em>rewritten in place</em> as it goes. The right pane is what is on
+      disk and in memory after each step. Pick a door, or make the write fail, and
+      watch where it stops and what it leaves behind.
+    </p>
+  </div>
+
+  <div class="panel" id="stepper">
+    <div class="panel-head">
+      <span class="panel-title"><code>treedb_store_files()</code>, then the link</span>
+      <span class="panel-note" id="door-note"></span>
+    </div>
+
+    <div class="controls">
+      <div class="grp">
+        <label for="door">Door</label>
+        <select id="door">
+          <option value="content64">content64 &mdash; a browser</option>
+          <option value="gbuffer">gbuffer slice &mdash; a C caller</option>
+        </select>
+      </div>
+      <div class="grp">
+        <label for="fail">Outcome</label>
+        <select id="fail">
+          <option value="">it goes through</option>
+          <option value="size">refused: over max_size</option>
+          <option value="b64">refused: bad base64</option>
+          <option value="sniff">refused: type does not match the bytes</option>
+          <option value="allow">refused: type not allowed</option>
+          <option value="claim">refused: the id does not match the bytes</option>
+        </select>
+      </div>
+      <span class="spacer"></span>
+      <button type="button" class="navbtn" id="prev">&larr; back</button>
+      <button type="button" class="navbtn" id="next">forward &rarr;</button>
+    </div>
+
+    <div class="rail" id="rail"></div>
+
+    <div class="stage">
+      <div>
+        <p class="pane-h">The <span class="side mem">kw</span>, rewritten in place</p>
+        <pre class="kw" id="kwpane"></pre>
+      </div>
+      <div>
+        <p class="pane-h">The <span class="side">store</span></p>
+        <div class="storebox" id="storepane"></div>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <div class="prose">
+    <p>
+      Two things in that sequence are deliberate and easy to get backwards.
+    </p>
+    <p>
+      <b>The size is checked on the base64, before the decode.</b> A check after
+      the decode has already spent exactly what it was defending. The ceiling is
+      128&nbsp;MB per treedb by default; a column may lower it in its own
+      <code>properties</code>, and never raise it.
+    </p>
+    <p>
+      <b>The blob goes down before the index row.</b> That order can leave bytes
+      that no row names &mdash; and that is the good failure. The other order leaves a
+      row pointing at nothing, which nothing repairs, ever. Bytes nobody names are
+      what the collector is for.
+    </p>
+  </div>
+
+  <h2>The row that indexes it</h2>
+
+  <div class="prose">
+    <p>
+      <code>__assets__</code> is a system topic: every treedb creates it at open,
+      nobody declares it, and it is written by the write path, not by hand.
+      Six columns, and exactly one of them is writable.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title"><code>__assets__</code></span>
+      <span class="panel-note">the index in memory, the bytes in <code>.blobs/</code></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Column</th><th>Type</th><th>What it holds</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="w"><code>id</code></td><td class="w">string</td>
+            <td>The lowercase sha256 of the bytes. Required, and it <em>is</em> the file.</td>
+          </tr>
+          <tr>
+            <td class="w"><code>content_type</code></td><td class="w">string</td>
+            <td>Read from the bytes, and fixed by the <b>first</b> arrival for ever &mdash; the
+                extension is part of the served path, and the URL is cached for ever, so the
+                name cannot move under it. One container can be two legal types
+                (<code>video/mp4</code> and <code>audio/mp4</code> for the same bytes), which
+                would land on two blobs for one row.</td>
+          </tr>
+          <tr>
+            <td class="w"><code>size</code></td><td class="w">integer</td>
+            <td>Bytes, as counted after decoding.</td>
+          </tr>
+          <tr>
+            <td class="w"><code>t</code></td><td class="w">integer</td>
+            <td>When the row was written. Set by the treedb.</td>
+          </tr>
+          <tr>
+            <td class="w"><code>original_name</code></td><td class="w">string</td>
+            <td><b>The only writable column.</b> A second arrival is an update of this node,
+                so the history of the row is every name the file has arrived under &mdash; the
+                list of paths that a <code>source_path</code> column could never be.
+                A manifest with no name says nothing and leaves the stored one alone;
+                a manifest with the name <em>already</em> stored says nothing new, and appends
+                nothing.</td>
+          </tr>
+          <tr>
+            <td class="w"><code>uploaded_by</code></td><td class="w">string</td>
+            <td>Who put the <em>bytes</em> there. Never rewritten: the bytes did not change.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      Plus one hook per <code>file</code> column of the treedb, derived and never
+      persisted. That is where the device hangs: the asset is the parent, the
+      device is the child, and the fkey that records the link lives on the
+      <em>child</em> &mdash; which is why linking saves the device and not the asset.
+    </p>
+  </div>
+
+  <h2>Reading it back, and taking it away</h2>
+
+  <div class="prose">
+    <p>
+      A reader never touches <code>.blobs/</code>. <code>get-asset</code> answers
+      in one of two shapes and decides which itself: a <b>signed URL</b> when the
+      service has a <code>public_url</code> and a <code>sign_secret</code> (nginx
+      <code>secure_link</code>, 900&nbsp;s, no client address in the signature &mdash; that
+      would break the phone that changes network), and the <b>bytes inline</b> when
+      it has not. One code path in the client either way.
+    </p>
+    <p>
+      Removal is not automatic and never has been. <code>gc-assets</code> runs
+      <code>treedb_gc_files()</code> on demand, and it keeps:
+    </p>
+    <ul>
+      <li>every asset a <b>live node</b> links &mdash; in <em>any</em> treedb of the
+          tranger, because <code>.blobs/</code> belongs to the tranger and two
+          treedbs can share it;</li>
+      <li>every asset that <b>activating an existing snapshot would load</b> &mdash;
+          per key, the newest instance under that snapshot's tag. Delete the
+          <code>__snaps__</code> row and what only that snapshot held is freed;</li>
+      <li>and it sweeps the other way too: blobs that <b>no row names</b>, and the
+          <code>.tmp</code> of a write that never reached its rename.</li>
+    </ul>
+    <p>
+      Run it with <code>dry_run=1</code> first; it answers the list of ids it would
+      take. The rule the collector is written to is: not being able to prove
+      something is an orphan is a reason to keep it.
+    </p>
+  </div>
+
+  <h2>The rules that bite</h2>
+
+  <ul class="rules">
+    <li>
+      <b><code>file</code> goes with <code>fkey</code>, on a <code>string</code>, and almost always with <code>writable</code>.</b>
+      <span>The first two are enforced. The third is not, and it is the one that goes
+      missing: three schemas lost it the same day, and each time the form drew the control
+      read-only and the column simply could not be filled. The treedb warns about it now,
+      once, when it derives the hook.</span>
+    </li>
+    <li>
+      <b>The write path links the column itself &mdash; <code>autolink</code> or not.</b>
+      <span>An ordinary fkey is edited by linking; a <code>file</code> column is edited by
+      handing over a file, and the link is part of the hand-over. Passing <code>""</code>
+      unlinks. A column the record does not carry is left exactly as it was.</span>
+    </li>
+    <li>
+      <b>A full reference must name its own hook.</b>
+      <span>The value is what decides which hook the link goes through, so
+      <code>foto</code> holding <code>…^as_devices_qr</code> filed the file under
+      <code>qr</code>, left <code>foto</code> empty and answered <em>&ldquo;Node
+      created!&rdquo;</em>. It has to be
+      <code>__assets__^&lt;id&gt;^as_&lt;topic&gt;_&lt;column&gt;</code> of that column,
+      or the write is refused naming the column.</span>
+    </li>
+    <li>
+      <b>A refusal writes nothing, and a create that cannot link is undone.</b>
+      <span>One message, and either it happened or it failed. Before 7.18.2 a create
+      refused with <em>&ldquo;Node already exists&rdquo;</em> had already written the blob
+      and the row, and left both for the collector.</span>
+    </li>
+    <li>
+      <b>An asset node is a node like any other.</b>
+      <span>It is created, updated, indexed, snapshotted and deleted by the same
+      machinery as everything else. There is no special case &mdash; which is why the
+      history works, and why <code>delete-node</code> on an <code>__assets__</code> row
+      runs the same guards, with <code>force</code> overriding none of them.</span>
+    </li>
+  </ul>
+
+  <div class="prose footnote">
+    <p>
+      Source: <code>kernel/c/timeranger2/src/tr_treedb.c</code> &mdash;
+      <code>treedb_store_files()</code>, <code>store_file_bytes()</code>,
+      <code>link_file_columns()</code>, <code>treedb_blob_path()</code>,
+      <code>derive_file_hooks()</code>, <code>treedb_gc_files()</code>.
+      The full account, including every defect the implementation and its three
+      reviews found, is in <code>kernel/c/timeranger2/DESIGN-treedb-files.md</code>.
+      Companion page: <a href="/treedb-system-topics">the system topics a treedb keeps for itself</a>.
+    </p>
+  </div>
+
+</div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /*  ---------------- theme ---------------- */
+  var STORE_KEY = "myst:theme";
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+  }
+  document.getElementById("theme-toggle").addEventListener("click", function () {
+    var now = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(now);
+    try {
+      localStorage.setItem(STORE_KEY, now);
+    } catch (e) {
+      /*  a private window forbids it; the page still works  */
+    }
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+    var stored = null;
+    try {
+      stored = localStorage.getItem(STORE_KEY);
+    } catch (err) {
+      stored = null;
+    }
+    if (stored !== "light" && stored !== "dark") {
+      applyTheme(e.matches ? "dark" : "light");
+    }
+  });
+
+  /*  ---------------- the fixture ----------------
+      Real values: the PNG in the hero is 114 bytes and this really is
+      its sha256, so the page and sha256sum agree.  */
+  var ID = "fc1c1152d120bf253e9efbd39b3d75c854a3d7a7e409671264f828e2b7feefd0";
+  var SHORT = "fc1c1152…feefd0";
+  var B64 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQ…QZDXKSxrAAAAAElFTkSuQmCC";
+  var HOOK = "as_devices_foto";
+  var REF = '__assets__^' + SHORT + '^' + HOOK;
+
+  /*  Where each refusal stops. The step numbers are the code's order:
+      the size is read off the base64 before the decode, the type is read
+      off the bytes, the id is the hash of them.  */
+  var FAILS = {
+    size:  {at: 1, why: 'file of 139 460 792 bytes in ‘foto’ is over max_size (134 217 728)'},
+    b64:   {at: 2, why: 'bad base64 in ‘foto’'},
+    sniff: {at: 2, why: 'content_type ‘image/png’ does not match the bytes (application/pdf)'},
+    allow: {at: 2, why: 'content_type ‘image/svg+xml’ not allowed'},
+    claim: {at: 3, why: 'the id does not match the bytes'}
+  };
+
+  var STEPS = [
+    {
+      t: "arrives",
+      title: "The record arrives",
+      say: "The bytes travel BESIDE the record, never inside it. Transport keys " +
+           "carry them, and not one of them is a column."
+    },
+    {
+      t: "size",
+      title: "The size, on the base64",
+      say: "Checked before the decode: a check afterwards has already spent what " +
+           "it defends. 128 MB per treedb by default; a column may lower it, never raise it."
+    },
+    {
+      t: "type",
+      title: "The type, off the bytes",
+      say: "The declared type is a claim to verify, not an answer to trust. The bytes " +
+           "are sniffed, the two must be compatible, and the result must be on the allowed list."
+    },
+    {
+      t: "hash",
+      title: "The hash is the id",
+      say: "sha256 of the content. If the client claimed an id, it must be this one."
+    },
+    {
+      t: "blob",
+      title: "The blob, first",
+      say: "Written to <id>.png.tmp and renamed, so an interrupted write never leaves " +
+           "a half file under the final name. Same bytes already there? Nothing is written."
+    },
+    {
+      t: "row",
+      title: "The row, second",
+      say: "One node in __assets__, id first. A second arrival of the same bytes would " +
+           "be an UPDATE of this node instead — and only a new original_name would append an instance."
+    },
+    {
+      t: "rewrite",
+      title: "The column is rewritten",
+      say: "The kw leaves treedb_store_files() with the full reference in the column and " +
+           "no transport keys at all: they are dropped at the door, used or not."
+    },
+    {
+      t: "link",
+      title: "The link, by the write path itself",
+      say: "The device is hung in the asset's derived hook. The fkey lives on the CHILD, " +
+           "so the device is saved once and the asset is not saved at all."
+    }
+  ];
+
+  var state = {step: 0, door: "content64", fail: ""};
+
+  var railEl = document.getElementById("rail");
+  var kwEl = document.getElementById("kwpane");
+  var storeEl = document.getElementById("storepane");
+  var verdictEl = document.getElementById("verdict");
+  var doorNote = document.getElementById("door-note");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function stopAt() {
+    return state.fail ? FAILS[state.fail].at : STEPS.length - 1;
+  }
+
+  /*  ---------------- the kw pane ----------------
+      Written as text rather than JSON.stringify so the page can mark what
+      moved on THIS step; a diff is the whole point of the pane.  */
+  function kwLines() {
+    var s = state.step;
+    var L = [];
+    var hitAll = function (txt) { return {tx: txt, cls: "hit"}; };
+    var plain = function (txt) { return {tx: txt, cls: ""}; };
+
+    L.push(plain("{"));
+    L.push(plain('    "id": "dev-0417",'));
+    L.push(plain('    "name": "dev-0417",'));
+
+    if (s >= 6) {
+      L.push(s === 6 ? hitAll('    "foto": "' + REF + '"') : plain('    "foto": "' + REF + '"'));
+    } else if (state.fail === "claim") {
+      /*  a claim only exists when the column carries an id: a bare one, or
+          the full reference. Without it there is nothing to disagree with.  */
+      L.push(plain('    "foto": "9f2c66d0…12beef",   // the claim'));
+    } else {
+      L.push(plain('    "foto": "",'));
+    }
+
+    if (s < 6) {
+      var g = (s >= 6);
+      L.push(plain('    "__files__": {'));
+      L.push(plain('        "foto": {'));
+      if (state.door === "content64") {
+        L.push((s === 1 ? hitAll : plain)('            "content64": "' + B64 + '",'));
+      } else {
+        L.push((s === 1 ? hitAll : plain)('            "offset": 0, "size": 114,'));
+      }
+      L.push((s === 2 ? hitAll : plain)('            "content_type": "image/png",'));
+      L.push(plain('            "original_name": "foto.png"'));
+      L.push(plain("        }"));
+      L.push(plain("    },"));
+      if (state.door === "gbuffer") {
+        L.push(plain('    "gbuffer": <114 bytes, the ONE binary field of the kw>,'));
+      }
+      L.push(plain('    "__username__": "operator@example.com"'));
+      void g;
+    }
+    L.push(plain("}"));
+
+    if (s >= 6) {
+      L.push(plain(""));
+      L.push({tx: "    // __files__, gbuffer and __username__ are gone:", cls: "cmt"});
+      L.push({tx: "    // dropped at the door, used or not.", cls: "cmt"});
+    }
+    return L;
+  }
+
+  function drawKw() {
+    var html = kwLines().map(function (l) {
+      if (!l.cls) {
+        return esc(l.tx);
+      }
+      return '<span class="' + l.cls + '">' + esc(l.tx) + "</span>";
+    }).join("\n");
+    kwEl.innerHTML = html;
+  }
+
+  /*  ---------------- the store pane ---------------- */
+  function box(kind, head, tag, bodyHtml) {
+    return '<div class="sb ' + kind + '">' +
+      '<div class="sb-h"><span>' + head + '</span><span class="tag">' + tag + "</span></div>" +
+      '<div class="sb-b">' + bodyHtml + "</div></div>";
+  }
+  function kv(k, v, fresh) {
+    return '<div class="kvrow"><span class="k">' + esc(k) + '</span><span class="v' +
+      (fresh ? " fresh" : "") + '">' + esc(v) + "</span></div>";
+  }
+
+  function drawStore() {
+    var s = state.step;
+    var dead = state.fail && s >= stopAt();
+    var out = [];
+
+    /*  .blobs/ */
+    var blobBody;
+    if (s >= 4 && !dead) {
+      var tmpGone = s >= 4;
+      blobBody = ".blobs/fc/1c/\n" +
+        "  " + ID.slice(0, 16) + "….png";
+      blobBody = '<div>' + esc(".blobs/fc/1c/") + "</div>" +
+        '<div class="' + (s === 4 ? "fresh" : "") + '">&nbsp;&nbsp;' +
+        esc(ID.slice(0, 12) + "…feefd0.png") + "  <span style=\"opacity:.6\">114 B</span></div>";
+      void tmpGone;
+    } else {
+      blobBody = '<span class="empty">empty &mdash; not one byte written</span>';
+    }
+    out.push(box("disk", "<b>.blobs/</b> &mdash; the tranger's", "on disk", blobBody));
+
+    /*  __assets__ */
+    var assetsBody;
+    if (s >= 5 && !dead) {
+      assetsBody =
+        kv("id", ID.slice(0, 12) + "…feefd0", s === 5) +
+        kv("content_type", "image/png", s === 5) +
+        kv("size", "114", s === 5) +
+        kv("original_name", "foto.png", s === 5) +
+        kv("uploaded_by", "operator@example.com", s === 5) +
+        kv(HOOK, s >= 7 ? "[ devices^dev-0417 ]" : "[ ]", s === 7);
+    } else {
+      assetsBody = '<span class="empty">no row</span>';
+    }
+    out.push(box("mem", "<b>__assets__</b> &mdash; one row per content", "in memory", assetsBody));
+
+    /*  devices */
+    var devBody;
+    if (s >= 7 && !dead) {
+      devBody = kv("id", "dev-0417") + kv("name", "dev-0417") +
+        kv("foto", REF, true);
+    } else if (s >= 6 && !dead) {
+      devBody = '<span class="empty">not written yet &mdash; the record is still a kw</span>';
+    } else {
+      devBody = '<span class="empty">not written yet &mdash; the record is still a kw</span>';
+    }
+    out.push(box("mem", "<b>devices</b> &mdash; the node", "in memory", devBody));
+
+    storeEl.innerHTML = out.join("");
+  }
+
+  /*  ---------------- rail and verdict ---------------- */
+  function drawRail() {
+    var stop = stopAt();
+    railEl.innerHTML = "";
+    STEPS.forEach(function (st, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = '<span class="n">' + i + "</span>" + esc(st.t);
+      if (i === state.step) {
+        b.setAttribute("aria-current", "true");
+      }
+      if (state.fail && i > stop) {
+        b.className = "is-dead";
+      }
+      b.addEventListener("click", function () {
+        state.step = i;
+        render();
+      });
+      railEl.appendChild(b);
+    });
+  }
+
+  function drawVerdict() {
+    var s = state.step;
+    var stop = stopAt();
+    var st = STEPS[s];
+
+    if (state.fail && s >= stop) {
+      verdictEl.className = "verdict no";
+      verdictEl.innerHTML = '<span class="mark">refused</span><span>' +
+        "<b>" + esc(st.title) + ".</b> " +
+        esc(FAILS[state.fail].why) +
+        " &mdash; and the store is exactly as it was: the create answers a failure, " +
+        "not a success with an empty column.</span>";
+      return;
+    }
+    if (s === STEPS.length - 1 && !state.fail) {
+      verdictEl.className = "verdict ok";
+      verdictEl.innerHTML = '<span class="mark">done</span><span><b>' + esc(st.title) +
+        ".</b> " + esc(st.say) + "</span>";
+      return;
+    }
+    verdictEl.className = "verdict";
+    verdictEl.innerHTML = '<span class="mark" style="color:var(--muted)">' + s +
+      "</span><span><b>" + esc(st.title) + ".</b> " + esc(st.say) + "</span>";
+  }
+
+  function render() {
+    var stop = stopAt();
+    if (state.step > stop) {
+      state.step = stop;
+    }
+    drawRail();
+    drawKw();
+    drawStore();
+    drawVerdict();
+    prevBtn.disabled = state.step <= 0;
+    nextBtn.disabled = state.step >= stop;
+    doorNote.innerHTML = state.door === "content64"
+      ? "the JSON door: <code>content64</code> in the manifest"
+      : "the binary door: <code>offset</code>/<code>size</code> into the kw's one gbuffer";
+  }
+
+  document.getElementById("door").addEventListener("change", function (e) {
+    state.door = e.target.value;
+    render();
+  });
+  document.getElementById("fail").addEventListener("change", function (e) {
+    state.fail = e.target.value;
+    state.step = state.fail ? FAILS[state.fail].at : 0;
+    render();
+  });
+  prevBtn.addEventListener("click", function () {
+    if (state.step > 0) {
+      state.step -= 1;
+      render();
+    }
+  });
+  nextBtn.addEventListener("click", function () {
+    if (state.step < stopAt()) {
+      state.step += 1;
+      render();
+    }
+  });
+
+  render();
+}());
+</script>
+</body>
+</html>

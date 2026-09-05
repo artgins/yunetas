@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## v7.18.2 (2026-09-05)
+
 ### A second arrival under the same name appends nothing
 
 `store_file_bytes()` wrote the manifest's `original_name` into the asset node
@@ -25,6 +27,23 @@ The signature said `owned`. Every caller — `C_NODE`, `gc-assets`, the
 rollback of a create — hands it the index's own reference, which the delete
 releases on success and leaves alone on a refusal. The comment, in the
 header and in `delete_node()`, says so now.
+
+And with the convention written down, one path contradicted it: the
+*"Not a pure node"* refusal of `delete_node()` and of
+`treedb_delete_instance()` released the node it had just refused to delete —
+a reference neither of them owns, so the node could be freed while still
+indexed. A refusal now leaves the node exactly as it was, still indexed,
+like the immutable and snapshot guards beside it.
+
+### Documentation
+
+Two standalone pages on the treedb, carded on the landing and installed by
+`deploy.sh`: [`/treedb-files`](https://doc.yuneta.io/treedb-files), one write
+of a `file` column stepped through, and
+[`/treedb-system-topics`](https://doc.yuneta.io/treedb-system-topics), what
+`__snaps__`, `__graphs__` and `__assets__` hold and the door the system opens
+each of them through. `docs/doc.yuneta.io/build_artifact.py` turns any such
+page into the artifact version of itself.
 
 ## v7.18.1 (2026-09-05)
 
