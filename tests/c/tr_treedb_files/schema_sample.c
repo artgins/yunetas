@@ -66,3 +66,33 @@ static char schema_sample[]= "\
     ]                                                               \n\
 }                                                                   \n\
 ";
+
+/*
+ *  A SECOND treedb on the same tranger: __assets__ is the tranger's, so the
+ *  two share the topic and the blobs, each with its own copy of the nodes.
+ */
+static char schema_sample2[]= "\
+{                                                                   \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'topic_name': 'tickets',                                \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'scan': {                                           \n\
+                    'header': 'Scan',                               \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey','file','writable']              \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";

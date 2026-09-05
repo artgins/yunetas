@@ -942,10 +942,29 @@ Two more from the same review, closed the same day:
   `fkey` rather than storing into it. Test 10 creates such a topic and finds
   it nowhere.
 
-Still open from the same review, in order of weight: `gc-assets` and the
-live-link guard of `delete-node` read only the calling treedb's copy of
-`__assets__`, so on a tranger hosting two treedbs they take what the other
-treedb links (no yuno does that today); §7's *"deleting the snap frees the
+A third, and it took a test with two treedbs on one tranger to find its
+second half:
+
+- **Two treedbs on one tranger: the gc and the delete read one copy.**
+  `__assets__` is the tranger's, but each treedb loads its OWN copy of every
+  node and a link made from a treedb lands in that copy. Read from one copy,
+  *"nothing links it"* was true of one treedb and false of the other, and the
+  row and the bytes are the tranger's: `gc-assets` from the first took what
+  the second linked, and `delete-node` did too. Both ask every treedb's copy
+  now (`asset_linked_by_other_treedb()`), the delete refuses `force` or not —
+  force unlinks the children of THIS copy and the other's would dangle — and a
+  deleted row leaves every treedb's index, or the other one keeps answering a
+  row that is not on disk. And the derived hooks are seeded into — and taken
+  from — every treedb's copies, not the deriving treedb's only: the desc is
+  shared, `get_node_down_refs()` walks it and expects each field in the node,
+  and the first delete of a copy that lacked the other treedb's hook said
+  *"field not found in the node"*. Test 12. What is NOT done: an asset stored
+  from one treedb is not in the other's index until it reopens, so the other
+  can link it with its bytes (a second instance of the same key, its own
+  copy) but not by bare id — the client's fallback of sending the bytes covers
+  it, which is why it is left.
+
+Still open from the same review, in order of weight: §7's *"deleting the snap frees the
 asset"* names an operation that does not exist, and `treedb_save_node()`
 inherits the tag, so the gc holds for ever what any tagged instance ever
 linked; the form has no *reading* state, so a second Save during a long read

@@ -115,6 +115,7 @@ PRIVATE json_t *apply_child_list_options(
  */
 PRIVATE int delete_node(json_t *tranger, json_t *node, json_t *jn_options, BOOL snaps_walked);
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
@@ -6073,6 +6074,32 @@ PRIVATE int delete_node(
         }
     }
 
+    /*-------------------------------------------------*
+     *  An asset ANOTHER treedb of this tranger links
+     *
+     *  __assets__ and the row are the tranger's, but each treedb holds its
+     *  own copy of the node and its own links in it: the hook guard below
+     *  reads this copy alone. `force` cannot help -- it unlinks the
+     *  children of THIS copy, and the other treedb's would dangle.
+     *-------------------------------------------------*/
+    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0) {
+        const char *other = asset_linked_by_other_treedb(gobj, tranger, treedb_name, id);
+        if(other) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "cannot delete asset, another treedb of this tranger links it",
+                "treedb_name",  "%s", treedb_name,
+                "other_treedb", "%s", other,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(jn_options)
+            return -1;
+        }
+    }
+
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
@@ -6217,6 +6244,25 @@ PRIVATE int delete_node(
                 "id",           "%s", id,
                 NULL
             );
+        }
+
+        /*
+         *  __assets__ is the tranger's: the key is gone for every treedb
+         *  that holds a copy of it, so every copy goes -- or the other
+         *  treedb keeps answering a row that is not on disk, and links
+         *  it to bytes that are not either.
+         */
+        if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0) {
+            const char *other_name; json_t *other_treedb;
+            json_object_foreach(json_object_get(tranger, "treedbs"), other_name, other_treedb) {
+                if(strcmp(other_name, treedb_name)==0) {
+                    continue;
+                }
+                json_t *other_indexx = treedb_get_id_index(tranger, other_name, topic_name);
+                if(other_indexx && json_object_get(other_indexx, id)) {
+                    delete_primary_node(other_indexx, id);
+                }
+            }
         }
 
         /*-------------------------------*
@@ -11162,7 +11208,13 @@ PRIVATE int derive_file_hooks(
 
     json_t *wanted = json_object();     // the hooks the schema asks for now
     json_t *mine = json_object();       // the user topics of THIS treedb
-    json_t *indexx = treedb_get_id_index(tranger, treedb_name, TREEDB_ASSETS_TOPIC);
+    /*
+     *  The desc of __assets__ is the TRANGER's, so every treedb that holds
+     *  a copy of its nodes must carry every hook field in every copy --
+     *  get_node_down_refs() walks the desc and expects each field in the
+     *  node. Seeded and removed in every treedb's index, not only ours.
+     */
+    json_t *treedbs = json_object_get(tranger, "treedbs");
 
     json_t *topics = treedb_topics(tranger, treedb_name, 0);
     int idx; json_t *jn_topic;
@@ -11256,10 +11308,14 @@ PRIVATE int derive_file_hooks(
              *  node, and _link_nodes() answers "hook field not found" --
              *  which is what a topic created while the yuno runs got.
              */
-            const char *id; json_t *node;
-            json_object_foreach(indexx, id, node) {
-                if(!json_object_get(node, hook_name)) {
-                    json_object_set_new(node, hook_name, json_object());
+            const char *any_name; json_t *any_treedb;
+            json_object_foreach(treedbs, any_name, any_treedb) {
+                json_t *indexx = treedb_get_id_index(tranger, any_name, TREEDB_ASSETS_TOPIC);
+                const char *id; json_t *node;
+                json_object_foreach(indexx, id, node) {
+                    if(!json_object_get(node, hook_name)) {
+                        json_object_set_new(node, hook_name, json_object());
+                    }
                 }
             }
         }
@@ -11307,9 +11363,13 @@ PRIVATE int derive_file_hooks(
         if(!take) {
             continue;
         }
-        const char *id; json_t *node;
-        json_object_foreach(indexx, id, node) {
-            json_object_del(node, hook_name);
+        const char *any_name; json_t *any_treedb;
+        json_object_foreach(treedbs, any_name, any_treedb) {
+            json_t *indexx = treedb_get_id_index(tranger, any_name, TREEDB_ASSETS_TOPIC);
+            const char *id; json_t *node;
+            json_object_foreach(indexx, id, node) {
+                json_object_del(node, hook_name);
+            }
         }
         json_object_del(assets_cols, hook_name);
     }
@@ -11449,6 +11509,74 @@ PRIVATE json_t *assets_held_by_snaps(
 }
 
 /***************************************************************************
+ *  Does a hook of this __assets__ node hold anything?
+ ***************************************************************************/
+PRIVATE BOOL asset_node_is_linked(json_t *node, json_t *hook_names)
+{
+    int idx; json_t *jn_hook;
+    json_array_foreach(hook_names, idx, jn_hook) {
+        json_t *v = json_object_get(node, json_string_value(jn_hook));
+        if((json_is_object(v) && json_object_size(v) > 0) ||
+                (json_is_array(v) && json_array_size(v) > 0) ||
+                (json_is_string(v) && !empty_string(json_string_value(v)))) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The live links of an asset that live in ANOTHER treedb of the tranger.
+ *
+ *  __assets__ is a topic of the TRANGER, and a tranger holding two treedbs
+ *  shares it -- but each treedb loads its own copy of every node, and a
+ *  link made from a treedb lands in that treedb's copy. So "no live node
+ *  links it", read from one copy, is true of one treedb and says nothing
+ *  of the other, and the row and the bytes are the tranger's: taken from
+ *  here, they are taken from there. Return the name of the first other
+ *  treedb whose copy holds a link, or NULL.
+ ***************************************************************************/
+PRIVATE const char *asset_linked_by_other_treedb(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *id
+)
+{
+    json_t *treedbs = json_object_get(tranger, "treedbs");
+    if(json_object_size(treedbs) <= 1) {
+        return NULL;    // Alone on the tranger: the ordinary case
+    }
+
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+    json_t *hook_names = json_array();
+    const char *hook_name; json_t *hook_col;
+    json_object_foreach(assets_cols, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(kw_has_word(gobj, desc_flag, "hook", 0)) {
+            json_array_append_new(hook_names, json_string(hook_name));
+        }
+    }
+    JSON_DECREF(assets_cols)
+
+    const char *found = NULL;
+    const char *other_name; json_t *other_treedb;
+    json_object_foreach(treedbs, other_name, other_treedb) {
+        if(strcmp(other_name, treedb_name)==0) {
+            continue;
+        }
+        json_t *other_indexx = treedb_get_id_index(tranger, other_name, TREEDB_ASSETS_TOPIC);
+        json_t *copy = other_indexx? json_object_get(other_indexx, id): 0;
+        if(copy && asset_node_is_linked(copy, hook_names)) {
+            found = other_name;
+            break;
+        }
+    }
+    JSON_DECREF(hook_names)
+    return found;
+}
+
+/***************************************************************************
  *  The garbage collector of the bytes: an asset that no live node links
  *  AND no snapshotted version of a node links is garbage.
  *
@@ -11506,21 +11634,13 @@ PUBLIC json_t *treedb_gc_files(
     json_t *orphans = json_array();
     const char *id; json_t *node;
     json_object_foreach(indexx, id, node) {
-        BOOL linked = FALSE;
-        int idx; json_t *jn_hook;
-        json_array_foreach(hook_names, idx, jn_hook) {
-            json_t *v = json_object_get(node, json_string_value(jn_hook));
-            if((json_is_object(v) && json_object_size(v) > 0) ||
-                    (json_is_array(v) && json_array_size(v) > 0) ||
-                    (json_is_string(v) && !empty_string(json_string_value(v)))) {
-                linked = TRUE;
-                break;
-            }
-        }
-        if(linked) {
+        if(asset_node_is_linked(node, hook_names)) {
             continue;
         }
         if(json_object_get(held, id)) {
+            continue;
+        }
+        if(asset_linked_by_other_treedb(gobj, tranger, treedb_name, id)) {
             continue;
         }
         json_array_append_new(orphans, json_string(id));

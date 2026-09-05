@@ -217,7 +217,10 @@ on disk. Design note:
   walk `gc-assets` does, because the ordinary tag guard never fires for an
   asset. `force` means "unlink the children", never "ignore what a snapshot
   needs", and no key of `options` skips the walk: the gc skips it through a
-  private entry, not through anything the wire can spell.
+  private entry, not through anything the wire can spell. On a tranger that
+  hosts more than one treedb, `__assets__` and its bytes are shared: both
+  `gc-assets` and `delete-node` read every treedb's links, and an asset
+  another treedb of the tranger links is refused, `force` or not.
 - **A `file` column must be `['fkey','file']` on a `string`**, and that is
   checked in three places: at open (fatal), by `create-topic` with the yuno
   running (the topic is refused, the answer says why), and by the write path

@@ -41,6 +41,26 @@ now logs with `on_critical_error` when a topic of the schema could not be
 created, instead of leaving it for the first write to meet as *"Topic name not
 found in treedbs"* — and by `treedb_store_files()`, which refuses the write.
 
+### Two treedbs on one tranger: `gc-assets` and `delete-node` read every treedb's links
+
+`__assets__` is a topic of the TRANGER, so a tranger holding two treedbs
+shares it — but each treedb loads its own copy of every node, and a link made
+from a treedb lands in that copy. Read from one copy alone, *"no live node
+links it"* was true of one treedb and said nothing of the other, and the row
+and the bytes are the tranger's: `gc-assets` from the first treedb took what
+the second linked, and `delete-node` did too. No yuno opens two treedbs on
+one tranger today; `C_TREEDB` can.
+
+Both ask every treedb's copy now. The delete refuses, `force` or not — force
+unlinks the children of THIS copy and the other treedb's would dangle — and a
+deleted row leaves every treedb's index, or the other treedb keeps answering
+a row that is not on disk. The derived hooks are seeded into, and taken from,
+every treedb's copies rather than the deriving treedb's only: the desc is
+shared and `get_node_down_refs()` expects each of its fields in the node, so
+the first delete of a copy that lacked the other treedb's hook failed with
+*"field not found in the node"*. Test 12 of `tr_treedb_files` opens a second
+treedb on the test's tranger and walks the whole of it.
+
 ### `gobj-ui` 7.23.63: saving a record unlinked its read-only `file` column
 
 The topic view sends back only the writable cols, the fkeys and the pkey,

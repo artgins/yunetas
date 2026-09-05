@@ -18,6 +18,9 @@
  *            9. one asset, ONE blob, and a snapshot refuses the delete
  *           10. the hooks follow the schema at RUN TIME, both ways
  *           11. the write path links a file column itself, autolink or not
+ *           12. two treedbs on one tranger share __assets__: the gc and the
+ *               delete read every treedb's links, and a delete empties
+ *               every treedb's index
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -50,6 +53,7 @@
 #define PNG_A   "\x89PNG\r\n\x1a\n" "IHDR fixture A, not a real image but it starts like one"
 #define PNG_B   "\x89PNG\r\n\x1a\n" "IHDR fixture B, a different photograph"
 #define PNG_C   "\x89PNG\r\n\x1a\n" "IHDR fixture C, held only by a snapshot"
+#define PNG_D   "\x89PNG\r\n\x1a\n" "IHDR fixture D, shared by two treedbs of one tranger"
 #define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
@@ -962,6 +966,119 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
 }
 
 /***************************************************************************
+ *  12. Two treedbs on one tranger
+ *
+ *  __assets__ is the tranger's, so a second treedb shares the topic and the
+ *  blobs -- but loads its own COPY of every node, and a link made from it
+ *  lands in that copy. Read from one copy alone, "nothing links it" was
+ *  true of one treedb and false of the other, and the row and the bytes
+ *  are the tranger's: gc-assets from the first took what the second linked.
+ ***************************************************************************/
+PRIVATE int test_two_treedbs_one_tranger(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "12. two treedbs on one tranger";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "cannot delete asset, another treedb of this tranger links it"
+        ),
+        NULL, NULL, 1
+    );
+
+    char id_d[SHA256_HEX_LEN + 1];
+    snprintf(id_d, sizeof(id_d), "%s", sha(PNG_D, sizeof(PNG_D)-1));
+
+    /*  D arrives through the FIRST treedb, linked by dev-12  */
+    json_t *dev = create_device_with_foto(tranger, "dev-12", PNG_D, sizeof(PNG_D)-1, "image/png", 0);
+    if(!dev) {
+        printf("%s  FAIL: cannot create dev-12%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*  A second treedb opens on the same tranger  */
+    helper_quote2doublequote(schema_sample2);
+    json_t *jn_schema2 = legalstring2json(schema_sample2, TRUE);
+    if(!treedb_open_db(tranger, "treedb_files2", jn_schema2, 0)) {
+        printf("%s  FAIL: cannot open the second treedb%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*  and links the same bytes from a ticket: its own copy of D  */
+    json_t *kw = json_pack("{s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "ticket-1",
+        "scan", "",
+        "__files__", "scan",
+            "content64", b64(PNG_D, sizeof(PNG_D)-1),
+            "original_name", "ticket-1.png",
+            "content_type", "image/png"
+    );
+    json_t *ticket = treedb_create_node(tranger, "treedb_files2", "tickets", kw);
+    if(!ticket || strcmp(fkey_id(ticket, "scan"), id_d)!=0) {
+        printf("%s  FAIL: the second treedb could not link D%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  dev-12 lets go: in the FIRST treedb nothing links D any more  */
+    kw = json_pack("{s:s, s:s}", "id", "dev-12", "foto", "");
+    if(!treedb_update_node(tranger, dev, kw, TRUE)) {
+        printf("%s  FAIL: cannot unlink dev-12%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  the gc of the first treedb must NOT take what the second links  */
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(json_str_in_list(0, would, id_d, 0)) {
+        printf("%s  FAIL: gc of treedb 1 would take an asset treedb 2 links%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+
+    /*  nor may a delete from the first, force or not  */
+    json_t *copy1 = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_d);
+    if(!copy1) {
+        printf("%s  FAIL: treedb 1 lost its copy of D%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    } else if(treedb_delete_node(tranger, copy1, json_pack("{s:b}", "force", 1))==0) {
+        printf("%s  FAIL: treedb 1 deleted an asset treedb 2 links%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!blob_exists(tranger, id_d, "image/png")) {
+        printf("%s  FAIL: the refused delete took the bytes%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  the ticket lets go too: now the gc of the first takes it, and the
+     *  second treedb's index no longer answers a row that is gone  */
+    kw = json_pack("{s:s, s:s}", "id", "ticket-1", "scan", "");
+    if(!treedb_update_node(tranger, ticket, kw, TRUE)) {
+        printf("%s  FAIL: cannot unlink ticket-1%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(!json_str_in_list(0, taken, id_d, 0)) {
+        printf("%s  FAIL: gc did not take D once nobody linked it%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    if(treedb_get_node(tranger, "treedb_files2", TREEDB_ASSETS_TOPIC, id_d)) {
+        printf("%s  FAIL: treedb 2 still answers the deleted asset%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(blob_exists(tranger, id_d, "image/png")) {
+        printf("%s  FAIL: the blob of D survived the gc%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    treedb_close_db(tranger, "treedb_files2");
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1036,6 +1153,7 @@ PRIVATE int do_test(void)
     result += test_gc_three_ways(tranger);
     /*  after the gc: it leaves an orphan of its own, and case 6 counts  */
     result += test_hooks_follow_the_schema(tranger);
+    result += test_two_treedbs_one_tranger(tranger);
 
     {
         const char *test = "close and shutdown";
