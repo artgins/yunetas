@@ -156,15 +156,20 @@ and never persisted, so a host declares nothing but the column. The write
 path takes the bytes BESIDE the record (a `__files__` manifest: `content64`
 from a browser, or `offset`/`size` slices of the kw's one `gbuffer` from a C
 caller), re-hashes them, checks the size before decoding and the type on the
-BYTES, and rewrites the column into the full fkey reference.
+BYTES, rewrites the column into the full fkey reference and **links it
+itself**, `autolink` or not: a `file` column is edited by handing over a
+file, and the link is part of the hand-over (`""` unlinks).
 
 `treedb_store_files()`, `treedb_import_files()` and `treedb_gc_files()` are
 the API; `import-assets` and `gc-assets` are the commands of `C_NODE` on top
-of them. The gc reads the SNAPSHOTS, not only the live state, and so does
-`delete-node` on an `__assets__` row — `force` does not override it.
+of them. The gc keeps what a LIVE node of any treedb of the tranger links,
+and what an activation of an existing snap would LOAD — per key, the newest
+instance under the snap's tag — so deleting the `__snaps__` row frees what
+only that snap held. `delete-node` on an `__assets__` row runs the same
+guards, and `force` does not override them.
 
-Full account, including the six defects the implementation found:
-[`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
+Full account, including the defects the implementation and its review found
+(§16): [`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
 
 ## Filesystem watcher
 
