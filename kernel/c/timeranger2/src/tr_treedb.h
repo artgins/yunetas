@@ -182,6 +182,10 @@ PUBLIC int treedb_set_callback(
         "image"        // a FILE: an url or a data uri, drawn with <img>
         "icon"         // the NAME of an icon of the app's set ("yi-bolt"),
                        // which is a different thing from a file
+        "file"         // an fkey into __assets__: the bytes live on disk under
+                       // the treedb, the index in memory. Goes WITH "fkey",
+                       // on a "string" column (one file per column). See
+                       // treedb_store_files() and DESIGN-treedb-files.md
         "tel"
         "table"
         "id"
@@ -605,6 +609,83 @@ PUBLIC json_t *treedb_get_topic_hooks(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name
+);
+
+/*----------------------------*
+ *          Files
+ *----------------------------*/
+/*
+ *  A column flagged ['fkey','file'] holds an fkey into the system topic
+ *  __assets__ (created at open, its hooks derived from the 'file' columns
+ *  and never persisted). The bytes live under <treedb dir>/.blobs/,
+ *  addressed by their sha256, which is the asset id.
+ */
+#define TREEDB_ASSETS_TOPIC     "__assets__"
+
+/*
+ *  The write path: consume the `__files__` manifest (and the kw's `gbuffer`)
+ *  of a record, store the bytes, create/refresh the __assets__ node and
+ *  rewrite every 'file' column into its full fkey reference. Called by
+ *  treedb_create_node(), treedb_update_node() and treedb_autolink(); a
+ *  direct caller needs it only for a kw that never goes through them.
+ *  Return 0, or -1 with the cause in gobj_log_last_message().
+ */
+PUBLIC int treedb_store_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw  // NOT owned, modified in place
+);
+
+/*
+ *  The ceiling of the treedb: the largest file one write may cost, and the
+ *  mime types the store will ever hold. A column narrows it through its
+ *  `properties.max_size` / `properties.content_types`, never raises it.
+ */
+PUBLIC int treedb_set_files_limits(
+    json_t *tranger,
+    const char *treedb_name,
+    json_int_t max_size,        // 0: keep
+    json_t *content_types       // owned, list of mime types; NULL: keep
+);
+
+/*
+ *  Where the bytes of an asset live: <treedb dir>/.blobs/ab/cd/<id>.<ext>
+ */
+PUBLIC int treedb_blob_path(
+    json_t *tranger,
+    const char *id,
+    const char *content_type,
+    char *bf,
+    size_t bflen
+);
+PUBLIC const char *treedb_file_ext(const char *content_type);
+PUBLIC const char *treedb_content_type_of_name(const char *name);
+PUBLIC const char *treedb_sniff_content_type(const char *data, size_t len); // "" if unknown
+
+/*
+ *  Import a directory already on the node: N assets, no bytes on the wire.
+ *  Confined to import_root (empty: refused). Creates index nodes, links
+ *  nothing, answers the map path -> id. Return is YOURS, or NULL.
+ */
+PUBLIC json_t *treedb_import_files(
+    json_t *tranger,
+    const char *treedb_name,
+    const char *import_root,
+    const char *source_dir,
+    BOOL dry_run,
+    const char *uploaded_by
+);
+
+/*
+ *  Garbage collector of the bytes: take every asset that no live node and
+ *  no snapshotted version of a node links. On demand, never automatic.
+ *  Return the list of ids taken (dry_run: that would be taken). YOURS.
+ */
+PUBLIC json_t *treedb_gc_files(
+    json_t *tranger,
+    const char *treedb_name,
+    BOOL dry_run
 );
 
 /*----------------------------*

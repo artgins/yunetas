@@ -2,6 +2,64 @@
 
 ## [Unreleased]
 
+### A `file` column, and `__assets__` as a treedb system topic
+
+The storage half of `C_ASSETS` moves into `tr_treedb`, where it belonged:
+**you mark a column `['fkey','file']`, and treedb gives you a pseudo-filesystem**.
+The index lives in memory as the system topic `__assets__` (created at open
+next to `__snaps__` and `__graphs__`, shown in system mode only), the content
+on disk under `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`, and the column holds
+an fkey into `__assets__` — so an asset is linked, graphed, scope-checked and
+cascade-deleted like any other node. Design and its review:
+`kernel/c/timeranger2/DESIGN-treedb-files.md`.
+
+- **The hooks of `__assets__` are DERIVED, in memory, never persisted.** For
+  every column `C` of topic `T` flagged `file`, `__assets__` gains
+  `as_<T>_<C> -> {T: C}` between the creation of the user topics and
+  `parse_hooks()`. The host declares nothing but the column; nothing about
+  `__assets__` is ever versioned. `file` goes WITH `fkey`: every link
+  behaviour of treedb and of the GUI keys on that word, and a `file` column
+  without it is refused at open.
+- **The bytes ride BESIDE the record** (`__files__`, a manifest keyed by
+  column: `content64` from a browser, or `offset`/`size` slices of the kw's
+  one `gbuffer` from a C caller) and are consumed at the door by
+  `treedb_store_files()`, called from `treedb_create_node()`,
+  `treedb_update_node()` and `treedb_autolink()`. Treedb **re-hashes what
+  arrives** — the client's id is an optimisation, never an authority — checks
+  the size on the base64 BEFORE decoding and the type ON THE BYTES (an svg
+  called `image/png` is refused), writes the blob, creates or refreshes the
+  index node, and rewrites the column into the full fkey reference. A bare id
+  of an existing asset links it; three writes, blob first.
+- **Two levels of limit**: the treedb's ceiling (`C_NODE` attrs
+  `files_max_size`, `files_content_types`; `treedb_set_files_limits()`) and
+  the column's policy in its `properties` (`max_size`, `content_types`), which
+  narrows the ceiling and never raises it.
+- **`gc-assets` reads the SNAPSHOTS**, and that is its only guard:
+  `treedb_shoot_snap()` skips every `__` topic, so an asset node never carries
+  a tag. The collector walks the tagged instances of every topic with a `file`
+  column and keeps what any snapshotted version of a node still points at.
+  `import-assets` (confined to `import_root`, answers the map `path -> id`)
+  and `gc-assets` are now commands of **`C_NODE`**; `delete-node` on an
+  `__assets__` row removes its bytes.
+- **`C_ASSETS` keeps only `get-asset`** — the way OUT: a signed url or the
+  bytes inline, from the treedb's `.blobs/`. `put-asset`, `put-assets`,
+  `list-assets`, `delete-asset`, `import-assets`, `gc-assets` and the store
+  attributes are gone from it (`nodes` / `delete-node` on `__assets__` do the
+  listing and the deleting).
+- **`sha256_digest()` / `sha256_hex()` in gobj-c helpers**, standalone: the
+  persistence layer links no TLS backend. Checked against `sha256sum`.
+- **System schema 16 → 17, `cols` topic 10 → 11**: `file` joins the enforced
+  `flag` enum. `treedb_field_types` of gobj-js gets the word (7.16.4).
+- **Migration: none.** The `assets` topic of a host and its `as_<col>` hooks
+  are replaced by the derived `__assets__`; the fkey literal in every record
+  changes, so a store built on `C_ASSETS` is wiped and rebuilt through
+  `import-assets`. The hosts (yunovatios) change `['fkey']` to
+  `['fkey','file']` on `foto`/`qr`/`plano`, drop their `assets` topic and
+  rebuild.
+- New suite `tests/c/tr_treedb_files` (the eight claims of the design that
+  would break quietly); `tests/c/c_assets` rewritten for the round trip.
+  Every treedb open now logs one more *"Creating topic"* (`__assets__`).
+
 ### `icon` becomes a treedb field type, and the C side is the one that ENFORCES it
 
 A col flagged `icon` holds the NAME of an icon of the app's set (`yi-bolt`),

@@ -273,8 +273,9 @@ PRIVATE int test_durable_delete_across_reopen(void)
     json_t *tranger;
     {
         set_expected_results(test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
                 "msg", "Creating __timeranger2__.json",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic"),
@@ -404,10 +405,11 @@ PRIVATE int do_test(void)
     const char *treedb_name = "treedb_delete_instance";
     {
         const char *test = "open treedb";
-        /*  treedb_open_db creates __snaps__ + __graphs__ + items  */
+        /*  treedb_open_db creates __snaps__ + __graphs__ + items + __assets__  */
         set_expected_results(
             test,
-            json_pack("[{s:s}, {s:s}, {s:s}]",
+            json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+                "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic"

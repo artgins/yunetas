@@ -10,9 +10,12 @@ description: >-
 **Source code:** [`src/yui_asset.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.48/src/yui_asset.js)
 
 A treedb node often owns something that is not JSON: a photo, a plan, a clip.
-Those bytes cannot live in the treedb, so the SDK's
-[`C_ASSETS`](../gclass/data.md) keeps them in a directory it owns and the node
-names one with an **fkey**.
+Those bytes cannot live in the treedb's records, so the treedb keeps them on
+disk under its own directory and the node names one with an **fkey** into the
+system topic `__assets__` — a column flagged `['fkey', 'file']`, see
+[File columns](../gclass/data.md#treedb-file-columns). The SDK's
+[`C_ASSETS`](../gclass/data.md#gclass-c-assets) is the way out: it publishes
+the bytes to a browser.
 
 `get-asset` answers in one of two shapes, and the **backend** decides which:
 
@@ -34,7 +37,7 @@ of the link before asking, and turn the answer into an element afterwards.
 ## Reading the link
 
 A column that holds a link comes back in one of three shapes, and **which one
-is the reader's choice, not the schema's**: the stored `"assets^<id>^as_foto"`,
+is the reader's choice, not the schema's**: the stored `"__assets__^<id>^as_devices_foto"`,
 the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded
 `{id}`. Each can come alone or in a list — and an **unset** single-valued fkey
 is still an empty list. All of them are read.

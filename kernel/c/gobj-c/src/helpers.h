@@ -1219,3 +1219,16 @@ PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ);
     Return in gmt time range in year of time t, TZ optional
 **rst**/
 PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ);
+
+/*------------------------------------*
+ *  ### Hashing
+ *------------------------------------*/
+/**rst**
+    sha256 of a buffer, standalone (FIPS 180-4), no TLS backend involved.
+    `sha256_hex()` writes the 64 lowercase hex chars plus the nul; `bflen`
+    must be at least SHA256_HEX_LEN + 1. Return 0 or -1 (error logged).
+**rst**/
+#define SHA256_DIGEST_LEN   32
+#define SHA256_HEX_LEN      64
+PUBLIC void sha256_digest(const void *data, size_t len, uint8_t digest[SHA256_DIGEST_LEN]);
+PUBLIC int sha256_hex(const void *data, size_t len, char *bf, size_t bflen);

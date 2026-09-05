@@ -324,7 +324,7 @@ ycommand -c 'command-yuno id=<yuno> service=<treedb> command=treedb-info'
     "treedb_name": "treedb_authzs",
     "master": false,
     "schema_version": 19,
-    "topics": ["__snaps__", "__graphs__", "roles", "users", "users_accesses"]
+    "topics": ["__snaps__", "__graphs__", "__assets__", "roles", "users", "users_accesses"]
 }
 ```
 
@@ -752,7 +752,7 @@ direct `(role, role_version)` lookup.
 Some records must never be deleted by CRUD (the seed `root` role and
 `yuneta` user — see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.2), and some topics
 must never be dropped (the `__system__` treedb's structural topics, and
-every treedb's `__snaps__` / `__graphs__`). The protection is **metadata,
+every treedb's `__snaps__` / `__graphs__` / `__assets__`). The protection is **metadata,
 never a data column** — it does not touch the user schema and never bumps
 `topic_version`. Design write-up:
 [`DESIGN-immutable-topics-records.md`](https://github.com/artgins/yunetas/blob/7.17.3/kernel/c/timeranger2/DESIGN-immutable-topics-records.md).

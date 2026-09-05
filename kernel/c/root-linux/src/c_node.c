@@ -129,6 +129,8 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_system_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -288,6 +290,18 @@ SDATAPM (DTP_BOOLEAN,   "without_rowid",0,              "0",        "Without id 
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_import_assets[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "source_dir",   0,              0,          "Directory to import, RELATIVE to the configured import_root"),
+SDATAPM (DTP_BOOLEAN,   "dry_run",      0,              0,          "Say what it would do and write nothing"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_gc_assets[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_BOOLEAN,   "dry_run",      0,              0,          "Say what it would delete and delete nothing"),
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_nodes[] = {"list-nodes", "list-records", 0};
 PRIVATE const char *a_node[] = {"get-node", "get-record", 0};
@@ -340,6 +354,8 @@ SDATACM2 (DTP_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_
 SDATACM2 (DTP_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
 SDATACM2 (DTP_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
 SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_schema, "Get the treedb meta-schema"),
+SDATACM2 (DTP_SCHEMA,   "import-assets",SDF_AUTHZ_X,    0,  pm_import_assets,cmd_import_assets,"Import a directory already on this node into __assets__: N files, no bytes on the wire, answers path -> id"),
+SDATACM2 (DTP_SCHEMA,   "gc-assets",    SDF_AUTHZ_X,    0,  pm_gc_assets,   cmd_gc_assets,      "Delete the assets that no live node and no snapshot links. Never automatic"),
 SDATACM2 (DTP_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
 SDATA_END()
 };
@@ -355,6 +371,10 @@ SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable; the links they declare cannot be cut"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
+SDATA (DTP_INTEGER,     "files_max_size",   SDF_RD,             "134217728",    "Largest file a 'file' column accepts, in bytes (128M). A MEMORY limit as much as a policy one: the file is hashed and written whole, and it arrived in base64 inside a message the transport had already accepted, so keep it below the transport's max_pkt_size"),
+SDATA (DTP_JSON,        "files_content_types",SDF_RD,           "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\",\"video/mp4\",\"video/webm\",\"video/quicktime\",\"video/ogg\",\"video/x-matroska\",\"audio/mpeg\",\"audio/mp4\",\"audio/ogg\",\"audio/wav\",\"audio/webm\",\"audio/flac\"]",
+                                                                                "Mime types a 'file' column may hold, checked on the BYTES. A column narrows this list through its properties.content_types, never widens it. 'image/svg+xml' is NOT here on purpose: an svg served from the app's own origin runs script"),
+SDATA (DTP_STRING,      "import_root",      SDF_RD,             "",             "Root that 'import-assets' is confined to. Empty: 'import-assets' is refused"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -527,6 +547,20 @@ PRIVATE int mt_start(hgobj gobj)
         json_incref(priv->treedb_schema),  // owned
         "persistent"
     );
+
+    /*
+     *  The ceiling of the 'file' columns: what one write may cost this
+     *  process, and the families the store will ever hold.
+     */
+    if(treedb) {
+        json_t *jn_types = gobj_read_json_attr(gobj, "files_content_types");
+        treedb_set_files_limits(
+            priv->tranger,
+            priv->treedb_name,
+            gobj_read_integer_attr(gobj, "files_max_size"),
+            json_array_size(jn_types)>0? json_incref(jn_types): NULL
+        );
+    }
 
     treedb_callback_flag_t flags = TREEDB_CALLBACK_NO_FLAG;
     if(gobj_read_bool_attr(gobj, "with_link_events")) {
@@ -2169,6 +2203,176 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  The bytes of the 'file' columns ride BESIDE the record: in the kw's one
+ *  binary field (`gbuffer`, the manifest `__files__` inside the record says
+ *  which slice is whose) or as `content64` inside the manifest. The
+ *  record's write path (treedb_store_files) consumes them, so hand it the
+ *  binary field and who uploads. The gbuffer is EXTRACTED from the command
+ *  kw: from here the record kw owns it, and treedb drops it at the door.
+ ***************************************************************************/
+PRIVATE void hand_files_to_record(hgobj gobj, json_t *kw, json_t *record)
+{
+    if(!json_is_object(record)) {
+        return;
+    }
+    json_t *jn_gbuffer = kw_get_dict_value(gobj, kw, "gbuffer", 0, KW_EXTRACT);
+    if(jn_gbuffer) {
+        /*
+         *  The command parser copied the field by VALUE from the kw it was
+         *  given, and that kw drops its own reference when the command
+         *  returns (command_parser.c). The record needs a reference of its
+         *  own, or the two releases meet on one refcount.
+         */
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuffer);
+        if(gbuf) {
+            gbuffer_incref(gbuf);
+        }
+        json_object_set_new(record, "gbuffer", jn_gbuffer);
+    }
+    if(json_object_get(record, "__files__")) {
+        json_object_set_new(record, "__username__",
+            json_string(kw_get_str(gobj, kw, "__username__", "", 0))
+        );
+    }
+}
+
+/***************************************************************************
+ *  A write refused BEFORE reaching treedb_store_files() leaves the binary
+ *  field in the record that the response carries back: release it.
+ *  `kw["record"]` is the same object the write received.
+ ***************************************************************************/
+PRIVATE void release_files_left_in_record(hgobj gobj, json_t *kw)
+{
+    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
+    if(!record) {
+        return;
+    }
+    json_t *jn_gbuffer = json_object_get(record, "gbuffer");
+    if(jn_gbuffer) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_gbuffer);
+        GBUFFER_DECREF(gbuf)
+        json_object_del(record, "gbuffer");
+    }
+    json_object_del(record, "__files__");
+    json_object_del(record, "__username__");
+}
+
+/***************************************************************************
+ *  A directory already on this node becomes N assets in __assets__: one
+ *  command, no bytes on the wire, and the answer carries path -> id so the
+ *  loader can link what it imported. Confined to `import_root`.
+ ***************************************************************************/
+PRIVATE json_t *cmd_import_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
+    const char *permission = "create";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
+    json_t *stats = treedb_import_files(
+        priv->tranger,
+        priv->treedb_name,
+        gobj_read_str_attr(gobj, "import_root"),
+        kw_get_str(gobj, kw, "source_dir", "", 0),
+        dry_run,
+        kw_get_str(gobj, kw, "__username__", "", 0)
+    );
+    if(!stats) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot import: %s",
+                gobj_yuno_role_plus_name(), gobj_log_last_message()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: %s %lld files, %lld skipped, %lld failed",
+            gobj_yuno_role_plus_name(),
+            dry_run? "would import": "imported",
+            (long long)kw_get_int(gobj, stats, dry_run? "would_import": "imported", 0, 0),
+            (long long)kw_get_int(gobj, stats, "skipped", 0, 0),
+            (long long)kw_get_int(gobj, stats, "failed", 0, 0)
+        ),
+        0,
+        stats,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Never automatic: an asset with no link today can be the asset a
+ *  half-finished load links tomorrow, and a snapshot may still remember
+ *  a node that linked it. Somebody asks for this.
+ ***************************************************************************/
+PRIVATE json_t *cmd_gc_assets(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
+    const char *permission = "delete";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    BOOL dry_run = kw_get_bool(gobj, kw, "dry_run", 0, KW_WILD_NUMBER);
+    json_t *taken = treedb_gc_files(priv->tranger, priv->treedb_name, dry_run);
+    if(!taken) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: gc refused, see the log", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: %s %d orphan assets",
+            gobj_yuno_role_plus_name(),
+            dry_run? "would delete": "deleted",
+            (int)json_array_size(taken)
+        ),
+        0,
+        taken,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -2265,6 +2469,8 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    hand_files_to_record(gobj, kw, jn_content);
+
     json_t *node = gobj_create_node(
         gobj,
         topic_name,
@@ -2272,6 +2478,8 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+    release_files_left_in_record(gobj, kw);
+
     return msg_iev_build_response(gobj,
         node?0:-1,
         json_sprintf("%s", node?"Node created!":gobj_log_last_message()),
@@ -2377,6 +2585,8 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    hand_files_to_record(gobj, kw, jn_content);
+
     json_t *node = gobj_update_node(
         gobj,
         topic_name,
@@ -2384,6 +2594,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
+    release_files_left_in_record(gobj, kw);
 
     return msg_iev_build_response(gobj,
         node?0:-1,

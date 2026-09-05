@@ -1,25 +1,27 @@
 /***********************************************************************
  *          C_TEST_ASSETS.C
  *
- *          GClass to test C_ASSETS
+ *          GClass to test the 'file' columns through C_NODE and the way
+ *          out through C_ASSETS.
  *
  *          What it checks:
- *          - the asset id IS the sha256 of the content, and storing the
- *            same bytes twice is one asset, not two;
+ *          - a record with a 'file' column arrives through `update-node`
+ *            with its bytes BESIDE the record (`__files__`), the column
+ *            leaves holding an fkey into __assets__, and the id IS the
+ *            sha256 of the content -- checked against sha256sum, not
+ *            against the code that produces it;
+ *          - the same through the gbuffer door: the kw's one binary field
+ *            and a manifest of slices, two files in one record;
  *          - `get-asset` answers INLINE with no web server configured and
- *            with a SIGNED URL once there is one -- the fallback is the
- *            whole reason a caller has a single code path;
- *          - the signed url reproduces what nginx's secure_link_md5
- *            hashes, computed here independently;
- *          - an asset is an orphan until a node links it, and linked is
- *            read from the SCHEMA's hooks, not guessed from the shape of
- *            a value;
- *          - a linked asset cannot be deleted, an unlinked one can, and
- *            its bytes go with the row;
- *          - `import-assets` turns a directory already on the node into N
- *            assets, skips what it must not serve, and a second run
- *            creates nothing;
- *          - `gc-assets` removes exactly the orphans.
+ *            with a SIGNED URL once there is one; the token reproduces
+ *            what nginx's secure_link_md5 hashes, computed independently;
+ *          - an asset a node links cannot be deleted; the treedb's own
+ *            guard says so;
+ *          - `import-assets` turns a directory already on the node into
+ *            N assets, skips what it must not serve, answers path -> id,
+ *            and cannot be led out of its root ('..', absolute, symlink);
+ *          - `gc-assets` removes exactly the orphans, row and bytes;
+ *          - a denied principal is refused.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -41,26 +43,24 @@
 #define DATABASE        "c_assets"
 
 /*
- *  The content of the asset the test stores, and its sha256 -- computed
- *  outside this program (sha256sum), so the id is checked against an
- *  independent answer and not against the code that produces it.
+ *  The fixture: a buffer that starts like a png (the sniffer reads the
+ *  first bytes) and its sha256, computed OUTSIDE this program with
+ *  sha256sum, so the id is checked against an independent answer.
+ *
+ *      printf '\x89PNG\r\n\x1a\nyuneta-assets-test\n' | sha256sum
  */
-#define ASSET_CONTENT   "yuneta-assets-test\n"
-#define ASSET_B64       "eXVuZXRhLWFzc2V0cy10ZXN0Cg=="
-#define ASSET_SHA256    "d094cd29da2b205e47a356887a38b966b18c3ed607851dc66e42fa7e36d6ffaa"
+#define PNG_FIXTURE     "\x89PNG\r\n\x1a\n" "yuneta-assets-test\n"
+#define PNG_FIXTURE_LEN (sizeof(PNG_FIXTURE)-1)
+#define PNG_SHA256      "afbcdae99c628ddb7b12813d4ffced63cb6a1c6f52dcdbcef4e641dbe96debb6"
 
-#define PUBLIC_URL      "/assets/"
+#define JPG_FIXTURE     "\xff\xd8\xff\xe0" "yuneta-assets-test qr\n"
+#define JPG_FIXTURE_LEN (sizeof(JPG_FIXTURE)-1)
+
+#define PUBLIC_URL      "/media/"
 #define SIGN_SECRET     "test-shared-secret"
 #define URL_TTL         900
 
-/*
- *  The principal the test yuno's authz checker refuses.
- */
 #define DENIED_USER     "denied@test"
-
-/***************************************************************************
- *              Structures
- ***************************************************************************/
 
 /***************************************************************************
  *              Prototypes
@@ -125,75 +125,16 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     json_t *tranger;
     char path_root[PATH_MAX];
-    char path_store[PATH_MAX];
     char path_import[PATH_MAX];
 } PRIVATE_DATA;
 
 /***************************************************************************
- *  Schema: the canonical `assets` topic of c_assets.h, plus one consumer
- *  topic whose `foto` column is an fkey into it.
+ *  Schema: one consumer topic whose 'foto' and 'qr' are files. Nothing
+ *  else: __assets__ and its hooks are treedb's, derived at open.
  ***************************************************************************/
 PRIVATE char schema_assets_test[] = "\
 {                                                                   \n\
     'topics': [                                                     \n\
-        {                                                           \n\
-            'topic_name': 'assets',                                 \n\
-            'pkey': 'id',                                           \n\
-            'system_flag': 'sf_string_key',                         \n\
-            'cols': {                                               \n\
-                'id': {                                             \n\
-                    'header': 'Id',                                 \n\
-                    'fillspace': 32,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': ['persistent','required']               \n\
-                },                                                  \n\
-                'content_type': {                                   \n\
-                    'header': 'Type',                               \n\
-                    'fillspace': 12,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': ['persistent']                          \n\
-                },                                                  \n\
-                'size': {                                           \n\
-                    'header': 'Size',                               \n\
-                    'fillspace': 8,                                 \n\
-                    'type': 'integer',                              \n\
-                    'flag': ['persistent']                          \n\
-                },                                                  \n\
-                't': {                                              \n\
-                    'header': 'Time',                               \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'integer',                              \n\
-                    'flag': ['persistent','time','now']             \n\
-                },                                                  \n\
-                'original_name': {                                  \n\
-                    'header': 'Name',                               \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': ['persistent']                          \n\
-                },                                                  \n\
-                'source_path': {                                    \n\
-                    'header': 'Sources',                            \n\
-                    'fillspace': 30,                                \n\
-                    'type': 'array',                                \n\
-                    'flag': ['persistent']                          \n\
-                },                                                  \n\
-                'uploaded_by': {                                    \n\
-                    'header': 'By',                                 \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': ['persistent']                          \n\
-                },                                                  \n\
-                'as_foto': {                                        \n\
-                    'header': 'Photo of',                           \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'devices': 'foto'                           \n\
-                    }                                               \n\
-                }                                                   \n\
-            }                                                       \n\
-        },                                                          \n\
         {                                                           \n\
             'topic_name': 'devices',                                \n\
             'pkey': 'id',                                           \n\
@@ -209,13 +150,19 @@ PRIVATE char schema_assets_test[] = "\
                     'header': 'Name',                               \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
-                    'flag': ['persistent']                          \n\
+                    'flag': ['persistent','writable']               \n\
                 },                                                  \n\
                 'foto': {                                           \n\
                     'header': 'Photo',                              \n\
-                    'fillspace': 32,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
-                    'flag': ['fkey']                                \n\
+                    'flag': ['fkey','file']                         \n\
+                },                                                  \n\
+                'qr': {                                             \n\
+                    'header': 'QR',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey','file']                         \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
@@ -240,9 +187,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Prepare paths
-     */
     const char *home = getenv("HOME");
     build_path(priv->path_root, sizeof(priv->path_root), home, "tests_yuneta", NULL);
     mkrdir(priv->path_root, 02770);
@@ -251,12 +195,19 @@ PRIVATE void mt_create(hgobj gobj)
     build_path(path_database, sizeof(path_database), priv->path_root, DATABASE, NULL);
     rmrdir(path_database);
 
-    build_path(priv->path_store, sizeof(priv->path_store), path_database, "blobs", NULL);
-    build_path(priv->path_import, sizeof(priv->path_import), path_database, "incoming", NULL);
+    build_path(priv->path_import, sizeof(priv->path_import), priv->path_root, DATABASE "_incoming", NULL);
+    if(is_directory(priv->path_import)) {
+        /*
+         *  The symlink bait of a previous run points OUT of the root:
+         *  take it away before the recursive remove follows it.
+         */
+        char link[PATH_MAX];
+        build_path(link, sizeof(link), priv->path_import, "taller", "escape", NULL);
+        unlink(link);
+        rmrdir(priv->path_import);
+    }
+    mkrdir(priv->path_import, 02770);
 
-    /*
-     *  Start tranger
-     */
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", priv->path_root,
         "database", DATABASE,
@@ -266,31 +217,26 @@ PRIVATE void mt_create(hgobj gobj)
     priv->tranger = tranger2_startup(0, jn_tranger, 0);
 
     /*
-     *  Create C_NODE child
+     *  C_NODE: the treedb, with the import root the bulk door is confined to
      */
     helper_quote2doublequote(schema_assets_test);
     json_t *jn_schema = legalstring2json(schema_assets_test, TRUE);
 
-    json_t *kw_node = json_pack("{s:I, s:s, s:o, s:i}",
+    json_t *kw_node = json_pack("{s:I, s:s, s:o, s:i, s:s}",
         "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", TREEDB_NAME,
         "treedb_schema", jn_schema,
-        "exit_on_error", LOG_OPT_TRACE_STACK
+        "exit_on_error", LOG_OPT_TRACE_STACK,
+        "import_root", priv->path_import
     );
     priv->gobj_node = gobj_create_pure_child("test_node", C_NODE, kw_node, gobj);
 
     /*
-     *  Create C_ASSETS child, pointing at that C_NODE.
-     *
-     *  No 'public_url'/'sign_secret' yet: the first checks are the INLINE
-     *  fallback, which is what a node with no web server in front of it
-     *  answers.
+     *  C_ASSETS, pointing at that C_NODE. No 'public_url'/'sign_secret'
+     *  yet: the first checks are the INLINE fallback.
      */
-    json_t *kw_assets = json_pack("{s:I, s:s, s:s, s:s, s:i}",
+    json_t *kw_assets = json_pack("{s:I, s:i}",
         "treedb", (json_int_t)(uintptr_t)priv->gobj_node,
-        "topic_name", "assets",
-        "store_path", priv->path_store,
-        "import_root", priv->path_import,
         "url_ttl", URL_TTL
     );
     priv->gobj_assets = gobj_create_pure_child("test_assets", C_ASSETS, kw_assets, gobj);
@@ -396,11 +342,16 @@ PRIVATE int fail(hgobj gobj, const char *what)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *ask(hgobj gobj, const char *command, json_t *kw)
+PRIVATE json_t *ask_assets(hgobj gobj, const char *command, json_t *kw)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     return gobj_command(priv->gobj_assets, command, kw, gobj);
+}
+
+PRIVATE json_t *ask_node(hgobj gobj, const char *command, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return gobj_command(priv->gobj_node, command, kw, gobj);
 }
 
 /***************************************************************************
@@ -411,10 +362,61 @@ PRIVATE int resp_result(json_t *resp)
     return (int)kw_get_int(0, resp, "result", -1, 0);
 }
 
+PRIVATE json_t *resp_data(json_t *resp)
+{
+    return kw_get_dict_value(0, resp, "data", 0, 0);
+}
+
+/***************************************************************************
+ *  base64 of a buffer, as a new json string
+ ***************************************************************************/
+PRIVATE json_t *b64(const char *data, size_t len)
+{
+    gbuffer_t *gbuf = gbuffer_binary_to_base64(data, len);
+    json_t *jn = json_string(gbuffer_cur_rd_pointer(gbuf));
+    GBUFFER_DECREF(gbuf)
+    return jn;
+}
+
+/***************************************************************************
+ *  The id part of a 'file' column value (full fkey reference)
+ ***************************************************************************/
+PRIVATE const char *fkey_id(json_t *node, const char *col)
+{
+    static char id[NAME_MAX];
+    char topic[NAME_MAX];
+    char hook[NAME_MAX];
+    id[0] = 0;
+
+    /*
+     *  A collapsed view answers an fkey in the 'list_dict' shape:
+     *      [{"id": ..., "topic_name": ..., "hook_name": ...}]
+     *  a pure node holds the reference string. Read both.
+     */
+    json_t *v = json_object_get(node, col);
+    if(json_is_string(v)) {
+        decode_parent_ref(json_string_value(v), topic, sizeof(topic), id, sizeof(id), hook, sizeof(hook));
+    } else if(json_is_array(v) && json_array_size(v) > 0) {
+        json_t *first = json_array_get(v, 0);
+        if(json_is_object(first)) {
+            snprintf(id, sizeof(id), "%s", kw_get_str(0, first, "id", "", 0));
+        } else if(json_is_string(first)) {
+            decode_parent_ref(json_string_value(first), topic, sizeof(topic), id, sizeof(id), hook, sizeof(hook));
+        }
+    } else if(json_is_object(v)) {
+        const char *k; json_t *vv;
+        json_object_foreach(v, k, vv) {
+            snprintf(id, sizeof(id), "%s", kw_get_str(0, vv, "id", k, 0));
+            break;
+        }
+    }
+    return id;
+}
+
 /***************************************************************************
  *  Write one fixture file under the import root
  ***************************************************************************/
-PRIVATE int write_fixture(hgobj gobj, const char *rel, const char *content)
+PRIVATE int write_fixture(hgobj gobj, const char *rel, const char *content, size_t len)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -433,9 +435,8 @@ PRIVATE int write_fixture(hgobj gobj, const char *rel, const char *content)
     if(!f) {
         return fail(gobj, "cannot write fixture");
     }
-    fwrite(content, 1, strlen(content), f);
+    fwrite(content, 1, len, f);
     fclose(f);
-
     return 0;
 }
 
@@ -473,10 +474,10 @@ PRIVATE int expected_token(
     if(!gbuf) {
         return fail(gobj, "base64 of the expected token");
     }
-    const char *b64 = gbuffer_cur_rd_pointer(gbuf);
+    const char *b64s = gbuffer_cur_rd_pointer(gbuf);
     int j = 0;
-    for(int i = 0; b64[i] && j < bflen - 1; i++) {
-        char c = b64[i];
+    for(int i = 0; b64s[i] && j < bflen - 1; i++) {
+        char c = b64s[i];
         if(c == '=' || c == '\n' || c == '\r') {
             continue;
         }
@@ -514,107 +515,130 @@ PRIVATE int run_tests(hgobj gobj)
     json_t *resp;
 
     /*-----------------------------------------------*
-     *  1: the id IS the content
+     *  1: the json door. A record with its bytes
+     *  beside it, through update-node create+autolink.
+     *  The column leaves as an fkey whose id IS the
+     *  sha256 of the content.
      *-----------------------------------------------*/
-    resp = ask(gobj, "put-asset",
-        json_pack("{s:s, s:s, s:s}",
-            "content64",     ASSET_B64,
-            "content_type",  "image/png",
-            "original_name", "one.png"
+    resp = ask_node(gobj, "update-node",
+        json_pack("{s:s, s:{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}, s:{s:b, s:b}}",
+            "topic_name", "devices",
+            "record",
+                "id", "dev-1",
+                "name", "first device",
+                "foto", "",
+                "qr", "",
+                "__files__",
+                    "foto",
+                        "content64", b64(PNG_FIXTURE, PNG_FIXTURE_LEN),
+                        "original_name", "dev-1.png",
+                        "content_type", "image/png",
+            "options",
+                "create", 1,
+                "autolink", 1
         )
     );
     if(resp_result(resp) != 0) {
-        result += fail(gobj, "put-asset failed");
+        result += fail(gobj, "update-node with a file failed");
     } else {
-        const char *id = kw_get_str(gobj, kw_get_dict(gobj, resp, "data", 0, 0), "id", "", 0);
-        if(strcmp(id, ASSET_SHA256) != 0) {
-            result += fail(gobj, "asset id is not the sha256 of its content");
+        json_t *node = resp_data(resp);
+        if(strcmp(fkey_id(node, "foto"), PNG_SHA256) != 0) {
+            gobj_trace_json(gobj, node, "foto is not the sha256 of the bytes");
+            result += fail(gobj, "the file column did not become an fkey to the sha256");
+        }
+        if(json_object_get(node, "__files__")) {
+            result += fail(gobj, "the transport manifest reached the record");
+        }
+    }
+    JSON_DECREF(resp)
+
+    resp = ask_node(gobj, "node",
+        json_pack("{s:s, s:s}", "topic_name", TREEDB_ASSETS_TOPIC, "node_id", PNG_SHA256)
+    );
+    if(resp_result(resp) != 0) {
+        result += fail(gobj, "the asset index node was not created");
+    } else {
+        json_t *asset = resp_data(resp);
+        if(kw_get_int(gobj, asset, "size", 0, 0) != (json_int_t)PNG_FIXTURE_LEN) {
+            result += fail(gobj, "asset size is not the size of the bytes");
+        }
+        if(strcmp(kw_get_str(gobj, asset, "original_name", "", 0), "dev-1.png") != 0) {
+            result += fail(gobj, "asset did not keep its original_name");
         }
     }
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  2: the same bytes are the same asset
+     *  2: get-asset, inline (no web server configured)
      *-----------------------------------------------*/
-    resp = ask(gobj, "put-asset",
-        json_pack("{s:s, s:s, s:s}",
-            "content64",     ASSET_B64,
-            "content_type",  "image/png",
-            "original_name", "again.png"
-        )
-    );
-    JSON_DECREF(resp)
-
-    resp = ask(gobj, "list-assets", json_object());
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 1) {
-        result += fail(gobj, "storing the same bytes twice made two assets");
-    }
-    JSON_DECREF(resp)
-
-    /*-----------------------------------------------*
-     *  3: with no web server configured, INLINE
-     *-----------------------------------------------*/
-    resp = ask(gobj, "get-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
+    resp = ask_assets(gobj, "get-asset", json_pack("{s:s}", "asset_id", PNG_SHA256));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "get-asset failed");
     } else {
-        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
+        json_t *data = resp_data(resp);
         if(strcmp(kw_get_str(gobj, data, "mode", "", 0), "inline") != 0) {
             result += fail(gobj, "get-asset did not fall back to inline");
         }
-        if(strcmp(kw_get_str(gobj, data, "content64", "", 0), ASSET_B64) != 0) {
-            result += fail(gobj, "inline content64 does not round-trip");
+        json_t *expected = b64(PNG_FIXTURE, PNG_FIXTURE_LEN);
+        if(strcmp(kw_get_str(gobj, data, "content64", "", 0), json_string_value(expected)) != 0) {
+            result += fail(gobj, "get-asset inline did not answer the stored bytes");
+        }
+        JSON_DECREF(expected)
+        if(strcmp(kw_get_str(gobj, data, "content_type", "", 0), "image/png") != 0) {
+            result += fail(gobj, "get-asset inline lost the content_type");
         }
     }
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  4: with one configured, a SIGNED URL that
-     *     nginx would accept
+     *  3: get-asset, a signed url once configured
      *-----------------------------------------------*/
     gobj_write_str_attr(priv->gobj_assets, "public_url", PUBLIC_URL);
     gobj_write_str_attr(priv->gobj_assets, "sign_secret", SIGN_SECRET);
 
-    time_t before = time(NULL);
-    resp = ask(gobj, "get-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
-    time_t after = time(NULL);
+    resp = ask_assets(gobj, "get-asset", json_pack("{s:s}", "asset_id", PNG_SHA256));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "get-asset (url) failed");
     } else {
-        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
-        if(strcmp(kw_get_str(gobj, data, "mode", "", 0), "url") != 0) {
-            result += fail(gobj, "get-asset did not sign a url");
-        }
+        json_t *data = resp_data(resp);
         const char *url = kw_get_str(gobj, data, "url", "", 0);
-
-        char expected_uri[PATH_MAX];
-        snprintf(expected_uri, sizeof(expected_uri), "%s%c%c/%c%c/%s.png",
-            PUBLIC_URL,
-            ASSET_SHA256[0], ASSET_SHA256[1], ASSET_SHA256[2], ASSET_SHA256[3],
-            ASSET_SHA256
-        );
-        if(strncmp(url, expected_uri, strlen(expected_uri)) != 0) {
-            result += fail(gobj, "the signed url does not address the blob");
+        if(strcmp(kw_get_str(gobj, data, "mode", "", 0), "url") != 0 || empty_string(url)) {
+            result += fail(gobj, "get-asset did not sign a url");
         } else {
-            /*
-             *  Pull '?e=<expires>&s=<token>' apart and check both halves.
-             */
-            const char *q = url + strlen(expected_uri);
-            json_int_t expires = 0;
-            char token[64];
+            char expected_uri[PATH_MAX];
+            snprintf(expected_uri, sizeof(expected_uri), "%s%c%c/%c%c/%s.png",
+                PUBLIC_URL,
+                PNG_SHA256[0], PNG_SHA256[1], PNG_SHA256[2], PNG_SHA256[3],
+                PNG_SHA256
+            );
+            char uri[PATH_MAX];
+            long long expires = 0;
+            char token[80];
             token[0] = 0;
-            if(sscanf(q, "?e=%lld&s=%63s", (long long *)&expires, token) != 2) {
-                result += fail(gobj, "the signed url has no e/s parameters");
+            if(sscanf(url, "%[^?]?e=%lld&s=%79s", uri, &expires, token) != 3) {
+                result += fail(gobj, "signed url has not the shape uri?e=..&s=..");
             } else {
-                if(expires < (json_int_t)before + URL_TTL ||
-                        expires > (json_int_t)after + URL_TTL) {
-                    result += fail(gobj, "the signed url does not expire in url_ttl seconds");
+                if(strcmp(uri, expected_uri) != 0) {
+                    gobj_log_error(gobj, 0,
+                        "function", "%s", __FUNCTION__,
+                        "msgset",   "%s", MSGSET_INTERNAL,
+                        "msg",      "%s", "TEST FAIL",
+                        "what",     "%s", "signed url uri",
+                        "uri",      "%s", uri,
+                        "expected", "%s", expected_uri,
+                        NULL
+                    );
+                    result += -1;
                 }
-                char want[64];
-                if(expected_token(gobj, expires, expected_uri, want, sizeof(want)) < 0) {
-                    result += -1;   // Error already logged
-                } else if(strcmp(token, want) != 0) {
-                    result += fail(gobj, "the signature is not what nginx would compute");
+                time_t now = time(NULL);
+                if(expires < now + URL_TTL - 5 || expires > now + URL_TTL + 5) {
+                    result += fail(gobj, "signed url expires outside url_ttl");
+                }
+                char expected[80];
+                if(expected_token(gobj, expires, uri, expected, sizeof(expected)) == 0) {
+                    if(strcmp(token, expected) != 0) {
+                        result += fail(gobj, "signed url token is not what nginx would compute");
+                    }
                 }
             }
         }
@@ -622,529 +646,179 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  5: nothing links it yet -> orphan
+     *  4: the gbuffer door: one kw, two files
      *-----------------------------------------------*/
-    resp = ask(gobj, "list-assets", json_pack("{s:b}", "orphan", 1));
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 1) {
-        result += fail(gobj, "an asset no node links is not reported as orphan");
-    }
-    JSON_DECREF(resp)
+    {
+        gbuffer_t *gbuf = gbuffer_create(PNG_FIXTURE_LEN + JPG_FIXTURE_LEN, PNG_FIXTURE_LEN + JPG_FIXTURE_LEN);
+        gbuffer_append(gbuf, PNG_FIXTURE, PNG_FIXTURE_LEN);
+        gbuffer_append(gbuf, JPG_FIXTURE, JPG_FIXTURE_LEN);
 
-    /*
-     *  The same flag as a STRING, which is how `command-yuno` forwards it:
-     *  it does not coerce, so a boolean read without KW_WILD_NUMBER answers
-     *  its default and the filter silently does nothing -- `orphan=1` then
-     *  lists EVERYTHING, which reads as "no orphans found".
-     */
-    resp = ask(gobj, "list-assets", json_pack("{s:s}", "orphan", "1"));
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 1) {
-        result += fail(gobj, "orphan=1 as a string did not filter");
+        char jpg_sha[SHA256_HEX_LEN + 1];
+        sha256_hex(JPG_FIXTURE, JPG_FIXTURE_LEN, jpg_sha, sizeof(jpg_sha));
+
+        resp = ask_node(gobj, "update-node",
+            json_pack("{s:s, s:I, s:{s:s, s:s, s:s, s:{s:{s:I, s:I, s:s}, s:{s:I, s:I, s:s}}}, s:{s:b, s:b}}",
+                "topic_name", "devices",
+                "gbuffer", (json_int_t)(uintptr_t)gbuf,
+                "record",
+                    "id", "dev-2",
+                    "foto", "",
+                    "qr", "",
+                    "__files__",
+                        "foto",
+                            "offset", (json_int_t)0,
+                            "size", (json_int_t)PNG_FIXTURE_LEN,
+                            "original_name", "dev-2.png",
+                        "qr",
+                            "offset", (json_int_t)PNG_FIXTURE_LEN,
+                            "size", (json_int_t)JPG_FIXTURE_LEN,
+                            "original_name", "dev-2.jpg",
+                "options",
+                    "create", 1,
+                    "autolink", 1
+            )
+        );
+        if(resp_result(resp) != 0) {
+            result += fail(gobj, "update-node with a gbuffer of two slices failed");
+        } else {
+            json_t *node = resp_data(resp);
+            if(strcmp(fkey_id(node, "foto"), PNG_SHA256) != 0) {
+                result += fail(gobj, "the first slice did not become the png asset");
+            }
+            if(strcmp(fkey_id(node, "qr"), jpg_sha) != 0) {
+                result += fail(gobj, "the second slice did not become the jpeg asset");
+            }
+        }
+        JSON_DECREF(resp)
+
+        /*  the same png from two devices is ONE asset with TWO parents  */
+        resp = ask_node(gobj, "node",
+            json_pack("{s:s, s:s}", "topic_name", TREEDB_ASSETS_TOPIC, "node_id", PNG_SHA256)
+        );
+        json_t *hook = json_object_get(resp_data(resp), "as_devices_foto");
+        size_t parents = json_is_array(hook)? json_array_size(hook): json_object_size(hook);
+        if(parents != 2) {
+            gobj_trace_json(gobj, resp_data(resp), "the shared asset");
+            result += fail(gobj, "the same bytes from two devices did not make one asset with two parents");
+        }
+        JSON_DECREF(resp)
     }
-    JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  6: linked -> not an orphan any more
+     *  5: a linked asset cannot be deleted
      *-----------------------------------------------*/
-    json_t *device = gobj_create_node(
-        priv->gobj_node,
-        "devices",
-        json_pack("{s:s, s:s}", "id", "dev1", "name", "Device one"),
-        0,
-        gobj
+    resp = ask_node(gobj, "delete-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", TREEDB_ASSETS_TOPIC, "record", "id", PNG_SHA256)
     );
-    if(!device) {
-        result += fail(gobj, "cannot create the consumer node");
-    }
-    JSON_DECREF(device)
-
-    if(gobj_link_nodes(
-        priv->gobj_node,
-        "as_foto",
-        "assets",
-        json_pack("{s:s}", "id", ASSET_SHA256),
-        "devices",
-        json_pack("{s:s}", "id", "dev1"),
-        gobj
-    ) < 0) {
-        result += fail(gobj, "cannot link the asset to the consumer node");
-    }
-
-    resp = ask(gobj, "list-assets", json_pack("{s:b}", "orphan", 1));
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 0) {
-        result += fail(gobj, "a linked asset is still reported as orphan");
-    }
-    JSON_DECREF(resp)
-
-    /*-----------------------------------------------*
-     *  7: a linked asset cannot be deleted
-     *-----------------------------------------------*/
-    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
     if(resp_result(resp) == 0) {
-        result += fail(gobj, "delete-asset removed an asset a node still links");
+        result += fail(gobj, "delete-node removed an asset a node still links");
     }
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  8: unlinked, it goes -- and its bytes with it
+     *  6: import-assets, and it cannot be led out
      *-----------------------------------------------*/
-    char blob_rel[NAME_MAX];
-    snprintf(blob_rel, sizeof(blob_rel), "%c%c/%c%c/%s.png",
-        ASSET_SHA256[0], ASSET_SHA256[1], ASSET_SHA256[2], ASSET_SHA256[3],
-        ASSET_SHA256
-    );
-    char blob[PATH_MAX];
-    build_path(blob, sizeof(blob), priv->path_store, blob_rel, NULL);
-    if(!is_regular_file(blob)) {
-        result += fail(gobj, "the blob is not on disk where the url points");
-    }
+    result += write_fixture(gobj, "taller/plano.png", PNG_FIXTURE "plan", PNG_FIXTURE_LEN + 4);
+    result += write_fixture(gobj, "taller/notes.txt", "not an asset\n", 13);
 
-    if(gobj_unlink_nodes(
-        priv->gobj_node,
-        "as_foto",
-        "assets",
-        json_pack("{s:s}", "id", ASSET_SHA256),
-        "devices",
-        json_pack("{s:s}", "id", "dev1"),
-        gobj
-    ) < 0) {
-        result += fail(gobj, "cannot unlink the asset");
+    /*  '..' is refused by name, an absolute path lands INSIDE the root  */
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "../"));
+    if(resp_result(resp) == 0) {
+        result += fail(gobj, "import-assets accepted '..'");
     }
-
-    resp = ask(gobj, "delete-asset", json_pack("{s:s}", "asset_id", ASSET_SHA256));
-    if(resp_result(resp) != 0) {
-        result += fail(gobj, "cannot delete an unlinked asset");
+    JSON_DECREF(resp)
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "/etc"));
+    if(resp_result(resp) == 0) {
+        result += fail(gobj, "import-assets walked out of its import_root through an absolute path");
     }
     JSON_DECREF(resp)
 
-    if(is_regular_file(blob)) {
-        result += fail(gobj, "the row is gone but the bytes stayed behind");
+    /*  a symlink out of the root is not followed  */
+    {
+        char link[PATH_MAX];
+        build_path(link, sizeof(link), priv->path_import, "taller", "escape", NULL);
+        unlink(link);
+        if(symlink("/etc", link) < 0) {
+            result += fail(gobj, "cannot create the symlink bait");
+        }
     }
 
-    /*-----------------------------------------------*
-     *  9: import a directory that is already here
-     *-----------------------------------------------*/
-    result += write_fixture(gobj, "taller/fotos/alpha.png", "import-alpha\n");
-    result += write_fixture(gobj, "taller/fotos/bravo.jpg", "import-bravo\n");
-    result += write_fixture(gobj, "taller/notes.txt", "not an image\n");
-
-    resp = ask(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller"));
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller"));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "import-assets failed");
     } else {
-        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
-        if(kw_get_int(gobj, data, "imported", 0, 0) != 2) {
-            result += fail(gobj, "import-assets did not import both images");
+        json_t *stats = resp_data(resp);
+        if(kw_get_int(gobj, stats, "imported", 0, 0) != 1) {
+            gobj_trace_json(gobj, stats, "import stats");
+            result += fail(gobj, "import-assets did not import exactly the png");
         }
-        if(kw_get_int(gobj, data, "skipped", 0, 0) != 1) {
+        if(kw_get_int(gobj, stats, "skipped", 0, 0) != 1) {
             result += fail(gobj, "import-assets did not skip what it must not serve");
         }
-    }
-    JSON_DECREF(resp)
-
-    /*
-     *  The bridge a loader links by: the path the asset came from,
-     *  relative to the import root.
-     */
-    /*
-     *  `source_path` is a LIST, so it is searched and not compared: a
-     *  filter on a scalar would never match one.
-     */
-    resp = ask(gobj, "list-assets", json_object());
-    {
-        BOOL found = FALSE;
-        size_t i; json_t *node;
-        json_array_foreach(kw_get_list(gobj, resp, "data", 0, 0), i, node) {
-            size_t j; json_t *sp;
-            json_array_foreach(json_object_get(node, "source_path"), j, sp) {
-                const char *v = json_string_value(sp);
-                if(v && strcmp(v, "taller/fotos/alpha.png")==0) {
-                    found = TRUE;
-                }
-            }
-        }
-        if(!found) {
-            result += fail(gobj, "an imported asset does not carry its source_path");
+        char plan_sha[SHA256_HEX_LEN + 1];
+        sha256_hex(PNG_FIXTURE "plan", PNG_FIXTURE_LEN + 4, plan_sha, sizeof(plan_sha));
+        if(strcmp(kw_get_str(gobj, stats, "files`taller/plano.png", "", 0), plan_sha) != 0) {
+            gobj_trace_json(gobj, stats, "import stats");
+            result += fail(gobj, "import-assets did not answer path -> id");
         }
     }
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  10: importing twice creates nothing
+     *  7: gc-assets removes exactly the orphan
      *-----------------------------------------------*/
-    resp = ask(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller"));
-    JSON_DECREF(resp)
-
-    resp = ask(gobj, "list-assets", json_object());
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
-        result += fail(gobj, "a second import duplicated the assets");
+    resp = ask_node(gobj, "gc-assets", json_pack("{s:s}", "dry_run", "1"));
+    if(resp_result(resp) != 0 || json_array_size(resp_data(resp)) != 1) {
+        result += fail(gobj, "gc-assets dry_run did not find exactly the imported orphan");
     }
     JSON_DECREF(resp)
 
-    /*-----------------------------------------------*
-     *  11: gc takes the orphans, and only those
-     *-----------------------------------------------*/
-    resp = ask(gobj, "gc-assets", json_pack("{s:s}", "dry_run", "1"));
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
-        result += fail(gobj, "gc-assets dry_run did not find both orphans");
-    }
-    JSON_DECREF(resp)
-
-    resp = ask(gobj, "list-assets", json_object());
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
+    resp = ask_node(gobj, "nodes", json_pack("{s:s}", "topic_name", TREEDB_ASSETS_TOPIC));
+    if(json_array_size(resp_data(resp)) != 3) {
         result += fail(gobj, "gc-assets dry_run deleted something");
     }
     JSON_DECREF(resp)
 
-    resp = ask(gobj, "gc-assets", json_object());
-    JSON_DECREF(resp)
-
-    resp = ask(gobj, "list-assets", json_object());
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 0) {
-        result += fail(gobj, "gc-assets did not delete the orphans");
-    }
-    JSON_DECREF(resp)
-
-    /*-----------------------------------------------*
-     *  12: video and audio are assets too
-     *
-     *  The extension is what a web server reads to
-     *  pick a Content-Type, so the containers that
-     *  hold both -- mp4/m4a, webm/weba, ogv/ogg --
-     *  have to come back apart.
-     *-----------------------------------------------*/
-    static const struct {
-        const char *name;
-        const char *content_type;
-        const char *ext;
-    } media[] = {
-        {"clip.mp4",  "video/mp4",       "mp4"},
-        {"clip.webm", "video/webm",      "webm"},
-        {"clip.mov",  "video/quicktime", "mov"},
-        {"voice.mp3", "audio/mpeg",      "mp3"},
-        {"voice.m4a", "audio/mp4",       "m4a"},
-        {"voice.weba","audio/webm",      "weba"},
-        {0, 0, 0}
-    };
-    for(int i = 0; media[i].name; i++) {
-        /*
-         *  Distinct bytes per file, so each one is its own asset: the id is
-         *  the content, and the same bytes twice would be one asset.
-         */
-        char content[64];
-        snprintf(content, sizeof(content), "media-%s\n", media[i].name);
-        gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(content, strlen(content));
-        if(!gbuf_b64) {
-            result += fail(gobj, "cannot base64 the media fixture");
-            continue;
-        }
-        resp = ask(gobj, "put-asset",
-            json_pack("{s:s, s:s}",
-                "content64",     (char *)gbuffer_cur_rd_pointer(gbuf_b64),
-                "original_name", media[i].name
-            )
-        );
-        GBUFFER_DECREF(gbuf_b64)
-        if(resp_result(resp) != 0) {
-            result += fail(gobj, "put-asset refused a media file");
-            JSON_DECREF(resp)
-            continue;
-        }
-        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
-        const char *ct = kw_get_str(gobj, data, "content_type", "", 0);
-        const char *id = kw_get_str(gobj, data, "id", "", 0);
-        if(strcmp(ct, media[i].content_type) != 0) {
-            result += fail(gobj, "a media file got the wrong content_type from its name");
-        }
-        char want[PATH_MAX];
-        snprintf(want, sizeof(want), "%c%c/%c%c/%s.%s",
-            id[0], id[1], id[2], id[3], id, media[i].ext
-        );
-        char blob_media[PATH_MAX];
-        build_path(blob_media, sizeof(blob_media), priv->path_store, want, NULL);
-        if(!is_regular_file(blob_media)) {
-            result += fail(gobj, "a media blob is not on disk under its own extension");
-        }
-        JSON_DECREF(resp)
-    }
-
-    /*
-     *  And they are gone again, so the counts the later checks assert on
-     *  are the ones those checks were written for.
-     */
-    resp = ask(gobj, "gc-assets", json_object());
-    JSON_DECREF(resp)
-
-    /*-----------------------------------------------*
-     *  13: the same bytes under SEVERAL paths
-     *
-     *  An asset is its CONTENT, so N files with
-     *  identical bytes are ONE asset -- and each
-     *  came from its own path.  Keeping only the
-     *  last one is what left 147 devices of a real
-     *  census with no photograph: they named a path
-     *  no asset carried, so they were never even
-     *  looked up, and the load reported success.
-     *-----------------------------------------------*/
-    {
-        static const char *paths[] = {"a/one.png", "b/two.png", "c/three.png", 0};
-        for(int i = 0; paths[i]; i++) {
-            resp = ask(gobj, "put-asset",
-                json_pack("{s:s, s:s, s:s, s:s}",
-                    "content64",     ASSET_B64,      /*  the same bytes, always  */
-                    "content_type",  "image/png",
-                    "original_name", "first.png",
-                    "source_path",   paths[i]
-                )
-            );
-            if(resp_result(resp) != 0) {
-                result += fail(gobj, "cannot store the same bytes under another path");
-            }
-            JSON_DECREF(resp)
-        }
-
-        resp = ask(gobj, "list-assets", json_object());
-        json_t *iter = kw_get_list(gobj, resp, "data", 0, 0);
-        if(json_array_size(iter) != 1) {
-            result += fail(gobj, "the same bytes under three paths made more than one asset");
-        } else {
-            json_t *sp = json_object_get(json_array_get(iter, 0), "source_path");
-            if(json_array_size(sp) != 3) {
-                result += fail(gobj, "an asset did not keep every path that led to it");
-            }
-        }
-        JSON_DECREF(resp)
-
-        /*
-         *  And a path already known writes NOTHING: an append-only store
-         *  must not grow a row per re-run of an idempotent load.
-         */
-        json_t *before = ask(gobj, "list-assets", json_object());
-        json_int_t t0 = kw_get_int(gobj,
-            json_array_get(kw_get_list(gobj, before, "data", 0, 0), 0), "t", 0, 0);
-        JSON_DECREF(before)
-        resp = ask(gobj, "put-asset",
-            json_pack("{s:s, s:s, s:s}",
-                "content64", ASSET_B64, "content_type", "image/png",
-                "source_path", "a/one.png"
-            )
-        );
-        JSON_DECREF(resp)
-        json_t *after = ask(gobj, "list-assets", json_object());
-        json_t *node = json_array_get(kw_get_list(gobj, after, "data", 0, 0), 0);
-        if(json_array_size(json_object_get(node, "source_path")) != 3) {
-            result += fail(gobj, "re-storing a known path changed the path list");
-        }
-        if(kw_get_int(gobj, node, "t", 0, 0) != t0) {
-            result += fail(gobj, "re-storing a known path wrote a new row");
-        }
-        JSON_DECREF(after)
-
-        resp = ask(gobj, "gc-assets", json_object());
-        JSON_DECREF(resp)
-    }
-
-    /*-----------------------------------------------*
-     *  14: a BUNDLE, which is what a batch sends
-     *
-     *  A batch line carries ONE file, so a census of
-     *  twelve thousand images is either twelve
-     *  thousand commands or a few dozen bundles.
-     *  One bad entry must not stop the rest: a load
-     *  of that size that aborted halfway would be
-     *  neither retryable nor comparable.
-     *-----------------------------------------------*/
-    {
-        json_t *bundle = json_array();
-        static const char *names[] = {"b1.png", "b2.png", "b3.png", 0};
-        for(int i = 0; names[i]; i++) {
-            char content[64];
-            snprintf(content, sizeof(content), "bundled-%d\n", i);
-            gbuffer_t *g = gbuffer_binary_to_base64(content, strlen(content));
-            json_array_append_new(bundle, json_pack("{s:s, s:s, s:s}",
-                "original_name", names[i],
-                "source_path",   names[i],
-                "content64",     (char *)gbuffer_cur_rd_pointer(g)
-            ));
-            GBUFFER_DECREF(g)
-        }
-        /*  A rotten entry in the middle, on purpose. */
-        json_array_insert_new(bundle, 1,
-            json_pack("{s:s, s:s}", "original_name", "bad.png", "content64", "!!not-base64!!")
-        );
-
-        resp = ask(gobj, "put-assets", json_pack("{s:o}", "assets", bundle));
-        json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
-        if(kw_get_int(gobj, data, "stored", 0, 0) != 3) {
-            result += fail(gobj, "a bundle did not store every good entry");
-        }
-        if(kw_get_int(gobj, data, "failed", 0, 0) != 1) {
-            result += fail(gobj, "a bundle did not report its bad entry");
-        }
-        JSON_DECREF(resp)
-    }
-    resp = ask(gobj, "list-assets", json_object());
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 3) {
-        result += fail(gobj, "the bundle did not leave exactly its good assets");
-    }
-    JSON_DECREF(resp)
-    resp = ask(gobj, "gc-assets", json_object());
-    JSON_DECREF(resp)
-
-    /*-----------------------------------------------*
-     *  15: import-assets cannot be walked out of its
-     *      root
-     *
-     *  It reads an arbitrary path, so the confinement
-     *  is checked with hostile input and not by
-     *  reading the code: a '..', an ABSOLUTE path,
-     *  and a symlink pointing outside.
-     *-----------------------------------------------*/
-    result += write_fixture(gobj, "outside-bait.png", "should-never-be-imported\n");
-
-    char bait[PATH_MAX];
-    build_path(bait, sizeof(bait), priv->path_root, "escaped-bait.png", NULL);
-    FILE *fbait = fopen(bait, "w");
-    if(fbait) {
-        fwrite("outside\n", 1, 8, fbait);
-        fclose(fbait);
-    }
-    char link_path[PATH_MAX];
-    build_path(link_path, sizeof(link_path), priv->path_import, "escape.png", NULL);
-    unlink(link_path);
-    if(symlink(bait, link_path) != 0) {
-        result += fail(gobj, "cannot create the symlink bait");
-    }
-
-    static const char *escapes[] = {
-        "../../../../etc",
-        "..",
-        "/etc",
-        "taller/../../..",
-        0
-    };
-    for(int i = 0; escapes[i]; i++) {
-        resp = ask(gobj, "import-assets", json_pack("{s:s}", "source_dir", escapes[i]));
-        if(resp_result(resp) == 0) {
-            /*
-             *  Refusing is the common answer here; when it does NOT refuse,
-             *  what it walked has to be inside the root.
-             */
-            json_t *data = kw_get_dict(gobj, resp, "data", 0, 0);
-            const char *walked = data? kw_get_str(gobj, data, "source_dir", "", 0): "";
-            if(strncmp(walked, priv->path_import, strlen(priv->path_import)) != 0) {
-                result += fail(gobj, "import-assets walked out of its import_root");
-            }
-        }
-        JSON_DECREF(resp)
-    }
-
-    /*
-     *  The symlink must not be followed: walk_dir_tree() lstat()s, so a
-     *  link is neither a regular file nor a directory, and the callback
-     *  only ever sees regular files.
-     */
-    resp = ask(gobj, "import-assets", json_object());
-    JSON_DECREF(resp)
-    resp = ask(gobj, "list-assets",
-        json_pack("{s:{s:s}}", "filter", "original_name", "escape.png")
-    );
-    if(json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 0) {
-        result += fail(gobj, "import-assets followed a symlink out of its root");
-    }
-    JSON_DECREF(resp)
-
-    /*
-     *  And nothing it did import may carry an ABSOLUTE source_path: that
-     *  string reaches a browser, and a leading '/' there would mean the
-     *  walk left the root and is leaking the node's filesystem layout.
-     */
-    resp = ask(gobj, "list-assets", json_object());
-    {
-        size_t i; json_t *node;
-        json_array_foreach(kw_get_list(gobj, resp, "data", 0, 0), i, node) {
-            size_t j; json_t *sp;
-            json_array_foreach(json_object_get(node, "source_path"), j, sp) {
-                const char *v = json_string_value(sp);
-                if(v && v[0] == '/') {
-                    result += fail(gobj, "an asset carries an absolute source_path");
-                }
+    resp = ask_node(gobj, "gc-assets", json_object());
+    if(resp_result(resp) != 0 || json_array_size(resp_data(resp)) != 1) {
+        result += fail(gobj, "gc-assets did not delete exactly the orphan");
+    } else {
+        const char *gone = json_string_value(json_array_get(resp_data(resp), 0));
+        char path[PATH_MAX];
+        if(treedb_blob_path(priv->tranger, gone, "image/png", path, sizeof(path)) == 0) {
+            if(is_regular_file(path)) {
+                result += fail(gobj, "gc-assets left the orphan's bytes on disk");
             }
         }
     }
     JSON_DECREF(resp)
 
-    /*-----------------------------------------------*
-     *  16: 'id' still works for a DIRECT caller
-     *
-     *  The parameter is 'asset_id' because a bare
-     *  'id' crossing 'command-yuno' becomes a filter
-     *  on the YUNO record and answers "Yuno not
-     *  found". A caller that never crosses the agent
-     *  has no such problem, and its 'id' must keep
-     *  working.
-     *-----------------------------------------------*/
-    resp = ask(gobj, "put-asset",
-        json_pack("{s:s, s:s, s:s}",
-            "content64",     ASSET_B64,
-            "content_type",  "image/png",
-            "original_name", "byid.png"
-        )
-    );
-    JSON_DECREF(resp)
-    resp = ask(gobj, "get-asset", json_pack("{s:s}", "id", ASSET_SHA256));
-    if(resp_result(resp) != 0) {
-        result += fail(gobj, "a direct caller lost the bare 'id'");
+    resp = ask_node(gobj, "nodes", json_pack("{s:s}", "topic_name", TREEDB_ASSETS_TOPIC));
+    if(json_array_size(resp_data(resp)) != 2) {
+        result += fail(gobj, "gc-assets did not leave the two linked assets");
     }
-    JSON_DECREF(resp)
-    resp = ask(gobj, "gc-assets", json_object());
     JSON_DECREF(resp)
 
     /*-----------------------------------------------*
-     *  17: the authz gate answers -403
-     *
-     *  The test yuno installs a checker that denies
-     *  exactly one principal, so this exercises the
-     *  gate instead of stepping around it.
+     *  8: a denied principal is refused
      *-----------------------------------------------*/
-    resp = ask(gobj, "put-asset",
-        json_pack("{s:s, s:s, s:s}",
-            "content64",    ASSET_B64,
-            "content_type", "image/png",
-            "__username__", DENIED_USER
-        )
+    resp = ask_assets(gobj, "get-asset",
+        json_pack("{s:s, s:s}", "asset_id", PNG_SHA256, "__username__", DENIED_USER)
     );
     if(resp_result(resp) != -403) {
-        result += fail(gobj, "a denied principal was allowed to store an asset");
-    }
-    JSON_DECREF(resp)
-
-    resp = ask(gobj, "list-assets", json_pack("{s:s}", "__username__", DENIED_USER));
-    if(resp_result(resp) != -403) {
-        result += fail(gobj, "a denied principal was allowed to list assets");
+        result += fail(gobj, "a denied principal was allowed to read an asset");
     }
     JSON_DECREF(resp)
 
     if(result == 0) {
         gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "All c_assets tests PASSED",
+            "msgset", "%s", MSGSET_INFO,
+            "msg", "%s", "All c_assets tests PASSED",
             NULL
         );
     }
-
     return result;
 }
-
-
-
-
-                    /***************************
-                     *      Commands
-                     ***************************/
-
-
-
 
 /***************************************************************************
  *

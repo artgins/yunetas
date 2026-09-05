@@ -8,6 +8,9 @@ char foto_final1[]= "\
         '__graphs__': { \n\
             'id': {} \n\
         }, \n\
+        '__assets__': { \n\
+            'id': {} \n\
+        }, \n\
         'users': { \n\
             'id': { \n\
                 '9594f724-c029-4190-8311-a42438f74a99': { \n\
