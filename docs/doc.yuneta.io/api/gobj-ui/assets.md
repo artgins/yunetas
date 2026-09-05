@@ -7,7 +7,7 @@ description: >-
 
 # Assets
 
-**Source code:** [`src/yui_asset.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js)
+**Source code:** [`src/yui_asset.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js)
 
 A treedb node often owns something that is not JSON: a photo, a plan, a clip.
 Those bytes cannot live in the treedb's records, so the treedb keeps them on
@@ -43,12 +43,12 @@ the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded
 is still an empty list. All of them are read.
 
 (js_yui_asset_ids)=
-### [`yui_asset_ids(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js#L63)
+### [`yui_asset_ids(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js#L63)
 
 Every asset id the column names, in order. Always an array, possibly empty.
 
 (js_yui_asset_id)=
-### [`yui_asset_id(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js#L75)
+### [`yui_asset_id(ref)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js#L75)
 
 The first id the column names, or `null`. An empty column answers nothing
 rather than throwing.
@@ -58,7 +58,7 @@ rather than throwing.
 ## Showing it
 
 (js_yui_asset_src)=
-### [`yui_asset_src(answer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js#L88)
+### [`yui_asset_src(answer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js#L88)
 
 Turns either shape of a `get-asset` answer into something an element can
 load: the signed URL as it comes, or a `data:` URL built from the inline
@@ -69,7 +69,7 @@ An `<img src="">` reloads the page in some browsers, which is a worse failure
 than the one being reported.
 
 (js_yui_asset_element)=
-### [`yui_asset_element(answer, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js#L152)
+### [`yui_asset_element(answer, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js#L152)
 
 The element for one asset, built from the **content type the backend stored**
 and not from the name a person typed: `<img>`, `<video>` or `<audio>`. Video
@@ -86,7 +86,7 @@ path, the thing a person can act on. `opts.alt` sets the alt text of an image,
 the element.
 
 (js_yui_asset_missing)=
-### [`yui_asset_missing(detail, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_asset.js#L112)
+### [`yui_asset_missing(detail, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_asset.js#L112)
 
 The marker for an asset that is not there, on its own.
 
@@ -125,7 +125,7 @@ $box.appendChild(yui_asset_element(answer, {detail: device.foto_name}));
 
 Reading an asset is the half above. **Writing one** is a column flagged
 `['fkey','file']` and the control the form draws for it
-([`src/yui_file_field.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js)). The form and the treedb topic table use it
+([`src/yui_file_field.js`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js)). The form and the treedb topic table use it
 themselves — a consumer needs these only to build a file UI of its own.
 
 Three things about the shape are not obvious, and each one is a bug it
@@ -144,7 +144,7 @@ avoids:
   trace cannot see.
 
 (js_YUI_FILE_ACCEPT)=
-### [`YUI_FILE_ACCEPT`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L50)
+### [`YUI_FILE_ACCEPT`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L50)
 
 What the treedb's default ceiling holds, as an `accept` attribute: a hint to
 the file dialog and **never a check**. The check is treedb's, on the bytes, at
@@ -152,7 +152,7 @@ the door — a browser filter is a convenience, and a client that means to lie
 walks past it.
 
 (js_yui_file_control)=
-### [`yui_file_control(gobj, {name, value, readonly, accept, on_pick})`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L237)
+### [`yui_file_control(gobj, {name, value, readonly, accept, on_pick})`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L237)
 
 The control: a button, what it is holding, and the way to clear it. It hangs
 its state on the returned element — `yui_file` (the picked `File`, or null),
@@ -165,14 +165,14 @@ input cannot be styled and says *"No file chosen"* in the **browser's**
 language, not the app's.
 
 (js_yui_file_read)=
-### [`yui_file_read(file)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L145)
+### [`yui_file_read(file)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L145)
 
 Reads one picked file into what the manifest carries —
 `{content64, content_type, original_name, size, id}`. Async: this is the
 promise the host awaits.
 
 (js_yui_files_manifest)=
-### [`yui_files_manifest(picks, record)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L172)
+### [`yui_files_manifest(picks, record)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L172)
 
 Turns what was read into the write: the record takes the **id** in each picked
 column, and the bytes go beside it in `__files__`. That key is not a column —
@@ -181,7 +181,7 @@ door. A field that *carries* the bytes and a field that *keeps* them are one
 word apart and 460 MB of RAM apart.
 
 (js_yui_file_sha256)=
-### [`yui_file_sha256(buffer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L96)
+### [`yui_file_sha256(buffer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L96)
 
 The sha256 as lowercase hex, **or `null`** — and null is a legal answer, not a
 failure: `crypto.subtle` exists only in a secure context, so a dev server on
@@ -190,19 +190,19 @@ what arrives. What the hash buys is an integrity check the backend can make (a
 wrong id with good bytes is refused), never the identity itself.
 
 (js_yui_array_buffer_to_base64)=
-### [`yui_array_buffer_to_base64(buffer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L125)
+### [`yui_array_buffer_to_base64(buffer)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L125)
 
 Base64 in chunks, because `String.fromCharCode(...bytes)` spreads the whole
 array onto the call stack and a few hundred KB is already a `RangeError` —
 which, for a file picker, is every file that matters.
 
 (js_yui_file_size_label)=
-### [`yui_file_size_label(bytes)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L68)
+### [`yui_file_size_label(bytes)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L68)
 
 A size a person reads: bytes up to 1 KB, then one decimal.
 
 (js_yui_file_id_label)=
-### [`yui_file_id_label(id)`](https://github.com/artgins/gobj-ui.js/blob/7.23.60/src/yui_file_field.js#L211)
+### [`yui_file_id_label(id)`](https://github.com/artgins/gobj-ui.js/blob/7.23.62/src/yui_file_field.js#L211)
 
 An id a person can look at: a sha256 in full is 64 characters of noise in a
 form, so it is shortened, and the whole of it belongs in the `title`.
