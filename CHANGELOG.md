@@ -157,6 +157,34 @@ holding nothing but the read-only id.
 
 Carries its own versions and reaches the apps through npm.
 
+#### `gobj-js` 7.16.4 → 7.16.5 and `gobj-ui` 7.23.60 → 7.23.62: the `file` column control
+
+A col flagged `['fkey','file']` can be filled by a person now. Until this it
+was written by a C caller or by `import-assets` and by nobody else.
+
+- **gobj-js 7.16.4**: `file` joins `treedb_field_types`, which is what makes
+  `treedb_get_field_desc()` see it.
+- **gobj-js 7.16.5**: the ORDER of the flags decided whether a column was
+  one. That function walks the flag array and every type word OVERWRITES the
+  answer, so `['fkey','file']` answered `file` and `['file','fkey']` answered
+  `fkey` — the same column drawn as a picker or as a select depending on how
+  its author wrote the list. The C asks for both words with `kw_has_word()`
+  and does not care about the order; neither does this now.
+- **gobj-ui 7.23.60**: the control (`yui_file_field.js`). Three things it does
+  that are not obvious, each one a bug the shape avoids: the file is read at
+  SAVE and not at pick (a `File` is a reference, so cancelling reads nothing);
+  the `File` never enters a kw (plain json, and the trace serialises it), so
+  the host asks the form for it with `get_picked_files`; and reading is a
+  promise, so it enters the machine as `EV_FILES_READ` / `EV_FILES_FAILED`.
+- **gobj-ui 7.23.61**: the form logged *"type unknown: file"* twice per record
+  opened — its two value converters did not know the word.
+- **gobj-ui 7.23.62**: a read-only form reported the column as WRITABLE. The
+  control hid its button, which hides the way in for a person and leaves the
+  `<input type=file>` enabled.
+
+The last two were found by driving a real form against a real census, not by
+a fixture: the control drew correctly and the log said it did not.
+
 #### `gobj-js` 7.16.3 and `gobj-ui` 7.23.50 → 7.23.59
 
 The treedb topic table, one round, in the order the defects were found:

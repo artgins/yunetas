@@ -141,6 +141,31 @@ fan-out and the follower `rt_disk` path), and `rt_disk` skips the per-record
 disk read when no audience of the key needs the body (fixed 2026-07-15; the
 `only_md` feeds in `test_rt_disk_multi_feed.c` cover it).
 
+## `file` columns: bytes with an owner
+
+A treedb is held in memory and timeranger2 rewrites the **whole record** on
+every update, so a photo cannot be a field of a node. A column flagged
+`['fkey','file']` is an fkey into `__assets__`, a system topic every treedb
+creates at open: the **index** lives in memory and the **content** on disk,
+under `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`. The id of an asset IS the
+sha256 of its bytes, so the same content stored twice is one asset and a
+served url can be cached for ever.
+
+The hooks of `__assets__` are **derived** from the `file` columns themselves
+and never persisted, so a host declares nothing but the column. The write
+path takes the bytes BESIDE the record (a `__files__` manifest: `content64`
+from a browser, or `offset`/`size` slices of the kw's one `gbuffer` from a C
+caller), re-hashes them, checks the size before decoding and the type on the
+BYTES, and rewrites the column into the full fkey reference.
+
+`treedb_store_files()`, `treedb_import_files()` and `treedb_gc_files()` are
+the API; `import-assets` and `gc-assets` are the commands of `C_NODE` on top
+of them. The gc reads the SNAPSHOTS, not only the live state, and so does
+`delete-node` on an `__assets__` row — `force` does not override it.
+
+Full account, including the six defects the implementation found:
+[`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
+
 ## Filesystem watcher
 
 `src/fs_watcher.c` implements an inotify-based watcher (`fs_event_t`) used by `root-linux/C_FS` and by the stores themselves to react to on-disk changes.
@@ -157,4 +182,4 @@ disk read when no audience of the key needs the body (fixed 2026-07-15; the
 
 ## Tests
 
-`tests/c/timeranger2`, `tests/c/tr_msg`, `tests/c/tr_queue`, `tests/c/tr_treedb`, `tests/c/tr_treedb_link_events`.
+`tests/c/timeranger2`, `tests/c/tr_msg`, `tests/c/tr_queue`, `tests/c/tr_treedb`, `tests/c/tr_treedb_link_events`, `tests/c/tr_treedb_files`.
