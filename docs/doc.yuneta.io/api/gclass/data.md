@@ -212,6 +212,13 @@ on disk. Design note:
   asset. `force` means "unlink the children", never "ignore what a snapshot
   needs".
 
+- ⚠️ **A non-master replica gets the index and not the bytes.** The watcher
+  replicates a topic's files, so a replica has every row of `__assets__` and
+  none of the `.blobs` behind them: `get-asset` answers *"asset has no bytes
+  on disk"* there unless a web server in front is serving a copy of the blob
+  directory. Getting the bytes to a replica is not solved — plan for it, or
+  serve the assets from the master.
+
 Serving the bytes to a browser is [`C_ASSETS`](#gclass-c-assets)' job.
 
 ---

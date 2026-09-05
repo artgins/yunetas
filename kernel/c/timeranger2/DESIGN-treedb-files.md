@@ -1,14 +1,16 @@
 # Design: a `file` column, and `__assets__` as a treedb system topic
 
-Status: **IMPLEMENTED** on branch `feature/treedb-files` (2026-09-05), with
-the four decisions §15.1 reopened taken as §15 recommended: treedb expands a
-bare id into the full fkey; a `file` column is flagged `['fkey','file']`; the
-gc's only guard is the snapshot walk; sha256 is a standalone helper of gobj-c.
-Column-level policy lives in the column's `properties` (`max_size`,
-`content_types`), the catch-all the `__system__` projection carries verbatim.
-Suite: `tests/c/tr_treedb_files` (§13, all eight) + `tests/c/c_assets`
-rewritten. Left for the JS repos: the gobj-ui form control (§10), and the
-hosts' schemas (§11, §12).
+Status: **IMPLEMENTED and merged** (2026-09-05). The four decisions §15.1
+reopened were taken as §15 recommended: treedb expands a bare id into the full
+fkey; a `file` column is flagged `['fkey','file']`; the gc's only guard is the
+snapshot walk; sha256 is a standalone helper of gobj-c. Column-level policy
+lives in the column's `properties` (`max_size`, `content_types`).
+
+The body below has been corrected where §15.2 said it was wrong, so §1-§13
+describe **what was built**, not what was proposed. §15 is kept as the dated
+review that found those statements. **§16 is what the implementation itself
+found**, and it is the part to read before touching this code: six defects
+that the design could not have predicted, and what is still open.
 
 The shape in one sentence: **you mark a column `file`, and treedb gives you a
 pseudo-filesystem** — you hand it a file, you get it back, the *index* lives in
@@ -63,6 +65,15 @@ can stop a yuno from starting:
    A schema using a flag that is only in the comment is refused at
    `treedb_open_db` (*"Wrong enum type"*) and the yuno exits at `mt_play`.
    Bump the system `schema_version` and the `cols` `topic_version` with it.
+   (Done: system 16 → 17, `cols` 10 → 11.)
+
+⚠️ **`file` goes WITH `fkey`, and the column is a `string`:**
+`{'type': 'string', 'flag': ['fkey', 'file']}`. Every link behaviour of
+`tr_treedb.c` keys on the literal word `fkey` — 30 sites of
+`kw_has_word(..., "fkey")` — and so does the GUI (`c_yui_form.js` asks
+`type === "fkey"`). So `file` QUALIFIES the fkey, the way `enum` qualifies a
+string; it does not replace it. `derive_file_hooks()` refuses a schema that
+gets this wrong, and the refusal is fatal at open.
 
 ## 3. `__assets__` is a system topic, and its hooks are DERIVED
 
@@ -93,11 +104,19 @@ at load. Its DECLARATION can live in the same place: the hooks are added to the
 in-memory desc and never written to `topic_cols.json`. So `__assets__` has a
 fixed persisted schema and a fixed `topic_version`, like `__snaps__` (3) and
 `__graphs__` (12), and no host adding a `file` column ever has to bump anything.
-The `desc` a client reads is the in-memory one, so a GUI sees the hooks.
+The `desc` a client reads is the in-memory one, **so the treedb-topics view
+sees the hooks and the Schemas workspace does not**: `desc` / `topics` of
+`C_NODE` answer from memory, while the Schemas workspace reads the `__system__`
+projection, and `__assets__` is created inside `treedb_open_db()`, outside it —
+like `__snaps__` and `__graphs__`. Both are true and both are worth knowing.
 
-The one consequence is an ordering note for whoever writes it: the derivation is
-a **second pass at open**. `__assets__` is created before the host's topics are
-known, so the hooks can only be added once every schema has been parsed.
+**The derivation is a reconciliation, and it runs whenever the schema can have
+moved.** At open it is a second pass — `__assets__` is created after the host's
+topics, so the hooks can only be added once every schema has been parsed — but
+`create-topic` and `delete-topic` are live commands of `C_TREEDB`, so
+`treedb_create_topic()` and `treedb_delete_topic()` run it too. It adds what the
+schema now asks for and removes what it stopped asking for, and both halves are
+needed: see §16.
 
 **And it is shown the way `__snaps__` and `__graphs__` are: in system mode
 only.** The name decides it — a GUI skips the `__`-prefixed topics unless it was
@@ -129,23 +148,26 @@ from, if it matters, is a column of the node that links it.
 
 ```
 <store>/<realm>/treedb_<name>/
-    __assets__/          the index: the topic's timeranger2 files
-    .blobs/00..ff/       the content, addressed by sha256
+    __assets__/              the index: the topic's timeranger2 files
+    .blobs/ab/cd/<id>.<ext>  the content, addressed by sha256
     devices/  places/  ...
 ```
+
+Two levels of fanout, not one: a flat directory of ten thousand files is a
+directory nobody can look at. And the extension is derived from the CONTENT
+TYPE STORED, never from the name that was given — it is what a web server
+reads to set the `Content-Type`, so it is part of the served url (§16).
 
 Both halves inside the treedb directory, so a `cp -a` of it carries the nodes
 **and** their bytes. Today they are split — the index inside, the blobs a
 sibling of the treedb at realm level — which is what `C_ASSETS` was reaching for
 and did not quite get.
 
-⚠️ **The blob directory must start with a dot.** `tranger2_list_topics()` scans
-the treedb directory and returns every entry as a topic, skipping only the ones
-whose name starts with `.` (`timeranger2.c:1289-1293`). The skip rule is already
-there; the name has to use it.
-
-The 256-way shard is not new: `C_ASSETS` already writes `00`..`ff` (verified:
-257 directories for 12 134 blobs, ~47 each).
+**The blob directory starts with a dot**, as a convention rather than a
+requirement: `tranger2_list_topics()` — which returns every entry of the
+directory as a topic, skipping the ones that start with `.` — has no caller in
+the tree, and topics come from the schema. The dot costs nothing and keeps the
+guarantee if that ever changes.
 
 ## 5. The write path
 
@@ -155,9 +177,15 @@ this cheaper than `put-asset`:
 1. the browser hashes the file (`crypto.subtle.digest`) and fills the `id`;
 2. it asks the treedb whether that node exists;
 3. **if it exists, no bytes travel** — the record is saved with the fkey and
-   that is all;
+   that is all, and the index node is NOT touched;
 4. if it does not, the bytes ride along in the same `create-node` /
    `update-node`.
+
+Step 3 is where the optimisation is paid for, and it costs one thing: the
+history of names below is written only when bytes travel. A census reload that
+takes the optimisation records nothing new; one that does not appends an
+instance per asset — 12 134 appends with nothing changed. Both are correct, and
+the cheap one is the default.
 
 ### The client's hash is an OPTIMISATION, never a requirement
 
@@ -186,8 +214,12 @@ cache-for-ever url of §6 would start meaning different bytes over time.
 
 ### What travels on the wire
 
-The column's value is **always the id**, and the bytes ride BESIDE the record,
-never inside the column:
+The column's value on the wire is **the bare id**, and the bytes ride BESIDE
+the record, never inside the column. **Treedb expands it** into the full
+reference the links speak — `__assets__^<sha256>^as_<T>_<C>` — so the client
+never has to know the derived hook name, which is the whole point of the host
+declaring nothing but the column. A client that sends the full reference
+already is taken as it is:
 
 ```json
 {"id": "E22000041",
@@ -254,7 +286,14 @@ exists on the way out. A type that lies is what makes a guard necessary.
 **One message, not two**, and that is the argument for it over storing the file
 with its own command first: a Save that creates a new asset would otherwise be
 two orders with a window between them, the blob written and the record not.
-Here it either happened or the command failed.
+
+One message, but **three writes**, in this order: the blob, the index node in
+`__assets__`, then the host record with its link — the autolink needs the parent
+to EXIST. Interrupted between the second and the third it leaves an index node
+nothing links, which the gc takes; interrupted before the second, an orphan
+blob, which the gc also takes. Never a link to nothing. So *"either it happened
+or the command failed"* is the right shape, but it is not exact: what a failure
+can leave behind is garbage, never a dangling reference.
 
 Two rules the write path cannot bend:
 
@@ -285,6 +324,13 @@ one path is a lie and a list of them is a field nobody reads. The list returns
 by itself as HISTORY: every name that file has ever arrived under is an instance
 of its node, read with `tr2list` like any other history. No column, and a better
 place than the one it had.
+
+**And the FIRST arrival names the file, for ever.** The stored `content_type`
+is never changed by a later arrival, because the extension it picks is part of
+the path a web server serves and the url is cached for ever (§6) — the name
+cannot move under it. It is not only about the url: one container can be
+declared as more than one type, so the same bytes as `video/mp4` and as
+`audio/mp4` would land on two blobs for one asset (§16).
 
 The blob is untouched by any of this, because it is not part of the record. The
 same id is the same bytes by construction, so writing it again writes the same
@@ -364,17 +410,24 @@ knows them — and it knows them for every host, without being told.
 
 Three consequences, and one of them deletes a rule:
 
-- **The refusal comes for free.** Deleting an asset that a node still links must
-  be refused, which `C_ASSETS` states as a rule of its own. Treedb's ordinary
-  delete guard already refuses a node that has links unless `force` is given, so
-  there is nothing to write.
+- **The LIVE refusal comes for free, the snapshot one does not.** Deleting an
+  asset that a node still links is refused by treedb's ordinary delete guard,
+  unless `force` is given. The snapshot half is not free and it is not the tag
+  guard either: `treedb_shoot_snap()` skips every `__` topic, so a node of
+  `__assets__` never carries a tag and *"cannot delete node, it has a tag"*
+  never fires for an asset. `treedb_delete_node()` runs the snapshot walk of
+  this section for a node of `__assets__`, and — like the tag guard it stands
+  in for — **`force` does not override it**: force means "unlink the children",
+  never "ignore what a snapshot needs".
 - **The sweep is ON DEMAND, never automatic.** Dropping the blob the moment the
   last link goes is tempting and wrong: `treedb_delete_node` with `force`
   UNLINKS children rather than deleting them, so an asset sitting unlinked is a
   normal intermediate state of a bulk operation. An automatic gc would delete
   bytes that are re-linked a second later.
-- **It says what it would take before taking it.** A dry run costs nothing here,
-  because the hooks and the blob paths are both known.
+- **It says what it would take before taking it**, and that is worth its
+  price: the dry run is not free, it is a disk pass over every tagged instance
+  of every topic with a `file` column. Same cost as the run itself, minus the
+  deletes.
 
 **And it reads the SNAPSHOTS, not only the live state.** Otherwise: delete a
 device, its asset is orphaned, the gc takes it — and then somebody activates a
@@ -387,9 +440,10 @@ what changes is how many versions of a node are asked.
 Two things follow from that:
 
 - **A snapshot holds bytes alive.** What frees an asset is not deleting the node
-  that linked it, it is deleting the SNAP that still remembers the link. That is
-  the same rule `treedb_delete_node` already applies to a node carrying a snap
-  tag, extended to the bytes hanging off it.
+  that linked it, it is deleting the SNAP that still remembers the link. It
+  reads like the rule `treedb_delete_node` applies to a node carrying a snap
+  tag, and it is not the same mechanism: the tag guard is inert here (above),
+  so this walk is the whole of it.
 - **The gc is conservative by construction.** It takes only what no version of
   anything has pointed at since the oldest surviving snapshot.
 
@@ -430,8 +484,11 @@ want different homes:
 The column's cannot raise the treedb's — the ceiling wins, and the column
 narrows. A column that declares nothing takes the treedb's whole list.
 
-*(This split is a recommendation, not something we settled out loud. What we
-settled is that treedb enforces, at the door.)*
+The split shipped as written: the ceiling is the treedb's
+(`treedb_set_files_limits()`, and the `C_NODE` attrs `files_max_size` /
+`files_content_types`), the policy is the column's, read from its `properties`
+(`{'max_size': 4096, 'content_types': ['application/pdf']}`) — the catch-all
+the `__system__` projection carries verbatim, so it needs no schema of its own.
 
 ## 9. Between nodes: the bytes travel WITH the record
 
@@ -516,15 +573,19 @@ unlinked, and the gc takes it when nothing (and no snapshot, §7) holds it.
 
 ## 11. What changes, by layer
 
-| Layer | Change |
-|---|---|
-| `timeranger2` | the `.blobs` store: put by content (sha256), get by id |
-| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks; the write path of §5 and its bulk door; the gc of §7; the limits of §8 |
-| `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` + `cols` `topic_version` bumped |
-| `C_ASSETS` | loses `put-asset` / `put-assets` / `import-assets` / `gc-assets` and both limits; keeps `get-asset` — and is then one command |
-| `gobj-js` | `file` in `treedb_field_types` |
-| `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) |
-| hosts | delete the `assets` topic from their schema; flag their columns `file` |
+| Layer | Change | |
+|---|---|---|
+| `gobj-c` | `sha256_digest()` / `sha256_hex()` in `helpers.c`, standalone (FIPS 180-4): the persistence layer hashes what it stores and links no TLS backend | done |
+| `tr_treedb` | the `file` field type; `__assets__` created as a system topic; the derived hooks and their reconciliation; `treedb_store_files()`; `treedb_import_files()`; `treedb_gc_files()`; the limits of §8; the `.blobs` store, put by content and got by id | done |
+| `treedb_system_schema.c` | `file` in the enforced `flag` enum; system `schema_version` 16 → 17, `cols` `topic_version` 10 → 11 | done |
+| `C_NODE` | `import-assets` and `gc-assets`; the attrs `files_max_size`, `files_content_types`, `import_root`; the bytes handed from the command kw to the record | done |
+| `C_ASSETS` | loses `put-asset` / `put-assets` / `list-assets` / `delete-asset` / `import-assets` / `gc-assets`, both limits and the store attrs; keeps `get-asset` — and is then one command | done |
+| `gobj-js` | `file` in `treedb_field_types` (7.16.4) | done |
+| `gobj-ui` | the form control: pick, hash, ask, attach; the table cell already draws an asset (`yui_asset.js`) | **open** |
+| hosts | delete the `assets` topic from their schema; flag their columns `['fkey','file']`; rebuild the store | **open** |
+
+`list-assets` and `delete-asset` are gone because `nodes` and `delete-node` on
+`__assets__` are the same two commands with nothing added.
 
 ## 12. Migration: there is none
 
@@ -575,13 +636,29 @@ note that, if it broke, would break **quietly**:
    rule — this design allocates buffers at a boundary, which is exactly where
    one hides.
 
-## 14. Open items: none — SUPERSEDED, see §15
+Two more came out of the implementation, and each of them is a bug that shipped
+in the first pass (§16):
 
-Every decision of model is taken. What remains is the work of §11 and the suite
-of §13 — and the two things that will be got wrong if they are read past: the
-manifest carries offsets because a kw holds ONE binary field at its top level
-(§5), and the derived hooks are never persisted, so nothing about `__assets__`
-is ever versioned (§3).
+9. **One asset is ONE blob**, and a second arrival does not rename it: the same
+   container under its two legal names writes one file and keeps the stored
+   type. Plus the delete of an asset a SNAPSHOT holds, refused with `force`.
+10. **The hooks follow the schema at RUN TIME**, both ways: a topic with a
+    `file` column created with the store running links through its hook, and
+    one deleted takes its hook — and the children it held — away with it.
+
+`tests/c/c_assets` covers the same ground through the commands: both doors of
+`__files__`, `get-asset` inline and signed, `import-assets` with hostile paths,
+`gc-assets`, and a `gbuffer` on writes that FAIL.
+
+## 14. Open items — SUPERSEDED, see §16
+
+Written when nothing was implemented, and wrong then too (§15 says why). The
+two things it is right about are still the two that will be got wrong if they
+are read past: the manifest carries offsets because a kw holds ONE binary field
+at its top level (§5), and the derived hooks are never persisted, so nothing
+about `__assets__` is ever versioned (§3).
+
+What is actually open is in §16.
 
 ## 15. Review against the code (2026-09-05)
 
@@ -710,3 +787,101 @@ tests for the three shapes (its literals say `assets`, not `__assets__`). The
 open sequence already has the place for the derivation: `parse_hooks()` runs
 after every topic is created and before `load_all_links()`. The neighbour
 suites named in §13 exist.
+
+## 16. What the implementation found (2026-09-05)
+
+§15 was a review of the note against the code. This is the other direction:
+what writing the code found that the note could not have. Six defects, each
+with a regression test verified to fail with its fix reverted. They are here
+because every one of them would have broken QUIETLY.
+
+### 16.1 The bytes of a `file` column were released twice
+
+`create-node` / `update-node` are the first commands in the tree to take a
+`gbuffer`, and the door they came through releases it twice.
+
+`expand_command()` builds the command kw by copying the caller's keys **by
+value** (`json_object_update_missing`, `command_parser.c`), so a top-level
+binary field is named by TWO kws and both are `KW_DECREF`'d — the command's
+answer releases one, `command_parser` the other. Every exit of the command
+earlier than the hand-off reached it, `-403` included, which is the one a
+controller forwarding a record with its bytes meets in production.
+
+And there was a second owner downstream: every exit of `mt_create_node()` /
+`mt_update_node()` ends in `KW_DECREF(kw)`, which drops the binary field it
+finds. So `treedb_store_files()` consuming it and that `KW_DECREF` are the
+only two releases, and never both — anything else is one too many.
+
+**The rule:** a command that receives a `gbuffer` TAKES it out of its kw
+before its first possible exit (`take_files_gbuffer()`), and nothing else
+releases it.
+
+### 16.2 A NULL where `json_typeof()` is read
+
+`gc_scan_callback()` handed `filtra_fkeys()` the value of a column that a
+tagged instance older than the `file` column does not carry, and
+`filtra_fkeys()` reads `json_typeof()` with no NULL guard. `gc-assets`
+segfaulted on any store that gained a `file` column after its snapshots —
+which is a topic_version bump, an ordinary thing to do.
+
+### 16.3 A guard that was documented and not written
+
+`treedb_open_db()` ignored the return of `derive_file_hooks()`, so a `file`
+column not flagged `fkey` was *documented* as refused at open (§2) and was
+not: the write path still stored the asset and wrote an fkey-looking string
+into a column nothing links — and then `gc-assets` collected the bytes that
+string names. It is fatal at open now.
+
+### 16.4 `as_<T>_<C>` is ambiguous
+
+Topic `a_b` column `c` and topic `a` column `b_c` write the same hook name,
+and so does anything `snprintf` truncates at `NAME_MAX`. The loser was
+skipped in silence and linked through the winner's hook, onto another
+topic's column. The derivation compares the mapping now, and a real
+collision refuses the open.
+
+### 16.5 One asset, two blobs
+
+`content_type_compatible()` accepts any two members of a shared container —
+the same isobmff bytes are `video/mp4` and `audio/mp4` alike, and so are
+`video/webm`/`audio/webm` and `video/ogg`/`audio/ogg` — but the blob path
+was built from the DECLARED type, so the second arrival wrote `<id>.m4a`
+beside the `<id>.mp4` the first one wrote. Two blobs for one asset, and the
+row names only one: the other could never be served, never be seen by the gc
+(which reads rows, not files) and never be removed by the delete.
+
+The stored `content_type` wins now. That is not only about the leak: the
+extension is part of the path a web server serves and the url is cached for
+ever, so the name cannot change under it.
+
+### 16.6 The hooks did not follow the schema at run time
+
+`create-topic` and `delete-topic` are live commands of `C_TREEDB`, and the
+derivation ran only at open. A topic **added** while the yuno runs had a
+`file` column whose hook did not exist, so nothing could link through it; a
+topic **deleted** left its hook behind, still holding the children it had —
+and the gc reads a hook that is not empty as *"some node links this asset"*,
+so those bytes were never collected again.
+
+Adding a hook is two things, and the second is the one that bites: **a hook
+is a field OF THE NODE**, put there from the desc when the record was read,
+so a hook added later exists in the desc and in no node and `_link_nodes()`
+answers *"hook field not found"*. The derivation seeds it into the
+`__assets__` nodes already loaded.
+
+One bound on the removal: `__assets__` is a topic of the TRANGER, not of the
+treedb, so a tranger holding two treedbs shares it. The reconciliation takes
+only what maps to a topic of THIS treedb or to one no longer open at all.
+
+### 16.7 Still open
+
+- **The gobj-ui form control** (§10) and the **hosts' schemas** (§11, §12).
+  Until the control exists, a `file` column is written by a C caller or by
+  `import-assets`, not by a person in a form.
+- **A non-master replica gets the index and not the bytes.** The watcher
+  replicates the topic's files; `.blobs` travels by another means or not at
+  all, so `get-asset` inline answers *"asset has no bytes on disk"* there.
+  Not decided, not implemented, and the docs do not say it.
+- **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
+  (§15.3). The write path looks the asset up before creating it, so the
+  census reload is quiet — but the trap is still there for the next caller.
