@@ -106,15 +106,18 @@ PRIVATE json_t *apply_child_list_options(
 );
 #define TREEDB_FILES_DEFAULT_MAX_SIZE   (128LL*1024*1024)
 /*
- *  Option of treedb_delete_node(), INTERNAL: "I have already walked the
- *  snapshots, do not walk them again". Only treedb_gc_files() sets it,
- *  because it walks them once for the whole run; anybody else deleting a
- *  node of __assets__ must let the guard run. See assets_held_by_snaps().
+ *  The body of treedb_delete_node(). `snaps_walked` is "I have already
+ *  walked the snapshots, do not walk them again": only treedb_gc_files()
+ *  says so, because it walks them once for the whole run. A PARAMETER and
+ *  not a key of jn_options on purpose -- the options of `delete-node`
+ *  arrive from the wire as they are, and a bypass of the snapshot guard
+ *  must not be something a client can spell.
  */
-#define TREEDB_SNAPS_WALKED             "__snaps_walked__"
+PRIVATE int delete_node(json_t *tranger, json_t *node, json_t *jn_options, BOOL snaps_walked);
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
+PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
 PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
 PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
@@ -1112,7 +1115,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, 0);
 
-        treedb_create_topic(
+        if(!treedb_create_topic(
             tranger,
             treedb_name,
             topic_name,
@@ -1123,7 +1126,22 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             snap_tag,
             system_topic,
             FALSE // create_schema
-        );
+        )) {
+            /*
+             *  A topic of the schema that could not be created is a treedb
+             *  that is not the one the schema describes: said with the
+             *  weight of the open, not left for the first write to find
+             *  as "Topic name not found in treedbs".
+             */
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Cannot create topic of the schema",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+        }
     }
 
     /*-------------------------------------------*
@@ -1330,6 +1348,27 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         JSON_DECREF(pkey2s)
         JSON_DECREF(cols)
         return topic;
+    }
+
+    /*------------------------------*
+     *  A `file` column that is not what a `file` column must be is
+     *  refused HERE, before the topic exists: at open the same check is
+     *  fatal in derive_file_hooks(), but `create-topic` is a live command
+     *  and a topic created with the yuno running had nobody to stop it.
+     *------------------------------*/
+    if(check_file_columns(gobj, treedb_name, topic_name, cols)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: bad 'file' column",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%s' refused: a 'file' column must be ['fkey','file'] on a string", topic_name);
+        JSON_DECREF(pkey2s)
+        JSON_DECREF(cols)
+        return 0;
     }
 
     /*------------------------------*
@@ -5927,6 +5966,16 @@ PUBLIC int treedb_delete_node(
     json_t *jn_options  // bool "force"
 )
 {
+    return delete_node(tranger, node, jn_options, FALSE);
+}
+
+PRIVATE int delete_node(
+    json_t *tranger,
+    json_t *node,       // owned, pure node
+    json_t *jn_options, // bool "force"
+    BOOL snaps_walked   // TRUE only from treedb_gc_files(): the guard ran once for the whole run
+)
+{
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!jn_options) {
         jn_options = json_object();
@@ -6005,8 +6054,7 @@ PUBLIC int treedb_delete_node(
      *  its place, and like it, `force` does NOT override: force means
      *  "unlink the children", never "ignore what a snapshot needs".
      *-------------------------------------------------*/
-    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 &&
-            !kw_get_bool(gobj, jn_options, TREEDB_SNAPS_WALKED, 0, 0)) {
+    if(strcmp(topic_name, TREEDB_ASSETS_TOPIC)==0 && !snaps_walked) {
         json_t *held = assets_held_by_snaps(gobj, tranger, treedb_name);
         BOOL in_a_snap = json_object_get(held, id)? TRUE: FALSE;
         JSON_DECREF(held)
@@ -10703,6 +10751,26 @@ PUBLIC int treedb_store_files(
         if(!kw_has_word(gobj, desc_flag, "file", 0)) {
             continue;
         }
+        if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+            /*
+             *  Refused at open and at create-topic, so this is a persisted
+             *  topic_cols.json that says otherwise. Storing anyway wrote
+             *  an fkey-looking string into a column nothing links, and the
+             *  gc then took the bytes it named.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "a 'file' column must be flagged 'fkey' too, write refused",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "col",          "%s", col_name,
+                NULL
+            );
+            gobj_log_set_last_message("'%s' is a 'file' column without 'fkey'", col_name);
+            ret = -1;
+            break;
+        }
         any_file_col = TRUE;
 
         char hook_name[NAME_MAX];
@@ -10956,6 +11024,91 @@ PRIVATE json_t *create_assets_topic(
 }
 
 /***************************************************************************
+ *  What a `file` column must be: flagged `fkey` too (every link behaviour
+ *  of this file, and the GUI, keys on that word) and of type `string` (one
+ *  file per column). A column that is not `file` passes.
+ *
+ *  Asked in two places, and both are needed: derive_file_hooks() at open,
+ *  which is fatal, and treedb_create_topic() BEFORE the topic exists, so
+ *  that a `create-topic` with the yuno running is refused rather than
+ *  logged -- a topic that slipped through wrote an fkey-looking string
+ *  into a column nothing links, and gc-assets then took the bytes it named.
+ *  Return 0 or -1 (error logged).
+ ***************************************************************************/
+PRIVATE int check_file_column(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    const char *col_name,
+    json_t *col     // NOT owned
+)
+{
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    if(!kw_has_word(gobj, desc_flag, "file", 0)) {
+        return 0;
+    }
+    if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "a 'file' column must be flagged 'fkey' too",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            NULL
+        );
+        return -1;
+    }
+    const char *type = kw_get_str(gobj, col, "type", "", 0);
+    if(strcmp(type, "string")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "a 'file' column must be of type 'string': one file per column",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "type",         "%s", type,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The same check over the cols of a topic about to be CREATED: a dict of
+ *  cols or a list of them, as treedb_create_topic() takes either.
+ *  Return 0 or the number of bad columns in negative (errors logged).
+ ***************************************************************************/
+PRIVATE int check_file_columns(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *cols    // NOT owned, dict or list
+)
+{
+    int ret = 0;
+    if(json_is_object(cols)) {
+        const char *col_name; json_t *col;
+        json_object_foreach(cols, col_name, col) {
+            if(check_file_column(gobj, treedb_name, topic_name, col_name, col)<0) {
+                ret += -1;
+            }
+        }
+    } else if(json_is_array(cols)) {
+        int idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            const char *col_name = kw_get_str(gobj, col, "id", "", 0);
+            if(check_file_column(gobj, treedb_name, topic_name, col_name, col)<0) {
+                ret += -1;
+            }
+        }
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  Bring the hooks of __assets__ in line with the schema AS IT IS NOW: for
  *  every column `C` of topic `T` flagged `file` the reciprocal hook
  *  `as_<T>_<C> -> {T: C}`, and no other hook. IN MEMORY only -- a hook's
@@ -11026,32 +11179,8 @@ PRIVATE int derive_file_hooks(
             if(!kw_has_word(gobj, desc_flag, "file", 0)) {
                 continue;
             }
-            if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "a 'file' column must be flagged 'fkey' too",
-                    "treedb_name",  "%s", treedb_name,
-                    "topic_name",   "%s", topic_name,
-                    "col",          "%s", col_name,
-                    NULL
-                );
-                ret += -1;
-                continue;
-            }
-            const char *type = kw_get_str(gobj, col, "type", "", 0);
-            if(strcmp(type, "string")!=0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB,
-                    "msg",          "%s", "a 'file' column must be of type 'string': one file per column",
-                    "treedb_name",  "%s", treedb_name,
-                    "topic_name",   "%s", topic_name,
-                    "col",          "%s", col_name,
-                    "type",         "%s", type,
-                    NULL
-                );
-                ret += -1;
+            if(check_file_column(gobj, treedb_name, topic_name, col_name, col)<0) {
+                ret += -1;  // Error already logged
                 continue;
             }
 
@@ -11259,7 +11388,7 @@ PRIVATE int gc_scan_callback(
  *  never fires for an asset. This walk is the whole guard in its place,
  *  and it is a disk pass over every tagged instance of every topic with a
  *  `file` column -- which is why whoever has already done it says so
- *  rather than making it run again (TREEDB_SNAPS_WALKED).
+ *  rather than making it run again (the `snaps_walked` of delete_node()).
  *
  *  Return a dict used as a set, {id: true}. YOURS, never NULL.
  ***************************************************************************/
@@ -11422,9 +11551,7 @@ PUBLIC json_t *treedb_gc_files(
             );
             continue;
         }
-        if(treedb_delete_node(
-            tranger, orphan, json_pack("{s:b}", TREEDB_SNAPS_WALKED, 1)
-        )==0) {
+        if(delete_node(tranger, orphan, 0, TRUE)==0) {
             json_array_append(deleted, jn_id);
         } else {
             // Error already logged: the answer says it by not listing this id

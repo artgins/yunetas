@@ -216,7 +216,13 @@ on disk. Design note:
   **snapshot** links it: `delete-node` on an `__assets__` row runs the same
   walk `gc-assets` does, because the ordinary tag guard never fires for an
   asset. `force` means "unlink the children", never "ignore what a snapshot
-  needs".
+  needs", and no key of `options` skips the walk: the gc skips it through a
+  private entry, not through anything the wire can spell.
+- **A `file` column must be `['fkey','file']` on a `string`**, and that is
+  checked in three places: at open (fatal), by `create-topic` with the yuno
+  running (the topic is refused, the answer says why), and by the write path
+  (the write is refused). A column that is `file` and not `fkey` would store
+  its bytes into a column nothing links, and `gc-assets` would take them.
 
 - ⚠️ **A non-master replica gets the index and not the bytes.** The watcher
   replicates a topic's files, so a replica has every row of `__assets__` and

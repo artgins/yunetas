@@ -20,6 +20,27 @@ more instance, as the autolink a caller used to have to remember did. Test 11
 of `tests/c/tr_treedb_files` covers create, move, clear and a reopen.
 `DESIGN-treedb-files.md` §16.8 lists what the same review left open.
 
+### The snapshot guard of an asset cannot be bypassed from the wire
+
+`treedb_gc_files()` walks the snapshots once for the whole run and told
+`treedb_delete_node()` so with an internal key, `__snaps_walked__`, in the
+delete's options — and `delete-node` forwards its `options` from the wire as
+they are, so a client with `delete` could spell the bypass and take an asset
+a snapshot still needs. The bypass is a parameter of a private `delete_node()`
+now; the public entry always walks. The old key is inert.
+
+### A `file` column that is not `fkey` is refused everywhere, not only at open
+
+`derive_file_hooks()` refused it at open, fatally, but a run-time
+`create-topic` got nothing but a log line: `treedb_create_topic()` ignored the
+return, and the write path keyed on the word `file` alone, so the topic stored
+its bytes into a column nothing links and `gc-assets` took them. The check is
+one function now, `check_file_column()`, asked by `treedb_create_topic()`
+BEFORE the topic exists (refused, cause in `last_message`), by the open — which
+now logs with `on_critical_error` when a topic of the schema could not be
+created, instead of leaving it for the first write to meet as *"Topic name not
+found in treedbs"* — and by `treedb_store_files()`, which refuses the write.
+
 ### `gobj-ui` 7.23.63: saving a record unlinked its read-only `file` column
 
 The topic view sends back only the writable cols, the fkeys and the pkey,

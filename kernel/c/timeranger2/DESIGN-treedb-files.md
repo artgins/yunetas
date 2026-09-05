@@ -921,14 +921,35 @@ says yes and leaves the photo behind.
   record, and every save of any other field of its record unlinked it. gobj-ui
   7.23.63 asks `is_file` beside the type.
 
+Two more from the same review, closed the same day:
+
+- **The gc's bypass of the snapshot guard was a key of the options.**
+  `treedb_gc_files()` walks the snapshots once for the whole run and told
+  `treedb_delete_node()` so with `__snaps_walked__` in `jn_options` — and
+  `delete-node` forwards its `options` from the wire as they are, so a client
+  with `delete` could spell the bypass. It is a parameter of the private
+  `delete_node()` now; the public entry always walks. Test 6 sends the old key
+  and is refused.
+- **A run-time `create-topic` did not refuse a `file` column that is not
+  `fkey`.** `derive_file_hooks()` refused it at open, fatally, but
+  `treedb_create_topic()` ignored its return and `treedb_store_files()` keyed
+  on the word `file` alone — the §16.3 hole, through the live command. The
+  check is `check_file_column()` now, asked by `treedb_create_topic()` BEFORE
+  the topic exists (refused, with the cause in `last_message`), by the open
+  (which now says with `on_critical_error` when a topic of the schema could not
+  be created, instead of leaving it for the first write to find as *"Topic
+  name not found"*), and by the write path, which refuses a `file` without
+  `fkey` rather than storing into it. Test 10 creates such a topic and finds
+  it nowhere.
+
 Still open from the same review, in order of weight: `gc-assets` and the
 live-link guard of `delete-node` read only the calling treedb's copy of
 `__assets__`, so on a tranger hosting two treedbs they take what the other
-treedb links (no yuno does that today); the internal `__snaps_walked__` option
-travels in `delete-node`'s `options` and a wire client can pass it; a `file`
-column that is not `fkey` is refused at open but not by a run-time
-`create-topic`; §7's *"deleting the snap frees the asset"* names an operation
-that does not exist, and `treedb_save_node()` inherits the tag, so the gc holds
-for ever what any tagged instance ever linked; the form has no *reading* state,
-so a second Save during a long read sends two writes; the `gbuffer` door works
-through the commands only, not through `EV_TREEDB_UPDATE_NODE`.
+treedb links (no yuno does that today); §7's *"deleting the snap frees the
+asset"* names an operation that does not exist, and `treedb_save_node()`
+inherits the tag, so the gc holds for ever what any tagged instance ever
+linked; the form has no *reading* state, so a second Save during a long read
+sends two writes; the `gbuffer` door works through the commands only, not
+through `EV_TREEDB_UPDATE_NODE`; a plain update can drop a SEED link of a
+`file` column, because the seed guard of `mt_update_node()` runs only with
+`autolink` (no seed carries a file today).

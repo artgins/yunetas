@@ -509,11 +509,13 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
     const char *test = "10. the hooks follow the schema at run time";
     set_expected_results(
         test,
-        json_pack("[{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
             /*  `works.plan` tampoco lleva `writable`: el aviso salta al
              *  crear el hook, que es una vez por topic y no por pasada.  */
             "msg", "a 'file' column without 'writable' cannot be filled by a person",
+            "msg", "a 'file' column must be flagged 'fkey' too",
+            "msg", "Topic refused: bad 'file' column",
             "msg", "Deleting topic"
         ),
         NULL, NULL, 1
@@ -560,6 +562,31 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
             On_Red BWhite, Color_Off);
         result += -1;
     }
+
+    /*  A topic whose `file` column is not `fkey`: refused BEFORE it exists.
+     *  At open that is fatal; with the yuno running it used to be a log
+     *  line and a topic that stored bytes into a column nothing links.  */
+    json_t *bad_cols = json_pack("{s:{s:s, s:s, s:i, s:s, s:[s,s]}, s:{s:s, s:s, s:i, s:s, s:[s]}}",
+        "id",
+            "id", "id", "header", "Id", "fillspace", 20, "type", "string",
+            "flag", "persistent", "required",
+        "scan",
+            "id", "scan", "header", "Scan", "fillspace", 20, "type", "string",
+            "flag", "file"
+    );
+    if(treedb_create_topic(
+        tranger, TREEDB_NAME, "badworks", 1, "", 0, bad_cols, 0, FALSE, FALSE
+    )) {
+        printf("%s  FAIL: a topic with a 'file' column that is not 'fkey' was created at run time%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *topics = treedb_topics(tranger, TREEDB_NAME, 0);
+    if(json_str_in_list(0, topics, "badworks", 0)) {
+        printf("%s  FAIL: the refused topic is in the treedb%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(topics)
 
     /*  Delete the topic: the hook goes, and with it the children it held  */
     if(treedb_delete_topic(tranger, TREEDB_NAME, "works")<0) {
@@ -786,7 +813,8 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     const char *test = "6. the gc, three ways";
     set_expected_results(
         test,
-        json_pack("[{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "cannot delete asset, a snapshot still links it",
             "msg", "cannot delete asset, a snapshot still links it",
             "msg", "cannot delete asset, a snapshot still links it"
         ),
@@ -915,6 +943,16 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     }
     if(!blob_exists(tranger, sha(PNG_C, sizeof(PNG_C)-1), "image/png")) {
         printf("%s  FAIL: the refused delete took the bytes anyway%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    /*
+     *  And the gc's own "I walked the snapshots already" is not a word a
+     *  caller can spell: it used to be a key of the options, which is what
+     *  `delete-node` forwards from the wire as it is.
+     */
+    if(treedb_delete_node(tranger, held_asset, json_pack("{s:b}", "__snaps_walked__", 1))==0) {
+        printf("%s  FAIL: an option of the kw bypassed the snapshot guard%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
