@@ -1563,6 +1563,16 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
     JSON_DECREF(jn_topic_var)
 
+    /*
+     *  The schema just moved: a `file` column of this topic needs its hook
+     *  in __assets__, and `create-topic` is a live command. During the open
+     *  __assets__ does not exist yet and this does nothing -- treedb_open_db()
+     *  runs the full pass once every topic is in.
+     */
+    if(topic) {
+        derive_file_hooks(gobj, tranger, treedb_name);   // Errors already logged
+    }
+
     return topic;
 }
 
@@ -1659,7 +1669,16 @@ PUBLIC int treedb_delete_topic(
     }
 
     treedb_close_topic(tranger, treedb_name, topic_name);
-    return tranger2_delete_topic(tranger, topic_name);
+    int ret = tranger2_delete_topic(tranger, topic_name);
+
+    /*
+     *  And the hooks this topic gave __assets__ go with it: left behind,
+     *  they keep children that no longer exist, and the gc reads a hook
+     *  that is not empty as "some node links this asset".
+     */
+    derive_file_hooks(gobj, tranger, treedb_name);   // Errors already logged
+
+    return ret;
 }
 
 /***************************************************************************
@@ -10730,12 +10749,24 @@ PRIVATE json_t *create_assets_topic(
 }
 
 /***************************************************************************
- *  For every column `C` of topic `T` flagged `file`, give __assets__ the
- *  reciprocal hook `as_<T>_<C> -> {T: C}`, IN MEMORY only.
+ *  Bring the hooks of __assets__ in line with the schema AS IT IS NOW: for
+ *  every column `C` of topic `T` flagged `file` the reciprocal hook
+ *  `as_<T>_<C> -> {T: C}`, and no other hook. IN MEMORY only -- a hook's
+ *  CONTENT lives in memory already (link_nodes saves the child's fkey and
+ *  never the parent), so its DECLARATION can live in the same place, and
+ *  nothing about __assets__ is ever versioned.
+ *
+ *  The schema moves at RUN TIME, so this does too: `create-topic` and
+ *  `delete-topic` are live commands of C_TREEDB. Derived only at open, a
+ *  topic added while the yuno runs had a `file` column whose hook did not
+ *  exist -- its writes named a hook nothing could link through -- and a
+ *  topic DELETED at runtime left its hook behind, still holding children
+ *  that are gone, which the gc reads as "some node links this asset" and
+ *  so never collects those bytes again.
  *
  *  A `file` column must also be flagged `fkey`: every link behaviour of
  *  this file keys on that word, and so does the GUI. Refused otherwise,
- *  loudly, at open. Return 0 or the number of errors in negative.
+ *  loudly. Return 0 or the number of errors in negative.
  ***************************************************************************/
 PRIVATE int derive_file_hooks(
     hgobj gobj,
@@ -10745,7 +10776,18 @@ PRIVATE int derive_file_hooks(
 {
     int ret = 0;
 
-    json_t *assets_topic = tranger2_topic(tranger, TREEDB_ASSETS_TOPIC);
+    /*
+     *  Not open yet: treedb_open_db() creates the user topics BEFORE
+     *  __assets__ and runs the full pass right after, so a call from
+     *  treedb_create_topic() during the open has nothing to do here. Asked
+     *  through tranger2_topic() this would log an error of its own.
+     */
+    json_t *assets_topic = json_object_get(
+        json_object_get(tranger, "topics"), TREEDB_ASSETS_TOPIC
+    );
+    if(!assets_topic) {
+        return 0;
+    }
     json_t *assets_cols = json_object_get(assets_topic, "cols");
     if(!json_is_object(assets_cols)) {
         gobj_log_error(gobj, 0,
@@ -10758,6 +10800,10 @@ PRIVATE int derive_file_hooks(
         return -1;
     }
 
+    json_t *wanted = json_object();     // the hooks the schema asks for now
+    json_t *mine = json_object();       // the user topics of THIS treedb
+    json_t *indexx = treedb_get_id_index(tranger, treedb_name, TREEDB_ASSETS_TOPIC);
+
     json_t *topics = treedb_topics(tranger, treedb_name, 0);
     int idx; json_t *jn_topic;
     json_array_foreach(topics, idx, jn_topic) {
@@ -10765,6 +10811,7 @@ PRIVATE int derive_file_hooks(
         if(strncmp(topic_name, "__", 2)==0) {
             continue;
         }
+        json_object_set_new(mine, topic_name, json_true());
         json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
         const char *col_name; json_t *col;
         json_object_foreach(cols, col_name, col) {
@@ -10803,6 +10850,7 @@ PRIVATE int derive_file_hooks(
 
             char hook_name[NAME_MAX];
             snprintf(hook_name, sizeof(hook_name), "as_%s_%s", topic_name, col_name);
+            json_object_set_new(wanted, hook_name, json_true());
             json_t *existing = json_object_get(assets_cols, hook_name);
             if(existing) {
                 /*
@@ -10840,10 +10888,73 @@ PRIVATE int derive_file_hooks(
                 "hook", topic_name, col_name
             );
             json_object_set_new(assets_cols, hook_name, hook_col);
+
+            /*
+             *  And into the nodes that are already loaded. A hook is a
+             *  field of the node, put there from the desc when the record
+             *  was read; a hook added later exists in the desc and in no
+             *  node, and _link_nodes() answers "hook field not found" --
+             *  which is what a topic created while the yuno runs got.
+             */
+            const char *id; json_t *node;
+            json_object_foreach(indexx, id, node) {
+                if(!json_object_get(node, hook_name)) {
+                    json_object_set_new(node, hook_name, json_object());
+                }
+            }
         }
         JSON_DECREF(cols)
     }
     JSON_DECREF(topics)
+
+    /*-------------------------------------------------*
+     *  And no OTHER hook: what the schema stopped
+     *  saying, __assets__ stops carrying
+     *
+     *  The persisted schema of __assets__ has no hooks, so every hook here
+     *  is a derived one. Left behind, the hook of a topic that is gone
+     *  keeps holding children that are gone -- and the gc reads a hook
+     *  that is not empty as "some node links this asset", so those bytes
+     *  would never be collected again. The children go with it, or the
+     *  nodes keep answering a hook nothing declares.
+     *
+     *  __assets__ is a topic of the TRANGER, not of the treedb, so a
+     *  tranger holding two treedbs shares it. A hook of the OTHER treedb
+     *  is none of our business: take only what maps to a topic of this one
+     *  (its column stopped being a `file`) or to a topic no longer open at
+     *  all (it was deleted).
+     *-------------------------------------------------*/
+    json_t *tranger_topics = json_object_get(tranger, "topics");
+    void *n; const char *hook_name; json_t *hook_col;
+    json_object_foreach_safe(assets_cols, n, hook_name, hook_col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, hook_col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "hook", 0)) {
+            continue;
+        }
+        if(json_object_get(wanted, hook_name)) {
+            continue;
+        }
+        json_t *hook = kw_get_dict(gobj, hook_col, "hook", 0, 0);
+        const char *mapped_topic; json_t *jn_mapped_col;
+        BOOL take = FALSE;
+        json_object_foreach(hook, mapped_topic, jn_mapped_col) {
+            if(json_object_get(mine, mapped_topic) ||
+                    !json_object_get(tranger_topics, mapped_topic)) {
+                take = TRUE;
+            }
+            break;
+        }
+        if(!take) {
+            continue;
+        }
+        const char *id; json_t *node;
+        json_object_foreach(indexx, id, node) {
+            json_object_del(node, hook_name);
+        }
+        json_object_del(assets_cols, hook_name);
+    }
+    JSON_DECREF(wanted)
+    JSON_DECREF(mine)
 
     return ret;
 }

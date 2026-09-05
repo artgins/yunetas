@@ -20,6 +20,16 @@ cascade-deleted like any other node. Design and its review:
   `__assets__` is ever versioned. `file` goes WITH `fkey`: every link
   behaviour of treedb and of the GUI keys on that word, and a `file` column
   without it is refused at open.
+- **The hooks follow the schema at RUN TIME, both ways.** `create-topic`
+  and `delete-topic` are live commands of `C_TREEDB`, so the derivation runs
+  after each one and not only at open: it adds what the schema now asks for
+  — into the desc **and into the `__assets__` nodes already loaded, or
+  `_link_nodes()` answers *"hook field not found"*** — and removes what the
+  schema stopped asking for, children included. A hook left behind holds
+  children that are gone, and the gc reads a hook that is not empty as
+  "some node links this asset", so those bytes would never be collected
+  again. `__assets__` is a topic of the TRANGER, so the removal takes only
+  what maps to a topic of this treedb or to one no longer open at all.
 - **The bytes ride BESIDE the record** (`__files__`, a manifest keyed by
   column: `content64` from a browser, or `offset`/`size` slices of the kw's
   one `gbuffer` from a C caller) and are consumed at the door by

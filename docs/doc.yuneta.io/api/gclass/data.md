@@ -154,7 +154,10 @@ on disk. Design note:
   `uploaded_by`. Its **hooks are derived**: for every column `C` of topic `T`
   flagged `file`, `__assets__` gains `as_<T>_<C> -> {T: C}` in memory, never
   written to `topic_cols.json`. The host declares nothing but the column, and
-  nothing about `__assets__` is ever versioned.
+  nothing about `__assets__` is ever versioned. The derivation **follows the
+  schema at run time**: `create-topic` and `delete-topic` are live commands,
+  so a topic added while the yuno runs gets its hook, and one deleted takes
+  its hook — and the children it held — away with it.
 - **The bytes live under the treedb**, at `<treedb dir>/.blobs/ab/cd/<sha256>.<ext>`,
   so a `cp -a` of the treedb directory carries the nodes **and** their bytes.
 - **The bytes ride beside the record**, never inside the column, in a

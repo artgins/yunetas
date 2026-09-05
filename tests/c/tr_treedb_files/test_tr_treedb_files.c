@@ -16,6 +16,7 @@
  *            7. one kw, two files (a gbuffer and a manifest of slices)
  *            8. no leak
  *            9. one asset, ONE blob, and a snapshot refuses the delete
+ *           10. the hooks follow the schema at RUN TIME, both ways
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -50,6 +51,7 @@
 #define PNG_C   "\x89PNG\r\n\x1a\n" "IHDR fixture C, held only by a snapshot"
 #define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
+#define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -508,6 +510,106 @@ PRIVATE int test_one_asset_one_blob(json_t *tranger)
 }
 
 /***************************************************************************
+ *  10. The hooks follow the schema at RUN TIME
+ *
+ *  `create-topic` and `delete-topic` are live commands. Derived only at
+ *  open, a topic added while the yuno runs had a `file` column whose hook
+ *  did not exist, and a topic deleted at runtime left its hook behind
+ *  holding children that are gone -- which the gc reads as "linked".
+ ***************************************************************************/
+PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "10. the hooks follow the schema at run time";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating topic",
+            "msg", "Deleting topic"
+        ),
+        NULL, NULL, 1
+    );
+
+    /*  A topic with a 'file' column, created with the yuno running  */
+    json_t *cols = json_pack("{s:{s:s, s:s, s:i, s:s, s:[s,s]}, s:{s:s, s:s, s:i, s:s, s:[s,s]}}",
+        "id",
+            "id", "id", "header", "Id", "fillspace", 20, "type", "string",
+            "flag", "persistent", "required",
+        "plan",
+            "id", "plan", "header", "Plan", "fillspace", 20, "type", "string",
+            "flag", "fkey", "file"
+    );
+    if(!treedb_create_topic(
+        tranger, TREEDB_NAME, "works", 1, "", 0, cols, 0, FALSE, FALSE
+    )) {
+        printf("%s  FAIL: cannot create the topic at run time%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+    BOOL derived = json_object_get(assets_cols, "as_works_plan")? TRUE: FALSE;
+    JSON_DECREF(assets_cols)
+    if(!derived) {
+        printf("%s  FAIL: the hook of a topic created at run time was not derived%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  and it LINKS: the whole point of the hook existing  */
+    json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s}}}",
+        "id", "work-1",
+        "__files__", "plan",
+            "content64", b64(PDF_B, sizeof(PDF_B)-1),
+            "original_name", "work-1.pdf"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "works", json_incref(kw));
+    if(node) {
+        treedb_autolink(tranger, node, kw, TRUE);
+    } else {
+        json_decref(kw);
+    }
+    const char *pdf_id = sha(PDF_B, sizeof(PDF_B)-1);
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, pdf_id);
+    json_t *hook = asset? json_object_get(asset, "as_works_plan"): 0;
+    if(!node || !json_is_object(hook) || !json_object_get(hook, "work-1")) {
+        printf("%s  FAIL: a file column of a run-time topic did not link%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  Delete the topic: the hook goes, and with it the children it held  */
+    if(treedb_delete_topic(tranger, TREEDB_NAME, "works")<0) {
+        printf("%s  FAIL: cannot delete the topic%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
+    BOOL left_behind = json_object_get(assets_cols, "as_works_plan")? TRUE: FALSE;
+    JSON_DECREF(assets_cols)
+    if(left_behind) {
+        printf("%s  FAIL: the hook of a deleted topic was left behind%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, pdf_id);
+    if(asset && json_object_get(asset, "as_works_plan")) {
+        printf("%s  FAIL: the asset still answers a hook nothing declares%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    /*  and now the gc can see it: nothing links it any more  */
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!json_str_in_list(0, would, pdf_id, 0)) {
+        printf("%s  FAIL: the gc cannot see the asset of the deleted topic%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  7. One kw, two files: a gbuffer and a manifest of two slices
  ***************************************************************************/
 PRIVATE int test_one_kw_two_files(json_t *tranger)
@@ -777,6 +879,8 @@ PRIVATE int do_test(void)
     result += test_one_kw_two_files(tranger);
     result += test_one_asset_one_blob(tranger);
     result += test_gc_three_ways(tranger);
+    /*  after the gc: it leaves an orphan of its own, and case 6 counts  */
+    result += test_hooks_follow_the_schema(tranger);
 
     {
         const char *test = "close and shutdown";
