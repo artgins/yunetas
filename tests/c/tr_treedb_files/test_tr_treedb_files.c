@@ -523,8 +523,11 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
     const char *test = "10. the hooks follow the schema at run time";
     set_expected_results(
         test,
-        json_pack("[{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
+            /*  `works.plan` tampoco lleva `writable`: el aviso salta al
+             *  crear el hook, que es una vez por topic y no por pasada.  */
+            "msg", "a 'file' column without 'writable' cannot be filled by a person",
             "msg", "Deleting topic"
         ),
         NULL, NULL, 1
@@ -848,14 +851,19 @@ PRIVATE int do_test(void)
     {
         const char *test = "open treedb";
         /*  __snaps__ + __graphs__ + devices + places + __assets__ = 5 topics */
+        /*  `places.plano` se queda SIN `writable` a proposito: una columna
+         *  `file` que nadie puede llenar se dibuja igual que una llena y
+         *  no se puede usar, asi que el open lo avisa. Las dos de
+         *  `devices` si lo llevan, que es el caso normal.  */
         set_expected_results(
             test,
-            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+            json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
                 "msg", "Creating topic",
-                "msg", "Creating topic"
+                "msg", "Creating topic",
+                "msg", "a 'file' column without 'writable' cannot be filled by a person"
             ),
             NULL, NULL, 1
         );

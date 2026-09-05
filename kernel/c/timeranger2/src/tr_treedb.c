@@ -10877,6 +10877,30 @@ PRIVATE int derive_file_hooks(
                 }
                 continue;
             }
+            /*
+             *  Dicho al CREAR el hook y no en cada pasada: la reconciliacion
+             *  corre en cada open y tras cada create/delete-topic, y un
+             *  aviso por pasada es ruido que se aprende a saltar.
+             *
+             *  Una columna `file` que nadie puede escribir se dibuja igual
+             *  que una llena y no se puede usar -- el formulario la marca
+             *  readonly (`readonly || !is_writable`), asi que el boton de
+             *  elegir nace oculto y el input deshabilitado. Es legal (una
+             *  columna que solo llena una carga es asi) y casi siempre es
+             *  un olvido, que hasta ahora no decia nada.
+             */
+            if(!kw_has_word(gobj, desc_flag, "writable", 0)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "a 'file' column without 'writable' cannot be filled by a person",
+                    "treedb_name",  "%s", treedb_name,
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%s", col_name,
+                    NULL
+                );
+            }
+
             char header[NAME_MAX];
             snprintf(header, sizeof(header), "%s of", col_name);
             json_t *hook_col = json_pack("{s:s, s:s, s:i, s:s, s:[s], s:{s:s}}",

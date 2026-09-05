@@ -30,13 +30,13 @@ static char schema_sample[]= "\
                     'header': 'Photo',                              \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
-                    'flag': ['fkey','file']                         \n\
+                    'flag': ['fkey','file','writable']              \n\
                 },                                                  \n\
                 'qr': {                                             \n\
                     'header': 'QR',                                 \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
-                    'flag': ['fkey','file']                         \n\
+                    'flag': ['fkey','file','writable']              \n\
                 }                                                   \n\
             }                                                       \n\
         },                                                          \n\
