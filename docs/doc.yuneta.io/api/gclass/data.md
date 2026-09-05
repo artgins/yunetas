@@ -113,7 +113,7 @@ tree nodes with linking, snapshots, and import/export.
 | Command | Description |
 |---------|-------------|
 | `create-node` / `update-node` / `delete-node` | CRUD operations on nodes. A record with `file` columns carries its bytes **beside** the record, in `__files__` — see below. |
-| `import-assets` | Turn a directory already on this node into N assets of `__assets__`: one command, no bytes on the wire. Confined to `import_root`. It creates index nodes, links nothing, and **answers the map `path -> id`** so the loader can link what it imported. `dry_run=1` says what it would take. |
+| `import-assets` | Turn a directory already on this node into N assets of `__assets__`: one command, no bytes on the wire. Confined to `import_root`. It creates index nodes, links nothing, and **answers the map `path -> id`** so the loader can link what it imported. `dry_run=1` says what it would take. The confinement is resolved, not only spelled: a `source_dir` with `..`, or one that resolves out of `import_root` through a symlink, is refused. |
 | `gc-assets` | Delete the assets that **no live node and no snapshot** links — row and bytes. Never automatic: `delete-node force=1` unlinks children rather than deleting them, so an unlinked asset is a normal intermediate state of a bulk operation. `dry_run=1` lists what it would take. |
 | `node` / `nodes` | Retrieve one node / list a topic's nodes (with filters). |
 | `instances` | List node instances. |
@@ -141,7 +141,7 @@ be ~460 MB of RAM for the life of the yuno.
 So **you mark a column `file`, and treedb gives you a pseudo-filesystem**: you
 hand it a file, you get it back; the *index* lives in memory and the *content*
 on disk. Design note:
-[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.18.0/kernel/c/timeranger2/DESIGN-treedb-files.md).
+[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.18.1/kernel/c/timeranger2/DESIGN-treedb-files.md).
 
 ```
 'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey', 'file']}
@@ -181,6 +181,10 @@ on disk. Design note:
   (a census reload then sends ~0 instead of 346 MB) — but the id is a claim,
   never an authority: a wrong id with good bytes is refused, and a bare id of
   an asset nobody stored is refused. A bare id of an existing asset links it.
+  A column may also arrive holding the **full** reference, and then it must be
+  exactly `__assets__^<id>^as_<T>_<C>` of that very column: the link is made
+  by the hook the value names, so one naming another `file` column's hook
+  would store the file into that other column.
 - **Size and type are checked at the door, on the bytes.** The size is checked
   on the base64 before decoding; the type is *sniffed* from the first bytes
   and the declared one must agree — a png called `image/jpeg` is refused, and
@@ -193,7 +197,9 @@ on disk. Design note:
   so keep `files_max_size` under the transport's `max_pkt_size`.
 - **Three writes, in order**: the blob, the `__assets__` node, the host record
   with its link. Interrupted early it leaves an orphan blob or an orphan index
-  node, which `gc-assets` takes; never a link to nothing.
+  node, which `gc-assets` takes; never a link to nothing. A `create-node`
+  whose `file` column cannot be linked is **undone**, so the answer never
+  says yes over a record with an empty column.
 - **The write path links the `file` column itself, `autolink` or not.** An
   ordinary fkey moves only through `link-nodes` or an `autolink`; a `file`
   column is edited by handing over a file, and the link is part of it:
@@ -201,7 +207,9 @@ on disk. Design note:
   and a column the record does not carry is left alone. The `autolink` in
   the example above is for the OTHER fkeys of the record, not for `foto`.
 - **A second arrival of the same bytes is an update of the asset node**, so
-  the history of `__assets__` says every name a file arrived under. The blob
+  the history of `__assets__` says every name a file arrived under (a manifest
+  that carries no `original_name` says nothing about the file and leaves the
+  stored name alone). The blob
   is written once, and the **first** arrival names it for ever: the extension
   is part of the served path and the URL is cached for ever, so a later
   arrival that declares another member of the same container (`audio/mp4`
@@ -215,7 +223,11 @@ on disk. Design note:
   inherits the tag, so a node that moves on releases what its older instances
   named). A snapshot holds bytes alive; **deleting the snap frees them**, and
   the delete is `delete-node` on its `__snaps__` row (there is no `delete-snap`
-  command). A treedb with no snapshot does not walk.
+  command). A treedb with no snapshot does not walk. It also takes the
+  **bytes with no row** — what an interrupted write leaves, and the `.tmp` of
+  one that never reached its rename — because every other reader of the store
+  goes through the rows. `.blobs` is the tranger's, so what counts as named is
+  the union of every treedb's `__assets__`.
 - **Deleting an asset node deletes its bytes.** Refused while a node links it,
   like any parent with children — and refused, `force` included, while a
   **snapshot** links it: `delete-node` on an `__assets__` row runs the same

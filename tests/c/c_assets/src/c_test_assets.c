@@ -822,6 +822,15 @@ PRIVATE int run_tests(hgobj gobj)
         }
     }
 
+    /*  and it is not led out by starting AT one either: the walk reads
+     *  every entry with lstat and follows no link it finds, but the
+     *  directory it starts at is opened.  */
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller/escape"));
+    if(resp_result(resp) == 0) {
+        result += fail(gobj, "import-assets started at a symlink out of its import_root");
+    }
+    JSON_DECREF(resp)
+
     resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller"));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "import-assets failed");

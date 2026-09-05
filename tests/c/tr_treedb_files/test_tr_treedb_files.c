@@ -23,6 +23,9 @@
  *               every treedb's index
  *           13. the gc holds what an activation would LOAD; a deleted snap
  *               holds nothing
+ *           14. a `file` column names its OWN asset hook, or it is refused
+ *           15. a second arrival with no name keeps the stored one
+ *           16. the gc takes the bytes that no row names
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -60,6 +63,7 @@
 #define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
+#define PNG_F   "\x89PNG\r\n\x1a\n" "IHDR fixture F, the same bytes arriving twice"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -518,8 +522,8 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
-            /*  `works.plan` tampoco lleva `writable`: el aviso salta al
-             *  crear el hook, que es una vez por topic y no por pasada.  */
+            /*  `works.plan` has no `writable` either: the warning fires
+             *  when the hook is CREATED, once per topic and not per pass.  */
             "msg", "a 'file' column without 'writable' cannot be filled by a person",
             "msg", "a 'file' column must be flagged 'fkey' too",
             "msg", "Topic refused: bad 'file' column",
@@ -1179,6 +1183,236 @@ PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
 }
 
 /***************************************************************************
+ *  14. A `file` column names its OWN asset hook, or the write is refused
+ *
+ *  The column may arrive holding the full reference, and it was taken as
+ *  it came: link_file_columns() links by the hook the VALUE names, so a
+ *  value naming another `file` column's hook stored the file into that
+ *  other column, left this one empty and answered success.
+ ***************************************************************************/
+PRIVATE int test_file_col_names_its_own_hook(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "14. a file column names its own asset hook";
+    set_expected_results(
+        test,
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "File REFUSED: a 'file' column must name its own asset hook",
+            "msg", "File REFUSED: a 'file' column must name its own asset hook",
+            "msg", "Wrong fkey (parent) reference: must be \"parent_topic_name^parent_id^hook_name\"",
+            "msg", "File REFUSED: a 'file' column must name its own asset hook"
+        ),
+        NULL, NULL, 1
+    );
+
+    json_t *node = create_device_with_foto(
+        tranger, "dev-own", PNG_F, sizeof(PNG_F)-1, "image/png", 0
+    );
+    if(!node) {
+        printf("%s  FAIL: cannot create dev-own%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
+
+    /*  the hook of the OTHER `file` column of the same topic  */
+    char other[NAME_MAX*3];
+    snprintf(other, sizeof(other), "%s^%s^as_devices_qr", TREEDB_ASSETS_TOPIC, id_f);
+    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "dev-thief", "name", "dev-thief", "foto", other);
+    if(treedb_create_node(tranger, TREEDB_NAME, "devices", kw)) {
+        printf("%s  FAIL: a 'file' column naming another column's hook was accepted%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-thief")) {
+        printf("%s  FAIL: the refused record was created%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    if(json_object_size(json_object_get(asset, "as_devices_qr")) != 0) {
+        printf("%s  FAIL: the link landed on the other column's hook%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  a reference to another TOPIC, and a malformed one  */
+    kw = json_pack("{s:s, s:s}", "id", "dev-own", "foto", "places^nowhere^plano");
+    if(treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: a 'file' column naming another topic was accepted%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    kw = json_pack("{s:s, s:s}", "id", "dev-own", "foto", "not^a^reference^at^all");
+    if(treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: a malformed reference was accepted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+        printf("%s  FAIL: a refused update moved the column%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  15. A second arrival with no name keeps the stored one
+ *
+ *  `original_name` is the only writable column of an asset, and a second
+ *  arrival is an update of its node. A manifest that carries NO name says
+ *  nothing about the file: written through, it wiped the name the asset
+ *  first arrived under and appended an instance saying it arrived again,
+ *  nameless.
+ ***************************************************************************/
+PRIVATE int test_second_arrival_keeps_the_name(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "15. a second arrival with no name keeps the stored one";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "foto.png")!=0) {
+        printf("%s  FAIL: the asset did not arrive named%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  the same bytes, a manifest with no name  */
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s}}}",
+        "id", "dev-noname", "name", "dev-noname", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_F, sizeof(PNG_F)-1),
+                "content_type", "image/png"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(!node) {
+        printf("%s  FAIL: the second arrival was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+        printf("%s  FAIL: the second arrival did not link the asset%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "foto.png")!=0) {
+        printf("%s  FAIL: a nameless arrival wiped the stored name ('%s')%s\n",
+            On_Red BWhite, kw_get_str(0, asset, "original_name", "", 0), Color_Off);
+        result += -1;
+    }
+
+    /*  and a named one is still recorded  */
+    kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-noname", "name", "dev-noname", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_F, sizeof(PNG_F)-1),
+                "original_name", "again.png",
+                "content_type", "image/png"
+    );
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: the named arrival was refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "again.png")!=0) {
+        printf("%s  FAIL: a named arrival did not record the name%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  16. The gc takes the bytes that no row names
+ *
+ *  The blob goes down BEFORE the index node (a node pointing at nothing
+ *  repairs itself never), so a write that died in between leaves bytes
+ *  nothing names -- and so does a `.tmp` of a write that never reached
+ *  its rename. Nothing else reads the store by its files.
+ ***************************************************************************/
+PRIVATE int test_gc_takes_orphan_blobs(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "16. the gc takes the bytes no row names";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    /*  bytes with no row: an id nobody stored  */
+    const char *ghost = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    char ghost_path[PATH_MAX];
+    if(treedb_blob_path(tranger, ghost, "image/png", ghost_path, sizeof(ghost_path))<0) {
+        printf("%s  FAIL: cannot build the ghost blob path%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", ghost_path);
+    char *p = strrchr(dir, '/');
+    if(p) {
+        *p = 0;
+        mkrdir(dir, 02770);
+    }
+    FILE *f = fopen(ghost_path, "w");
+    if(!f) {
+        printf("%s  FAIL: cannot write the ghost blob%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    fwrite(PNG_A, 1, sizeof(PNG_A)-1, f);
+    fclose(f);
+
+    /*  and a leftover of a write that never renamed, of a LIVE asset  */
+    const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
+    char live_path[PATH_MAX];
+    char tmp_path[PATH_MAX + 8];
+    treedb_blob_path(tranger, id_f, "image/png", live_path, sizeof(live_path));
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", live_path);
+    f = fopen(tmp_path, "w");
+    if(f) {
+        fwrite(PNG_A, 1, sizeof(PNG_A)-1, f);
+        fclose(f);
+    }
+
+    /*  the dry run says it, and takes nothing  */
+    json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
+    if(!json_str_in_list(0, would, ghost, 0)) {
+        printf("%s  FAIL: the gc does not see the bytes no row names%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(json_str_in_list(0, would, id_f, 0)) {
+        printf("%s  FAIL: a leftover made the gc claim a live asset%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(would)
+    if(!is_regular_file(ghost_path)) {
+        printf("%s  FAIL: the dry run deleted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  and then it takes them  */
+    json_t *taken = treedb_gc_files(tranger, TREEDB_NAME, FALSE);
+    if(!json_str_in_list(0, taken, ghost, 0)) {
+        printf("%s  FAIL: the gc did not answer the orphan blob%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(taken)
+    if(is_regular_file(ghost_path)) {
+        printf("%s  FAIL: the bytes no row names survived the gc%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(is_regular_file(tmp_path)) {
+        printf("%s  FAIL: the leftover of an interrupted write survived%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(!blob_exists(tranger, id_f, "image/png") ||
+            !treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f)) {
+        printf("%s  FAIL: the gc took the live asset of the leftover%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -1214,10 +1448,10 @@ PRIVATE int do_test(void)
     {
         const char *test = "open treedb";
         /*  __snaps__ + __graphs__ + devices + places + __assets__ = 5 topics */
-        /*  `places.plano` se queda SIN `writable` a proposito: una columna
-         *  `file` que nadie puede llenar se dibuja igual que una llena y
-         *  no se puede usar, asi que el open lo avisa. Las dos de
-         *  `devices` si lo llevan, que es el caso normal.  */
+        /*  `places.plano` is left WITHOUT `writable` on purpose: a `file`
+         *  column nobody can fill is drawn like a full one and cannot be
+         *  used, so the open says so. The two of `devices` do carry it,
+         *  which is the ordinary case.  */
         set_expected_results(
             test,
             json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
@@ -1255,6 +1489,9 @@ PRIVATE int do_test(void)
     result += test_hooks_follow_the_schema(tranger);
     result += test_two_treedbs_one_tranger(tranger);
     result += test_gc_holds_what_a_snap_would_load(tranger);
+    result += test_file_col_names_its_own_hook(tranger);
+    result += test_second_arrival_keeps_the_name(tranger);
+    result += test_gc_takes_orphan_blobs(tranger);
 
     {
         const char *test = "close and shutdown";

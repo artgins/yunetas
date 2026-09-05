@@ -447,11 +447,23 @@ PRIVATE int md5_base64url(hgobj gobj, const char *data, size_t len, char *bf, in
  ***************************************************************************/
 PRIVATE int build_blob_rel(hgobj gobj, char *bf, int bflen, const char *id, const char *content_type)
 {
-    if(strlen(id) != SHA256_HEX_LEN) {
+    /*
+     *  The id goes into a served path, so it is checked the way
+     *  treedb_blob_path() checks it -- a length alone would let anything
+     *  of 64 characters through, and the two must not disagree about
+     *  what an asset id is.
+     */
+    BOOL is_sha256 = (strlen(id) == SHA256_HEX_LEN);
+    for(int i = 0; is_sha256 && i < SHA256_HEX_LEN; i++) {
+        if(!((id[i] >= '0' && id[i] <= '9') || (id[i] >= 'a' && id[i] <= 'f'))) {
+            is_sha256 = FALSE;
+        }
+    }
+    if(!is_sha256) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Asset id is not a sha256",
+            "msg",          "%s", "Asset id is not a lowercase sha256",
             "id",           "%s", id,
             NULL
         );

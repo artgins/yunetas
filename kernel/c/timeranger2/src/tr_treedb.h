@@ -679,7 +679,9 @@ PUBLIC json_t *treedb_import_files(
 
 /*
  *  Garbage collector of the bytes: take every asset that no live node and
- *  no snapshotted version of a node links. On demand, never automatic.
+ *  no snapshotted version of a node links, and every blob of the store
+ *  that no row names (what an interrupted write leaves: the blob goes
+ *  down before the index node). On demand, never automatic.
  *  Return the list of ids taken (dry_run: that would be taken). YOURS.
  */
 PUBLIC json_t *treedb_gc_files(

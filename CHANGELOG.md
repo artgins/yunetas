@@ -2,6 +2,79 @@
 
 ## [Unreleased]
 
+### A `file` column names its OWN asset hook, or the write is refused
+
+`treedb_store_files()` expanded a bare id into the full reference treedb's
+links speak and took a reference that arrived FULL as it came — and
+`link_file_columns()` links by the hook the VALUE names. So a record whose
+`foto` said `__assets__^<sha>^as_devices_qr` linked the file into `qr`, left
+`foto` empty and answered *"Node created!"*: the client asked for one column
+and the treedb wrote another. Since the write path started linking `file`
+columns itself, that is reachable through a plain `update-node`, with no
+`autolink` anywhere.
+
+A full reference must now be exactly `__assets__^<the id>^as_<T>_<C>` of its
+own column, and a malformed one is refused at the door naming the column,
+instead of much later by `filtra_fkeys()` naming only the string. Test 14 of
+`tests/c/tr_treedb_files`.
+
+### A create whose `file` column could not be linked answered success
+
+The record existed and was indexed, so it was returned — with the column
+empty and the caller told the node was created, which is the failure the
+previous release closed for the write path wearing a success. The create is
+**undone** now: one message, and either it happened or it failed. If the
+rollback itself cannot run the node is returned, because a failure that left
+a record behind is worse than the success it replaces — and it is only undone
+when this create made the KEY, since an instance created for a secondary key
+shares its key with the node that was already there and a delete takes the
+key whole. With the check above, the path is only reachable on a broken
+invariant of our own.
+
+### A second arrival of the same bytes with no name WIPED the name
+
+`original_name` is the only writable column of an asset and a second arrival
+is an update of its node, so a manifest without `original_name` wrote `""`
+over the name the file first arrived under — and appended an instance saying
+the file had arrived again, nameless. The GUI always sends a name; a C node
+forwarding a record with its bytes need not. A manifest that carries no name
+says nothing about the file and leaves the stored one alone. Test 15.
+
+### `gc-assets` did not take the bytes with no row, and the docs said it did
+
+The collector walked the rows of `__assets__` and never read the blob
+directory, so the orphan blob that the write order deliberately allows — the
+blob goes down BEFORE the index node, on purpose, because a node pointing at
+nothing repairs itself never — was garbage nobody could ever reach again.
+So was the `.tmp` of a write that never got to its rename. Both the design
+note and the reference page promised that `gc-assets` took them.
+
+`sweep_orphan_blobs()` runs at the end of the gc, over the union of every
+treedb's `__assets__` index (`.blobs` is the TRANGER's, and every open treedb
+loads the whole topic, so that union is every row on disk); the dry run says
+what it would take. A leftover of an id that still HAS a row is removed and
+NOT counted as an asset collected. Test 16.
+
+### `import-assets` could be started AT a symlink out of its root
+
+The walk follows no link it finds inside the tree — it reads every entry
+with `lstat` — but the directory it STARTS at is opened, so
+`source_dir=taller/escape` with `import_root/taller/escape -> /etc` walked
+`/etc` as if it were the root's own. The confinement is the whole security of
+this command, so the path is now resolved with `realpath()` and must still be
+inside the resolved `import_root`. `tests/c/c_assets` case 6 baits it with
+the symlink it already created.
+
+### And two smaller ones
+
+A node created for a SECONDARY key inherits the primary's links, so asking
+`link_file_columns()` to treat it as new linked every `file` column a second
+time — a *"Child already in parent hook"* per column and an instance for
+nothing. And `build_blob_rel()` in `C_ASSETS` checked the LENGTH of an id
+where `treedb_blob_path()` checks its alphabet: one of the two builds a
+served path, and they must not disagree about what an asset id is.
+
+
 ### The write path of a `file` column links it itself, `autolink` or not
 
 `treedb_update_node()` skips every fkey in its field loop — right for a link

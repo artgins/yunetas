@@ -229,6 +229,11 @@ already is taken as it is:
                         "content_type": "image/jpeg"}}}
 ```
 
+A client that sends the full reference is **checked, not believed**: it must
+name `__assets__` and the derived hook of that very column, because the link
+is made by the hook the value names and a value naming another `file`
+column's hook wrote the file into that other column (§16.9).
+
 `__files__` is not a column. It is an instruction to the write path, consumed
 and dropped at the door — the same key/value beside key/value that an event and
 its kw already are, and that a kw carrying its `gbuffer` next to its json
@@ -476,6 +481,13 @@ Two things follow from that:
   does not walk at all.
 - **The gc takes exactly what nothing can reach**: no live copy in any treedb
   of the tranger, and no instance any existing snap would load.
+- **And it takes the bytes with NO row.** The blob goes down before the index
+  node on purpose, so an interrupted write leaves bytes nothing names — and a
+  `.tmp` that never reached its rename is the same thing. Every other reader
+  of the store goes through the rows, so nothing but this pass would ever see
+  them again. `.blobs` is the TRANGER's, so what counts as named is the union
+  of every treedb's `__assets__` index — and every open treedb loads the whole
+  topic, so that union is every row on disk.
 
 A note, and it is a comfort rather than a licence: the id is the sha256 of the
 content, so a gc that took too much is undone by adding the same file again — it
@@ -675,6 +687,20 @@ in the first pass (§16):
 10. **The hooks follow the schema at RUN TIME**, both ways: a topic with a
     `file` column created with the store running links through its hook, and
     one deleted takes its hook — and the children it held — away with it.
+
+Six more came out of the two reviews that followed (§16.8, §16.9):
+
+11. **The write path links the column itself**, `autolink` or not: create,
+    move, clear and a reopen.
+12. **Two treedbs on one tranger** share `__assets__` and the blobs.
+13. **The gc holds what an activation would LOAD**, and a deleted snap holds
+    nothing.
+14. **A `file` column names its OWN asset hook**, or the write is refused —
+    another column's hook, another topic, and a malformed reference.
+15. **A second arrival with no name keeps the stored one**, and a named one
+    is still recorded.
+16. **The gc takes the bytes no row names**, and the leftover of a write that
+    never renamed, and neither of them takes the live asset with it.
 
 `tests/c/c_assets` covers the same ground through the commands: both doors of
 `__files__`, `get-asset` inline and signed, `import-assets` with hostile paths,
@@ -1013,6 +1039,64 @@ And the rest of the same review, closed the same day:
   `source_dir` containing `..` as a substring (`v1..v2` included) — a
   segment equal to `..` now; and a second arrival of the same bytes no longer
   rewrites `uploaded_by`, which is who put the BYTES there.
+
+### 16.9 Found by the second review of 2026-09-05
+
+Four more, and the first one is the same shape as §16.8: a write that says
+yes and puts the file somewhere else.
+
+- **A `file` column that arrived holding the FULL reference was taken as it
+  came.** `treedb_store_files()` expanded a bare id and validated nothing
+  else, and `link_file_columns()` links by the hook the VALUE names — so a
+  record whose `foto` said `__assets__^<sha>^as_devices_qr` linked the file
+  into `qr`, left `foto` empty and answered *"Node created!"*. Since §16.8
+  that is reachable through a plain `update-node`, with no `autolink`
+  anywhere. A full reference must now be exactly
+  `__assets__^<the id>^as_<T>_<C>` of its own column, and a malformed one is
+  refused at the door, naming the column, instead of much later by
+  `filtra_fkeys()` naming only the string. Test 14.
+
+- **A create whose `file` column could not be linked answered success.** The
+  record existed and was indexed, so it was returned — with the column
+  empty. It is UNDONE now: one message, and either it happened or it failed.
+  (If the rollback itself cannot run, the node is returned rather than
+  claiming a failure that left a record behind — and it is undone only when
+  the create made the KEY: an instance created for a secondary key shares its
+  key with the node that was already there, and a delete takes the key
+  whole.) With the check above the path is only reachable on a broken
+  invariant of our own, which is the point.
+
+- **A second arrival with no name WIPED the name.** `original_name` is the
+  only writable column of an asset and a second arrival is an update of its
+  node, so a manifest without `original_name` wrote `""` over the name the
+  file first arrived under — and appended an instance saying it had arrived
+  again, nameless. A manifest that carries no name says nothing about the
+  file and now leaves the stored one alone. Test 15.
+
+- **The gc did not take the bytes with no row**, and §5 and the reference
+  page both said it did. The collector walked the rows of `__assets__`; the
+  blob directory was never read, so the orphan blob that the write order
+  deliberately allows (the blob goes down first, on purpose) was garbage
+  nobody could ever reach — and so was the `.tmp` of a write that never
+  reached its rename. `sweep_orphan_blobs()` runs at the end of the gc, over
+  the union of every treedb's index because `.blobs` is the tranger's, and
+  the dry run says what it would take. Test 16.
+
+- **`import-assets` could be started AT a symlink out of its root.** The walk
+  follows no link it finds inside the tree (`lstat` on every entry), but the
+  directory it STARTS at is opened: `source_dir=taller/escape`, with that
+  name a link to `/etc`, walked `/etc`. The path is resolved with
+  `realpath()` now and must still be inside the resolved `import_root` —
+  which is also what makes the `path -> id` map it answers relative to the
+  root it really walked.
+
+Two smaller ones in the same pass: a node created for a SECONDARY key
+inherits the primary's links, so asking `link_file_columns()` to treat it as
+new linked every `file` column a second time (a *"Child already in parent
+hook"* per column and an instance for nothing); and `build_blob_rel()` in
+`C_ASSETS` checked the LENGTH of an id where `treedb_blob_path()` checks its
+alphabet — the two must not disagree about what an asset id is, since one of
+them builds a served path.
 
 What stays open is in §16.7, and none of it is a defect of this design: the
 remote stores, and the bytes of a replica or of an `export-db`.

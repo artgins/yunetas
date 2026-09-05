@@ -5558,12 +5558,46 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *-------------------------------*/
     {
         BOOL moved = FALSE;
-        if(link_file_columns(gobj, tranger, node, kw, TRUE, &moved)<0) {
+        /*
+         *  A node created for a SECONDARY key inherited the primary's
+         *  links a moment ago (inherit_links + load_links), so its `file`
+         *  columns are linked already: asked as new, every one of them
+         *  would be linked a second time -- a "Child already in parent
+         *  hook" per column and an instance for nothing.
+         */
+        if(link_file_columns(gobj, tranger, node, kw, !links_inherited, &moved)<0) {
             /*
-             *  Error already logged. The record exists and is indexed, so
-             *  it is returned: answering NULL would tell the caller that
-             *  nothing was created.
+             *  Error already logged. A create that could not link the
+             *  `file` column it was handed is the failure §16.8 closed
+             *  for the write path, wearing a success: the record would
+             *  come back with the column empty and the caller told "Node
+             *  created!". So the create is UNDONE -- one message, and
+             *  either it happened or it failed. If the rollback itself
+             *  cannot run, the node IS returned: a failure that leaves a
+             *  record behind is worse than the success it replaces.
+             *
+             *  Only when this create made the KEY (`save_id`): an instance
+             *  created for a secondary key shares its key with the node
+             *  that was already there, and a delete takes the key whole --
+             *  undoing this write would take that one with it.
              */
+            gobj_log_set_last_message(
+                "'%s': cannot link a 'file' column, the create is undone", topic_name
+            );
+            if(save_id && delete_node(tranger, node, json_pack("{s:b}", "force", 1), FALSE)==0) {
+                JSON_DECREF(pkey2_list)
+                JSON_DECREF(kw)
+                return NULL;    // node is gone, and so is what it linked
+            }
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Node created with a 'file' column that could NOT be linked",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
         } else if(moved) {
             treedb_save_node(tranger, node);
         }
@@ -10505,17 +10539,23 @@ PRIVATE json_t *store_file_bytes(
     }
 
     if(node) {
-        node = treedb_update_node(
-            tranger,
-            node,
-            /*
-             *  original_name only: `uploaded_by` is who put the BYTES
-             *  there, and the bytes did not change. The name is what the
-             *  history of names is made of.
-             */
-            json_pack("{s:s}", "original_name", original_name),
-            TRUE
-        );
+        /*
+         *  original_name only: `uploaded_by` is who put the BYTES there,
+         *  and the bytes did not change. The name is what the history of
+         *  names is made of -- and a manifest that carries NO name says
+         *  nothing about the file, so it leaves the stored one alone.
+         *  Written through, it wiped the name the asset first arrived
+         *  under and appended an instance saying the file arrived again,
+         *  nameless.
+         */
+        if(!empty_string(original_name)) {
+            node = treedb_update_node(
+                tranger,
+                node,
+                json_pack("{s:s}", "original_name", original_name),
+                TRUE
+            );
+        }
     } else {
         node = treedb_create_node(
             tranger,
@@ -10555,9 +10595,9 @@ PRIVATE const char *file_col_id(const char *value, char *bf, size_t bflen)
         char hook[NAME_MAX];
         if(!decode_parent_ref(value, topic, sizeof(topic), bf, bflen, hook, sizeof(hook))) {
             /*
-             *  Answer "no id" and leave the value alone: filtra_fkeys()
-             *  is the one that names it, with "Wrong fkey reference", when
-             *  the record is written. Refusing it twice would say it twice.
+             *  Answer "no id": the caller refuses the write and names the
+             *  column, which is more than filtra_fkeys() could say about
+             *  it much later, when the record is written.
              */
             bf[0] = 0;  // Error already logged
         }
@@ -10948,12 +10988,44 @@ PUBLIC int treedb_store_files(
                 )
             );
 
-        } else if(!empty_string(claimed_id) && !strchr(value, '^')) {
+        } else if(!empty_string(value)) {
             /*--------------------------------------------*
-             *  A bare id and no bytes: the asset must be
-             *  there already. Then the column takes the
-             *  full reference treedb's links speak.
+             *  No bytes: the column names an asset that
+             *  must be there already. A bare id then takes
+             *  the full reference treedb's links speak.
+             *
+             *  And a reference that arrives FULL is checked, never taken
+             *  on trust: link_file_columns() links by the hook the value
+             *  names, so a value naming ANOTHER column's hook wrote the
+             *  file into that other column, left this one empty and
+             *  answered success. It must be this treedb's __assets__ and
+             *  THIS column's hook -- which is also what a malformed
+             *  reference fails, named here instead of much later.
              *--------------------------------------------*/
+            if(strchr(value, '^')) {
+                char ref[NAME_MAX*3];
+                snprintf(ref, sizeof(ref), "%s^%s^%s",
+                    TREEDB_ASSETS_TOPIC, claimed_id, hook_name
+                );
+                if(empty_string(claimed_id) || strcmp(value, ref)!=0) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "File REFUSED: a 'file' column must name its own asset hook",
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%s", col_name,
+                        "ref",          "%s", value,
+                        "expected",     "%s", ref,
+                        NULL
+                    );
+                    gobj_log_set_last_message(
+                        "'%s' must hold an id of '%s' or '%s', not '%s'",
+                        col_name, TREEDB_ASSETS_TOPIC, ref, value
+                    );
+                    ret = -1;
+                    break;
+                }
+            }
             if(!treedb_get_node(tranger, treedb_name, TREEDB_ASSETS_TOPIC, claimed_id)) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -11269,16 +11341,17 @@ PRIVATE int derive_file_hooks(
                 continue;
             }
             /*
-             *  Dicho al CREAR el hook y no en cada pasada: la reconciliacion
-             *  corre en cada open y tras cada create/delete-topic, y un
-             *  aviso por pasada es ruido que se aprende a saltar.
+             *  Said when the hook is CREATED and not on every pass: the
+             *  reconciliation runs at every open and after every
+             *  create/delete-topic, and a warning per pass is noise one
+             *  learns to skip.
              *
-             *  Una columna `file` que nadie puede escribir se dibuja igual
-             *  que una llena y no se puede usar -- el formulario la marca
-             *  readonly (`readonly || !is_writable`), asi que el boton de
-             *  elegir nace oculto y el input deshabilitado. Es legal (una
-             *  columna que solo llena una carga es asi) y casi siempre es
-             *  un olvido, que hasta ahora no decia nada.
+             *  A `file` column nobody can write is drawn like a full one
+             *  and cannot be used -- the form marks it readonly
+             *  (`readonly || !is_writable`), so the button that picks a
+             *  file is born hidden and the input disabled. It is legal (a
+             *  column only a load fills is like that) and it is almost
+             *  always an oversight, which until now said nothing.
              */
             if(!kw_has_word(gobj, desc_flag, "writable", 0)) {
                 gobj_log_warning(gobj, 0,
@@ -11643,6 +11716,159 @@ PRIVATE const char *asset_linked_by_other_treedb(
     return found;
 }
 
+typedef struct {
+    hgobj gobj;
+    json_t *known;      /* {id: true}: every id any treedb of the tranger has */
+    json_t *taken;      /* the ids collected, or that would be */
+    BOOL dry_run;
+} blob_sweep_ctx_t;
+
+/***************************************************************************
+ *  One file of the blob directory: bytes nothing names, or a leftover.
+ ***************************************************************************/
+PRIVATE BOOL blob_sweep_cb(
+    hgobj gobj_,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+)
+{
+    blob_sweep_ctx_t *ctx = user_data;
+    hgobj gobj = ctx->gobj;
+
+    if(type != WD_TYPE_REGULAR_FILE) {
+        return TRUE;
+    }
+
+    /*
+     *  '<id>.<ext>', and '<id>.<ext>.tmp' for a write that never renamed
+     */
+    char id[SHA256_HEX_LEN + 1];
+    const char *dot = strchr(name, '.');
+    size_t len = dot? (size_t)(dot - name): strlen(name);
+    if(len != SHA256_HEX_LEN) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "gc: a file of the blob directory is not a blob, left alone",
+            "path",         "%s", fullpath,
+            NULL
+        );
+        return TRUE;
+    }
+    snprintf(id, sizeof(id), "%.*s", (int)len, name);
+    if(!is_sha256_hex(id)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "gc: a file of the blob directory is not a blob, left alone",
+            "path",         "%s", fullpath,
+            NULL
+        );
+        return TRUE;
+    }
+
+    BOOL is_tmp = FALSE;
+    size_t name_len = strlen(name);
+    if(name_len > 4 && strcmp(name + name_len - 4, ".tmp")==0) {
+        is_tmp = TRUE;      /* never the served file: write_blob renames */
+    }
+    BOOL known = json_object_get(ctx->known, id)? TRUE: FALSE;
+    if(known && !is_tmp) {
+        return TRUE;
+    }
+
+    if(!ctx->dry_run) {
+        if(unlink(fullpath) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "gc: cannot remove a blob nothing names",
+                "path",         "%s", fullpath,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            return TRUE;
+        }
+    }
+    if(treedb_trace) {
+        gobj_trace_msg(gobj, "gc: blob %s %s", ctx->dry_run? "would take": "taken", fullpath);
+    }
+    /*
+     *  A leftover of an id that HAS a row took nothing away: the asset is
+     *  still there and the answer must not say it was collected.
+     */
+    if(!known && !json_str_in_list(gobj, ctx->taken, id, 0)) {
+        json_array_append_new(ctx->taken, json_string(id));
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The bytes with NO row, which the rows can never lead anybody to.
+ *
+ *  The blob is written before the index node on purpose (a node pointing
+ *  at nothing repairs itself never), so a write that died in between
+ *  leaves bytes nothing names -- and so does a `.tmp` of a write that
+ *  never reached its rename. Everything else in the store is read through
+ *  the rows, so nothing but this pass will ever see them again.
+ *
+ *  `.blobs` is the TRANGER's, shared by every treedb it holds, so what
+ *  counts as named is the union of every treedb's __assets__ index -- and
+ *  every open treedb loads the whole topic, so that union is every row on
+ *  disk. Master only, like the whole gc.
+ ***************************************************************************/
+PRIVATE int sweep_orphan_blobs(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *taken,      // NOT owned, the ids the gc answers
+    BOOL dry_run
+)
+{
+    const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
+    char blobs[PATH_MAX];
+    if(!build_path(blobs, sizeof(blobs), directory, TREEDB_BLOBS_DIR, NULL)) {
+        return -1;  // Error already logged
+    }
+    if(!is_directory(blobs)) {
+        return 0;   // No bytes were ever stored
+    }
+
+    json_t *known = json_object();
+    const char *any_name; json_t *any_treedb;
+    json_object_foreach(json_object_get(tranger, "treedbs"), any_name, any_treedb) {
+        json_t *indexx = treedb_get_id_index(tranger, any_name, TREEDB_ASSETS_TOPIC);
+        const char *id; json_t *node;
+        json_object_foreach(indexx, id, node) {
+            json_object_set_new(known, id, json_true());
+        }
+    }
+
+    blob_sweep_ctx_t ctx = {
+        .gobj = gobj,
+        .known = known,
+        .taken = taken,
+        .dry_run = dry_run
+    };
+    int ret = walk_dir_tree(
+        gobj,
+        blobs,
+        0,
+        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        blob_sweep_cb,
+        &ctx
+    );
+    JSON_DECREF(known)
+    if(ret < 0) {
+        return -1;  // Error already logged
+    }
+    return 0;
+}
+
 /***************************************************************************
  *  The garbage collector of the bytes: an asset that no live node links
  *  AND no snapshotted version of a node links is garbage.
@@ -11653,8 +11879,12 @@ PRIVATE const char *asset_linked_by_other_treedb(
  *
  *  It reads the snapshots for real: every tagged instance of every topic
  *  with a `file` column is walked on disk, which is what makes the answer
- *  conservative. Return the list of the ids taken (or, dry_run, the ids it
- *  would take). Return is YOURS.
+ *  conservative.
+ *
+ *  And it takes the bytes with no row too (sweep_orphan_blobs): the write
+ *  path puts the blob down before the index node, so an interrupted write
+ *  leaves bytes that no row will ever lead anybody to. Return the list of
+ *  the ids taken (or, dry_run, the ids it would take). Return is YOURS.
  ***************************************************************************/
 PUBLIC json_t *treedb_gc_files(
     json_t *tranger,
@@ -11716,6 +11946,7 @@ PUBLIC json_t *treedb_gc_files(
     JSON_DECREF(held)
 
     if(dry_run) {
+        sweep_orphan_blobs(gobj, tranger, orphans, TRUE);    // Errors already logged
         return orphans;
     }
 
@@ -11746,6 +11977,12 @@ PUBLIC json_t *treedb_gc_files(
         }
     }
     JSON_DECREF(orphans)
+
+    /*--------------------------------------------*
+     *  And the bytes that no row ever named
+     *--------------------------------------------*/
+    sweep_orphan_blobs(gobj, tranger, deleted, FALSE);   // Errors already logged
+
     return deleted;
 }
 
@@ -11970,20 +12207,58 @@ PUBLIC json_t *treedb_import_files(
         gobj_log_set_last_message("'source_dir' cannot contain '..'");
         return NULL;
     }
-    char root[PATH_MAX];
-    if(!build_path(root, sizeof(root), import_root, source_dir, NULL)) {
+    char asked[PATH_MAX];
+    if(!build_path(asked, sizeof(asked), import_root, source_dir, NULL)) {
         gobj_log_set_last_message("import path too long");
         return NULL;    // Error already logged
     }
-    if(!is_directory(root)) {
+
+    if(!is_directory(asked)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "import refused: not a directory",
+            "path",         "%s", asked,
+            NULL
+        );
+        gobj_log_set_last_message("'%s' is not a directory", asked);
+        return NULL;
+    }
+
+    /*
+     *  And RESOLVED, not only spelled: the walk never follows a symlink it
+     *  finds inside the tree (it reads every entry with lstat), but the
+     *  directory it STARTS at is opened -- so a link at the top of
+     *  `source_dir` (`import_root/taller/escape -> /etc`) was walked as if
+     *  it were the root's own. The confinement is the whole security of
+     *  this command, so it is checked on the path both ends really name.
+     */
+    char root[PATH_MAX];
+    char real_import_root[PATH_MAX];
+    if(!realpath(import_root, real_import_root) || !realpath(asked, root)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "import refused: cannot resolve the path",
+            "path",         "%s", asked,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        gobj_log_set_last_message("cannot resolve '%s'", asked);
+        return NULL;
+    }
+    size_t real_root_len = strlen(real_import_root);
+    if(strncmp(root, real_import_root, real_root_len)!=0 ||
+            (root[real_root_len] && root[real_root_len] != '/')) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "import refused: the path leaves 'import_root'",
+            "import_root",  "%s", real_import_root,
             "path",         "%s", root,
             NULL
         );
-        gobj_log_set_last_message("'%s' is not a directory", root);
+        gobj_log_set_last_message("'%s' is out of 'import_root'", source_dir);
         return NULL;
     }
 
@@ -12001,7 +12276,7 @@ PUBLIC json_t *treedb_import_files(
         .gobj = gobj,
         .tranger = tranger,
         .treedb_name = treedb_name,
-        .root = import_root,
+        .root = real_import_root,   /* the resolved one: `rel` is cut from it */
         .uploaded_by = uploaded_by,
         .dry_run = dry_run,
         .stats = stats,

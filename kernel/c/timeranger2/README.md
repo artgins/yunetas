@@ -165,8 +165,9 @@ the API; `import-assets` and `gc-assets` are the commands of `C_NODE` on top
 of them. The gc keeps what a LIVE node of any treedb of the tranger links,
 and what an activation of an existing snap would LOAD — per key, the newest
 instance under the snap's tag — so deleting the `__snaps__` row frees what
-only that snap held. `delete-node` on an `__assets__` row runs the same
-guards, and `force` does not override them.
+only that snap held; and it takes the bytes **no row names**, which is what an
+interrupted write leaves behind. `delete-node` on an `__assets__` row runs the
+same guards, and `force` does not override them.
 
 Full account, including the defects the implementation and its review found
 (§16): [`DESIGN-treedb-files.md`](DESIGN-treedb-files.md).
