@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### `open-treedb` could not set the attributes a `file` column needs
+
+`import_root`, `files_max_size` and `files_content_types` are `SDF_RD` on
+`C_NODE`, so they can only be set at creation — and `cmd_open_treedb()`
+builds the C_NODE's kw itself and forwarded only `initial_load`. Since
+`open-treedb` is how every real yuno opens a treedb, they were attributes
+nobody could set: `import-assets` answered *"import of files is disabled,
+'import_root' is empty"* on a node whose config named a root.
+
+Forwarded by NAME and not by sweeping the kw, because the kw of a command
+carries the caller's own keys too (`__username__`, the routing metadata)
+and none of them is an attribute of a treedb.
+
+Found by migrating a real host (yunovatios) to `file` columns, which is
+what a migration is for.
+
+
 ### A `file` column, and `__assets__` as a treedb system topic
 
 The storage half of `C_ASSETS` moves into `tr_treedb`, where it belonged:

@@ -98,6 +98,9 @@ SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on err
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema, projected into __system__ and reconciled there"),
 SDATAPM (DTP_JSON,      "initial_load", 0,              0,          "Seed records, created if missing and marked immutable"),
+SDATAPM (DTP_STRING,    "import_root",  0,              0,          "C_NODE attr: root that 'import-assets' is confined to. Empty: refused"),
+SDATAPM (DTP_INTEGER,   "files_max_size",0,             0,          "C_NODE attr: largest file a 'file' column accepts. 0: the default"),
+SDATAPM (DTP_JSON,      "files_content_types",0,        0,          "C_NODE attr: mime types a 'file' column may hold. Empty: the default"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_treedb[] = {
@@ -626,6 +629,25 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *jn_initial_load = kw_get_dict(gobj, kw, "initial_load", 0, 0);
     if(jn_initial_load) {
         json_object_set(kw_resource, "initial_load", jn_initial_load);
+    }
+
+    /*
+     *  The `file` columns' three, forwarded by NAME and not by sweeping the
+     *  kw: they are SDF_RD on C_NODE, so they can only be set at creation,
+     *  and this command is how every real yuno opens a treedb -- declared
+     *  on C_NODE and unreachable through here, they were attributes nobody
+     *  could set. A whitelist and not a passthrough, because the kw of a
+     *  command carries the caller's own keys too (`__username__`, the
+     *  routing metadata), and none of them is an attribute of a treedb.
+     */
+    static const char *file_attrs[] = {
+        "import_root", "files_max_size", "files_content_types", 0
+    };
+    for(int i = 0; file_attrs[i]; i++) {
+        json_t *jn_value = kw_get_dict_value(gobj, kw, file_attrs[i], 0, 0);
+        if(jn_value) {
+            json_object_set(kw_resource, file_attrs[i], jn_value);
+        }
     }
 
     hgobj gobj_client_node = gobj_create_service(
