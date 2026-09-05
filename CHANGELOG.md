@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## v7.18.1 (2026-09-05)
+
 ### A `file` column names its OWN asset hook, or the write is refused
 
 `treedb_store_files()` expanded a bare id into the full reference treedb's
