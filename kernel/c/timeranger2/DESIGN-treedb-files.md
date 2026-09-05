@@ -331,10 +331,15 @@ Two rules the write path cannot bend:
 Arriving twice is not a special case to suppress. The second arrival of a file
 whose id is already there is an **update of its node**, and an update appends an
 instance like every other record in the store: the history then says that this
-file arrived again, under this name, at this time. (Worth knowing when writing
-it: `treedb_create_node` on an existing pkey does NOT append — `save_id` stays
-false, with a TODO beside it asking whether it should. The append comes from
-`update_node`.)
+file arrived again, under this name, at this time. **Under a name that is
+already the stored one it says nothing, and nothing is written**: an instance
+that repeats the previous one is history of nothing, and until 7.18.2 a
+repeated `import-assets` over the same directory appended one per asset.
+(Worth knowing when writing it: `treedb_create_node` on an existing pkey does
+NOT append — `save_id` stays false, with a TODO beside it asking whether it
+should. The append comes from `update_node`. And since 7.18.2 that refused
+create stores no file either: the bytes are taken only once the id has been
+looked up, see §16.10.)
 
 **And that gives back what §3 threw away.** `source_path` was dropped because
 one path is a lie and a list of them is a field nobody reads. The list returns
@@ -701,6 +706,10 @@ Six more came out of the two reviews that followed (§16.8, §16.9):
     is still recorded.
 16. **The gc takes the bytes no row names**, and the leftover of a write that
     never renamed, and neither of them takes the live asset with it.
+17. **A second arrival under the SAME name appends nothing**, and a new name
+    appends exactly one instance.
+18. **A create of an existing id stores no file**: refused before the bytes
+    are taken, so no blob and no `__assets__` row are left for the gc.
 
 `tests/c/c_assets` covers the same ground through the commands: both doors of
 `__files__`, `get-asset` inline and signed, `import-assets` with hostile paths,
@@ -1100,3 +1109,26 @@ them builds a served path.
 
 What stays open is in §16.7, and none of it is a defect of this design: the
 remote stores, and the bytes of a replica or of an `export-db`.
+
+### 16.10 Found by the review of the local reinstall (2026-09-05)
+
+Two small ones, both in the write path, both caught by reading rather than
+by failing:
+
+- **A second arrival under the stored name appended an instance.** The
+  `original_name` of the manifest was written through whether or not it was
+  the name already there, and every update appends: a repeated
+  `import-assets` over the same directory added one instance per asset that
+  repeated the previous one. The name is compared with the stored one first
+  now, and only a NEW one is written. Test 17.
+- **A create of an id that already exists stored the file before refusing.**
+  `treedb_store_files()` ran at the top of `treedb_create_node()`, before
+  the id was looked up, so the refusal *"Node already exists"* came after
+  the blob and the `__assets__` row were on disk — garbage for the gc, from
+  a write that said no. The bytes are taken only once the create is known
+  to go ahead. Test 18.
+
+And a comment that lied: the `node` of `treedb_delete_node()` was declared
+`owned` and is not — every caller (C_NODE, the gc, the create's rollback)
+hands it the index's own reference, which the delete releases on success and
+leaves alone on a refusal.

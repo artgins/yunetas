@@ -5156,15 +5156,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
 
     /*-------------------------------*
-     *  The bytes of the 'file' columns
-     *-------------------------------*/
-    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
-        // Error already logged
-        JSON_DECREF(kw)
-        return 0;
-    }
-
-    /*-------------------------------*
      *  Get the id to create node
      *  it's mandatory
      *-------------------------------*/
@@ -5295,6 +5286,21 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_log_set_last_message(
             "Node already exists in '%s': id='%s'", topic_name, id
         );
+        JSON_DECREF(pkey2_list)
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    /*-------------------------------*
+     *  The bytes of the 'file' columns
+     *
+     *  Taken only now, once the create is known to go ahead: before the
+     *  id was looked up, a create refused as "Node already exists" had
+     *  already written the blob and the __assets__ row, and left both
+     *  for the gc.
+     *-------------------------------*/
+    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+        // Error already logged
         JSON_DECREF(pkey2_list)
         JSON_DECREF(kw)
         return 0;
@@ -5997,7 +6003,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
  ***************************************************************************/
 PUBLIC int treedb_delete_node(
     json_t *tranger,
-    json_t *node,       // owned, pure node
+    json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
     json_t *jn_options  // bool "force"
 )
 {
@@ -6006,7 +6012,7 @@ PUBLIC int treedb_delete_node(
 
 PRIVATE int delete_node(
     json_t *tranger,
-    json_t *node,       // owned, pure node
+    json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
     json_t *jn_options, // bool "force"
     BOOL snaps_walked   // TRUE only from treedb_gc_files(): the guard ran once for the whole run
 )
@@ -6042,9 +6048,11 @@ PRIVATE int delete_node(
 
     /*-------------------------------*
      *  Immutable guard (force does NOT override).
-     *  On a guard refusal the node is left untouched (still indexed):
-     *  the ref is consumed only on success. Same convention as the
-     *  snapshot-tag guard below.
+     *  On a guard refusal the node is left untouched (still indexed).
+     *  The node is the index's own reference, never the caller's: on
+     *  success delete_primary_node() releases it, and the INCREF below
+     *  keeps it alive until the callback has seen it. Same convention
+     *  as the snapshot-tag guard below.
      *-------------------------------*/
     if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -10546,9 +10554,13 @@ PRIVATE json_t *store_file_bytes(
          *  nothing about the file, so it leaves the stored one alone.
          *  Written through, it wiped the name the asset first arrived
          *  under and appended an instance saying the file arrived again,
-         *  nameless.
+         *  nameless. And the name ALREADY STORED says nothing new either:
+         *  every update appends an instance, so a repeated import of the
+         *  same directory appended one per asset that repeated the
+         *  previous one. Only a NEW name is history.
          */
-        if(!empty_string(original_name)) {
+        if(!empty_string(original_name) &&
+                strcmp(original_name, kw_get_str(gobj, node, "original_name", "", 0))!=0) {
             node = treedb_update_node(
                 tranger,
                 node,

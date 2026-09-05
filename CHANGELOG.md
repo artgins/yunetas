@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### A second arrival under the same name appends nothing
+
+`store_file_bytes()` wrote the manifest's `original_name` into the asset node
+whether or not it was the name already stored, and every update appends an
+instance: a repeated `import-assets` over the same directory added one
+instance per asset that said exactly what the previous one said (12,134 rows
+of nothing on the yunovatios census). The name is compared with the stored
+one first, and only a NEW name is written. Test 17 of
+`tests/c/tr_treedb_files`.
+
+### A create of an existing id stored the file before refusing
+
+`treedb_create_node()` ran `treedb_store_files()` before looking the id up,
+so a `create-node` refused as *"Node already exists"* had already written
+the blob and the `__assets__` row, and left both for the gc. The bytes are
+taken only once the create is known to go ahead. Test 18.
+
+### The `node` of `treedb_delete_node()` is borrowed, not owned
+
+The signature said `owned`. Every caller — `C_NODE`, `gc-assets`, the
+rollback of a create — hands it the index's own reference, which the delete
+releases on success and leaves alone on a refusal. The comment, in the
+header and in `delete_node()`, says so now.
+
 ## v7.18.1 (2026-09-05)
 
 ### A `file` column names its OWN asset hook, or the write is refused

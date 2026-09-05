@@ -370,10 +370,14 @@ PUBLIC int set_volatil_values(
 
 /**rst**
     "force" delete links. If there are links are not force then delete_node will fail
+
+    `node` is the pure node as the index holds it: borrowed, never the
+    caller's own reference. On success the index's reference is released
+    with the key; on a refusal the node is left as it was, still indexed.
 **rst**/
 PUBLIC int treedb_delete_node(
     json_t *tranger,
-    json_t *node,       // owned, pure node
+    json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
     json_t *jn_options  // bool "force"
 );
 

@@ -26,6 +26,8 @@
  *           14. a `file` column names its OWN asset hook, or it is refused
  *           15. a second arrival with no name keeps the stored one
  *           16. the gc takes the bytes that no row names
+ *           17. a second arrival under the SAME name appends nothing
+ *           18. a create of an existing id stores no file
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -64,6 +66,7 @@
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
 #define PNG_F   "\x89PNG\r\n\x1a\n" "IHDR fixture F, the same bytes arriving twice"
+#define PNG_G   "\x89PNG\r\n\x1a\n" "IHDR fixture G, handed to a create that is refused"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
 
 /*  One CONTAINER, two legal names for it: isobmff is 'video/mp4' by its
@@ -1324,6 +1327,139 @@ PRIVATE int test_second_arrival_keeps_the_name(json_t *tranger)
 }
 
 /***************************************************************************
+ *  17. A second arrival under the SAME name appends nothing
+ *
+ *  A second arrival is an update of the asset node, and the history of
+ *  names is worth an instance -- when the name is NEW. Written through
+ *  whatever the name, a repeated `import-assets` over the same directory
+ *  appended one instance per asset that said exactly what the previous
+ *  one said: 12.134 rows of nothing on the yunovatios census.
+ ***************************************************************************/
+PRIVATE int test_same_name_appends_nothing(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "17. a second arrival under the same name appends nothing";
+    set_expected_results(test, NULL, NULL, NULL, 1);
+
+    const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
+    json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    if(!asset) {
+        printf("%s  FAIL: the fixture asset is not there%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    char stored_name[NAME_MAX];
+    snprintf(stored_name, sizeof(stored_name), "%s",
+        kw_get_str(0, asset, "original_name", "", 0)
+    );
+    json_int_t rowid_before = kw_get_int(0, asset, "__md_treedb__`g_rowid", 0, KW_REQUIRED);
+
+    /*  the same bytes, under the name already stored  */
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-samename", "name", "dev-samename", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_F, sizeof(PNG_F)-1),
+                "original_name", stored_name,
+                "content_type", "image/png"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(!node) {
+        printf("%s  FAIL: the arrival was refused%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+        printf("%s  FAIL: the arrival did not link the asset%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    json_int_t rowid_same = kw_get_int(0, asset, "__md_treedb__`g_rowid", 0, KW_REQUIRED);
+    if(rowid_same != rowid_before) {
+        printf("%s  FAIL: an arrival that said nothing new appended an instance (%d -> %d)%s\n",
+            On_Red BWhite, (int)rowid_before, (int)rowid_same, Color_Off);
+        result += -1;
+    }
+
+    /*  and a NEW name is still history  */
+    kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-samename", "name", "dev-samename", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_F, sizeof(PNG_F)-1),
+                "original_name", "renamed.png",
+                "content_type", "image/png"
+    );
+    if(!treedb_update_node(tranger, node, kw, TRUE)) {
+        printf("%s  FAIL: the renamed arrival was refused%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
+    json_int_t rowid_renamed = kw_get_int(0, asset, "__md_treedb__`g_rowid", 0, KW_REQUIRED);
+    if(rowid_renamed != rowid_before + 1) {
+        printf("%s  FAIL: a new name did not append ONE instance (%d -> %d)%s\n",
+            On_Red BWhite, (int)rowid_before, (int)rowid_renamed, Color_Off);
+        result += -1;
+    }
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "renamed.png")!=0) {
+        printf("%s  FAIL: the new name was not recorded%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  18. A create of an existing id stores no file
+ *
+ *  The bytes of the `file` columns were taken BEFORE the create looked
+ *  the id up, so a create refused as "Node already exists" had already
+ *  written the blob and the __assets__ row, and left both for the gc. A
+ *  refusal writes nothing.
+ ***************************************************************************/
+PRIVATE int test_refused_create_stores_nothing(json_t *tranger)
+{
+    int result = 0;
+    const char *test = "18. a create of an existing id stores no file";
+    set_expected_results(
+        test,
+        json_pack("[{s:s}]", "msg", "Node already exists"),
+        NULL, NULL, 1
+    );
+
+    const char *id_g = sha(PNG_G, sizeof(PNG_G)-1);
+    if(treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_g)) {
+        printf("%s  FAIL: the fixture is already stored%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*  an id that exists (test 17 made it), with bytes nobody has  */
+    json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
+        "id", "dev-samename", "name", "dev-samename", "foto", "", "qr", "",
+        "__files__",
+            "foto",
+                "content64", b64(PNG_G, sizeof(PNG_G)-1),
+                "original_name", "refused.png",
+                "content_type", "image/png"
+    );
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    if(node) {
+        printf("%s  FAIL: a create of an existing id was accepted%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_g)) {
+        printf("%s  FAIL: the refused create indexed the file%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(blob_exists(tranger, id_g, "image/png")) {
+        printf("%s  FAIL: the refused create wrote the blob%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *  16. The gc takes the bytes that no row names
  *
  *  The blob goes down BEFORE the index node (a node pointing at nothing
@@ -1491,6 +1627,8 @@ PRIVATE int do_test(void)
     result += test_gc_holds_what_a_snap_would_load(tranger);
     result += test_file_col_names_its_own_hook(tranger);
     result += test_second_arrival_keeps_the_name(tranger);
+    result += test_same_name_appends_nothing(tranger);
+    result += test_refused_create_stores_nothing(tranger);
     result += test_gc_takes_orphan_blobs(tranger);
 
     {
