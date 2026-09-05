@@ -12,8 +12,8 @@ browser. The framework holds no store of its own. It calls the four functions
 that [`gobj_start_up()`](bootstrap.md#js_gobj_start_up) receives, and the
 package ships a back end on the local storage.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js),
-[`src/dbsimple.js`](https://github.com/artgins/gobj-js/blob/7.16.4/src/dbsimple.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js),
+[`src/dbsimple.js`](https://github.com/artgins/gobj-js/blob/7.16.5/src/dbsimple.js)
 
 :::{important}
 Always name the attributes that you save:
@@ -29,22 +29,22 @@ over an attribute that the caller did not touch. The C side has the same rule.
 Each function accepts a string, a list of names or an object of names in `keys`.
 
 (js_gobj_save_persistent_attrs)=
-### [`gobj_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L1662)
+### [`gobj_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1662)
 
 Saves the attributes that `keys` names.
 
 (js_gobj_load_persistent_attrs)=
-### [`gobj_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L1645)
+### [`gobj_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1645)
 
 Loads the attributes that `keys` names.
 
 (js_gobj_remove_persistent_attrs)=
-### [`gobj_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L1679)
+### [`gobj_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1679)
 
 Deletes the attributes that `keys` names from the store.
 
 (js_gobj_list_persistent_attrs)=
-### [`gobj_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/gobj.js#L1697)
+### [`gobj_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1697)
 
 Gives the attributes that the store holds.
 
@@ -77,22 +77,22 @@ gobj_start_up(
 ```
 
 (js_db_save_persistent_attrs)=
-### [`db_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/dbsimple.js#L69)
+### [`db_save_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/dbsimple.js#L69)
 
 Writes the attributes to the local storage.
 
 (js_db_load_persistent_attrs)=
-### [`db_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/dbsimple.js#L38)
+### [`db_load_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/dbsimple.js#L38)
 
 Reads the attributes from the local storage.
 
 (js_db_remove_persistent_attrs)=
-### [`db_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/dbsimple.js#L96)
+### [`db_remove_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/dbsimple.js#L96)
 
 Deletes the attributes from the local storage.
 
 (js_db_list_persistent_attrs)=
-### [`db_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.4/src/dbsimple.js#L123)
+### [`db_list_persistent_attrs(gobj, keys)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/dbsimple.js#L123)
 
 Gives the attributes that the local storage holds.
 
