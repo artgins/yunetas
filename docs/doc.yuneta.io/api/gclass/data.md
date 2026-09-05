@@ -208,8 +208,8 @@ on disk. Design note:
   the example above is for the OTHER fkeys of the record, not for `foto`.
 - **A second arrival of the same bytes is an update of the asset node**, so
   the history of `__assets__` says every name a file arrived under (a manifest
-  that carries no `original_name` says nothing about the file and leaves the
-  stored name alone). The blob
+  that carries no `original_name`, or the name already stored, says nothing
+  new about the file and appends nothing). The blob
   is written once, and the **first** arrival names it for ever: the extension
   is part of the served path and the URL is cached for ever, so a later
   arrival that declares another member of the same container (`audio/mp4`
