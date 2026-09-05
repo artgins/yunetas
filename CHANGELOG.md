@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## v7.18.0 (2026-09-05)
+
 ### `open-treedb` could not set the attributes a `file` column needs
 
 `import_root`, `files_max_size` and `files_content_types` are `SDF_RD` on
