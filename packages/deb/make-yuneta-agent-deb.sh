@@ -2188,6 +2188,57 @@ printf "    sudo /yuneta/bin/install-certbot.sh\n\n" >&2
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh"
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot.sh"
 
+#######################################################################
+# The tools, reachable from a NON-LOGIN shell
+#
+# `/etc/profile.d/yuneta.sh` puts /yuneta/bin on the PATH, and profile.d is
+# read by LOGIN shells only.  `ssh node '<command>'` is neither login nor
+# interactive, so it starts with the bare
+# `/usr/local/bin:/usr/bin:/bin:/usr/games` and every yuneta tool is
+# "command not found" -- on Debian, where ~/.bashrc returns at once for a
+# non-interactive shell.  On a Red Hat node the same command works, because
+# its ~/.bashrc has no such guard.  Two nodes, same package, opposite
+# behaviour: that is not something a person should have to remember.
+#
+# There is no profile-style file a non-interactive bash reads, so the PATH
+# cannot be fixed from a shell rc at all.  A symlink can: /usr/local/bin is
+# in the default PATH of every shell, login or not, interactive or not.
+#
+# The limits are NOT part of this: memlock/nofile/core come through PAM
+# (/etc/security/limits.d/*-yuneta.conf), which does apply to an ssh command,
+# so a tool reached this way runs with the same limits as one typed by hand.
+#
+# WHAT gets linked: the compiled tools, which is every top-level executable
+# of /yuneta/bin that is not a `.sh`.  Derived and not listed, so a tool
+# added or dropped in a future release needs no second edit here.  An
+# existing name is never overwritten unless it is already our own link.
+#######################################################################
+link_tools_into_usr_local_bin() {
+    install -d -m 0755 /usr/local/bin || return 0
+    for src in /yuneta/bin/*; do
+        [ -f "$src" ] || continue
+        [ -x "$src" ] || continue
+        case "$src" in
+            *.sh) continue ;;
+        esac
+        name="$(basename "$src")"
+        dst="/usr/local/bin/$name"
+        if [ -e "$dst" ] || [ -L "$dst" ]; then
+            target="$(readlink "$dst" 2>/dev/null || true)"
+            case "$target" in
+                /yuneta/bin/*) ;;   # ours: refresh it
+                *)
+                    warn "not linking $name: /usr/local/bin/$name already exists"
+                    continue
+                    ;;
+            esac
+        fi
+        ln -sfn "$src" "$dst" || warn "cannot link $name into /usr/local/bin"
+    done
+}
+link_tools_into_usr_local_bin
+info "yuneta tools linked into /usr/local/bin (reachable from a non-login shell)"
+
 # --- Kernel tuning applied live; reboot recommended, NEVER forced ---
 # The sysctl settings (core dumps, fd limits) were already applied above with
 # `sysctl --system`, so a reboot is NOT required to run. Forcing one here would
@@ -2234,8 +2285,22 @@ cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 # - On purge: also delete /etc/init.d/yuneta_agent (conffile) if it remains
 #######################################################################
 set -eu
+
+# The /usr/local/bin links this package's postinst made (see it for why).
+# Only OUR links go: anything else with the same name was somebody else's.
+unlink_tools_from_usr_local_bin() {
+    [ -d /usr/local/bin ] || return 0
+    for dst in /usr/local/bin/*; do
+        [ -L "$dst" ] || continue
+        case "$(readlink "$dst" 2>/dev/null || true)" in
+            /yuneta/bin/*) rm -f "$dst" || true ;;
+        esac
+    done
+}
+
 case "${1:-}" in
     remove)
+        unlink_tools_from_usr_local_bin
         if [ -x /yuneta/agent/service/remove-yuneta-service.sh ]; then
             /yuneta/agent/service/remove-yuneta-service.sh || true
         else
@@ -2245,6 +2310,7 @@ case "${1:-}" in
         fi
         ;;
     purge)
+        unlink_tools_from_usr_local_bin
         # Remove runlevel symlinks (again, just in case)
         if [ -x /usr/sbin/update-rc.d ]; then
             /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
