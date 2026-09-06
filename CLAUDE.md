@@ -1405,6 +1405,40 @@ ycommand -c 'update-binary id=X content64=$$(X)'         # upload new binary (sa
 ycommand -c 'run-yuno'                                   # start all enabled yunos
 ```
 
+### Over ssh, set the PATH first — an ssh command is not a login shell
+
+`ssh node '<command>'` cannot find `ycommand`, or any other tool of
+`/yuneta/bin`. What puts them on the PATH is `/etc/profile.d/yuneta.sh`, and
+**profile.d is read by LOGIN shells only**; a remote command is neither login
+nor interactive, so it starts with the bare
+`/usr/local/bin:/usr/bin:/bin:/usr/games`. Whoever comes in that way sets
+their own PATH, and it is the first thing they do:
+
+```bash
+ssh node '. /etc/profile.d/yuneta.sh; ycommand -c "list-yunos"'
+```
+
+`bash -lc` works too, but nesting quotes inside an ssh command turns
+unreadable fast; sourcing says out loud where the PATH comes from.
+
+Two things worth knowing about this one:
+
+- **It hides on a Red Hat node.** Bash *does* read `~/.bashrc` for a remote
+  command, and Red Hat's has no interactivity guard, so the same line works
+  there and fails on Debian — where `~/.bashrc` returns at once for a
+  non-interactive shell and never reaches its yuneta lines. Same package,
+  opposite behaviour; do not conclude a node is broken from it.
+- **The limits are NOT affected.** `memlock`, `nofile` and `core` arrive
+  through PAM (`/etc/security/limits.d/*-yuneta.conf`), which does apply to an
+  ssh command, so a tool reached this way runs with the same limits as one
+  typed by hand. Only the PATH is missing.
+
+**The package does not fix this, deliberately.** Seeding symlinks into
+`/usr/local/bin` from the postinst was tried and reverted: `/yuneta` is this
+software's territory and the system directories are not. A package that plants
+names outside it buys convenience with somebody else's namespace, and has to
+keep buying it on every install, upgrade and removal.
+
 ### Verifying flows against a running system
 
 Verify message flows against the **backend**, not a SPA (the SPA only
@@ -1579,6 +1613,11 @@ equivalent.
   `kill-yuno` is an **orderly shutdown** (drain + deregister), not a SIGKILL —
   "build → orderly shutdown (kill-yuno) → upload binary (update-binary) →
   verify (list-binaries) → start (run-yuno)".
+- **Never send a deploy step to `/dev/null`.** A step shows what it answers,
+  and somebody reads it. A `db_history` hot-patch once looked done and was
+  not: the shell's *command not found* went down the drain together with the
+  output that would have shown it, and the yuno kept running the old binary
+  while every line of the recipe had "succeeded".
 - **Scope redeploys to actual consumers.** A change in a shared kernel lib
   does not mean bouncing every yuno that links it — identify which running
   yunos actually use the changed feature and propose that narrow set; a
