@@ -2018,54 +2018,6 @@ for pam_file in /etc/pam.d/system-auth /etc/pam.d/password-auth; do
     fi
 done
 
-#######################################################################
-# The tools, reachable from a NON-LOGIN shell
-#
-# `/etc/profile.d/yuneta.sh` puts /yuneta/bin on the PATH, and profile.d is
-# read by LOGIN shells only.  `ssh node '<command>'` is neither login nor
-# interactive, so it starts with the bare
-# `/usr/local/bin:/usr/bin:/bin:/usr/games` and every yuneta tool is
-# "command not found" -- on Debian, where ~/.bashrc returns at once for a
-# non-interactive shell.  On a Red Hat node the same command works, because
-# its ~/.bashrc has no such guard.  Two nodes, same package, opposite
-# behaviour: that is not something a person should have to remember.
-#
-# There is no profile-style file a non-interactive bash reads, so the PATH
-# cannot be fixed from a shell rc at all.  A symlink can: /usr/local/bin is
-# in the default PATH of every shell, login or not, interactive or not.
-#
-# The limits are NOT part of this: memlock/nofile/core come through PAM
-# (/etc/security/limits.d/*-yuneta.conf), which does apply to an ssh command,
-# so a tool reached this way runs with the same limits as one typed by hand.
-#
-# WHAT gets linked: the compiled tools, which is every top-level executable
-# of /yuneta/bin that is not a `.sh`.  Derived and not listed, so a tool
-# added or dropped in a future release needs no second edit here.  An
-# existing name is never overwritten unless it is already our own link.
-#######################################################################
-install -d -m 0755 /usr/local/bin || true
-for src in /yuneta/bin/*; do
-    [ -f "$src" ] || continue
-    [ -x "$src" ] || continue
-    case "$src" in
-        *.sh) continue ;;
-    esac
-    name="$(basename "$src")"
-    dst="/usr/local/bin/$name"
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-        target="$(readlink "$dst" 2>/dev/null || true)"
-        case "$target" in
-            /yuneta/bin/*) ;;   # ours: refresh it
-            *)
-                warn "not linking $name: /usr/local/bin/$name already exists"
-                continue
-                ;;
-        esac
-    fi
-    ln -sfn "$src" "$dst" || warn "cannot link $name into /usr/local/bin"
-done
-info "yuneta tools linked into /usr/local/bin (reachable from a non-login shell)"
-
 # --- Honest final status (the package files are always installed; this says
 #     whether the AGENT is actually running) ---
 if [ "$YUNETA_STARTED" = "1" ]; then
@@ -2109,16 +2061,6 @@ exit 0
 #######################################################################
 set -u
 if [ "$1" = "0" ]; then
-    # The /usr/local/bin links %post made (see it for why).  Only OURS go:
-    # anything else with the same name was somebody else's.
-    if [ -d /usr/local/bin ]; then
-        for dst in /usr/local/bin/*; do
-            [ -L "$dst" ] || continue
-            case "$(readlink "$dst" 2>/dev/null || true)" in
-                /yuneta/bin/*) rm -f "$dst" || true ;;
-            esac
-        done
-    fi
     # Full uninstall: drop the init script if it survived
     if [ -e /etc/init.d/yuneta_agent ]; then
         rm -f /etc/init.d/yuneta_agent || true

@@ -2,37 +2,6 @@
 
 ## [Unreleased]
 
-### The tools are reachable from a non-login shell
-
-`ssh node '<command>'` could not find `ycommand` -- or any other yuneta tool
--- on a Debian node, while the identical command worked on a Red Hat one.
-Two nodes, the same package, opposite behaviour.
-
-`/etc/profile.d/yuneta.sh` puts `/yuneta/bin` on the PATH and profile.d is
-read by **login** shells only; an ssh remote command is neither login nor
-interactive, so it starts with the bare
-`/usr/local/bin:/usr/bin:/bin:/usr/games`. Bash does read `~/.bashrc` for a
-remote command, which is why the Red Hat node worked -- its `~/.bashrc` has no
-guard -- while Debian's returns at once for a non-interactive shell and never
-reaches its yuneta lines. There is no profile-style file a non-interactive
-bash reads, so the PATH cannot be fixed from a shell rc at all.
-
-The `.deb` postinst and the `.rpm` `%post` now **symlink the tools into
-`/usr/local/bin`**, which is in the default PATH of every shell, login or not.
-What is linked is derived and not listed -- every top-level executable of
-`/yuneta/bin` that is not a `.sh` -- so a tool added or dropped in a future
-release needs no second edit. A name that already exists is never overwritten
-unless it is our own link, and removal takes away only links that point into
-`/yuneta/bin`.
-
-The limits are not part of this and never were: memlock, nofile and core come
-through PAM (`/etc/security/limits.d/*-yuneta.conf`), which **does** apply to
-an ssh command -- verified on the node, `ulimit -l` is already `unlimited`
-there. So a tool reached through the new link runs with the same limits as one
-typed by hand.
-
-`RELEASE` 1 -> 2. Packaging only; no source of the SDK changes.
-
 ## v7.18.2 (2026-09-05)
 
 ### A second arrival under the same name appends nothing
