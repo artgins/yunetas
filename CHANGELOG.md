@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### The treedb graph opens FOLDED, like a JSON viewer (gobj-ui 7.23.66)
+
+`kernel/js/gobj-ui` -> 7.23.66 and `yunos/js` -> gui_treedb on `^7.23.66`. A
+treedb drawn whole was a pile: a nave with a hundred and forty devices was a
+row of a hundred and forty cards, and a 6400-record treedb built a DOM card
+for every record before the first pixel. The graph now reads the treedb as a
+tree by its hooks: every record is fetched, only the visible ones become G6
+nodes -- the roots, `expand_depth` levels under them (default 2), one page
+(`fold_page_size`, default 24) of children per hook, a `+N` chip after each
+page, and a pill per hook on the card (`▸ devices 142`) that opens or folds
+it. `dagre` reads left to right, with the ports turned to the sides.
+The arithmetic is `treedb_fold_model.js`, pure and tested. New consumer i18n
+key `show more`. The JS API docs are repinned to the new tag.
+
 ## v7.18.2 (2026-09-05)
 
 ### A second arrival under the same name appends nothing
