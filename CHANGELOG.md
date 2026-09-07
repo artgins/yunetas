@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### The treedb graph's legend is its layer control (gobj-ui 7.23.68)
+
+`kernel/js/gobj-ui` -> 7.23.68. The legend strip is always there, one chip
+per topic: the body shows or hides the topic, `☆` makes it the main topic,
+`+N` shows its loose records, `⌖` highlights it. A main topic governs the
+tree -- deduced when none is chosen, its parentless records are the roots,
+and a parentless record of a topic the schema hangs from it is loose and
+drawn only on request. The three settings are preferences per treedb
+(`hidden_topics`, `main_topic`, `loose_topics`). A click on the legend
+reveals the whole topic; the per-topic route one page (7.23.67).
+
 ### The treedb graph opens FOLDED, like a JSON viewer (gobj-ui 7.23.66)
 
 `kernel/js/gobj-ui` -> 7.23.66 and `yunos/js` -> gui_treedb on `^7.23.66`. A
