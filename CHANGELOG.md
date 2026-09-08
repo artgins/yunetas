@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### A treedb form could not SAVE, and a user could not be given a role (gobj-ui 7.23.71 + 7.23.72)
+
+`kernel/js/gobj-ui` -> 7.23.72 and `yunos/js` -> gui_treedb `0.17.28` /
+gui_agent `0.22.57`, both on `^7.23.72`. Two defects of the same form, found
+one behind the other on the deployed console.
+
+**An fkey is edited by LINKING, and `writable` does not govern it** (7.23.71).
+`7.23.55` fixed a real bug -- a `<select>` ignores `readonly`, so a column
+without `writable` rendered an EDITABLE select -- by disabling what the
+attribute cannot reach, and it caught the fkey with it. An fkey is normally
+declared with no `writable` flag at all (`treedb_authzs`'s `users.roles` is
+`['fkey']`), so the Role of a user opened as a dead grey box with its four
+options inside, while the topic view was still sending fkeys back for exactly
+that reason. The rule is now one pure module, `form_field_readonly.js`, and a
+section of the gobj-ui README: a form opened to LOOK still has no editable
+field, fkey included.
+
+**And with the control enabled, no record could be SAVED at all** (7.23.72).
+Since `7.23.64` -- the guard that makes the form busy while it reads the
+picked files -- `ac_form_save_record()` read `priv.reading_files` without
+declaring `priv`, so the FIRST line of every save threw `ReferenceError` and
+the dialog just stayed open. Three releases with a treedb form that could not
+write. `priv_declared.test.js` now guards the whole class: every function in
+`src/` that reads a bare `priv.` must declare it, take it as an argument, or
+sit inside one that did -- a missing declaration throws only when its LINE
+runs, and that line is usually the first of a path nobody walks every day.
+
+
 ### Three layouts made for a treedb (gobj-ui 7.23.70)
 
 `kernel/js/gobj-ui` -> 7.23.70. `treedb-tree` (a tidy tree read left to
