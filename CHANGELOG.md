@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Three layouts made for a treedb (gobj-ui 7.23.70)
+
+`kernel/js/gobj-ui` -> 7.23.70. `treedb-tree` (a tidy tree read left to
+right, the new default), `treedb-outline` (one node per row, indented by
+depth) and `radial` (a sector per subtree, each ring as far out as its cards
+need), all on the same deterministic spanning tree of what is on screen: the
+first parent that reaches a node keeps it, children by hook then record
+order. O(n), no crossing heuristic: opening a hook moves nothing that is not
+under or beside it. The study of G6's own layouts against a treedb is in the
+gobj-ui README.
+
 ### The treedb graph's legend is its layer control (gobj-ui 7.23.69)
 
 `kernel/js/gobj-ui` -> 7.23.69. The legend strip is always there, one chip
