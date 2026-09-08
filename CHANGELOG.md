@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 + 7.23.76)
+### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.77)
 
-`kernel/js/gobj-ui` -> 7.23.76 and `yunos/js` -> both SPAs on `^7.23.76`.
+`kernel/js/gobj-ui` -> 7.23.77 and `yunos/js` -> both SPAs on `^7.23.77`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -32,7 +32,9 @@ now (radius 10 / 5, 2 px). Consumer i18n keys: `closed nodes`, `node labels`,
 `7.23.76` is the one that shipped: `7.23.75` left the outline's case in the
 view's `option_label()`, and every consumer's `validate-locales` refused the
 build for a key asked for and defined in no locale -- the guard doing its job
-before a deploy.
+before a deploy. `7.23.77` shrinks the `+N` chip beside closed nodes (40×22,
+following the shape of the card it continues), and gives the test-app's
+graph a page of one so a chip shows.
 
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
