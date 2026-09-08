@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 + 7.23.76)
+
+`kernel/js/gobj-ui` -> 7.23.76 and `yunos/js` -> both SPAs on `^7.23.76`.
+Asked for together, all in the service of one graph with many nodes.
+
+**The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
+of every graph on `C_G6_NODES_TREE`. A wheel that zoomed made a graph taller
+than the screen a thing to be looked at from afar or read through a keyhole
+-- never scrolled, which is what a wheel does on a map and on every page.
+Shift + wheel goes sideways, a trackpad pinch arrives as Ctrl + wheel, the
+touch pinch is untouched.
+
+**The treedb tree reads DOWN.** Read right it was `dagre` with the siblings
+held still, and nobody could tell the two apart; down is where a tree has
+room. The algorithm is written once and the top-down tree is the same tree
+fed transposed cards and read back transposed. `treedb-outline` is gone -- a
+list that indents is a JSON viewer, and the library has one.
+
+**A record has two SHAPES.** Open is the card with its ports, the only shape
+a link can be edited on; closed is a rounded square of the topic's colour, no
+ports, no text -- the topology alone, as a native G6 `rect` so focus,
+selection and anchor paint on its own stroke. Two persisted toggles in the
+view's toolbar (`node_mode`, `node_labels`), and one node against the rule
+by double click or its context menu. The ports of an open card are handles
+now (radius 10 / 5, 2 px). Consumer i18n keys: `closed nodes`, `node labels`,
+`open node`, `close node`; `treedb-outline` dropped.
+
+`7.23.76` is the one that shipped: `7.23.75` left the outline's case in the
+view's `option_label()`, and every consumer's `validate-locales` refused the
+build for a key asked for and defined in no locale -- the guard doing its job
+before a deploy.
+
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
 `kernel/js/gobj-ui` -> 7.23.74 and `yunos/js` -> both SPAs on `^7.23.74`.
