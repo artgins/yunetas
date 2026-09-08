@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.79)
+### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.80)
 
-`kernel/js/gobj-ui` -> 7.23.79 and `yunos/js` -> both SPAs on `^7.23.79`.
+`kernel/js/gobj-ui` -> 7.23.80 and `yunos/js` -> both SPAs on `^7.23.80`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -39,7 +39,14 @@ all leave the ZOOM alone -- both fitted the whole graph, so opening
 everything zoomed out to a strip and closing it zoomed in on the roots; the
 camera holds the anchor still, else the first root, as a single fold does.
 `7.23.79`: the default ports go to radius 14 / 8, because on a deployed
-treedb 10 / 5 still read as dots.
+treedb 10 / 5 still read as dots -- and `7.23.80` is why they did: Save wrote
+the SIZE and the port radius of every card into `__graphs__`, chosen or not,
+so every Save froze the library's size of the day and no later default
+reached a saved treedb. A size on the tier's default is not saved any more,
+a closed node saves no size at all, and the node's context menu (edition)
+gets `reset sizes` / `reset topic sizes`, which forget every saved size and
+put the defaults back on the spot. Consumer i18n keys `reset sizes`, `reset
+topic sizes`.
 
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
