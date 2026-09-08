@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.82)
+### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
-`kernel/js/gobj-ui` -> 7.23.82 and `yunos/js` -> both SPAs on `^7.23.82`.
+`kernel/js/gobj-ui` -> 7.23.83 and `yunos/js` -> both SPAs on `^7.23.83`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -66,8 +66,9 @@ gobj tree view offers: `expanded` is the card with its pills and ports;
 can still be drawn; `shape` is the FIGURE of the topic's colour, no ports, no
 text -- and the figure is chosen now, square, circle, diamond, triangle,
 hexagon or star, in the node properties popover, remembered as the topic's
-default and saved per node as `node_shape`. The toolbar's toggle became a
-`nodes` select; the labels toggle is enabled on figures only. Consumer i18n
+default and saved per node as `node_shape`. The three views are three push
+buttons in one group (`7.23.83`: a view is picked at a glance, and the
+pressed one says which is on); the labels toggle is enabled on figures only. Consumer i18n
 keys `nodes`, `full`, `compact`, `expand node`, `collapse node`, `hexagon`,
 `star`; `closed nodes`, `open node`, `close node` gone.
 
