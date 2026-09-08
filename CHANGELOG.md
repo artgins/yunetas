@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.80)
+### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.81)
 
-`kernel/js/gobj-ui` -> 7.23.80 and `yunos/js` -> both SPAs on `^7.23.80`.
+`kernel/js/gobj-ui` -> 7.23.81 and `yunos/js` -> both SPAs on `^7.23.81`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -47,6 +47,18 @@ a closed node saves no size at all, and the node's context menu (edition)
 gets `reset sizes` / `reset topic sizes`, which forget every saved size and
 put the defaults back on the spot. Consumer i18n keys `reset sizes`, `reset
 topic sizes`.
+
+**A port has a SHAPE, and its own properties popover** (`7.23.81`). G6 draws
+every port as a circle, so a record's card is now a node of its own,
+`treedb-card` -- G6's html node with `drawPortShapes` overridden -- where a
+port's `shape` is `circle`, `square`, `diamond` or `triangle`; `r` stays the
+one size. A selected port shows a gear beside it, as the node does, and the
+port context menu has the same entry for a finger: shape, radius and scope
+(this port / the same port of every card of the topic / every port), with a
+live preview. Remembered as the topic's default and saved per node in
+`__graphs__` (`port_shapes`). The node and edge popovers' labels had no i18n
+key at all and rendered in English in every language; keys added to the
+consumers with the port's.
 
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
