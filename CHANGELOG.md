@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### The treedb graph's legend is its layer control (gobj-ui 7.23.68)
+### The treedb graph's legend is its layer control (gobj-ui 7.23.69)
 
-`kernel/js/gobj-ui` -> 7.23.68. The legend strip is always there, one chip
+`kernel/js/gobj-ui` -> 7.23.69. The legend strip is always there, one chip
 per topic: the body shows or hides the topic, `☆` makes it the main topic,
 `+N` shows its loose records, `⌖` highlights it. A main topic governs the
 tree -- deduced when none is chosen, its parentless records are the roots,
