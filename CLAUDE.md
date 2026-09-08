@@ -703,7 +703,7 @@ keeps aborting, which reads as "not a real bug" and is only "you did not look at
 it". To sanitise for real, build the libraries in the ASan tree and **relink the
 test by hand** against them; and if the corruption is around json, instrument
 `jansson` too (with its own generated config headers, or it parses nothing). The
-recipe is written down in `docs/doc.yuneta.io/testing.md`.
+recipe is written down in `docs/doc.yuneta.io/test_suite.md`.
 
 `ctest --test-dir build` only **runs** tests, it never rebuilds them — the
 unified root `build/` tree is built by `yunetas test` (or `cmake --build

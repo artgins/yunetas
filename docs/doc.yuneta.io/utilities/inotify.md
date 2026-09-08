@@ -1,7 +1,7 @@
 (util-inotify)=
 # `inotify`
 
-Raw Linux `inotify` probe — one level below [`fs_watcher`](fs_watcher.md). It
+Raw Linux `inotify` probe — one level below [`fs_watcher`](fs_watcher_tool.md). It
 adds watches recursively and prints each event with its decoded flag bits,
 reading the inotify fd through io_uring.
 
@@ -15,5 +15,5 @@ No options — a single directory argument. Press Ctrl-C to exit.
 
 ## See also
 
-- [`fs_watcher`](fs_watcher.md) — the higher-level library harness.
+- [`fs_watcher`](fs_watcher_tool.md) — the higher-level library harness.
 - [`utils/c/inotify/README.md`](https://github.com/artgins/yunetas/blob/7.18.2/utils/c/inotify/README.md).

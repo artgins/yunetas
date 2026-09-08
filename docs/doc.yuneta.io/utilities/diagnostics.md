@@ -4,7 +4,7 @@ Low-level diagnostic and conversion helpers.
 
 ## In this section
 
-- [`fs_watcher`](fs_watcher.md)
+- [`fs_watcher`](fs_watcher_tool.md)
 - [`inotify`](inotify.md)
 - [`emu_device`](emu_device.md)
 - [`ytestconfig`](ytestconfig.md)

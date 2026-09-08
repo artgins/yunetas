@@ -2062,13 +2062,13 @@ with links to the API documentation.
 
 **Source:** `kernel/c/root-linux/src/entry_point.h`
 
-1. [**`yuneta_setup`**](runtime/entry_point.md#yuneta_setup) — `PUBLIC int yuneta_setup( const persistent_attrs_t *persistent_attrs, json_function_fn command_parser, json_function_fn stats_parser, authorization_checker_fn authz_checker, authentication_parser_fn authentication_parser, size_t mem_max_block, size_t mem_max_system_memory, BOOL use_own_system_memory, size_t mem_min_block, size_t mem_superblock )`
+1. [**`yuneta_setup`**](runtime/runtime_entry_point.md#yuneta_setup) — `PUBLIC int yuneta_setup( const persistent_attrs_t *persistent_attrs, json_function_fn command_parser, json_function_fn stats_parser, authorization_checker_fn authz_checker, authentication_parser_fn authentication_parser, size_t mem_max_block, size_t mem_max_system_memory, BOOL use_own_system_memory, size_t mem_min_block, size_t mem_superblock )`
 
-2. [**`yuneta_entry_point`**](runtime/entry_point.md#yuneta_entry_point) — `PUBLIC int yuneta_entry_point(int argc, char *argv[], const char *APP_NAME, const char *APP_VERSION, const char *APP_SUPPORT, const char *APP_DOC, const char *APP_DATETIME, const char *fixed_config, const char *variable_config, int (*register_yuno_and_more)(void), void (*cleaning_fn)(void) )`
+2. [**`yuneta_entry_point`**](runtime/runtime_entry_point.md#yuneta_entry_point) — `PUBLIC int yuneta_entry_point(int argc, char *argv[], const char *APP_NAME, const char *APP_VERSION, const char *APP_SUPPORT, const char *APP_DOC, const char *APP_DATETIME, const char *fixed_config, const char *variable_config, int (*register_yuno_and_more)(void), void (*cleaning_fn)(void) )`
 
-3. [**`set_auto_kill_time`**](runtime/entry_point.md#set_auto_kill_time) — `PUBLIC void set_auto_kill_time(int seconds)`
+3. [**`set_auto_kill_time`**](runtime/runtime_entry_point.md#set_auto_kill_time) — `PUBLIC void set_auto_kill_time(int seconds)`
 
-4. [**`yuneta_json_config`**](runtime/entry_point.md#yuneta_json_config) — `PUBLIC json_t *yuneta_json_config(void)`
+4. [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) — `PUBLIC json_t *yuneta_json_config(void)`
 
 ### `ghttp_parser.h` — 4 functions
 
@@ -2120,11 +2120,11 @@ with links to the API documentation.
 
 **Source:** `kernel/c/root-linux/src/manage_services.h`
 
-1. [**`run_services`**](runtime/entry_point.md#run_services) — `PUBLIC void run_services(void)`
+1. [**`run_services`**](runtime/runtime_entry_point.md#run_services) — `PUBLIC void run_services(void)`
 
-2. [**`stop_services`**](runtime/entry_point.md#stop_services) — `PUBLIC void stop_services(void)`
+2. [**`stop_services`**](runtime/runtime_entry_point.md#stop_services) — `PUBLIC void stop_services(void)`
 
-3. [**`yuno_shutdown`**](runtime/entry_point.md#yuno_shutdown) — `PUBLIC void yuno_shutdown(void)`
+3. [**`yuno_shutdown`**](runtime/runtime_entry_point.md#yuno_shutdown) — `PUBLIC void yuno_shutdown(void)`
 
 ### `msg_ievent.h` — 15 functions
 
@@ -2224,7 +2224,7 @@ with links to the API documentation.
 
 **Source:** `kernel/c/root-linux/src/yunetas_register.h`
 
-1. [**`yunetas_register_c_core`**](runtime/entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
+1. [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
 
 **Total: 119 functions**
 
@@ -2934,11 +2934,11 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`rotatory_write`**](logging/rotatory.md#rotatory_write) | `rotatory.h` | gobj-c (Core Framework) |
 | [**`run_command`**](runtime/run_command.md#run_command) | `run_command.h` | root-linux (Runtime GClasses) |
 | [**`run_process2`**](runtime/run_command.md#run_process2) | `run_command.h` | root-linux (Runtime GClasses) |
-| [**`run_services`**](runtime/entry_point.md#run_services) | `manage_services.h` | root-linux (Runtime GClasses) |
+| [**`run_services`**](runtime/runtime_entry_point.md#run_services) | `manage_services.h` | root-linux (Runtime GClasses) |
 | [**`save_json_to_file`**](helpers/json_helper.md#save_json_to_file) | `helpers.h` | gobj-c (Core Framework) |
 | [**`search_command_desc`**](parsers/command_parser.md#search_command_desc) | `command_parser.h` | gobj-c (Core Framework) |
 | [**`search_process`**](helpers/daemon_launcher.md#search_process) | `ydaemon.h` | root-linux (Runtime GClasses) |
-| [**`set_auto_kill_time`**](runtime/entry_point.md#set_auto_kill_time) | `entry_point.h` | root-linux (Runtime GClasses) |
+| [**`set_auto_kill_time`**](runtime/runtime_entry_point.md#set_auto_kill_time) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`set_cloexec`**](helpers/file_system.md#set_cloexec) | `helpers.h` | gobj-c (Core Framework) |
 | [**`set_expected_results`**](testing/testing.md#set_expected_results) | `testing.h` | gobj-c (Core Framework) |
 | [**`set_measure_times`**](yev_loop/yev_loop.md#set_measure_times) | `testing.h` | gobj-c (Core Framework) |
@@ -2967,7 +2967,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`stats_parser`**](parsers/stats_parser.md#stats_parser) | `stats_parser.h` | gobj-c (Core Framework) |
 | [**`stdout_fwrite`**](logging/log.md#stdout_fwrite) | `glogger.h` | gobj-c (Core Framework) |
 | [**`stdout_write`**](logging/log.md#stdout_write) | `glogger.h` | gobj-c (Core Framework) |
-| [**`stop_services`**](runtime/entry_point.md#stop_services) | `manage_services.h` | root-linux (Runtime GClasses) |
+| [**`stop_services`**](runtime/runtime_entry_point.md#stop_services) | `manage_services.h` | root-linux (Runtime GClasses) |
 | [**`str2gbuf`**](helpers/gbuffer.md#str2gbuf) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`str_concat`**](helpers/string_helper.md#str_concat) | `helpers.h` | gobj-c (Core Framework) |
 | [**`str_concat3`**](helpers/string_helper.md#str_concat3) | `helpers.h` | gobj-c (Core Framework) |
@@ -3179,12 +3179,12 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`yuneta_bin_dir`**](runtime/environment.md#yuneta_bin_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_bin_file`**](runtime/environment.md#yuneta_bin_file) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_domain_dir`**](runtime/environment.md#yuneta_domain_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
-| [**`yuneta_entry_point`**](runtime/entry_point.md#yuneta_entry_point) | `entry_point.h` | root-linux (Runtime GClasses) |
+| [**`yuneta_entry_point`**](runtime/runtime_entry_point.md#yuneta_entry_point) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_getgrnam`**](helpers/misc.md#yuneta_getgrnam) | `helpers.h` | gobj-c (Core Framework) |
 | [**`yuneta_getgrouplist`**](helpers/misc.md#yuneta_getgrouplist) | `helpers.h` | gobj-c (Core Framework) |
 | [**`yuneta_getpwnam`**](helpers/misc.md#yuneta_getpwnam) | `helpers.h` | gobj-c (Core Framework) |
 | [**`yuneta_getpwuid`**](helpers/misc.md#yuneta_getpwuid) | `helpers.h` | gobj-c (Core Framework) |
-| [**`yuneta_json_config`**](runtime/entry_point.md#yuneta_json_config) | `entry_point.h` | root-linux (Runtime GClasses) |
+| [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_log_dir`**](runtime/environment.md#yuneta_log_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_log_file`**](runtime/environment.md#yuneta_log_file) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_realm_dir`**](runtime/environment.md#yuneta_realm_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
@@ -3192,11 +3192,11 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`yuneta_realm_store_dir`**](runtime/environment.md#yuneta_realm_store_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_root_dir`**](runtime/environment.md#yuneta_root_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_rpermission`**](runtime/environment.md#yuneta_rpermission) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
-| [**`yuneta_setup`**](runtime/entry_point.md#yuneta_setup) | `entry_point.h` | root-linux (Runtime GClasses) |
+| [**`yuneta_setup`**](runtime/runtime_entry_point.md#yuneta_setup) | `entry_point.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_store_dir`**](runtime/environment.md#yuneta_store_dir) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_store_file`**](runtime/environment.md#yuneta_store_file) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
 | [**`yuneta_xpermission`**](runtime/environment.md#yuneta_xpermission) | `yunetas_environment.h` | root-linux (Runtime GClasses) |
-| [**`yunetas_register_c_core`**](runtime/entry_point.md#yunetas_register_c_core) | `yunetas_register.h` | root-linux (Runtime GClasses) |
+| [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) | `yunetas_register.h` | root-linux (Runtime GClasses) |
 | [**`yuno_event_destroy`**](runtime/yuno.md#yuno_event_destroy) | `c_yuno.h` | root-linux (Runtime GClasses) |
 | [**`yuno_event_loop`**](runtime/yuno.md#yuno_event_loop) | `c_yuno.h` | root-linux (Runtime GClasses) |
-| [**`yuno_shutdown`**](runtime/entry_point.md#yuno_shutdown) | `manage_services.h` | root-linux (Runtime GClasses) |
+| [**`yuno_shutdown`**](runtime/runtime_entry_point.md#yuno_shutdown) | `manage_services.h` | root-linux (Runtime GClasses) |

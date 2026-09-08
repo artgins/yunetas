@@ -73,8 +73,8 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`GObj`**](js/gclass.md#js_GObj) | `class GObj` | [L202](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L202) |
-| [**`SDATA`**](js/attrs.md#js_SDATA) | `const SDATA       = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L157](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L157) |
+| [**`GObj`**](js/js_gclass.md#js_GObj) | `class GObj` | [L202](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L202) |
+| [**`SDATA`**](js/js_attrs.md#js_SDATA) | `const SDATA       = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, defau...` | [L157](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L157) |
 | [**`SDATAAUTHZ`**](js/commands.md#js_SDATAAUTHZ) | `const SDATAAUTHZ  = (type, name, flag, alias, items, description) => new SDataDesc(type, name, flag, null, ...` | [L161](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L161) |
 | [**`SDATACM`**](js/commands.md#js_SDATACM) | `const SDATACM     = (type, name, alias, items, json_fn, description) => new SDataDesc(type, name, 0, null, ...` | [L158](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L158) |
 | [**`SDATACM2`**](js/commands.md#js_SDATACM2) | `const SDATACM2    = (type, name, flag, alias, items, json_fn, description) => new SDataDesc(type, name, fla...` | [L159](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L159) |
@@ -85,17 +85,17 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`SDataDesc`**](js/commands.md#js_SDataDesc) | `class SDataDesc` | [L139](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L139) |
 | [**`YUNETA_VERSION`**](js/bootstrap.md#js_YUNETA_VERSION) | `let YUNETA_VERSION = "7.0.0a";` | [L57](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L57) |
 | [**`__yuno__`**](js/hierarchy.md#js___yuno__) | `let __yuno__ = null;` | [L78](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L78) |
-| [**`data_type_t`**](js/attrs.md#js_data_type_t) | `const data_type_t = Object.freeze(` | [L85](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L85) |
+| [**`data_type_t`**](js/js_attrs.md#js_data_type_t) | `const data_type_t = Object.freeze(` | [L85](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L85) |
 | [**`event_flag_t`**](js/state_machine.md#js_event_flag_t) | `const event_flag_t = Object.freeze(` | [L297](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L297) |
-| [**`gclass_add_ev_action`**](js/gclass.md#js_gclass_add_ev_action) | `function gclass_add_ev_action( gclass, state_name, event_name, action, next_state )` | [L1301](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1301) |
-| [**`gclass_add_event_type`**](js/gclass.md#js_gclass_add_event_type) | `function gclass_add_event_type(gclass, event_name, event_flag)` | [L1348](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1348) |
-| [**`gclass_add_state`**](js/gclass.md#js_gclass_add_state) | `function gclass_add_state(gclass, state_name)` | [L1281](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1281) |
-| [**`gclass_check_fsm`**](js/gclass.md#js_gclass_check_fsm) | `function gclass_check_fsm(gclass)` | [L1384](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1384) |
-| [**`gclass_create`**](js/gclass.md#js_gclass_create) | `function gclass_create( gclass_name, event_types, states, gmt, lmt, attrs_table, priv, authz_table, command...` | [L1104](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1104) |
-| [**`gclass_event_type`**](js/gclass.md#js_gclass_event_type) | `function gclass_event_type(gclass, event_name)` | [L1361](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1361) |
-| [**`gclass_find_by_name`**](js/gclass.md#js_gclass_find_by_name) | `function gclass_find_by_name(gclass_name, verbose)` | [L1477](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1477) |
-| [**`gclass_flag_t`**](js/gclass.md#js_gclass_flag_t) | `const gclass_flag_t = Object.freeze(` | [L248](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L248) |
-| [**`gclass_unregister`**](js/gclass.md#js_gclass_unregister) | `function gclass_unregister(gclass)` | [L1218](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1218) |
+| [**`gclass_add_ev_action`**](js/js_gclass.md#js_gclass_add_ev_action) | `function gclass_add_ev_action( gclass, state_name, event_name, action, next_state )` | [L1301](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1301) |
+| [**`gclass_add_event_type`**](js/js_gclass.md#js_gclass_add_event_type) | `function gclass_add_event_type(gclass, event_name, event_flag)` | [L1348](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1348) |
+| [**`gclass_add_state`**](js/js_gclass.md#js_gclass_add_state) | `function gclass_add_state(gclass, state_name)` | [L1281](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1281) |
+| [**`gclass_check_fsm`**](js/js_gclass.md#js_gclass_check_fsm) | `function gclass_check_fsm(gclass)` | [L1384](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1384) |
+| [**`gclass_create`**](js/js_gclass.md#js_gclass_create) | `function gclass_create( gclass_name, event_types, states, gmt, lmt, attrs_table, priv, authz_table, command...` | [L1104](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1104) |
+| [**`gclass_event_type`**](js/js_gclass.md#js_gclass_event_type) | `function gclass_event_type(gclass, event_name)` | [L1361](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1361) |
+| [**`gclass_find_by_name`**](js/js_gclass.md#js_gclass_find_by_name) | `function gclass_find_by_name(gclass_name, verbose)` | [L1477](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1477) |
+| [**`gclass_flag_t`**](js/js_gclass.md#js_gclass_flag_t) | `const gclass_flag_t = Object.freeze(` | [L248](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L248) |
+| [**`gclass_unregister`**](js/js_gclass.md#js_gclass_unregister) | `function gclass_unregister(gclass)` | [L1218](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1218) |
 | [**`gobj_bottom_gobj`**](js/hierarchy.md#js_gobj_bottom_gobj) | `function gobj_bottom_gobj(gobj)` | [L2701](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2701) |
 | [**`gobj_change_parent`**](js/hierarchy.md#js_gobj_change_parent) | `function gobj_change_parent(gobj, parent)` | [L3680](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3680) |
 | [**`gobj_change_state`**](js/state_machine.md#js_gobj_change_state) | `function gobj_change_state(gobj, state_name)` | [L3608](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3608) |
@@ -120,10 +120,10 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_full_name`**](js/hierarchy.md#js_gobj_full_name) | `function gobj_full_name(gobj)` | [L2621](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2621) |
 | [**`gobj_gclass_name`**](js/hierarchy.md#js_gobj_gclass_name) | `function gobj_gclass_name(gobj)` | [L2595](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2595) |
 | [**`gobj_global_trace_level`**](js/traces.md#js_gobj_global_trace_level) | `function gobj_global_trace_level()` | [L650](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L650) |
-| [**`gobj_has_attr`**](js/attrs.md#js_gobj_has_attr) | `function gobj_has_attr(gobj, name)` | [L3192](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3192) |
+| [**`gobj_has_attr`**](js/js_attrs.md#js_gobj_has_attr) | `function gobj_has_attr(gobj, name)` | [L3192](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3192) |
 | [**`gobj_has_event`**](js/state_machine.md#js_gobj_has_event) | `function gobj_has_event(gobj, event, event_flag)` | [L3761](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3761) |
 | [**`gobj_has_output_event`**](js/state_machine.md#js_gobj_has_output_event) | `function gobj_has_output_event(gobj, event, event_flag)` | [L3778](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3778) |
-| [**`gobj_hsdata`**](js/attrs.md#js_gobj_hsdata) | `function gobj_hsdata(gobj)` | [L1050](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1050) |
+| [**`gobj_hsdata`**](js/js_attrs.md#js_gobj_hsdata) | `function gobj_hsdata(gobj)` | [L1050](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1050) |
 | [**`gobj_is_destroying`**](js/lifecycle.md#js_gobj_is_destroying) | `function gobj_is_destroying(gobj)` | [L2686](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2686) |
 | [**`gobj_is_playing`**](js/lifecycle.md#js_gobj_is_playing) | `function gobj_is_playing(gobj)` | [L2524](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2524) |
 | [**`gobj_is_pure_child`**](js/lifecycle.md#js_gobj_is_pure_child) | `function gobj_is_pure_child(gobj)` | [L2670](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2670) |
@@ -143,15 +143,15 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_post_event`**](js/events.md#js_gobj_post_event) | `function gobj_post_event(dst, event, kw, src)` | [L3818](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3818) |
 | [**`gobj_posted_events_size`**](js/events.md#js_gobj_posted_events_size) | `function gobj_posted_events_size()` | [L3876](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3876) |
 | [**`gobj_publish_event`**](js/events.md#js_gobj_publish_event) | `function gobj_publish_event( publisher, event, kw)` | [L4752](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L4752) |
-| [**`gobj_read_attr`**](js/attrs.md#js_gobj_read_attr) | `function gobj_read_attr(gobj, name, src)` | [L3203](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3203) |
-| [**`gobj_read_attrs`**](js/attrs.md#js_gobj_read_attrs) | `function gobj_read_attrs( gobj, include_flag,` | [L3226](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3226) |
-| [**`gobj_read_bool_attr`**](js/attrs.md#js_gobj_read_bool_attr) | `function gobj_read_bool_attr(gobj, name)` | [L3262](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3262) |
-| [**`gobj_read_integer_attr`**](js/attrs.md#js_gobj_read_integer_attr) | `function gobj_read_integer_attr(gobj, name)` | [L3293](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3293) |
-| [**`gobj_read_pointer_attr`**](js/attrs.md#js_gobj_read_pointer_attr) | `function gobj_read_pointer_attr(gobj, name)` | [L3339](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3339) |
-| [**`gobj_read_str_attr`**](js/attrs.md#js_gobj_read_str_attr) | `function gobj_read_str_attr(gobj, name)` | [L3316](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3316) |
+| [**`gobj_read_attr`**](js/js_attrs.md#js_gobj_read_attr) | `function gobj_read_attr(gobj, name, src)` | [L3203](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3203) |
+| [**`gobj_read_attrs`**](js/js_attrs.md#js_gobj_read_attrs) | `function gobj_read_attrs( gobj, include_flag,` | [L3226](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3226) |
+| [**`gobj_read_bool_attr`**](js/js_attrs.md#js_gobj_read_bool_attr) | `function gobj_read_bool_attr(gobj, name)` | [L3262](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3262) |
+| [**`gobj_read_integer_attr`**](js/js_attrs.md#js_gobj_read_integer_attr) | `function gobj_read_integer_attr(gobj, name)` | [L3293](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3293) |
+| [**`gobj_read_pointer_attr`**](js/js_attrs.md#js_gobj_read_pointer_attr) | `function gobj_read_pointer_attr(gobj, name)` | [L3339](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3339) |
+| [**`gobj_read_str_attr`**](js/js_attrs.md#js_gobj_read_str_attr) | `function gobj_read_str_attr(gobj, name)` | [L3316](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3316) |
 | [**`gobj_remove_persistent_attrs`**](js/persistence.md#js_gobj_remove_persistent_attrs) | `function gobj_remove_persistent_attrs( gobj, keys` | [L1679](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1679) |
 | [**`gobj_repr_global_trace_levels`**](js/traces.md#js_gobj_repr_global_trace_levels) | `function gobj_repr_global_trace_levels()` | [L751](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L751) |
-| [**`gobj_reset_volatil_attrs`**](js/attrs.md#js_gobj_reset_volatil_attrs) | `function gobj_reset_volatil_attrs(gobj)` | [L3487](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3487) |
+| [**`gobj_reset_volatil_attrs`**](js/js_attrs.md#js_gobj_reset_volatil_attrs) | `function gobj_reset_volatil_attrs(gobj)` | [L3487](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3487) |
 | [**`gobj_save_persistent_attrs`**](js/persistence.md#js_gobj_save_persistent_attrs) | `function gobj_save_persistent_attrs( gobj, keys` | [L1662](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L1662) |
 | [**`gobj_search_path`**](js/hierarchy.md#js_gobj_search_path) | `function gobj_search_path(gobj, path)` | [L3146](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3146) |
 | [**`gobj_send_event`**](js/events.md#js_gobj_send_event) | `function gobj_send_event(dst, event, kw, src)` | [L3935](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3935) |
@@ -182,16 +182,16 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_unsubscribe_list`**](js/events.md#js_gobj_unsubscribe_list) | `function gobj_unsubscribe_list( gobj, dl_subs, force` | [L4640](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L4640) |
 | [**`gobj_walk_gobj_children`**](js/hierarchy.md#js_gobj_walk_gobj_children) | `function gobj_walk_gobj_children( gobj, walk_type,` | [L2747](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2747) |
 | [**`gobj_walk_gobj_children_tree`**](js/hierarchy.md#js_gobj_walk_gobj_children_tree) | `function gobj_walk_gobj_children_tree( gobj, walk_type,` | [L2765](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2765) |
-| [**`gobj_write_attr`**](js/attrs.md#js_gobj_write_attr) | `function gobj_write_attr( gobj, path,` | [L3358](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3358) |
-| [**`gobj_write_attrs`**](js/attrs.md#js_gobj_write_attrs) | `function gobj_write_attrs( gobj, kw, include_flag,` | [L3499](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3499) |
-| [**`gobj_write_bool_attr`**](js/attrs.md#js_gobj_write_bool_attr) | `function gobj_write_bool_attr(gobj, name, value)` | [L3524](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3524) |
-| [**`gobj_write_integer_attr`**](js/attrs.md#js_gobj_write_integer_attr) | `function gobj_write_integer_attr(gobj, name, value)` | [L3552](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3552) |
-| [**`gobj_write_str_attr`**](js/attrs.md#js_gobj_write_str_attr) | `function gobj_write_str_attr(gobj, name, value)` | [L3580](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3580) |
+| [**`gobj_write_attr`**](js/js_attrs.md#js_gobj_write_attr) | `function gobj_write_attr( gobj, path,` | [L3358](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3358) |
+| [**`gobj_write_attrs`**](js/js_attrs.md#js_gobj_write_attrs) | `function gobj_write_attrs( gobj, kw, include_flag,` | [L3499](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3499) |
+| [**`gobj_write_bool_attr`**](js/js_attrs.md#js_gobj_write_bool_attr) | `function gobj_write_bool_attr(gobj, name, value)` | [L3524](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3524) |
+| [**`gobj_write_integer_attr`**](js/js_attrs.md#js_gobj_write_integer_attr) | `function gobj_write_integer_attr(gobj, name, value)` | [L3552](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3552) |
+| [**`gobj_write_str_attr`**](js/js_attrs.md#js_gobj_write_str_attr) | `function gobj_write_str_attr(gobj, name, value)` | [L3580](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L3580) |
 | [**`gobj_yuno`**](js/hierarchy.md#js_gobj_yuno) | `function gobj_yuno()` | [L2535](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2535) |
 | [**`gobj_yuno_id`**](js/hierarchy.md#js_gobj_yuno_id) | `function gobj_yuno_id()` | [L2570](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2570) |
 | [**`gobj_yuno_name`**](js/hierarchy.md#js_gobj_yuno_name) | `function gobj_yuno_name()` | [L2546](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2546) |
 | [**`gobj_yuno_role`**](js/hierarchy.md#js_gobj_yuno_role) | `function gobj_yuno_role()` | [L2558](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L2558) |
-| [**`sdata_flag_t`**](js/attrs.md#js_sdata_flag_t) | `const sdata_flag_t = Object.freeze(` | [L109](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L109) |
+| [**`sdata_flag_t`**](js/js_attrs.md#js_sdata_flag_t) | `const sdata_flag_t = Object.freeze(` | [L109](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L109) |
 | [**`trace_level_t`**](js/traces.md#js_trace_level_t) | `const trace_level_t = Object.freeze(` | [L406](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L406) |
 | [**`walk_type_t`**](js/hierarchy.md#js_walk_type_t) | `const walk_type_t = Object.freeze(` | [L304](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L304) |
 
@@ -460,29 +460,29 @@ Do not edit it by hand. Run the script after a submodule bump.
 | Symbol | Signature | Source |
 |---|---|---|
 | [**`register_c_yui_shell`**](gobj-ui/gclasses.md#js_register_c_yui_shell) | `function register_c_yui_shell()` | [L3108](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3108) |
-| [**`yui_shell_close_drawer`**](gobj-ui/shell.md#js_yui_shell_close_drawer) | `function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }` | [L3326](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3326) |
-| [**`yui_shell_close_dropdown`**](gobj-ui/shell.md#js_yui_shell_close_dropdown) | `function yui_shell_close_dropdown(shell_gobj)` | [L3589](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3589) |
+| [**`yui_shell_close_drawer`**](gobj-ui/shell_api.md#js_yui_shell_close_drawer) | `function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }` | [L3326](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3326) |
+| [**`yui_shell_close_dropdown`**](gobj-ui/shell_api.md#js_yui_shell_close_dropdown) | `function yui_shell_close_dropdown(shell_gobj)` | [L3589](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3589) |
 | [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3481) | `function yui_shell_language_changed(shell_gobj)` | [L3481](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3481) |
 | [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3271) | `function yui_shell_nav_map(shell_gobj)` | [L3271](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3271) |
-| [**`yui_shell_navigate`**](gobj-ui/shell.md#js_yui_shell_navigate) | `function yui_shell_navigate(shell_gobj, route, opts)` | [L3248](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3248) |
+| [**`yui_shell_navigate`**](gobj-ui/shell_api.md#js_yui_shell_navigate) | `function yui_shell_navigate(shell_gobj, route, opts)` | [L3248](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3248) |
 | [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3197) | `function yui_shell_of(gobj)` | [L3197](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3197) |
-| [**`yui_shell_open_drawer`**](gobj-ui/shell.md#js_yui_shell_open_drawer) | `function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }` | [L3325](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3325) |
-| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell.md#js_yui_shell_overlay_dismissed) | `function yui_shell_overlay_dismissed(shell_gobj, overlay)` | [L3369](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3369) |
-| [**`yui_shell_pop_escape`**](gobj-ui/shell.md#js_yui_shell_pop_escape) | `function yui_shell_pop_escape(shell_gobj, handler)` | [L3346](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3346) |
-| [**`yui_shell_push_escape`**](gobj-ui/shell.md#js_yui_shell_push_escape) | `function yui_shell_push_escape(shell_gobj, layer, handler)` | [L3342](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3342) |
-| [**`yui_shell_refresh_avatars`**](gobj-ui/shell.md#js_yui_shell_refresh_avatars) | `function yui_shell_refresh_avatars(shell_gobj)` | [L3414](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3414) |
-| [**`yui_shell_register_event_handler`**](gobj-ui/shell.md#js_yui_shell_register_event_handler) | `function yui_shell_register_event_handler(shell_gobj, event, gclass)` | [L3311](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3311) |
-| [**`yui_shell_register_overlay`**](gobj-ui/shell.md#js_yui_shell_register_overlay) | `function yui_shell_register_overlay(shell_gobj, close_fn, opts)` | [L3365](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3365) |
-| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell.md#js_yui_shell_set_avatar_provider) | `function yui_shell_set_avatar_provider(shell_gobj, provider)` | [L3404](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3404) |
-| [**`yui_shell_set_connection_state`**](gobj-ui/shell.md#js_yui_shell_set_connection_state) | `function yui_shell_set_connection_state(shell_gobj, connected)` | [L3500](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3500) |
-| [**`yui_shell_set_sub_routes`**](gobj-ui/shell.md#js_yui_shell_set_sub_routes) | `function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)` | [L3291](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3291) |
+| [**`yui_shell_open_drawer`**](gobj-ui/shell_api.md#js_yui_shell_open_drawer) | `function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }` | [L3325](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3325) |
+| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell_api.md#js_yui_shell_overlay_dismissed) | `function yui_shell_overlay_dismissed(shell_gobj, overlay)` | [L3369](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3369) |
+| [**`yui_shell_pop_escape`**](gobj-ui/shell_api.md#js_yui_shell_pop_escape) | `function yui_shell_pop_escape(shell_gobj, handler)` | [L3346](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3346) |
+| [**`yui_shell_push_escape`**](gobj-ui/shell_api.md#js_yui_shell_push_escape) | `function yui_shell_push_escape(shell_gobj, layer, handler)` | [L3342](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3342) |
+| [**`yui_shell_refresh_avatars`**](gobj-ui/shell_api.md#js_yui_shell_refresh_avatars) | `function yui_shell_refresh_avatars(shell_gobj)` | [L3414](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3414) |
+| [**`yui_shell_register_event_handler`**](gobj-ui/shell_api.md#js_yui_shell_register_event_handler) | `function yui_shell_register_event_handler(shell_gobj, event, gclass)` | [L3311](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3311) |
+| [**`yui_shell_register_overlay`**](gobj-ui/shell_api.md#js_yui_shell_register_overlay) | `function yui_shell_register_overlay(shell_gobj, close_fn, opts)` | [L3365](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3365) |
+| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell_api.md#js_yui_shell_set_avatar_provider) | `function yui_shell_set_avatar_provider(shell_gobj, provider)` | [L3404](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3404) |
+| [**`yui_shell_set_connection_state`**](gobj-ui/shell_api.md#js_yui_shell_set_connection_state) | `function yui_shell_set_connection_state(shell_gobj, connected)` | [L3500](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3500) |
+| [**`yui_shell_set_sub_routes`**](gobj-ui/shell_api.md#js_yui_shell_set_sub_routes) | `function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)` | [L3291](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3291) |
 | [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L2937) | `function yui_shell_set_submenu(shell_gobj, parent_item_id, items)` | [L2937](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L2937) |
-| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_badge) | `function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)` | [L3552](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3552) |
-| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_icon) | `function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)` | [L3519](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3519) |
-| [**`yui_shell_set_translator`**](gobj-ui/shell.md#js_yui_shell_set_translator) | `function yui_shell_set_translator(shell_gobj, t)` | [L3429](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3429) |
-| [**`yui_shell_toggle_drawer`**](gobj-ui/shell.md#js_yui_shell_toggle_drawer) | `function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }` | [L3327](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3327) |
+| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell_api.md#js_yui_shell_set_toolbar_item_badge) | `function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)` | [L3552](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3552) |
+| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell_api.md#js_yui_shell_set_toolbar_item_icon) | `function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)` | [L3519](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3519) |
+| [**`yui_shell_set_translator`**](gobj-ui/shell_api.md#js_yui_shell_set_translator) | `function yui_shell_set_translator(shell_gobj, t)` | [L3429](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3429) |
+| [**`yui_shell_toggle_drawer`**](gobj-ui/shell_api.md#js_yui_shell_toggle_drawer) | `function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }` | [L3327](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3327) |
 | [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3459) | `function yui_shell_translate(shell_gobj, $el)` | [L3459](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3459) |
-| [**`yui_shell_unpark_route`**](gobj-ui/shell.md#js_yui_shell_unpark_route) | `function yui_shell_unpark_route(route)` | [L3387](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3387) |
+| [**`yui_shell_unpark_route`**](gobj-ui/shell_api.md#js_yui_shell_unpark_route) | `function yui_shell_unpark_route(route)` | [L3387](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3387) |
 | [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3218) | `function yui_shell_zone(shell_gobj, zone_id)` | [L3218](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3218) |
 
 ### `src/c_yui_treedb_graph.js` — 1 symbol
@@ -852,7 +852,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 
 | Symbol | Signature | Source |
 |---|---|---|
-| [**`yui_shell_show_route_map`**](gobj-ui/shell.md#js_yui_shell_show_route_map) | `function yui_shell_show_route_map(shell, opts)` | [L447](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/shell_route_map.js#L447) |
+| [**`yui_shell_show_route_map`**](gobj-ui/shell_api.md#js_yui_shell_show_route_map) | `function yui_shell_show_route_map(shell, opts)` | [L447](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/shell_route_map.js#L447) |
 
 ### `src/shell_section_index.js` — 2 symbols
 
@@ -1166,7 +1166,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`createOneHtml`**](js/helpers_dom.md#js_createOneHtml) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`current_timestamp`**](js/helpers_str.md#js_current_timestamp) | `src/helpers.js` | gobj-js (Core Framework) |
 | [`data_type_name`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/gclass_describe.js#L67) | `src/gclass_describe.js` | gobj-ui (UI Library) |
-| [**`data_type_t`**](js/attrs.md#js_data_type_t) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`data_type_t`**](js/js_attrs.md#js_data_type_t) | `src/gobj.js` | gobj-js (Core Framework) |
 | [`day_number`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_time.js#L241) | `src/yui_time.js` | gobj-ui (UI Library) |
 | [**`db_list_persistent_attrs`**](js/persistence.md#js_db_list_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
 | [**`db_load_persistent_attrs`**](js/persistence.md#js_db_load_persistent_attrs) | `src/dbsimple.js` | gobj-js (Core Framework) |
@@ -1237,15 +1237,15 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [`fold_visible_set`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/treedb_fold_model.js#L574) | `src/treedb_fold_model.js` | gobj-ui (UI Library) |
 | [`format_epoch`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/json_view_helpers.js#L219) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
 | [`fsm2json`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/gclass_describe.js#L166) | `src/gclass_describe.js` | gobj-ui (UI Library) |
-| [**`gclass_add_ev_action`**](js/gclass.md#js_gclass_add_ev_action) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_add_event_type`**](js/gclass.md#js_gclass_add_event_type) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_add_state`**](js/gclass.md#js_gclass_add_state) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_check_fsm`**](js/gclass.md#js_gclass_check_fsm) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_create`**](js/gclass.md#js_gclass_create) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_event_type`**](js/gclass.md#js_gclass_event_type) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_find_by_name`**](js/gclass.md#js_gclass_find_by_name) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_flag_t`**](js/gclass.md#js_gclass_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gclass_unregister`**](js/gclass.md#js_gclass_unregister) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_add_ev_action`**](js/js_gclass.md#js_gclass_add_ev_action) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_add_event_type`**](js/js_gclass.md#js_gclass_add_event_type) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_add_state`**](js/js_gclass.md#js_gclass_add_state) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_check_fsm`**](js/js_gclass.md#js_gclass_check_fsm) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_create`**](js/js_gclass.md#js_gclass_create) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_event_type`**](js/js_gclass.md#js_gclass_event_type) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_find_by_name`**](js/js_gclass.md#js_gclass_find_by_name) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_flag_t`**](js/js_gclass.md#js_gclass_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gclass_unregister`**](js/js_gclass.md#js_gclass_unregister) | `src/gobj.js` | gobj-js (Core Framework) |
 | [`gclass_view_available`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_gclass_view.js#L70) | `src/yui_gclass_view.js` | gobj-ui (UI Library) |
 | [`gclass_view_model`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/gclass_view_model.js#L390) | `src/gclass_view_model.js` | gobj-ui (UI Library) |
 | [`get_by_segments`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/json_view_helpers.js#L102) | `src/json_view_helpers.js` | gobj-ui (UI Library) |
@@ -1254,7 +1254,7 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [`getPointPosition`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/lib_graph.js#L207) | `src/lib_graph.js` | gobj-ui (UI Library) |
 | [**`getPositionRelativeToBody`**](js/helpers_dom.md#js_getPositionRelativeToBody) | `src/helpers.js` | gobj-js (Core Framework) |
 | [**`getStrokeColor`**](gobj-ui/dom.md#js_getStrokeColor) | `src/lib_graph.js` | gobj-ui (UI Library) |
-| [**`GObj`**](js/gclass.md#js_GObj) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`GObj`**](js/js_gclass.md#js_GObj) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_bottom_gobj`**](js/hierarchy.md#js_gobj_bottom_gobj) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_change_parent`**](js/hierarchy.md#js_gobj_change_parent) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_change_state`**](js/state_machine.md#js_gobj_change_state) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -1279,10 +1279,10 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_full_name`**](js/hierarchy.md#js_gobj_full_name) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_gclass_name`**](js/hierarchy.md#js_gobj_gclass_name) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_global_trace_level`**](js/traces.md#js_gobj_global_trace_level) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_has_attr`**](js/attrs.md#js_gobj_has_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_has_attr`**](js/js_attrs.md#js_gobj_has_attr) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_has_event`**](js/state_machine.md#js_gobj_has_event) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_has_output_event`**](js/state_machine.md#js_gobj_has_output_event) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_hsdata`**](js/attrs.md#js_gobj_hsdata) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_hsdata`**](js/js_attrs.md#js_gobj_hsdata) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_is_destroying`**](js/lifecycle.md#js_gobj_is_destroying) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_is_playing`**](js/lifecycle.md#js_gobj_is_playing) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_is_pure_child`**](js/lifecycle.md#js_gobj_is_pure_child) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -1302,15 +1302,15 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_post_event`**](js/events.md#js_gobj_post_event) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_posted_events_size`**](js/events.md#js_gobj_posted_events_size) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_publish_event`**](js/events.md#js_gobj_publish_event) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_attr`**](js/attrs.md#js_gobj_read_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_attrs`**](js/attrs.md#js_gobj_read_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_bool_attr`**](js/attrs.md#js_gobj_read_bool_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_integer_attr`**](js/attrs.md#js_gobj_read_integer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_pointer_attr`**](js/attrs.md#js_gobj_read_pointer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_read_str_attr`**](js/attrs.md#js_gobj_read_str_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_attr`**](js/js_attrs.md#js_gobj_read_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_attrs`**](js/js_attrs.md#js_gobj_read_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_bool_attr`**](js/js_attrs.md#js_gobj_read_bool_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_integer_attr`**](js/js_attrs.md#js_gobj_read_integer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_pointer_attr`**](js/js_attrs.md#js_gobj_read_pointer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_read_str_attr`**](js/js_attrs.md#js_gobj_read_str_attr) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_remove_persistent_attrs`**](js/persistence.md#js_gobj_remove_persistent_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_repr_global_trace_levels`**](js/traces.md#js_gobj_repr_global_trace_levels) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_reset_volatil_attrs`**](js/attrs.md#js_gobj_reset_volatil_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_reset_volatil_attrs`**](js/js_attrs.md#js_gobj_reset_volatil_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_save_persistent_attrs`**](js/persistence.md#js_gobj_save_persistent_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_search_path`**](js/hierarchy.md#js_gobj_search_path) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_send_event`**](js/events.md#js_gobj_send_event) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -1341,11 +1341,11 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [**`gobj_unsubscribe_list`**](js/events.md#js_gobj_unsubscribe_list) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_walk_gobj_children`**](js/hierarchy.md#js_gobj_walk_gobj_children) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_walk_gobj_children_tree`**](js/hierarchy.md#js_gobj_walk_gobj_children_tree) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_write_attr`**](js/attrs.md#js_gobj_write_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_write_attrs`**](js/attrs.md#js_gobj_write_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_write_bool_attr`**](js/attrs.md#js_gobj_write_bool_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_write_integer_attr`**](js/attrs.md#js_gobj_write_integer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`gobj_write_str_attr`**](js/attrs.md#js_gobj_write_str_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_write_attr`**](js/js_attrs.md#js_gobj_write_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_write_attrs`**](js/js_attrs.md#js_gobj_write_attrs) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_write_bool_attr`**](js/js_attrs.md#js_gobj_write_bool_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_write_integer_attr`**](js/js_attrs.md#js_gobj_write_integer_attr) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`gobj_write_str_attr`**](js/js_attrs.md#js_gobj_write_str_attr) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_yuno`**](js/hierarchy.md#js_gobj_yuno) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_yuno_id`**](js/hierarchy.md#js_gobj_yuno_id) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`gobj_yuno_name`**](js/hierarchy.md#js_gobj_yuno_name) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -1559,9 +1559,9 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [`same_value`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/schema_import.js#L59) | `src/schema_import.js` | gobj-ui (UI Library) |
 | [`schema_to_c`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/schema_to_c.js#L334) | `src/schema_to_c.js` | gobj-ui (UI Library) |
 | [`schema_to_json`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/schema_to_c.js#L128) | `src/schema_to_c.js` | gobj-ui (UI Library) |
-| [**`SDATA`**](js/attrs.md#js_SDATA) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`SDATA`**](js/js_attrs.md#js_SDATA) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATA_END`**](js/commands.md#js_SDATA_END) | `src/gobj.js` | gobj-js (Core Framework) |
-| [**`sdata_flag_t`**](js/attrs.md#js_sdata_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
+| [**`sdata_flag_t`**](js/js_attrs.md#js_sdata_flag_t) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATAAUTHZ`**](js/commands.md#js_SDATAAUTHZ) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATACM`**](js/commands.md#js_SDATACM) | `src/gobj.js` | gobj-js (Core Framework) |
 | [**`SDATACM2`**](js/commands.md#js_SDATACM2) | `src/gobj.js` | gobj-js (Core Framework) |
@@ -1694,39 +1694,39 @@ Do not edit it by hand. Run the script after a submodule bump.
 | [`yui_selection_bar`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_table_select.js#L152) | `src/yui_table_select.js` | gobj-ui (UI Library) |
 | [`yui_selection_column`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_table_select.js#L52) | `src/yui_table_select.js` | gobj-ui (UI Library) |
 | [`yui_selection_settings`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_table_select.js#L77) | `src/yui_table_select.js` | gobj-ui (UI Library) |
-| [**`yui_shell_close_drawer`**](gobj-ui/shell.md#js_yui_shell_close_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_close_dropdown`**](gobj-ui/shell.md#js_yui_shell_close_dropdown) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_close_drawer`**](gobj-ui/shell_api.md#js_yui_shell_close_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_close_dropdown`**](gobj-ui/shell_api.md#js_yui_shell_close_dropdown) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_danger`**](gobj-ui/modals.md#js_yui_shell_confirm_danger) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_ok`**](gobj-ui/modals.md#js_yui_shell_confirm_ok) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_yesno`**](gobj-ui/modals.md#js_yui_shell_confirm_yesno) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_confirm_yesnocancel`**](gobj-ui/modals.md#js_yui_shell_confirm_yesnocancel) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [`yui_shell_language_changed`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3481) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_nav_map`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3271) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_navigate`**](gobj-ui/shell.md#js_yui_shell_navigate) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_navigate`**](gobj-ui/shell_api.md#js_yui_shell_navigate) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_of`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3197) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_open_drawer`**](gobj-ui/shell.md#js_yui_shell_open_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell.md#js_yui_shell_overlay_dismissed) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_pop_escape`**](gobj-ui/shell.md#js_yui_shell_pop_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_open_drawer`**](gobj-ui/shell_api.md#js_yui_shell_open_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_overlay_dismissed`**](gobj-ui/shell_api.md#js_yui_shell_overlay_dismissed) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_pop_escape`**](gobj-ui/shell_api.md#js_yui_shell_pop_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_popup_layer`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/shell_modals.js#L76) | `src/shell_modals.js` | gobj-ui (UI Library) |
-| [**`yui_shell_push_escape`**](gobj-ui/shell.md#js_yui_shell_push_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_refresh_avatars`**](gobj-ui/shell.md#js_yui_shell_refresh_avatars) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_register_event_handler`**](gobj-ui/shell.md#js_yui_shell_register_event_handler) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_register_overlay`**](gobj-ui/shell.md#js_yui_shell_register_overlay) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell.md#js_yui_shell_set_avatar_provider) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_connection_state`**](gobj-ui/shell.md#js_yui_shell_set_connection_state) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_sub_routes`**](gobj-ui/shell.md#js_yui_shell_set_sub_routes) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_push_escape`**](gobj-ui/shell_api.md#js_yui_shell_push_escape) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_refresh_avatars`**](gobj-ui/shell_api.md#js_yui_shell_refresh_avatars) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_register_event_handler`**](gobj-ui/shell_api.md#js_yui_shell_register_event_handler) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_register_overlay`**](gobj-ui/shell_api.md#js_yui_shell_register_overlay) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_avatar_provider`**](gobj-ui/shell_api.md#js_yui_shell_set_avatar_provider) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_connection_state`**](gobj-ui/shell_api.md#js_yui_shell_set_connection_state) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_sub_routes`**](gobj-ui/shell_api.md#js_yui_shell_set_sub_routes) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_set_submenu`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L2937) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_badge) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell.md#js_yui_shell_set_toolbar_item_icon) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_set_translator`**](gobj-ui/shell.md#js_yui_shell_set_translator) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_toolbar_item_badge`**](gobj-ui/shell_api.md#js_yui_shell_set_toolbar_item_badge) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_toolbar_item_icon`**](gobj-ui/shell_api.md#js_yui_shell_set_toolbar_item_icon) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_set_translator`**](gobj-ui/shell_api.md#js_yui_shell_set_translator) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [**`yui_shell_show_error`**](gobj-ui/modals.md#js_yui_shell_show_error) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_show_info`**](gobj-ui/modals.md#js_yui_shell_show_info) | `src/shell_modals.js` | gobj-ui (UI Library) |
 | [**`yui_shell_show_modal`**](gobj-ui/modals.md#js_yui_shell_show_modal) | `src/shell_modals.js` | gobj-ui (UI Library) |
-| [**`yui_shell_show_route_map`**](gobj-ui/shell.md#js_yui_shell_show_route_map) | `src/shell_route_map.js` | gobj-ui (UI Library) |
+| [**`yui_shell_show_route_map`**](gobj-ui/shell_api.md#js_yui_shell_show_route_map) | `src/shell_route_map.js` | gobj-ui (UI Library) |
 | [**`yui_shell_show_warning`**](gobj-ui/modals.md#js_yui_shell_show_warning) | `src/shell_modals.js` | gobj-ui (UI Library) |
-| [**`yui_shell_toggle_drawer`**](gobj-ui/shell.md#js_yui_shell_toggle_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_toggle_drawer`**](gobj-ui/shell_api.md#js_yui_shell_toggle_drawer) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_translate`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3459) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
-| [**`yui_shell_unpark_route`**](gobj-ui/shell.md#js_yui_shell_unpark_route) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
+| [**`yui_shell_unpark_route`**](gobj-ui/shell_api.md#js_yui_shell_unpark_route) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_shell_zone`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3218) | `src/c_yui_shell.js` | gobj-ui (UI Library) |
 | [`yui_tab_decode_id`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_tab_routes.js#L64) | `src/yui_tab_routes.js` | gobj-ui (UI Library) |
 | [`yui_tab_position_plan`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/yui_tab_routes.js#L111) | `src/yui_tab_routes.js` | gobj-ui (UI Library) |

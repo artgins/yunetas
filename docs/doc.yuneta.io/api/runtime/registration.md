@@ -4,7 +4,7 @@ Every GClass must be registered before it can be instantiated.
 Each `register_c_*()` function follows the same signature and pattern.
 
 All built-in GClasses are registered at once by calling
-[`yunetas_register_c_core()`](entry_point.md#yunetas_register_c_core).
+[`yunetas_register_c_core()`](runtime_entry_point.md#yunetas_register_c_core).
 
 **Source:** `kernel/c/root-linux/src/c_*.h`
 

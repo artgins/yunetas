@@ -26,7 +26,7 @@ register_c_yui_nav();
 ### [`register_c_yui_shell()`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_shell.js#L3108)
 
 `C_YUI_SHELL` draws the frame of the application from one JSON file: the
-toolbar, the menus and the zones. Its API is in [The shell](shell.md).
+toolbar, the menus and the zones. Its API is in [The shell](shell_api.md).
 
 (js_register_c_yui_nav)=
 ### [`register_c_yui_nav()`](https://github.com/artgins/gobj-ui.js/blob/7.23.73/src/c_yui_nav.js#L1027)

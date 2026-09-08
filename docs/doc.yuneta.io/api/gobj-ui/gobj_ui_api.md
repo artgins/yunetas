@@ -11,7 +11,7 @@ description: >-
 the frame of an application from one JSON file, a set of component gclasses, and
 the helpers that go with them.
 
-It sits on top of [`@yuneta/gobj-js`](../js/index.md), and it holds the same
+It sits on top of [`@yuneta/gobj-js`](../js/js_api.md), and it holds the same
 rules: a DOM callback translates a notification of the browser into an event,
 and the work happens in an action of a state machine.
 
@@ -68,7 +68,7 @@ This reference covers the **v2** line.
 
 | Page | What it holds |
 |---|---|
-| [The shell](shell.md) | The API of `C_YUI_SHELL`: navigation, drawers, overlays, avatars and the toolbar. |
+| [The shell](shell_api.md) | The API of `C_YUI_SHELL`: navigation, drawers, overlays, avatars and the toolbar. |
 | [Dialogs and notifications](modals.md) | The notifications, the modal and the four dialogs of confirmation. |
 | [Component gclasses](gclasses.md) | The registration function of each component. |
 | [Time and periods](time.md) | The algebra of the periods, the rolling windows and the formatting. |

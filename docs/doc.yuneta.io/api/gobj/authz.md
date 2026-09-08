@@ -247,7 +247,7 @@ The authorization descriptors are converted from the `sdata_desc_t` format to JS
 ## [`authz_checker()`](https://github.com/artgins/yunetas/blob/7.18.2/kernel/c/root-linux/src/c_authz.c#L4490)
 
 Default authorization checker. Used when no custom `authz_checker` is
-provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).
+provided to [`yuneta_setup()`](../runtime/runtime_entry_point.md#yuneta_setup).
 
 ```C
 BOOL authz_checker(
@@ -277,7 +277,7 @@ BOOL authz_checker(
 ## [`authentication_parser()`](https://github.com/artgins/yunetas/blob/7.18.2/kernel/c/root-linux/src/c_authz.c#L4578)
 
 Default authentication parser. Used when no custom `authentication_parser`
-is provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).
+is provided to [`yuneta_setup()`](../runtime/runtime_entry_point.md#yuneta_setup).
 
 ```C
 json_t *authentication_parser(

@@ -6,7 +6,7 @@ the simple DB, command execution, and gclass registration.
 
 ## In this section
 
-- [Entry Point](entry_point.md) — `yuneta_entry_point()` and process bring-up.
+- [Entry Point](runtime_entry_point.md) — `yuneta_entry_point()` and process bring-up.
 - [Environment](environment.md) — process-wide environment and paths.
 - [Yuno](yuno.md) — the `C_YUNO` root object.
 - [Timer](timer.md) — high- and low-level timer helpers.

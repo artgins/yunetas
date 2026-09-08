@@ -50,7 +50,7 @@ Interactive, full-screen front-ends to a running yuno. (Both lived under
 
 ## Diagnostics
 
-- [`fs_watcher`](utilities/fs_watcher.md)
+- [`fs_watcher`](utilities/fs_watcher_tool.md)
 - [`inotify`](utilities/inotify.md)
 - [`ytestconfig`](utilities/ytestconfig.md)
 - [`time2date`](utilities/time2date.md)

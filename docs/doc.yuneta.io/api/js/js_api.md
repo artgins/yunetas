@@ -52,7 +52,7 @@ Every symbol that the package exports is in the
 [JS API index](../appendix_js_api_index.md), with its signature, its module and
 a link to its source. A symbol with a reference entry links to that entry.
 
-The UI library has its own section: [gobj-ui API](../gobj-ui/index.md).
+The UI library has its own section: [gobj-ui API](../gobj-ui/gobj_ui_api.md).
 
 ## Source layout
 

@@ -12,7 +12,7 @@ attributes. Every descriptor is an `SDataDesc`, and the macros below build one.
 
 **Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js)
 
-The command table goes to [`gclass_create()`](gclass.md#js_gclass_create), and
+The command table goes to [`gclass_create()`](js_gclass.md#js_gclass_create), and
 [`command_parser()`](events.md#js_command_parser) reads it. A gclass that gives a
 command table does not need the `mt_command` method.
 
@@ -72,7 +72,7 @@ authorization flag, such as `SDF_AUTHZ_X`.
 ### [`SDATAPM(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L160)
 
 Declares one parameter of a command. It takes the same shape as
-[`SDATA()`](attrs.md#js_SDATA).
+[`SDATA()`](js_attrs.md#js_SDATA).
 
 ```javascript
 const pm_help = [
@@ -104,7 +104,7 @@ Declares one parameter with an authorization path, and no default value.
 ### [`SDATAAUTHZ(type, name, flag, alias, items, description)`](https://github.com/artgins/gobj-js/blob/7.16.5/src/gobj.js#L161)
 
 Declares one authorization of the gclass. The authorization table goes to
-[`gclass_create()`](gclass.md#js_gclass_create).
+[`gclass_create()`](js_gclass.md#js_gclass_create).
 
 ---
 

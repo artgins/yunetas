@@ -77,7 +77,7 @@ This function does not return a value.
 
 Orders the yuno to exit gracefully. Logs an exit message, sets the exit
 code to `0`, flushes logs, and calls
-[`yuno_shutdown()`](entry_point.md#yuno_shutdown).
+[`yuno_shutdown()`](runtime_entry_point.md#yuno_shutdown).
 
 ```C
 void set_yuno_must_die(void);
