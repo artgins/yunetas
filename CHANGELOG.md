@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.77)
+### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.79)
 
-`kernel/js/gobj-ui` -> 7.23.77 and `yunos/js` -> both SPAs on `^7.23.77`.
+`kernel/js/gobj-ui` -> 7.23.79 and `yunos/js` -> both SPAs on `^7.23.79`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -34,7 +34,12 @@ view's `option_label()`, and every consumer's `validate-locales` refused the
 build for a key asked for and defined in no locale -- the guard doing its job
 before a deploy. `7.23.77` shrinks the `+N` chip beside closed nodes (40×22,
 following the shape of the card it continues), and gives the test-app's
-graph a page of one so a chip shows.
+graph a page of one so a chip shows. `7.23.78`: expand all and collapse
+all leave the ZOOM alone -- both fitted the whole graph, so opening
+everything zoomed out to a strip and closing it zoomed in on the roots; the
+camera holds the anchor still, else the first root, as a single fold does.
+`7.23.79`: the default ports go to radius 14 / 8, because on a deployed
+treedb 10 / 5 still read as dots.
 
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
