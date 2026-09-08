@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Closed nodes, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.81)
+### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.82)
 
-`kernel/js/gobj-ui` -> 7.23.81 and `yunos/js` -> both SPAs on `^7.23.81`.
+`kernel/js/gobj-ui` -> 7.23.82 and `yunos/js` -> both SPAs on `^7.23.82`.
 Asked for together, all in the service of one graph with many nodes.
 
 **The wheel SCROLLS the graph; Ctrl + wheel zooms**, in every operation mode
@@ -59,6 +59,17 @@ live preview. Remembered as the topic's default and saved per node in
 `__graphs__` (`port_shapes`). The node and edge popovers' labels had no i18n
 key at all and rendered in English in every language; keys added to the
 consumers with the port's.
+
+**And a record has THREE views, not two** (`7.23.82`), the same three the
+gobj tree view offers: `expanded` is the card with its pills and ports;
+`compact` is a one-line PILL with the name inside and small ports, so a link
+can still be drawn; `shape` is the FIGURE of the topic's colour, no ports, no
+text -- and the figure is chosen now, square, circle, diamond, triangle,
+hexagon or star, in the node properties popover, remembered as the topic's
+default and saved per node as `node_shape`. The toolbar's toggle became a
+`nodes` select; the labels toggle is enabled on figures only. Consumer i18n
+keys `nodes`, `full`, `compact`, `expand node`, `collapse node`, `hexagon`,
+`star`; `closed nodes`, `open node`, `close node` gone.
 
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
