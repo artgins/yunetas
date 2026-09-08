@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
+
+`kernel/js/gobj-ui` -> 7.23.74 and `yunos/js` -> both SPAs on `^7.23.74`.
+Two loose ends of the `7.23.73` review, found reviewing the review.
+
+**The body of a focused chip wore a state it does not own.** The body is the
+show/hide toggle of its topic, and that is what its `aria-pressed` says; the
+focus belongs to the crosshair next to it, which is the button that looks
+pressed. `7.23.73` painted the body with `pressed_state` as well, so the eye
+and a screen reader read two different states off one button -- and the
+count, `has-text-grey` by Bulma's `!important`, sat grey on the near-black of
+the pressed look, at 2.7:1 against the 4.5:1 a text needs. The focused chip
+now carries an inset ring (`GRAPH_LEGEND_FOCUSED`) and repaints nothing in
+it. The header of `treedb_layout.js` also said two layouts and two adapters;
+there are three of each since `7.23.70`.
+
 ### A review of the graph and authz rounds (gobj-ui 7.23.73)
 
 `kernel/js/gobj-ui` -> 7.23.73 and `yunos/js` -> both SPAs on `^7.23.73`.
