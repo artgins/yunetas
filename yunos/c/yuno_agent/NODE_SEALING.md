@@ -301,6 +301,15 @@ here is a candidate for promotion to Tier 1:
   `core_pattern`/apport, certbot renewals, nginx/openresty reload.
 - Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
   binaries). `upgrade-node` does not do this.
+- **Setting a user's password in the IdP** (2026-09-08). `C_IDP_KEYCLOAK` can
+  create an account (`register-idp-user`) and mail it an invitation, but no
+  agent or yuno command sets a password: a test identity with a KNOWN password
+  (the read-only `claudia_user@artgins.com` of yunovatios) was created by
+  running the Keycloak admin API **from the node**, with the provisioner
+  secret the yuno keeps in its persistent attrs — the secret never left the
+  box, but the operation was a shell on the node. Either an
+  `set-idp-user-password` command joins `C_IDP_KEYCLOAK` (Tier 1) or this
+  stays a break-glass operation.
 - Upgrading **the agent binary**. The agent is a standalone daemon, not a
   managed yuno: `update-binary` does not reach it, and it is restarted with
   `yuneta_agent --config-file=<json> --stop` then `--start`. The intended
