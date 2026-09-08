@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### A review of the graph and authz rounds (gobj-ui 7.23.73)
+
+`kernel/js/gobj-ui` -> 7.23.73 and `yunos/js` -> both SPAs on `^7.23.73`.
+Three findings of a review of the `7.23.66`-`7.23.72` round; the backend
+half of the same review lives in the yunovatios repo.
+
+**The treedb layouts died on a deep tree.** `layout_tree`, `layout_radial`
+and `layout_outline` walked the spanning tree with recursion -- the natural
+way to write it, and the one the data breaks: a self-referent hook (a place
+inside a place inside a place) is as deep as the store says, and the stack
+is not. A chain of 20000 nodes answered `RangeError: Maximum call stack size
+exceeded`, and a graph that cannot be drawn is not a layout choice, it is an
+exception in the console. The five walks share one `walk_order()` now --
+parent before child, so it reads forwards for a pre-order pass and backwards
+for a post-order one -- and the new test was first made to FAIL on the old
+code, which is the only way a regression test is worth having.
+
+**A state was painted with a colour of the palette.** The focused chip, the
+focused crosshair, the shown loose records and the chosen main topic each
+paired a STATE with `is-primary`/`is-warning` -- exactly what
+`set_pressed_state()` was written against in `7.23.12`, where every colour of
+that palette names a KIND of action, so a state wearing one reads as a
+category. Same lesson, the other strip.
+
+**And the legend said its topic names at 0.75rem.** `7.23.69` raised the
+GLYPHS of the chips out of `is-small` and left the name and the count behind,
+the name being the thing a layer control is read for. The button stays small
+so the strip keeps its height; the label comes up inside it, the way the
+glyphs did.
+
 ### A treedb form could not SAVE, and a user could not be given a role (gobj-ui 7.23.71 + 7.23.72)
 
 `kernel/js/gobj-ui` -> 7.23.72 and `yunos/js` -> gui_treedb `0.17.28` /
