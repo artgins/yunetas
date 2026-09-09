@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.113)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.115)
 
-`kernel/js/gobj-ui` -> 7.23.113, `yunos/js` -> both SPAs on `^7.23.113`,
+`kernel/js/gobj-ui` -> 7.23.115, `yunos/js` -> both SPAs on `^7.23.115`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -241,6 +241,18 @@ the label, because `refresh_dev_chrome()` repaints those chips from
 chip is a glyph span plus a labelled span, because `refresh_language()`
 replaces the FIRST text node of the element carrying `data-i18n` and
 would have eaten the glyph with the word.
+
+**And the schema editor's forms had no NAMES** (`7.23.114`, `7.23.115`):
+`field()` draws Bulma's shape, where the `<label>` is a SIBLING of the
+control with no `for` and no wrapping — so it named the box for the eye
+and for nothing else, and a reader announced every input of the column and
+topic forms as unlabelled. The name is put on the control from the label's
+own key, in `field()` and not field by field. It took two goes: the first
+named the outer tag, and `select_input()` returns Bulma's
+`<div class="select"><select>`, so every SELECT stayed anonymous while the
+inputs beside them were fixed — measured on a deployed schema. It descends
+now. The flag checkboxes are NOT a defect: each sits inside its own
+`<label>`, which IS its name.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
