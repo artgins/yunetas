@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.102)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.103)
 
-`kernel/js/gobj-ui` -> 7.23.102, `yunos/js` -> both SPAs on `^7.23.102`,
+`kernel/js/gobj-ui` -> 7.23.103, `yunos/js` -> both SPAs on `^7.23.103`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -110,6 +110,22 @@ standing in for them looks pressed like any other button. ARIA follows the
 element rather than the look: `aria-pressed` on the strip's buttons,
 `aria-current` on the menu item, `aria-current="date"` on the picked cell
 -- the widget carried none of the three.
+
+And then the unification turned out to have unified one thing too many
+(`7.23.103`): a TOGGLE and a SELECTOR are not the same control, and the
+pressed pill was answering a question only one of them asks. A toggle is
+on or off -- no *which one* -- and keeps the neutral pill. A selector
+picks ONE of N, and there the eye reads a row of identical grey buttons
+by HUE, not by comparing shades, so the chosen segment is FILLED with the
+link colour (`selected_state`, beside the pressed pair in the toolbar
+module). Measured against the button's own ground the fill is 5.14:1 in
+light and 3.53:1 in dark -- less luminance than the pill (9.44 / 8.46)
+and a different hue, which is what says *this one, of these*. Filled: the
+graph's three node views, the JSON viewer's three, the gclass viewer's
+two switches, the period's granularities and its picked calendar cell,
+and the map's three modes in yunovatios. Still pressed, because they are
+toggles: node labels, the legend's loose and focus buttons, the graph's
+anchor and its selection mode, the alarms view's *active only*.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
