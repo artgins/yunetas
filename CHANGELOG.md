@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.108)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.109)
 
-`kernel/js/gobj-ui` -> 7.23.108, `yunos/js` -> both SPAs on `^7.23.108`,
+`kernel/js/gobj-ui` -> 7.23.109, `yunos/js` -> both SPAs on `^7.23.109`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -179,6 +179,18 @@ shell's dialog a `wide` option for the ones that hold a document: 640px is
 a width for a question with two buttons, and at that width the viewer
 wrapped every long value and pushed its own view switch behind the
 toolbar's arrow.
+
+**And the wheel means one thing now, in all three graphs** (`7.23.109`).
+`C_G6_NODES_TREE` has scrolled on the wheel since 7.23.75 while
+`C_YUI_JSON_GRAPH` and `C_YUI_GOBJ_TREE_JS` went on zooming with it — the
+same gesture with two meanings in graphs a reader has open side by side,
+and the JSON viewer is reached from inside the other two. The pair moves
+to `yui_graph_camera.js`, where the rest of the camera vocabulary already
+lives, with its two traps beside it: the scroll's `enable` and the zoom's
+`trigger` must name the SAME key (a G6 trigger is a CHORD), and the zoom
+carries `animation: false`, which the treedb graph was the only one
+missing. Measured in the demo on all three: a plain wheel leaves the zoom
+untouched and moves the drawing, Ctrl + wheel goes 100% → 150%.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
