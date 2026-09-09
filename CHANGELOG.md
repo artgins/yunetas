@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.104)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.106)
 
-`kernel/js/gobj-ui` -> 7.23.104, `yunos/js` -> both SPAs on `^7.23.104`,
+`kernel/js/gobj-ui` -> 7.23.106, `yunos/js` -> both SPAs on `^7.23.106`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -139,8 +139,21 @@ publishes `EV_CAMERA_CHANGED {zoom, x, y}` when a move settles (700 ms of the
 browser's timer -- a wheel notch, a pinch and a drag each fire
 `aftertransform` many times, and what is worth saving is where the gesture
 ENDED), and `C_YUI_TREEDB_GRAPH` persists it under the view's name like
-`main_topic`. Measured on the deployed gui_treedb: 100% opening, 121% after
-two notches, 121% after F5.
+`main_topic`. 
+It took two more to actually do it, and both are worth keeping. `7.23.104`
+brought the ZOOM back and put the graph somewhere else, because it saved
+G6's `getPosition()` and replayed it with `translateTo()` — which are each
+other's inverse only at zoom 1, a trap this library had already paid for
+once and written down (`yui_graph_place_at()` exists for it). A camera is
+the zoom, a NODE and the viewport pixel that node was on, restored with
+that helper — the same thing the folds keep across a rebuild. Then
+`7.23.106`: the VIEW rebuilt the payload as `{zoom, x, y}` on its way to
+the store, dropping the node, so the engine refused its own camera back.
+Measured on the deployed gui_treedb, with a pan so the framing is nobody's
+default: the same card at x=337 y=152 before and after F5, at 121%. The
+lesson for the next one is the checking, not the arithmetic — 7.23.104 was
+called verified on a zoom readout alone, and the zoom was the half that
+worked.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
