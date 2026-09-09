@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.118)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.120)
 
-`kernel/js/gobj-ui` -> 7.23.118, `yunos/js` -> both SPAs on `^7.23.118`,
+`kernel/js/gobj-ui` -> 7.23.120, `yunos/js` -> both SPAs on `^7.23.120`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -274,6 +274,17 @@ toolbar, because `yui_toolbar.js` asks for those keys and NO consumer had
 defined them. That last one is worth keeping: a key asked for by a module
 the app does not import DIRECTLY can slip past `validate-locales`, which
 is how two of them stayed missing in five apps at once.
+
+**And the last one is Tabulator's own DOM** (`7.23.119`, `7.23.120`): it
+draws one filter box per filterable column and gives it NOTHING — no
+label, no `aria-label`, no placeholder — so the alarms window had five
+anonymous text boxes under Equipo / Nombre / Alarma / Estado /
+Descripción. The name is composed from the column's title, which costs one
+consumer key with an interpolation instead of one per column, and it runs
+on a language change too. It took two goes: the obvious key name,
+`filter column`, ALREADY existed in two apps as that box's placeholder and
+carries no interpolation — so the first version named all five boxes the
+same, which the deployed read caught.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
