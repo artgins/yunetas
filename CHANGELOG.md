@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.107)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.108)
 
-`kernel/js/gobj-ui` -> 7.23.107, `yunos/js` -> both SPAs on `^7.23.107`,
+`kernel/js/gobj-ui` -> 7.23.108, `yunos/js` -> both SPAs on `^7.23.108`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -167,6 +167,18 @@ now: 4.67:1 fill to rim, 12.08:1 rim to canvas, at `lineWidth: 2` — checked
 in the rendered pixels, where the rim is a 2px band with one antialiased
 pixel either side. The colour was never lost, by the way: the figure's fill
 measured exactly the legend chip's RGB. What differed was the treatment.
+
+**A tranger record is a DOCUMENT and is read with the viewer now.** Its
+dialog showed a `<pre>` with a Copy button under it -- a jwt payload with
+its roles and its allowed origins read by scrolling text -- while
+`C_YUI_JSON` sat one gclass away, already hosted by that same view for the
+raw tranger. It gets the whole record, so it never asks for a subtree; one
+viewer at a time, destroyed with the dialog (a viewer left alive holds its
+service NAME and the next record finds it taken). `7.23.108` gives the
+shell's dialog a `wide` option for the ones that hold a document: 640px is
+a width for a question with two buttons, and at that width the viewer
+wrapped every long value and pushed its own view switch behind the
+toolbar's arrow.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
