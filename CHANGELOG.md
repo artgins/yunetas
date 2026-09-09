@@ -2,6 +2,54 @@
 
 ## [Unreleased]
 
+### The same dump on the two yunos (gobj-ui 7.23.123 - 7.23.127)
+
+`kernel/js/gobj-ui` -> 7.23.127, `yunos/js` -> both SPAs on it, and the same
+range in wattyzer and the two yunovatios GUIs.
+
+The deployed-DOM dump of the previous section, run against `gui_agent` and
+`gui_treedb`. **Zero controls without a name in either** -- the shapes the
+sweep chased are gone from this layer -- and two defects that only a dump
+finds, both of them about a name that is right once and wrong afterwards.
+
+**The shell declaration held its keys in Title-Case English.**
+`app_config.json` carries i18n keys as DATA, and nine of them in each app were
+written as English prose. i18next answers an unknown key with the key itself,
+so four toolbar buttons of each app announced themselves as *"Toggle
+language"*, *"Account menu"*, *"Agent Console home"* and *"Toggle dark theme"*
+in a Spanish session, and never changed. They are lower-case keys now -- the
+convention the locale files state in their own header -- and both locales
+define them. `validate-locales` reads the file in both yunos as well now, and
+collects a value only when it LOOKS like a key: one that does not is a literal
+the config carries on purpose (`ES/EN` on the language button, the way `19 px`
+is a readout and not prose).
+
+**Tabulator's row-selection checkbox said *"Select Row"* in every language**,
+and getting that right took four attempts, each one of which the dump refuted:
+
+- `7.23.123` renames it after the render, the way the header filters already
+  were. The formatter hard-codes the label with no locale key and no option.
+- `7.23.124`: the rename was a **silent no-op** -- it reached the table's node
+  with `table.getElement()` and returned quietly when that was not a function,
+  and on a Tabulator INSTANCE it never is: only its Column and Row COMPONENTS
+  carry `getElement()`, the table itself carries `.element`.
+- `7.23.125`: an **empty table renders no body**, so `renderComplete` never
+  fires -- and the one box such a table does draw is the header's. Eight
+  tables were on screen in the schemas window with six boxes and not one row.
+- `7.23.126`: `yui_tabulator_relocalize()` named the boxes BEFORE
+  `setLocale()`, and the re-render that call triggers rebuilds the header, so
+  both names were written onto a header about to be discarded.
+- `7.23.127`, which is the one that holds: **the header is rebuilt far more
+  often than it is built**, so the naming hangs off `columnsLoaded`. A
+  language change runs `setColumns()`, the column chooser runs it, and each
+  rebuild draws a blank box again. `renderComplete` stays for the BODY boxes,
+  which a sort or a page redraws on their own.
+
+That last chain is the lesson of the section: a name put on a widget's DOM is
+not a fact, it is a **race with the next render**, and the only way to know
+which one won is to read the page after the renders that matter -- a language
+change above all.
+
 ### A name for every control, read back from the deployed DOM (gobj-js 7.16.6, gobj-ui 7.23.121 - 7.23.122)
 
 `kernel/js/gobj-js` -> 7.16.6, `kernel/js/gobj-ui` -> 7.23.122, `yunos/js` ->
