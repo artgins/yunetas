@@ -2,6 +2,65 @@
 
 ## [Unreleased]
 
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.97)
+
+`kernel/js/gobj-ui` -> 7.23.97, `yunos/js` -> both SPAs on `^7.23.97`, and
+the same range in wattyzer and the two yunovatios GUIs. It began as a review
+of the treedb graph round and became a sweep of every surface the library
+draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
+an argument, "it looks washed out" does not.
+
+**The review of the graph round** turned up five things (`7.23.84`): the
+legend's chip title carried no i18n key while the strip is only redrawn on
+`EV_LEGEND_STATE`; the engine took the language change from a raw `i18next`
+listener instead of the shell's event; the node, edge and port popovers left
+their PREVIEW standing when dismissed with anything but `cancel`, and the
+next Save wrote it; the wheel's two keys named different gestures, so Cmd +
+wheel did nothing on a Mac; and a port was hit by a radius although it can be
+a square or a diamond. Then `7.23.85`: the colour applied to a CARD lived on
+the live style alone, which on an html card sits under the html -- the first
+repaint rebuilt it from the topic's colour and nothing ever reached
+`__graphs__`.
+
+**The measured part**, surface by surface:
+
+- **Toolbars** (`7.23.86`, `7.23.87`): one row held 16px, 18px and 24px
+  glyphs, because `em` is measured against the button -- `1.5em` is 24px in a
+  plain one, 18 in an `is-small` chip, and a labelled button kept the
+  inherited 16. The size lives once now, in `rem`, in `yui_toolbar.js`, and
+  every view toolbar of the library speaks it.
+- **Brand colours as INK** (`7.23.89`): measured against the scheme
+  background, every raw `--bulma-<name>` fails the 4.5:1 of small text in one
+  scheme or the other -- `link` 3.51 in dark, `warning` 1.75 in light. Eleven
+  sites moved to `-on-scheme`; a FILL keeps the raw token and pairs with
+  `-invert`.
+- **The graph's own drawings** (`7.23.90`, `7.23.91`, `7.23.92`): a card
+  writes on a tint of its own topic colour, where the topic name read 2.47:1;
+  a port is a knob half on that card, and its rim was the same colour
+  darkened 20%; the minimap's blocks were the colour of its own paper (1.61
+  on white); the focus amber was one colour for both schemes (2.15 on white).
+- **The form and the tables** (`7.23.94`): a placeholder is TEXT and Bulma
+  paints it at 30% alpha (2.47 / 1.79) -- it is what says what a box is for.
+  `has-text-grey`, one mid grey for both schemes, is gone from the library.
+- **The shell** (`7.23.95`, `7.23.96`): blue ink on a blue tint in the two
+  places the shell does it, and two dimmed states that WCAG exempts and a
+  reader does not.
+- **The chart** (`7.23.97`) was not a contrast question but a THEME one:
+  `c_yui_uplot.js` had not one reference to a scheme, so uPlot drew a chart
+  for a white page -- axis ink at 1.16:1 on the dark ground, a grid at 1.04,
+  and series named `blue` and `orange`, one of which was always a rumour. And
+  a map label is not text on a page: what is behind it is a tile, so it has a
+  halo now.
+
+Seven options of `C_G6_NODES_TREE` that no host could reach were forwarded on
+the way (`7.23.93`), because the view that creates the engine is what makes
+an option exist.
+
+**Still open, on purpose**: connected / disconnected is told apart by green
+vs red alone, in the map's circles as in its labels. Colour blindness does
+not read that pair, and the answer is a shape or an icon -- a design
+decision, not a measurement.
+
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
 `kernel/js/gobj-ui` -> 7.23.83 and `yunos/js` -> both SPAs on `^7.23.83`.
