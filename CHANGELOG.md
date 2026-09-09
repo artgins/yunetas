@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.103)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.104)
 
-`kernel/js/gobj-ui` -> 7.23.103, `yunos/js` -> both SPAs on `^7.23.103`,
+`kernel/js/gobj-ui` -> 7.23.104, `yunos/js` -> both SPAs on `^7.23.104`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -126,6 +126,21 @@ two switches, the period's granularities and its picked calendar cell,
 and the map's three modes in yunovatios. Still pressed, because they are
 toggles: node labels, the legend's loose and focus buttons, the graph's
 anchor and its selection mode, the alarms view's *active only*.
+
+**And the graph's camera belongs to the reader** (`7.23.104`). A refresh, a
+change of node mode and a new main topic each asked for a full refit, and a
+refit throws away the one thing the reader had decided: those three rebuild
+the CONTENT, and content moving is no reason to move the reader. They hold a
+NODE at its pixel now, with the pair the folds already used
+(`yui_graph_viewport_of` / `yui_graph_place_at`) -- which keeps the zoom,
+because it only translates, and survives a relayout that moves everything.
+It also survives a RELOAD: `C_G6_NODES_TREE` takes a `camera` attr and
+publishes `EV_CAMERA_CHANGED {zoom, x, y}` when a move settles (700 ms of the
+browser's timer -- a wheel notch, a pinch and a drag each fire
+`aftertransform` many times, and what is worth saving is where the gesture
+ENDED), and `C_YUI_TREEDB_GRAPH` persists it under the view's name like
+`main_topic`. Measured on the deployed gui_treedb: 100% opening, 121% after
+two notches, 121% after F5.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
