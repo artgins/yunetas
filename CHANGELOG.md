@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.106)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.107)
 
-`kernel/js/gobj-ui` -> 7.23.106, `yunos/js` -> both SPAs on `^7.23.106`,
+`kernel/js/gobj-ui` -> 7.23.107, `yunos/js` -> both SPAs on `^7.23.107`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -154,6 +154,19 @@ default: the same card at x=337 y=152 before and after F5, at 121%. The
 lesson for the next one is the checking, not the arithmetic — 7.23.104 was
 called verified on a zoom readout alone, and the zoom was the half that
 worked.
+
+**And the graph that looked out of focus was one missing border**
+(`7.23.107`). Two reports, one cause: a card, a pill and a figure are one
+record drawn at three sizes, and they were speaking two colour languages.
+The card is a TINT of the topic colour with the vivid colour around it; the
+figure of `shape` mode was the raw colour filled, ringed by
+`getStrokeColor()` — the same colour darkened 20%, which measures **1.58:1
+against its own fill**. Not a border, a ramp; and twenty-five of them in a
+fan is what reads as a blurred picture. The figure wears the card's paint
+now: 4.67:1 fill to rim, 12.08:1 rim to canvas, at `lineWidth: 2` — checked
+in the rendered pixels, where the rim is a 2px band with one antialiased
+pixel either side. The colour was never lost, by the way: the figure's fill
+measured exactly the legend chip's RGB. What differed was the treatment.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
