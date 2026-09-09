@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.112)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.113)
 
-`kernel/js/gobj-ui` -> 7.23.112, `yunos/js` -> both SPAs on `^7.23.112`,
+`kernel/js/gobj-ui` -> 7.23.113, `yunos/js` -> both SPAs on `^7.23.113`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -228,6 +228,19 @@ re-runs `setColumns()` over the SAME definitions. The other 47 are not
 defects, and knowing why is the useful half: a `title:` handed to a modal
 or a window is an i18n KEY the helper translates, and the G6 plugin
 toolbar is rebuilt whole on a language change.
+
+**And the Developer window, which had no i18n at all** (`7.23.113`): its
+~30 strings — the trace chips, the view and output selectors, the
+direction filters, the search placeholder, copy and clear, the muted row
+and the window's own title — were English literals. A debugging tool is
+still a tool somebody reads. Three details make it RE-translate rather
+than translate once: `TRACE_DEFS` carries the i18n KEY where it carried
+the label, because `refresh_dev_chrome()` repaints those chips from
+`data-label` on every toggle; the two COMPOSED titles are gone, since
+`'Show ' + label + '…'` is a string that is no key; and the `⊘ Periodic`
+chip is a glyph span plus a labelled span, because `refresh_language()`
+replaces the FIRST text node of the element carrying `data-i18n` and
+would have eaten the glyph with the word.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
