@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.110)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.111)
 
-`kernel/js/gobj-ui` -> 7.23.110, `yunos/js` -> both SPAs on `^7.23.110`,
+`kernel/js/gobj-ui` -> 7.23.111, `yunos/js` -> both SPAs on `^7.23.111`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -200,6 +200,18 @@ is the part worth remembering: **a JSON attr is replaced WHOLESALE by a host
 that passes its own**, so a default is a suggestion. The demo passes
 `map_settings` and never saw the first version of the change; the same trap
 the SDK documents for a `crypto` override.
+
+And with the gesture, **maplibre's own words** (`7.23.111`): its zoom
+tooltips, geolocate button, attribution toggle, popup close and that very
+notice were English inside a Spanish app. `yui_maplibre_locale(t)` gives
+the map its `locale` at construction and `yui_maplibre_relocalize(map, t)`
+does the half a locale cannot — maplibre reads its strings ONCE, when each
+control builds its DOM, so a language change has to rewrite what is drawn.
+The notice is also HELD for 2s: maplibre shows it 100ms and fades it for a
+second more, and this GUI has no transitions, so what was left was a blink
+— worse than no notice. That recipe was already solved in yunovatios'
+`yv_map_base.js`, which is where it was found; the library learnt it
+instead of inventing a second one, and the app keeps its own.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
