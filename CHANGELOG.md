@@ -4,9 +4,8 @@
 
 ### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.99)
 
-`kernel/js/gobj-ui` -> 7.23.99, `yunos/js` -> `gui_treedb` on `^7.23.99`
-(`gui_agent` and wattyzer stay on `^7.23.98`, which the caret already
-admits), and `^7.23.99` in the two yunovatios GUIs. It began as a review
+`kernel/js/gobj-ui` -> 7.23.99, `yunos/js` -> both SPAs on `^7.23.99`, and
+the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
 an argument, "it looks washed out" does not.
