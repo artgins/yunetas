@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.97)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.98)
 
-`kernel/js/gobj-ui` -> 7.23.97, `yunos/js` -> both SPAs on `^7.23.97`, and
+`kernel/js/gobj-ui` -> 7.23.98, `yunos/js` -> both SPAs on `^7.23.98`, and
 the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -56,10 +56,16 @@ Seven options of `C_G6_NODES_TREE` that no host could reach were forwarded on
 the way (`7.23.93`), because the view that creates the engine is what makes
 an option exist.
 
-**Still open, on purpose**: connected / disconnected is told apart by green
-vs red alone, in the map's circles as in its labels. Colour blindness does
-not read that pair, and the answer is a shape or an icon -- a design
-decision, not a measurement.
+**And the last thing it left open, closed** (`7.23.98`): connected /
+disconnected was told apart by green vs red alone, in the map's circles as in
+its labels -- the one pair colour blindness does not read, and in greyscale
+two discs are the same disc. A device that is down carries an exclamation
+mark, and a cluster with something down carries it inside its own count
+(`4 !`). It rides in the count's `text-field` and not in a second symbol
+layer on the same point: that is a placement question, and the badge lost it
+-- with the filter removed as well, which is how the placement was told from
+the expression. Verified on both cases, the negative one included: with all
+four devices connected the cluster reads `4` in green.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
