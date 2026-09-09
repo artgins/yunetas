@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.109)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.110)
 
-`kernel/js/gobj-ui` -> 7.23.109, `yunos/js` -> both SPAs on `^7.23.109`,
+`kernel/js/gobj-ui` -> 7.23.110, `yunos/js` -> both SPAs on `^7.23.110`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -191,6 +191,15 @@ lives, with its two traps beside it: the scroll's `enable` and the zoom's
 carries `animation: false`, which the treedb graph was the only one
 missing. Measured in the demo on all three: a plain wheel leaves the zoom
 untouched and moves the drawing, Ctrl + wheel goes 100% → 150%.
+
+**The MAP too** (`7.23.110`): maplibre's `cooperativeGestures`, which never
+blocks a wheel carrying `ctrlKey` — so the trackpad pinch survives — and
+whose own notice teaches the gesture, which a graph has to do without. It
+is set where the map is BUILT and not in the attr's default value, and that
+is the part worth remembering: **a JSON attr is replaced WHOLESALE by a host
+that passes its own**, so a default is a suggestion. The demo passes
+`map_settings` and never saw the first version of the change; the same trap
+the SDK documents for a `crypto` override.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
