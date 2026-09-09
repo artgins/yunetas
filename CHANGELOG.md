@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.100)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.101)
 
-`kernel/js/gobj-ui` -> 7.23.100, `yunos/js` -> both SPAs on `^7.23.100`,
+`kernel/js/gobj-ui` -> 7.23.101, `yunos/js` -> both SPAs on `^7.23.101`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -84,6 +84,22 @@ chip already wears (`box-shadow: inset`, because a chip in a `has-addons`
 group clips a shadow outside its box). The strip now says the two things
 separately: gold star = this is the main topic, ring around it = a reader
 CHOSE it, and pressing hands the choice back to the graph.
+
+And asking why that star was not simply wearing Bulma's `.button.is-active`
+turned up the answer to a different question (`7.23.101`): the library had
+**three spellings for "this toggle is ON"**. The reason was where the rule
+lived -- `pressed_state` sat in `lib_graph.css`, which reaches an app only
+if the app mounts a graph, because a stylesheet rides its JS import. So the
+JSON viewer's view switch had grown a `--bulma-link` fill of its own (a
+STATE wearing a colour that names a kind of ACTION), the gclass viewer's two
+switches wore `is-active` with **no rule behind them anywhere** (1.3:1), and
+yunovatios kept a copy of the rule under a third name, `is-pressed`, with
+the reason written in its `app.css`. The rule and `set_pressed_state()` move
+to `yui_toolbar.js` / `.css`, where a toolbar's toggle belongs
+(`lib_graph.js` re-exports the helper); every one of those sites now says it
+the same way. Bulma's own `is-active`, measured, is a 10-point lightness
+shift -- 1.27:1 light, 1.33:1 dark, against 9.44:1 / 8.46:1 -- and it shares
+its declaration with `:active`, the look of a finger down right now.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
