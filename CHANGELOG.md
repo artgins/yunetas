@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.101)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.102)
 
-`kernel/js/gobj-ui` -> 7.23.101, `yunos/js` -> both SPAs on `^7.23.101`,
+`kernel/js/gobj-ui` -> 7.23.102, `yunos/js` -> both SPAs on `^7.23.102`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -100,6 +100,16 @@ to `yui_toolbar.js` / `.css`, where a toolbar's toggle belongs
 the same way. Bulma's own `is-active`, measured, is a 10-point lightness
 shift -- 1.27:1 light, 1.33:1 dark, against 9.44:1 / 8.46:1 -- and it shares
 its declaration with `:active`, the look of a finger down right now.
+
+`7.23.102` finishes it in `C_YUI_PERIOD`, the last place a STATE wore a
+colour: the granularity in use and the picked calendar cell were an
+`is-link` fill and are pressed now. The overflow granularities keep
+`is-active` and that is the RIGHT call -- those are `dropdown-item` links
+in a menu, where it is Bulma's own mark for the current item; the button
+standing in for them looks pressed like any other button. ARIA follows the
+element rather than the look: `aria-pressed` on the strip's buttons,
+`aria-current` on the menu item, `aria-current="date"` on the picked cell
+-- the widget carried none of the three.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
