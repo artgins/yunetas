@@ -2,10 +2,10 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.99)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.100)
 
-`kernel/js/gobj-ui` -> 7.23.99, `yunos/js` -> both SPAs on `^7.23.99`, and
-the same range in wattyzer and the two yunovatios GUIs. It began as a review
+`kernel/js/gobj-ui` -> 7.23.100, `yunos/js` -> both SPAs on `^7.23.100`,
+and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
 an argument, "it looks washed out" does not.
@@ -76,6 +76,14 @@ while the four stars merely OFFERING to become the main one were bright.
 It survived the sweep because only a CHOSEN main is drawn pressed, and
 `main_topic` is a per-treedb per-user preference -- the same strip reads
 right wherever nobody has picked one.
+
+Making the glyph inherit the pressed ink fixed the ratio and cost the
+COLOUR, which is what the star says -- so `7.23.100` stops drawing that
+star pressed at all: it keeps its gold and wears the ring the focused
+chip already wears (`box-shadow: inset`, because a chip in a `has-addons`
+group clips a shadow outside its box). The strip now says the two things
+separately: gold star = this is the main topic, ring around it = a reader
+CHOSE it, and pressing hands the choice back to the graph.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
