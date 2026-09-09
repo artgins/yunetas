@@ -2,10 +2,11 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.98)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.99)
 
-`kernel/js/gobj-ui` -> 7.23.98, `yunos/js` -> both SPAs on `^7.23.98`, and
-the same range in wattyzer and the two yunovatios GUIs. It began as a review
+`kernel/js/gobj-ui` -> 7.23.99, `yunos/js` -> `gui_treedb` on `^7.23.99`
+(`gui_agent` and wattyzer stay on `^7.23.98`, which the caret already
+admits), and `^7.23.99` in the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
 an argument, "it looks washed out" does not.
@@ -66,6 +67,16 @@ layer on the same point: that is a placement question, and the badge lost it
 -- with the filter removed as well, which is how the placement was told from
 the expression. Verified on both cases, the negative one included: with all
 four devices connected the cluster reads `4` in green.
+
+**One more the sweep did not reach** (`7.23.99`): the legend's star for a
+main topic the reader CHOSE. Its button carries `pressed_state`, which
+inverts the ground, while the glyph kept the gold set INLINE -- and an
+inline colour beats the ink the pressed rule sets with the fill. That one
+star sat on the scheme's own text colour: 1.06:1 in dark, ~2:1 in light,
+while the four stars merely OFFERING to become the main one were bright.
+It survived the sweep because only a CHOSEN main is drawn pressed, and
+`main_topic` is a per-treedb per-user preference -- the same strip reads
+right wherever nobody has picked one.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
