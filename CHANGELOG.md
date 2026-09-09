@@ -2,6 +2,65 @@
 
 ## [Unreleased]
 
+### A name for every control, read back from the deployed DOM (gobj-js 7.16.6, gobj-ui 7.23.121 - 7.23.122)
+
+`kernel/js/gobj-js` -> 7.16.6, `kernel/js/gobj-ui` -> 7.23.122, `yunos/js` ->
+both SPAs on those two, and the same in wattyzer and the two yunovatios GUIs.
+
+The tooltip sweep of the previous section ended on the windows nobody had
+looked at yet -- devices, and whatever was left. The method changed for this
+last stretch, and that is the part worth keeping: a static sweep names the
+SHAPES of the defect, but only the **deployed DOM** says which controls a
+reader can actually name. Dump every `input`/`select`/`textarea`/`button` of a
+window, resolve its accessible name the way a reader does (`aria-label`, then
+`label[for]`, then a wrapping `<label>`, then the text, then `title`, then
+`placeholder`), switch language, and diff. Two things fall out of that dump
+that no source scan produces: a control with NO name, and a name that does not
+change when the language does.
+
+**In the framework**, one line and it explains a class of bugs:
+`refresh_language()` looks its four attributes up with `querySelectorAll`,
+which searches DESCENDANTS and never returns the node it is called on. So a
+caller that hands it the very element carrying the key got the children
+translated and that element's own attribute left in the source language --
+invisible in English, where the key IS the text. It bites where a widget is
+built lazily and translated as a unit: the toolbar's language dropdown opened
+as `role="menu" aria-label="select language"` beside its own trigger reading
+*"Elegir idioma"*.
+
+**In the library** (`7.23.122`): `yui_toolbar()`'s scroll arrows shipped their
+raw i18n KEY, waiting for the host to repaint them -- but a view's toolbar is
+REBUILT on every action it carries, and a host that translates its tree once
+at mount never sees the new arrows. A deployed Spanish map offered *"scroll
+left"*. They go through `t()` where they are built now, and keep their keys so
+a language change still reaches them.
+
+**In wattyzer**: 24 controls with no name at all, and 17 literal
+`aria-label`s. A Bulma `field` puts the `<label>` BESIDE the control, with no
+`for` and no wrapping, so it names the box for the eye and for nothing else;
+the name goes on the control itself, from the label's own KEY, so the two
+cannot drift. Fifteen of the literals sat on buttons that ALSO carry a visible
+i18n label, where the literal overrides the translated text for a reader. Two
+more findings came from the dump alone: a language switch never reached an
+OPEN modal (every modal of that app is appended to the body, and the switch
+repainted only the shell's container), and the brand announced itself as
+*"wattyzer go to root"* in both languages -- `app_config.json` holds i18n keys
+in DATA and nothing asked for them, so `validate-locales` reads it now, the
+way the yunovatios copy already did.
+
+**In yunovatios**: the two census selects of the device card and the
+select-all checkbox of the controllers view had no name; and maplibre labels
+its own chrome in English, never through the app's i18next, so zoom, compass,
+fullscreen, geolocate and the attribution toggle all read English on a Spanish
+map. The map takes `locale: yui_maplibre_locale(t)` at construction --
+maplibre reads it once, when each control builds its DOM -- and
+`yui_maplibre_relocalize()` on a language change, which is the half a `locale`
+alone cannot do. Same open-dialog fix as wattyzer's.
+
+Read back at the end: **zero controls without a name** across eight wattyzer
+windows and seven of central; what still does not change language there is
+treedb DATA (family names, a place), which is right.
+
 ### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.120)
 
 `kernel/js/gobj-ui` -> 7.23.120, `yunos/js` -> both SPAs on `^7.23.120`,
