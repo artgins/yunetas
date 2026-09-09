@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.111)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.112)
 
-`kernel/js/gobj-ui` -> 7.23.111, `yunos/js` -> both SPAs on `^7.23.111`,
+`kernel/js/gobj-ui` -> 7.23.112, `yunos/js` -> both SPAs on `^7.23.112`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -212,6 +212,22 @@ second more, and this GUI has no transitions, so what was left was a blink
 — worse than no notice. That recipe was already solved in yunovatios'
 `yv_map_base.js`, which is where it was found; the library learnt it
 instead of inventing a second one, and the app keeps its own.
+
+**And then the rest of the tooltips** (`7.23.112`), swept for the two
+defects that make one: a `title` written as a literal, and a `title: t(…)`
+with no `data-i18n-title` — translated once and frozen for the life of the
+view. Four real ones out of 51 hits: the FORM's toolbar (`save`, `undo`,
+`clear`, `copy`, `paste`), where the visible label carried its key and the
+title beside it was raw English — so what a pointer reads and what a
+screen reader announces were the untranslated half; the tab CLOSE of
+`C_YUI_NAV`, the same shape; the map's own three controls, which read
+their keys once and showed `maplibre.drag_mark` itself wherever a consumer
+had not defined them; and the treedb table's operations column, titled
+`'Op'`, which takes a `titleFormatter` now because a language change
+re-runs `setColumns()` over the SAME definitions. The other 47 are not
+defects, and knowing why is the useful half: a `title:` handed to a modal
+or a window is an i18n KEY the helper translates, and the G6 plugin
+toolbar is rebuilt whole on a language change.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
