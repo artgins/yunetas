@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.116)
+### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.118)
 
-`kernel/js/gobj-ui` -> 7.23.116, `yunos/js` -> both SPAs on `^7.23.116`,
+`kernel/js/gobj-ui` -> 7.23.118, `yunos/js` -> both SPAs on `^7.23.118`,
 and the same range in wattyzer and the two yunovatios GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
@@ -262,6 +262,18 @@ builds (the treedb record editor, wattyzer's, yunovatios') was unlabelled
 for anything that is not an eye. The name goes on the control from the
 label's own key, in the one place a field is finished — not as an `id`,
 because two forms can be open at once and duplicate ids would break both.
+
+**The graphs window closed it** (`7.23.117`, `7.23.118`), and the last two
+came from READING the deployed toolbar rather than the source: the treedb
+graph's two selects had no name — their rótulo is a `<span>`, and an
+`is-hidden-mobile` one, so on a phone the control says only its current
+value (the other three graphs already named theirs); its refresh button is
+an icon plus an `is-hidden-mobile` label and nothing else; and the
+toolbar's own scroll arrows said `scroll left` in English beside a Spanish
+toolbar, because `yui_toolbar.js` asks for those keys and NO consumer had
+defined them. That last one is worth keeping: a key asked for by a module
+the app does not import DIRECTLY can slip past `validate-locales`, which
+is how two of them stayed missing in five apps at once.
 
 ### Three views of a record, the tree reads down, the wheel scrolls (gobj-ui 7.23.75 - 7.23.83)
 
