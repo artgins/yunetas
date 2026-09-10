@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### A JSON viewer in every SPA, node lists by name (gobj-ui 7.23.143)
+
+`kernel/js/gobj-ui` -> 7.23.143, and the same range in the consumers: a **JSON
+viewer** in the account menu of every SPA -- paste JSON from outside and read it
+with the library's viewer (`setup_json_pad` / `C_YUI_JSON_PAD`) -- and a treedb
+topic table that opens sorted by `id`. yunos-js: the node lists of gui_agent are
+alphabetical, and gui_treedb's About gains the Diagnostics table gui_agent has.
+
 ### `create-config` says a `__version__` must be a string
 
 A config carrying `"__version__": 1` was refused with *"Configuration version
