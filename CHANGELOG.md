@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## v7.19.0 (2026-09-10)
+
 ### The main topic of a treedb: hierarchical, and markable in the schema (gobj-ui 7.23.142)
 
 - **treedb: a schema topic can carry `main_topic: true`** -- the topic the tree
