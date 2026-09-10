@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### The Developer window read in English, and the guard could not see it (gobj-ui 7.23.130)
+
+`kernel/js/gobj-ui` -> 7.23.130, and the vocabulary added in `yunos/js` (both
+SPAs), with accent fixes in wattyzer and the yunovatios GUIs.
+
+The dump pointed at the Developer window. In `gui_agent` and `gui_treedb`,
+**22 of its 32 elements never changed language**: the trace chips, the group
+labels, the view segments, the output titles. The library's markup was already
+right — it has carried the keys on the DOM since `7.23.113`. What was missing
+was the **vocabulary**: 26 keys neither yuno defined, so i18next answered each
+with the key itself and the whole window read in lower-case English beside a
+Spanish shell.
+
+**And it is a blind spot of `validate-locales` — a wide one.** `TRACE_DEFS`,
+the `grp` / `mk_view` / `mk_expand` / `mk_dir` / `mk_out` helpers and the
+`OUT_TITLES` lookup all pass their key as a VARIABLE, so a scan of `t("…")`
+sees **none** of the 46 keys this window asks for and reports OK with the
+window entirely untranslated. The library lists them above `TRACE_DEFS` now,
+for a consumer to copy — and the first version of that list was itself
+incomplete (33 of 46), which the next dump said out loud: collecting by hand
+misses the helpers you forgot you wrote. The list is a convenience; the dump is
+the check.
+
+Along the way, four Spanish words that had lost their accent — *Creacion*,
+*Automata*, *Trafico*, *Periodico* — and three *"Solo"* that need one. They came
+from wattyzer's bundle, where these translations were first written, and
+travelled into every consumer that copied them.
+
+Read back on all five deployed sites: **1 of 32**, and it is *"I18n"*, the same
+word in both languages.
+
 ### The demo had no guard, and it is the app that mounts everything (gobj-ui 7.23.128 - 7.23.129)
 
 `kernel/js/gobj-ui` -> 7.23.129, and the same range in the five consumers.
