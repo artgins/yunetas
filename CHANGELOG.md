@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Back to the treedb graph with its focus (gobj-ui 7.23.140)
+
+`kernel/js/gobj-ui` -> 7.23.140, and the same range in the five consumers.
+The topics view's `graph` button returns to the graph as it was left, its
+focused topic included, through a new shell helper,
+`yui_shell_last_route_under()` (a page-lifetime mirror of the routes visited).
+A node's child spec can now declare `remember_position`, so a config can make
+a treedb node's tabs point at where each workspace was left -- yunovatios
+turns it on for its treedb nodes.
+
 ### The treedb topic cards lose the graph icon and gain the topic's shape (gobj-ui 7.23.139)
 
 `kernel/js/gobj-ui` -> 7.23.139, and the same range in the five consumers. A
