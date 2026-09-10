@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### The JSON viewer compares two documents, and keeps them (gobj-ui 7.23.144)
+
+`kernel/js/gobj-ui` -> 7.23.144: `C_YUI_JSON_PAD` gets a second pane on demand
+and a *compare* that shows the differences of the two documents -- one row per
+id of the flat form (`json2flat` / `flat_diff`), added / removed / changed --
+in place of the viewers. The pasted texts and the layout are kept in
+`localStorage` (`storage_key`), so the pad opens as it was left. gui_agent
+0.22.61 and gui_treedb 0.17.31 take it with the new keys; the gobj-ui demo
+(demo.yuneta.io, niyamaka.com) opens it from its top toolbar too.
+
 ### A JSON viewer in every SPA, node lists by name (gobj-ui 7.23.143)
 
 `kernel/js/gobj-ui` -> 7.23.143, and the same range in the consumers: a **JSON
