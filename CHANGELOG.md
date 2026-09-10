@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### The treedb topics view opens the graph with no focus (gobj-ui 7.23.138)
+
+`kernel/js/gobj-ui` -> 7.23.138, and the same range in the five consumers. A
+`graph` button left of `raw json` opens the whole treedb as a graph with no
+topic highlighted -- the only way in used to be a card's graph icon, which
+always focuses that card's topic. Derived from the host's card route
+template, so gui_treedb, gui_agent and yunovatios get it with no change.
+
 ### The treedb graph: a toolbar in three parts, and never a blank view (gobj-ui 7.23.137)
 
 `kernel/js/gobj-ui` -> 7.23.137, and the same range in the five consumers.
