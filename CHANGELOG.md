@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+### The demo had no guard, and it is the app that mounts everything (gobj-ui 7.23.128 - 7.23.129)
+
+`kernel/js/gobj-ui` -> 7.23.129, and the same range in the five consumers.
+
+The dump run against `demo.yuneta.io`. It is the richest surface in the
+ecosystem -- every gadget of the library is mounted in one page -- and the only
+consumer with **no `validate-locales`**. It came back with **61 controls with
+no name** and 40+ names that never change language, and most of what it found
+lives in the LIBRARY, so it was true in all six apps at once.
+
+**Sixteen literal `aria-label`s on the library's own widgets** (`7.23.129`):
+the pager's back and discard, a window's minimize / maximize / close, the
+dock's close, the breadcrumb nav, the wizard's back and next, the file field's
+choose / remove, the toast's ✕, the modal's back and ✕, the confirm's ✕. Every
+one of them is **icon-only**, so the `aria-label` IS the name — and every one
+was frozen English everywhere. The demo says it in one line: the wizard's back
+button read *"Atrás"* and announced itself as *"back"*.
+
+**Two more shapes from the same dump:** Tom Select HIDES the `<select>` it is
+given and draws its own box in front of it, so naming the original named the
+element nobody can reach (`7.23.128`); and the topic table's row icons — edit
+and delete — had no name at all, written as an HTML string inside a formatter,
+the one place a sweep of `createElement2` specs cannot look. Three search boxes
+had a **placeholder as their only name**, which vanishes the moment something
+is typed; one of them composed it (`t('coordinates') + '...'`), so no key could
+reach it.
+
+**In the demo:** a `validate-locales` of its own, adapted to its inverted
+convention (English is the source, so keys are English prose and only the `es`
+bundle is checked), wired into its build. It found **100+ keys the library asks
+for and the demo never translated**, and three duplicates — one of which was a
+real COLLISION: `window` is the library's label for the dev window's output
+chip AND was the demo's noun for its demo windows; the later one won, so the
+chip read *"ventana"* in lower case. Its table was also a Tabulator with no
+locale at all, which is worth fixing where a consumer copies the recipe from.
+
+**Two blind spots of the guard closed on the way:** a key can arrive through a
+local ALIAS of `t()` — `yui_tabulator_i18n.js` asks for its whole chrome
+through `tr(key, default)`, so a scan of `t(` saw none of it and the paginator
+sat in English with the guard reporting OK — and a key of the demo can carry
+an escaped quote, where `[^"]+` handed back half a key and demanded a
+translation that was already there.
+
+Read back at the end: **zero controls without a name** across sixteen chapters,
+and what still does not change language is the fake schema's field names and
+the graph legend's topics — data, not prose.
+
 ### The same dump on the two yunos (gobj-ui 7.23.123 - 7.23.127)
 
 `kernel/js/gobj-ui` -> 7.23.127, `yunos/js` -> both SPAs on it, and the same
