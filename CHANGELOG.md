@@ -10,6 +10,13 @@ with the library's viewer (`setup_json_pad` / `C_YUI_JSON_PAD`) -- and a treedb
 topic table that opens sorted by `id`. yunos-js: the node lists of gui_agent are
 alphabetical, and gui_treedb's About gains the Diagnostics table gui_agent has.
 
+Then, on the key:value rule (the key of a data record is `id`, the rest is
+value): gui_agent's node rows carry their key in `id` and its trees sort by it
+(0.22.59); the "For TreeDB" connections document gives every record an `id`
+(`<node>^<yuno_id>`) and a `role^name` label, and gui_treedb keeps that `id` on
+import and recognises a connection by it (gui_agent 0.22.60, gui_treedb
+0.17.30).
+
 ### `create-config` says a `__version__` must be a string
 
 A config carrying `"__version__": 1` was refused with *"Configuration version
