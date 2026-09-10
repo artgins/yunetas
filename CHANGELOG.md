@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### The treedb topic cards lose the graph icon and gain the topic's shape (gobj-ui 7.23.139)
+
+`kernel/js/gobj-ui` -> 7.23.139, and the same range in the five consumers. A
+card's graph icon always entered the graph focused on that topic, over what
+the reader had left there; the toolbar's `graph` button is the way in now.
+The card shows instead the topic's version, its number of columns, the topics
+it hangs from and the ones that hang from it -- from the desc, no request.
+
 ### The treedb topics view opens the graph with no focus (gobj-ui 7.23.138)
 
 `kernel/js/gobj-ui` -> 7.23.138, and the same range in the five consumers. A
