@@ -15,6 +15,10 @@ in place of the viewers. The pasted texts and the layout are kept in
 gui_treedb 0.17.32: its About no longer lists the connections -- the
 Diagnostics table keeps the deployment identity and the session.
 
+gui_agent 0.22.62: "For TreeDB" names a production yuno after its production
+node. A local copy carrying the production names resolved to the same url, and
+the export kept the first row -- the development machine, first by host.
+
 ### A JSON viewer in every SPA, node lists by name (gobj-ui 7.23.143)
 
 `kernel/js/gobj-ui` -> 7.23.143, and the same range in the consumers: a **JSON
