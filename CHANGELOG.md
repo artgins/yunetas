@@ -19,6 +19,11 @@ gui_agent 0.22.62: "For TreeDB" names a production yuno after its production
 node. A local copy carrying the production names resolved to the same url, and
 the export kept the first row -- the development machine, first by host.
 
+gui_treedb 0.17.33: Connections has one row per connection (no service rows)
+and its checkbox marks a connection; the Topics / Graphs pickers list only the
+connections connected or marked, each with every service it discovered, and
+the transport asks for all of them in its identity card.
+
 ### A JSON viewer in every SPA, node lists by name (gobj-ui 7.23.143)
 
 `kernel/js/gobj-ui` -> 7.23.143, and the same range in the consumers: a **JSON
