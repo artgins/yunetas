@@ -83,9 +83,11 @@ takes the tree with it.
 (js_setup_json_pad)=
 ## [`setup_json_pad(self)`](https://github.com/artgins/gobj-ui.js/blob/7.23.144/src/yui_json_pad.js#L45)
 
-Opens a blank JSON pad in a window that is not modal. Paste JSON from outside
-the application, and the viewer of the library shows it. It gives the window
-back, or `null` when the window exists already.
+Opens a JSON pad in a window that is not modal. Paste JSON from outside the
+application, and the viewer of the library shows it. A second pane opens on
+demand, and the pad can show the differences of the two documents. The pad
+keeps the pasted texts in `localStorage`, so it opens as it was left. It gives
+the window back, or `null` when the window exists already.
 
 The pad is a pure child of the window, so every path that takes the window down
 takes the pad with it.
