@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### The frontend view, and everything that was left (gobj-ui 7.23.131)
+
+`kernel/js/gobj-ui` -> 7.23.131, and the same range in the five consumers.
+
+The last windows nobody had dumped: the **frontend view**, the **site map**,
+**about**, **preferences**, the five **login screens**, the **overlay layer**
+(a toast and each of the three confirm shapes), and the **yunovatios
+controlador**, the one SPA that had never been read at all.
+
+**One defect, and it is a shape the sweep had not met: an `<option>`.** The
+frontend view's eight layout labels were written into its `LAYOUTS` table and
+put straight on the node, so a language change renamed the select
+(*"disposición"*) and left its options reading *"Vertical compact"*, *"Lanes
+vertical"*, *"Dagre (top → bottom)"*. An `<option>` is text like any other: it
+carries `data-i18n` now, with `value` kept explicit — a translated option with
+no value tells the FSM to enter a layout called *"Vertical compacta"*, which is
+the trap `7.23.13` already paid for once. **And the keys are SHARED with the
+JSON graph's own picker** (`vertical tree`, `dagre top-down`, `dagre
+left-right`): the two graphs sit side by side in the same console, so the same
+layout is called the same thing in both — the toolbar-vocabulary rule, applied
+to a select.
+
+**In wattyzer's login**, the three quick-control `aria-label`s went through
+`t()` with no key on the element, and `paint_i18n` made up for it with a
+hand-written list of three selectors. It works, and it is a list somebody has
+to remember to extend the next time a button lands in that header — so the keys
+go on the elements and the repaint walks the attribute, the way the other three
+SPAs already did.
+
+Read back: **zero controls without a name** in any of them. What still does not
+change language is data (family names, a place, a fake schema's fields), words
+that are the same in both languages (*"No"*, *"I18n"*, *"Topics"*, *"Editor"*)
+and readouts (*"19 px"*).
+
 ### The Developer window read in English, and the guard could not see it (gobj-ui 7.23.130)
 
 `kernel/js/gobj-ui` -> 7.23.130, and the vocabulary added in `yunos/js` (both
