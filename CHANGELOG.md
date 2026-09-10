@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### The treedb graph: a toolbar in three parts, and never a blank view (gobj-ui 7.23.137)
+
+`kernel/js/gobj-ui` -> 7.23.137, and the same range in the five consumers.
+
+- The toolbar reads left to right as build (layout, operation mode), show
+  (fold pair, node views) and ask (find, refresh, raw json).
+- **fix: the graph could open blank**, the tree only in the minimap. The saved
+  camera held the first root of the tree at its pixel even when both were off
+  screen, so a layout that moved slightly left nothing in view. The camera is
+  now saved by the node nearest the middle of the viewport, an off-screen
+  saved camera is not restored, and any placement that leaves no node in view
+  is fitted.
+
 ### A treedb topic keeps its colour (gobj-ui 7.23.136)
 
 `kernel/js/gobj-ui` -> 7.23.136, and the same range in the five consumers.
