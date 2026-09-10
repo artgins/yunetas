@@ -1317,6 +1317,26 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   before using an icon
   (`grep -oE '^\.yi-[a-z0-9-]+::before' src/yui_icons.css`); a missing glyph
   is added as a deliberate mask rule, never referenced on hope.
+- **One icon shape per meaning — never reuse a glyph because it is there.**
+  The shape says what the control does:
+
+  | Shape | Meaning | Icons |
+  |---|---|---|
+  | chevron | opens or closes ONE thing, or scrolls | `yi-chevron-*` (row handle, pill, toolbar scroll, period nav) |
+  | shafted arrow | steps through a sequence, or goes back | `yi-arrow-up/down/left/right` (layout stepper, back) |
+  | tree box | one LEVEL of the whole tree | `yi-square-minus` / `yi-square-plus` (fold stepper) |
+  | double chevron | ALL of it | `yi-angles-down` / `yi-angles-up` (expand / collapse all) |
+
+  **Why:** until gobj-ui `7.23.147` the chevron did four jobs, several in ONE
+  row — the treedb graph's toolbar had four `chevron-down`s (two select
+  carets, next layout, one more level), and "expand all" everywhere was a row
+  handle's chevron rotated 90° by CSS, because it was "the only one
+  available". A new meaning gets its own mask (the paths come from
+  FontAwesome Free, solid; the set already mixes 6.x and 7.x) and never a
+  rotation of an existing one. Before adding a control, look at what else is
+  in the row: two controls with the same shape and different actions is the
+  bug. The native `<select>` caret is a chevron-down too — do not put a
+  chevron-down button beside one.
 
 ### Writing tests against the gobj framework
 
