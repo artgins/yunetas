@@ -12,6 +12,9 @@ in place of the viewers. The pasted texts and the layout are kept in
 0.22.61 and gui_treedb 0.17.31 take it with the new keys; the gobj-ui demo
 (demo.yuneta.io, niyamaka.com) opens it from its top toolbar too.
 
+gui_treedb 0.17.32: its About no longer lists the connections -- the
+Diagnostics table keeps the deployment identity and the session.
+
 ### A JSON viewer in every SPA, node lists by name (gobj-ui 7.23.143)
 
 `kernel/js/gobj-ui` -> 7.23.143, and the same range in the consumers: a **JSON
