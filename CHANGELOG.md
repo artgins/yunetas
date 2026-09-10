@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### A treedb topic keeps its colour (gobj-ui 7.23.136)
+
+`kernel/js/gobj-ui` -> 7.23.136, and the same range in the five consumers.
+The topic palette of the treedb graph and of the schema diagram goes by
+alphabetical order of the topic names instead of the backend's order, which
+varies from load to load, so two topics no longer swap colours. Every topic
+whose colour nobody chose may change colour once with this release; a chosen
+colour is saved and not touched.
+
 ### The treedb graph legend keeps its order (gobj-ui 7.23.135)
 
 `kernel/js/gobj-ui` -> 7.23.135, and the same range in the five consumers.
