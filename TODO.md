@@ -22,6 +22,34 @@ C and JS agree since 7.10.0 (JS aligned in gobj-js `7.10.0`). ESP32 does not:
 The two that matter are the lifetime ones: an event delivered to a destroyed
 gobj is a crash, and on ESP32 nothing stops it today.
 
+## gobj-js: the `kwid_*` id helpers (reviewed 2026-09-10, not yet fixed)
+
+The rule they serve: **the key of a data record is `id`, the rest of the record
+is value** -- a list of records carries `id` in each one, a dict of records is
+keyed by it. The JS helpers in `kernel/js/gobj-js/src/helpers.js` follow it;
+what the review found:
+
+1. **`kwid_find_one_record()` crashes on no data.** `kwid_collect()` answers
+   `null` for a `kw` that is not a list or a dict, and the caller reads
+   `list.length` on it -- a `TypeError`. One caller hands it `webix.data` from a
+   command answer (`c_yui_treedb_topic_with_form.js`).
+2. **`kwid_new_dict()` skips a record without `id` in silence.** C logs it
+   (`KW_REQUIRED`); under the rule a record without `id` is broken and says so.
+3. **`kwid_new_list()` is missing in JS.** C has it: a dict of records becomes a
+   list and each record gets its key written as `id` (overwriting one that
+   differs) -- the normalizing function, and the shape a table indexed and
+   sorted by `id` wants. Port it with the C semantics.
+4. **Comments carried over from C.** `kwid_collect()` promises `JSON_INCREF`
+   clones (JS hands back the same objects); `kwid_new_dict()` says "a new dict"
+   and returns the same one for a dict input (as C does, where "new" is a new
+   reference); `kwid_match_id()` has a Spanish comment.
+
+No test covers any of them. Reach today: `kwid_match_id` / `kwid_collect` only
+inside gobj-js; `kwid_find_one_record`, `kwid_new_dict`, `kwid_get_ids` in five
+gobj-ui files and `lib_treedb.js`; `id_index_in_obj_list` nowhere (leave it,
+it is exported). A gobj-js patch, no signature changes, plus a
+`tests/kwid.test.js`.
+
 ## Schema editing: the admin console
 
 The backend is done (see below for what it still lacks). The client is not, and
