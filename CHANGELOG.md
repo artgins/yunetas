@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### The rule, written down (gobj-ui 7.23.132)
+
+The sweep of the last sections became a **norm**, in the place each reader
+already looks: `CLAUDE.md` here (JS GUI conventions), gobj-ui's `README`
+(Conventions) and `CLAUDE.md`, and the `CLAUDE.md` of `yunos/js`, wattyzer and
+yunovatios.
+
+> **EVERY control carries a `title` AND an `aria-label`, and both are
+> translatable. No exceptions.**
+
+A control is any `input`, `select`, `textarea`, `button` or anything that
+behaves as one; all four attributes are written where the control is built. It
+is a floor, not a preference — the whole ecosystem was measured against it, on
+the deployed page, and the target is zero controls without a name.
+
+The rule carries with it the list of what LOOKS like a name and is not: a
+`<label>` beside the control (Bulma's `field`), a `<label for=x>` over a
+control that carries only `name=x`, a `placeholder`, and the visible text when
+it hides on mobile or says the STATE rather than the action — plus the one
+shape that IS enough, a `<label>` that wraps its control, and the one that is
+worse than nothing, a LITERAL `aria-label` beside a visible `i18n` label,
+which overrides the translated text for a reader.
+
+And the two things no attribute reaches: what a WIDGET draws for itself, named
+after the render and again on every rebuild; and an `<option>`, which is text
+like any other. Ending with the check, which is the part a rule usually
+forgets to say: **not a grep — dump `title`/`aria-label` from the DEPLOYED DOM
+and switch language.**
+
 ### The frontend view, and everything that was left (gobj-ui 7.23.131)
 
 `kernel/js/gobj-ui` -> 7.23.131, and the same range in the five consumers.

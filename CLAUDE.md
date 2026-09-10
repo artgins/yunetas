@@ -1212,6 +1212,51 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   trace the FSM exists to feed. Pass an IDENTITY instead (`{key, mode}`, an
   id) and resolve it to the object inside the action — it also makes the trace
   line readable.
+- **EVERY control carries a `title` AND an `aria-label`, and both are
+  translatable. No exceptions.** A control is any `input`, `select`,
+  `textarea`, `button` or anything that behaves as one. Write all four
+  attributes at the point the control is built:
+
+  ```js
+  ['button', {class: 'FOO_SAVE button',
+              title: t('save'),      'data-i18n-title': 'save',
+              'aria-label': t('save'), 'data-i18n-aria-label': 'save'}, …]
+  ```
+
+  This is a floor, not a preference, and it is the rule the whole ecosystem was
+  swept against: **zero controls without a name**, on the deployed page, in all
+  six SPAs. The three things it exists to stop, each of which shipped:
+
+  - **A label is not a name.** Bulma's `field` puts the `<label>` BESIDE the
+    control — no `for`, no wrapping — so it names the box for the eye and for
+    nothing else; and `<label for=x>` matched against a control carrying only
+    `name=x` looks right in the source and associates nothing. A `<label>` that
+    WRAPS its control does name it, and is the one shape that needs no
+    `aria-label`.
+  - **A placeholder is not a name** either: it disappears the moment something
+    is typed, and a reader is not obliged to announce it.
+  - **A visible label is not enough**, because it disappears: a button whose
+    text is in an `is-hidden-mobile` span is a bare icon on a phone. And where
+    the visible text is the STATE (`on`/`off`, `validated`/`pending`), the
+    `aria-label` is what says what the control DOES — so it must be there, and
+    it must be a `t()` with its key. A LITERAL `aria-label` beside a visible
+    `i18n` label is worse than none: it OVERRIDES the translated text for a
+    reader.
+
+  Two corollaries. What a WIDGET draws for itself carries no attribute anyone
+  can set — Tabulator's header filters and its row-selection checkbox, Tom
+  Select's box in front of the `<select>` it hides — so it is named after the
+  render, and again on every rebuild (`columnsLoaded`, `renderComplete`). And
+  an `<option>` is text like any other: it carries `data-i18n`, with `value`
+  kept explicit, or a translated option tells the FSM to enter a mode that does
+  not exist.
+
+  **The check is not a grep**: dump `title`/`aria-label` from the DEPLOYED DOM,
+  resolve each control's name the way a reader does, then switch language and
+  diff. A key that arrives as a VARIABLE — from a data table, a helper's
+  argument, a local alias of `t()` — is invisible to `validate-locales`, and a
+  name written onto a widget's DOM is a race with the next render. Both are
+  found only by reading the page.
 - **Every text goes through i18n — and must be able to CHANGE language.**
   Passing a string through `t()` once is NOT enough: `refresh_language()` only
   re-translates a node that **carries its key**, so anything composed at render
@@ -1255,9 +1300,10 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   longest locale — never measure at runtime:** the width depends on the
   language (`raw json` vs `JSON crudo`), so a measured rule shows text in
   English and icons in Spanish in the same toolbar, and flips shape on
-  `EV_LANGUAGE_CHANGED`. Always set `title` + `aria-label` (they carry the
-  icon-only case, and screen readers need them either way), and verify against
-  the real stylesheet — jsdom does not load Bulma, so it cannot catch this.
+  `EV_LANGUAGE_CHANGED`. The `title` + `aria-label` are mandatory here as
+  everywhere (see the rule above) — icon-only is simply the case where they
+  are the ONLY name. Verify against the real stylesheet — jsdom does not load
+  Bulma, so it cannot catch this.
   Canonical pair: `C_YUI_TREEDB_TOPICS`'s toolbar never holds more than two
   buttons, so its labels stay on mobile (a deliberate, commented exception);
   `C_YUI_TREEDB_GRAPH`'s has many more and keeps `is-hidden-mobile`.
