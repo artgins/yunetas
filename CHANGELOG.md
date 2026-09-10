@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### The treedb graph: reset to default, from every menu (gobj-ui 7.23.134)
+
+`kernel/js/gobj-ui` -> 7.23.134, and the same range in the five consumers.
+
+- **Node, port and edge menus each offer three resets** -- this one, its kind
+  (topic nodes, topic ports, edges of the same type) and all. A reset forgets
+  the saved value, the element's own and the defaults of its scope, so the
+  library's default comes back: a figure saved as a square returns to the
+  circle. The node reset shows in every view; no reset moves a node. It
+  replaces `reset sizes` / `reset topic sizes`.
+- **fix: a Save froze the default style of every edge between two topics.**
+  Any line width but 2 was saved, and the default for such an edge is 1.6, so
+  each Save wrote them all down with their theme's colour (no more re-theming
+  after a reload, no topic default reaching them). An edge is saved now only
+  where it differs from what it inherits. `reset all edges` clears what the
+  old Save froze.
+- Six new i18n keys, added in gui_agent, gui_treedb, wattyzer and yunovatios.
+
 ### The treedb graph: one outline, no browser menu, a way back (gobj-ui 7.23.133)
 
 `kernel/js/gobj-ui` -> 7.23.133, and the same range in the five consumers.
