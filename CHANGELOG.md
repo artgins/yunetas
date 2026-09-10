@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### The treedb graph legend keeps its order (gobj-ui 7.23.135)
+
+`kernel/js/gobj-ui` -> 7.23.135, and the same range in the five consumers.
+The legend's topic chips are in alphabetical order, always: starring a topic
+as the main one no longer moves the strip, and the backend's order -- not the
+same from one load to the next -- no longer decides where a chip sits.
+
 ### The treedb graph: reset to default, from every menu (gobj-ui 7.23.134)
 
 `kernel/js/gobj-ui` -> 7.23.134, and the same range in the five consumers.
