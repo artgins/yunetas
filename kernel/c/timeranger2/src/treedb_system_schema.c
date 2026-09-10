@@ -85,6 +85,7 @@
             │  tkey                     │   │
             │* topic_version            │   │
             │  system_topic             │   │
+            │  main_topic               │   │
             │                           │   │
             │  _geometry                │   │
             └───────────────────────────┘   │
@@ -118,7 +119,7 @@
 char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '17',                             \n\
+    'schema_version': '18',                             \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -189,7 +190,7 @@ char treedb_system_schema[]= "\
             'id': 'topics',                             \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '7',                       \n\
+            'topic_version': '8',                       \n\
             'system_topic': true,                       \n\
             'pkey2s': 'value',                          \n\
             'cols': {                                   \n\
@@ -293,6 +294,15 @@ char treedb_system_schema[]= "\
                 },                                      \n\
                 'system_topic': {                       \n\
                     'header': 'System Topic',           \n\
+                    'fillspace': 6,                     \n\
+                    'type': 'boolean',                  \n\
+                    'flag': [                           \n\
+                        'writable',                     \n\
+                        'persistent'                    \n\
+                    ]                                   \n\
+                },                                      \n\
+                'main_topic': {                         \n\
+                    'header': 'Main Topic',             \n\
                     'fillspace': 6,                     \n\
                     'type': 'boolean',                  \n\
                     'flag': [                           \n\

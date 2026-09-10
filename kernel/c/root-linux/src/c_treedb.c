@@ -1413,14 +1413,16 @@ PRIVATE json_t *build_topic_projection(
     const char *system_flag = kw_get_str(gobj, jn_topic, "system_flag", "sf_string_key", 0);
     json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
     BOOL system_topic = kw_get_bool(gobj, jn_topic, "system_topic", 0, 0);
+    BOOL main_topic = kw_get_bool(gobj, jn_topic, "main_topic", 0, 0);
 
-    json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b}",
+    json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I, s:b, s:b}",
         "value", topic_name,
         "pkey", pkey,
         "system_flag", system_flag,
         "tkey", tkey,
         "topic_version", (json_int_t )topic_version,
-        "system_topic", system_topic
+        "system_topic", system_topic,
+        "main_topic", main_topic
     );
     if(!kw_topic) {
         gobj_log_error(gobj, 0,

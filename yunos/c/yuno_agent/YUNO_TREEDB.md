@@ -884,7 +884,7 @@ schema is stored **as ordinary treedb data**:
 treedbs   ── id, schema_version, c_schema_version,
              system_schema_version ──hook topics──▶
 topics    ── id (<treedb>.<topic>), value, order, pkey, pkey2s, system_flag,
-             tkey, topic_version, system_topic ──hook cols──▶
+             tkey, topic_version, system_topic, main_topic ──hook cols──▶
 cols      ── id (<topic id>.<column>), value, order, header, fillspace, type,
              placeholder,
              flag, enum, template, hook, pkey2s, default,
@@ -894,6 +894,16 @@ cols      ── id (<topic id>.<column>), value, order, header, fillspace, type
 Its schema is `treedb_system_schema.c`, and it is the reason a schema can be
 read, listed and edited at runtime with the same `nodes` / `create-node` /
 `update-node` commands as any other data — no new command surface.
+
+**`main_topic: true` marks the topic the tree of a treedb hangs from** (SDK
+7.19). A viewer uses it: the treedb graph opens its tree from it, and the
+schema editor shows it as a gold star. Only a topic **hooked to itself**
+(places inside places) can carry it, and only one per treedb:
+`treedb_open_db()` logs either mistake and ignores the mark. It lives in the
+schema and not in the store, so it is stamped in memory on every open, needs
+no `topic_version`, and travels in `tranger2_topic_desc()` (the `desc` /
+`descs` commands) together with `system_topic`. Without a mark the graph
+deduces the trunk: the hierarchical topic that reaches the most other topics.
 
 **`topics` and `cols` are keyed by the QUALIFIED name, and the bare one
 lives in `value`.** A name is unique only inside its parent: two topics with

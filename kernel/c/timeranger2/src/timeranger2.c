@@ -1931,6 +1931,11 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
      *  secondary key. A viewer that only gets the pkey can do nothing
      *  but print the rowid. Absent keys are skipped by kw_clone_by_path,
      *  so a topic without secondary keys is unaffected.
+     *
+     *  So do the two marks a topic can carry beyond its columns:
+     *  `system_topic` (it cannot be deleted) and `main_topic` (the tree
+     *  of the treedb hangs from it, stamped by treedb_open_db from the
+     *  schema). A viewer draws both, and neither is readable from `cols`.
      */
     const char *fields[] = {
         "topic_name",
@@ -1939,6 +1944,8 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
         "tkey",
         "system_flag",
         "topic_version",
+        "system_topic",
+        "main_topic",
         0
     };
 

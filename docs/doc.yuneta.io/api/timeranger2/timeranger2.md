@@ -1639,6 +1639,8 @@ The description is a projection of the topic, not the topic itself:
 | `tkey` | The column that carries the time, if the topic declares one. |
 | `system_flag` | The system flag the topic was created with. |
 | `topic_version` | The version of the topic schema. |
+| `system_topic` | `true` when the topic cannot be deleted. |
+| `main_topic` | `true` on the topic the tree of a treedb hangs from, as the schema marks it (a topic hooked to itself, one per treedb; stamped by `treedb_open_db()`). |
 | `cols` | The column descriptors, as a list. |
 
 A key the topic does not carry is omitted rather than returned empty, so a

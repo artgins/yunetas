@@ -42,6 +42,11 @@ GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UNLINKED);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE BOOL topic_hooks_itself(
+    hgobj gobj,
+    json_t *schema_topic,   // not owned
+    const char *topic_name
+);
 PRIVATE int load_id_callback(
     json_t *tranger,
     json_t *topic,
@@ -1071,6 +1076,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *------------------------------*/
     int idx;
     json_t *schema_topic;
+    const char *main_topic_marked = NULL;
     json_array_foreach(jn_schema_topics, idx, schema_topic) {
         const char *topic_name = kw_get_str(gobj, schema_topic, "topic_name", "", 0);
         if(empty_string(topic_name)) {
@@ -1116,7 +1122,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *pkey2s = kw_get_dict_value(gobj, schema_topic, "pkey2s", 0, 0);
         BOOL system_topic = kw_get_bool(gobj, schema_topic, "system_topic", 0, 0);
 
-        if(!treedb_create_topic(
+        json_t *topic = treedb_create_topic( // WARNING Return is NOT YOURS
             tranger,
             treedb_name,
             topic_name,
@@ -1127,7 +1133,43 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             snap_tag,
             system_topic,
             FALSE // create_schema
-        )) {
+        );
+        if(topic) {
+            /*
+             *  The topic the tree of this treedb hangs from, for a viewer
+             *  (it travels in tranger2_topic_desc). The schema marks ONE,
+             *  and only a topic hooked to itself can be it. It lives in the
+             *  schema and not in the store, so it is stamped on every open
+             *  and needs no topic_version -- and cleared first, so a mark
+             *  taken out of the schema does not survive a re-open.
+             */
+            json_object_del(topic, "main_topic");
+            if(kw_get_bool(gobj, schema_topic, "main_topic", 0, 0)) {
+                if(main_topic_marked) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "Schema marks more than one main_topic, the first one is kept",
+                        "treedb_name",  "%s", treedb_name,
+                        "topic_name",   "%s", topic_name,
+                        "main_topic",   "%s", main_topic_marked,
+                        NULL
+                    );
+                } else if(!topic_hooks_itself(gobj, schema_topic, topic_name)) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB,
+                        "msg",          "%s", "main_topic marks a topic that is not hooked to itself, ignored",
+                        "treedb_name",  "%s", treedb_name,
+                        "topic_name",   "%s", topic_name,
+                        NULL
+                    );
+                } else {
+                    json_object_set_new(topic, "main_topic", json_true());
+                    main_topic_marked = topic_name;
+                }
+            }
+        } else {
             /*
              *  A topic of the schema that could not be created is a treedb
              *  that is not the one the schema describes: said with the
@@ -12772,4 +12814,35 @@ PUBLIC json_t *create_template_record(
     JSON_DECREF(kw)
 
     return new_record;
+}
+
+/***************************************************************************
+ *  Whether a topic of a schema is hooked to ITSELF: some hook column maps
+ *  the topic's own name (places inside places). Only such a topic can be
+ *  the `main_topic` of a treedb -- the one its tree hangs from.
+ ***************************************************************************/
+PRIVATE BOOL topic_hooks_itself(
+    hgobj gobj,
+    json_t *schema_topic,   // not owned
+    const char *topic_name
+)
+{
+    BOOL hooked = FALSE;
+    json_t *cols = kwid_new_list(gobj, schema_topic, KW_VERBOSE, "cols");
+
+    int idx; json_t *col;
+    json_array_foreach(cols, idx, col) {
+        json_t *flag = json_object_get(col, "flag");
+        if(!flag || !kw_has_word(gobj, flag, "hook", 0)) {
+            continue;
+        }
+        json_t *hook = json_object_get(col, "hook");
+        if(json_is_object(hook) && json_object_get(hook, topic_name)) {
+            hooked = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(cols)
+
+    return hooked;
 }

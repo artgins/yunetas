@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### The main topic of a treedb: hierarchical, and markable in the schema (gobj-ui 7.23.142)
+
+- **treedb: a schema topic can carry `main_topic: true`** -- the topic the tree
+  of the treedb hangs from, for a viewer. Only a topic hooked to itself can be
+  it, and one per treedb: `treedb_open_db()` logs either mistake and ignores
+  the mark. It is schema metadata, stamped in memory on every open (no
+  `topic_version`, nothing in the store's `topic_var`).
+- **`tranger2_topic_desc()` returns `system_topic` and `main_topic`** too, so
+  the `desc` / `descs` commands carry both marks to a viewer. Neither is
+  readable from `cols`, and until now neither reached one.
+- **The meta-schema (`treedb_system_schema`) goes to 18**: the `topics` topic
+  (version 8) gains a `main_topic` column, and the projector of `C_TREEDB`
+  writes it. Raising the meta-schema re-projects every treedb of a node on its
+  next start -- the designed path, nothing to do by hand.
+- `kernel/js/gobj-ui` -> 7.23.142: the treedb graph's main topic can only be a
+  hierarchical topic (the reader's pick, else the schema's mark, else the one
+  reaching the most others -- the agent's treedb is drawn from `realms` now,
+  not from `yunos`); it opens on the first level; the schema editor edits and
+  checks the mark.
+
 ### Back to the treedb graph with its focus (gobj-ui 7.23.140)
 
 `kernel/js/gobj-ui` -> 7.23.140, and the same range in the five consumers.

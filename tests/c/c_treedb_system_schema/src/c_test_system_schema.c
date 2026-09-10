@@ -97,8 +97,9 @@ typedef struct _PRIVATE_DATA {
 } PRIVATE_DATA;
 
 /***************************************************************************
- *  Client schema: two topics, one of them marked system_topic, so the
- *  round-trip of that flag is covered too.
+ *  Client schema: three topics, one of them marked system_topic and the
+ *  self-referent one (`fidelity`) marked main_topic, so the round-trip of
+ *  both flags is covered too.
  ***************************************************************************/
 PRIVATE char schema_test1[] = "\
 {                                                                   \n\
@@ -166,6 +167,7 @@ PRIVATE char schema_test1[] = "\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'topic_version': 1,                                     \n\
+            'main_topic': true,                                     \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Id',                                 \n\
@@ -475,6 +477,63 @@ PRIVATE json_t *client_topic_cols(hgobj gobj, const char *topic_name)
 }
 
 /***************************************************************************
+ *  The two marks a topic carries beyond its columns reach a viewer: the
+ *  desc (`desc` / `descs`) of `fidelity`, the self-referent topic the
+ *  schema marks, says `main_topic`; the one of `departments` says
+ *  `system_topic` and nothing about the tree.
+ ***************************************************************************/
+PRIVATE int check_main_topic_desc(hgobj gobj)
+{
+    int result = 0;
+    hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
+    if(!gobj_client_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: client treedb service not found",
+            "treedb_name",  "%s", TREEDB_NAME,
+            NULL
+        );
+        return -1;
+    }
+
+    const char *topics[] = {"fidelity", "departments", "users", 0};
+    for(int i = 0; topics[i]; i++) {
+        json_t *desc = gobj_topic_desc(gobj_client_node, topics[i]);
+        if(!desc) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: topic desc not found",
+                "topic_name",   "%s", topics[i],
+                NULL
+            );
+            result += -1;
+            continue;
+        }
+        BOOL main_topic = kw_get_bool(gobj, desc, "main_topic", 0, 0);
+        BOOL system_topic = kw_get_bool(gobj, desc, "system_topic", 0, 0);
+        BOOL main_expected = strcmp(topics[i], "fidelity")==0? TRUE:FALSE;
+        BOOL system_expected = strcmp(topics[i], "departments")==0? TRUE:FALSE;
+        if(main_topic != main_expected || system_topic != system_expected) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: topic desc does not carry the topic marks",
+                "topic_name",   "%s", topics[i],
+                "main_topic",   "%d", (int)main_topic,
+                "system_topic", "%d", (int)system_topic,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(desc)
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  The id of a topic by its name: `topics` is keyed by the qualified name
  *  and holds the bare one in `value`, so a topic is addressed the same way
  *  a column is.
@@ -667,6 +726,19 @@ PRIVATE int check_system_treedb(hgobj gobj)
         int idx; json_t *topic;
         json_array_foreach(topics, idx, topic) {
             const char *id = kw_get_str(gobj, topic, "value", "", 0);
+            BOOL main_topic = kw_get_bool(gobj, topic, "main_topic", 0, 0);
+            BOOL main_expected = strcmp(id, "fidelity")==0? TRUE:FALSE;
+            if(main_topic != main_expected) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: main_topic not preserved in __system__",
+                    "topic_name",   "%s", id,
+                    "main_topic",   "%d", (int)main_topic,
+                    NULL
+                );
+                result += -1;
+            }
             BOOL system_topic = kw_get_bool(gobj, topic, "system_topic", 0, 0);
             BOOL expected = strcmp(id, "departments")==0? TRUE:FALSE;
             if(system_topic != expected) {
@@ -1640,6 +1712,7 @@ PRIVATE int run_tests(hgobj gobj)
 
     result += check_system_treedb(gobj);
     result += check_column_fidelity(gobj);
+    result += check_main_topic_desc(gobj);
     result += check_schema_order(gobj, jn_schema);
 
     json_t *cols_before = client_topic_cols(gobj, "users");
