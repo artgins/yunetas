@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### The treedb graph: one outline, no browser menu, a way back (gobj-ui 7.23.133)
+
+`kernel/js/gobj-ui` -> 7.23.133, and the same range in the five consumers.
+
+- **The `shape` view wears the outline of the other two.** A figure was drawn
+  with a line width of 2 and never less, while the card and the pill wear 1.
+  It wears 1 now, or the width somebody chose, and it is a **circle** by
+  default instead of a square. The node popover saves a figure only when it was
+  changed, so applying a colour no longer freezes the default one on the node.
+- **The browser's menu never opens over the graph.** G6's context-menu plugin
+  cancels the event @antv/g synthesises from `pointerdown`, not the DOM's
+  `contextmenu`, so a right click on an edge or on the canvas opened the
+  browser's menu. The container cancels it; a popover's form field keeps it.
+- **An edge has a menu** in edition mode (`edge properties`, `unlink`), and a
+  port out of edition gets its node's menu instead of an empty one.
+- **The port menu gains the way back**: `reset port`, `reset topic ports`,
+  `reset all ports`. New i18n keys, added in gui_agent, gui_treedb, wattyzer
+  and yunovatios.
+
 ### The rule, written down (gobj-ui 7.23.132)
 
 The sweep of the last sections became a **norm**, in the place each reader
