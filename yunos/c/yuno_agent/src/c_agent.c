@@ -3856,26 +3856,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     /*
      *  NEW: get version and description from config file
-     *
-     *  A version that is THERE but not a string (`"__version__": 1`) is said
-     *  as such: read with kw_get_str() it is an empty string, and the answer
-     *  used to be "version is required" for a file that plainly carries one.
      */
-    json_t *jn_version = json_object_get(jn_config, "__version__");
-    if(jn_version && !json_is_string(jn_version)) {
-        JSON_DECREF(jn_config);
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf(
-                "%s: Configuration __version__ must be a string",
-                gobj_yuno_role_plus_name()
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
     const char *version = kw_get_str(gobj, jn_config, "__version__", "", 0);
     const char *description = kw_get_str(gobj, jn_config, "__description__", "", 0);
     if(empty_string(version)) {
@@ -3883,7 +3864,10 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Configuration version is required"),
+            json_sprintf(
+                "%s: Configuration __version__ is required, as a string",
+                gobj_yuno_role_plus_name()
+            ),
             0,
             0,
             kw  // owned

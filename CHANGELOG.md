@@ -4,14 +4,13 @@
 
 ### `create-config` says a `__version__` must be a string
 
-`create-config` read the version with `kw_get_str()`, which gives an empty
-string for a number, so a config carrying `"__version__": 1` was refused with
-*"Configuration version is required"* -- for a file that plainly has one --
-and the agent logged *"path MUST BE a json str"* with a stack trace, the
-severity of a broken internal invariant, for an operator's file. The type is
-checked first now, and the answer says what is wrong. Found when
-`yunetas sync-configs` picked up a data file of yunovatios' batches (renamed
-there with the `_` prefix of the other data files).
+A config carrying `"__version__": 1` was refused with *"Configuration version
+is required"* -- for a file that plainly has one: `kw_get_str()` gives the
+default for a number (and logs *"path MUST BE a json str"*, which names the
+cause). The answer now says *"Configuration __version__ is required, as a
+string"*, with the yuno identity in front. Found when `yunetas sync-configs`
+picked up a data file of yunovatios' batches (renamed there with the `_`
+prefix of the other data files).
 
 ## v7.19.0 (2026-09-10)
 
