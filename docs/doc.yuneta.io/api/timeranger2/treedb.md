@@ -612,6 +612,9 @@ topics are created with `system_topic = TRUE`. See
 [`treedb_set_node_immutable()`](<#treedb_set_node_immutable>) for marking
 individual records (rather than whole topics) non-deletable.
 
+There is no parameter for the main topic. That mark comes only from the
+schema that [`treedb_open_db()`](<#treedb_open_db>) reads.
+
 ---
 
 (treedb_delete_instance)=
@@ -1225,6 +1228,22 @@ A JSON dictionary representing the opened tree database inside `tranger`. The re
 Make sure that `tranger` is already initialized before calling [`treedb_open_db()`](<#treedb_open_db>).
 The function follows a hierarchical structure where nodes are linked via parent-child relationships.
 If the `persistent` option is enabled, the schema is loaded from a file, and modifications require a version update.
+
+**The main topic.** A schema topic can carry `'main_topic': true` (since
+7.19.0). The mark names the topic that the tree of the treedb hangs from.
+Viewers use it: the treedb graph of gobj-ui opens its tree from this topic.
+Two rules apply:
+
+- Only a topic with a hook to itself can carry the mark (for example, places
+  inside places).
+- Only one topic in each treedb can carry the mark.
+
+If a mark breaks a rule, [`treedb_open_db()`](<#treedb_open_db>) logs an error
+and ignores that mark. With two marks, the first one stays. The mark is not
+kept in the store: the function sets it in memory on each open, so it needs no
+`topic_version` bump. A mark that you remove from the schema is gone at the
+next open. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends the mark
+to clients, together with `system_topic`.
 
 ---
 

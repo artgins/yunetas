@@ -492,6 +492,18 @@ Six things to notice:
 6. **`hook` field on the parent** points at *(child topic, child fkey
    name)*. Rebuilt in-memory at load time.
 
+Two optional topic keys are not in the example, because `yunos` needs
+neither:
+
+- **`system_topic: true`** — the topic cannot be deleted, not even with
+  `force`. See §3.10.
+- **`main_topic: true`** — the topic that the tree of the treedb hangs from
+  (since 7.19.0). Viewers use it: the treedb graph opens its tree from this
+  topic. Only a topic with a hook to **itself** can carry the mark (places
+  inside places), and only one topic per treedb. `treedb_open_db()` logs a
+  mark that breaks a rule and ignores it. The mark needs no `topic_version`
+  bump. See §3.11.
+
 ### 3.3 Column types and flags
 
 Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.19.0/kernel/c/timeranger2/src/tr_treedb.c). Common
