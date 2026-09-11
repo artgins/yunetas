@@ -1261,9 +1261,9 @@ PRIVATE json_t *move_schema_node(
  *  children, so a column left behind would end up orphaned under an id
  *  nothing points at any more.
  *
- *  This runs right before a re-projection, which is what the
- *  `system_schema_version` bump that introduced the qualified key
- *  triggers on every store, once.
+ *  This runs when the store was written with an older meta-schema
+ *  (`system_schema_version`), before the projection is read. It moves ids
+ *  and re-projects nothing.
  *
  *  Return the number of nodes moved, or -1.
  ***************************************************************************/
@@ -1590,25 +1590,13 @@ PRIVATE int upsert_treedb_schema(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_int_t c_schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
-
     /*
-     *  `schema_version` says what this schema is worth to treedb_open_db, and
-     *  whoever edits it here raises it. `c_schema_version` says which version
-     *  of the C literal this projection came from, and only this function
-     *  writes it: without that second number the two lines share one counter,
-     *  an edit made here silently outranks every later release of the literal,
-     *  and nothing says so.
-     *
-     *  A re-projection must also outrank whatever is already published, or the
-     *  persisted schema file — which may sit at the edited version — keeps
-     *  masking it.
+     *  The literal's own number, as it is: the version is published by
+     *  whoever changes the schema, never invented here. `c_schema_version`
+     *  records which literal this projection came from, for diff-schema.
      */
+    json_int_t c_schema_version = kw_get_int(gobj, kw, "schema_version", 1, KW_WILD_NUMBER);
     json_int_t schema_version = c_schema_version;
-    if(current) {
-        json_int_t stored = kw_get_int(gobj, current, "schema_version", 0, KW_WILD_NUMBER);
-        schema_version = (stored > c_schema_version? stored: c_schema_version) + 1;
-    }
 
     json_t *kw_treedb = json_pack("{s:s, s:I, s:I, s:I}",
         "id", treedb_name,
@@ -1724,35 +1712,36 @@ PRIVATE int upsert_treedb_schema(
         json_decref(jn_cols);
 
         /*
-         *  A topic's version cannot go BACKWARDS on a re-projection, for the
-         *  same reason `schema_version` cannot: the literal's number may be
-         *  lower than what has already been published, and tranger2 keeps the
-         *  persisted topic_cols.json whenever the incoming version is not
-         *  higher. Writing the literal's number verbatim left a re-projection
-         *  that fixed the columns in __system__ and never reached the topic.
-         *
-         *  And only a topic that MOVED is raised: the treedb opens from this
-         *  projection, so a raised topic_version rewrites that topic's
-         *  topic_cols.json and topic_var.json in the client store too. A
-         *  release that changed one topic used to raise all of them.
+         *  A topic is published by raising ITS version, the same rule
+         *  tranger2 applies to topic_cols.json, and the number is the
+         *  literal's as it is. A topic the literal did not raise is left as
+         *  it is stored, dynamic edits included — said when the literal
+         *  declares something else, because a column changed in C without
+         *  a higher topic_version is the classic change that reaches nothing.
          */
         if(current_topic) {
             json_int_t stored_topic_version = kw_get_int(
                 gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
             );
-            BOOL moved = json_array_size(kw_cols) > 0 ||
-                stored_topic_version < topic_version ||
-                projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL);
-            if(!moved) {
+            if(topic_version <= stored_topic_version) {
+                if(json_array_size(kw_cols) > 0 ||
+                    projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL)
+                ) {
+                    gobj_log_info(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_INFO,
+                        "msg",              "%s", "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
+                        "treedb_name",      "%s", treedb_name,
+                        "topic_name",       "%s", topic_name,
+                        "topic_version",    "%d", (int)topic_version,
+                        "stored_version",   "%d", (int)stored_topic_version,
+                        NULL
+                    );
+                }
                 JSON_DECREF(kw_cols)
                 json_decref(kw_topic);
                 continue;
             }
-            if(stored_topic_version > topic_version) {
-                topic_version = stored_topic_version;
-            }
-            topic_version += 1;
-            json_object_set_new(kw_topic, "topic_version", json_integer(topic_version));
         }
 
         json_t *topic;
@@ -1860,8 +1849,13 @@ PRIVATE int upsert_treedb_schema(
  *
  *  Same rule treedb_open_db applies between that schema and the persisted
  *  schema file: the stored one wins on ties, and the incoming one has to be
- *  strictly newer to take over. So raising `schema_version` is what publishes
- *  a change, whichever side made it.
+ *  strictly newer to take over. The version is published by whoever changes
+ *  the schema — the author of the literal, or an editor working on
+ *  __system__ — and nobody else invents one.
+ *
+ *  So a literal BEHIND the schema in use is not applied. That is the schema
+ *  being changed dynamically, which is a decision, not an accident: a new
+ *  installation that has to carry those changes takes them into the literal.
  ***************************************************************************/
 PRIVATE int reconcile_treedb_schema(
     hgobj gobj,
@@ -1887,34 +1881,14 @@ PRIVATE int reconcile_treedb_schema(
         return upsert_treedb_schema(gobj, treedb_name, jn_schema, NULL);
     }
 
-    /*
-     *  Compare against the version of the LITERAL this projection came from,
-     *  never against `schema_version` — that one belongs to whoever edits the
-     *  schema here, and comparing against it would let one edit outrank every
-     *  later release of the literal. Stores projected before `c_schema_version`
-     *  existed fall back to it.
-     */
     json_t *stored_treedb = json_array_get(stored, 0);
     json_int_t stored_version = kw_get_int(
         gobj,
         stored_treedb,
-        "c_schema_version",
+        "schema_version",
         0,
         KW_WILD_NUMBER
     );
-    if(stored_version == 0) {
-        stored_version = kw_get_int(gobj, stored_treedb, "schema_version", 0, KW_WILD_NUMBER);
-    }
-
-    /*
-     *  A projection is a function of two things: the literal it came from and
-     *  the meta-schema that says how a schema is stored. Comparing only the
-     *  literal froze a projection made by an older SDK forever — and an older
-     *  SDK is exactly the one whose projection may be missing what it did not
-     *  know how to store yet (`enum` and `template` were). An absent field
-     *  reads as 0, so a projection made before this existed re-projects on the
-     *  next start, which is how those losses heal.
-     */
     json_int_t stored_meta = kw_get_int(
         gobj,
         stored_treedb,
@@ -1924,8 +1898,45 @@ PRIVATE int reconcile_treedb_schema(
     );
     JSON_DECREF(stored)
 
+    /*
+     *  A projection written with an older meta-schema may still be keyed by
+     *  rowid, and the qualified key cannot live beside it (see
+     *  migrate_schema_ids_to_qualified). That is STRUCTURE, and it moves.
+     *  Nothing is re-projected for a meta-schema change, though: the schema
+     *  in use may be a dynamic one, and a projection of the literal would
+     *  overwrite it.
+     */
+    if(stored_meta < priv->system_schema_version) {
+        json_t *legacy = gobj_node_tree(
+            priv->gobj_node_system,
+            "treedbs",
+            json_pack("{s:s}", "id", treedb_name),
+            json_object(),
+            gobj
+        );
+        if(!legacy) {
+            return -1;  // Error already logged
+        }
+        int moved = migrate_schema_ids_to_qualified(gobj, treedb_name, legacy);
+        JSON_DECREF(legacy)
+        if(moved < 0) {
+            return -1;  // Error already logged
+        }
+    }
+
     json_int_t new_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
-    if(new_version <= stored_version && priv->system_schema_version <= stored_meta) {
+    if(new_version <= stored_version) {
+        if(new_version < stored_version) {
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "TreeDB schema from C is behind the schema in use, not applied",
+                "treedb_name",      "%s", treedb_name,
+                "schema_version",   "%d", (int)new_version,
+                "stored_version",   "%d", (int)stored_version,
+                NULL
+            );
+        }
         return 0;
     }
 
@@ -1938,26 +1949,6 @@ PRIVATE int reconcile_treedb_schema(
     );
     if(!current) {
         return -1;  // Error already logged
-    }
-
-    /*
-     *  A projection made before the key was qualified has to move first:
-     *  the upsert below addresses every node by the qualified id, so what
-     *  it cannot find it creates, and the two would be the same topic
-     *  twice. Moving changes the tree, so read it again afterwards.
-     */
-    if(migrate_schema_ids_to_qualified(gobj, treedb_name, current) > 0) {
-        JSON_DECREF(current)
-        current = gobj_node_tree(
-            priv->gobj_node_system,
-            "treedbs",
-            json_pack("{s:s}", "id", treedb_name),
-            json_object(),
-            gobj
-        );
-        if(!current) {
-            return -1;  // Error already logged
-        }
     }
 
     gobj_log_info(gobj, 0,
@@ -2290,9 +2281,9 @@ PRIVATE json_t *get_client_treedb_schema(
      *  (`use_internal_schema`) to open from the literal instead, and with it
      *  an edit made in __system__ reached nothing until every yuno's config
      *  was changed one by one. It distinguishes nothing now: the projection
-     *  is seeded from the literal and re-made whenever the literal or the
-     *  projector moves ahead, so opening from it IS opening from the literal
-     *  until somebody edits it — which is the whole point.
+     *  is seeded from the literal and re-made whenever the literal moves
+     *  ahead, so opening from it IS opening from the literal until somebody
+     *  edits it — which is the whole point.
      *
      *  The literal is still the fallback, for a projection that cannot be
      *  rebuilt into a valid schema.
@@ -2576,14 +2567,13 @@ PRIVATE int diff_node_attrs(
  *  from C in memory, with the same builders the projector uses, and compares
  *  node by node.
  *
- *  The version stamps are NOT compared as content: `schema_version` and
- *  `topic_version` are raised BY the projector (a re-projection publishes
- *  under `max(stored, literal) + 1`, the topic version only of a topic that
- *  moved), so they differ after one and would bury the differences somebody
- *  actually made. What is reported is
- *  the anomaly: a projection that came from a release of the schema other
- *  than the one running, and a topic whose stored version is BEHIND the
- *  schema's — meaning the re-projection never reached it.
+ *  The version stamps are NOT compared as content: they are raised by
+ *  whoever publishes a change (the literal, or an edit made in __system__),
+ *  so after an edit they differ by design and would bury the differences
+ *  somebody actually made. What is reported is the anomaly: a projection
+ *  that came from a release of the schema other than the one running, and a
+ *  topic whose stored version is BEHIND the schema's — the literal raised it,
+ *  but its treedb's `schema_version` was not, so it was never published.
  *
  *  Return the summary, or NULL. Return is YOURS.
  ***************************************************************************/
@@ -2698,7 +2688,7 @@ PRIVATE json_t *diff_treedb_schema(
 
         /*
          *  A stored topic_version BEHIND the schema's means the projection
-         *  never reached this topic; ahead is what a re-projection does.
+         *  never reached this topic; ahead is what a dynamic edit does.
          */
         json_int_t stored_topic_version = kw_get_int(
             gobj, stored_topic, "topic_version", 0, KW_WILD_NUMBER

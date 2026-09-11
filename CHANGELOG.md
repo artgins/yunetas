@@ -2,33 +2,53 @@
 
 ## [Unreleased]
 
-### A schema re-projection raises only the topics that moved
+### Treedb schema versions: published by whoever changes the schema, never invented
 
-`C_TREEDB`'s projector (`upsert_treedb_schema()`) raised the `topic_version`
-of EVERY topic, and rewrote every topic and column node in `__system__`, each
-time a schema's `schema_version` went up — even when one topic changed. It
-went further than `__system__`: the treedb opens from the projection, so every
-topic of the store got its `topic_cols.json` and `topic_var.json` rewritten
-too (the agent's store had all five topics one number above its literal). Now a
-column node is written only if it is new or the literal changes it, and a
-topic is written and raised only if the topic or one of its columns changed.
-The comparison is `diff-schema`'s own (`diff_node_attrs()`), read from the side
-of the write: an attribute only `__system__` holds does not count, because an
-update does not remove it. The function's header already said *"update what
-moved"*; the loop now does that. `test_c_treedb_system_schema` checks it (the
-untouched `departments` keeps its version across a re-projection) and its
-expected log loses the two re-creations of `departments`.
+The model, as it always was meant to be: a schema is changed either from the
+C literal (raise the changed topic's `topic_version`, and the treedb's
+`schema_version` when the runtime must use it) or dynamically from an editor
+(gui_agent, ytreedb), which raises both on save. The runtime takes a version
+only if it is HIGHER than the one on disk. A literal behind a dynamic schema
+stays behind: the schema is now changed dynamically, and a new installation
+that must carry those changes takes them into the literal.
+
+`C_TREEDB`'s projector had broken both halves since 2026-08-12 (`98aa51bb8`,
+`5889972f7`), and it is restored:
+
+- **Reconciliation compares the literal with the stored `schema_version`**,
+  not with `c_schema_version`. A literal that is not higher is not applied;
+  if it is behind, the log says *"TreeDB schema from C is behind the schema in
+  use, not applied"*. A new literal used to overwrite a dynamic schema.
+- **Numbers are the literal's, as they are.** The projector published under
+  `max(stored, literal) + 1`, for EVERY topic of every re-projection. Because
+  the treedb opens from the projection, those numbers reached the store's
+  `topic_var.json` / `topic_cols.json`: a store drifted from its literal
+  although nobody had edited anything (the local agent store ended with all
+  five topics and the schema one number ahead).
+- **A topic is published by its own version.** Inside a projection a topic is
+  written only if it is new or the literal raised its `topic_version`, and of
+  its columns only those that are new or changed (`diff-schema`'s comparison).
+  A topic the literal changed without raising its version is left as it is,
+  with *"Topic from C differs from the one in use, but its topic_version is not
+  higher: not applied"*.
+- **A meta-schema change re-projects nothing**: the schema in use may be a
+  dynamic one. Only the structural move of rowid ids to qualified ones still
+  runs, for a store written with an older meta-schema.
+
+`test_c_treedb_system_schema` follows the model: versions land verbatim, an
+untouched topic keeps its version, a literal behind an edit is not applied and
+one ahead of it is, and a column changed without raising its topic is not
+published (and `diff-schema` reports it). Stores that drifted under the old
+rule stay ahead of their literal until it passes them, or are reinstalled.
 
 ### The agent's schema marks `realms` as its main topic
 
-`treedb_schema_yuneta_agent.c`: `realms` carries `'main_topic': true`, and
-`schema_version` goes 23 -> 24. Nothing changes in what a viewer draws:
+`treedb_schema_yuneta_agent.c`: `realms` carries `'main_topic': true`, published
+the way any change to a topic is: its `topic_version` goes 7 -> 8 and the
+treedb's `schema_version` 23 -> 24. Nothing changes in what a viewer draws:
 `realms` is the only topic of the agent's treedb hooked to itself, so the graph
-already deduced it. The mark is there as the reference example of the key. The
-`schema_version` bump is what makes it reach an existing store: the treedb is
-opened `persistent`, and the persisted schema file wins over a literal that is
-not strictly newer. `YUNO_TREEDB.md` §3.2 / §3.11 and the `treedb_open_db()`
-notes now say so, with the example.
+already deduced it. The mark is there as the reference example of the key.
+`YUNO_TREEDB.md` §3.2 / §3.11 and the `treedb_open_db()` notes show it.
 
 ### The treedb graph's find box only looks (gobj-ui 7.23.158)
 

@@ -117,10 +117,12 @@ static int register_yuno_and_more(void)
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
-            "{s:s},"                                    /* literal newer than an edited projection */
+            "{s:s}, {s:s},"                             /* a literal behind an edit: not applied */
+            "{s:s},"                                    /* a literal ahead of the edit */
             "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
+            "{s:s}, {s:s}, {s:s},"                      /* a topic whose version did not move */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
-            "{s:s}, {s:s},"                             /* the legacy projection moves */
+            "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
@@ -148,17 +150,22 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
+            "msg", "Re-Creating TreeDB schema file",
             "msg", "Updating TreeDB schema in __system__",
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
+            "msg", "Updating TreeDB schema in __system__",
+            "msg", "Topic from C differs from the one in use, but its topic_version is not higher: not applied",
+            "msg", "Re-Creating TreeDB schema file",
             "msg", "Value not in enum",
             "msg", "Value not in enum",
             "msg", "Schema topic pkey must be 'id'",
             "msg", "Node already exists",
             "msg", "Topic already has a column with this name",
             "msg", "TreeDB schema ids moved to qualified names",
-            "msg", "Updating TreeDB schema in __system__",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
             "msg", "Creating topic",

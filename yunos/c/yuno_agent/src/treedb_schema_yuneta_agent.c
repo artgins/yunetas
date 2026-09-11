@@ -153,7 +153,7 @@ static char treedb_schema_yuneta_agent[]= "\
             'id': 'realms',                                         \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '7',                                   \n\
+            'topic_version': '8',                                   \n\
             'pkey2s': '',                                           \n\
             'main_topic': true,                                     \n\
             'cols': {                                               \n\

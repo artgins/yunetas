@@ -501,9 +501,9 @@ neither:
   (since 7.19.0). Viewers use it: the treedb graph opens its tree from this
   topic. Only a topic with a hook to **itself** can carry the mark (places
   inside places), and only one topic per treedb. `treedb_open_db()` logs a
-  mark that breaks a rule and ignores it. The mark needs no `topic_version`
-  bump, but an existing treedb sees it only after a `schema_version` bump.
-  See §3.11.
+  mark that breaks a rule and ignores it. Like any change to a topic, the
+  mark is published by raising the `topic_version` of that topic, and the
+  `schema_version` of the treedb when the runtime must use it. See §3.11.
 
 An example of the mark, as a C schema literal. Places hold places, and each
 place holds devices:
@@ -986,17 +986,17 @@ read, listed and edited at runtime with the same `nodes` / `create-node` /
 schema editor shows it as a gold star. Only a topic **hooked to itself**
 (places inside places) can carry it, and only one per treedb:
 `treedb_open_db()` logs either mistake and ignores the mark. It lives in the
-schema and not in the store, so it is stamped in memory on every open, needs
-no `topic_version`, and travels in `tranger2_topic_desc()` (the `desc` /
-`descs` commands) together with `system_topic`. Without a mark the graph
+schema and not in the topic files of the store, so it is stamped in memory on
+every open, and travels in `tranger2_topic_desc()` (the `desc` / `descs`
+commands) together with `system_topic`. Without a mark the graph
 deduces the trunk: the hierarchical topic that reaches the most other topics.
 
-**To add or remove the mark in an existing treedb, raise `schema_version`.**
-A treedb service opens its treedb with the `persistent` option, and then the
-persisted schema file wins unless the C literal has a strictly higher
-`schema_version` (§3.5). Without that bump, the mark reaches only a new
-store. The agent's own schema is the reference: `realms` carries the mark,
-and the agent raised `schema_version` 23 → 24 to publish it.
+**The mark is a change to its topic, and it is published like one:** raise
+the `topic_version` of that topic and, when the runtime must use it, the
+`schema_version` of the treedb (see *A version is published by whoever
+changes the schema*, below). The agent's own schema is the reference:
+`realms` carries the mark at `topic_version` 8, in a treedb at
+`schema_version` 24.
 
 **`topics` and `cols` are keyed by the QUALIFIED name, and the bare one
 lives in `value`.** A name is unique only inside its parent: two topics with
@@ -1024,7 +1024,8 @@ every lookup a linear scan over `value`, and — because a rowid pkey has no
 update — an editor saving a column appended a second one instead of changing
 it. `migrate_schema_ids_to_qualified()` in
 [`c_treedb.c`](https://github.com/artgins/yunetas/blob/7.19.0/kernel/c/root-linux/src/c_treedb.c) moves a projection made that way, node by node, content
-and all, on the re-projection that the meta-schema bump triggers.
+and all, when a store written with an older meta-schema is opened. That
+moves ids and re-projects nothing.
 
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
@@ -1079,21 +1080,40 @@ interchangeable:
 | `c_schema_version` | only the projection | which version of the C literal this projection came from |
 | `system_schema_version` | only the projection | which version of the **meta-schema** produced it |
 
-The third one exists because a projection is a function of two things: the
-literal, and the meta-schema that says how a schema is stored and projected.
-Comparing only the literal froze a projection made by an older SDK forever —
-and an older SDK is exactly the one whose projection may be missing what it did
-not know how to store yet. So raising the meta-schema's own `schema_version` is
-the lever that **re-projects every store on the next start**, and it moves when
-the projector changes even if no field does.
+A change of the meta-schema re-projects **nothing**. The schema in use can be
+a dynamic one, and a projection of the literal overwrites it. Only
+structure moves: when a store was written with an older meta-schema, its
+rowid ids move to qualified ones.
 
-Reconciliation compares the literal against **`c_schema_version`**. Sharing one
-counter would mean that the first edit made here — which has to raise
-`schema_version` to reach the treedb at all — silently outranks every later
-release of the literal, and nothing would say so. A re-projection also
-publishes under `max(stored, literal) + 1`, or the persisted schema file,
-sitting at the edited number, would keep masking it. Stores projected before
-`c_schema_version` existed fall back to `schema_version`.
+**A version is published by whoever changes the schema, and nobody else
+invents one.** There are two ways to change a schema:
+
+- **From the C literal.** Change a topic and raise the `topic_version` of
+  that topic. When the runtime must use the change (maybe not yet), raise
+  the `schema_version` of the treedb too.
+- **Dynamically**, from an editor (gui_agent, ytreedb). The editor raises
+  both versions on save, the change reaches the disk, and the yuno works
+  with it.
+
+Reconciliation compares the literal's `schema_version` with the stored one.
+A higher literal is projected, with its own numbers. A literal that is
+behind a dynamic schema is **not applied** — the schema is now changed
+dynamically, which is a decision — and the log says so: *"TreeDB schema from
+C is behind the schema in use, not applied"*. A new installation that must
+carry the dynamic changes takes them into the literal. Inside a projection,
+a topic is written only if it is new or the literal raised its
+`topic_version`. A topic that the literal changed without raising its
+version is left as it is, with a log line: *"Topic from C differs from the
+one in use, but its topic_version is not higher: not applied"*.
+`c_schema_version` only records which literal the projection came from, for
+`diff-schema`.
+
+Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
+compared the literal with `c_schema_version`, so a new literal overwrote a
+dynamic schema. And it published under `max(stored, literal) + 1`, for every
+topic of every re-projection: because the treedb opens from the projection,
+those numbers reached `topic_var.json` and `topic_cols.json`, and a store
+drifted from its literal although nobody had edited anything.
 
 **Reconciling is an upsert — nothing is ever deleted.** A delete is the one
 destructive primitive of the store: it drops the schema's own history (the
@@ -1106,24 +1126,16 @@ side effect of an upgrade. The one exception is the move to qualified ids,
 which has to retire an address the store can no longer reach a node by, and
 runs once per store.
 
-**A re-projection writes only what moved.** A column node is written only if
-it is new or the literal changes it. A topic node is written, and its
-`topic_version` raised, only if the topic or one of its columns changed. The
-comparison is the one `diff-schema` uses: an attribute that exists only in
-`__system__` does not count, because an update does not remove it. This
-matters beyond `__system__`: the treedb opens from the projection, so a raised
-`topic_version` rewrites that topic's `topic_cols.json` and `topic_var.json`
-in the store. Up to 7.19.0, every re-projection raised every topic. For
-example, the agent's schema went 23 → 24 to add `main_topic` to `realms`: now
-only `realms` goes up, and `yunos`, `binaries`, `configurations` and
-`public_services` keep their `topic_version`.
+**A published topic writes only the columns that changed.** A column node is
+written only if it is new or the literal changes it. The comparison is the
+one `diff-schema` uses: an attribute that exists only in `__system__` does
+not count, because an update does not remove it.
 
 **`diff-schema` says what the projection holds that C does not.** Nothing
-deletes, and a re-projection publishes under a version of its own, so the three
-numbers above tell you that *something* was published and never *what*: a
-`treedbs` node at `schema_version` 24 with `c_schema_version` 23 is the shape of
-an operator edit **and** the shape of a plain re-projection. The command tells
-the two apart. It is a command of `C_TREEDB`, the service that owns
+deletes, and a version says that *something* was published, never *what*: a
+`treedbs` node at `schema_version` 24 with `c_schema_version` 23 was edited in
+`__system__`, but the numbers do not say what changed. The command tells
+what. It is a command of `C_TREEDB`, the service that owns
 `__system__`:
 
 ```bash
@@ -1168,9 +1180,9 @@ no `Apply` could ever settle**. The projection is deliberately not filled with
 defaults instead — it is what the projector UPSERTS, so a default written there
 would overwrite the value an operator set by hand.
 
-And the version stamps are not compared as content — the projector raises them
-itself — so only the anomaly is reported: a projection that came from a
-different release, or a topic the re-projection never reached.
+And the version stamps are not compared as content — whoever publishes a
+change raises them — so only the anomaly is reported: a projection that came
+from a different release, or a topic the re-projection never reached.
 
 The command compares against the schema the treedb was **opened** with, kept in
 memory for that purpose, so it can only answer for a treedb opened with one. A

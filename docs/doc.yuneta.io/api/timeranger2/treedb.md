@@ -1240,19 +1240,19 @@ Two rules apply:
 
 If a mark breaks a rule, [`treedb_open_db()`](<#treedb_open_db>) logs an error
 and ignores that mark. With two marks, the first one stays. The mark is not
-kept in the store: the function sets it in memory on each open, so it needs no
-`topic_version` bump. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends
-the mark to clients, together with `system_topic`.
+kept in the topic files of the store: the function sets it in memory on each
+open. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends the mark to
+clients, together with `system_topic`.
 
 A non-master open reads the mark from the persisted schema file, like the rest
 of the schema, so a reader that is not the master sees it too. A tool that
 opens the topics with timeranger2 only (`tr2list`) does not see it: the mark is
 not in `topic_desc.json` or `topic_var.json`.
 
-With the `persistent` option, the persisted schema file wins unless `jn_schema`
-has a strictly higher `schema_version`. So, to add or remove the mark in an
-existing treedb, raise `schema_version`. Without that bump, the function reads
-the old schema file and the change reaches only a new store.
+The mark is a change to its topic, and it is published like one: raise the
+`topic_version` of that topic and, when the runtime must use it, the
+`schema_version` of the treedb. With the `persistent` option, the persisted
+schema file wins unless `jn_schema` has a strictly higher `schema_version`.
 
 Example — the agent's schema marks `realms`, which holds its sub-realms
 through the fkey `parent_realm_id`
@@ -1265,7 +1265,7 @@ through the fkey `parent_realm_id`
             'id': 'realms',                                         \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '7',                                   \n\
+            'topic_version': '8',                                   \n\
             'pkey2s': '',                                           \n\
             'main_topic': true,                                     \n\
             'cols': {                                               \n\
