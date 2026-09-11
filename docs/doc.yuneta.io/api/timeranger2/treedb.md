@@ -1217,7 +1217,7 @@ json_t *treedb_open_db(
 | `tranger` | `json_t *` | A reference to the `tranger` instance managing the database. |
 | `treedb_name` | `const char *` | The name of the tree database to open. |
 | `jn_schema` | `json_t *` | A JSON object defining the schema of the tree database. This parameter is owned by the function. |
-| `options` | `const char *` | A string specifying options for opening the database, such as `"persistent"` to load the schema from a file. |
+| `options` | `const char *` | `"persistent"`: load the schema from its file, which wins unless `jn_schema` has a strictly higher `schema_version`. `"persistent,impose"`: `jn_schema` also wins over a HIGHER version on disk (see below). |
 
 **Returns**
 
@@ -1228,6 +1228,16 @@ A JSON dictionary representing the opened tree database inside `tranger`. The re
 Make sure that `tranger` is already initialized before calling [`treedb_open_db()`](<#treedb_open_db>).
 The function follows a hierarchical structure where nodes are linked via parent-child relationships.
 If the `persistent` option is enabled, the schema is loaded from a file, and modifications require a version update.
+
+**The `impose` option.** With `"persistent,impose"`, and only on the master,
+`jn_schema` wins over a newer schema on disk too. The rule is the same at both
+levels, the treedb and each topic: a stored `schema_version` or
+`topic_version` lower than the one passed takes the new one, an equal one is
+kept, and a **higher** one is overwritten with the one passed (the log says
+*"Imposing TreeDB schema from C over a newer one"* and *"Imposing
+topic_version from C over a newer one"*). It exists to revert changes made to
+the schema outside the code. `C_TREEDB` uses it when its `impose_c_schema` is
+on. The records are not touched.
 
 **The main topic.** A schema topic can carry `'main_topic': true` (since
 7.19.0). The mark names the topic that the tree of the treedb hangs from.

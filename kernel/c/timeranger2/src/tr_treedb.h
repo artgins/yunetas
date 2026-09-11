@@ -70,6 +70,13 @@ typedef enum {
             if you want to change the schema
             then you must change the schema version and topic_version
 
+    Option "impose" (with "persistent", master only)
+        The schema passed wins over a NEWER one on disk too, and so does each
+        of its topics: a stored schema_version or topic_version higher than
+        the one passed is overwritten with it. An equal one is kept.
+        Used to revert changes made to the schema outside the code
+        (C_TREEDB's impose_c_schema).
+
     Return a dict inside of tranger with path "treedbs`{treedb_name}" DO NOT use it directly
 
     System topics:

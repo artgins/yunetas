@@ -346,13 +346,17 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+    /*
+     *  Opened from __system__: the projection is what this test is about
+     */
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i, s:b}",
         "path", priv->path_database,
         "filename_mask", "%Y",
         "master", 1,
         "xpermission", 02770,
         "rpermission", 0660,
-        "exit_on_error", LOG_OPT_TRACE_STACK
+        "exit_on_error", LOG_OPT_TRACE_STACK,
+        "impose_c_schema", 0
     );
     priv->gobj_treedbs = gobj_create_service(
         "treedbs",
@@ -1487,6 +1491,150 @@ PRIVATE int check_schema_diff(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Drive C_TREEDB's impose_c_schema through its command.
+ ***************************************************************************/
+PRIVATE int set_impose_c_schema(hgobj gobj, const char *set)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "set-impose-c-schema",
+        json_pack("{s:s}", "set", set),
+        gobj
+    );
+    int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    JSON_DECREF(jn_resp)
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: set-impose-c-schema failed",
+            "set",          "%s", set,
+            NULL
+        );
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  impose_c_schema: the schema from C wins, and __system__ is left alone.
+ *
+ *  By now the treedb went through dynamic edits: its schema file and the
+ *  `users` topic on disk are NEWER than `schema_test2`, and __system__ holds
+ *  the `email` header "E-mail" where the literal says "Email". Imposing
+ *  opens it with the literal anyway -- the disk comes back to the literal's
+ *  numbers and columns -- while __system__ keeps every change, so they can
+ *  still be read, or taken back by clearing the flag.
+ ***************************************************************************/
+PRIVATE int check_impose_c_schema(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_int_t system_version0 = system_schema_version(gobj, "schema_version");
+    json_int_t system_users0 = system_topic_version(gobj, "users");
+
+    if(set_impose_c_schema(gobj, "1") < 0) {
+        return -1;  // Error already logged
+    }
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+
+    json_t *jn_literal = legalstring2json(schema_test2, TRUE);
+    json_int_t literal_version = kw_get_int(gobj, jn_literal, "schema_version", 0, KW_WILD_NUMBER);
+    if(open_test_treedb(gobj, jn_literal) < 0) {
+        set_impose_c_schema(gobj, "0");
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  The disk: the schema file, the topic and its columns are the literal's
+     */
+    hgobj gobj_client_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
+    json_t *tranger = gobj_client_tranger?
+        gobj_read_pointer_attr(gobj_client_tranger, "tranger"):
+        NULL;
+    json_t *schema_file = tranger? load_json_from_file(
+        gobj,
+        kw_get_str(gobj, tranger, "directory", "", 0),
+        TREEDB_NAME ".treedb_schema.json",
+        0
+    ): NULL;
+    json_int_t file_version = kw_get_int(gobj, schema_file, "schema_version", -1, KW_WILD_NUMBER);
+    JSON_DECREF(schema_file)
+    json_int_t disk_users = tranger?
+        kw_get_int(gobj, tranger, "topics`users`topic_version", -1, KW_WILD_NUMBER):
+        -1;
+
+    const char *disk_header = "";
+    hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
+    json_t *desc = gobj_client_node? gobj_topic_desc(gobj_client_node, "users"): NULL;
+    int idx; json_t *col;
+    json_array_foreach(json_object_get(desc, "cols"), idx, col) {
+        if(strcmp(kw_get_str(gobj, col, "id", "", 0), "email")==0) {
+            disk_header = kw_get_str(gobj, col, "header", "", 0);
+            break;
+        }
+    }
+
+    if(file_version != literal_version || disk_users != 2 || strcmp(disk_header, "Email")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: the schema from C was not imposed on disk",
+            "schema_file",      "%d", (int)file_version,
+            "literal_version",  "%d", (int)literal_version,
+            "users_version",    "%d", (int)disk_users,
+            "email_header",     "%s", disk_header,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(desc)
+
+    /*
+     *  __system__: untouched, the changes are still there to be read
+     */
+    json_int_t system_version1 = system_schema_version(gobj, "schema_version");
+    json_int_t system_users1 = system_topic_version(gobj, "users");
+    json_t *system_cols = system_topic_cols(gobj, "users");
+    const char *system_header = json_string_value(json_object_get(system_cols, "email__header"));
+    if(system_version1 != system_version0 || system_users1 != system_users0 ||
+        !system_header || strcmp(system_header, "E-mail")!=0
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: imposing touched __system__",
+            "schema_version",   "%d", (int)system_version1,
+            "was",              "%d", (int)system_version0,
+            "users_version",    "%d", (int)system_users1,
+            "users_was",        "%d", (int)system_users0,
+            "email_header",     "%s", system_header?system_header:"",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(system_cols)
+
+    /*
+     *  The flag is persistent: leave it off, or the next run opens imposing
+     */
+    if(set_impose_c_schema(gobj, "0") < 0) {
+        result += -1;   // Error already logged
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  A projection made with rowid keys moves to qualified ones.
  *
  *  `topics` and `cols` used to be keyed by a rowid handed out from the
@@ -2155,6 +2303,14 @@ PRIVATE int run_tests(hgobj gobj)
      *  qualified ids on the next re-projection
      *-----------------------------------------------*/
     result += check_legacy_ids_migrated(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 9: impose_c_schema reverts what was
+     *  changed outside the code: the treedb opens
+     *  with the literal, over a newer schema on
+     *  disk, and __system__ keeps the changes.
+     *-----------------------------------------------*/
+    result += check_impose_c_schema(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

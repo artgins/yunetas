@@ -962,7 +962,29 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
             topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
             JSON_DECREF(topic_var)
-            if(topic_new_version > topic_old_version) {
+
+            /*
+             *  A version that goes UP publishes a change. One that goes DOWN
+             *  does too while a treedb imposes its schema from C (see
+             *  treedb_open_db, option "impose"): the newer stored topic is
+             *  then a change being reverted, not one to keep.
+             */
+            BOOL imposing = json_boolean_value(json_object_get(tranger, "__schema_imposing__"));
+            if(topic_new_version > topic_old_version ||
+                (imposing && topic_new_version < topic_old_version)
+            ) {
+                if(topic_new_version < topic_old_version) {
+                    gobj_log_info(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_INFO,
+                        "msg",              "%s", "Imposing topic_version from C over a newer one",
+                        "database",         "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+                        "topic",            "%s", topic_name,
+                        "topic_version",    "%d", (int)topic_new_version,
+                        "stored_version",   "%d", (int)topic_old_version,
+                        NULL
+                    );
+                }
                 file_remove(directory, "topic_cols.json");
                 file_remove(directory, "topic_var.json");
             }

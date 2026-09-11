@@ -1115,6 +1115,49 @@ topic of every re-projection: because the treedb opens from the projection,
 those numbers reached `topic_var.json` and `topic_cols.json`, and a store
 drifted from its literal although nobody had edited anything.
 
+**`impose_c_schema` takes the schema back from whoever changed it
+dynamically.** It is an attribute of `C_TREEDB` (`SDF_RD|SDF_PERSIST`,
+default `1`). With it on, `open-treedb` opens every treedb with its schema
+from C, and neither reads nor writes `__system__`. Against the disk the rule
+of the versions still applies, with one more case, at both levels (the
+treedb's `schema_version` and each `topic_version`):
+
+| Stored version | What happens |
+|---|---|
+| lower than the literal's | the literal is installed, as always |
+| equal | kept |
+| **higher** | overwritten with the literal: a dynamic change being reverted |
+
+The log says *"Opening TreeDB with the schema from C, __system__ ignored"*,
+then *"Imposing TreeDB schema from C over a newer one"* and *"Imposing
+topic_version from C over a newer one"* for what it overwrites. `__system__`
+keeps every change: they can still be read with `diff-schema`, or taken back
+by turning the flag off. The records are not touched — a field that only the
+changed schema declared stays in the records and is no longer read.
+
+Turn it off (`0`) to let a user or a customer change the schema dynamically
+(gui_agent, ytreedb). Turn it back on to impose the code again — because
+somebody lost that permission, or because the system was broken or changed
+by mistake — and restart the yuno. The value changes only
+through the command `set-impose-c-schema`, which needs the permission
+`impose-c-schema`, so the change is authorized and logged (*"impose_c_schema
+changed"*, with the user). It acts the next time the yuno opens its treedbs,
+that is, at its next start. Because the value persists, the one in the deploy
+config (`"global": {"treedbs.impose_c_schema": 0}`) is only its first value:
+
+```bash
+# The agent itself
+ycommand -c 'command-agent service=treedbs command=set-impose-c-schema'        # show
+ycommand -c 'command-agent service=treedbs command=set-impose-c-schema set=0'  # allow dynamic changes
+# A yuno managed by the agent
+ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=1'
+```
+
+It replaces `use_internal_schema`, an option of `open-treedb` that each yuno
+passed and that was removed in 7.19.0. That one opened with the literal too,
+but the persisted schema file still won when it was newer, so it did not
+revert anything.
+
 **Reconciling is an upsert — nothing is ever deleted.** A delete is the one
 destructive primitive of the store: it drops the schema's own history (the
 reason to keep a schema in a treedb at all) and refuses a snapshot-tagged

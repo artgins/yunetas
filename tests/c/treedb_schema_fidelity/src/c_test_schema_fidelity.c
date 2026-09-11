@@ -171,13 +171,17 @@ PRIVATE int mt_play(hgobj gobj)
      *  rebuilt schema failed to parse while the code fell back to the literal
      *  in silence.
      */
-    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+    /*
+     *  Opened from __system__: the projection is what this test is about
+     */
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i, s:b}",
         "path", priv->path_database,
         "filename_mask", "%Y",
         "master", 1,
         "xpermission", 02770,
         "rpermission", 0660,
-        "exit_on_error", LOG_OPT_TRACE_STACK
+        "exit_on_error", LOG_OPT_TRACE_STACK,
+        "impose_c_schema", 0
     );
     priv->gobj_treedbs = gobj_create_service(
         "treedbs",

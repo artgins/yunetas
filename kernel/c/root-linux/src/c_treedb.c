@@ -15,6 +15,8 @@
  *          "create-topic"
  *          "delete-topic"
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
+ *          "set-impose-c-schema" -> open every treedb with its schema from C, over
+ *                             __system__ and over a newer schema on disk
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -67,6 +69,11 @@ PRIVATE json_t *get_client_treedb_schema(
     const char *treedb_name,
     json_t *jn_client_treedb_schema // not owned
 );
+PRIVATE json_t *get_c_schema_to_impose(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_c_schema // not owned
+);
 PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name
@@ -100,6 +107,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -162,6 +170,11 @@ PRIVATE sdata_desc_t pm_diff_schema[] = {
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name (empty: every treedb opened with a schema from C)"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_set_impose_c_schema[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "set",          0,              "",         "1: impose the schema from C; 0: open from __system__. Empty: show the current value"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -177,6 +190,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_
 SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATACM2 (DTP_SCHEMA,   "diff-schema",  SDF_AUTHZ_X,    0, pm_diff_schema,  cmd_diff_schema, "Differences between the stored schema and the schema compiled in C"),
+SDATACM2 (DTP_SCHEMA,   "set-impose-c-schema",SDF_AUTHZ_X,0, pm_set_impose_c_schema, cmd_set_impose_c_schema, "Open every treedb with its schema from C, over __system__ and a newer schema on disk. From the next open"),
 SDATA_END()
 };
 
@@ -193,6 +207,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is ignored (and kept), and a newer schema on disk is overwritten. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -235,6 +250,10 @@ PRIVATE sdata_desc_t pm_authz_read[] = {
 SDATAPM0 (DTP_STRING,       "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_authz_impose[] = {
+/*-PM-----type--------------name----------------flag--------authpath--------description-- */
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
@@ -242,6 +261,7 @@ SDATAAUTHZ (DTP_SCHEMA, "open-close",   0,      0,      pm_authz_open,      "Per
 SDATAAUTHZ (DTP_SCHEMA, "create-delete",0,      0,      pm_authz_create,    "Permission to create-delete topics"),
 SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write"),
 SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read"),
+SDATAAUTHZ (DTP_SCHEMA, "impose-c-schema",0,    0,      pm_authz_impose,    "Permission to impose the schema from C over the stored one"),
 SDATA_END()
 };
 
@@ -563,13 +583,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     /*-----------------------------------*
-     *      Get schema of __system__
+     *      Get the schema to open with
      *-----------------------------------*/
-    json_t *jn_client_treedb_schema = get_client_treedb_schema(
-        gobj,
-        treedb_name,
-        _jn_treedb_schema // not owned
-    );
+    BOOL impose_c_schema = gobj_read_bool_attr(gobj, "impose_c_schema");
+    json_t *jn_client_treedb_schema = impose_c_schema?
+        get_c_schema_to_impose(gobj, treedb_name, _jn_treedb_schema):
+        get_client_treedb_schema(gobj, treedb_name, _jn_treedb_schema);
     if(!jn_client_treedb_schema) {
         return msg_iev_build_response(
             gobj,
@@ -638,12 +657,13 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*-------------------------------*
      *      Create Client Treedb
      *-------------------------------*/
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:b}",
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:b, s:b}",
         "tranger", (json_int_t)(uintptr_t)tranger_client,
         "treedb_name", treedb_name,
         "treedb_schema", jn_client_treedb_schema,
         "exit_on_error", exit_on_error,
-        "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
+        "with_link_events", gobj_read_bool_attr(gobj, "with_link_events"),
+        "impose_c_schema", impose_c_schema
     );
 
     /*
@@ -976,6 +996,80 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         ret<0?json_sprintf("Cannot delete topic"):json_sprintf("Topic deleted!"),
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Whether the treedbs of this service open with their schema from C.
+ *
+ *  Persistent, and it acts at the next open: a treedb already open keeps the
+ *  schema it opened with (closing it from outside while the yuno plays is not
+ *  safe), so the change reaches it when its yuno restarts.
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "impose-c-schema";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *set = kw_get_str(gobj, kw, "set", "", 0);
+    BOOL was = gobj_read_bool_attr(gobj, "impose_c_schema");
+
+    if(!empty_string(set)) {
+        BOOL impose = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
+        gobj_write_bool_attr(gobj, "impose_c_schema", impose);
+        if(gobj_save_persistent_attrs(gobj, json_string("impose_c_schema")) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Cannot save impose_c_schema",
+                NULL
+            );
+            gobj_write_bool_attr(gobj, "impose_c_schema", was);
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: cannot save impose_c_schema", gobj_yuno_role_plus_name()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        if(impose != was) {
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "impose_c_schema changed",
+                "impose_c_schema",  "%d", (int)impose,
+                "username",         "%s", kw_get_str(gobj, kw, "__username__", "", 0),
+                NULL
+            );
+        }
+    }
+
+    BOOL impose_c_schema = gobj_read_bool_attr(gobj, "impose_c_schema");
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: impose_c_schema is %s%s",
+            gobj_yuno_role_plus_name(),
+            impose_c_schema? "on": "off",
+            empty_string(set)? "": ", from the next open of each treedb"
+        ),
+        0,
+        json_pack("{s:b}", "impose_c_schema", impose_c_schema),
         kw  // owned
     );
 }
@@ -2323,6 +2417,49 @@ PRIVATE json_t *get_client_treedb_schema(
     }
 
     return client_treedb_schema;
+}
+
+/***************************************************************************
+ *  The schema from C, for a treedb opened with `impose_c_schema`.
+ *
+ *  __system__ is neither read nor written: it keeps whatever was changed
+ *  there, so the changes being reverted can still be analysed, or taken
+ *  back by clearing the flag. The literal is kept for diff-schema, which is
+ *  how those changes are read.
+ *
+ *  Return the schema, or NULL. Return is YOURS.
+ ***************************************************************************/
+PRIVATE json_t *get_c_schema_to_impose(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *jn_c_schema // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!jn_c_schema || parse_schema(jn_c_schema)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Schema from C to impose fails",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    json_object_set(priv->jn_c_schemas, treedb_name, jn_c_schema);
+
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "Opening TreeDB with the schema from C, __system__ ignored",
+        "treedb_name",      "%s", treedb_name,
+        "schema_version",   "%d", (int)kw_get_int(gobj, jn_c_schema, "schema_version", 0, KW_WILD_NUMBER),
+        NULL
+    );
+
+    return json_incref(jn_c_schema);
 }
 
 /***************************************************************************

@@ -97,6 +97,15 @@ static int register_yuno_and_more(void)
 {
     int result = 0;
 
+    /*--------------------------------------*
+     *  A realm for the persistent attrs,
+     *  inside the directory the test wipes
+     *  when it starts (see its mt_create)
+     *--------------------------------------*/
+    char root_dir[PATH_MAX];
+    build_path(root_dir, sizeof(root_dir), getenv("HOME"), "tests_yuneta", NULL);
+    register_yuneta_environment(root_dir, "c_treedb_system_schema", 02770, 0660);
+
     /*--------------------*
      *  Register gclass
      *--------------------*/
@@ -124,6 +133,7 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
             "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
@@ -172,6 +182,14 @@ static int register_yuno_and_more(void)
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",
+            "msg", "impose_c_schema changed",
+            "msg", "Opening TreeDB with the schema from C, __system__ ignored",
+            "msg", "Imposing TreeDB schema from C over a newer one",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "Imposing topic_version from C over a newer one",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
+            "msg", "impose_c_schema changed",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

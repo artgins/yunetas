@@ -626,6 +626,14 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         0;
     int schema_version = schema_new_version;
 
+    /*
+     *  "impose": the schema passed wins over a NEWER one on disk too, and so
+     *  does each of its topics -- the caller is reverting changes made to the
+     *  schema outside the code.
+     */
+    BOOL imposing = (master && jn_schema && options && strstr(options, "impose"))?
+        TRUE: FALSE;
+
     if(options && strstr(options,"persistent")) {
         do {
             BOOL recreating = FALSE;
@@ -643,12 +651,25 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     0,
                     KW_WILD_NUMBER
                 );
-                if(!master || schema_new_version <= schema_old_version) {
+                if(!master || schema_new_version == schema_old_version ||
+                    (schema_new_version < schema_old_version && !imposing)
+                ) {
                     JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     schema_version = schema_old_version;
                     break; // Nothing to do
                 } else {
+                    if(schema_new_version < schema_old_version) {
+                        gobj_log_info(gobj, 0,
+                            "function",         "%s", __FUNCTION__,
+                            "msgset",           "%s", MSGSET_INFO,
+                            "msg",              "%s", "Imposing TreeDB schema from C over a newer one",
+                            "treedb_name",      "%s", treedb_name,
+                            "schema_version",   "%d", schema_new_version,
+                            "stored_version",   "%d", schema_old_version,
+                            NULL
+                        );
+                    }
                     recreating = TRUE;
                     schema_version = schema_new_version;
                     JSON_DECREF(old_jn_schema)
@@ -1077,6 +1098,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     int idx;
     json_t *schema_topic;
     const char *main_topic_marked = NULL;
+    if(imposing) {
+        json_object_set_new(tranger, "__schema_imposing__", json_true());
+    }
     json_array_foreach(jn_schema_topics, idx, schema_topic) {
         const char *topic_name = kw_get_str(gobj, schema_topic, "topic_name", "", 0);
         if(empty_string(topic_name)) {
@@ -1186,6 +1210,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         }
     }
+    json_object_del(tranger, "__schema_imposing__");
 
     /*-------------------------------------------*
      *  Create "system" topic __assets__ and

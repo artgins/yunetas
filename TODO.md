@@ -143,7 +143,7 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     in `__system__` and not in the incoming schema cannot be told apart from an
     operator addition. The consequence is that a topic or column dropped from
     the C literal lingers in `__system__` until somebody removes it explicitly,
-    and with `use_internal_schema=0` it stays in the schema the treedb opens
+    and with `impose_c_schema=0` it stays in the schema the treedb opens
     with. Telling the two cases apart needs state the projection does not carry
     (which side wrote each element), so decide that before adding a rule.
 
@@ -152,12 +152,22 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
     direct `C_NODE` consumer is in the same position.
 
-- **The project yunos still declare `use_internal_schema`.** The flag is gone
-    from `C_TREEDB` and from the yunos of this tree, and an unknown key in a
-    command kw is harmless (`command_parser` merges it and nobody reads it), so
-    they keep working untouched — but the attribute is now a lie in their
-    source. Remove it from wattyzer, estadodelaire, hidraulia and yunovatios
-    the next time each is touched.
+- **The project yunos still declare `use_internal_schema`.** `open-treedb`
+    does not read it any more, and an unknown key in a command kw is harmless
+    (`command_parser` merges it and nobody reads it), so they keep working
+    untouched — but the attribute is now a lie in their source. Its successor
+    is `impose_c_schema`, an attribute of `C_TREEDB` itself (default 1, first
+    value from the yuno config as `treedbs.impose_c_schema`, changed with
+    `set-impose-c-schema`). Remove the old attribute from wattyzer,
+    estadodelaire, hidraulia and yunovatios the next time each is touched.
+
+- **`db_save_persistent_attrs()` always returns 0.** `save_json()` logs a
+    failed write (*"Cannot save device json database"*) and returns -1, and
+    `dbsimple.c` drops that result (`db_remove_persistent_attrs()` too), so
+    `gobj_save_persistent_attrs()` reports success for a value that was not
+    saved. `set-impose-c-schema` checks the result and cannot see it. Every
+    caller of the persistence is affected (`set-gclass-trace` in `c_yuno.c`
+    returns it as its own result), so the fix changes what they answer.
 
 - **A removed column with data behind it is still nobody's problem.** The
     write guard refuses what cannot produce a working schema, but dropping a

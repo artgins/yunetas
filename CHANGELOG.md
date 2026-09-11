@@ -41,6 +41,45 @@ one ahead of it is, and a column changed without raising its topic is not
 published (and `diff-schema` reports it). Stores that drifted under the old
 rule stay ahead of their literal until it passes them, or are reinstalled.
 
+### `impose_c_schema`: the code takes the schema back
+
+A new attribute of `C_TREEDB` (`SDF_RD|SDF_PERSIST`, default `1`). With it on,
+`open-treedb` opens every treedb with its schema from C and neither reads nor
+writes `__system__`; against the disk, a stored `schema_version` or
+`topic_version` lower than the literal's takes the literal, an equal one is
+kept, and a HIGHER one is overwritten with it — a dynamic change being
+reverted. `__system__` keeps the changes, for `diff-schema` or to take them
+back. Turn it off to let the schema be changed dynamically (gui_agent,
+ytreedb); turn it on again to impose the code — somebody lost that permission,
+or the system was broken or changed by mistake — and restart the yuno.
+
+- **`set-impose-c-schema`** shows it (no `set`) or changes it (`set=1|0`),
+  under a new permission `impose-c-schema`, and logs *"impose_c_schema
+  changed"* with the user. It acts at the next open of the treedbs. Because
+  the value persists, the deploy config (`treedbs.impose_c_schema`) only gives
+  its first value.
+- **`treedb_open_db()` option `"impose"`** (with `"persistent"`, master only)
+  makes the schema passed win over a newer one on disk, at the treedb and at
+  each topic; timeranger2 rewrites `topic_cols.json` / `topic_var.json` for a
+  topic whose stored version is higher while the treedb is imposing. `C_NODE`
+  gets the matching `impose_c_schema` attribute, set by `C_TREEDB`.
+- It restores `use_internal_schema`, removed on 2026-08-12 (`dd9e3c003`),
+  under a name that says what it does — and it now does it: the old option
+  opened with the literal, but a newer persisted schema file still won, so it
+  could not revert anything. The project yunos that still pass
+  `use_internal_schema` are not affected (`TODO.md`).
+- **Default `1` is a behaviour change on upgrade**: every treedb opens from
+  its literal again, as before 2026-08-12. A node where the schema was changed
+  dynamically must turn the flag off to keep those changes in use; a store
+  that drifted ahead of its literal under the old `+1` rule is brought back to
+  the literal's numbers.
+
+`test_c_treedb_system_schema` gets a realm of its own (inside the directory it
+wipes) so a persistent attribute can be saved, opens `__system__` with the flag
+off, and checks imposing: the disk comes back to the literal's schema and
+columns while `__system__` keeps the edits. `treedb_schema_fidelity` opens with
+the flag off too.
+
 ### The agent's schema marks `realms` as its main topic
 
 `treedb_schema_yuneta_agent.c`: `realms` carries `'main_topic': true`, published

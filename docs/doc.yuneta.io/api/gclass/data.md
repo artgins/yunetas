@@ -74,6 +74,7 @@ of timeranger with JSON schema support.
 | `filename_mask` | `string` | Filename pattern. |
 | `master` | `bool` | `TRUE` for master, `FALSE` for read-only replica. |
 | `exit_on_error` | `bool` | Exit on schema errors. |
+| `impose_c_schema` | `bool` | `SDF_RD\|SDF_PERSIST`, default `1`. Open every treedb with its schema from C: `__system__` is ignored and kept, and a newer schema on disk is overwritten. `0`: open from `__system__`, so the schema can be changed dynamically. Changed with `set-impose-c-schema`, from the next open. See [TreeDB crash course](../../../../yunos/c/yuno_agent/YUNO_TREEDB.md) §3.11. |
 
 ### Commands
 
@@ -82,6 +83,8 @@ of timeranger with JSON schema support.
 | `open-treedb` / `close-treedb` | Open or close a treedb instance. |
 | `delete-treedb` | Delete a treedb and its data. |
 | `create-topic` / `delete-topic` | Manage topics within a treedb. |
+| `diff-schema` | What the `__system__` projection of a treedb says that its schema from C does not. |
+| `set-impose-c-schema` | Show (no `set`) or change (`set=1` / `set=0`) `impose_c_schema`. Needs the permission `impose-c-schema`. Acts the next time the yuno opens its treedbs. |
 
 ---
 
@@ -104,6 +107,7 @@ tree nodes with linking, snapshots, and import/export.
 | `treedb_schema` | `json` | The schema, projected into `__system__` and opened from there. |
 | `initial_load` | `json` | Seed records, created if missing and marked immutable. |
 | `with_link_events` | `bool` | Publish `EV_TREEDB_NODE_LINKED` / `UNLINKED`. |
+| `impose_c_schema` | `bool` | Open with `treedb_schema` over a newer schema on disk too (`treedb_open_db()` option `"impose"`). Set by `C_TREEDB`. |
 | `files_max_size` | `integer` | Largest file a `file` column accepts. Default 128 MB. A **memory** limit as much as a policy one — see *File columns* below. |
 | `files_content_types` | `json` | Mime types a `file` column may hold, checked on the **bytes**. The default carries images, PDF, video and audio; `image/svg+xml` is **not** in it on purpose (an SVG served from the app's own origin runs script). A column narrows the list, never widens it. |
 | `import_root` | `string` | Root that `import-assets` is confined to. Empty: `import-assets` is refused. |

@@ -372,6 +372,7 @@ SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable; the links they declare cannot be cut"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,             0,              "Open with treedb_schema over a NEWER schema on disk too (treedb_open_db option 'impose'). Set by C_TREEDB's impose_c_schema"),
 SDATA (DTP_INTEGER,     "files_max_size",   SDF_RD,             "134217728",    "Largest file a 'file' column accepts, in bytes (128M). A MEMORY limit as much as a policy one: the file is hashed and written whole, and it arrived in base64 inside a message the transport had already accepted, so keep it below the transport's ceiling (tcp4h: max_pkt_size; websocket: a frame has no ceiling of its own, its gbuffer is capped by MEM_MAX_BLOCK)"),
 SDATA (DTP_JSON,        "files_content_types",SDF_RD,           "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\",\"video/mp4\",\"video/webm\",\"video/quicktime\",\"video/ogg\",\"video/x-matroska\",\"audio/mpeg\",\"audio/mp4\",\"audio/ogg\",\"audio/wav\",\"audio/webm\",\"audio/flac\"]",
                                                                                 "Mime types a 'file' column may hold, checked on the BYTES. A column narrows this list through its properties.content_types, never widens it. 'image/svg+xml' is NOT here on purpose: an svg served from the app's own origin runs script"),
@@ -546,7 +547,7 @@ PRIVATE int mt_start(hgobj gobj)
         priv->tranger,
         priv->treedb_name,
         json_incref(priv->treedb_schema),  // owned
-        "persistent"
+        gobj_read_bool_attr(gobj, "impose_c_schema")? "persistent,impose": "persistent"
     );
 
     /*
