@@ -1241,9 +1241,49 @@ Two rules apply:
 If a mark breaks a rule, [`treedb_open_db()`](<#treedb_open_db>) logs an error
 and ignores that mark. With two marks, the first one stays. The mark is not
 kept in the store: the function sets it in memory on each open, so it needs no
-`topic_version` bump. A mark that you remove from the schema is gone at the
-next open. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends the mark
-to clients, together with `system_topic`.
+`topic_version` bump. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends
+the mark to clients, together with `system_topic`.
+
+With the `persistent` option, the persisted schema file wins unless `jn_schema`
+has a strictly higher `schema_version`. So, to add or remove the mark in an
+existing treedb, raise `schema_version`. Without that bump, the function reads
+the old schema file and the change reaches only a new store.
+
+Example — the agent's schema marks `realms`, which holds its sub-realms
+through the fkey `parent_realm_id`
+([`treedb_schema_yuneta_agent.c`](https://github.com/artgins/yunetas/blob/7.19.0/yunos/c/yuno_agent/src/treedb_schema_yuneta_agent.c)):
+
+```c
+    'schema_version': '24',                                         \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'realms',                                         \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '7',                                   \n\
+            'pkey2s': '',                                           \n\
+            'main_topic': true,                                     \n\
+            'cols': {                                               \n\
+                ...
+                'realms': {                                         \n\
+                    'header': 'Realms',                             \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'realms': 'parent_realm_id'                 \n\
+                    }                                               \n\
+                },                                                  \n\
+                'parent_realm_id': {                                \n\
+                    'header': 'Realm Parent',                       \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
+                    ]                                               \n\
+                },                                                  \n\
+```
+
 
 ---
 

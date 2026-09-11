@@ -502,7 +502,8 @@ neither:
   topic. Only a topic with a hook to **itself** can carry the mark (places
   inside places), and only one topic per treedb. `treedb_open_db()` logs a
   mark that breaks a rule and ignores it. The mark needs no `topic_version`
-  bump. See §3.11.
+  bump, but an existing treedb sees it only after a `schema_version` bump.
+  See §3.11.
 
 An example of the mark, as a C schema literal. Places hold places, and each
 place holds devices:
@@ -989,6 +990,13 @@ schema and not in the store, so it is stamped in memory on every open, needs
 no `topic_version`, and travels in `tranger2_topic_desc()` (the `desc` /
 `descs` commands) together with `system_topic`. Without a mark the graph
 deduces the trunk: the hierarchical topic that reaches the most other topics.
+
+**To add or remove the mark in an existing treedb, raise `schema_version`.**
+A treedb service opens its treedb with the `persistent` option, and then the
+persisted schema file wins unless the C literal has a strictly higher
+`schema_version` (§3.5). Without that bump, the mark reaches only a new
+store. The agent's own schema is the reference: `realms` carries the mark,
+and the agent raised `schema_version` 23 → 24 to publish it.
 
 **`topics` and `cols` are keyed by the QUALIFIED name, and the bare one
 lives in `value`.** A name is unique only inside its parent: two topics with

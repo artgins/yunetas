@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### The agent's schema marks `realms` as its main topic
+
+`treedb_schema_yuneta_agent.c`: `realms` carries `'main_topic': true`, and
+`schema_version` goes 23 -> 24. Nothing changes in what a viewer draws:
+`realms` is the only topic of the agent's treedb hooked to itself, so the graph
+already deduced it. The mark is there as the reference example of the key. The
+`schema_version` bump is what makes it reach an existing store: the treedb is
+opened `persistent`, and the persisted schema file wins over a literal that is
+not strictly newer. `YUNO_TREEDB.md` §3.2 / §3.11 and the `treedb_open_db()`
+notes now say so, with the example.
+
 ### The treedb graph's find box only looks (gobj-ui 7.23.158)
 
 `kernel/js/gobj-ui` -> 7.23.158, and the same range in the consumers. The find

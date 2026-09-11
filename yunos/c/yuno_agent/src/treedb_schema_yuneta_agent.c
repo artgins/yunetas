@@ -14,7 +14,7 @@
 
 
 
-                        realms
+                        realms  (main_topic)
             ┌───────────────────────────┐
             │* id (url)                 │
             │                           │
@@ -147,7 +147,7 @@
 static char treedb_schema_yuneta_agent[]= "\
 {                                                                   \n\
     'id': 'treedb_yuneta_agent',                                    \n\
-    'schema_version': '23',                                         \n\
+    'schema_version': '24',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'realms',                                         \n\
@@ -155,6 +155,7 @@ static char treedb_schema_yuneta_agent[]= "\
             'system_flag': 'sf_string_key',                         \n\
             'topic_version': '7',                                   \n\
             'pkey2s': '',                                           \n\
+            'main_topic': true,                                     \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'id',                                 \n\
