@@ -563,6 +563,13 @@ for any cleanup of that file; otherwise propose the translation first.
 - **Topology diagrams are left-to-right following data flow** (sources →
   gateways → DBs → consumers; agent/utilities as a bottom band), realms as
   horizontal background bands, `role^name` node labels. No top-down layouts.
+- **Documentation without examples is bad documentation.** Every schema key,
+  parameter, command or rule you document gets an example of how to WRITE it,
+  not only what it means — in the form the reader copies (a treedb schema key
+  as a C schema literal, like the ones under `src/`), minimal, and verified
+  against the code that enforces it. **Why:** `main_topic` was described in
+  three places and shown in none; the only example was a test schema that
+  sets every attribute at once. In a docs audit, "no example" is a finding.
 
 ### Documentation site (doc.yuneta.io)
 

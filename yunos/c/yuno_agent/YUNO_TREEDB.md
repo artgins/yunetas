@@ -504,6 +504,79 @@ neither:
   mark that breaks a rule and ignores it. The mark needs no `topic_version`
   bump. See §3.11.
 
+An example of the mark, as a C schema literal. Places hold places, and each
+place holds devices:
+
+```c
+static char treedb_schema_sample[]= "\
+{                                                                   \n\
+    'id': 'treedb_sample',                                          \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'places',                                         \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'main_topic': true,                                     \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'children': {                                       \n\
+                    'header': 'Children',                           \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'places': 'parent'                          \n\
+                    }                                               \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'devices': {                                        \n\
+                    'header': 'Devices',                            \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'devices': 'place'                          \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'devices',                                        \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'place': {                                          \n\
+                    'header': 'Place',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+```
+
+The hook `places.children` points at `places` itself, through the fkey
+`parent`. That self-hook is what lets `places` carry the mark. Put the same
+mark on `devices` and `treedb_open_db()` logs an error and ignores it:
+`devices` has no hook to itself. The parentless places are the roots of the tree, and the devices
+hang from their place.
+
 ### 3.3 Column types and flags
 
 Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.19.0/kernel/c/timeranger2/src/tr_treedb.c). Common
