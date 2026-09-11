@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### The treedb graph: a layout stepper, one icon shape per meaning, elbow edges (gobj-ui 7.23.157)
+
+`kernel/js/gobj-ui` -> 7.23.157, and the same range in the consumers:
+
+- **A layout change holds the view and repaints the minimap** (7.23.145). A new
+  layout moved every card and the camera stayed on the old coordinates -- an
+  empty grid -- while the minimap, which G6 repaints only on draw events that a
+  layout never emits, went on showing the arrangement before. The change now
+  runs through the fold reconcile (the node the reader was looking at stays on
+  its pixel) and the minimap is repainted after every layout.
+- **A layout stepper** (7.23.146): up and down beside the layout select, the
+  layout before or after the current one without opening the list. Consumer
+  keys `previous layout`, `next layout`.
+- **One icon shape per meaning** (7.23.147): a chevron opens or closes one
+  thing or scrolls, a shafted arrow steps a sequence, a tree box steps one level
+  of the tree, a double chevron acts on all of it. The treedb graph's toolbar
+  had four `chevron-down`s with four meanings. The rule is in the JS GUI
+  conventions of `CLAUDE.md`.
+- **Elbow edges, as an option** (7.23.149-7.23.152): a toggle draws every edge
+  as mxGraph drew a tree -- straight out of the port, along the channel between
+  the rows, straight in; the children of one hook share one bus. A reciprocal
+  pair is drawn apart, a line that would cross a card is routed round it by an
+  orthogonal search of our own (`treedb_elbow.js`), and the ports count as
+  obstacles. Consumer key `elbow edges`.
+- Tried and **reverted** in 7.23.157, after looking at them on a real treedb: a
+  `compact tree` layout (contour packing, then stacked leaves), staggered elbow
+  turns, curves that went round the cards, and a stacked radial. The graph
+  draws as it did at 7.23.152; the `compact-tree` key is no longer used.
+- gobj-ui's `deploy-round` reports a consumer whose build FAILED as failed (it
+  read back `OK`: a build refused in `prebuild` leaves `dist/` as it was), and
+  its `--check` flags a consumer BEHIND the version or NOT REBUILT since its
+  install. wattyzer and both yunovatios GUIs had stayed two rounds behind that
+  way, on ten JSON-viewer keys of 7.23.144 they did not define.
+
 ### The JSON viewer compares two documents, and keeps them (gobj-ui 7.23.144)
 
 `kernel/js/gobj-ui` -> 7.23.144: `C_YUI_JSON_PAD` gets a second pane on demand
@@ -154,7 +188,7 @@ same from one load to the next -- no longer decides where a chip sits.
   default instead of a square. The node popover saves a figure only when it was
   changed, so applying a colour no longer freezes the default one on the node.
 - **The browser's menu never opens over the graph.** G6's context-menu plugin
-  cancels the event @antv/g synthesises from `pointerdown`, not the DOM's
+  cancels the event `@antv/g` synthesises from `pointerdown`, not the DOM's
   `contextmenu`, so a right click on an edge or on the canvas opened the
   browser's menu. The container cancels it; a popover's form field keeps it.
 - **An edge has a menu** in edition mode (`edge properties`, `unlink`), and a
