@@ -116,9 +116,9 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* __snaps__ __graphs__ users departments fidelity __assets__ */
             "{s:s},"    /* schema file rebuilt from __system__ on re-open */
             "{s:s},"                                    /* schema moved forward */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* schema file + every topic republished */
+            "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
             "{s:s},"                                    /* literal newer than an edited projection */
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"
+            "{s:s}, {s:s}, {s:s},"                      /* schema file + the one topic that moved */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s},"        /* the five refused writes */
             "{s:s}, {s:s},"                             /* the legacy projection moves */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
@@ -148,12 +148,8 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating TreeDB schema file",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
             "msg", "Updating TreeDB schema in __system__",
             "msg", "Re-Creating TreeDB schema file",
-            "msg", "Re-Creating topic_var.json",
-            "msg", "Re-Creating topic_cols.json",
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
             "msg", "Value not in enum",

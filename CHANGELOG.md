@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### A schema re-projection raises only the topics that moved
+
+`C_TREEDB`'s projector (`upsert_treedb_schema()`) raised the `topic_version`
+of EVERY topic, and rewrote every topic and column node in `__system__`, each
+time a schema's `schema_version` went up — even when one topic changed. It
+went further than `__system__`: the treedb opens from the projection, so every
+topic of the store got its `topic_cols.json` and `topic_var.json` rewritten
+too (the agent's store had all five topics one number above its literal). Now a
+column node is written only if it is new or the literal changes it, and a
+topic is written and raised only if the topic or one of its columns changed.
+The comparison is `diff-schema`'s own (`diff_node_attrs()`), read from the side
+of the write: an attribute only `__system__` holds does not count, because an
+update does not remove it. The function's header already said *"update what
+moved"*; the loop now does that. `test_c_treedb_system_schema` checks it (the
+untouched `departments` keeps its version across a re-projection) and its
+expected log loses the two re-creations of `departments`.
+
 ### The agent's schema marks `realms` as its main topic
 
 `treedb_schema_yuneta_agent.c`: `realms` carries `'main_topic': true`, and

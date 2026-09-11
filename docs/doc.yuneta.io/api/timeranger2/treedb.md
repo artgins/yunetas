@@ -1244,6 +1244,11 @@ kept in the store: the function sets it in memory on each open, so it needs no
 `topic_version` bump. [`tranger2_topic_desc()`](<#tranger2_topic_desc>) sends
 the mark to clients, together with `system_topic`.
 
+A non-master open reads the mark from the persisted schema file, like the rest
+of the schema, so a reader that is not the master sees it too. A tool that
+opens the topics with timeranger2 only (`tr2list`) does not see it: the mark is
+not in `topic_desc.json` or `topic_var.json`.
+
 With the `persistent` option, the persisted schema file wins unless `jn_schema`
 has a strictly higher `schema_version`. So, to add or remove the mark in an
 existing treedb, raise `schema_version`. Without that bump, the function reads

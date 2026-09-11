@@ -41,6 +41,19 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  Attributes of a __system__ node that say how it is STORED, never what it
+ *  declares: the qualified id, the name (it is the identity being compared),
+ *  the links to parent and children, the version stamp, the editor geometry
+ *  and the treedb metadata. Shared by diff-schema and the projector, so both
+ *  agree on what "the same" means.
+ */
+PRIVATE const char *schema_topic_skip[] = {
+    "id", "value", "treedbs", "cols", "topic_version", "_geometry", "__md_treedb__", NULL
+};
+PRIVATE const char *schema_col_skip[] = {
+    "id", "value", "topics", "_geometry", "__md_treedb__", NULL
+};
 
 /***************************************************************************
  *              Structures
@@ -63,6 +76,17 @@ PRIVATE json_t *diff_treedb_schema(
     const char *treedb_name,
     json_t *jn_schema,  // the schema from C, not owned
     json_t *rows        // not owned, where the differences are appended
+);
+PRIVATE int diff_node_attrs(
+    hgobj gobj,
+    json_t *rows,           // not owned
+    const char *treedb_name,
+    const char *topic_name,
+    const char *col_name,   // NULL at topic level
+    json_t *projected,      // not owned
+    json_t *stored,         // not owned
+    const char **skip,      // attributes that say how a node is STORED
+    json_t *desc            // not owned, descriptor of the node's topic, may be NULL
 );
 
 /***************************************************************************
@@ -1509,6 +1533,39 @@ PRIVATE json_t *build_col_projection(
 }
 
 /***************************************************************************
+ *  Whether writing a projected node over the stored one would change it.
+ *
+ *  The comparison of diff-schema, read from the side of the write: an update
+ *  merges, so what the stored node holds and the projection does not declare
+ *  stays as it is, and only what the projection would ADD or CHANGE counts.
+ ***************************************************************************/
+PRIVATE BOOL projection_changes_node(
+    hgobj gobj,
+    json_t *projected,  // not owned
+    json_t *stored,     // not owned
+    const char **skip,  // attributes that say how a node is STORED
+    json_t *desc        // not owned, descriptor of the node's topic, may be NULL
+)
+{
+    BOOL changes = FALSE;
+
+    json_t *rows = json_array();
+    diff_node_attrs(gobj, rows, "", "", NULL, projected, stored, skip, desc);
+
+    int idx; json_t *row;
+    json_array_foreach(rows, idx, row) {
+        const char *kind = kw_get_str(gobj, row, "kind", "", 0);
+        if(strcmp(kind, "changed")==0 || strcmp(kind, "only_in_c")==0) {
+            changes = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(rows)
+
+    return changes;
+}
+
+/***************************************************************************
  *  Project a schema into the __system__ treedb: create what is missing,
  *  update what moved.
  *
@@ -1617,24 +1674,9 @@ PRIVATE int upsert_treedb_schema(
         json_t *current_topic = current_topics?
             json_object_get(current_topics, topic_id):
             NULL;
-
-        /*
-         *  A topic's version cannot go BACKWARDS on a re-projection, for the
-         *  same reason `schema_version` cannot: the literal's number may be
-         *  lower than what has already been published, and tranger2 keeps the
-         *  persisted topic_cols.json whenever the incoming version is not
-         *  higher. Writing the literal's number verbatim left a re-projection
-         *  that fixed the columns in __system__ and never reached the topic.
-         */
-        if(current_topic) {
-            json_int_t stored_topic_version = kw_get_int(
-                gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
-            );
-            if(stored_topic_version > topic_version) {
-                topic_version = stored_topic_version;
-            }
-            topic_version += 1;
-        }
+        json_t *current_cols = current_topic?
+            kw_get_dict(gobj, current_topic, "cols", 0, 0):
+            NULL;
 
         json_t *kw_topic = build_topic_projection(
             gobj, jn_topic, topic_name, topic_version, idx
@@ -1644,47 +1686,17 @@ PRIVATE int upsert_treedb_schema(
         }
         json_object_set_new(kw_topic, "id", json_string(topic_id));
 
-        json_t *topic;
-        if(current_topic) {
-            topic = gobj_update_node(
-                priv->gobj_node_system,
-                "topics",
-                kw_topic,
-                json_pack("{s:b}", "refs", 1),      // fkey,hook options
-                gobj
-            );
-            if(!topic) {
-                continue;   // Error already logged
-            }
-        } else {
-            topic = gobj_create_node(
-                priv->gobj_node_system,
-                "topics",
-                kw_topic,
-                json_pack("{s:b}", "refs", 1),      // fkey,hook options
-                gobj
-            );
-            if(!topic) {
-                continue;   // Error already logged
-            }
-
-            gobj_link_nodes(
-                priv->gobj_node_system,
-                "topics",               // hook
-                "treedbs",              // parent_topic_name,
-                json_incref(treedb),    // parent_record,owned
-                "topics",               // child_topic_name,
-                json_incref(topic),     // child_record,owned
-                gobj
-            );
-        }
-
         json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
         if(!jn_cols) {
-            json_decref(topic);
+            json_decref(kw_topic);
             continue;
         }
 
+        /*
+         *  Only what a write would change is written: the columns that are
+         *  new or moved, and their topic.
+         */
+        json_t *kw_cols = json_array();
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
             json_t *kw_col = build_col_projection(gobj, jn_col, cols_desc, idx2);
@@ -1700,16 +1712,97 @@ PRIVATE int upsert_treedb_schema(
             }
             json_object_set_new(kw_col, "id", json_string(col_id));
 
-            json_t *current_col = current_topic?
-                json_object_get(kw_get_dict(gobj, current_topic, "cols", 0, 0), col_id):
-                NULL;
+            json_t *current_col = current_cols? json_object_get(current_cols, col_id): NULL;
+            if(current_col &&
+                !projection_changes_node(gobj, kw_col, current_col, schema_col_skip, cols_desc)
+            ) {
+                JSON_DECREF(kw_col)
+                continue;
+            }
+            json_array_append_new(kw_cols, kw_col);
+        }
+        json_decref(jn_cols);
+
+        /*
+         *  A topic's version cannot go BACKWARDS on a re-projection, for the
+         *  same reason `schema_version` cannot: the literal's number may be
+         *  lower than what has already been published, and tranger2 keeps the
+         *  persisted topic_cols.json whenever the incoming version is not
+         *  higher. Writing the literal's number verbatim left a re-projection
+         *  that fixed the columns in __system__ and never reached the topic.
+         *
+         *  And only a topic that MOVED is raised: the treedb opens from this
+         *  projection, so a raised topic_version rewrites that topic's
+         *  topic_cols.json and topic_var.json in the client store too. A
+         *  release that changed one topic used to raise all of them.
+         */
+        if(current_topic) {
+            json_int_t stored_topic_version = kw_get_int(
+                gobj, current_topic, "topic_version", 0, KW_WILD_NUMBER
+            );
+            BOOL moved = json_array_size(kw_cols) > 0 ||
+                stored_topic_version < topic_version ||
+                projection_changes_node(gobj, kw_topic, current_topic, schema_topic_skip, NULL);
+            if(!moved) {
+                JSON_DECREF(kw_cols)
+                json_decref(kw_topic);
+                continue;
+            }
+            if(stored_topic_version > topic_version) {
+                topic_version = stored_topic_version;
+            }
+            topic_version += 1;
+            json_object_set_new(kw_topic, "topic_version", json_integer(topic_version));
+        }
+
+        json_t *topic;
+        if(current_topic) {
+            topic = gobj_update_node(
+                priv->gobj_node_system,
+                "topics",
+                kw_topic,
+                json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                gobj
+            );
+            if(!topic) {
+                JSON_DECREF(kw_cols)
+                continue;   // Error already logged
+            }
+        } else {
+            topic = gobj_create_node(
+                priv->gobj_node_system,
+                "topics",
+                kw_topic,
+                json_pack("{s:b}", "refs", 1),      // fkey,hook options
+                gobj
+            );
+            if(!topic) {
+                JSON_DECREF(kw_cols)
+                continue;   // Error already logged
+            }
+
+            gobj_link_nodes(
+                priv->gobj_node_system,
+                "topics",               // hook
+                "treedbs",              // parent_topic_name,
+                json_incref(treedb),    // parent_record,owned
+                "topics",               // child_topic_name,
+                json_incref(topic),     // child_record,owned
+                gobj
+            );
+        }
+
+        json_t *kw_col;
+        json_array_foreach(kw_cols, idx2, kw_col) {
+            const char *col_id = kw_get_str(gobj, kw_col, "id", "", 0);
+            json_t *current_col = current_cols? json_object_get(current_cols, col_id): NULL;
 
             json_t *col;
             if(current_col) {
                 col = gobj_update_node(
                     priv->gobj_node_system,
                     "cols",
-                    kw_col,
+                    json_incref(kw_col),
                     json_pack("{s:b}", "refs", 1),  // fkey,hook options
                     gobj
                 );
@@ -1720,7 +1813,7 @@ PRIVATE int upsert_treedb_schema(
                 col = gobj_create_node(
                     priv->gobj_node_system,
                     "cols",
-                    kw_col,
+                    json_incref(kw_col),
                     json_pack("{s:b}", "refs", 1),  // fkey,hook options
                     gobj
                 );
@@ -1748,7 +1841,7 @@ PRIVATE int upsert_treedb_schema(
         /*
          *  free
          */
-        json_decref(jn_cols);
+        JSON_DECREF(kw_cols)
         json_decref(topic);
     }
 
@@ -2485,8 +2578,9 @@ PRIVATE int diff_node_attrs(
  *
  *  The version stamps are NOT compared as content: `schema_version` and
  *  `topic_version` are raised BY the projector (a re-projection publishes
- *  under `max(stored, literal) + 1`), so they always differ after one and
- *  would bury the differences somebody actually made. What is reported is
+ *  under `max(stored, literal) + 1`, the topic version only of a topic that
+ *  moved), so they differ after one and would bury the differences somebody
+ *  actually made. What is reported is
  *  the anomaly: a projection that came from a release of the schema other
  *  than the one running, and a topic whose stored version is BEHIND the
  *  schema's — meaning the re-projection never reached it.
@@ -2501,19 +2595,6 @@ PRIVATE json_t *diff_treedb_schema(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Attributes that say how a node is STORED, never what it declares:
-     *  the qualified id, the name (it is the identity being compared), the
-     *  links to parent and children, the editor geometry and the treedb
-     *  metadata.
-     */
-    static const char *topic_skip[] = {
-        "id", "value", "treedbs", "cols", "topic_version", "_geometry", "__md_treedb__", NULL
-    };
-    static const char *col_skip[] = {
-        "id", "value", "topics", "_geometry", "__md_treedb__", NULL
-    };
 
     json_int_t c_schema_version = kw_get_int(gobj, jn_schema, "schema_version", 1, KW_WILD_NUMBER);
 
@@ -2612,7 +2693,7 @@ PRIVATE json_t *diff_treedb_schema(
          */
         diff_node_attrs(
             gobj, rows, treedb_name, topic_name, NULL, projected_topic, stored_topic,
-            topic_skip, NULL
+            schema_topic_skip, NULL
         );
 
         /*
@@ -2665,7 +2746,7 @@ PRIVATE json_t *diff_treedb_schema(
                 col_name,
                 projected_col,
                 stored_col,
-                col_skip,
+                schema_col_skip,
                 cols_desc
             );
             json_decref(projected_col);

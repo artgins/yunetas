@@ -1106,6 +1106,18 @@ side effect of an upgrade. The one exception is the move to qualified ids,
 which has to retire an address the store can no longer reach a node by, and
 runs once per store.
 
+**A re-projection writes only what moved.** A column node is written only if
+it is new or the literal changes it. A topic node is written, and its
+`topic_version` raised, only if the topic or one of its columns changed. The
+comparison is the one `diff-schema` uses: an attribute that exists only in
+`__system__` does not count, because an update does not remove it. This
+matters beyond `__system__`: the treedb opens from the projection, so a raised
+`topic_version` rewrites that topic's `topic_cols.json` and `topic_var.json`
+in the store. Up to 7.19.0, every re-projection raised every topic. For
+example, the agent's schema went 23 → 24 to add `main_topic` to `realms`: now
+only `realms` goes up, and `yunos`, `binaries`, `configurations` and
+`public_services` keep their `topic_version`.
+
 **`diff-schema` says what the projection holds that C does not.** Nothing
 deletes, and a re-projection publishes under a version of its own, so the three
 numbers above tell you that *something* was published and never *what*: a

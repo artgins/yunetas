@@ -566,6 +566,43 @@ PRIVATE int system_topic_id(hgobj gobj, const char *topic_name, char *bf, int bf
 }
 
 /***************************************************************************
+ *  The topic_version a topic carries in __system__, or -1.
+ ***************************************************************************/
+PRIVATE json_int_t system_topic_version(hgobj gobj, const char *topic_name)
+{
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: __system__ treedb service not found",
+            NULL
+        );
+        return -1;
+    }
+
+    char topic_id[NAME_MAX];
+    if(system_topic_id(gobj, topic_name, topic_id, sizeof(topic_id)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: topic not projected in __system__",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *topic = gobj_get_node(
+        gobj_node_system, "topics", json_pack("{s:s}", "id", topic_id), 0, gobj
+    );
+    json_int_t topic_version = kw_get_int(gobj, topic, "topic_version", -1, KW_WILD_NUMBER);
+    JSON_DECREF(topic)
+
+    return topic_version;
+}
+
+/***************************************************************************
  *  Return {col_name: id} of a topic as projected in __system__, plus
  *  {col_name__header: header} so a content change can be checked too.
  *  Return MUST be decref'd.
@@ -1815,6 +1852,8 @@ PRIVATE int run_tests(hgobj gobj)
      *  under the same name.
      *-----------------------------------------------*/
     json_t *ids_before = system_topic_cols(gobj, "users");
+    json_int_t users_v0 = system_topic_version(gobj, "users");
+    json_int_t departments_v0 = system_topic_version(gobj, "departments");
 
     helper_quote2doublequote(schema_test2);
     json_t *jn_schema2 = legalstring2json(schema_test2, TRUE);
@@ -1865,6 +1904,27 @@ PRIVATE int run_tests(hgobj gobj)
             "msg",                  "%s", "TEST FAIL: wrong versions after re-projection",
             "c_schema_version",     "%d", (int)from_c,
             "schema_version",       "%d", (int)version,
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  Only the topic that moved is raised. `departments` is the same in
+     *  both literals: raising it anyway rewrites its topic_cols.json in the
+     *  client store for nothing, and that is what every release did.
+     */
+    json_int_t users_v1 = system_topic_version(gobj, "users");
+    json_int_t departments_v1 = system_topic_version(gobj, "departments");
+    if(users_v1 <= users_v0 || departments_v1 != departments_v0 || departments_v0 < 0) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_INTERNAL,
+            "msg",                  "%s", "TEST FAIL: re-projection raised the wrong topics",
+            "users_was",            "%d", (int)users_v0,
+            "users",                "%d", (int)users_v1,
+            "departments_was",      "%d", (int)departments_v0,
+            "departments",          "%d", (int)departments_v1,
             NULL
         );
         result += -1;
