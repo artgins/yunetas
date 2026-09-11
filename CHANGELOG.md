@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### The treedb graph's find box only looks (gobj-ui 7.23.158)
+
+`kernel/js/gobj-ui` -> 7.23.158, and the same range in the consumers. The find
+box searched the whole treedb and unfolded a page of the matches it found, so
+every keystroke re-laid the graph out and moved the camera, and the groups it
+opened stayed open when the box was cleared. Now it lights the matching cards
+ON SCREEN and changes nothing else; emptying the box leaves the graph as it
+was. Opening up to a topic stays with the legend's focus button. The term stays
+live across unfolds and refreshes, **Enter** / **Shift+Enter** centre the
+next / previous lit card (`k/N matches`), and the count adds what it did not
+light (`+N not shown`, `+M in hidden topics`). Consumer keys `not shown`,
+`find on screen`.
+
 ### The treedb graph: a layout stepper, one icon shape per meaning, elbow edges (gobj-ui 7.23.157)
 
 `kernel/js/gobj-ui` -> 7.23.157, and the same range in the consumers:
