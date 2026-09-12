@@ -1077,12 +1077,13 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
 /***************************************************************************
  *  What the stored schema says that the schema compiled in C does not.
  *
- *  A treedb opens from its projection in __system__, not from the schema in
- *  C: the projection is seeded from it and re-made whenever it moves ahead,
- *  so the two are the same thing until somebody edits the projection. And
- *  the projector never deletes, so an edit is invisible — the three version
- *  numbers of the `treedbs` node say that SOMETHING was published, never
- *  what. This answers what.
+ *  With impose_c_schema off, a treedb opens from its projection in
+ *  __system__: seeded from the schema in C and re-made whenever that moves
+ *  ahead, so the two are the same thing until somebody edits the projection.
+ *  With it on, the projection keeps the edits it holds while the treedb
+ *  opens with C. Either way the projector never deletes, so an edit is
+ *  invisible — the version numbers of the `treedbs` node say that SOMETHING
+ *  was published, never what. This answers what.
  ***************************************************************************/
 PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -2371,13 +2372,11 @@ PRIVATE json_t *get_client_treedb_schema(
     }
 
     /*
-     *  A treedb opens from its projection, always. There used to be a flag
-     *  (`use_internal_schema`) to open from the literal instead, and with it
-     *  an edit made in __system__ reached nothing until every yuno's config
-     *  was changed one by one. It distinguishes nothing now: the projection
-     *  is seeded from the literal and re-made whenever the literal moves
-     *  ahead, so opening from it IS opening from the literal until somebody
-     *  edits it — which is the whole point.
+     *  With impose_c_schema off, a treedb opens from its projection (with it
+     *  on, get_c_schema_to_impose() opens it from the literal instead). The
+     *  projection is seeded from the literal and re-made whenever the literal
+     *  moves ahead, so opening from it IS opening from the literal until
+     *  somebody edits it — which is what lets the schema change dynamically.
      *
      *  The literal is still the fallback, for a projection that cannot be
      *  rebuilt into a valid schema.

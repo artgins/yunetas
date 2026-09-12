@@ -1231,14 +1231,13 @@ The command compares against the schema the treedb was **opened** with, kept in
 memory for that purpose, so it can only answer for a treedb opened with one. A
 treedb opened from its projection alone has no other half to compare with.
 
-**A treedb opens from its projection, always.** There used to be a flag
-(`use_internal_schema`) to open from the literal instead, and with it an edit
-made in `__system__` reached nothing until every yuno's config was changed one
-by one. It distinguishes nothing now: the projection is seeded from the literal
-and re-made whenever the literal or the projector moves ahead, so opening from
-it *is* opening from the literal until somebody edits it — which is the point.
-The literal remains the fallback, for a projection that cannot be rebuilt into
-a valid schema.
+**Where a treedb opens from depends on `impose_c_schema`.** With it on (the
+default), from the literal, and `__system__` is not read (see above). With it
+off, from its projection: seeded from the literal and re-made whenever the
+literal moves ahead, so opening from it *is* opening from the literal until
+somebody edits it — which is what lets the schema change dynamically. The
+literal remains the fallback, for a projection that cannot be rebuilt into a
+valid schema.
 
 **The schema file still has the last word.** Whichever home supplies the
 schema, `treedb_open_db` compares its `schema_version` against the persisted
