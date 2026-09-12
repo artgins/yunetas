@@ -69,6 +69,17 @@ PRIVATE json_t *load_json(
     size_t flags = 0;
     json_error_t error;
     json_t *jn_device = json_load_file(filename, flags, &error);
+    if(!jn_device) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot load device json database",
+            "path",         "%s", filename,
+            "error",        "%s", error.text,
+            "line",         "%d", error.line,
+            NULL
+        );
+    }
     return jn_device;
 }
 
@@ -120,6 +131,8 @@ PUBLIC int db_load_persistent_attrs(
         );
 
         gobj_write_attrs(gobj, attrs, SDF_PERSIST, 0);
+    } else {
+        JSON_DECREF(keys)
     }
 
     return 0;
@@ -146,12 +159,10 @@ PUBLIC int db_save_persistent_attrs(
         JSON_DECREF(jn_file)
     }
 
-    save_json(
+    return save_json(
         gobj,
         attrs  // owned
     );
-
-    return 0;
 }
 
 /***************************************************************************
@@ -170,12 +181,10 @@ PUBLIC int db_remove_persistent_attrs(
         FALSE
     );
 
-    save_json(
+    return save_json(
         gobj,
         attrs  // owned
     );
-
-    return 0;
 }
 
 /***************************************************************************

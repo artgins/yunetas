@@ -41,6 +41,25 @@ one ahead of it is, and a column changed without raising its topic is not
 published (and `diff-schema` reports it). Stores that drifted under the old
 rule stay ahead of their literal until it passes them, or are reinstalled.
 
+### Persistent attributes: a failed save is no longer reported as saved
+
+`dbsimple.c` (the Linux persistence behind `gobj_save_persistent_attrs()`):
+
+- `db_save_persistent_attrs()` and `db_remove_persistent_attrs()` returned 0
+  whatever happened; they now return what the write returns. A failed write
+  was logged (*"Cannot save device json database"*) but its caller was told it
+  worked, so a command that checks — `set-impose-c-schema`,
+  `remove-persistent-attrs` — answered success for a value that was not saved.
+  Every other caller ignores the result, so nothing else changes.
+- `load_json()` logs a file that exists but cannot be read (*"Cannot load
+  device json database"*, with the parser's error and line). It returned NULL
+  in silence, and the next save then rewrote the file with only the attributes
+  being saved, dropping the rest without a word.
+- `db_load_persistent_attrs()` no longer leaks `keys` when nothing is saved.
+
+The ESP32 persistence (`esp_persistent.c`) has the same defects and more; it
+is recorded in `TODO.md`, not changed.
+
 ### `impose_c_schema`: the code takes the schema back
 
 A new attribute of `C_TREEDB` (`SDF_RD|SDF_PERSIST`, default `1`). With it on,

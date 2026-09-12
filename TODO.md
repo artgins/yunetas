@@ -161,13 +161,15 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `set-impose-c-schema`). Remove the old attribute from wattyzer,
     estadodelaire, hidraulia and yunovatios the next time each is touched.
 
-- **`db_save_persistent_attrs()` always returns 0.** `save_json()` logs a
-    failed write (*"Cannot save device json database"*) and returns -1, and
-    `dbsimple.c` drops that result (`db_remove_persistent_attrs()` too), so
-    `gobj_save_persistent_attrs()` reports success for a value that was not
-    saved. `set-impose-c-schema` checks the result and cannot see it. Every
-    caller of the persistence is affected (`set-gclass-trace` in `c_yuno.c`
-    returns it as its own result), so the fix changes what they answer.
+- **The ESP32 persistence (`esp_persistent.c`) has the defects fixed in
+    `dbsimple.c`, and more.** `save_json()` returns 0 when `nvs_set_str()` or
+    `nvs_commit()` fails, and `dbesp_save/remove_persistent_attrs()` drop its
+    result anyway, so a value that was not saved reports success.
+    `load_json()` returns on `ESP_ERR_NVS_NOT_FOUND` without `nvs_close()` (a
+    handle lost on every load of a gobj with nothing saved), and uses raw
+    `malloc`/`free`. `dbesp_load_persistent_attrs()` leaks `keys` when nothing
+    is saved. Not changed with the Linux fix: the `ESP_PLATFORM` code is not
+    built or tested on the development node.
 
 - **A removed column with data behind it is still nobody's problem.** The
     write guard refuses what cannot produce a working schema, but dropping a
