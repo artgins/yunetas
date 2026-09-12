@@ -671,13 +671,25 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
             if [ -s "$pidfile" ]; then
                 pid=$(cat "$pidfile")
                 #
-                #   Signal only a master that is really alive. A pid file
-                #   outlives a server that was stopped, and USR1 sent to a
-                #   pid the kernel gave to somebody else hits a process
-                #   that has nothing to do with us.
+                #   Signal only a master that is really alive, and really
+                #   nginx. A pid file outlives a server that was stopped,
+                #   and USR1 sent to a pid the kernel gave to somebody else
+                #   hits a process that has nothing to do with us.
                 #
-                if kill -0 "$pid" 2>/dev/null; then
+                #   Asked through /proc, NOT with `kill -0`. On RHEL/Rocky,
+                #   inside logrotate's SELinux domain (logrotate_t), `kill
+                #   -0` on the master answers "Permission denied" while
+                #   `kill -USR1` goes through. The old guard,
+                #   `if kill -0 ... 2>/dev/null`, therefore skipped the
+                #   signal EVERY night without a word, and nginx went on
+                #   writing to the rotated file until its next restart.
+                #   Measured on yunovatios-central, 2026-09-12. The master
+                #   of both trees (nginx and openresty) is named `nginx`.
+                #
+                if [ "$(cat /proc/"$pid"/comm 2>/dev/null)" = "nginx" ]; then
                     kill -USR1 "$pid"
+                else
+                    echo "yuneta logrotate: $pidfile names no live nginx master ($pid), logs not reopened" >&2
                 fi
             fi
         done

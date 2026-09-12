@@ -421,8 +421,28 @@ the busiest one was writing 3.5 MB a day.
 
 Both web server trees are listed. A node runs one or the other — the choice is
 in `/etc/yuneta/webserver` — and `missingok` covers the tree that is absent.
-The `postrotate` reads each `nginx.pid` and sends `USR1` only to a master that
-is alive, so a stale pid file cannot make it signal an unrelated process.
+The `postrotate` reads each `nginx.pid` and sends `USR1` only to a live
+process named `nginx` (asked through `/proc/<pid>/comm`), so a stale pid file
+cannot make it signal an unrelated process. When it finds no live master, it
+says so in the logrotate output (the journal of `logrotate.service`) instead of
+skipping in silence.
+
+It does **not** use `kill -0` for that check, and the reason is RHEL/Rocky.
+logrotate runs there in the SELinux domain `logrotate_t`, which may send the
+master `USR1` (`signal`) but not the null signal (`signull`), and the policy
+does not even audit that denial: no AVC appears unless the `dontaudit` rules
+are switched off (`semodule -DB`). The first version guarded the signal with
+`if kill -0 "$pid" 2>/dev/null`, so on `yunovatios-central` the signal was
+skipped every night, the service still ended "successfully", and nginx went
+on writing to the rotated `access.log.1` until the next restart of the web
+server. The symptom is a live file that does not grow while the `.1` does;
+the `webstats` yuno warns about exactly that (*"Log rotation STALLED"*). To
+check a node after the nightly rotation:
+
+```bash
+ls -l --time-style=+%F_%T /yuneta/bin/nginx/logs/access.log /yuneta/bin/nginx/logs/access.log.1
+# the live access.log must be the one with the newest mtime
+```
 
 The **yunos do not rotate here**. Each one writes numbered files under
 `/yuneta/realms/<realm>/<yuno>/logs/` and rotates them itself.

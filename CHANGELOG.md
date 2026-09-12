@@ -1,5 +1,29 @@
 # **Changelog**
 
+## [Unreleased]
+
+### Packaging: the nightly log rotation reopens nginx on RHEL/Rocky too
+
+The `postrotate` of `/etc/logrotate.d/yuneta` (the same drop-in in the `.deb`
+and the `.rpm`) guarded its `USR1` to the web server's master with
+`if kill -0 "$pid" 2>/dev/null`. On RHEL/Rocky logrotate runs in the SELinux
+domain `logrotate_t`, which may send the master `USR1` but not the null signal:
+`avc: denied { signull } ... scontext=logrotate_t
+tcontext=unconfined_service_t tclass=process`, and the policy does not audit
+it (it shows only with `semodule -DB`). So the guard failed, the signal was
+skipped EVERY night without a word, `logrotate.service` ended successfully,
+and nginx went on writing to the rotated `access.log.1` until the next restart
+of the web server. On `yunovatios-central` every rotated file ended at a
+deploy, never at midnight.
+
+The guard now asks `/proc/<pid>/comm` whether the pid is a live `nginx`
+(stricter than `kill -0`: a recycled pid of another program no longer
+passes), and when there is no live master it says so in the logrotate output
+instead of skipping in silence. Verified inside `logrotate_t`, with the
+hardening of `logrotate.service`: the new drop-in reopens the logs. The
+drop-in is a conffile; a node that never edited it gets the new one on the
+next package.
+
 ## v7.20.0 (2026-09-12)
 
 ### Treedb: `set-link-events`, the link events switched at run time
