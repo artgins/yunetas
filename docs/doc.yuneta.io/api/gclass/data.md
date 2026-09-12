@@ -80,11 +80,11 @@ of timeranger with JSON schema support.
 
 | Command | Description |
 |---------|-------------|
-| `open-treedb` / `close-treedb` | Open or close a treedb instance. |
+| `open-treedb` / `close-treedb` | Open or close a treedb instance. `open-treedb impose_c_schema=1`, passed by the yuno's code, imposes the schema from C whatever the attribute says. |
 | `delete-treedb` | Delete a treedb and its data. |
 | `create-topic` / `delete-topic` | Manage topics within a treedb. |
 | `diff-schema` | What the `__system__` projection of a treedb says that its schema from C does not. |
-| `set-impose-c-schema` | Show (no `set`) or change (`set=1` / `set=0`) `impose_c_schema`. Needs the permission `impose-c-schema`. Acts the next time the yuno opens its treedbs. |
+| `set-impose-c-schema` | Show (no `set`) or change (`set=1` / `set=0`) `impose_c_schema`. Needs the permission `impose-c-schema`. Acts the next time the yuno opens its treedbs. Its answer lists in `forced_by_code` the treedbs whose code imposes, which the value does not reach. |
 
 ---
 

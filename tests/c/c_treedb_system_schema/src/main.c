@@ -134,6 +134,8 @@ static int register_yuno_and_more(void)
             "{s:s}, {s:s},"                             /* the legacy ids move; its literal is behind */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* and its treedb opens (+ __assets__) */
             "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* impose_c_schema: on, imposed, off */
+            "{s:s}, {s:s}, {s:s}, {s:s},"               /* attribute off: opened from __system__ */
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},"  /* the code imposes over the attribute */
             "{s:s},"
             "{s:s}, {s:s}, {s:s}, {s:s}"
         "]",
@@ -190,6 +192,17 @@ static int register_yuno_and_more(void)
             "msg", "Re-Creating topic_var.json",
             "msg", "Re-Creating topic_cols.json",
             "msg", "impose_c_schema changed",
+            "msg", "TreeDB schema from C is behind the schema in use, not applied",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
+            "msg", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "msg", "Opening TreeDB with the schema from C, __system__ ignored",
+            "msg", "Imposing TreeDB schema from C over a newer one",
+            "msg", "Re-Creating TreeDB schema file",
+            "msg", "Imposing topic_version from C over a newer one",
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json",
             "msg", "All treedb system schema tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

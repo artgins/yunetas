@@ -1153,9 +1153,33 @@ ycommand -c 'command-agent service=treedbs command=set-impose-c-schema set=0'  #
 ycommand -c 'command-yuno id=<id> service=treedbs command=set-impose-c-schema set=1'
 ```
 
-It replaces `use_internal_schema`, an option of `open-treedb` that each yuno
-passed and that was removed in 7.19.0. That one opened with the literal too,
-but the persisted schema file still won when it was newer, so it did not
+**The yuno's code can force it, and then no command undoes it.** Because the
+value persists, a `set=0` survives every restart and every new binary. So a
+binary that must impose its schema, whatever was decided at run time, says so
+itself, per treedb, with the `open-treedb` parameter `impose_c_schema`:
+
+```c
+json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+    "filename_mask", "%Y",
+    "exit_on_error", 0,
+    "treedb_name", treedb_name,
+    "treedb_schema", jn_treedb_schema,
+    "impose_c_schema", 1    // the binary imposes; the attribute cannot undo it
+);
+json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gobj);
+```
+
+The order, from the strongest: the yuno's code, then the value set by
+`set-impose-c-schema`, then the deploy config, then the default. To impose
+the law, deploy a binary that forces it. To give the permission back, deploy
+one that does not, and from then on the attribute decides again. When the
+code overrides a `0`, the log says *"impose_c_schema forced by the code of the
+yuno, over the attribute"*, and `set-impose-c-schema` lists the forced
+treedbs in `forced_by_code`, so nobody expects their `set=0` to reach them.
+
+This parameter takes the place of `use_internal_schema`, an option of
+`open-treedb` that was removed in 7.19.0. That one opened with the literal
+too, but the persisted schema file still won when it was newer, so it did not
 revert anything.
 
 **Reconciling is an upsert — nothing is ever deleted.** A delete is the one

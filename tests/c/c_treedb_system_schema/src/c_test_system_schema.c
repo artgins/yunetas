@@ -403,19 +403,23 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  Open the test treedb, letting the __system__ treedb be the schema
- *  source (use_internal_schema=0).
+ *  Open the test treedb. With `forced_by_code` the open imposes the schema
+ *  from C whatever C_TREEDB's impose_c_schema says, the way a yuno's code
+ *  does it; without it the attribute decides (off in this test, so the
+ *  __system__ treedb is the schema source).
  ***************************************************************************/
-PRIVATE int open_test_treedb(hgobj gobj, json_t *jn_schema) // owned
+PRIVATE int open_test_treedb_with(hgobj gobj, json_t *jn_schema, BOOL forced_by_code) // owned
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:b}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
-        "treedb_name", TREEDB_NAME,
-        "use_internal_schema", 0
+        "treedb_name", TREEDB_NAME
     );
+    if(forced_by_code) {
+        json_object_set_new(kw_treedb, "impose_c_schema", json_true());
+    }
     if(jn_schema) {
         json_object_set_new(kw_treedb, "treedb_schema", jn_schema);
     }
@@ -434,6 +438,65 @@ PRIVATE int open_test_treedb(hgobj gobj, json_t *jn_schema) // owned
     JSON_DECREF(jn_resp)
 
     return result;
+}
+
+/***************************************************************************
+ *  Open the test treedb as C_TREEDB's impose_c_schema says
+ ***************************************************************************/
+PRIVATE int open_test_treedb(hgobj gobj, json_t *jn_schema) // owned
+{
+    return open_test_treedb_with(gobj, jn_schema, FALSE);
+}
+
+/***************************************************************************
+ *  The schema_version of the test treedb's schema file on disk, or -1.
+ ***************************************************************************/
+PRIVATE json_int_t disk_schema_version(hgobj gobj)
+{
+    hgobj gobj_client_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
+    json_t *tranger = gobj_client_tranger?
+        gobj_read_pointer_attr(gobj_client_tranger, "tranger"):
+        NULL;
+    if(!tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: client tranger not found",
+            NULL
+        );
+        return -1;
+    }
+    json_t *schema_file = load_json_from_file(
+        gobj,
+        kw_get_str(gobj, tranger, "directory", "", 0),
+        TREEDB_NAME ".treedb_schema.json",
+        0
+    );
+    json_int_t version = kw_get_int(gobj, schema_file, "schema_version", -1, KW_WILD_NUMBER);
+    JSON_DECREF(schema_file)
+    return version;
+}
+
+/***************************************************************************
+ *  The topic_version a topic of the test treedb carries on disk, or -1.
+ ***************************************************************************/
+PRIVATE json_int_t disk_topic_version(hgobj gobj, const char *topic_name)
+{
+    hgobj gobj_client_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
+    json_t *tranger = gobj_client_tranger?
+        gobj_read_pointer_attr(gobj_client_tranger, "tranger"):
+        NULL;
+    if(!tranger) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST FAIL: client tranger not found",
+            NULL
+        );
+        return -1;
+    }
+    json_t *topic = kw_get_dict(gobj, kw_get_dict(gobj, tranger, "topics", 0, 0), topic_name, 0, 0);
+    return kw_get_int(gobj, topic, "topic_version", -1, KW_WILD_NUMBER);
 }
 
 /***************************************************************************
@@ -1557,21 +1620,8 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     /*
      *  The disk: the schema file, the topic and its columns are the literal's
      */
-    hgobj gobj_client_tranger = gobj_find_service("tranger_" TREEDB_NAME, FALSE);
-    json_t *tranger = gobj_client_tranger?
-        gobj_read_pointer_attr(gobj_client_tranger, "tranger"):
-        NULL;
-    json_t *schema_file = tranger? load_json_from_file(
-        gobj,
-        kw_get_str(gobj, tranger, "directory", "", 0),
-        TREEDB_NAME ".treedb_schema.json",
-        0
-    ): NULL;
-    json_int_t file_version = kw_get_int(gobj, schema_file, "schema_version", -1, KW_WILD_NUMBER);
-    JSON_DECREF(schema_file)
-    json_int_t disk_users = tranger?
-        kw_get_int(gobj, tranger, "topics`users`topic_version", -1, KW_WILD_NUMBER):
-        -1;
+    json_int_t file_version = disk_schema_version(gobj);
+    json_int_t disk_users = disk_topic_version(gobj, "users");
 
     const char *disk_header = "";
     hgobj gobj_client_node = gobj_find_service(TREEDB_NAME, FALSE);
@@ -1630,6 +1680,86 @@ PRIVATE int check_impose_c_schema(hgobj gobj)
     if(set_impose_c_schema(gobj, "0") < 0) {
         result += -1;   // Error already logged
     }
+
+    return result;
+}
+
+/***************************************************************************
+ *  The yuno's code imposes: open-treedb impose_c_schema=1 wins over the
+ *  attribute, which Test 9 left off -- the persistent value a command set.
+ *
+ *  First an ordinary open, from __system__, takes the disk ahead of the
+ *  literal again; then the forced one brings it back, and the command says
+ *  the treedb is forced.
+ ***************************************************************************/
+PRIVATE int check_impose_forced_by_code(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+    if(open_test_treedb(gobj, legalstring2json(schema_test2, TRUE)) < 0) {
+        return -1;  // Error already logged
+    }
+    json_int_t dynamic_version = disk_schema_version(gobj);
+
+    jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:b}", "treedb_name", TREEDB_NAME, "force", 1),
+        gobj
+    );
+    JSON_DECREF(jn_resp)
+    json_t *jn_literal = legalstring2json(schema_test2, TRUE);
+    json_int_t literal_version = kw_get_int(gobj, jn_literal, "schema_version", 0, KW_WILD_NUMBER);
+    if(open_test_treedb_with(gobj, jn_literal, TRUE) < 0) {
+        return -1;  // Error already logged
+    }
+
+    json_int_t file_version = disk_schema_version(gobj);
+    json_int_t disk_users = disk_topic_version(gobj, "users");
+    if(dynamic_version <= literal_version || file_version != literal_version || disk_users != 2) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: the code did not impose the schema from C",
+            "dynamic_version",  "%d", (int)dynamic_version,
+            "schema_file",      "%d", (int)file_version,
+            "literal_version",  "%d", (int)literal_version,
+            "users_version",    "%d", (int)disk_users,
+            NULL
+        );
+        result += -1;
+    }
+
+    /*
+     *  The attribute is still off, and the command says who overrides it
+     */
+    jn_resp = gobj_command(
+        priv->gobj_treedbs,
+        "set-impose-c-schema",
+        json_object(),
+        gobj
+    );
+    BOOL attr = kw_get_bool(gobj, jn_resp, "data`impose_c_schema", 1, 0);
+    json_t *jn_forced = kw_get_list(gobj, jn_resp, "data`forced_by_code", 0, 0);
+    if(attr || json_list_str_index(jn_forced, TREEDB_NAME, FALSE) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL,
+            "msg",              "%s", "TEST FAIL: set-impose-c-schema does not say the treedb is forced",
+            "response",         "%j", jn_resp,
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
 
     return result;
 }
@@ -2311,6 +2441,14 @@ PRIVATE int run_tests(hgobj gobj)
      *  disk, and __system__ keeps the changes.
      *-----------------------------------------------*/
     result += check_impose_c_schema(gobj);
+
+    /*-----------------------------------------------*
+     *  Test 10: the yuno's code imposes the schema
+     *  from C over the attribute: a persistent value
+     *  set by command cannot undo what the binary
+     *  decides.
+     *-----------------------------------------------*/
+    result += check_impose_forced_by_code(gobj);
 
     JSON_DECREF(client_cols)
     JSON_DECREF(ids_before)

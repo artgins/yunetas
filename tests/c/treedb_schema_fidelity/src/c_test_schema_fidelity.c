@@ -270,12 +270,11 @@ PRIVATE int sweep_schema(hgobj gobj, const char *name, char *literal)
         return -1;
     }
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:O, s:b}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:O}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
         "treedb_name", treedb_name,
-        "treedb_schema", jn_schema,
-        "use_internal_schema", 0
+        "treedb_schema", jn_schema
     );
     json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gobj);
     int ret = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);

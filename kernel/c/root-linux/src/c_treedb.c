@@ -16,7 +16,9 @@
  *          "delete-topic"
  *          "diff-schema"   -> what the __system__ projection says that the schema from C does not
  *          "set-impose-c-schema" -> open every treedb with its schema from C, over
- *                             __system__ and over a newer schema on disk
+ *                             __system__ and over a newer schema on disk. The yuno's
+ *                             code can force it per treedb (open-treedb impose_c_schema=1),
+ *                             over whatever the command left persisted
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -129,6 +131,7 @@ SDATAPM (DTP_STRING,    "filename_mask",0,              "%Y-%m-%d", "Organizatio
 SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
 SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema, projected into __system__ and reconciled there"),
+SDATAPM (DTP_BOOLEAN,   "impose_c_schema",0,            0,          "Set by the yuno's CODE: impose treedb_schema whatever the impose_c_schema attribute says, persistent value included"),
 SDATAPM (DTP_JSON,      "initial_load", 0,              0,          "Seed records, created if missing and marked immutable"),
 SDATAPM (DTP_STRING,    "import_root",  0,              0,          "C_NODE attr: root that 'import-assets' is confined to. Empty: refused"),
 SDATAPM (DTP_INTEGER,   "files_max_size",0,             0,          "C_NODE attr: largest file a 'file' column accepts. 0: the default"),
@@ -207,7 +210,7 @@ SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
 SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
-SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is ignored (and kept), and a newer schema on disk is overwritten. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open"),
+SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD|SDF_PERSIST, "1",            "Open every treedb with its schema from C: __system__ is ignored (and kept), and a newer schema on disk is overwritten. 0: open from __system__, so the schema can be changed dynamically. Changed with set-impose-c-schema, from the next open. The yuno's code can force it per treedb (open-treedb impose_c_schema=1)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -273,6 +276,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_node_system;
     json_t *tranger_system_;
     json_t *jn_c_schemas;               // schema from C by treedb_name, see diff-schema
+    json_t *jn_forced_treedbs;          // treedbs whose yuno's code imposes the schema from C
     json_int_t system_schema_version;   // of treedb_system_schema, see reconcile
     int32_t exit_on_error;
 } PRIVATE_DATA;
@@ -307,6 +311,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  by treedb_name: that is the other half `diff-schema` compares.
      */
     priv->jn_c_schemas = json_object();
+    priv->jn_forced_treedbs = json_object();
 
     /*-----------------------------------*
      *      Create System Timeranger
@@ -427,6 +432,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->jn_c_schemas)
+    JSON_DECREF(priv->jn_forced_treedbs)
 }
 
 /***************************************************************************
@@ -538,6 +544,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
     int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
@@ -585,7 +593,17 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*-----------------------------------*
      *      Get the schema to open with
      *-----------------------------------*/
-    BOOL impose_c_schema = gobj_read_bool_attr(gobj, "impose_c_schema");
+    BOOL forced_by_code = kw_get_bool(gobj, kw, "impose_c_schema", 0, KW_WILD_NUMBER);
+    BOOL impose_c_schema = forced_by_code || gobj_read_bool_attr(gobj, "impose_c_schema");
+    if(forced_by_code && !gobj_read_bool_attr(gobj, "impose_c_schema")) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "impose_c_schema forced by the code of the yuno, over the attribute",
+            "treedb_name",  "%s", treedb_name,
+            NULL
+        );
+    }
     json_t *jn_client_treedb_schema = impose_c_schema?
         get_c_schema_to_impose(gobj, treedb_name, _jn_treedb_schema):
         get_client_treedb_schema(gobj, treedb_name, _jn_treedb_schema);
@@ -709,6 +727,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     gobj_start(gobj_client_tranger);
     gobj_start(gobj_client_node);
 
+    if(forced_by_code && gobj_client_node) {
+        json_object_set_new(priv->jn_forced_treedbs, treedb_name, json_true());
+    } else {
+        json_object_del(priv->jn_forced_treedbs, treedb_name);
+    }
+
     return msg_iev_build_response(gobj,
         gobj_client_node?0:-1,
         json_sprintf("%s", gobj_client_node?"Treedb opened!":gobj_log_last_message()),
@@ -816,6 +840,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     gobj_destroy(gobj_client_node);
 
     json_object_del(priv->jn_c_schemas, treedb_name);
+    json_object_del(priv->jn_forced_treedbs, treedb_name);
 
     return msg_iev_build_response(gobj,
         0,
@@ -877,6 +902,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     int ret = delete_client_treedb_schema(gobj, treedb_name);
     json_object_del(priv->jn_c_schemas, treedb_name);
+    json_object_del(priv->jn_forced_treedbs, treedb_name);
 
     return msg_iev_build_response(gobj,
         ret,
@@ -1006,9 +1032,15 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *  Persistent, and it acts at the next open: a treedb already open keeps the
  *  schema it opened with (closing it from outside while the yuno plays is not
  *  safe), so the change reaches it when its yuno restarts.
+ *
+ *  It does not reach a treedb whose yuno's code imposes the schema from C
+ *  (open-treedb impose_c_schema=1): that one is the binary's decision, and a
+ *  persistent value set here must not undo it. The answer lists them.
  ***************************************************************************/
 PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*----------------------------------------*
      *  Check AUTHZS
      *----------------------------------------*/
@@ -1060,16 +1092,27 @@ PRIVATE json_t *cmd_set_impose_c_schema(hgobj gobj, const char *cmd, json_t *kw,
     }
 
     BOOL impose_c_schema = gobj_read_bool_attr(gobj, "impose_c_schema");
+    json_t *jn_forced = json_array();
+    const char *forced_name; json_t *jn_v;
+    json_object_foreach(priv->jn_forced_treedbs, forced_name, jn_v) {
+        json_array_append_new(jn_forced, json_string(forced_name));
+    }
+    size_t forced = json_array_size(jn_forced);
+
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: impose_c_schema is %s%s",
+        json_sprintf("%s: impose_c_schema is %s%s%s",
             gobj_yuno_role_plus_name(),
             impose_c_schema? "on": "off",
-            empty_string(set)? "": ", from the next open of each treedb"
+            empty_string(set)? "": ", from the next open of each treedb",
+            forced? "; forced on by the yuno's code for the treedbs in forced_by_code": ""
         ),
         0,
-        json_pack("{s:b}", "impose_c_schema", impose_c_schema),
+        json_pack("{s:b, s:o}",
+            "impose_c_schema", impose_c_schema,
+            "forced_by_code", jn_forced
+        ),
         kw  // owned
     );
 }

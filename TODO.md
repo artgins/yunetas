@@ -155,11 +155,12 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 - **The project yunos still declare `use_internal_schema`.** `open-treedb`
     does not read it any more, and an unknown key in a command kw is harmless
     (`command_parser` merges it and nobody reads it), so they keep working
-    untouched — but the attribute is now a lie in their source. Its successor
-    is `impose_c_schema`, an attribute of `C_TREEDB` itself (default 1, first
-    value from the yuno config as `treedbs.impose_c_schema`, changed with
-    `set-impose-c-schema`). Remove the old attribute from wattyzer,
-    estadodelaire, hidraulia and yunovatios the next time each is touched.
+    untouched — but the attribute is now a lie in their source. Five classes:
+    wattyzer `db_history_wz`, hidraulia `db_history`, estadodelaire
+    `db_history`, yunovatios `db_history_co` and `db_history_ce`. Drop the
+    attribute and its kw key; a yuno whose binary must impose its schema passes
+    `impose_c_schema: 1` in the `open-treedb` kw instead (see `YUNO_TREEDB.md`
+    §3.11). Without it, `C_TREEDB`'s own `impose_c_schema` decides.
 
 - **The ESP32 persistence (`esp_persistent.c`) has the defects fixed in
     `dbsimple.c`, and more.** `save_json()` returns 0 when `nvs_set_str()` or
