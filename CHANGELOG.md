@@ -1,8 +1,12 @@
 # **Changelog**
 
-## [Unreleased]
+## 7.20.0-2
 
-### Packaging: the nightly log rotation reopens nginx on RHEL/Rocky too
+A packaging revision, not a new version: the tree under `kernel/`, `modules/`,
+`utils/` and `yunos/` is the same one 7.20.0 was cut from. The packages are
+rebuilt as `yuneta-agent-7.20.0-2` and attached to the existing 7.20.0 tag.
+
+### Fixed: the nightly log rotation reopens nginx on RHEL/Rocky too
 
 The `postrotate` of `/etc/logrotate.d/yuneta` (the same drop-in in the `.deb`
 and the `.rpm`) guarded its `USR1` to the web server's master with
