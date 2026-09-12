@@ -1169,6 +1169,9 @@ json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
 json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gobj);
 ```
 
+The agent does exactly this for its own treedb (`c_agent.c`), and so do the
+`db_history*` yunos of the projects.
+
 The order, from the strongest: the yuno's code, then the value set by
 `set-impose-c-schema`, then the deploy config, then the default. To impose
 the law, deploy a binary that forces it. To give the permission back, deploy

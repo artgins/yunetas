@@ -83,7 +83,8 @@ or the system was broken or changed by mistake — and restart the yuno.
   binary could not impose its schema again; with it, imposing the law is
   deploying a binary that forces it. The log says *"impose_c_schema forced by
   the code of the yuno, over the attribute"*, and `set-impose-c-schema` lists
-  the forced treedbs in `forced_by_code`.
+  the forced treedbs in `forced_by_code`. **The agent forces it** for its own
+  treedb (`c_agent.c`), and so do the `db_history*` yunos of the projects.
 - **`treedb_open_db()` option `"impose"`** (with `"persistent"`, master only)
   makes the schema passed win over a newer one on disk, at the treedb and at
   each topic; timeranger2 rewrites `topic_cols.json` / `topic_var.json` for a

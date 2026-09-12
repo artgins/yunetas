@@ -152,16 +152,6 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     `treedb_authzs` never reaches `__system__` and cannot be edited. Any other
     direct `C_NODE` consumer is in the same position.
 
-- **The project yunos still declare `use_internal_schema`.** `open-treedb`
-    does not read it any more, and an unknown key in a command kw is harmless
-    (`command_parser` merges it and nobody reads it), so they keep working
-    untouched — but the attribute is now a lie in their source. Five classes:
-    wattyzer `db_history_wz`, hidraulia `db_history`, estadodelaire
-    `db_history`, yunovatios `db_history_co` and `db_history_ce`. Drop the
-    attribute and its kw key; a yuno whose binary must impose its schema passes
-    `impose_c_schema: 1` in the `open-treedb` kw instead (see `YUNO_TREEDB.md`
-    §3.11). Without it, `C_TREEDB`'s own `impose_c_schema` decides.
-
 - **The ESP32 persistence (`esp_persistent.c`) has the defects fixed in
     `dbsimple.c`, and more.** `save_json()` returns 0 when `nvs_set_str()` or
     `nvs_commit()` fails, and `dbesp_save/remove_persistent_attrs()` drop its
