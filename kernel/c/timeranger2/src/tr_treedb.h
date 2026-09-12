@@ -416,6 +416,20 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     json_t *kw, // owned
     BOOL save
 );
+/*
+ *  Replace the node's links by the ones kw's fkey columns name, touching
+ *  only what differs: what kw no longer names is unlinked, what it names
+ *  new is linked, a link in both is left alone (no event, no write). A
+ *  column kw does not carry is an empty one. A link that cannot be made or
+ *  undone is logged and skipped, and the rest go on.
+ *  Return 0, or -1 if some link failed (every failure logged).
+ */
+PUBLIC int treedb_replace_links(
+    json_t *tranger,
+    json_t *node,           // NOT owned, pure node
+    json_t *kw,             // owned
+    BOOL save
+);
 
 PUBLIC int treedb_link_nodes(
     json_t *tranger,

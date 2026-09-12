@@ -1720,7 +1720,7 @@ with links to the API documentation.
 
 17. [**`trq_check_backup`**](timeranger2/tr_queue.md#trq_check_backup) — `PUBLIC int trq_check_backup(tr_queue_t * trq)`
 
-### `tr_treedb.h` — 50 functions
+### `tr_treedb.h` — 51 functions
 
 **Source:** `kernel/c/timeranger2/src/tr_treedb.h`
 
@@ -1788,43 +1788,45 @@ with links to the API documentation.
 
 32. [**`treedb_autolink`**](timeranger2/treedb.md#treedb_autolink) — `PUBLIC int treedb_autolink( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
 
-33. [**`treedb_link_nodes`**](timeranger2/treedb.md#treedb_link_nodes) — `PUBLIC int treedb_link_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
+33. [**`treedb_replace_links`**](timeranger2/treedb.md#treedb_replace_links) — `PUBLIC int treedb_replace_links( json_t *tranger, json_t *node, json_t *kw, BOOL save )`
 
-34. [**`treedb_unlink_nodes`**](timeranger2/treedb.md#treedb_unlink_nodes) — `PUBLIC int treedb_unlink_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
+34. [**`treedb_link_nodes`**](timeranger2/treedb.md#treedb_link_nodes) — `PUBLIC int treedb_link_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
 
-35. [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) — `PUBLIC json_t *treedb_get_node( json_t *tranger, const char *treedb_name, const char *topic_name, const char *id )`
+35. [**`treedb_unlink_nodes`**](timeranger2/treedb.md#treedb_unlink_nodes) — `PUBLIC int treedb_unlink_nodes( json_t *tranger, const char *hook, json_t *parent_node, json_t *child_node )`
 
-36. [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) — `PUBLIC json_t *treedb_get_instance( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, const char *id, const char *key2 )`
+36. [**`treedb_get_node`**](timeranger2/treedb.md#treedb_get_node) — `PUBLIC json_t *treedb_get_node( json_t *tranger, const char *treedb_name, const char *topic_name, const char *id )`
 
-37. [**`node_collapsed_view`**](timeranger2/treedb.md#node_collapsed_view) — `PUBLIC json_t *node_collapsed_view( json_t *tranger, json_t *node, json_t *jn_options )`
+37. [**`treedb_get_instance`**](timeranger2/treedb.md#treedb_get_instance) — `PUBLIC json_t *treedb_get_instance( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, const char *id, const char *key2 )`
 
-38. [**`treedb_list_nodes`**](timeranger2/treedb.md#treedb_list_nodes) — `PUBLIC json_t *treedb_list_nodes( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
+38. [**`node_collapsed_view`**](timeranger2/treedb.md#node_collapsed_view) — `PUBLIC json_t *node_collapsed_view( json_t *tranger, json_t *node, json_t *jn_options )`
 
-39. [**`treedb_list_instances`**](timeranger2/treedb.md#treedb_list_instances) — `PUBLIC json_t *treedb_list_instances( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
+39. [**`treedb_list_nodes`**](timeranger2/treedb.md#treedb_list_nodes) — `PUBLIC json_t *treedb_list_nodes( json_t *tranger, const char *treedb_name, const char *topic_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
 
-40. [**`treedb_parent_refs`**](timeranger2/treedb.md#treedb_parent_refs) — `PUBLIC json_t *treedb_parent_refs( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
+40. [**`treedb_list_instances`**](timeranger2/treedb.md#treedb_list_instances) — `PUBLIC json_t *treedb_list_instances( json_t *tranger, const char *treedb_name, const char *topic_name, const char *pkey2_name, json_t *jn_filter, BOOL (*match_fn) ( json_t *topic_desc, json_t *node, json_t *jn_filter ) )`
 
-41. [**`treedb_list_parents`**](timeranger2/treedb.md#treedb_list_parents) — `PUBLIC json_t *treedb_list_parents( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
+41. [**`treedb_parent_refs`**](timeranger2/treedb.md#treedb_parent_refs) — `PUBLIC json_t *treedb_parent_refs( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
 
-42. [**`treedb_node_children`**](timeranger2/treedb.md#treedb_node_children) — `PUBLIC json_t *treedb_node_children( json_t *tranger, const char *hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
+42. [**`treedb_list_parents`**](timeranger2/treedb.md#treedb_list_parents) — `PUBLIC json_t *treedb_list_parents( json_t *tranger, const char *fkey, json_t *node, json_t *jn_options )`
 
-43. [**`add_jtree_path`**](timeranger2/treedb.md#add_jtree_path) — `PUBLIC int add_jtree_path( json_t *parent, json_t *child )`
+43. [**`treedb_node_children`**](timeranger2/treedb.md#treedb_node_children) — `PUBLIC json_t *treedb_node_children( json_t *tranger, const char *hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
 
-44. [**`treedb_node_jtree`**](timeranger2/treedb.md#treedb_node_jtree) — `PUBLIC json_t *treedb_node_jtree( json_t *tranger, const char *hook, const char *rename_hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
+44. [**`add_jtree_path`**](timeranger2/treedb.md#add_jtree_path) — `PUBLIC int add_jtree_path( json_t *parent, json_t *child )`
 
-45. [**`treedb_get_topic_links`**](timeranger2/treedb.md#treedb_get_topic_links) — `PUBLIC json_t *treedb_get_topic_links( json_t *tranger, const char *treedb_name, const char *topic_name )`
+45. [**`treedb_node_jtree`**](timeranger2/treedb.md#treedb_node_jtree) — `PUBLIC json_t *treedb_node_jtree( json_t *tranger, const char *hook, const char *rename_hook, json_t *node, json_t *jn_filter, json_t *jn_options )`
 
-46. [**`treedb_get_topic_hooks`**](timeranger2/treedb.md#treedb_get_topic_hooks) — `PUBLIC json_t *treedb_get_topic_hooks( json_t *tranger, const char *treedb_name, const char *topic_name )`
+46. [**`treedb_get_topic_links`**](timeranger2/treedb.md#treedb_get_topic_links) — `PUBLIC json_t *treedb_get_topic_links( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-47. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
+47. [**`treedb_get_topic_hooks`**](timeranger2/treedb.md#treedb_get_topic_hooks) — `PUBLIC json_t *treedb_get_topic_hooks( json_t *tranger, const char *treedb_name, const char *topic_name )`
 
-48. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
+48. [**`treedb_shoot_snap`**](timeranger2/treedb.md#treedb_shoot_snap) — `PUBLIC int treedb_shoot_snap( json_t *tranger, const char *treedb_name, const char *snap_name, const char *description )`
 
-49. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
+49. [**`treedb_activate_snap`**](timeranger2/treedb.md#treedb_activate_snap) — `PUBLIC int treedb_activate_snap( json_t *tranger, const char *treedb_name, const char *snap_name )`
 
-50. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+50. [**`treedb_list_snaps`**](timeranger2/treedb.md#treedb_list_snaps) — `PUBLIC json_t *treedb_list_snaps( json_t *tranger, const char *treedb_name, json_t *filter )`
 
-**Total: 139 functions**
+51. [**`create_template_record`**](timeranger2/treedb.md#create_template_record) — `PUBLIC json_t *create_template_record( const char *template_name, json_t *cols, json_t *kw )`
+
+**Total: 140 functions**
 
 ## root-linux (Runtime GClasses)
 
@@ -2231,7 +2233,7 @@ with links to the API documentation.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **957 functions** sorted alphabetically with their source header.
+All **958 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3081,6 +3083,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`treedb_node_jtree`**](timeranger2/treedb.md#treedb_node_jtree) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_open_db`**](timeranger2/treedb.md#treedb_open_db) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_parent_refs`**](timeranger2/treedb.md#treedb_parent_refs) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
+| [**`treedb_replace_links`**](timeranger2/treedb.md#treedb_replace_links) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_save_node`**](timeranger2/treedb.md#treedb_save_node) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_set_callback`**](timeranger2/treedb.md#treedb_set_callback) | `tr_treedb.h` | timeranger2 (Time-Series DB) |
 | [**`treedb_set_trace`**](timeranger2/treedb.md#treedb_set_trace) | `tr_treedb.h` | timeranger2 (Time-Series DB) |

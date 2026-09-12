@@ -122,7 +122,7 @@ crash or leak cannot mask neighbours.
 | Binary | Description |
 |--------|-------------|
 | **`test_subscriptions test1–2`** | GObj event subscribe / unsubscribe lifecycle. |
-| **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the [`C_NODE`](#gclass-c-node) GClass level. |
+| **`test_c_node_link_events`** | `EV_TREEDB_NODE_LINKED` / `UNLINKED` events at the [`C_NODE`](#gclass-c-node) GClass level, and an `update-node` with `autolink`: the links it repeats publish nothing, a moved link is one unlink and one link, and a ref that cannot be linked (missing parent, or a hook that links into another column) is logged while the record is still saved. |
 | **`test_c_node_initial_load`** | The `initial_load` seed of [`C_NODE`](#gclass-c-node): records first and links second whatever the topic order, every seed immutable, a declared link refused to `unlink-nodes`, to an autolink update that omits it and to a `force` delete of its parent, and a second start that creates nothing. |
 | **`test_tr_treedb_link_events`** | Low-level link/unlink callback mechanism in `tr_treedb`. |
 

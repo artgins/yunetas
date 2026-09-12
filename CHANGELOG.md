@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Treedb: an autolink update moves only the links that change
+
+`C_NODE`'s `update-node` with `autolink` used to run `treedb_clean_node()`
+(unlink EVERY link of the node) and then `treedb_autolink()` (link again
+from the record). Two consequences:
+
+- **Every link was announced as broken and remade.** A link the update did
+  not change still published `EV_TREEDB_NODE_UNLINKED` and then
+  `EV_TREEDB_NODE_LINKED` (or, with `with_link_events` off, two
+  `EV_TREEDB_NODE_UPDATED` of the parent), and a subscriber saw the node
+  orphaned in between.
+- **One bad ref cost every link.** `treedb_autolink()` stopped at the first
+  ref it could not link (a parent that does not exist), after the clean had
+  already removed all of them. The record was then saved in that state.
+
+The new `treedb_replace_links()` (`tr_treedb.h`) compares each fkey column of
+the node with the same column of the record: a ref that is no longer named is
+unlinked, a new ref is linked, and a ref in both is not touched (no event, no
+write). A link that cannot be made or removed is logged and skipped, and the
+others go on. `update-node` still saves the record: a link can be repaired
+later, a lost record cannot.
+
+A ref is now refused when its hook does not link the topic into the column
+where the ref arrived (*"fkey reference: its hook does not link into this
+column"*). `_link_nodes()` links by the hook the ref names, so such a ref used
+to be linked into ANOTHER column, without an error. A missing parent logs
+*"fkey reference: parent node not found"*.
+
+No change: a fkey column that the record does not carry is still an EMPTY
+column for an autolink, and its links are removed (with the same *"fkey
+empty"* warning). `treedb_clean_node()` and `treedb_autolink()` stay as they
+were. `test_c_node_link_events` covers the four cases.
+
 ### Treedb schema versions: published by whoever changes the schema, never invented
 
 The model, as it always was meant to be: a schema is changed either from the

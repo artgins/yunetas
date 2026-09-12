@@ -5,7 +5,9 @@
  *
  *          Verifies that when C_NODE's `with_link_events` attribute is set,
  *          link/unlink operations publish EV_TREEDB_NODE_LINKED and
- *          EV_TREEDB_NODE_UNLINKED events through the GObj event system.
+ *          EV_TREEDB_NODE_UNLINKED events through the GObj event system,
+ *          and that an update-node with autolink moves only the links
+ *          that change and saves the record even when a link fails.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -268,6 +270,122 @@ PRIVATE int mt_play(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Reset the event counters
+ ***************************************************************************/
+PRIVATE void reset_counters(PRIVATE_DATA *priv)
+{
+    priv->linked_count = 0;
+    priv->unlinked_count = 0;
+    priv->created_count = 0;
+    priv->updated_count = 0;
+    priv->deleted_count = 0;
+}
+
+/***************************************************************************
+ *  Log a failure when an event counter is not what the test expects
+ ***************************************************************************/
+PRIVATE int expect_count(
+    hgobj gobj,
+    const char *test,
+    const char *counter,
+    int expected,
+    int got
+)
+{
+    if(got == expected) {
+        return 0;
+    }
+    gobj_log_error(gobj, 0,
+        "function", "%s", __FUNCTION__,
+        "msgset", "%s", MSGSET_INTERNAL,
+        "msg", "%s", "TEST FAIL: wrong event count",
+        "test", "%s", test,
+        "counter", "%s", counter,
+        "expected", "%d", expected,
+        "got", "%d", got,
+        NULL
+    );
+    return -1;
+}
+
+/***************************************************************************
+ *  update-node of alice with autolink, the way a client sends it
+ ***************************************************************************/
+PRIVATE json_t *update_alice_with_autolink( // Return is YOURS
+    hgobj gobj,
+    const char *username,
+    json_t *departments     // owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return gobj_update_node(
+        priv->gobj_node,
+        "users",
+        json_pack("{s:s, s:s, s:o}",
+            "id", "alice",
+            "username", username,
+            "departments", departments
+        ),
+        json_pack("{s:b}", "autolink", 1),
+        gobj
+    );
+}
+
+/***************************************************************************
+ *  The record is saved ONCE and the link that did not change is still there
+ ***************************************************************************/
+PRIVATE int expect_alice_saved(
+    hgobj gobj,
+    const char *test,
+    json_t *alice,          // NOT owned, pure node
+    const char *username,
+    const char *kept_ref,
+    json_int_t g_rowid
+)
+{
+    int ret = 0;
+
+    if(strcmp(kw_get_str(gobj, alice, "username", "", 0), username) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: the record was not updated",
+            "test", "%s", test,
+            "expected", "%s", username,
+            "got", "%s", kw_get_str(gobj, alice, "username", "", 0),
+            NULL
+        );
+        ret += -1;
+    }
+    if(kw_get_int(gobj, alice, "__md_treedb__`g_rowid", 0, 0) != g_rowid) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: the record was not saved once",
+            "test", "%s", test,
+            "expected", "%d", (int)g_rowid,
+            "got", "%d", (int)kw_get_int(gobj, alice, "__md_treedb__`g_rowid", 0, 0),
+            NULL
+        );
+        ret += -1;
+    }
+    if(!json_str_in_list(gobj, kw_get_dict_value(gobj, alice, "departments", 0, 0), kept_ref, FALSE)) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: a link that did not change was lost",
+            "test", "%s", test,
+            "ref", "%s", kept_ref,
+            NULL
+        );
+        ret += -1;
+    }
+
+    return ret;
+}
+
+/***************************************************************************
  *  Run all tests — called from timer callback inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -418,6 +536,112 @@ PRIVATE int run_tests(hgobj gobj)
      *  UPDATED for the link operation itself.
      *-----------------------------------------------*/
     /* updated_count > 0 is expected from save_node callbacks */
+
+    /*-----------------------------------------------*
+     *  Test 6: update-node with autolink repeating
+     *  the links the node has: no link event at all,
+     *  only the UPDATED of the one save
+     *-----------------------------------------------*/
+    json_int_t g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+    reset_counters(priv);
+
+    json_t *jn_node = update_alice_with_autolink(gobj, "alice_b",
+        json_pack("[s]", "departments^engineering^users")
+    );
+    if(!jn_node) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: update-node with the same links answered NULL",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_node)
+
+    result += expect_count(gobj, "same links", "linked", 0, priv->linked_count);
+    result += expect_count(gobj, "same links", "unlinked", 0, priv->unlinked_count);
+    result += expect_count(gobj, "same links", "updated", 1, priv->updated_count);
+    result += expect_alice_saved(gobj, "same links", user1,
+        "alice_b", "departments^engineering^users", g_rowid + 1
+    );
+
+    /*-----------------------------------------------*
+     *  Test 7: update-node with autolink moving the
+     *  link: ONE unlink and ONE link
+     *-----------------------------------------------*/
+    g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+    reset_counters(priv);
+
+    jn_node = update_alice_with_autolink(gobj, "alice_c",
+        json_pack("[s]", "departments^research^users")
+    );
+    JSON_DECREF(jn_node)
+
+    result += expect_count(gobj, "moved link", "linked", 1, priv->linked_count);
+    result += expect_count(gobj, "moved link", "unlinked", 1, priv->unlinked_count);
+    result += expect_count(gobj, "moved link", "updated", 1, priv->updated_count);
+    if(strcmp(priv->last_unlinked_parent_id, "engineering") != 0 ||
+       strcmp(priv->last_linked_parent_id, "research") != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: moved link, wrong parents in the events",
+            "unlinked", "%s", priv->last_unlinked_parent_id,
+            "linked", "%s", priv->last_linked_parent_id,
+            NULL
+        );
+        result += -1;
+    }
+    result += expect_alice_saved(gobj, "moved link", user1,
+        "alice_c", "departments^research^users", g_rowid + 1
+    );
+
+    /*-----------------------------------------------*
+     *  Test 8: a link that cannot be made (its parent
+     *  does not exist) does not cost the record its
+     *  save, nor the links that did not change
+     *-----------------------------------------------*/
+    g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+    reset_counters(priv);
+
+    jn_node = update_alice_with_autolink(gobj, "alice_d",
+        json_pack("[s, s]", "departments^research^users", "departments^ghost^users")
+    );
+    if(!jn_node) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: update-node with a missing parent answered NULL",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_node)
+
+    result += expect_count(gobj, "missing parent", "linked", 0, priv->linked_count);
+    result += expect_count(gobj, "missing parent", "unlinked", 0, priv->unlinked_count);
+    result += expect_alice_saved(gobj, "missing parent", user1,
+        "alice_d", "departments^research^users", g_rowid + 1
+    );
+
+    /*-----------------------------------------------*
+     *  Test 9: a ref whose hook links into ANOTHER
+     *  column is refused, and the record is saved
+     *-----------------------------------------------*/
+    g_rowid = kw_get_int(gobj, user1, "__md_treedb__`g_rowid", 0, 0);
+    reset_counters(priv);
+
+    jn_node = update_alice_with_autolink(gobj, "alice_e",
+        json_pack("[s, s]", "departments^research^users", "departments^engineering^departments")
+    );
+    JSON_DECREF(jn_node)
+
+    result += expect_count(gobj, "wrong column", "linked", 0, priv->linked_count);
+    result += expect_count(gobj, "wrong column", "unlinked", 0, priv->unlinked_count);
+    result += expect_alice_saved(gobj, "wrong column", user1,
+        "alice_e", "departments^research^users", g_rowid + 1
+    );
 
     if(result == 0) {
         gobj_log_info(gobj, 0,

@@ -1087,8 +1087,13 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             }
         }
         if(autolink) {
-            treedb_clean_node(priv->tranger, node, FALSE);  // remove current links
-            treedb_autolink(priv->tranger, node, json_incref(kw), FALSE);
+            /*
+             *  A link that cannot be made does not cost the record its
+             *  save: a link can be repaired later, a lost record cannot.
+             */
+            if(treedb_replace_links(priv->tranger, node, json_incref(kw), FALSE)<0) {
+                // Error already logged
+            }
             treedb_save_node(priv->tranger, node);
         }
     }
@@ -4961,9 +4966,10 @@ PRIVATE json_t *seed_record_without_links( // Return MUST be decref
  *  from more places than a record can be deleted from. What the guards in
  *  unlink_nodes, update_node and delete_node refuse, this repairs on start.
  *
- *  It links, it never re-writes: an autolink over an existing node goes
- *  through treedb_clean_node() first, which would drop every link the seed
- *  does NOT declare -- the links a person added on purpose.
+ *  It links, it never re-writes: an autolink over an existing node replaces
+ *  its links by the ones the record names (treedb_replace_links()), which
+ *  would drop every link the seed does NOT declare -- the links a person
+ *  added on purpose.
  ***************************************************************************/
 PRIVATE int write_seed_links(
     hgobj gobj,

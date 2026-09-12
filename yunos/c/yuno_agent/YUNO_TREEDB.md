@@ -911,9 +911,10 @@ of the topics in `initial_load` does not matter (`users` could come before
    lost it.
 
 It links, and it never re-writes, for a reason: an autolink over an existing
-node goes through `treedb_clean_node()` first, which drops every link the seed
-does **not** declare — including the ones a person added on purpose (§4.10
-and the partial-update trap in §3.6).
+node replaces its links by the ones the record names
+(`treedb_replace_links()`), which drops every link the seed does **not**
+declare — including the ones a person added on purpose (§4.10 and the
+partial-update trap in §3.6).
 
 **A link a seed is declared with is as immutable as the seed.** The
 immutable mark is one md2 bit on the *record*, and `tr_treedb` does not know
@@ -923,7 +924,7 @@ which links matter; the declaration does. So `C_NODE`, the owner of
 
 - `unlink-nodes` of it: *"initial_load: cannot unlink a seed link"*.
 - an `update-node` with `autolink` that does not repeat it (the partial-update
-  trap: what kw omits, `treedb_clean_node()` drops): *"initial_load: update
+  trap: what kw omits, `treedb_replace_links()` drops): *"initial_load: update
   would drop a seed link"*. Repeat the declared refs in the update and it goes
   through.
 - `delete-node` of the **parent** the seed hangs from — the one cut that never

@@ -7834,6 +7834,100 @@ PRIVATE int _unlink_nodes(
 }
 
 /***************************************************************************
+ *  Unlink the child from the parent that one of its fkey refs names.
+ *
+ *  A ref whose parent is nowhere is a stale ref: it is only removed from
+ *  the child. Nothing is saved here. Return 0 or -1 (error logged).
+ ***************************************************************************/
+PRIVATE int unlink_child_from_parent_ref(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node: the child
+    const char *ref
+)
+{
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
+    const char *child_id = kw_get_str(gobj, node, "id", "", 0);
+
+    char parent_topic_name[NAME_MAX];
+    char parent_id[NAME_MAX];
+    char hook_name[NAME_MAX];
+    if(!decode_parent_ref(
+        ref,
+        parent_topic_name, sizeof(parent_topic_name),
+        parent_id, sizeof(parent_id),
+        hook_name, sizeof(hook_name)
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
+            "ref",                  "%s", ref,
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  The fkey ref carries only parent_id, not the pkey2/version,
+     *  so a child hooked on a non-primary parent-version must be
+     *  located across all instances; unlinking the primary alone
+     *  would leave a stale hook entry on the real version-instance.
+     */
+    json_t *parent_node = treedb_get_node( // primary, NOT YOURS
+        tranger,
+        treedb_name,
+        parent_topic_name,
+        parent_id
+    );
+    json_t *holder = NULL;
+    if(parent_node &&
+            parent_hook_holds_child(gobj, parent_node, hook_name, node, child_id)) {
+        holder = parent_node;
+    }
+    if(!holder) {
+        holder = find_parent_version_holding_child(
+            gobj,
+            tranger,
+            treedb_name,
+            parent_topic_name,
+            parent_id,
+            hook_name,
+            node,           // NOT owned
+            child_id
+        );
+    }
+    if(!holder) {
+        /*
+         *  Not located on any instance (e.g. hook+fkey combos the
+         *  read-only probe can't match): keep legacy behaviour and
+         *  unlink from the primary if it exists.
+         */
+        holder = parent_node;
+    }
+    if(holder) {
+        return _unlink_nodes(
+            gobj,
+            tranger,
+            hook_name,
+            holder,         // NOT owned
+            node,           // NOT owned
+            FALSE
+        );
+    }
+
+    search_and_remove_wrong_up_ref(
+        gobj,
+        tranger,
+        node,
+        topic_name,
+        ref
+    );
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int treedb_clean_node(
@@ -7861,9 +7955,7 @@ PUBLIC int treedb_clean_node(
     /*-------------------------------*
      *      Get node info
      *-------------------------------*/
-    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
-    const char *child_id = kw_get_str(gobj, node, "id", "", 0);
 
     int ret = 0;
     BOOL to_save = FALSE;
@@ -7871,89 +7963,12 @@ PUBLIC int treedb_clean_node(
     if(json_array_size(up_refs)>0) {
         int idx; json_t *old_fkey;
         json_array_foreach(up_refs, idx, old_fkey) {
-            /*
-             *  Delete link
-             */
-            const char *ref = json_string_value(old_fkey);
-
-            /*
-             *  Get parent info
-             */
-            char parent_topic_name[NAME_MAX];
-            char parent_id[NAME_MAX];
-            char hook_name[NAME_MAX];
-            if(!decode_parent_ref(
-                ref,
-                parent_topic_name, sizeof(parent_topic_name),
-                parent_id, sizeof(parent_id),
-                hook_name, sizeof(hook_name)
-            )) {
-                // It's not a fkey
-                gobj_log_error(gobj, 0,
-                    "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_TREEDB,
-                    "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
-                    "ref",                  "%s", ref,
-                    NULL
-                );
-                continue;
-            }
-
-            /*
-             *  The fkey ref carries only parent_id, not the pkey2/version,
-             *  so a child hooked on a non-primary parent-version must be
-             *  located across all instances; unlinking the primary alone
-             *  would leave a stale hook entry on the real version-instance.
-             */
-            json_t *parent_node = treedb_get_node( // primary, NOT YOURS
+            ret += unlink_child_from_parent_ref(
+                gobj,
                 tranger,
-                treedb_name,
-                parent_topic_name,
-                parent_id
+                node,
+                json_string_value(old_fkey)
             );
-            json_t *holder = NULL;
-            if(parent_node &&
-                    parent_hook_holds_child(gobj, parent_node, hook_name, node, child_id)) {
-                holder = parent_node;
-            }
-            if(!holder) {
-                holder = find_parent_version_holding_child(
-                    gobj,
-                    tranger,
-                    treedb_name,
-                    parent_topic_name,
-                    parent_id,
-                    hook_name,
-                    node,           // NOT owned
-                    child_id
-                );
-            }
-            if(!holder) {
-                /*
-                 *  Not located on any instance (e.g. hook+fkey combos the
-                 *  read-only probe can't match): keep legacy behaviour and
-                 *  unlink from the primary if it exists.
-                 */
-                holder = parent_node;
-            }
-            if(holder) {
-                ret += _unlink_nodes(
-                    gobj,
-                    tranger,
-                    hook_name,
-                    holder,         // NOT owned
-                    node,           // NOT owned
-                    FALSE
-                );
-            } else {
-                search_and_remove_wrong_up_ref(
-                    gobj,
-                    tranger,
-                    node,
-                    topic_name,
-                    ref
-                );
-            }
         }
 
         /*
@@ -8169,6 +8184,265 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     JSON_DECREF(cols)
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  Link the child to the parent that a ref of its fkey column names.
+ *
+ *  The link is made by the hook the REF names, not by the column the ref
+ *  arrived in: a ref whose hook does not link this topic into this very
+ *  column would land in another one, so it is refused.
+ *
+ *  Nothing is saved here. Return 0 or -1 (error logged).
+ ***************************************************************************/
+PRIVATE int link_child_to_parent_ref(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node: the child
+    const char *col_name,
+    const char *ref
+)
+{
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0);
+
+    char parent_topic_name[NAME_MAX];
+    char parent_id[NAME_MAX];
+    char hook_name[NAME_MAX];
+    if(!decode_parent_ref(
+        ref,
+        parent_topic_name, sizeof(parent_topic_name),
+        parent_id, sizeof(parent_id),
+        hook_name, sizeof(hook_name)
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *hook_desc = kwid_get(gobj,
+        tranger,
+        0,
+        "topics`%s`cols`%s`hook",
+            parent_topic_name, hook_name
+    );
+    const char *child_field = NULL;
+    if(hook_desc) {
+        child_field = kw_get_str(gobj, hook_desc, topic_name, 0, 0);
+    }
+    if(!child_field || strcmp(child_field, col_name)!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "fkey reference: its hook does not link into this column",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return -1;
+    }
+
+    json_t *parent_node = treedb_get_node( // Return is NOT YOURS, pure node
+        tranger,
+        treedb_name,
+        parent_topic_name,
+        parent_id
+    );
+    if(!parent_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "fkey reference: parent node not found",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            "ref",          "%s", ref,
+            NULL
+        );
+        return -1;
+    }
+
+    return _link_nodes(
+        gobj,
+        tranger,
+        hook_name,
+        parent_node,    // NOT owned
+        node,           // NOT owned
+        FALSE
+    );
+}
+
+/***************************************************************************
+ *  Replace the node's links by the ones kw's fkey columns name, touching
+ *  only what differs. treedb_clean_node() + treedb_autolink() got there by
+ *  unlinking EVERY link and linking again: a link that did not change was
+ *  published as broken and remade, and a ref that failed after the clean
+ *  had already cost the node every link it had.
+ *
+ *  A column kw does not carry is an empty one, as it always was for an
+ *  autolink. A link that cannot be made or undone is logged and skipped,
+ *  and the rest go on: the caller saves the record anyway, because a link
+ *  can be repaired later and a lost record cannot. A column whose value
+ *  cannot be read as refs keeps the links it has.
+ *
+ *  Return 0, or -1 if some link failed (every failure logged).
+ ***************************************************************************/
+PUBLIC int treedb_replace_links(
+    json_t *tranger,
+    json_t *node,   // NOT owned, pure node
+    json_t *kw,     // owned
+    BOOL save
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    /*------------------------------*
+     *      Check original node
+     *------------------------------*/
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Not a pure node",
+            NULL
+        );
+        gobj_trace_json(gobj, node, "Not a pure node");
+        JSON_DECREF(kw)
+        return -1;
+    }
+
+    /*-------------------------------*
+     *      Get node info
+     *-------------------------------*/
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0);
+
+    /*
+     *  A 'file' column may still hold a bare id here (idempotent otherwise)
+     */
+    if(treedb_store_files(tranger, treedb_name, topic_name, kw)<0) {
+        // Error already logged
+        JSON_DECREF(kw)
+        return -1;
+    }
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic without cols",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        JSON_DECREF(kw)
+        return -1;
+    }
+
+    int ret = 0;
+    BOOL changed = FALSE;
+
+    const char *col_name; json_t *col;
+    json_object_foreach(cols, col_name, col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        if(!kw_has_word(gobj, desc_flag, "fkey", 0)) {
+            continue;
+        }
+
+        json_t *cur_value = json_object_get(node, col_name);
+        if(!cur_value) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "field not found in the node",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                "col",          "%s", col_name,
+                NULL
+            );
+            ret = -1;
+            continue;
+        }
+
+        json_t *new_value = json_object_get(kw, col_name);
+        json_t *new_refs;
+        if(json_absent(new_value)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "fkey empty",
+                "topic_name",   "%s", topic_name,
+                "treedb_name",  "%s", treedb_name,
+                "col",          "%s", col_name,
+                "record",       "%j", kw,
+                NULL
+            );
+            new_refs = json_array();
+        } else {
+            new_refs = filtra_fkeys(topic_name, col_name, "list", new_value);
+            if(!new_refs) {
+                // Error already logged: the column keeps the links it has
+                ret = -1;
+                continue;
+            }
+        }
+
+        json_t *cur_refs = get_fkey_refs(cur_value);
+
+        /*
+         *  Unlink first: a single-valued column has room for one parent,
+         *  and a link writes over the old ref without unhooking it.
+         */
+        int idx; json_t *jn_ref;
+        json_array_foreach(cur_refs, idx, jn_ref) {
+            const char *ref = json_string_value(jn_ref);
+            if(json_str_in_list(gobj, new_refs, ref, FALSE)) {
+                continue;
+            }
+            if(unlink_child_from_parent_ref(gobj, tranger, node, ref)<0) {
+                ret = -1;   // Error already logged
+            } else {
+                changed = TRUE;
+            }
+        }
+
+        json_t *done = json_array();
+        json_array_foreach(new_refs, idx, jn_ref) {
+            const char *ref = json_string_value(jn_ref);
+            if(json_str_in_list(gobj, cur_refs, ref, FALSE) ||
+                    json_str_in_list(gobj, done, ref, FALSE)) {
+                continue;
+            }
+            json_array_append(done, jn_ref);
+            if(link_child_to_parent_ref(gobj, tranger, node, col_name, ref)<0) {
+                ret = -1;   // Error already logged
+            } else {
+                changed = TRUE;
+            }
+        }
+
+        JSON_DECREF(done)
+        JSON_DECREF(cur_refs)
+        JSON_DECREF(new_refs)
+    }
+
+    if(save && changed) {
+        treedb_save_node(tranger, node);
+    }
+
+    JSON_DECREF(cols)
+    JSON_DECREF(kw)
+    return ret;
 }
 
 /***************************************************************************

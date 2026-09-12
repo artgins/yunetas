@@ -417,6 +417,8 @@ The function uses the foreign key fields in `kw` to establish links between node
 If `save` is `TRUE`, the changes are persisted in the database.
 The `node` parameter must be a valid pure node object.
 
+It only ADDS links, and it stops at the first ref it cannot link. To make the links of a node equal to the ones a record names, use [`treedb_replace_links()`](<#treedb_replace_links>): it does not touch the links that do not change, and a bad ref does not stop the others. `C_NODE`'s `update-node` with `autolink` uses `treedb_replace_links()`, not `treedb_clean_node()` + `treedb_autolink()`.
+
 ---
 
 (treedb_clean_node)=
@@ -1332,6 +1334,72 @@ A JSON array containing the parent references. The caller must decrement the ref
 **Notes**
 
 The function supports multiple formatting options for the returned references, including full references, only IDs, and list dictionaries.
+
+---
+
+(treedb_replace_links)=
+## [`treedb_replace_links()`](https://github.com/artgins/yunetas/blob/7.19.0/kernel/c/timeranger2/src/tr_treedb.c#L8300)
+
+`treedb_replace_links()` replaces the links of a node by the ones the fkey columns of `kw` name, and touches only what differs. It is what [`C_NODE`](#gclass-c-node) runs for an `update-node` with `autolink`.
+
+```C
+int treedb_replace_links(
+    json_t  *tranger,
+    json_t  *node,   // NOT owned, pure node
+    json_t  *kw,     // owned
+    BOOL    save
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the tranger database instance. |
+| `node` | `json_t *` | The child node whose links are replaced. Must be a pure node. Not owned. |
+| `kw` | `json_t *` | The record. Its fkey columns name the parents the node must have. Owned. |
+| `save` | `BOOL` | If `TRUE`, the node is saved when a link changed. |
+
+**Returns**
+
+Returns `0` when every link was made or removed, or `-1` when at least one failed. Every failure is logged, and the other links are processed.
+
+**Behavior**
+
+For each fkey column of the node's topic, the refs of the node are compared with the refs of the same column in `kw`:
+
+- A ref that `kw` does not name is unlinked (`EV_TREEDB_NODE_UNLINKED`).
+- A ref that `kw` names and the node does not have is linked (`EV_TREEDB_NODE_LINKED`).
+- A ref in both is not touched: no event, no write.
+
+A column that `kw` does not carry is an **empty** column, and its links are removed (with the warning *"fkey empty"*). Send every fkey column, or do not use `autolink` for a partial update.
+
+A ref is refused, with an error, when:
+
+- its parent does not exist: *"fkey reference: parent node not found"*;
+- its hook does not link the topic into the column where the ref arrived: *"fkey reference: its hook does not link into this column"*.
+
+A refused ref does not stop the other refs. The caller can still save the record, and repair the link later with [`treedb_link_nodes()`](<#treedb_link_nodes>).
+
+**Example**
+
+The node `users^alice` is linked to `departments^engineering`. This record keeps that link, adds `departments^research`, and refuses `departments^ghost` (not found):
+
+```C
+json_t *kw = json_pack("{s:s, s:s, s:[s, s, s]}",
+    "id", "alice",
+    "username", "alice_w",
+    "departments",
+        "departments^engineering^users",
+        "departments^research^users",
+        "departments^ghost^users"
+);
+if(treedb_replace_links(tranger, alice, kw, TRUE) < 0) {
+    // Error already logged: the good links are made, the bad one is not
+}
+```
+
+The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering, one error for ghost.
 
 ---
 
