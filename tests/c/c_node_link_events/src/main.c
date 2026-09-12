@@ -4,7 +4,7 @@
  *          Main of test_c_node_link_events
  *          Tests EV_TREEDB_NODE_LINKED/UNLINKED at the c_node GClass level
  *
- *          Copyright (c) 2024 by ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
@@ -76,6 +76,19 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
+ *  `set-link-events` is SDF_AUTHZ_X and asks `update` before changing.
+ *  With no checker installed the default one is C_AUTHZ's, which looks for
+ *  an authz SERVICE this test yuno does not run -- so the command would be
+ *  refused with -403 and the switch would never be reached. This test is
+ *  about which events a link publishes, not about who may switch them.
+ ***************************************************************************/
+static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return TRUE;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
@@ -95,7 +108,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating TreeDB schema file",
@@ -107,6 +120,8 @@ static int register_yuno_and_more(void)
             "msg", "Playing yuno",
             "msg", "fkey reference: parent node not found",
             "msg", "fkey reference: its hook does not link into this column",
+            "msg", "with_link_events changed",
+            "msg", "with_link_events changed",
             "msg", "All c_node link event tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",
@@ -170,7 +185,7 @@ int main(int argc, char *argv[])
         NULL,       // persistent_attrs
         NULL,       // command_parser
         NULL,       // stats_parser
-        NULL,       // authz_checker
+        test_authz_checker,
         NULL,       // authentication_parser
         MEM_MAX_BLOCK,
         MEM_MAX_SYSTEM_MEMORY,

@@ -122,8 +122,8 @@ and not a workaround.
 
 **The store sends messages of its own.** A treedb publishes
 `EV_TREEDB_NODE_CREATED`, `EV_TREEDB_NODE_UPDATED`, `EV_TREEDB_NODE_DELETED`,
-and — when it is opened with `with_link_events` — `EV_TREEDB_NODE_LINKED` and
-`EV_TREEDB_NODE_UNLINKED`. A change of shared state
+and — when it is opened with `with_link_events`, or switched to it with
+`set-link-events` — `EV_TREEDB_NODE_LINKED` and `EV_TREEDB_NODE_UNLINKED`. A change of shared state
 returns through the one channel that exists. This is also why Yuneta refuses
 polling. The producer publishes, and the consumer subscribes.
 

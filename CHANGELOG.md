@@ -1,6 +1,34 @@
 # **Changelog**
 
-## [Unreleased]
+## v7.20.0 (2026-09-12)
+
+### Treedb: `set-link-events`, the link events switched at run time
+
+`with_link_events` could only be set when a treedb's `C_NODE` was created, so
+a client that follows the graph (the treedb graph of gobj-ui, any frontend)
+had to live with what the yuno was configured with: the parent's
+`EV_TREEDB_NODE_UPDATED` on every link and unlink, from which it cannot tell
+which child moved, so it re-reads.
+
+`C_NODE` has a new command, `set-link-events`, on the treedb service itself --
+the same service a frontend already asks for `nodes` and `descs`:
+
+```
+ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1'
+```
+
+- `set=1`: a link/unlink publishes `EV_TREEDB_NODE_LINKED` /
+  `EV_TREEDB_NODE_UNLINKED` with the relationship (`hook_name`,
+  `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`).
+- `set=0`: it publishes the parent's `EV_TREEDB_NODE_UPDATED`, what the v1
+  SPAs (estadodelaire, hidraulia) read.
+- No `set`: the current value.
+
+It acts at once, on the open treedb. It is either/or for EVERY subscriber of
+that treedb, not per client. Setting it needs the `update` permission. It is
+not persistent: on the next start the treedb has the configured
+`with_link_events` again (`C_TREEDB`'s attribute, copied to each treedb it
+opens). The change is logged (*"with_link_events changed"*, with the user).
 
 ### Treedb: an autolink update moves only the links that change
 

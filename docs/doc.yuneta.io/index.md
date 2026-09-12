@@ -10,7 +10,7 @@ title: Yuneta Simplified
 
 ## *An Asynchronous Development Framework*
 
-**Current version: [7.19.0](https://github.com/artgins/yunetas/tree/7.19.0)**
+**Current version: [7.20.0](https://github.com/artgins/yunetas/tree/7.20.0)**
 
 *Documentation updated: 2026-09-12*
 :::

@@ -48,6 +48,7 @@ PRIVATE int treedb_callback(
                             // EV_TREEDB_NODE_UNLINKED
     json_t *node            // owned
 );
+PRIVATE int set_treedb_callback(hgobj gobj);
 
 PRIVATE json_t *fetch_node(  // WARNING Return is NOT YOURS, pure node
     hgobj gobj,
@@ -113,6 +114,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_link_events(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -187,6 +189,11 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_trace[] = {
 SDATAPM (DTP_BOOLEAN,   "set",          0,              0,          "Trace: set 1 o 0"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_link_events[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "set",          0,              "",         "1: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED; 0: it publishes the parent's EV_TREEDB_NODE_UPDATED. Empty: show the current value"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_topics[] = {
@@ -358,6 +365,7 @@ SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_schema, "
 SDATACM2 (DTP_SCHEMA,   "import-assets",SDF_AUTHZ_X,    0,  pm_import_assets,cmd_import_assets,"Import a directory already on this node into __assets__: N files, no bytes on the wire, answers path -> id"),
 SDATACM2 (DTP_SCHEMA,   "gc-assets",    SDF_AUTHZ_X,    0,  pm_gc_assets,   cmd_gc_assets,      "Delete the assets that no live node and no snapshot links. Never automatic"),
 SDATACM2 (DTP_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
+SDATACM2 (DTP_SCHEMA,   "set-link-events",SDF_AUTHZ_X,  0,  pm_set_link_events,cmd_set_link_events,"Events of a link/unlink, at run time: 1 EV_TREEDB_NODE_LINKED/UNLINKED, 0 the parent's EV_TREEDB_NODE_UPDATED. Not persistent"),
 SDATA_END()
 };
 
@@ -371,7 +379,7 @@ SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",           "Seed records, created if missing and marked immutable; the links they declare cannot be cut"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
-SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
+SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events instead of the parent's EV_TREEDB_NODE_UPDATED. Changed at run time with set-link-events"),
 SDATA (DTP_BOOLEAN,     "impose_c_schema",  SDF_RD,             0,              "Open with treedb_schema over a NEWER schema on disk too (treedb_open_db option 'impose'). Set by C_TREEDB's impose_c_schema"),
 SDATA (DTP_INTEGER,     "files_max_size",   SDF_RD,             "134217728",    "Largest file a 'file' column accepts, in bytes (128M). A MEMORY limit as much as a policy one: the file is hashed and written whole, and it arrived in base64 inside a message the transport had already accepted, so keep it below the transport's ceiling (tcp4h: max_pkt_size; websocket: a frame has no ceiling of its own, its gbuffer is capped by MEM_MAX_BLOCK)"),
 SDATA (DTP_JSON,        "files_content_types",SDF_RD,           "[\"image/jpeg\",\"image/png\",\"image/webp\",\"image/gif\",\"application/pdf\",\"video/mp4\",\"video/webm\",\"video/quicktime\",\"video/ogg\",\"video/x-matroska\",\"audio/mpeg\",\"audio/mp4\",\"audio/ogg\",\"audio/wav\",\"audio/webm\",\"audio/flac\"]",
@@ -495,6 +503,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IF_EQ_SET_PRIV(tranger,     gobj_read_pointer_attr)
     END_EQ_SET_PRIV()
+
+    if(strcmp(path, "with_link_events")==0 && gobj_is_running(gobj)) {
+        set_treedb_callback(gobj);
+    }
 }
 
 /***************************************************************************
@@ -589,17 +601,7 @@ PRIVATE int mt_start(hgobj gobj)
         JSON_DECREF(jn_parsed)
     }
 
-    treedb_callback_flag_t flags = TREEDB_CALLBACK_NO_FLAG;
-    if(gobj_read_bool_attr(gobj, "with_link_events")) {
-        flags |= TREEDB_CALLBACK_LINK_EVENTS;
-    }
-    treedb_set_callback(
-        priv->tranger,
-        priv->treedb_name,
-        treedb_callback,
-        gobj,
-        flags
-    );
+    set_treedb_callback(gobj);
 
     /*--------------------------------------------------------------*
      *  Seed and protect the records the configuration declares.
@@ -3367,6 +3369,71 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Which events a link and an unlink publish, changed while the treedb is
+ *  open, so a client that follows the graph can ask for the relationship
+ *  instead of re-reading the parent: 1 publishes EV_TREEDB_NODE_LINKED /
+ *  EV_TREEDB_NODE_UNLINKED, 0 the parent's EV_TREEDB_NODE_UPDATED (what the
+ *  v1 SPAs read). It is either/or for every subscriber of the treedb.
+ *
+ *  Not persistent: the configured with_link_events is back on the next
+ *  start.
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_link_events(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_set = kw_get_dict_value(gobj, kw, "set", 0, 0);
+    BOOL show_only = json_absent(jn_set) ||
+        (json_is_string(jn_set) && empty_string(json_string_value(jn_set)));
+
+    if(!show_only) {
+        const char *permission = "update";
+        if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+            return msg_iev_build_response(
+                gobj,
+                -403,
+                json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+
+        BOOL set = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
+        BOOL was = gobj_read_bool_attr(gobj, "with_link_events");
+        gobj_write_bool_attr(gobj, "with_link_events", set);
+        if(set != was) {
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "with_link_events changed",
+                "treedb_name",      "%s", priv->treedb_name,
+                "with_link_events", "%d", (int)set,
+                "username",         "%s", kw_get_str(gobj, kw, "__username__", "", 0),
+                NULL
+            );
+        }
+    }
+
+    BOOL with_link_events = gobj_read_bool_attr(gobj, "with_link_events");
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: with_link_events of treedb '%s' is %s",
+            gobj_yuno_role_plus_name(),
+            priv->treedb_name,
+            with_link_events? "on": "off"
+        ),
+        0,
+        json_pack("{s:s, s:b}",
+            "treedb_name", priv->treedb_name,
+            "with_link_events", with_link_events
+        ),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4548,6 +4615,27 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
 
 
+
+/***************************************************************************
+ *  Hand the treedb its callback, with the flags the attributes say.
+ *  Called on start and again when with_link_events is written.
+ ***************************************************************************/
+PRIVATE int set_treedb_callback(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    treedb_callback_flag_t flags = TREEDB_CALLBACK_NO_FLAG;
+    if(gobj_read_bool_attr(gobj, "with_link_events")) {
+        flags |= TREEDB_CALLBACK_LINK_EVENTS;
+    }
+    return treedb_set_callback(
+        priv->tranger,
+        priv->treedb_name,
+        treedb_callback,
+        gobj,
+        flags
+    );
+}
 
 /***************************************************************************
  *

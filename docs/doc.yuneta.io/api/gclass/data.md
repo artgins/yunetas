@@ -106,7 +106,7 @@ tree nodes with linking, snapshots, and import/export.
 | `treedb_name` | `string` | Treedb name. |
 | `treedb_schema` | `json` | The schema, projected into `__system__` and opened from there. |
 | `initial_load` | `json` | Seed records, created if missing and marked immutable. |
-| `with_link_events` | `bool` | Publish `EV_TREEDB_NODE_LINKED` / `UNLINKED`. |
+| `with_link_events` | `bool` | A link/unlink publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED` instead of the parent's `EV_TREEDB_NODE_UPDATED`. Set by `C_TREEDB` at open; changed at run time with `set-link-events`. |
 | `impose_c_schema` | `bool` | Open with `treedb_schema` over a newer schema on disk too (`treedb_open_db()` option `"impose"`). Set by `C_TREEDB`. |
 | `files_max_size` | `integer` | Largest file a `file` column accepts. Default 128 MB. A **memory** limit as much as a policy one — see *File columns* below. |
 | `files_content_types` | `json` | Mime types a `file` column may hold, checked on the **bytes**. The default carries images, PDF, video and audio; `image/svg+xml` is **not** in it on purpose (an SVG served from the app's own origin runs script). A column narrows the list, never widens it. |
@@ -130,6 +130,7 @@ tree nodes with linking, snapshots, and import/export.
 | `import-db` / `export-db` | Bulk import/export. |
 | `treedbs` / `topics` | List the treedbs of the tranger / the topics of a treedb. |
 | `desc` / `descs` | Describe one topic's schema / every topic's. |
+| `set-link-events` | Show (no `set`) or change (`set=1` / `set=0`) which events a link and an unlink publish, on the open treedb and at once: `1` publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED` with the relationship (`hook_name`, `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`), `0` the parent's `EV_TREEDB_NODE_UPDATED` (what the v1 SPAs read). Either/or for every subscriber of the treedb. Needs the permission `update`. Not persistent: the next start takes the configured `with_link_events` again. Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1'`. |
 | `print-tranger` | Dump the tranger the treedb lives on as bounded JSON (`kw_collapse()`-truncated: unexpanded containers answer as `[[size]]`, and `lists_limit` and `dicts_limit` bound the expansion). Pass `path=` (backtick-delimited, `kw_find_path` style, arrays by numeric index) to lazily drill into one subtree — this is what feeds the gui_treedb "Raw JSON" viewer. |
 
 (treedb-file-columns)=
@@ -145,7 +146,7 @@ be ~460 MB of RAM for the life of the yuno.
 So **you mark a column `file`, and treedb gives you a pseudo-filesystem**: you
 hand it a file, you get it back; the *index* lives in memory and the *content*
 on disk. Design note:
-[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.19.0/kernel/c/timeranger2/DESIGN-treedb-files.md).
+[`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.20.0/kernel/c/timeranger2/DESIGN-treedb-files.md).
 
 ```
 'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey', 'file']}

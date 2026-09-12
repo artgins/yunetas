@@ -643,6 +643,54 @@ PRIVATE int run_tests(hgobj gobj)
         "alice_e", "departments^research^users", g_rowid + 1
     );
 
+    /*-----------------------------------------------*
+     *  Test 10: set-link-events switches the events
+     *  of a link at run time: off, a link publishes
+     *  the parent's UPDATED; on again, the unlink
+     *  publishes UNLINKED
+     *-----------------------------------------------*/
+    json_t *jn_resp = gobj_command(priv->gobj_node, "set-link-events",
+        json_pack("{s:s}", "set", "0"),
+        gobj
+    );
+    if(kw_get_bool(gobj, jn_resp, "data`with_link_events", 1, 0)) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: set-link-events set=0 did not answer off",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
+    reset_counters(priv);
+
+    treedb_link_nodes(priv->tranger, "users", dept1, user1);
+
+    result += expect_count(gobj, "link events off", "linked", 0, priv->linked_count);
+    result += expect_count(gobj, "link events off", "updated", 2, priv->updated_count);
+
+    jn_resp = gobj_command(priv->gobj_node, "set-link-events",
+        json_pack("{s:s}", "set", "1"),
+        gobj
+    );
+    if(!kw_get_bool(gobj, jn_resp, "data`with_link_events", 0, 0)) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: set-link-events set=1 did not answer on",
+            NULL
+        );
+        result += -1;
+    }
+    JSON_DECREF(jn_resp)
+    reset_counters(priv);
+
+    treedb_unlink_nodes(priv->tranger, "users", dept1, user1);
+
+    result += expect_count(gobj, "link events on again", "unlinked", 1, priv->unlinked_count);
+    result += expect_count(gobj, "link events on again", "updated", 1, priv->updated_count);
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,
