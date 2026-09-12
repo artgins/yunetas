@@ -524,12 +524,13 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create Treedb
      *----------------------*/
     const char *treedb_name = "treedb_authzs"; // HACK hardcoded service name
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O}",
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O, s:b}",
         "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_schema,
         "exit_on_error", LOG_OPT_EXIT_ZERO,
-        "initial_load", gobj_read_json_attr(gobj, "initial_load")
+        "initial_load", gobj_read_json_attr(gobj, "initial_load"),
+        "impose_c_schema", 1    // the binary imposes its schema over a newer one on disk
     );
 
     priv->gobj_treedb = gobj_create_service(

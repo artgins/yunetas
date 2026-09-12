@@ -1169,8 +1169,10 @@ json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
 json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gobj);
 ```
 
-The agent does exactly this for its own treedb (`c_agent.c`), and so do the
-`db_history*` yunos of the projects.
+Every treedb of the SDK is forced this way: the agent (`c_agent.c`),
+`controlcenter` and `mqtt_broker`. `C_AUTHZ` opens `treedb_authzs` without
+`open-treedb`, so it gives the same value to its `C_NODE` (attribute
+`impose_c_schema`). The `db_history*` yunos of the projects do the same.
 
 The order, from the strongest: the yuno's code, then the value set by
 `set-impose-c-schema`, then the deploy config, then the default. To impose

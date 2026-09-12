@@ -355,11 +355,12 @@ PRIVATE int mt_play(hgobj gobj)
         KW_REQUIRED
     );
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
         "treedb_name", treedb_name,
-        "treedb_schema", jn_treedb_schema_controlcenter
+        "treedb_schema", jn_treedb_schema_controlcenter,
+        "impose_c_schema", 1    // the binary imposes its schema, whatever the attribute says
     );
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",

@@ -1018,12 +1018,13 @@ PRIVATE int open_database(hgobj gobj)
 
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",
-        json_pack("{s:s, s:s, s:i, s:s, s:o}",
+        json_pack("{s:s, s:s, s:i, s:s, s:o, s:b}",
             "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
             "filename_mask", "%Y",
             "exit_on_error", 0,
             "treedb_name", priv->treedb_mqtt_broker_name,
-            "treedb_schema", jn_treedb_schema_mqtt_broker
+            "treedb_schema", jn_treedb_schema_mqtt_broker,
+            "impose_c_schema", 1    // the binary imposes its schema, whatever the attribute says
         ),
         gobj
     );
