@@ -1,5 +1,49 @@
 # **Changelog**
 
+## 7.20.0-3
+
+A packaging revision, not a new version: since 7.20.0 the tree under
+`kernel/`, `modules/`, `utils/` and `yunos/` has changed only in two JavaScript
+submodule pointers and one document, none of which the packages carry. The
+packages are rebuilt as `yuneta-agent-7.20.0-3` and attached to the existing
+7.20.0 tag.
+
+### Added: sshd stays reachable under a connection flood
+
+Both packages install `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` with
+`LoginGraceTime 20` and `MaxStartups 50:30:200` (stock: 120 s and 10:30:100).
+On 2026-09-13 an Internet-wide password botnet, 2,000-3,000 attempts an hour
+per node, filled sshd's slots for unauthenticated connections, and past 10 of
+them sshd dropped new connections at random: up to 1,464 drops an hour on the
+yunovatios controller, the operator's logins and the deploy tools' rsync
+among them. Password login was already off, so the botnet could not get in;
+it only took the slots. With these two lines, applied by hand on three nodes
+that day, the drops went to zero.
+
+- The postinst / `%post` validates with `sshd -t` before it reloads, and
+  reloads, never restarts. If the check fails because of this file, the file
+  is set aside as `.disabled` and sshd is not touched; if it fails without it
+  too, the node's own configuration is broken and is left alone. A reload
+  with a bad configuration is harmless, but the next restart would not come
+  up, and a node without sshd is a node nobody can reach.
+- A conffile (`%config(noreplace)` in the `.rpm`, 0600 like the
+  distribution's own files there): local edits survive upgrades. sshd keeps
+  the first value it reads, so a node overrides it with a lower number.
+- It relieves the symptom. Port 22 stays open to the world; the fix for that
+  is a source allowlist, and in the end the sealed node
+  (`yunos/c/yuno_agent/NODE_SEALING.md`).
+
+### Added: fail2ban watches sshd on RHEL/Rocky
+
+The `.rpm` installs `/etc/fail2ban/jail.d/yuneta-sshd.conf`, `[sshd]` enabled
+with `backend = systemd`. Debian enables that jail in its own
+`defaults-debian.conf`; RHEL ships none enabled, so `yunovatios-central` had
+fail2ban running and nothing watching sshd. `fail2ban-server` requires
+`python3-systemd` on EL9. `%post` runs `fail2ban-client -t` before reloading
+fail2ban, with the same set-aside rule: a jail fail2ban cannot configure
+takes the whole server down, every other jail with it. It does not stop a
+botnet of thousands of addresses; it stops the one address that hammers.
+
 ## 7.20.0-2
 
 A packaging revision, not a new version: the tree under `kernel/`, `modules/`,

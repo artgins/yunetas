@@ -164,6 +164,19 @@ The `postinst` script runs automatically after file extraction and performs thes
 #### 2.5. Kernel Parameter Tuning
 - Applies `/etc/sysctl.d/99-yuneta-core.conf` via `sysctl --system`
 
+#### 2.5bis. sshd under a connection flood
+- Installs `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf`:
+  `LoginGraceTime 20` and `MaxStartups 50:30:200` (stock: 120 s and
+  10:30:100). A password botnet cannot log in on a node with password login
+  off, but it fills the slots for unauthenticated connections, and past 10 of
+  them sshd drops new connections at random, legitimate ones included.
+- Validates with `sshd -t`, then **reloads** (never restarts) `ssh`. If the
+  check fails because of this file, the file is renamed `.disabled` and sshd
+  is not reloaded; if it fails without the file too, the node's own
+  configuration is broken and nothing is touched. Both cases are logged.
+- To change the values on a node, add a file with a LOWER number, e.g.
+  `05-local.conf`: sshd keeps the first value it reads.
+
 #### 2.6. SSH Keys (Optional)
 - If `/etc/yuneta/authorized_keys` exists (bundled at build time), installs it to `/home/yuneta/.ssh/authorized_keys` with proper permissions (directory `0700`, file `0600`)
 
@@ -241,6 +254,7 @@ These files are marked as `conffiles` and will not be overwritten on upgrade:
 - `/etc/sudoers.d/90-yuneta`
 - `/etc/init.d/yuneta_agent`
 - `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`
+- `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf`
 - `/etc/yuneta/authorized_keys` (if bundled)
 - `/etc/yuneta/webserver` (if bundled)
 

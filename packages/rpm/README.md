@@ -200,6 +200,16 @@ leaves the packaged externals in place — the same mismatch by a shorter road.
    transaction touching that package silently reverts the group and mode and
    cores stop being written; the tmpfiles drop-in re-asserts it every boot.
 6. `sysctl --system` (applies the tuning **including io_uring**).
+6bis. **sshd under a connection flood.** The package ships
+   `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` (`LoginGraceTime 20`,
+   `MaxStartups 50:30:200`; 0600, `%config(noreplace)`). `%post` validates
+   with `sshd -t` and then **reloads** `sshd`, never restarts it. If the check
+   fails because of this file, the file is renamed `.disabled`; if it fails
+   without it too, the node's own configuration is broken and is left alone.
+   Then the **fail2ban `sshd` jail**, `/etc/fail2ban/jail.d/yuneta-sshd.conf`
+   (`backend = systemd`), which RHEL does not enable on its own: when fail2ban
+   is running, `fail2ban-client -t` first and a reload after, with the same
+   rule, because a jail fail2ban cannot configure takes the whole server down.
 7. Installs bundled `authorized_keys` for `yuneta` (if present).
 8. Enables `rsyslog`.
 9. Installs + enables the SysV service via `chkconfig`. It then starts the
