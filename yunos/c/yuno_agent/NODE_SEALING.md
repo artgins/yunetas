@@ -295,8 +295,13 @@ here is a candidate for promotion to Tier 1:
   bites first when a node is reimaged — on 2026-08-27 the yunovatios controller's
   SSH host key had changed and the deploy hung at the verification prompt, while
   every backend task of the same session (binaries, configs, snapshots, commands)
-  went through the agent untouched. A `write-file`, or a vhost-aware command,
-  would promote it to Tier 1.
+  went through the agent untouched. On 2026-09-13 it failed a second way: an
+  Internet-wide password botnet (2,000-3,000 attempts per hour per node) filled
+  sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to `wattyzer`
+  and the controller at random, up to 1,464 drops per hour, while the agent's
+  `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
+  brought the drops to zero, but only the seal removes the exposure. A
+  `write-file`, or a vhost-aware command, would promote it to Tier 1.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
   `core_pattern`/apport, certbot renewals, nginx/openresty reload.
 - Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
