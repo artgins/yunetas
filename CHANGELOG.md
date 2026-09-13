@@ -1,5 +1,63 @@
 # **Changelog**
 
+## Unreleased
+
+### treedb `file` columns are seen, not only named (gobj-ui 7.23.159, 7.23.161, 7.23.166, 7.23.167)
+
+`kernel/js/gobj-ui` -> 7.23.159, and the same range in the consumers. The form
+and the table showed a shortened sha256 and nothing else.
+
+- **Form:** a preview under the file control -- a picked file at once, from
+  the `File` itself (a `blob:` url, nothing read before save), the stored
+  asset once the host has fetched it.
+- **Table:** a cell that names an asset is a link; a click opens a popup with
+  every asset the cell names, its type and size, and an "open in a new tab"
+  link. Before, an array column showed its joined ids as one id.
+- **Kinds:** image, video and audio in place; a PDF in the browser's own
+  viewer; any other type a card with the open link.
+- The bytes come from `C_ASSETS` with `get-asset`: new
+  `C_YUI_TREEDB_TOPICS` attr `assets_service` (default `"assets"`), events
+  `EV_REQUEST_ASSET` (output of the table view) and `EV_SET_FILE_PREVIEW`
+  (input of `C_YUI_FORM`). `yui_asset.js` exports `yui_asset_kind`,
+  `yui_asset_href`, `yui_asset_file_answer`, `yui_asset_open_link` and
+  `yui_asset_release`.
+- 7.23.161: a click on a file cell opened the record too, over the photo.
+- 7.23.166: the Content-Security-Policy that `vite-plugin-yuneta-html.js`
+  writes had no `media-src`, so the browser refused a video or an audio. It
+  now carries `media-src 'self' data: blob:`.
+- 7.23.167: a long file name pushed the form wider than its dialog (the
+  row's flex items measured their minimum with the whole name).
+- Consumer keys `show file`, `open in a new tab`, `asset not available`.
+
+### A hook opens the rows it links (gobj-ui 7.23.162, 7.23.163)
+
+`kernel/js/gobj-ui` -> 7.23.163, and the same range in the consumers. The
+`[N]` of a hook cell opened a popup of every child id (5,675 for one device
+type), with no height, no scroll and no way out but a click inside it. It now
+opens the CHILD topic's table filtered to the rows whose fkey names the row,
+with a chip and its clear button; a hook with several child topics asks which
+one. New events `EV_OPEN_LINKED` (output of the table view, declared by
+`C_YUI_TREEDB_TOPICS`), `EV_FILTER_BY_PARENT`, `EV_CLEAR_PARENT_FILTER`,
+`EV_CHOOSE_LINKED`. In 7.23.163 the table loads a hook as its count
+(`hook_size`), not as the ids of its children. Consumer keys `filtered by`,
+`clear filter`, `choose a topic`, `show linked records`.
+
+### The graphs take the wheel over their cards (gobj-ui 7.23.160, 7.23.164)
+
+`kernel/js/gobj-ui` -> 7.23.164, and the same range in the consumers. The
+treedb schema graph (`C_YUI_TREEDB_SCHEMA`) gets the family's toolbar camera
+cluster and wheel (it scrolls; Ctrl + wheel zooms). G6's HTML nodes do not pass
+the wheel on, so over a card it did nothing; new `yui_graph_forward_wheel()`
+hands it to the canvas, used by the schema graph and, with a card selector, by
+the treedb graph (`C_G6_NODES_TREE`).
+
+### Back from a topic returns to the landing it came from (gobj-ui 7.23.165)
+
+`kernel/js/gobj-ui` -> 7.23.165, and the same range in the consumers. After a
+click on a node of the schema landing, Back left the schema on screen under
+the cards url, and the landing toggle stopped working. Back now navigates to
+the landing's own route.
+
 ## 7.20.0-3
 
 A packaging revision, not a new version: since 7.20.0 the tree under
