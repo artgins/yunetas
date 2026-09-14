@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### `audit-sshd.sh` runs clean over stdin
+
+`ssh node 'sudo bash -s' < tools/sshd/audit-sshd.sh` audits a node without
+copying anything onto it. In that mode `BASH_SOURCE[0]` is unset, so
+7.20.0-4's script printed *"BASH_SOURCE[0]: unbound variable"* and its last
+line named the caller's working directory instead of the scripts' one. It now
+names the fixed install path, `/yuneta/development/yunetas/tools/sshd`. The
+audit itself was never affected.
+
 ### treedb `file` columns are seen, not only named (gobj-ui 7.23.159, 7.23.161, 7.23.166, 7.23.167)
 
 `kernel/js/gobj-ui` -> 7.23.159, and the same range in the consumers. The form
