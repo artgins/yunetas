@@ -61,8 +61,9 @@ sshd_check() {
     if out="$("$SSHD" -t 2>&1)"; then
         return 0
     fi
-    dir="$(sed -n 's/^Missing privilege separation directory: //p' <<<"$out")"
-    if [ -n "$dir" ]; then
+    # sshd ends its stderr lines with \r\n: the \r is not part of the path.
+    dir="$(sed -n 's/^Missing privilege separation directory: //p' <<<"$out" | tr -d '\r')"
+    if [[ "$dir" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
         install -d -m 0755 "$dir"
         if out="$("$SSHD" -t 2>&1)"; then
             return 0
