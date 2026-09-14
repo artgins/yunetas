@@ -202,10 +202,14 @@ leaves the packaged externals in place — the same mismatch by a shorter road.
 6. `sysctl --system` (applies the tuning **including io_uring**).
 6bis. **sshd under a connection flood.** The package ships
    `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` (`LoginGraceTime 20`,
-   `MaxStartups 50:30:200`; 0600, `%config(noreplace)`). `%post` validates
-   with `sshd -t` and then **reloads** `sshd`, never restarts it. If the check
-   fails because of this file, the file is renamed `.disabled`; if it fails
-   without it too, the node's own configuration is broken and is left alone.
+   `MaxStartups 50:30:200`, `PerSourceMaxStartups 10`; 0600,
+   `%config(noreplace)`). `%post` validates with `sshd -t` and then
+   **reloads** `sshd`, never restarts it. If the check fails because of this
+   file, the file is renamed `.disabled`; if it fails without it too, the
+   node's own configuration is broken and is left alone. Then it reads
+   `sshd -T` and warns when sshd does not run with the file's values, and when
+   password or keyboard-interactive login is on -- a warning, never a change,
+   because turning it off would lock out a node reachable only by password.
    Then the **fail2ban `sshd` jail**, `/etc/fail2ban/jail.d/yuneta-sshd.conf`
    (`backend = systemd`), which RHEL does not enable on its own: when fail2ban
    is running, `fail2ban-client -t` first and a reload after, with the same

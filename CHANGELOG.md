@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### sshd drop-in: a per-address limit, and a check of what sshd runs with
+
+`10-yuneta-ssh-flood.conf` (added in 7.20.0-3) gains `PerSourceMaxStartups
+10`: at most 10 unauthenticated connections from one address (stock: no
+limit), so a single source cannot take the slots on its own. It does not stop
+a botnet spread over many addresses, and it is no defence against brute force
+-- password login off is. Needs OpenSSH 8.5; the packages target Debian 12/13
+(9.2, 10.0) and EL9 (8.7).
+
+The postinst / `%post` checked only the syntax (`sshd -t`). It now also reads
+`sshd -T` and warns when:
+
+- a directive of the file is not the value sshd runs with -- a drop-in read
+  before it, or an `sshd_config` that does not `Include` the directory, wins
+  without a word;
+- password or keyboard-interactive login is on, which the file takes for
+  granted is off. A warning, never a change: turning it off from a package
+  locks out a node reachable only by password.
+
+A node that carries the 7.20.0-3 file unchanged takes the new one on upgrade
+(dpkg and `%config(noreplace)` replace a conffile nobody edited).
+
 ### treedb `file` columns are seen, not only named (gobj-ui 7.23.159, 7.23.161, 7.23.166, 7.23.167)
 
 `kernel/js/gobj-ui` -> 7.23.159, and the same range in the consumers. The form

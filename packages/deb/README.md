@@ -166,14 +166,21 @@ The `postinst` script runs automatically after file extraction and performs thes
 
 #### 2.5bis. sshd under a connection flood
 - Installs `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf`:
-  `LoginGraceTime 20` and `MaxStartups 50:30:200` (stock: 120 s and
-  10:30:100). A password botnet cannot log in on a node with password login
-  off, but it fills the slots for unauthenticated connections, and past 10 of
-  them sshd drops new connections at random, legitimate ones included.
+  `LoginGraceTime 20`, `MaxStartups 50:30:200` and `PerSourceMaxStartups 10`
+  (stock: 120 s, 10:30:100 and no limit). A password botnet cannot log in on
+  a node with password login off, but it fills the slots for unauthenticated
+  connections, and past 10 of them sshd drops new connections at random,
+  legitimate ones included. `PerSourceMaxStartups` keeps one address from
+  taking the slots on its own; it needs OpenSSH 8.5.
 - Validates with `sshd -t`, then **reloads** (never restarts) `ssh`. If the
   check fails because of this file, the file is renamed `.disabled` and sshd
   is not reloaded; if it fails without the file too, the node's own
   configuration is broken and nothing is touched. Both cases are logged.
+- Then reads `sshd -T` and warns (stderr and syslog) when sshd does not run
+  with the file's values -- a drop-in read before it, or an `sshd_config`
+  with no `Include` of the directory -- and when password or
+  keyboard-interactive login is on. It never turns password login off: that
+  would lock out a node reachable only by password.
 - To change the values on a node, add a file with a LOWER number, e.g.
   `05-local.conf`: sshd keeps the first value it reads.
 

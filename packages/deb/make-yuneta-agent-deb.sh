@@ -887,16 +887,23 @@ cat > "${WORKDIR}/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf" <<'EOF'
 #   Yuneta: keep sshd reachable under an SSH connection flood.
 #
 #   Installed by the yuneta-agent package. Password logins are not the
-#   target -- they should already be off. A botnet that cannot log in still
-#   fills sshd's MaxStartups slots with connections that never authenticate,
-#   and past 10 of them the stock sshd drops new connections AT RANDOM: the
-#   operator's and the deploy tools' included. Measured 2026-09-13: up to
-#   1,464 drops an hour on one node; none with these two lines.
+#   target -- they should already be off, and the package warns at install
+#   when they are not. A botnet that cannot log in still fills sshd's
+#   MaxStartups slots with connections that never authenticate, and past 10
+#   of them the stock sshd drops new connections AT RANDOM: the operator's
+#   and the deploy tools' included. Measured 2026-09-13: up to 1,464 drops
+#   an hour on one node; none with the first two lines below.
 #
-#   LoginGraceTime  a connection that has not authenticated in 20 s is
-#                   closed (stock: 120 s), so its slot is freed sooner.
-#   MaxStartups     start dropping at 50 unauthenticated connections, not
-#                   10, and refuse them all at 200.
+#   LoginGraceTime        a connection that has not authenticated in 20 s
+#                         is closed (stock: 120 s), so its slot is freed
+#                         sooner.
+#   MaxStartups           start dropping at 50 unauthenticated connections,
+#                         not 10, and refuse them all at 200.
+#   PerSourceMaxStartups  at most 10 of them from one address (stock: no
+#                         limit), so a single source cannot take the slots
+#                         on its own. A botnet spreads over many addresses:
+#                         this stops the few that hammer, not the flood.
+#                         Needs OpenSSH 8.5 (Debian 12, Rocky 9 and later).
 #
 #   sshd keeps the FIRST value it reads, and sshd_config includes this
 #   directory at its top, so the low number wins over later drop-ins and
@@ -909,6 +916,7 @@ cat > "${WORKDIR}/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf" <<'EOF'
 #
 LoginGraceTime 20
 MaxStartups 50:30:200
+PerSourceMaxStartups 10
 EOF
 chmod 0644 "${WORKDIR}/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf"
 
@@ -2178,7 +2186,20 @@ fi
 # node without sshd is a node nobody can reach. If the check fails because of
 # OUR file, it is set aside; if it fails without it too, the node's own
 # configuration is broken and is left alone, unreloaded.
+#
+# A clean `sshd -t` says the syntax is right, not that sshd runs with our
+# values: a drop-in read before ours, or an sshd_config that does not Include
+# the directory, wins without a word. `sshd -T` prints what sshd will use, so
+# each directive of the file is compared with it. It also shows whether
+# password login is on, which the file takes for granted is off: a warning,
+# never a change -- turning it off from a package locks out a node that is
+# reachable only by password. Warnings go to stderr, where apt shows them,
+# and to syslog.
 YUNETA_SSHD_CONF=/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf
+yuneta_sshd_warn() {
+    echo "WARNING: $*" >&2
+    logger -t yuneta_agent_deb "WARNING: $*"
+}
 if [ -x /usr/sbin/sshd ] && [ -f "$YUNETA_SSHD_CONF" ]; then
     if /usr/sbin/sshd -t >/dev/null 2>&1; then
         for unit in ssh sshd; do
@@ -2187,6 +2208,23 @@ if [ -x /usr/sbin/sshd ] && [ -f "$YUNETA_SSHD_CONF" ]; then
                 break
             fi
         done
+        YUNETA_SSHD_EFFECTIVE="$(/usr/sbin/sshd -T 2>/dev/null)" || true
+        if [ -z "$YUNETA_SSHD_EFFECTIVE" ]; then
+            yuneta_sshd_warn "sshd -T printed nothing: the values sshd runs with could not be checked"
+        else
+            grep -E '^[A-Za-z]' "$YUNETA_SSHD_CONF" | while read -r _key _value; do
+                _key_lc="$(printf '%s' "$_key" | tr 'A-Z' 'a-z')"
+                _have="$(printf '%s\n' "$YUNETA_SSHD_EFFECTIVE" | awk -v k="$_key_lc" '$1 == k {print $2; exit}')"
+                if [ "$_have" != "$_value" ]; then
+                    yuneta_sshd_warn "sshd runs with $_key ${_have:-(unset)}, not the $_value of $YUNETA_SSHD_CONF: a drop-in read before it wins, or sshd_config does not Include the directory"
+                fi
+            done
+            for _key in passwordauthentication kbdinteractiveauthentication; do
+                if printf '%s\n' "$YUNETA_SSHD_EFFECTIVE" | grep -qx "$_key yes"; then
+                    yuneta_sshd_warn "sshd accepts password logins ($_key yes): a botnet can try passwords. Turn it off once key login is confirmed to work"
+                fi
+            done
+        fi
     else
         mv -f "$YUNETA_SSHD_CONF" "$YUNETA_SSHD_CONF.disabled" || true
         if /usr/sbin/sshd -t >/dev/null 2>&1; then
