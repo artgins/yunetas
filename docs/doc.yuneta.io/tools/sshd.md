@@ -218,3 +218,10 @@ $T/start-sshd.sh
 It runs `sshd -t` first and shows the errors if there are errors. It starts
 sshd (and its socket unit, if that unit is enabled), makes sure that sshd runs,
 and cancels the timer.
+
+On Debian, `ssh.service` creates the privilege separation directory
+`/run/sshd` when it starts, and systemd removes it when sshd stops. Without it,
+`sshd -t` fails with *"Missing privilege separation directory: /run/sshd"*,
+also when the configuration is correct. When `sshd -t` gives that message, all
+the scripts create the directory (mode `0755`, as Debian's own init script
+does) and run `sshd -t` again.

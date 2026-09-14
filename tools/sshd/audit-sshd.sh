@@ -116,6 +116,25 @@ sshd_unit() {
     return 1
 }
 
+# Debian's privilege separation directory, /run/sshd, is created by
+# ssh.service and removed when it stops, so with sshd down `sshd -t` fails
+# for that alone. Create it as Debian's own init script does, then retry.
+sshd_check() {
+    local out dir
+    if out="$("$SSHD" -t 2>&1)"; then
+        return 0
+    fi
+    dir="$(sed -n 's/^Missing privilege separation directory: //p' <<<"$out")"
+    if [ -n "$dir" ]; then
+        install -d -m 0755 "$dir"
+        if out="$("$SSHD" -t 2>&1)"; then
+            return 0
+        fi
+    fi
+    echo "$out" >&2
+    return 1
+}
+
 #
 #   Arguments
 #
@@ -141,7 +160,7 @@ if [ ! -x "$SSHD" ]; then
     echo "ERROR: $SSHD not found: is openssh-server installed?" >&2
     exit 2
 fi
-if ! "$SSHD" -t; then
+if ! sshd_check; then
     echo "ERROR: sshd -t fails: sshd would not start with this configuration. That is the first thing to fix." >&2
     exit 2
 fi

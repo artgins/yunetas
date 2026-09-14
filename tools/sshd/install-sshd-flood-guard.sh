@@ -76,6 +76,25 @@ sshd_unit() {
     return 1
 }
 
+# Debian's privilege separation directory, /run/sshd, is created by
+# ssh.service and removed when it stops, so with sshd down `sshd -t` fails
+# for that alone. Create it as Debian's own init script does, then retry.
+sshd_check() {
+    local out dir
+    if out="$("$SSHD" -t 2>&1)"; then
+        return 0
+    fi
+    dir="$(sed -n 's/^Missing privilege separation directory: //p' <<<"$out")"
+    if [ -n "$dir" ]; then
+        install -d -m 0755 "$dir"
+        if out="$("$SSHD" -t 2>&1)"; then
+            return 0
+        fi
+    fi
+    echo "$out" >&2
+    return 1
+}
+
 reload_sshd() {
     local unit
     if ! unit="$(sshd_unit)"; then
@@ -176,7 +195,7 @@ cmd_install() {
     if ! grep -qiE '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/' /etc/ssh/sshd_config; then
         die "/etc/ssh/sshd_config does not Include /etc/ssh/sshd_config.d/: a drop-in there would be ignored"
     fi
-    if ! "$SSHD" -t; then
+    if ! sshd_check; then
         die "sshd -t fails BEFORE any change: fix the node's sshd configuration first"
     fi
 
@@ -198,7 +217,7 @@ cmd_install() {
     fi
     mv -f "$tmp" "$CONF"
 
-    if ! "$SSHD" -t; then
+    if ! sshd_check; then
         if [ -n "$prev" ]; then
             mv -f "$prev" "$CONF"
         else
@@ -221,7 +240,7 @@ cmd_remove() {
         return 0
     fi
     rm -f "$CONF"
-    if ! "$SSHD" -t; then
+    if ! sshd_check; then
         die "sshd -t fails without $CONF: the node's own sshd configuration is broken, sshd not reloaded"
     fi
     echo "Removed $CONF."
@@ -230,6 +249,9 @@ cmd_remove() {
 }
 
 cmd_check() {
+    if ! sshd_check; then
+        warn "sshd -t fails: sshd would not start with this configuration"
+    fi
     if [ -f "$CONF" ]; then
         echo "$CONF is installed."
     else
