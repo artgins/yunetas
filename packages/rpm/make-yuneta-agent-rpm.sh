@@ -108,7 +108,6 @@ mkdir -p "${STAGE}/etc/security/limits.d"
 mkdir -p "${STAGE}/etc/logrotate.d"
 mkdir -p "${STAGE}/etc/fail2ban/filter.d"
 mkdir -p "${STAGE}/etc/fail2ban/jail.d"
-mkdir -p "${STAGE}/etc/ssh/sshd_config.d"
 
 # --- Single-file utilities into /yuneta/bin ---
 BINARIES=(
@@ -694,72 +693,6 @@ findtime = 10m
 bantime  = 1d
 EOF
 chmod 0644 "${STAGE}/etc/fail2ban/jail.d/yuneta-nginx.conf"
-
-# --- sshd: survive an SSH connection flood ---
-#
-# A drop-in and not an edit of sshd_config: the directory is the mechanism
-# the distribution provides for it, and the file is ours to own and remove.
-# 0600, as the distribution's own files in that directory.
-cat > "${STAGE}/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf" <<'EOF'
-#
-#   Yuneta: keep sshd reachable under an SSH connection flood.
-#
-#   Installed by the yuneta-agent package. Password logins are not the
-#   target -- they should already be off, and the package warns at install
-#   when they are not. A botnet that cannot log in still fills sshd's
-#   MaxStartups slots with connections that never authenticate, and past 10
-#   of them the stock sshd drops new connections AT RANDOM: the operator's
-#   and the deploy tools' included. Measured 2026-09-13: up to 1,464 drops
-#   an hour on one node; none with the first two lines below.
-#
-#   LoginGraceTime        a connection that has not authenticated in 20 s
-#                         is closed (stock: 120 s), so its slot is freed
-#                         sooner.
-#   MaxStartups           start dropping at 50 unauthenticated connections,
-#                         not 10, and refuse them all at 200.
-#   PerSourceMaxStartups  at most 10 of them from one address (stock: no
-#                         limit), so a single source cannot take the slots
-#                         on its own. A botnet spreads over many addresses:
-#                         this stops the few that hammer, not the flood.
-#                         Needs OpenSSH 8.5 (Debian 12, Rocky 9 and later).
-#
-#   sshd keeps the FIRST value it reads, and sshd_config includes this
-#   directory at its top, so the low number wins over later drop-ins and
-#   over sshd_config itself. To change it on a node, add a LOWER number
-#   (e.g. 05-local.conf). This is a conffile: local edits survive upgrades.
-#
-#   This relieves the symptom. The exposure is port 22 open to the world;
-#   the fix for that is a source allowlist, and in the end a sealed node
-#   with no inbound SSH (yunos/c/yuno_agent/NODE_SEALING.md).
-#
-LoginGraceTime 20
-MaxStartups 50:30:200
-PerSourceMaxStartups 10
-EOF
-chmod 0600 "${STAGE}/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf"
-
-# --- fail2ban: the sshd jail, which RHEL does not enable ---
-cat > "${STAGE}/etc/fail2ban/jail.d/yuneta-sshd.conf" <<'EOF'
-#
-#   Yuneta: watch sshd on a RHEL/Rocky node.
-#
-#   Debian enables this jail in its own jail.d/defaults-debian.conf. RHEL
-#   ships fail2ban with no jail enabled, so a Rocky node had fail2ban
-#   running and nothing watching sshd.
-#
-#   backend = systemd, not the stock `auto`: sshd logs to the journal, and
-#   paths-fedora.conf says so itself (sshd_backend = systemd). It needs
-#   python3-systemd, which fail2ban-server requires on EL9.
-#
-#   It does not stop a botnet -- thousands of addresses, a few tries each;
-#   that is what /etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf is for. It
-#   stops the single address that hammers.
-#
-[sshd]
-enabled = true
-backend = systemd
-EOF
-chmod 0644 "${STAGE}/etc/fail2ban/jail.d/yuneta-sshd.conf"
 
 
 
@@ -1606,8 +1539,6 @@ cp -a %{_staging}/. %{buildroot}/
 /yuneta/bin/yuneta-webserver
 %config(noreplace) /etc/fail2ban/filter.d/yuneta-nginx-probe.conf
 %config(noreplace) /etc/fail2ban/jail.d/yuneta-nginx.conf
-%config(noreplace) /etc/fail2ban/jail.d/yuneta-sshd.conf
-%attr(0600,root,root) %config(noreplace) /etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf
 SPEC_EOF
 
 if [ "${BUNDLED_AUTH_KEYS}" -eq 1 ]; then
@@ -1885,80 +1816,6 @@ fi
 # Apply kernel settings (includes kernel.io_uring_disabled=0 — Yuneta needs it)
 if command -v sysctl >/dev/null 2>&1; then
     sysctl --system >/dev/null 2>&1 || true
-fi
-
-# --- sshd: keep it reachable under a connection flood ---
-#
-# /etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf takes effect on the next
-# reload. Validate first. A reload with a broken configuration is harmless
-# -- sshd keeps the old one -- but the NEXT restart would not come up, and a
-# node without sshd is a node nobody can reach. If the check fails because of
-# OUR file, it is set aside; if it fails without it too, the node's own
-# configuration is broken and is left alone, unreloaded.
-#
-# A clean `sshd -t` says the syntax is right, not that sshd runs with our
-# values: a drop-in read before ours, or an sshd_config that does not Include
-# the directory, wins without a word. `sshd -T` prints what sshd will use, so
-# each directive of the file is compared with it. It also shows whether
-# password login is on, which the file takes for granted is off: a warning,
-# never a change -- turning it off from a package locks out a node that is
-# reachable only by password.
-YUNETA_SSHD_CONF=/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf
-if [ -x /usr/sbin/sshd ] && [ -f "$YUNETA_SSHD_CONF" ]; then
-    if /usr/sbin/sshd -t >/dev/null 2>&1; then
-        for unit in sshd ssh; do
-            if systemctl is-active --quiet "$unit" 2>/dev/null; then
-                systemctl reload "$unit" >/dev/null 2>&1 || true
-                break
-            fi
-        done
-        YUNETA_SSHD_EFFECTIVE="$(/usr/sbin/sshd -T 2>/dev/null)" || true
-        if [ -z "$YUNETA_SSHD_EFFECTIVE" ]; then
-            warn "sshd -T printed nothing: the values sshd runs with could not be checked"
-        else
-            grep -E '^[A-Za-z]' "$YUNETA_SSHD_CONF" | while read -r _key _value; do
-                _key_lc="$(printf '%s' "$_key" | tr 'A-Z' 'a-z')"
-                _have="$(printf '%s\n' "$YUNETA_SSHD_EFFECTIVE" | awk -v k="$_key_lc" '$1 == k {print $2; exit}')"
-                if [ "$_have" != "$_value" ]; then
-                    warn "sshd runs with $_key ${_have:-(unset)}, not the $_value of $YUNETA_SSHD_CONF: a drop-in read before it wins, or sshd_config does not Include the directory"
-                fi
-            done
-            for _key in passwordauthentication kbdinteractiveauthentication; do
-                if printf '%s\n' "$YUNETA_SSHD_EFFECTIVE" | grep -qx "$_key yes"; then
-                    warn "sshd accepts password logins ($_key yes): a botnet can try passwords. Turn it off once key login is confirmed to work"
-                fi
-            done
-        fi
-    else
-        mv -f "$YUNETA_SSHD_CONF" "$YUNETA_SSHD_CONF.disabled" || true
-        if /usr/sbin/sshd -t >/dev/null 2>&1; then
-            warn "sshd rejects $YUNETA_SSHD_CONF: set aside as .disabled, sshd not reloaded"
-        else
-            mv -f "$YUNETA_SSHD_CONF.disabled" "$YUNETA_SSHD_CONF" || true
-            warn "sshd -t fails with or without $YUNETA_SSHD_CONF: the node's sshd configuration is broken, sshd not reloaded"
-        fi
-    fi
-fi
-
-# --- fail2ban: take the sshd jail, if fail2ban runs here ---
-#
-# Same care, for the same reason: a jail fail2ban cannot configure makes the
-# WHOLE server exit, taking every other jail with it. `fail2ban-client -t`
-# first; our jail is set aside only if it is the reason.
-YUNETA_SSHD_JAIL=/etc/fail2ban/jail.d/yuneta-sshd.conf
-if [ -f "$YUNETA_SSHD_JAIL" ] && command -v fail2ban-client >/dev/null 2>&1 \
-        && systemctl is-active --quiet fail2ban 2>/dev/null; then
-    if fail2ban-client -t >/dev/null 2>&1; then
-        systemctl reload fail2ban >/dev/null 2>&1 || true
-    else
-        mv -f "$YUNETA_SSHD_JAIL" "$YUNETA_SSHD_JAIL.disabled" || true
-        if fail2ban-client -t >/dev/null 2>&1; then
-            warn "fail2ban rejects $YUNETA_SSHD_JAIL: set aside as .disabled, fail2ban not reloaded"
-        else
-            mv -f "$YUNETA_SSHD_JAIL.disabled" "$YUNETA_SSHD_JAIL" || true
-            warn "fail2ban-client -t fails with or without $YUNETA_SSHD_JAIL: the node's fail2ban configuration is broken, not reloaded"
-        fi
-    fi
 fi
 
 # SSH authorized_keys for 'yuneta' (if bundled)

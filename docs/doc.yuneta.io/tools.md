@@ -4,19 +4,26 @@ Shared tooling that lives under `tools/` in the source tree. Two things matter
 about this directory:
 
 - It holds the **CMake build infrastructure** every module uses to compile, plus
-  **operator helper scripts** for talking to a running agent.
-- **`tools/` is packaged into the installation `.deb`**, so everything here is
-  available on a deployed node even when the yunetas source tree is absent —
-  unlike `scripts/`, which is repo-only.
+  **operator helper scripts** for talking to a running agent and for the
+  node's sshd.
+- **`tools/` is packaged into the installation `.deb` and `.rpm`**, so
+  everything here is available on a deployed node even when the yunetas source
+  tree is absent — unlike `scripts/`, which is repo-only.
 
 ```
 tools/
 ├── cmake/
 │   └── project.cmake     # master build configuration, included by every module
-└── agent/
-    ├── sync_binaries.py        # reconcile built yunos vs the agent's installed set
-    ├── sync_configs.py         # reconcile a directory's configs vs the agent's installed set
-    └── set_start_priorities.py # assign each managed yuno's start_priority by role
+├── agent/
+│   ├── sync_binaries.py        # reconcile built yunos vs the agent's installed set
+│   ├── sync_configs.py         # reconcile a directory's configs vs the agent's installed set
+│   └── set_start_priorities.py # assign each managed yuno's start_priority by role
+└── sshd/
+    ├── audit-sshd.sh                  # report failures and improvements (read-only)
+    ├── install-sshd-flood-guard.sh    # keep sshd reachable under a connection flood
+    ├── install-fail2ban-sshd-jail.sh  # make fail2ban watch sshd
+    ├── stop-sshd.sh                   # stop sshd, with a timer that starts it again
+    └── start-sshd.sh                  # start sshd, cancel that timer
 ```
 
 ## `cmake/project.cmake` — build infrastructure

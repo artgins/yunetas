@@ -2,27 +2,39 @@
 
 ## Unreleased
 
-### sshd drop-in: a per-address limit, and a check of what sshd runs with
+### sshd leaves the packages: `tools/sshd/` scripts, run by hand
 
-`10-yuneta-ssh-flood.conf` (added in 7.20.0-3) gains `PerSourceMaxStartups
-10`: at most 10 unauthenticated connections from one address (stock: no
-limit), so a single source cannot take the slots on its own. It does not stop
-a botnet spread over many addresses, and it is no defence against brute force
--- password login off is. Needs OpenSSH 8.5; the packages target Debian 12/13
-(9.2, 10.0) and EL9 (8.7).
+7.20.0-3 shipped `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` in both
+packages, and the `.rpm` enabled fail2ban's `sshd` jail. That is right on a
+node we operate and wrong on a node of another company: how sshd behaves is
+the operating-system policy of whoever runs the node, and a package that
+installs an agent has no business changing it. Neither package touches sshd
+any more. The same measures, and a few more, are scripts under `tools/sshd/`
+(shipped in both packages at `/yuneta/development/yunetas/tools/sshd/`), run
+by an operator who decided to:
 
-The postinst / `%post` checked only the syntax (`sshd -t`). It now also reads
-`sshd -T` and warns when:
+- `audit-sshd.sh [--all]` -- read-only. Reads `sshd -T` (what sshd runs
+  with) and reports FAIL / WARN / INFO: password and root login, weak
+  algorithms and host keys, file permissions, the flood settings, drops in
+  the last hour of the journal, fail2ban. Exit status 2 / 1 / 0.
+- `install-sshd-flood-guard.sh [--check|--remove]` -- the drop-in, now with
+  `PerSourceMaxStartups 10` too (OpenSSH 8.5+). `sshd -t` before and after,
+  the previous state back if sshd rejects it; reloads, never restarts; reads
+  `sshd -T` to confirm the values are in effect, and warns when password
+  login is on.
+- `install-fail2ban-sshd-jail.sh [--check|--remove]` -- the `sshd` jail with
+  `backend = systemd`; does nothing where the distribution already runs one.
+  `fail2ban-client -t` before any reload.
+- `stop-sshd.sh [MINUTES|--no-restart]` -- stops sshd and arms a transient
+  systemd timer that starts it again (default 60 minutes). Refuses when
+  `sshd -t` fails, and arms the timer BEFORE stopping: if it cannot be armed,
+  nothing is stopped.
+- `start-sshd.sh` -- from the provider's console: starts sshd and cancels
+  the timer.
 
-- a directive of the file is not the value sshd runs with -- a drop-in read
-  before it, or an `sshd_config` that does not `Include` the directory, wins
-  without a word;
-- password or keyboard-interactive login is on, which the file takes for
-  granted is off. A warning, never a change: turning it off from a package
-  locks out a node reachable only by password.
-
-A node that carries the 7.20.0-3 file unchanged takes the new one on upgrade
-(dpkg and `%config(noreplace)` replace a conffile nobody edited).
+Upgrading from 7.20.0-3: the `.rpm` erases the drop-in and the jail (an
+edited one is kept as `.rpmsave`); dpkg leaves the drop-in in place as an
+obsolete conffile. Nodes where the drop-in was put by hand are not affected.
 
 ### treedb `file` columns are seen, not only named (gobj-ui 7.23.159, 7.23.161, 7.23.166, 7.23.167)
 

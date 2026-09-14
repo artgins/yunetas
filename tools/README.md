@@ -1,13 +1,14 @@
 # tools
 
 Shared tooling for the Yunetas project. `tools/` is packaged into the
-installation `.deb`, so anything here is available on a deployed node even when
-the yunetas source tree is absent — unlike `scripts/`, which is repo-only.
+installation `.deb` and `.rpm` (at `/yuneta/development/yunetas/tools/`), so
+anything here is available on a deployed node even when the yunetas source tree
+is absent — unlike `scripts/`, which is repo-only.
 
 It holds the CMake build infrastructure (`cmake/project.cmake`, included by
 every module to get a consistent compiler configuration, library definitions,
 and install paths driven by the Kconfig `.config` file) and operator-facing
-utilities meant to run against a live node (`agent/`).
+utilities meant to run against a live node (`agent/`, `sshd/`).
 
 ## Files
 
@@ -15,11 +16,64 @@ utilities meant to run against a live node (`agent/`).
 tools/
 ├── cmake/
 │   └── project.cmake           # Master build configuration (included by all modules)
-└── agent/
-    ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
-    ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
-    └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
+├── agent/
+│   ├── sync_binaries.py        # Compare built yunos vs the agent's installed set, push updates
+│   ├── sync_configs.py         # Compare a directory's configs vs the agent's installed set, push updates
+│   └── set_start_priorities.py # Assign each managed yuno's start_priority (launch tier) by role
+└── sshd/
+    ├── audit-sshd.sh                  # Report failures and improvements in what sshd runs with (read-only)
+    ├── install-sshd-flood-guard.sh    # Keep sshd reachable under a connection flood (drop-in)
+    ├── install-fail2ban-sshd-jail.sh  # Make fail2ban watch sshd where the distribution does not
+    ├── stop-sshd.sh                   # Stop sshd, with a timer that starts it again
+    └── start-sshd.sh                  # Start sshd and cancel that timer
 ```
+
+## sshd/
+
+**The packages do not touch sshd.** How sshd behaves is the operating-system
+policy of whoever runs the node: right for us to set on a node we operate,
+wrong on a node of another company. So these are scripts an operator runs by
+hand, on purpose — on someone else's node, only with its operator's agreement.
+(7.20.0-3 shipped the flood drop-in and, in the `.rpm`, the fail2ban jail
+inside the packages; they left them in the next one.)
+
+They are not on the `PATH`. Run them as root, or through `sudo` (each one asks
+for it itself):
+
+```bash
+T=/yuneta/development/yunetas/tools/sshd
+
+$T/audit-sshd.sh                    # what is wrong or improvable; changes nothing
+$T/audit-sshd.sh --all              # also what is already right
+
+$T/install-sshd-flood-guard.sh      # LoginGraceTime 20, MaxStartups 50:30:200, PerSourceMaxStartups 10
+$T/install-sshd-flood-guard.sh --check
+$T/install-sshd-flood-guard.sh --remove
+
+$T/install-fail2ban-sshd-jail.sh    # [sshd] enabled, backend = systemd
+$T/install-fail2ban-sshd-jail.sh --check
+$T/install-fail2ban-sshd-jail.sh --remove
+
+$T/stop-sshd.sh                     # stop now, start again in 60 minutes
+$T/stop-sshd.sh 15                  # ... in 15 minutes
+$T/stop-sshd.sh --no-restart        # arm nothing: only with the provider's console at hand
+$T/start-sshd.sh                    # from the provider's console: start it, cancel the timer
+```
+
+What each one guarantees:
+
+| Script | Guarantee |
+|---|---|
+| `audit-sshd.sh` | Reads `sshd -T` — what sshd runs with, not what one file says. Levels FAIL / WARN / INFO; exit status 2 / 1 / 0. Covers login methods, root, weak algorithms and host keys, file permissions, the flood settings, the last hour of the journal and fail2ban. |
+| `install-sshd-flood-guard.sh` | `sshd -t` before and after; if sshd rejects the new file the previous state comes back. Reloads, never restarts. Confirms with `sshd -T` that the values are the ones in effect, and warns when password login is on — it never turns it off. |
+| `install-fail2ban-sshd-jail.sh` | Does nothing where the distribution already runs an `sshd` jail (Debian). `fail2ban-client -t` before any reload: a jail fail2ban cannot configure takes the whole server down. |
+| `stop-sshd.sh` | Refuses when `sshd -t` fails. Arms `yuneta-sshd-autostart.timer` (a transient systemd unit) BEFORE stopping; if it cannot be armed, nothing is stopped. Open sessions survive (`KillMode=process`; it warns when the unit says otherwise). |
+| `start-sshd.sh` | Refuses when `sshd -t` fails, showing why. Starts sshd (and its socket unit, if enabled), checks it is up, cancels the timer. |
+
+None of it stops brute force — password login off does, and `audit-sshd.sh`
+fails a node where it is on. The flood guard keeps sshd reachable; the fix for
+port 22 open to the world is a source allowlist, and in the end a sealed node
+with no inbound SSH (`yunos/c/yuno_agent/NODE_SEALING.md`).
 
 ## agent/sync_binaries.py
 

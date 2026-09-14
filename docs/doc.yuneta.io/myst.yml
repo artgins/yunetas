@@ -394,6 +394,8 @@ project:
           file: tools/sync_configs.md
         - title: set_start_priorities.py
           file: tools/set_start_priorities.md
+        - title: sshd scripts
+          file: tools/sshd.md
 
     - title: Test Suite
       file: test_suite.md
