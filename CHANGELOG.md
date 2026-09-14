@@ -2,40 +2,6 @@
 
 ## Unreleased
 
-### sshd leaves the packages: `tools/sshd/` scripts, run by hand
-
-7.20.0-3 shipped `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` in both
-packages, and the `.rpm` enabled fail2ban's `sshd` jail. That is right on a
-node we operate and wrong on a node of another company: how sshd behaves is
-the operating-system policy of whoever runs the node, and a package that
-installs an agent has no business changing it. Neither package touches sshd
-any more. The same measures, and a few more, are scripts under `tools/sshd/`
-(shipped in both packages at `/yuneta/development/yunetas/tools/sshd/`), run
-by an operator who decided to:
-
-- `audit-sshd.sh [--all]` -- read-only. Reads `sshd -T` (what sshd runs
-  with) and reports FAIL / WARN / INFO: password and root login, weak
-  algorithms and host keys, file permissions, the flood settings, drops in
-  the last hour of the journal, fail2ban. Exit status 2 / 1 / 0.
-- `install-sshd-flood-guard.sh [--check|--remove]` -- the drop-in, now with
-  `PerSourceMaxStartups 10` too (OpenSSH 8.5+). `sshd -t` before and after,
-  the previous state back if sshd rejects it; reloads, never restarts; reads
-  `sshd -T` to confirm the values are in effect, and warns when password
-  login is on.
-- `install-fail2ban-sshd-jail.sh [--check|--remove]` -- the `sshd` jail with
-  `backend = systemd`; does nothing where the distribution already runs one.
-  `fail2ban-client -t` before any reload.
-- `stop-sshd.sh [MINUTES|--no-restart]` -- stops sshd and arms a transient
-  systemd timer that starts it again (default 60 minutes). Refuses when
-  `sshd -t` fails, and arms the timer BEFORE stopping: if it cannot be armed,
-  nothing is stopped.
-- `start-sshd.sh` -- from the provider's console: starts sshd and cancels
-  the timer.
-
-Upgrading from 7.20.0-3: the `.rpm` erases the drop-in and the jail (an
-edited one is kept as `.rpmsave`); dpkg leaves the drop-in in place as an
-obsolete conffile. Nodes where the drop-in was put by hand are not affected.
-
 ### treedb `file` columns are seen, not only named (gobj-ui 7.23.159, 7.23.161, 7.23.166, 7.23.167)
 
 `kernel/js/gobj-ui` -> 7.23.159, and the same range in the consumers. The form
@@ -91,6 +57,53 @@ the treedb graph (`C_G6_NODES_TREE`).
 click on a node of the schema landing, Back left the schema on screen under
 the cards url, and the landing toggle stopped working. Back now navigates to
 the landing's own route.
+
+## 7.20.0-4
+
+A packaging revision, not a new version: since 7.20.0 the tree under
+`kernel/`, `modules/`, `utils/` and `yunos/` has changed only in two JavaScript
+submodule pointers and one document, none of which the packages carry. What
+changed is the packaging and `tools/`. The packages are rebuilt as
+`yuneta-agent-7.20.0-4` and attached to the existing 7.20.0 tag.
+
+### sshd leaves the packages: `tools/sshd/` scripts, run by hand
+
+7.20.0-3 shipped `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` in both
+packages, and the `.rpm` enabled fail2ban's `sshd` jail. That is right on a
+node we operate and wrong on a node of another company: how sshd behaves is
+the operating-system policy of whoever runs the node, and a package that
+installs an agent has no business changing it. Neither package touches sshd
+any more. The same measures, and a few more, are scripts under `tools/sshd/`
+(shipped in both packages at `/yuneta/development/yunetas/tools/sshd/`), run
+by an operator who decided to:
+
+- `audit-sshd.sh [--all]` -- read-only. Reads `sshd -T` (what sshd runs
+  with) and reports FAIL / WARN / INFO: password and root login, weak
+  algorithms and host keys, file permissions, the flood settings, drops in
+  the last hour of the journal, fail2ban. Exit status 2 / 1 / 0.
+- `install-sshd-flood-guard.sh [--check|--remove]` -- the drop-in, now with
+  `PerSourceMaxStartups 10` too (OpenSSH 8.5+). `sshd -t` before and after,
+  the previous state back if sshd rejects it; reloads, never restarts; reads
+  `sshd -T` to confirm the values are in effect, and warns when password
+  login is on.
+- `install-fail2ban-sshd-jail.sh [--check|--remove]` -- the `sshd` jail with
+  `backend = systemd`; does nothing where the distribution already runs one.
+  `fail2ban-client -t` before any reload.
+- `stop-sshd.sh [MINUTES|--no-restart]` -- stops sshd and arms a transient
+  systemd timer that starts it again (default 60 minutes). Refuses when
+  `sshd -t` fails, and arms the timer BEFORE stopping: if it cannot be armed,
+  nothing is stopped.
+- `start-sshd.sh` -- from the provider's console: starts sshd and cancels
+  the timer.
+
+With sshd stopped on Debian, `sshd -t` fails for a missing `/run/sshd`
+(systemd removes it with the unit); every script creates it, as Debian's init
+script does, and retries. Verified on wattyzer (OpenSSH 10.0p2): audit 0 FAIL /
+0 WARN, the flood guard installed and in effect.
+
+Upgrading from 7.20.0-3: the `.rpm` erases the drop-in and the jail (an
+edited one is kept as `.rpmsave`); dpkg leaves the drop-in in place as an
+obsolete conffile. Nodes where the drop-in was put by hand are not affected.
 
 ## 7.20.0-3
 
