@@ -30,7 +30,7 @@
 set -euo pipefail
 
 SSHD=/usr/sbin/sshd
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR=/yuneta/development/yunetas/tools/sshd
 
 #
 #   Helpers
@@ -474,7 +474,7 @@ echo
 echo "$N_FAIL FAIL, $N_WARN WARN, $N_INFO INFO."
 echo "Beyond sshd: port 22 open to the world is the exposure. A source allowlist"
 echo "(provider firewall or nftables) is the fix; scripts to act on the above are"
-echo "in $HERE."
+echo "in $TOOLS_DIR."
 
 if [ "$N_FAIL" -gt 0 ]; then
     exit 2
