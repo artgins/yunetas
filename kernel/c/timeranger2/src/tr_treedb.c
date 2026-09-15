@@ -6106,6 +6106,7 @@ PUBLIC int treedb_set_node_immutable(
 /***************************************************************************
     Update the existing current node with fields of kw
     HACK fkeys and hook fields are not updated!
+    A pkey2 value names an instance: a kw that changes it is refused.
  ***************************************************************************/
 PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     json_t *tranger,
@@ -6196,6 +6197,41 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     }
 
     JSON_DECREF(cols)
+
+    /*
+     *  A pkey2 value names an INSTANCE, so an update cannot change it. On
+     *  disk the new value is a new instance beside the old one, while in
+     *  memory both slots went on holding this node: listed twice with the
+     *  new content, and a delete of the OLD instance tombstoned the rows of
+     *  the new one. A new instance is a create.
+     */
+    if(ret == 0) {
+        json_t *pkey2s = treedb_topic_pkey2s(tranger, topic_name);
+        int idx_pkey2; json_t *jn_pkey2_name;
+        json_array_foreach(pkey2s, idx_pkey2, jn_pkey2_name) {
+            const char *pkey2_name = json_string_value(jn_pkey2_name);
+            if(empty_string(pkey2_name)) {
+                continue;
+            }
+            json_t *new_value = json_object_get(updates, pkey2_name);
+            if(new_value && !json_equal(new_value, json_object_get(node, pkey2_name))) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB,
+                    "msg",          "%s", "An update cannot change a pkey2 value, create the instance",
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", kw_get_str(gobj, node, "id", "", 0),
+                    "pkey2_name",   "%s", pkey2_name,
+                    "old_value",    "%j", json_object_get(node, pkey2_name),
+                    "new_value",    "%j", new_value,
+                    NULL
+                );
+                ret = -1;
+                break;
+            }
+        }
+        JSON_DECREF(pkey2s)
+    }
 
     if(ret == 0) {
         const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", "", 0);

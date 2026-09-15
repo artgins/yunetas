@@ -355,6 +355,8 @@ PUBLIC int treedb_set_node_immutable(
 /**rst**
     Update the existing current node with fields of kw
     HACK fkeys and hook fields are not updated!
+    A pkey2 value names an instance: a kw that changes it is refused
+    (return 0, nothing touched). A new instance is a treedb_create_node().
 **rst**/
 PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     json_t *tranger,

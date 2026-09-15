@@ -15,6 +15,10 @@
  *          is visible BOTH by the secondary-index lookups. It fails against
  *          the pre-fix treedb (secondary index keeps the old value).
  *
+ *          Then an update that CHANGES the pkey2 value (to another value,
+ *          and to "") must be refused and leave the node, the instances
+ *          and the disk as they were.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -150,6 +154,96 @@ PRIVATE int test_update_refreshes_secondary_index(
 }
 
 /***************************************************************************
+ *  A pkey2 value names an instance, so an update cannot change it.
+ *  It used to be applied in place: on disk the new value became a second
+ *  instance, while in memory BOTH slots held the live node (listed twice
+ *  with the new content), and a delete of the old instance tombstoned the
+ *  rows of the new one. An empty value is the way in from the wire:
+ *  `required` only asks for the key, and C_NODE's lookup skips an empty
+ *  pkey2, so `update-node id=X version=""` reached the primary.
+ ***************************************************************************/
+PRIVATE int test_update_cannot_change_pkey2(
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    int result = 0;
+    const char *test = "update cannot change a pkey2 value";
+    time_measure_t time_measure;
+    set_expected_results(
+        test,
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "An update cannot change a pkey2 value, create the instance",
+            "msg", "An update cannot change a pkey2 value, create the instance"
+        ),
+        NULL, NULL, 1
+    );
+    MT_START_TIME(time_measure)
+
+    json_t *node = treedb_get_node(tranger, treedb_name, TOPIC_NAME, "item-1");
+    json_int_t g_rowid = kw_get_int(0, node, "__md_treedb__`g_rowid", 0, 0);
+
+    const char *new_values[] = {"v2", ""};
+    for(size_t i=0; i<sizeof(new_values)/sizeof(new_values[0]); i++) {
+        json_t *ret = treedb_update_node(
+            tranger,
+            node,
+            json_pack("{s:s, s:s}", "version", new_values[i], "payload", "moved"),
+            TRUE  // save
+        );
+        if(ret) {
+            printf("%s  FAIL: update to version '%s' was accepted%s\n",
+                On_Red BWhite, new_values[i], Color_Off);
+            result += -1;
+        }
+    }
+
+    if(strcmp(kw_get_str(0, node, "version", "", 0), "v1") != 0 ||
+       strcmp(kw_get_str(0, node, "payload", "", 0), "new") != 0) {
+        printf("%s  FAIL: a refused update touched the node: version '%s', payload '%s'%s\n",
+            On_Red BWhite,
+            kw_get_str(0, node, "version", "", 0),
+            kw_get_str(0, node, "payload", "", 0),
+            Color_Off);
+        result += -1;
+    }
+    if(kw_get_int(0, node, "__md_treedb__`g_rowid", 0, 0) != g_rowid) {
+        printf("%s  FAIL: a refused update appended a record%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    json_t *list = treedb_list_instances(
+        tranger, treedb_name, TOPIC_NAME, PKEY2_NAME,
+        json_pack("{s:s}", "id", "item-1"),
+        NULL
+    );
+    if(json_array_size(list) != 1) {
+        printf("%s  FAIL: %d instances after the refused updates, expected 1%s\n",
+            On_Red BWhite, (int)json_array_size(list), Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(list)
+
+    /*  Carrying the SAME value is an ordinary update (C_NODE sends it)  */
+    if(!treedb_update_node(
+        tranger,
+        node,
+        json_pack("{s:s, s:s}", "version", "v1", "payload", "same-version"),
+        TRUE
+    )) {
+        printf("%s  FAIL: an update carrying the same pkey2 value was refused%s\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
  *              do_test
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -257,6 +351,7 @@ PRIVATE int do_test(void)
      *  Execute scenario
      *------------------------------------*/
     result += test_update_refreshes_secondary_index(tranger, treedb_name);
+    result += test_update_cannot_change_pkey2(tranger, treedb_name);
 
     /*------------------------------------*
      *  Shutdown

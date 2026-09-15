@@ -781,6 +781,7 @@ traces.
 | `required` on a missing field | yes | n/a (the node already has one) |
 | `notnull` | yes | **yes** |
 | `enum` membership | **yes** | **yes** |
+| A pkey2 value | names the instance | **must not change** (refused) |
 
 An update used to store whatever it was handed: no type, no `notnull`, no
 `enum`. And `enum` was checked only when a *schema* was parsed, never when a

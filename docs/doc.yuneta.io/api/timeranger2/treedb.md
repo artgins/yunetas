@@ -1821,11 +1821,29 @@ json_t *treedb_update_node(
 **Returns**
 
 Returns a pointer to the updated node. The returned node is not owned by the caller.
+Returns `NULL` if the update is refused. A refused update does not change the node and does not save it.
 
 **Notes**
 
 Foreign keys (`fkeys`) and hook fields are not updated by [`treedb_update_node()`](<#treedb_update_node>).
 The returned node must not be modified or freed by the caller.
+
+A pkey2 value names an **instance**, so an update cannot change it. A `kw` that
+carries a pkey2 with a different value, the empty string included, is refused
+(*"An update cannot change a pkey2 value, create the instance"*). A `kw` that
+carries the same value is an ordinary update. To add an instance, create it:
+
+```C
+/*  topic `binaries`, pkey2s: 'version'  */
+json_t *node = treedb_get_node(tranger, treedb_name, "binaries", "ycommand");
+
+/*  Refused: this would move the node to another instance  */
+treedb_update_node(tranger, node, json_pack("{s:s}", "version", "7.21.0"), TRUE);
+
+/*  Right: a second instance of the same id  */
+treedb_create_node(tranger, treedb_name, "binaries",
+    json_pack("{s:s, s:s}", "id", "ycommand", "version", "7.21.0"));
+```
 
 ---
 
