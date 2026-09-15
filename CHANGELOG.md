@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### treedb views: the form writes back only what goes back; a JSON drill keeps its path (gobj-ui 7.23.168, gui_treedb 0.17.34)
+
+`kernel/js/gobj-ui` -> 7.23.168, and the same range in the consumers
+(`npm run deploy-round`). From the 2026-09-15 treedb review (A8, A9, A10):
+
+- **The form's Save no longer writes the read-only fields back.** It
+  published the whole kw, read-only fields included, as an `update-node` with
+  `autolink`, and the backend writes any column it is handed. A non-writable
+  `time` column, drawn as a `datetime-local` with no seconds, moved back up to
+  59 s on every save of any other field. One rule, `col_goes_back_to_treedb()`,
+  now filters both writes of the form.
+- **A drill of the raw JSON viewer opens its branch.** `print-tranger
+  path=<path>` sent the path at the top of the kw, and `C_IEVENT_CLI` hands back
+  only the `__md_command__` frame, so the subtree replaced the whole document.
+  The two gobj-ui treedb views and gui_treedb's Tranger view send
+  `__md_command__: {path}`.
+- `with_copy_button` / `with_paste_button` set to `false` no longer break
+  edition mode.
+
 ### C_NODE `link-nodes` / `unlink-nodes` name a missing child; msg2db has a test in the suite
 
 - **A missing child is named as a child.** When the child did not exist,

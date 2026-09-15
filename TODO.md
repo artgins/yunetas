@@ -190,36 +190,11 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
 A read-only review of timeranger2, tr_treedb, their gclasses, gobj-ui's treedb
 views and the docs. Every finding marked "high" was checked by hand in the
 code. What shipped is in `CHANGELOG.md` (`str2system_flag`, flag-less column,
-`rowid`, re-link of a string fkey, hook+fkey refused). This is what is open.
+`rowid`, re-link of a string fkey, hook+fkey refused, and the rest of the
+highs). This is what is open.
 Line numbers are those of `main` on 2026-09-15.
 
-**High**
-
-A8, A9 and A10 are FIXED IN CODE and NOT SHIPPED: gobj-ui `d53ee82`
-(7.23.168, not published, no tag) and yunos-js `0f655f4`. They reach an app
-only through `npm publish` + `npm run deploy-round` in gobj-ui and a gui_treedb
-deploy. Delete the three entries below once that is done; the
-`kernel/js/gobj-ui` submodule pointer moves with the publish (and its
-`verify_js_api_coverage.py --repin`).
-
-- **A8: gobj-ui: the form's Save sends every field, read-only ones included,
-  with `autolink`** (`c_yui_treedb_topic_with_form.js`, `ac_form_save_record`
-  → `publish_treedb_write`). `transform__form_record_2_treedb_record()`, which
-  drops the non-writable columns, is only called by Copy. The backend does not
-  check `writable` on an update. A non-writable `time` column is drawn as
-  `datetime-local` (no seconds), so every Save of any other field moves it back
-  up to 59 s. Fix: run the kw through that transform in `publish_treedb_write`.
-- **A9: the answer of `print-tranger path=` carries no `path`.** `c_ievent_cli.js`
-  EXTRACTS `__md_command__` and makes it the `kw` of the stack frame, and
-  `path` travels at the top level (`gui_treedb/src/c_tranger_view.js:1515`,
-  read back at `:3507`), so a drill of the JSON viewer replaces the whole
-  document. The same shape in gobj-ui (`c_yui_treedb_topics.js:1809/1881`,
-  `c_yui_treedb_graph.js:1332/2008`), so in gui_agent's Raw JSON too. Fix:
-  `__md_command__: {path}`, as `get-page` / `list-keys` do.
-- **A10: gobj-ui `ac_edition_mode` dereferences buttons that
-  `with_copy_button=false` / `with_paste_button=false` never built**
-  (`c_yui_treedb_topic_with_form.js:3776-3817` against `create_table_toolbar`).
-  Latent: no consumer sets them to false today.
+**High**: none open. A1-A11 shipped on 2026-09-15 (see `CHANGELOG.md`).
 
 **Found while fixing (2026-09-15)**
 
