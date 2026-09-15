@@ -152,6 +152,8 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->callback = callback;
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
+    fs_event->in_callback = FALSE;
+    fs_event->stop_requested = FALSE;
 
     uint32_t trace_level = gobj_global_trace_level();
 
@@ -231,6 +233,16 @@ PUBLIC int fs_stop_watcher_event(
 {
     if(!fs_event) {
         return -1;
+    }
+    if(fs_event->in_callback) {
+        /*
+         *  Stopped by a consumer reacting to one of our own events (a feed
+         *  closed from its key_deleted callback). yev_callback is still
+         *  walking the batch with this fs_event: it stops there and destroys
+         *  it once the walk is over.
+         */
+        fs_event->stop_requested = TRUE;
+        return 0;
     }
     if(yev_event_is_running(fs_event->yev_event)) {
         return yev_stop_event(fs_event->yev_event);
@@ -362,7 +374,8 @@ PRIVATE int yev_callback(
                     size_t len = gbuffer_leftbytes(gbuf);
                     char *buffer = gbuffer_cur_rd_pointer(gbuf);
                     char *ptr = buffer;
-                    while (ptr < buffer + len) {
+                    fs_event->in_callback = TRUE;
+                    while (ptr < buffer + len && !fs_event->stop_requested) {
                         /*
                          *  Bound the parse: the fixed header must fit, and so
                          *  must the variable-length name, before we dereference
@@ -381,6 +394,16 @@ PRIVATE int yev_callback(
                         handle_inotify_event(fs_event, event);
 
                         ptr += sizeof(struct inotify_event) + event->len;
+                    }
+                    fs_event->in_callback = FALSE;
+
+                    if(fs_event->stop_requested) {
+                        /*
+                         *  A consumer stopped us from inside a callback: the
+                         *  rest of the batch is for a watcher nobody wants.
+                         */
+                        fs_destroy_watcher_event(fs_event);
+                        break;
                     }
 
                     /*
@@ -482,15 +505,25 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         // The directory is removed or moved
         path=get_path(fs_event, event->wd);
         if(path != NULL) {
-            char path_[PATH_MAX];
-            snprintf(path_, sizeof(path_), "%s", path);
-            char *filename = pop_last_segment(path_);
+            /*
+             *  In a recursive watch a SUBDIRECTORY's deletion is reported by
+             *  its parent too (IN_DELETE|IN_ISDIR), which comes after this
+             *  one -- and comes even when the directory went before its
+             *  watch was set. So only the ROOT is reported from here: every
+             *  subdirectory used to reach the consumer twice.
+             */
+            BOOL is_root = (strcmp(path, fs_event->path)==0)? TRUE: FALSE;
+            if(is_root || !(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS)) {
+                char path_[PATH_MAX];
+                snprintf(path_, sizeof(path_), "%s", path);
+                char *filename = pop_last_segment(path_);
 
-            fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
-            fs_event->directory = path_;
-            fs_event->filename = filename;
+                fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
+                fs_event->directory = path_;
+                fs_event->filename = filename;
 
-            fs_event->callback(fs_event);
+                fs_event->callback(fs_event);
+            }
             remove_watch(fs_event, path, event->wd);
         }
         return;
@@ -527,7 +560,15 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         if (event->mask & (IN_CREATE)) {
             if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
                 snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
-                add_watch(fs_event, full_path);
+                /*
+                 *  A directory created and removed at once (timeranger2's
+                 *  key-delete signal) is gone when its IN_CREATE is read:
+                 *  there is nothing to watch, and its parent reports the
+                 *  removal.
+                 */
+                if(is_directory(full_path)) {
+                    add_watch(fs_event, full_path);
+                }
             }
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;

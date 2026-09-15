@@ -3001,7 +3001,7 @@ PUBLIC int tranger2_append_record(
 
 /***************************************************************************
  *  Fire registered key-delete callbacks for every in-memory subscriber
- *  whose filter matches the deleted key.
+ *  whose filter matches the deleted key, on the master's delete path.
  *
  *  Subscribers live in three arrays on the topic:
  *      topic.lists[]       — rt_mem
@@ -3009,13 +3009,16 @@ PUBLIC int tranger2_append_record(
  *      topic.disks[]       — rt_disk
  *
  *  Each entry's `key` field is the filter ("" = match all).
+ *
+ *  A feed with an fs_watcher (an rt_disk with a loop) is NOT fired here: it
+ *  hears of the delete through its own directory (client_fs_callback ->
+ *  fire_key_deleted_to_feed()), exactly once.
  ***************************************************************************/
 PRIVATE void fire_key_deleted_locally(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    const char *deleted_key,
-    BOOL fs_followers
+    const char *deleted_key
 )
 {
     /*
@@ -3048,20 +3051,8 @@ PRIVATE void fire_key_deleted_locally(
         int idx;
         json_t *entry;
         json_array_foreach(band, idx, entry) {
-            /*
-             *  Split the fan-out by transport so each subscriber fires once:
-             *   - fs_followers==FALSE: only in-process subscribers WITHOUT an
-             *     fs_watcher (rt_mem lists/iterators). The master delete path
-             *     (tranger2_delete_key) uses this.
-             *   - fs_followers==TRUE: only rt_disk followers (those with an
-             *     fs_watcher). The FS_SUBDIR_DELETED inotify branch uses this —
-             *     that inotify event IS the follower's delete signal. (Before,
-             *     such followers were skipped in BOTH paths, so their
-             *     key_deleted_callback never fired.)
-             */
-            BOOL has_fs_watcher = json_object_get(entry, "fs_event_client") != NULL;
-            if(has_fs_watcher != fs_followers) {
-                continue;
+            if(json_integer_value(json_object_get(entry, "fs_event_client"))) {
+                continue;   // Its directory tells it
             }
             const char *filter_key = json_string_value(json_object_get(entry, "key"));
             if(filter_key && filter_key[0] != '\0'
@@ -3082,16 +3073,51 @@ PRIVATE void fire_key_deleted_locally(
 }
 
 /***************************************************************************
- *  Mirror the key deletion into every `topic/disks/<rt_id>/<key>/`
- *  subdirectory the master finds. Followers watching their
- *  `disks/<rt_id>/` recursively pick this up as FS_SUBDIR_DELETED_TYPE
- *  and run fire_key_deleted_locally() on their side.
+ *  Tell ONE rt_disk feed that a key was deleted: drop its watermark of the
+ *  key and, when the feed wants the key, call its key_deleted callback.
+ *  The callback may close the feed: `disk` is not touched after it.
+ ***************************************************************************/
+PRIVATE void fire_key_deleted_to_feed(
+    json_t *tranger,
+    json_t *topic,
+    json_t *disk,
+    const char *deleted_key
+)
+{
+    json_t *published = json_object_get(disk, "published");
+    if(published) {
+        json_object_del(published, deleted_key);
+    }
+
+    const char *filter_key = json_string_value(json_object_get(disk, "key"));
+    if(filter_key && filter_key[0] != '\0' && strcmp(filter_key, deleted_key) != 0) {
+        return;
+    }
+    tranger2_key_deleted_callback_t cb =
+        (tranger2_key_deleted_callback_t)(uintptr_t)json_integer_value(
+            json_object_get(disk, "key_deleted_callback"));
+    if(!cb) {
+        return;
+    }
+    void *user_data = (void *)(uintptr_t)json_integer_value(
+        json_object_get(disk, "key_deleted_user_data"));
+    cb(tranger, topic, deleted_key, disk, user_data);
+}
+
+/***************************************************************************
+ *  Mirror the key deletion into the directory of EVERY feed:
+ *  `topic/disks/<rt_id>/<key>/` is removed, and followers watching their
+ *  `disks/<rt_id>/` pick it up as FS_SUBDIR_DELETED_TYPE.
  *
- *  Silent no-op for rt_ids that never received any record for this key
- *  (their `<key>/` dir never got created).
+ *  A feed that received no record of the key since it opened has no
+ *  `<key>/` to remove, so it used to hear nothing, and its cache kept the
+ *  dead key (every later read of it failed). There the directory is created
+ *  and removed at once: a key directory that appears and vanishes says the
+ *  same thing.
  ***************************************************************************/
 PRIVATE void mirror_key_delete_to_disks(
     hgobj gobj,
+    json_t *tranger,
     json_t *topic,
     const char *key
 )
@@ -3118,6 +3144,11 @@ PRIVATE void mirror_key_delete_to_disks(
            (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
             continue;
         }
+        char rt_path[PATH_MAX];
+        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(!is_directory(rt_path)) {
+            continue;
+        }
         char key_path[PATH_MAX];
         build_path(key_path, sizeof(key_path), disks_root, entry->d_name, key, NULL);
         if(is_directory(key_path)) {
@@ -3126,6 +3157,19 @@ PRIVATE void mirror_key_delete_to_disks(
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "rmrdir() on disks/<rt_id>/<key>/ FAILED",
+                    "path",         "%s", key_path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
+        } else {
+            if(mkdir(key_path, json_integer_value(json_object_get(tranger, "xpermission")))<0 ||
+               rmdir(key_path)<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "cannot signal the key delete in disks/<rt_id>/<key>/",
                     "path",         "%s", key_path,
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),
@@ -3219,8 +3263,8 @@ PUBLIC int tranger2_delete_key(
      *  topic/disks/<rt_id>/<key>/ — inotify fan-out on their side),
      *  then to local in-process subscribers.
      */
-    mirror_key_delete_to_disks(gobj, topic, key);
-    fire_key_deleted_locally(gobj, tranger, topic, key, FALSE);  // in-process non-watcher subs
+    mirror_key_delete_to_disks(gobj, tranger, topic, key);
+    fire_key_deleted_locally(gobj, tranger, topic, key);  // in-process non-watcher subs
 
     /*
      *  Remove directory of topic's key
@@ -5088,17 +5132,24 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                 }
-                scan_disks_key_for_new_file(gobj, tranger, full_path);
+                if(is_directory(full_path)) {
+                    scan_disks_key_for_new_file(gobj, tranger, full_path);
+                }
+                // else: created and removed at once, the key-delete signal
             }
             break;
 
         case FS_SUBDIR_DELETED_TYPE:
             /*
              *  Master mirrored a tranger2_delete_key() into our
-             *  disks/<rt_id>/<key>/ — propagate locally: clear cache
-             *  rollup and fire registered key_deleted_callbacks.
+             *  disks/<rt_id>/<key>/: clear the cache rollup and tell the ONE
+             *  feed whose directory fired (the master mirrors the delete into
+             *  the directory of every feed, so each feed hears it once, from
+             *  its own watcher). Only a directory right under this watcher's
+             *  root is a key: the root itself going is the feed closing.
              */
-            if(watched_topic) {
+            if(watched_topic &&
+               strcmp((const char *)fs_event->directory, fs_event->path)==0) {
                 const char *deleted_key = (const char *)fs_event->filename;
                 if(gobj_global_trace_level() & TRACE_FS) {
                     gobj_log_debug(gobj, 0,
@@ -5116,7 +5167,30 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 if(cache) {
                     json_object_del(cache, deleted_key);
                 }
-                fire_key_deleted_locally(gobj, tranger, watched_topic, deleted_key, TRUE);  // rt_disk followers
+
+                json_t *disk = NULL;
+                int idx; json_t *disk_;
+                json_array_foreach(json_object_get(watched_topic, "disks"), idx, disk_) {
+                    fs_event_t *fs = (fs_event_t *)(uintptr_t)json_integer_value(
+                        json_object_get(disk_, "fs_event_client")
+                    );
+                    if(fs == fs_event) {
+                        disk = disk_;
+                        break;
+                    }
+                }
+                if(disk) {
+                    fire_key_deleted_to_feed(tranger, watched_topic, disk, deleted_key);
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "no rt_disk feed owns this watcher",
+                        "deleted_key",  "%s", deleted_key,
+                        "path",         "%s", fs_event->path,
+                        NULL
+                    );
+                }
             }
             break;
 

@@ -10,6 +10,9 @@
  *        notified when key B is deleted.
  *      - do_test_rt_disk_in_process:  rt_disk on the master's own tranger
  *        receives the callback through the inotify FS_SUBDIR_DELETED branch.
+ *      - do_test_follower:            a real follower: each feed hears a
+ *        delete exactly once, with and without records since it opened, its
+ *        cache loses the key, and a feed may close itself from the callback.
  *      - do_test_cache_cleared:       topic.cache rollup loses the entry.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -101,19 +104,39 @@ PRIVATE void build_paths(
     build_path(path_topic, topic_sz, path_database, TOPIC_NAME, NULL);
 }
 
-PRIVATE json_t *startup_master(const char *path_root, BOOL with_loop)
+/*
+ *  The loop is the PARAMETER of tranger2_startup(): a "yev_loop" key in the
+ *  config is overwritten by it. This test used to put it in the config, so
+ *  the rt_disk case never armed inotify and passed through the rt_mem path.
+ */
+PRIVATE json_t *startup_tranger(const char *path_root, BOOL master, BOOL with_loop)
 {
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:I}",
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
         "path", path_root,
         "database", DATABASE,
-        "master", 1,
+        "master", master?1:0,
         "on_critical_error", LOG_OPT_TRACE_STACK,
         "filename_mask", "%Y",
         "xpermission" , 02770,
-        "rpermission", 0600,
-        "yev_loop", with_loop? (json_int_t)(uintptr_t)yev_loop : (json_int_t)0
+        "rpermission", 0600
     );
-    return tranger2_startup(0, jn_tranger, 0);
+    return tranger2_startup(0, jn_tranger, with_loop? yev_loop: 0);
+}
+
+PRIVATE json_t *startup_master(const char *path_root, BOOL with_loop)
+{
+    return startup_tranger(path_root, TRUE, with_loop);
+}
+
+/*
+ *  The watcher stops queued by a shutdown complete asynchronously (their
+ *  io_uring CQEs free each fs_event): give the loop the turns to run them.
+ */
+PRIVATE void drain(int turns)
+{
+    for(int i = 0; i < turns; i++) {
+        yev_loop_run_once(yev_loop);
+    }
 }
 
 PRIVATE int create_topic(json_t *tranger)
@@ -483,11 +506,209 @@ PRIVATE int do_test_rt_disk_in_process(void)
         result += -1;
     }
 
+    /*  and exactly once: the tail of the batch must not fire it again  */
+    drain(10);
+    if(deleted_callback_count != 1) {
+        printf("%sERROR%s --> rt_disk: %zu fires after draining, expected 1\n",
+            On_Red BWhite, Color_Off, deleted_callback_count);
+        result += -1;
+    }
+
     tranger2_close_rt_disk(tranger, rt);
+    drain(10);
     result += test_json(NULL);
 
     set_expected_results("rt_disk: shutdown", NULL, NULL, NULL, 1);
     tranger2_shutdown(tranger);
+    drain(10);
+    result += test_json(NULL);
+    return result;
+}
+
+/***************************************************************************
+ *  do_test_follower
+ *  A REAL follower (a non-master tranger, inotify armed) with three feeds:
+ *  keyed on A, keyed on B, keyless. Each feed must hear a delete of a key
+ *  it wants EXACTLY once, and its topic cache must lose the key:
+ *
+ *    - A had records after the feeds opened. It used to fire 6 times per
+ *      feed: the master mirrors the key directory of EVERY feed, each
+ *      removal arrived twice (IN_DELETE_SELF + the parent's IN_DELETE),
+ *      and each arrival fired every feed of the topic.
+ *    - B had none, so no feed had its directory: it fired 0 times, and the
+ *      follower's cache kept the dead key.
+ *
+ *  Then a keyless feed whose key_deleted callback closes the feed ITSELF,
+ *  with two deletes in the same inotify batch: the watcher is stopped from
+ *  inside its own callback, and the rest of the batch must not run on it.
+ ***************************************************************************/
+PRIVATE int count_a = 0, count_b = 0, count_all = 0, count_close = 0;
+PRIVATE json_t *closing_tranger = NULL;
+
+PRIVATE int follower_key_deleted_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    void *user_data
+)
+{
+    const char *id = json_string_value(json_object_get(list, "id"));
+    if(id && strcmp(id, "rtA")==0) {
+        count_a++;
+    } else if(id && strcmp(id, "rtB")==0) {
+        count_b++;
+    } else if(id && strcmp(id, "rtALL")==0) {
+        count_all++;
+    } else if(id && strcmp(id, "rtCLOSE")==0) {
+        count_close++;
+        tranger2_close_rt_disk(closing_tranger, list);  // the feed closes itself
+    }
+    return 0;
+}
+
+PRIVATE int check_counts(const char *what, int a, int b, int all)
+{
+    int result = 0;
+    if(count_a != a || count_b != b || count_all != all) {
+        printf("%sERROR%s --> follower, %s: rtA=%d rtB=%d rtALL=%d, expected %d/%d/%d\n",
+            On_Red BWhite, Color_Off, what, count_a, count_b, count_all, a, b, all);
+        result = -1;
+    }
+    count_a = count_b = count_all = 0;
+    return result;
+}
+
+PRIVATE int do_test_follower(void)
+{
+    int result = 0;
+    char path_root[PATH_MAX], path_database[PATH_MAX], path_topic[PATH_MAX];
+    build_paths(path_root, sizeof(path_root),
+                path_database, sizeof(path_database),
+                path_topic, sizeof(path_topic));
+    rmrdir(path_database);
+
+    set_expected_results(
+        "follower: setup",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *tm = startup_master(path_root, TRUE);
+    if(!tm || create_topic(tm) < 0) {
+        if(tm) {
+            tranger2_shutdown(tm);
+        }
+        return -1;
+    }
+    if(append_to(tm, 2, 1) < 0) {   /*  KEY_B exists before the feeds  */
+        result += -1;
+    }
+    drain(5);
+    result += test_json(NULL);
+
+    set_expected_results("follower: deletes reach each feed once", NULL, NULL, NULL, 1);
+
+    json_t *tf = startup_tranger(path_root, FALSE, TRUE);
+    if(!tf || !tranger2_open_topic(tf, TOPIC_NAME, TRUE)) {
+        printf("%sERROR%s --> follower: cannot open the follower\n", On_Red BWhite, Color_Off);
+        if(tf) {
+            tranger2_shutdown(tf);
+        }
+        tranger2_shutdown(tm);
+        return -1;
+    }
+    json_t *rt_a = tranger2_open_rt_disk(tf, TOPIC_NAME, KEY_A, NULL, my_record_callback, "rtA", "", NULL);
+    json_t *rt_b = tranger2_open_rt_disk(tf, TOPIC_NAME, KEY_B, NULL, my_record_callback, "rtB", "", NULL);
+    json_t *rt_all = tranger2_open_rt_disk(tf, TOPIC_NAME, "", NULL, my_record_callback, "rtALL", "", NULL);
+    if(!rt_a || !rt_b || !rt_all) {
+        result += -1;
+    }
+    tranger2_set_rt_key_deleted_callback(rt_a, follower_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_b, follower_key_deleted_callback, NULL);
+    tranger2_set_rt_key_deleted_callback(rt_all, follower_key_deleted_callback, NULL);
+    drain(10);
+
+    json_t *cache = json_object_get(tranger2_topic(tf, TOPIC_NAME), "cache");
+
+    /*  A: records after the feeds opened  */
+    if(append_to(tm, 1, 2) < 0) {
+        result += -1;
+    }
+    drain(20);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += check_counts("delete of a key with records", 1, 0, 1);
+    if(json_object_get(cache, KEY_A)) {
+        printf("%sERROR%s --> follower: KEY_A still in the cache\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  B: no record since the feeds opened  */
+    if(!json_object_get(cache, KEY_B)) {
+        printf("%sERROR%s --> follower: KEY_B not in the cache before its delete\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_B) < 0) {
+        result += -1;
+    }
+    drain(30);
+    result += check_counts("delete of a key with no records since the feeds opened", 0, 1, 1);
+    if(json_object_get(cache, KEY_B)) {
+        printf("%sERROR%s --> follower: KEY_B still in the cache\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+
+    /*  Closing the feeds fires nothing  */
+    tranger2_close_rt_disk(tf, rt_a);
+    tranger2_close_rt_disk(tf, rt_b);
+    tranger2_close_rt_disk(tf, rt_all);
+    drain(20);
+    result += check_counts("closing the feeds", 0, 0, 0);
+    result += test_json(NULL);
+
+    /*
+     *  A feed that closes itself from its key_deleted callback, with two
+     *  deletes queued in the same batch of its watcher.
+     */
+    set_expected_results("follower: a feed closed from its own callback", NULL, NULL, NULL, 1);
+    if(append_to(tm, 1, 1) < 0 || append_to(tm, 2, 1) < 0) {
+        result += -1;
+    }
+    drain(10);
+    closing_tranger = tf;
+    count_close = 0;
+    json_t *rt_close = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, my_record_callback, "rtCLOSE", "", NULL
+    );
+    tranger2_set_rt_key_deleted_callback(rt_close, follower_key_deleted_callback, NULL);
+    drain(10);
+    if(tranger2_delete_key(tm, TOPIC_NAME, KEY_A) < 0 ||
+       tranger2_delete_key(tm, TOPIC_NAME, KEY_B) < 0) {
+        result += -1;
+    }
+    drain(30);
+    if(count_close != 1) {
+        printf("%sERROR%s --> follower: the self-closing feed fired %d times, expected 1\n",
+            On_Red BWhite, Color_Off, count_close);
+        result += -1;
+    }
+    if(tranger2_get_rt_disk_by_id(tf, TOPIC_NAME, "rtCLOSE", "")) {
+        printf("%sERROR%s --> follower: the self-closing feed is still open\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results("follower: shutdown", NULL, NULL, NULL, 1);
+    tranger2_shutdown(tf);
+    tranger2_shutdown(tm);
+    drain(10);
     result += test_json(NULL);
     return result;
 }
@@ -621,6 +842,7 @@ int main(int argc, char *argv[])
     result += do_test_rt_mem_all_keys();
     result += do_test_rt_mem_filter_skip();
     result += do_test_rt_disk_in_process();
+    result += do_test_follower();
     result += do_test_cache_cleared();
 
     yev_loop_stop(yev_loop);

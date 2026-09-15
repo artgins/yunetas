@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### timeranger2: a follower hears a deleted key once per feed; a feed can close itself from its callback
+
+From the 2026-09-15 review (M-T1, M-T3). Reproduced with a master and a
+follower that had inotify armed. `test_delete_key_propagation` never armed it:
+it put `yev_loop` in the config, which `tranger2_startup()` overwrites with its
+parameter.
+
+- **A delete reaches each rt_disk feed exactly once.** A key with records since
+  the feeds opened fired **6 times** on each feed that wanted it. There were
+  three causes. The master mirrors the key's directory into EVERY feed's
+  directory. Each removal arrived twice, as `IN_DELETE_SELF` of the directory
+  and as `IN_DELETE` of its parent. And each arrival fired every feed of the
+  topic, not the feed whose directory fired. Now `fs_watcher` reports a
+  subdirectory's deletion only through its parent, in a recursive watch. The
+  root still reports its own deletion. The follower fires only the feed that
+  owns the watcher, as `update_key_by_hard_link()` already does for records.
+  The root's own deletion is no longer read as a key.
+- **A key with no records since the feeds opened is heard too.** No feed had
+  its directory, so the delete fired nothing, and the follower's cache kept the
+  dead key: every later read of it failed. The master now creates and removes
+  the key's directory where it does not exist. A key directory that appears and
+  vanishes means the key was deleted.
+- **A feed may close itself from its own callback.** `fs_stop_watcher_event()`
+  called from inside the watcher's callback freed the `fs_event` while
+  `yev_callback()` was still walking the batch with it. The stop is now
+  deferred to the end of the walk, and the rest of the batch is dropped.
+
+No runtime code registers `key_deleted` today. The stale follower cache
+affected every follower.
+Test: `test_delete_key_propagation`. Its rt_disk case now arms inotify, and it
+has a new case with a real follower. Against the previous library it fails in
+every case: 0 fires in process, 6/0/6 and 0/0/0 on the follower, and a
+self-closing feed that neither fired nor closed.
+
 ### treedb: an update cannot change a pkey2 value; the snapshot clone moves the node's metadata
 
 Two findings of the 2026-09-15 treedb review. Both were reproduced against the

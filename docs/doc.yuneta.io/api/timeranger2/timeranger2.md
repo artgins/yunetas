@@ -387,15 +387,19 @@ the master can delete.
 
 The deletion is **propagated to subscribers**:
 
-- Every `topic/disks/<rt_id>/<key>/` subdirectory is `rmrdir`'d
-  before the live `keys/<key>/` directory is removed. `rt_by_disk`
-  followers watching their `disks/<rt_id>/` recursively pick this up
-  via the standard inotify channel and run the same fan-out on their
-  side (clear local cache + fire registered callbacks).
-- In-process `rt_mem`, `rt_disk` and `open_iterator` subscribers
-  whose `key` filter matches receive their
+- The master signals the delete in the directory of **every** rt_disk feed,
+  before it removes the live `keys/<key>/` directory. Where
+  `topic/disks/<rt_id>/<key>/` exists (the feed received records of the
+  key), it is removed. Where it does not exist, it is created and removed
+  at once: a key directory that appears and vanishes means "deleted". A
+  feed that received no record of the key since it opened therefore hears
+  the delete too.
+- Each follower watches its own `disks/<rt_id>/`. It clears the key from its
+  topic cache and fires the callback of **that feed only**, once.
+- In-process `rt_mem`, `open_iterator`, and `rt_disk` subscribers without a
+  watcher (no loop) whose `key` filter matches receive their
   [`tranger2_key_deleted_callback_t`](#tranger2_set_rt_key_deleted_callback)
-  if registered.
+  directly, if registered.
 
 For per-instance delete (one row of a key's `.md2` index —
 irrecoverable, no resurrection), see
@@ -541,13 +545,43 @@ int tranger2_set_rt_key_deleted_callback(
 
 Returns `0` on success, `-1` if `list` is `NULL`.
 
+**Example**
+
+A follower feed that closes itself when the key it follows is deleted:
+
+```C
+PRIVATE int on_key_deleted(
+    json_t *tranger, json_t *topic, const char *key, json_t *list, void *user_data)
+{
+    tranger2_close_rt_disk(tranger, list);  // allowed: see the notes
+    return 0;
+}
+
+/*  The loop is the PARAMETER: a "yev_loop" key in the config is overwritten  */
+json_t *tranger = tranger2_startup(0, jn_tranger, yev_loop);
+json_t *rt = tranger2_open_rt_disk(
+    tranger, "devices", "DVES_000000", NULL, on_record, "live-card", "", NULL
+);
+tranger2_set_rt_key_deleted_callback(rt, on_key_deleted, NULL);
+```
+
 **Notes**
 
-For symmetry between in-process and cross-process subscribers, the
-callback is **not** fired twice for the same delete: rt_disk entries
-that own an active inotify watcher are skipped on the master-side
-fan-out, since the watcher will deliver the same event when it picks
-up the directory removal.
+The callback fires **once per feed** for each delete. An rt_disk feed that
+owns an inotify watcher hears the delete only from its own directory, and
+the master-side fan-out skips it. Until 2026-09-15 a feed was fired once
+for every inotify event of every feed of the topic (six times in a
+three-feed follower), and not at all for a key that had no record since
+the feed opened.
+
+The callback may close its own feed (`tranger2_close_rt_disk()`). The
+watcher is stopped at the end of the batch it is handling, and the rest
+of that batch is dropped.
+
+The feed's watcher exists only when the tranger was started with a loop:
+pass it as the third argument of `tranger2_startup()`. Without a loop an
+rt_disk has no watcher, and it is fired directly by the master's delete
+path, like an rt_mem.
 
 ---
 

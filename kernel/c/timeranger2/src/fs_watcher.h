@@ -62,6 +62,8 @@ struct fs_event_s {
     fs_callback_t callback;
     int fd;
     json_t *jn_tracked_paths;
+    BOOL in_callback;           // Internal: yev_callback is walking the events
+    BOOL stop_requested;        // Internal: stopped from inside its own callback
 } ;
 
 
