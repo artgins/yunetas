@@ -142,6 +142,97 @@ static char schema_hook_fkey[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  One hook on the `parent` fkey: parsed twice, it must stay clean.
+ */
+static char schema_one_hook[]= "\
+{                                                                   \n\
+    'id': 'treedb_schema_parse',                                    \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'notes',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'children': {                                       \n\
+                    'header': 'Children',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'notes': 'parent'                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+/*
+ *  Two hooks on the same `parent` fkey: an fkey answers to ONE hook.
+ */
+static char schema_two_hooks[]= "\
+{                                                                   \n\
+    'id': 'treedb_schema_parse',                                    \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'notes',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'children': {                                       \n\
+                    'header': 'Children',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'notes': 'parent'                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                'others': {                                         \n\
+                    'header': 'Others',                             \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'notes': 'parent'                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -206,6 +297,45 @@ PRIVATE int test_parse(void)
     ret = parse_schema(jn_schema);
     if(ret >= 0) {
         printf("%sERROR%s --> parse_schema() of a hook+fkey column: %d, expected < 0\n",
+            On_Red BWhite, Color_Off, ret);
+        result += -1;
+    }
+    JSON_DECREF(jn_schema)
+    result += test_json(NULL);
+
+    /*
+     *  parse_hooks() writes `fkey` into the schema it parses, and a schema
+     *  is parsed at validation and again at open: the second pass meets its
+     *  own mark, and that is not a second hook.
+     */
+    set_expected_results("one hook, parsed twice, stays clean", NULL, NULL, NULL, 1);
+    jn_schema = load_schema(schema_one_hook);
+    if(!jn_schema) {
+        return -1;
+    }
+    for(int pass = 1; pass <= 2; pass++) {
+        ret = parse_schema(jn_schema);
+        if(ret != 0) {
+            printf("%sERROR%s --> parse_schema() pass %d of a one-hook schema: %d, expected 0\n",
+                On_Red BWhite, Color_Off, pass, ret);
+            result += -1;
+        }
+    }
+    JSON_DECREF(jn_schema)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "two hooks on one fkey are refused",
+        json_pack("[{s:s}]", "msg", "Only can be one fkey"),
+        NULL, NULL, 1
+    );
+    jn_schema = load_schema(schema_two_hooks);
+    if(!jn_schema) {
+        return -1;
+    }
+    ret = parse_schema(jn_schema);
+    if(ret >= 0) {
+        printf("%sERROR%s --> parse_schema() of two hooks on one fkey: %d, expected < 0\n",
             On_Red BWhite, Color_Off, ret);
         result += -1;
     }

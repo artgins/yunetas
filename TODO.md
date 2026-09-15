@@ -284,23 +284,17 @@ deploy. Delete the three entries below once that is done; the
   in the tree does it today; nothing forbids it).
 - **tr_treedb**: `treedb_save_node()` (`:5779`) adds the pkey2 slot of the new
   value and never removes the old one, so after changing a pkey2 value the node
-  is listed twice and still answers to the old value. The check "Only can be one
-  fkey" of `parse_hooks()` (`:2365`) is dead (`kw_has_word` on a dict), so two
-  hooks on one fkey keep the LAST in silence and the loader drops the links of
-  the first. `treedb_delete_instance()` (`:6644`) drops the instance from the
+  is listed twice and still answers to the old value. `treedb_delete_instance()` (`:6644`) drops the instance from the
   pkey2 index without unlinking it. The snapshot clone of
   `treedb_shoot_snap()` (`:12945`) leaves the OLD tag in memory, so snap N-1
   goes on "following" updates while snap N stays frozen in the clone.
-- **C_NODE / C_TREEDB**: `links` / `hooks` with no topic answer
-  `{"": [last]}` (`mt_topic_links`/`mt_topic_hooks`, `c_node.c:740/800`, the
-  loop indexes by `topic_name` instead of `topic_name_`). `cmd_link_nodes` /
+- **C_NODE / C_TREEDB**: `cmd_link_nodes` /
   `cmd_unlink_nodes` (`:2801/:2943`) lose the parent node they own when the
   child does not exist, and the message says "Parent not found". Authz is
   uneven: `read` is checked only on `nodes`, and `node`, `instances`,
   `parents`, `children`, `jtree`, `snap-content`, `print-tranger` and
   `export-db` have no guard; `import-db` has none at all (`:4440`, `// TODO`);
   `update-node` with `options.create=1` creates under the `update` permission.
-  `mt_delete_node` (`:1115`) answers 0 when the topic does not exist.
   `mt_treedbs` (`c_treedb.c:469`) returns a `msg_iev_build_response` envelope
   where its callers expect a list.
 - **gobj-ui (treedb views)**: the pencil of the Op column opens the form by a

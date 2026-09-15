@@ -691,6 +691,55 @@ PRIVATE int run_tests(hgobj gobj)
     result += expect_count(gobj, "link events on again", "unlinked", 1, priv->unlinked_count);
     result += expect_count(gobj, "link events on again", "updated", 1, priv->updated_count);
 
+    /*-----------------------------------------------*
+     *  Test 11: `links` / `hooks` with no topic answer
+     *  one key per topic. The loop keyed every topic
+     *  by the EMPTY topic_name it was asked for, so
+     *  the answer was {"": <the last topic's>}.
+     *-----------------------------------------------*/
+    {
+        const char *what[] = {"links", "hooks"};
+        for(int i = 0; i < 2; i++) {
+            json_t *jn_all = (i == 0)?
+                gobj_topic_links(priv->gobj_node, treedb_name, "", 0, gobj):
+                gobj_topic_hooks(priv->gobj_node, treedb_name, "", 0, gobj);
+            if(!json_object_get(jn_all, "users") ||
+                    !json_object_get(jn_all, "departments") ||
+                    json_object_get(jn_all, "")) {
+                gobj_log_error(gobj, 0,
+                    "function", "%s", __FUNCTION__,
+                    "msgset", "%s", MSGSET_INTERNAL,
+                    "msg", "%s", "TEST FAIL: all-topics answer not keyed by topic",
+                    "what", "%s", what[i],
+                    "got", "%j", jn_all,
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(jn_all)
+        }
+    }
+
+    /*-----------------------------------------------*
+     *  Test 12: delete_node on a topic that does not
+     *  exist is a refusal (-1), like every other one.
+     *  It answered 0, which callers read as "deleted".
+     *-----------------------------------------------*/
+    if(gobj_delete_node(
+            priv->gobj_node,
+            "no_such_topic",
+            json_pack("{s:s}", "id", "x"),
+            0,
+            gobj) >= 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset", "%s", MSGSET_INTERNAL,
+            "msg", "%s", "TEST FAIL: delete_node on a missing topic answered success",
+            NULL
+        );
+        result += -1;
+    }
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,

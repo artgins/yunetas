@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### treedb: two hooks on one fkey are refused; C_NODE's `links` / `hooks` / `delete_node` answer right
+
+- **An fkey answers to one hook, and `parse_schema()` now says so.**
+  `parse_hooks()` marks each fkey with the one hook that fills it
+  (`field.fkey = {topic: hook}`), and the loader keeps only the links that mark
+  names. A second hook on the same fkey replaced the mark in silence, and at
+  load the links of the first were dropped with no log. The check *"Only can be
+  one fkey"* was there since the first version, but it asked `kw_has_word()`
+  of a dict, which is true only for a `true` value, so it never fired. It now
+  compares with the mark already there. The same hook met again is not a second
+  one, because a schema is parsed at validation and again at open. No schema in
+  the SDK or in any project has two hooks on one fkey (all 15 were checked).
+- **`links` and `hooks` with no topic answer one key per topic.** The loop
+  keyed every topic by the EMPTY topic name it was asked for, so the answer was
+  `{"": <the last topic's>}`.
+- **`delete_node` on a topic that does not exist answers -1.** It answered 0,
+  and callers such as the agent's `delete-*` commands (`if(gobj_delete_node(…)<0)`)
+  read that as a successful delete.
+
+Tests: `tr_treedb_schema_parse` (two hooks refused, one hook parsed twice
+clean) and `c_node_link_events`.
+
 ### timeranger2: a topic opens whole on a filesystem without `d_type`
 
 On XFS with `ftype=0`, NFS, FUSE or overlay, `readdir()` gives no `d_type`,

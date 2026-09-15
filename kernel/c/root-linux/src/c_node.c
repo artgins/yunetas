@@ -785,7 +785,7 @@ PRIVATE json_t *mt_topic_links(
         const char *topic_name_ = json_string_value(jn_topic_name);
         json_object_set_new(
             links,
-            topic_name,
+            topic_name_,
             treedb_get_topic_links(priv->tranger, treedb_name, topic_name_)
         );
     }
@@ -845,7 +845,7 @@ PRIVATE json_t *mt_topic_hooks(
         const char *topic_name_ = json_string_value(jn_topic_name);
         json_object_set_new(
             hooks,
-            topic_name,
+            topic_name_,
             treedb_get_topic_hooks(priv->tranger, treedb_name, topic_name_)
         );
     }
@@ -1155,7 +1155,7 @@ PRIVATE int mt_delete_node(
         );
         JSON_DECREF(jn_options)
         KW_DECREF(kw)
-        return 0;
+        return -1;  // a refusal, like every other one below: 0 read as "deleted"
     }
 
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);

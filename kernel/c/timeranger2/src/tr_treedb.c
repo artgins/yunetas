@@ -2358,19 +2358,36 @@ PUBLIC int parse_hooks(
                         continue;
                     }
 
-                    if(kw_has_word(gobj, field, "fkey", 0)) {
-                        gobj_log_error(gobj, 0,
-                            "function",         "%s", __FUNCTION__,
-                            "msgset",           "%s", MSGSET_TREEDB,
-                            "msg",              "%s", "Only can be one fkey",
-                            "topic_name",       "%s", topic_name,
-                            "id",               "%s", id,
-                            "link_topic_name",  "%s", link_topic_name,
-                            "link_field",       "%s", s_link_field,
-                            NULL
+                    /*
+                     *  An fkey answers to ONE hook: `field.fkey` holds one
+                     *  {topic: hook}, and the loader keeps only the links it
+                     *  names, so a second hook on it dropped the first one's
+                     *  links in silence. The check was `kw_has_word()` on the
+                     *  dict -- true only for a `true` value -- and never fired.
+                     *  The same hook met again is not a second one: a schema
+                     *  is parsed at validation and again at open.
+                     */
+                    json_t *prev_fkey = json_object_get(field, "fkey");
+                    if(prev_fkey) {
+                        const char *prev_hook = json_string_value(
+                            json_object_get(prev_fkey, topic_name)
                         );
-                        ret += -1;
-                        continue;
+                        if(json_object_size(prev_fkey) != 1 || !prev_hook ||
+                                strcmp(prev_hook, id) != 0) {
+                            gobj_log_error(gobj, 0,
+                                "function",         "%s", __FUNCTION__,
+                                "msgset",           "%s", MSGSET_TREEDB,
+                                "msg",              "%s", "Only can be one fkey",
+                                "topic_name",       "%s", topic_name,
+                                "id",               "%s", id,
+                                "link_topic_name",  "%s", link_topic_name,
+                                "link_field",       "%s", s_link_field,
+                                "fkey",             "%j", prev_fkey,
+                                NULL
+                            );
+                            ret += -1;
+                            continue;
+                        }
                     }
 
                     json_object_set_new(
