@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### treedb: a link into a single-valued fkey moves the child
+
+A `string` column with the `fkey` flag holds one parent, so a new link
+REPLACES the old one. `_link_nodes()` wrote the new reference and left the
+child in the hook of the parent it hung from before, a phantom child. A delete
+of that parent without `force` was refused (*"has down links"*). With
+`force` it "unlinked" the phantom, and `_unlink_nodes()` emptied the child's
+string without checking which parent it named. That cleared the reference to
+the NEW parent and saved it, so after a reload the child hung from nobody.
+
+Now a link first unlinks the child from the parent its string names. That also
+publishes `EV_TREEDB_NODE_UNLINKED` for it, so a re-link emits UNLINKED + LINKED
+where it used to emit only LINKED. An unlink only clears a string reference that
+names that parent. Otherwise it logs *"Parent ref not found in string child
+data"* and leaves the child alone. Also fixed: `_unlink_nodes()` went on to a
+`switch` on a NULL value after *"field not found in the node"*, and
+`_link_nodes()` printed a `const char *` with `%j`. `C_NODE`'s seed-link guard is
+unchanged: it refuses to overwrite a seed's link before any of this runs. Test:
+`tests/c/tr_treedb_relink`.
+
 ### treedb: a `rowid` id is never handed out twice
 
 A topic whose `id` column carries `rowid` hands out the id when the create

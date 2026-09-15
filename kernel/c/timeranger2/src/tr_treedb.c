@@ -91,6 +91,12 @@ PRIVATE int _unlink_nodes(
     json_t *child_node,     // NOT owned
     BOOL save
 );
+PRIVATE int unlink_child_from_parent_ref(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *node,       // NOT owned, pure node: the child
+    const char *ref
+);
 
 PRIVATE json_t * treedb_get_activated_snap_tag(
     hgobj gobj,
@@ -7202,10 +7208,47 @@ PRIVATE int _link_nodes(
             "msg",                  "%s", "wrong child hook type",
             "parent_topic_name",    "%s", parent_topic_name,
             "child_topic_name",     "%s", child_topic_name,
-            "child_field",          "%j", child_field,
+            "child_field",          "%s", child_field,
             NULL
         );
         return -1;
+    }
+
+    /*--------------------------------------------------*
+     *  A single-valued fkey does not add, it REPLACES:
+     *  the child leaves the parent it hangs from now,
+     *  or that parent keeps it in its hook and a forced
+     *  delete of it clears a ref that names another.
+     *--------------------------------------------------*/
+    if(json_is_string(child_data)) {
+        char new_ref[NAME_MAX];
+        snprintf(new_ref, sizeof(new_ref), "%s^%s^%s",
+            parent_topic_name,
+            parent_id,
+            hook_name
+        );
+        const char *cur_ref = json_string_value(child_data);
+        if(!empty_string(cur_ref) && strcmp(cur_ref, new_ref)!=0) {
+            char old_ref[NAME_MAX];
+            snprintf(old_ref, sizeof(old_ref), "%s", cur_ref);
+            if(unlink_child_from_parent_ref(gobj, tranger, child_node, old_ref)<0) {
+                return -1;  // Error already logged
+            }
+            // The unlink replaced the child's string: the old pointer is gone
+            child_data = kw_get_dict_value(gobj, child_node, child_field, 0, 0);
+            if(!child_data) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_TREEDB,
+                    "msg",              "%s", "fkey field lost unlinking the previous parent",
+                    "child_topic_name", "%s", child_topic_name,
+                    "child_id",         "%s", child_id,
+                    "child_field",      "%s", child_field,
+                    NULL
+                );
+                return -1;
+            }
+        }
     }
 
     /*--------------------------------------------------*
@@ -7618,6 +7661,7 @@ PRIVATE int _unlink_nodes(
             NULL
         );
         gobj_trace_json(gobj, child_node, "field not found in the node 6");
+        return -1;
     }
 
     /*--------------------------------------------------*
@@ -7748,7 +7792,29 @@ PRIVATE int _unlink_nodes(
     switch(json_typeof(child_data)) { // json_typeof PROTECTED
     case JSON_STRING:
         {
-            json_object_set_new(child_node, child_field, json_string(""));
+            char pref[NAME_MAX];
+            snprintf(pref, sizeof(pref), "%s^%s^%s",
+                parent_topic_name,
+                parent_id,
+                hook_name
+            );
+            if(strcmp(json_string_value(child_data), pref)==0) {
+                json_object_set_new(child_node, child_field, json_string(""));
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_TREEDB,
+                    "msg",                  "%s", "Parent ref not found in string child data",
+                    "parent_topic_name",    "%s", parent_topic_name,
+                    "hook_name",            "%s", hook_name,
+                    "parent_id",            "%s", parent_id,
+                    "child_topic_name",     "%s", child_topic_name,
+                    "child_id",             "%s", child_id,
+                    "child_field",          "%s", child_field,
+                    "child_ref",            "%s", json_string_value(child_data),
+                    NULL
+                );
+            }
         }
         break;
     case JSON_ARRAY:
