@@ -106,6 +106,26 @@ Returns 0 on success, or a negative value on failure.
 
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
+**A `__t__` that belongs to an earlier file.** The record goes to the file that
+its `__t__` selects (through the topic's `filename_mask`), even if that file is
+not the newest one. A key's global rowid counts the records in the order of its
+files, so the new record takes its place in that order, and **every record of
+the later files moves one place up**:
+
+```C
+/*  filename_mask "%Y-%m-%d"; key 1 has A (2000-01-01), B (2000-01-02)  */
+tranger2_append_record(tranger, "topic", t_2000_01_01 + 10, 0, &md, jn_c);
+/*  C gets g_rowid 2, and B is now 3: an iterator serves A, C, B  */
+```
+
+The `g_rowid` in the record's `__md_tranger__` is its place, the same number a
+reload gives. If you keep global rowids, for example as a page position, a
+record written into an earlier file makes the rowids of the later records
+stale. Records written with `__t__ = 0` (now) always go to the last file, and
+move nothing. Until 2026-09-15 the cache in memory disagreed with the disk
+until the next reload: it served the wrong record, and a follower re-published
+the whole file.
+
 ---
 
 (tranger2_backup_topic)=

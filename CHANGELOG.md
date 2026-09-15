@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### timeranger2: an append to an earlier file goes to that file's place
+
+From the 2026-09-15 review (M-T2). A key's cache has one cell per md2 file,
+in the order the load gives them (by file name). A global rowid is a position
+in that order. The append path looked only at the LAST cell, so a record whose
+`__t__` belongs to an earlier file got a second cell of that file at the end.
+Triggers: `append-record __t__=`, tr2migrate, tr2q_mqtt, or a clock stepping
+back across the `filename_mask`.
+
+- **The master served the wrong record.** With A (day 1), B (day 2) and then C
+  (day 1), an iterator served A, B, **A**. C could not be read, and the first
+  record of the old file was served twice.
+- **A follower counted the old file twice** (4 rows for 3), re-published the
+  whole file to its feed, and served A, B, A, C.
+- **Only a reload was right** (A, C, B).
+
+Now the record goes to its file's cell wherever that cell is. A new file's
+cell goes to its place in the order. The global rowid handed out is the
+record's place, the same number a reload gives. For an append to the last file
+it is the total, as it always was. **One consequence cannot be avoided:** a
+record for an earlier file moves every record of the later files one place up
+(B goes from 2 to 3). A reload always did this. Now memory and disk agree at
+once.
+Test: `test_out_of_order_append` (new). Against the previous library it fails
+every check, on the master and on the follower.
+
 ### timeranger2: a follower hears a deleted key once per feed; a feed can close itself from its callback
 
 From the 2026-09-15 review (M-T1, M-T3). Reproduced with a master and a

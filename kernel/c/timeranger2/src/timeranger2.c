@@ -168,12 +168,12 @@ PRIVATE json_t *get_key_cache(
     const char *key
 );
 PRIVATE json_t *create_cache_key(void);
-PRIVATE json_t *get_last_cache_cell(
-    hgobj gobj,
-    json_t *tranger,
+PRIVATE json_t *find_cache_cell(
     json_t *topic,
     const char *key,
-    const char *file_id
+    const char *file_id,
+    json_int_t *pfile_base,
+    int *pinsert_idx
 );
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
@@ -328,6 +328,7 @@ PRIVATE json_int_t publish_new_rt_disk_records(
     const char *key,
     json_t *old_file_cache,
     json_t *new_file_cache,
+    json_int_t file_base,
     const char *rt_id
 );
 
@@ -5449,12 +5450,14 @@ PRIVATE json_int_t update_new_records_from_disk(
 
     char *file_id = filename; // Now it has not .md2
 
-    json_t *cur_cache_cell = get_last_cache_cell(
-        gobj,
-        tranger,
+    json_int_t file_base = 0;
+    int insert_idx = 0;
+    json_t *cur_cache_cell = find_cache_cell(
         topic,
         key,
-        file_id
+        file_id,
+        &file_base,
+        &insert_idx
     );
 
     // Publish new data to iterator
@@ -5466,6 +5469,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         key,
         cur_cache_cell,
         new_cache_cell,
+        file_base,
         rt_id
     );
 
@@ -5475,7 +5479,7 @@ PRIVATE json_int_t update_new_records_from_disk(
     if(!cur_cache_cell) {
         json_t *key_cache = get_key_cache(topic, key);
         json_t *cache_files = json_object_get(key_cache, "files");
-        json_array_append_new(cache_files, new_cache_cell);
+        json_array_insert_new(cache_files, (size_t)insert_idx, new_cache_cell);
     } else {
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
@@ -5501,6 +5505,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     const char *key,
     json_t *old_cache_cell,
     json_t *new_cache_cell,
+    json_int_t file_base, // rows of the files before this one
     const char *rt_id   // the feed whose /disks/<rt_id>/ directory fired
 )
 {
@@ -5523,19 +5528,10 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      *  default one a day). The key's GLOBAL rowid — what the callback's
      *  contract promises and what the master's rt_mem path already delivers
      *  (update_new_record_from_mem returns g_rowid) — is that position plus
-     *  the rows of every file BEFORE this one.
+     *  the rows of every file BEFORE this one: `file_base`, counted by
+     *  find_cache_cell() in the order of the files, not "every cell before
+     *  the last", which an out-of-order file is not.
      */
-    json_int_t file_base = 0;
-    if(1) {
-        json_t *cache_files = get_cache_files(topic, key);
-        int idx; json_t *cell;
-        json_array_foreach(cache_files, idx, cell) {
-            if(cell == old_cache_cell) {
-                break;      /*  this file: its rows are the ones we are indexing  */
-            }
-            file_base += json_integer_value(json_object_get(cell, "rows"));
-        }
-    }
 
     /*
      *  ONE feed owns this notification.
@@ -6030,48 +6026,65 @@ PRIVATE json_t *get_key_cache(
 }
 
 /***************************************************************************
- *  WARNING Find only in the last item of the array
- *  Create the tree ("cache`%s`files", key) if not exist
+ *  Order of two file ids, as the load orders the md2 files: by their NAME
+ *  (dir_array_sort), suffix included.
  ***************************************************************************/
-PRIVATE json_t *get_last_cache_cell(
-    hgobj gobj,
-    json_t *tranger,
+PRIVATE int cmp_file_ids(const char *a, const char *b)
+{
+    char a_[NAME_MAX];
+    char b_[NAME_MAX];
+    snprintf(a_, sizeof(a_), "%s.md2", a);
+    snprintf(b_, sizeof(b_), "%s.md2", b);
+    return strcmp(a_, b_);
+}
+
+/***************************************************************************
+ *  Return the cache cell of `file_id` in the key's cells, or NULL if the
+ *  file has none yet. Create the tree ("cache`%s`files", key) if not exist.
+ *
+ *  The cells are in the order the load gives them (one per md2 file, by
+ *  name), and a global rowid is a position in that order. A record whose
+ *  __t__ belongs to an EARLIER file goes to that file's cell: looking only
+ *  at the LAST cell, it got a second cell of the same file at the end, and
+ *  the segments served the FIRST record of that file in its place.
+ *
+ *  *pfile_base: the rows of every file before this one.
+ *  *pinsert_idx: where a new cell of this file must go.
+ ***************************************************************************/
+PRIVATE json_t *find_cache_cell(
     json_t *topic,
     const char *key,
-    const char *file_id
+    const char *file_id,
+    json_int_t *pfile_base,
+    int *pinsert_idx
 )
 {
-    // "cache`%s`files", key
     json_t *key_cache = get_key_cache(topic, key);
     json_t *cache_files = json_object_get(key_cache, "files");
-    if(!cache_files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "no cache files",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return NULL;
+
+    json_int_t file_base = 0;
+    int insert_idx = (int)json_array_size(cache_files);
+    json_t *found = NULL;
+
+    int idx; json_t *cache_cell;
+    json_array_foreach(cache_files, idx, cache_cell) {
+        const char *file_id_ = json_string_value(json_object_get(cache_cell, "id"));
+        int cmp = cmp_file_ids(file_id_?file_id_:"", file_id);
+        if(cmp == 0) {
+            found = cache_cell;
+            insert_idx = idx;
+            break;
+        }
+        if(cmp > 0) {
+            insert_idx = idx;
+            break;
+        }
+        file_base += json_integer_value(json_object_get(cache_cell, "rows"));
     }
 
-    if (json_array_size(cache_files) == 0) {
-        return NULL;
-    }
-
-    /*
-     *  WARNING Find only in the last item of the array
-     */
-    json_int_t cur_file = (json_int_t)json_array_size(cache_files) - 1;
-    json_t *cache_cell = json_array_get(cache_files, cur_file);
-
-    const char *file_id_ = json_string_value(json_object_get(cache_cell, "id"));
-    if(strcmp(file_id, file_id_)!=0) {
-        // Silence
-        return NULL;
-    }
-    return cache_cell;
+    *pfile_base = file_base;
+    *pinsert_idx = insert_idx;
+    return found;
 }
 
 /***************************************************************************
@@ -6423,16 +6436,18 @@ PRIVATE json_int_t update_new_record_from_mem(
     );
 
     /*
-     *  See if the file cache exists
-     *  WARNING only searching in the last item of cell's array
-     *  Create the key cache if not exist
+     *  The cell of the record's file, wherever it is: a __t__ of an earlier
+     *  file writes into that file (get_topic_wr_fd opens it by __t__).
+     *  Create the key cache if not exist.
      */
-    json_t *cur_cache_cell = get_last_cache_cell(
-        gobj,
-        tranger,
+    json_int_t file_base = 0;
+    int insert_idx = 0;
+    json_t *cur_cache_cell = find_cache_cell(
         topic,
         key,
-        file_id
+        file_id,
+        &file_base,
+        &insert_idx
     );
 
     /*
@@ -6441,15 +6456,26 @@ PRIVATE json_int_t update_new_record_from_mem(
     if(!cur_cache_cell) {
         json_t *key_cache = get_key_cache(topic, key);
         json_t *cache_files = json_object_get(key_cache, "files");
-        json_t *new_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1);
-        json_array_append_new(cache_files, new_cache_cell);
-        cur_cache_cell = json_array_get(cache_files, json_array_size(cache_files) - 1);
+        cur_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1);
+        json_array_insert_new(cache_files, (size_t)insert_idx, cur_cache_cell);
 
     } else {
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
 
-    return update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, 1);
+    if(update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, 1)<0) {
+        // Error already logged
+        return -1;
+    }
+
+    /*
+     *  The record's GLOBAL rowid is its place in the order of the files, as
+     *  a reload numbers it: the last row of its file plus the rows of the
+     *  files before. For an append to the last file that is the total, as
+     *  it always was. For an earlier file, every record of the later files
+     *  moves one place up -- which a reload did anyway, unannounced.
+     */
+    return file_base + json_integer_value(json_object_get(cur_cache_cell, "rows"));
 }
 
 /***************************************************************************

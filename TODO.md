@@ -205,12 +205,10 @@ Line numbers are those of `main` on 2026-09-15.
 
 **Medium**
 
-- **timeranger2**: the cache matches only the LAST cell
-  (`get_last_cache_cell()`, `update_new_record_from_mem()`): an append whose
-  `__t__` belongs to an earlier file adds a duplicate cell and serves the wrong
-  record. (Fixed on 2026-09-15: the propagation of `delete_key` to a follower,
-  and a feed closed from inside its own fs_watcher callback -- see
-  `CHANGELOG.md`.)
+- **timeranger2**: nothing open from the review. (Fixed on 2026-09-15: the
+  propagation of `delete_key` to a follower, a feed closed from inside its own
+  fs_watcher callback, and an append whose `__t__` belongs to an earlier file
+  -- see `CHANGELOG.md`.)
 - **tr_treedb**: `treedb_delete_instance()` does not unlink, and
   that matters in ONE case only (analysed 2026-09-15): the loader links only the
   `id` index (`load_all_links()`) and hooks dedup by child id, so a non-primary
@@ -250,7 +248,7 @@ Line numbers are those of `main` on 2026-09-15.
   `users.scopes`, which exist nowhere; `kernel/js/gobj-ui/README.md` still
   describes the pre-7.18.0 asset model.
 
-**Tests nobody has** (in order of damage): `__t__` out of order; changing a pkey2
+**Tests nobody has** (in order of damage): changing a pkey2
 value; two hooks on one fkey; `delete_instance` with links; the snapshot clone
 followed by updates. C_NODE commands with no ctest: `node`, `instances`,
 `pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`, the
