@@ -76,6 +76,20 @@ PRIVATE char msg2db_schema[]= "\
 ";
 
 /***************************************************************************
+ *  A master tranger watches its /disks directory with inotify, and
+ *  tranger2_shutdown() cancels that watcher asynchronously: the io_uring
+ *  CQEs that free each fs_event arrive on later turns of the loop. Without
+ *  those turns their memory is still allocated at the leak check, and it
+ *  reads as "msg2db leaks". Same as test_rt_disk_multi_feed.
+ ***************************************************************************/
+PRIVATE void drain_loop(void)
+{
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+}
+
+/***************************************************************************
  *  Append GOOD_RECORDS with a pkey2, and BAD_RECORDS with an empty one.
  *
  *  The index is {id: {pkey2: node}} -- one node per pair -- so the good ones
@@ -168,6 +182,7 @@ PRIVATE int do_test(void)
 
     msg2db_close_db(tranger, MSG2DB_NAME);
     tranger2_shutdown(tranger);
+    drain_loop();
 
     result += test_json(NULL);
 
@@ -207,6 +222,7 @@ PRIVATE int do_test(void)
 
     msg2db_close_db(tranger, MSG2DB_NAME);
     tranger2_shutdown(tranger);
+    drain_loop();
 
     result += test_json(NULL);
 

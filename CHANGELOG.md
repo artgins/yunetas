@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### C_NODE `link-nodes` / `unlink-nodes` name a missing child; msg2db has a test in the suite
+
+- **A missing child is named as a child.** When the child did not exist,
+  `link-nodes` and `unlink-nodes` answered *"Parent not found"* and dropped the
+  parent node that `gobj_get_node()` had handed them without releasing it. They
+  now answer *"Child not found: '<topic>^<id>'"* and release it.
+- **`tests/c/tr_msg2db` is registered.** It was kept out because
+  msg2db "leaked" 8 tracked blocks per open/close. The leak was the test's own
+  doing. A master tranger watches its `/disks` directory with inotify, and
+  `tranger2_shutdown()` cancels that watcher asynchronously. The test never gave
+  the loop the turns to free it, so the memory was still allocated at the leak
+  check. With the loop drained after each shutdown, as
+  `test_rt_disk_multi_feed` does, it passes clean, and msg2db has a test in the
+  suite for the first time.
+
 ### treedb: two hooks on one fkey are refused; C_NODE's `links` / `hooks` / `delete_node` answer right
 
 - **An fkey answers to one hook, and `parse_schema()` now says so.**

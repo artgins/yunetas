@@ -185,43 +185,6 @@ The meta-treedb is filled, reconciles by `schema_version` and rebuilds a schema
     requires pure nodes. It was inert while `__system__` was empty; it is
     reachable now. It never touches the client treedb's own data.
 
-## msg2db leaks 8 blocks per open/close, and has no tests
-
-There are **two** leaks, told apart by measurement with
-`tests/c/tr_msg2db/test_pkey2_empty` (written, not registered — see its
-README):
-
-- **The open/close pair**: 8 tracked blocks for two cycles once nothing is
-  dropped at load, so ~4 per cycle.
-- **The drop path at load**: it was 16 blocks for those same two cycles while
-  the store still held records with an empty `pkey2`. The difference is the
-  dropping, not the reading.
-
-The second one is now hard to reach from the API — the write side refuses
-those records — but old stores are full of them, so it still runs on every
-node that carries the history.
-
-Two candidates were ruled out by measurement, not by reading: the file-static
-`topic_cols_desc` (removed anyway — it was the pattern CLAUDE.md forbids, and
-nothing outside `msg2db_open_db()` ever read it) and the test's own handling of
-the tranger config. Neither changed the count.
-
-**The open/close "leak" is probably the test, not msg2db** (review of
-2026-09-15, gdb on `test_pkey2_empty`): the 16 blocks are two clusters of the
-inotify watcher on the master's `/disks` directory
-(`fs_create_watcher_event()` ← `monitor_disks_directory_by_master()`).
-`tranger2_stop()` cancels it asynchronously, and the test never runs the loop
-after the shutdown, so the cancellation is never drained. Compare
-`tests/c/timeranger2/test_rt_disk_multi_feed.c`, which drains it. Drain the loop
-in the test first, and measure again before touching msg2db.
-
-It went unnoticed because **msg2db has never had a test**. `tests/c/tr_msg`
-covers `tr_msg.c`, which is a different module. The first test written for it
-found this in its first run.
-
-Drain the loop in the test, re-measure, then register `tests/c/tr_msg2db` in
-`tests/c/CMakeLists.txt`.
-
 ## TreeDB / timeranger2: open findings of the 2026-09-15 review
 
 A read-only review of timeranger2, tr_treedb, their gclasses, gobj-ui's treedb
@@ -266,8 +229,10 @@ deploy. Delete the three entries below once that is done; the
   recursed 87k frames and crashed. Not checked yet: whether a cycle leaks at
   `treedb_close_db()`, and what the other recursive walkers do (compare, dump,
   `jtree`).
-- **`test_c_node_link_events` failed once** in a run of the treedb suites, then
-  passed 15 times in a row. Possibly timing-dependent.
+- **`test_c_node_link_events` fails now and then** -- twice on 2026-09-15, both
+  inside runs of several suites, never alone (15/15 twice). Its message was
+  not kept. Next time it fails, keep `build/Testing/Temporary/LastTest.log`
+  before running anything else: ctest overwrites it.
 
 **Medium**
 
@@ -288,9 +253,7 @@ deploy. Delete the three entries below once that is done; the
   pkey2 index without unlinking it. The snapshot clone of
   `treedb_shoot_snap()` (`:12945`) leaves the OLD tag in memory, so snap N-1
   goes on "following" updates while snap N stays frozen in the clone.
-- **C_NODE / C_TREEDB**: `cmd_link_nodes` /
-  `cmd_unlink_nodes` (`:2801/:2943`) lose the parent node they own when the
-  child does not exist, and the message says "Parent not found". Authz is
+- **C_NODE / C_TREEDB**: Authz is
   uneven: `read` is checked only on `nodes`, and `node`, `instances`,
   `parents`, `children`, `jtree`, `snap-content`, `print-tranger` and
   `export-db` have no guard; `import-db` has none at all (`:4440`, `// TODO`);

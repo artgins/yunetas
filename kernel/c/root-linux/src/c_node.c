@@ -2900,10 +2900,13 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
     if(!child_node) {
+        JSON_DECREF(parent_node)    // gobj_get_node() handed it over
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Parent not found"),
+            json_sprintf("%s: Child not found: '%s^%s'",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id
+            ),
             0,
             0,
             kw  // owned
@@ -3042,10 +3045,13 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         src
     );
     if(!child_node) {
+        JSON_DECREF(parent_node)    // gobj_get_node() handed it over
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Parent not found"),
+            json_sprintf("%s: Child not found: '%s^%s'",
+                gobj_yuno_role_plus_name(), child_topic_name, child_id
+            ),
             0,
             0,
             kw  // owned
