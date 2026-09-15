@@ -218,8 +218,15 @@ Line numbers are those of `main` on 2026-09-15.
   in the tree does it today; nothing forbids it).
 - **tr_treedb**: `treedb_save_node()` (`:5779`) adds the pkey2 slot of the new
   value and never removes the old one, so after changing a pkey2 value the node
-  is listed twice and still answers to the old value. `treedb_delete_instance()` (`:6644`) drops the instance from the
-  pkey2 index without unlinking it. The snapshot clone of
+  is listed twice and still answers to the old value. `treedb_delete_instance()` does not unlink, and
+  that matters in ONE case only (analysed 2026-09-15): the loader links only the
+  `id` index (`load_all_links()`) and hooks dedup by child id, so a non-primary
+  CHILD instance never sits in a parent's hook. A non-primary PARENT instance
+  can hold children linked during the session; deleting it leaves them under no
+  visible parent until the reload re-hangs them from the primary (their fkey
+  names only the id). The agent's `delete-config` / `delete-binary` refuse a
+  version still in use ("Using in N yunos") unless `force=1`. Low impact; a
+  fix would move those children to the primary's hook. The snapshot clone of
   `treedb_shoot_snap()` (`:12945`) leaves the OLD tag in memory, so snap N-1
   goes on "following" updates while snap N stays frozen in the clone.
 - **C_NODE / C_TREEDB**: Authz is
