@@ -580,10 +580,35 @@ hang from their place.
 
 ### 3.3 Column types and flags
 
-Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.20.0/kernel/c/timeranger2/src/tr_treedb.c). Common
-ones: `string`, `integer`, `boolean`, `real`, `array`, `object`,
-`blob`, `enum`, `wild`. Plus semantic decorations: `email`, `url`,
-`password`, `time`.
+Column types live in the JSON spec, parsed by [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.20.0/kernel/c/timeranger2/src/tr_treedb.c). There
+are nine, and the `__system__` treedb refuses any other: `string`,
+`integer`, `real`, `boolean`, `object` / `dict`, `array` / `list`, `blob`.
+`enum`, `wild`, `email`, `url`, `password` and `time` are **flags** on one of
+those types, never a type:
+
+```c
+'status': {
+    'header': 'Status',
+    'fillspace': 10,
+    'type': 'string',
+    'flag': ['persistent', 'enum'],
+    'enum': ['on', 'off']
+}
+```
+
+The keys of a topic are declared on the **topic**, not with a column flag:
+`pkey` (always `id`), `pkey2s` for the secondary keys, `tkey` for the time
+key:
+
+```c
+{
+    'id': 'yunos',
+    'pkey': 'id',
+    'pkey2s': 'yuno_release',
+    'tkey': '',
+    'cols': { ... }
+}
+```
 
 Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.20.0/kernel/c/timeranger2/src/tr_treedb.c)):
 
@@ -594,11 +619,8 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `notnull`    | Cannot be null ever.                                                    |
 | `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. |
 | `fkey`       | Child → parent reference. Persisted. Encoded as `topic^parent_id^hook_name`. A node that is also a parent carries its hook in ANOTHER column. |
-| `pkey`       | Marks the primary-key column.                                           |
-| `pkey2`      | Marks a secondary key.                                                  |
-| `tkey`       | Marks the time-key column.                                              |
 | `uuid`       | On the `id` column: a create that sends no `id` gets a random UUID.     |
-| `rowid`      | On the `id` column: a create that sends no `id` gets the topic size plus one. |
+| `rowid`      | On the `id` column: a create that sends no `id` gets one past every id the topic ever handed out. Never reused. |
 | `qualified`  | On the `id` column: a create that sends no `id` gets the id of its parent, a dot, and its own name. |
 | `password`   | Treated as opaque secret on inspection.                                 |
 | `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
@@ -607,6 +629,15 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —
 in-memory only.
 
+The whole vocabulary a column may carry is the `enum` of the `flag` column of
+`treedb_system_schema.c`, and a flag outside it is refused: `persistent`,
+`required`, `notnull`, `wild`, `inherit`, `readable`, `writable`, `hidden`,
+`stats`, `rstats`, `pstats`, `hook`, `fkey`, `enum`, `template`, `uuid`,
+`rowid`, `qualified`, `password`, `email`, `url`, `time`, `now`, `date`,
+`color`, `image`, `icon`, `file`, `tel`, `table`, `id`, `currency`, `hex`,
+`binary`, `percent`, `base64`, `coordinates`, `gbuffer`. There is no `pkey`,
+`pkey2` or `tkey` flag.
+
 **`uuid`, `rowid` and `qualified` are the three ways the store hands a key
 out, and a column carries at most one of them.** All three sit on the `id`
 column, and all three act only when the create sends no `id`: an `id` in the
@@ -614,8 +645,11 @@ kw is always kept as it is. They are not equivalent.
 
 - `uuid` gives an address that is unique everywhere and means nothing to a
   person.
-- `rowid` gives the topic size plus one. That address is unique but arbitrary:
-  it does not reproduce, and a `rowid` pkey has no update, so an editor that
+- `rowid` gives one past every id the topic ever handed out, kept in the
+  topic's `topic_var.json` as `last_rowid_id`, and never reused, not even after
+  its node is deleted (a snap's id rides the records it tagged). That address
+  is unique but arbitrary: it does not reproduce, and a `rowid` pkey has no
+  update, so an editor that
   saves a record appends a second one instead of changing the first. It is
   here for the stores that already use it. Do not declare it in a new topic.
 - `qualified` gives a name: the id of the parent, a dot, and the name of the

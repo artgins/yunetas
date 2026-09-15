@@ -258,12 +258,6 @@ Line numbers are those of `main` on 2026-09-15.
   `with_copy_button=false` / `with_paste_button=false` never built**
   (`c_yui_treedb_topic_with_form.js:3776-3817` against `create_table_toolbar`).
   Latent: no consumer sets them to false today.
-- **A11: docs that make a reader do the wrong thing.**
-  `docs/doc.yuneta.io/api/timeranger2/treedb.md` says `treedb_delete_node()`
-  takes `node` OWNED (it is BORROWED since 7.18.2, `tr_treedb.h`).
-  `YUNO_TREEDB.md` §3.3 lists the flags `pkey`, `pkey2`,
-  `tkey`, which exist in no vocabulary (the `__system__` enum refuses them), and
-  lists `enum`, `wild`, `email`, `url`, `password` and `time` as types.
 
 **Found while fixing (2026-09-15)**
 
@@ -327,9 +321,7 @@ Line numbers are those of `main` on 2026-09-15.
   treedb's), shows `sf_zip_record` / `sf_cipher_record` as working (they are
   `// TODO`), and its `initial_load` example uses `org_nodes` and
   `users.scopes`, which exist nowhere; `kernel/js/gobj-ui/README.md` still
-  describes the pre-7.18.0 asset model; `data.md` shows `exit_on_error` as a
-  bool (it is an integer, default `"2"`); timeranger2's `README.md` links a
-  `TREEDB.md` that does not exist.
+  describes the pre-7.18.0 asset model.
 
 **Tests nobody has** (in order of damage): `DT_UNKNOWN`; the follower's cache
 after `delete_key` with REAL inotify; `__t__` out of order; changing a pkey2

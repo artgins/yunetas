@@ -56,7 +56,7 @@ key's span on both axes without reading a record.
 > handle must check `tranger2_topic_is_open()` first — it is freed memory once
 > its topic is gone.
 
-See [`yunos/c/yuno_agent/TREEDB.md`](../../../yunos/c/yuno_agent/TREEDB.md)
+See [`yunos/c/yuno_agent/YUNO_TREEDB.md`](../../../yunos/c/yuno_agent/YUNO_TREEDB.md)
 for the full timeranger2 + treedb walkthrough (mental model, on-disk
 layout, master/non-master locking, snapshots, the cross-yuno
 `rt_by_disk` pattern, sharp edges and recipes).

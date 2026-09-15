@@ -664,7 +664,7 @@ The `treedb_delete_node()` function deletes a node from the tree database. If th
 ```C
 int treedb_delete_node(
     json_t *tranger,
-    json_t *node,       // owned, pure node
+    json_t *node,       // NOT owned: borrowed from the index, whose reference goes on success
     json_t *jn_options  // bool "force"
 );
 ```
@@ -674,7 +674,7 @@ int treedb_delete_node(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | A reference to the tranger database instance. |
-| `node` | `json_t *` | The node to be deleted. This parameter is owned and must be a pure node. |
+| `node` | `json_t *` | The node to be deleted: the pure node as the index holds it. It is **borrowed**, never the caller's own reference: do not decref it, before or after. On success the index's reference is released with the key; on a refusal the node is left as it was, still indexed. |
 | `jn_options` | `json_t *` | A JSON object containing options for deletion. The 'force' boolean option determines whether to forcibly delete linked nodes. |
 
 **Returns**
