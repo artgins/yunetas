@@ -232,6 +232,13 @@ Line numbers are those of `main` on 2026-09-15.
 
 **High**
 
+A8, A9 and A10 are FIXED IN CODE and NOT SHIPPED: gobj-ui `d53ee82`
+(7.23.168, not published, no tag) and yunos-js `0f655f4`. They reach an app
+only through `npm publish` + `npm run deploy-round` in gobj-ui and a gui_treedb
+deploy. Delete the three entries below once that is done; the
+`kernel/js/gobj-ui` submodule pointer moves with the publish (and its
+`verify_js_api_coverage.py --repin`).
+
 - **A8: gobj-ui: the form's Save sends every field, read-only ones included,
   with `autolink`** (`c_yui_treedb_topic_with_form.js`, `ac_form_save_record`
   → `publish_treedb_write`). `transform__form_record_2_treedb_record()`, which
