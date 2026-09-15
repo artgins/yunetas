@@ -121,10 +121,16 @@ static char schema_sample[]= "\
                     'header': 'Users',                              \n\
                     'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
-                    'flag': ['hook', 'fkey'],                       \n\
+                    'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\
+                },                                                  \n\
+                'manager': {                                        \n\
+                    'header': 'Manager',                            \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
                 },                                                  \n\
                                                                     \n\
                 'managers': {                                       \n\
@@ -134,7 +140,7 @@ static char schema_sample[]= "\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'users': 'manager',                         \n\
-                        'departments': 'users'                      \n\
+                        'departments': 'manager'                    \n\
                     }                                               \n\
                 }                                                   \n\
             }                                                       \n\

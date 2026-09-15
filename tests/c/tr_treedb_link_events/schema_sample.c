@@ -71,7 +71,7 @@ static char schema_sample[]= "\
                     'header': 'Users',                              \n\
                     'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
-                    'flag': ['hook', 'fkey'],                       \n\
+                    'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\
@@ -82,8 +82,7 @@ static char schema_sample[]= "\
                     'type': 'object',                               \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
-                        'users': 'manager',                         \n\
-                        'departments': 'users'                      \n\
+                        'users': 'manager'                          \n\
                     }                                               \n\
                 }                                                   \n\
             }                                                       \n\

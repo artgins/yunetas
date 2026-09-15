@@ -158,10 +158,10 @@ PUBLIC int test_compound(
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *administration = treedb_get_node(
+        json_t *development = treedb_get_node(
             tranger, treedb_name,
             "departments",
-            "administration"
+            "development"
         );
         json_t *operation = treedb_get_node(
             tranger, treedb_name,
@@ -173,7 +173,7 @@ PUBLIC int test_compound(
             tranger,
             "managers",
             operation,
-            administration
+            development
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -204,10 +204,10 @@ PUBLIC int test_compound(
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *administration = treedb_get_node(
+        json_t *development = treedb_get_node(
             tranger, treedb_name,
             "departments",
-            "administration"
+            "development"
         );
         json_t *operation = treedb_get_node(
             tranger, treedb_name,
@@ -237,7 +237,7 @@ PUBLIC int test_compound(
             tranger,
             "managers",
             operation,
-            administration
+            development
         );
 
         treedb_delete_node(
@@ -256,7 +256,12 @@ PUBLIC int test_compound(
      *
      *-----------------------------------*/
     if(!without_ok_tests) {
-        const char *test = "Link managers operation -> administration";
+        /*
+         *  development, not administration: administration is operation's
+         *  parent, and a department's managers hook holds the child NODE,
+         *  so managing its own parent would make the tree a cycle.
+         */
+        const char *test = "Link managers operation -> development";
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
@@ -267,10 +272,10 @@ PUBLIC int test_compound(
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *administration = treedb_get_node(
+        json_t *development = treedb_get_node(
             tranger, treedb_name,
             "departments",
-            "administration"
+            "development"
         );
         json_t *operation = treedb_get_node(
             tranger, treedb_name,
@@ -282,7 +287,7 @@ PUBLIC int test_compound(
             tranger,
             "managers",
             operation,
-            administration
+            development
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)

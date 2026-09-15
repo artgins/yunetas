@@ -130,6 +130,8 @@ PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, co
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
+PRIVATE BOOL col_is_hook_and_fkey(hgobj gobj, const char *topic_name, const char *col_name, json_t *col);
+PRIVATE int check_hook_fkey_columns(hgobj gobj, const char *topic_name, json_t *cols);
 PRIVATE int link_file_columns(hgobj gobj, json_t *tranger, json_t *node, json_t *kw, BOOL is_new, BOOL *moved);
 PRIVATE int remove_blob(hgobj gobj, json_t *tranger, json_t *node);
 PRIVATE json_t *filtra_fkeys(const char *topic_name, const char *col_name, const char *type, json_t *value);
@@ -1446,6 +1448,26 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     }
 
     /*------------------------------*
+     *  A column that is both `hook` and `fkey` is refused here too,
+     *  before the topic exists, and for the same reason: `create-topic`
+     *  is a live command, and parse_schema_cols() below only logs.
+     *------------------------------*/
+    if(check_hook_fkey_columns(gobj, topic_name, cols)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Topic refused: a column is both 'hook' and 'fkey'",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        gobj_log_set_last_message("topic '%s' refused: a column cannot be both 'hook' and 'fkey'", topic_name);
+        JSON_DECREF(pkey2s)
+        JSON_DECREF(cols)
+        return 0;
+    }
+
+    /*------------------------------*
      *  Open/Create "user" topic
      *------------------------------*/
     // Topic version
@@ -2195,12 +2217,21 @@ PUBLIC int parse_schema_cols(
         json_array_foreach(cols_desc, idx, desc) {
             ret += check_desc_field(desc, dato);
         }
+        // A bad `id` is check_desc_field()'s to report: here it only names the column
+        const char *col_name = json_string_value(json_object_get(dato, "id"));
+        if(col_is_hook_and_fkey(gobj, "", col_name? col_name : "", dato)) {
+            ret += -1;
+        }
     } else if(json_is_array(dato)) {
         int idx1; json_t *d;
         json_array_foreach(dato, idx1, d) {
             int idx2;
             json_array_foreach(cols_desc, idx2, desc) {
                 ret += check_desc_field(desc, d);
+            }
+            const char *col_name = json_string_value(json_object_get(d, "id"));
+            if(col_is_hook_and_fkey(gobj, "", col_name? col_name : "", d)) {
+                ret += -1;
             }
         }
     }
@@ -11703,6 +11734,66 @@ PRIVATE int check_file_columns(
         json_array_foreach(cols, idx, col) {
             const char *col_name = kw_get_str(gobj, col, "id", "", 0);
             if(check_file_column(gobj, treedb_name, topic_name, col_name, col)<0) {
+                ret += -1;
+            }
+        }
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  A column is the hook of a link or its fkey, never both: the treedb
+ *  writes one half of a link. A column flagged both kept its fkey refs in
+ *  memory only -- convert_node2tranger() writes it with the shape of a
+ *  hook -- so a link through it was gone after a reload, and nothing said
+ *  so. gobj-ui's schema editor refuses the pair for the same reason
+ *  (EXCLUSIVE in schema_flags.js). A node that is a child and a parent
+ *  carries two columns: the hook, and the fkey.
+ ***************************************************************************/
+PRIVATE BOOL col_is_hook_and_fkey(
+    hgobj gobj,
+    const char *topic_name,
+    const char *col_name,
+    json_t *col     // NOT owned
+)
+{
+    json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    if(kw_has_word(gobj, flag, "hook", 0) && kw_has_word(gobj, flag, "fkey", 0)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "A column cannot be both 'hook' and 'fkey'",
+            "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            NULL
+        );
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Return 0, or the number of hook+fkey columns in negative (each logged)
+ ***************************************************************************/
+PRIVATE int check_hook_fkey_columns(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *cols    // NOT owned, dict or list
+)
+{
+    int ret = 0;
+    if(json_is_object(cols)) {
+        const char *col_name; json_t *col;
+        json_object_foreach(cols, col_name, col) {
+            if(col_is_hook_and_fkey(gobj, topic_name, col_name, col)) {
+                ret += -1;
+            }
+        }
+    } else if(json_is_array(cols)) {
+        int idx; json_t *col;
+        json_array_foreach(cols, idx, col) {
+            const char *col_name = json_string_value(json_object_get(col, "id"));
+            if(col_is_hook_and_fkey(gobj, topic_name, col_name? col_name : "", col)) {
                 ret += -1;
             }
         }

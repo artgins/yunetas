@@ -14,6 +14,31 @@ The test checks:
 1. A column without `flag` parses clean (`parse_schema()` returns 0).
 2. A column with an unknown flag is still refused (*"Wrong enum type"*).
 3. A treedb with the flag-less column opens and takes a record.
+4. A column flagged both `hook` and `fkey` is refused by `parse_schema()`
+   (*"A column cannot be both 'hook' and 'fkey'"*).
+5. `treedb_create_topic()` refuses a topic with such a column, instead of only
+   logging it (*"Topic refused: a column is both 'hook' and 'fkey'"*).
+
+A node that is both a child and a parent carries two columns, the hook and the
+fkey, never one with both flags:
+
+```c
+'users': {
+    'header': 'Users',
+    'fillspace': 20,
+    'type': 'array',
+    'flag': ['hook'],
+    'hook': {
+        'users': 'departments'
+    }
+},
+'manager': {
+    'header': 'Manager',
+    'fillspace': 20,
+    'type': 'array',
+    'flag': ['fkey']
+}
+```
 
 A flag-less column is written like this, in a C schema literal:
 

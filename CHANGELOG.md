@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### treedb: a column is `hook` or `fkey`, never both (BREAKING for such schemas)
+
+A column flagged `['hook', 'fkey']` was accepted, and its fkey side was never
+written to disk. `convert_node2tranger()` wrote the column with the shape of a
+hook, so every link that stored its reference there was gone after a reload,
+and nothing said so. The loader had a second defect in the same place: it keyed
+the parent's hook dict by the wrong reference. No schema in the SDK or in any
+project uses the pair, and gobj-ui's schema editor already refused it (*"the
+treedb writes one half of a link, never both"*).
+
+`parse_schema()` now refuses such a column (*"A column cannot be both 'hook'
+and 'fkey'"*). That is the validation every yuno runs before it opens its
+treedb, and `open-treedb` runs it too. `treedb_create_topic()` refuses the
+topic (*"Topic refused: a column is both 'hook' and 'fkey'"*), because
+`create-topic` is a live command and a parse failure there only logs. A node
+that is both a child and a parent carries two columns: the hook, and the fkey.
+The test schemas that used the pair now do exactly that (`tr_treedb`: a new
+`departments.manager` fkey behind the `managers` hook). The rule is in
+`CLAUDE.md` and `YUNO_TREEDB.md`. Test: `tests/c/tr_treedb_schema_parse`.
+
 ### treedb: a link into a single-valued fkey moves the child
 
 A `string` column with the `fkey` flag holds one parent, so a new link

@@ -592,8 +592,8 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `persistent` | Written through to timeranger2 on save.                                 |
 | `required`   | Cannot be null at creation.                                             |
 | `notnull`    | Cannot be null ever.                                                    |
-| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). |
-| `fkey`       | Child → parent reference. Persisted. Encoded as `topic^parent_id^hook_name`. |
+| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. |
+| `fkey`       | Child → parent reference. Persisted. Encoded as `topic^parent_id^hook_name`. A node that is also a parent carries its hook in ANOTHER column. |
 | `pkey`       | Marks the primary-key column.                                           |
 | `pkey2`      | Marks a secondary key.                                                  |
 | `tkey`       | Marks the time-key column.                                              |

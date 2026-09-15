@@ -169,7 +169,7 @@ PRIVATE char schema_link_test[] = "\
                     'header': 'Users',                              \n\
                     'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
-                    'flag': ['hook', 'fkey'],                       \n\
+                    'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'users': 'departments'                      \n\
                     }                                               \n\

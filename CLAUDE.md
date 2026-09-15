@@ -1418,7 +1418,12 @@ from the schema source of truth, never hand-draw them.
 - **Fkeys**: fields on **child** nodes storing persistent references to parents.
   Defined with `'flag': ['fkey']`. Values like `"departments^direction^departments"`
   (topic^parent_id^hook_name).
-- **Hook+Fkey**: a field can be both (e.g. `departments.users` is `['hook', 'fkey']`).
+- **Never Hook+Fkey on one column**: the treedb writes one half of a link.
+  `parse_schema()` and `treedb_create_topic()` refuse a column flagged both
+  (*"A column cannot be both 'hook' and 'fkey'"*), as gobj-ui's schema editor
+  does (`EXCLUSIVE`). It used to be accepted, and its fkey side was never
+  written to disk. A node that is both a child and a parent carries two
+  columns: the hook, and the fkey.
 
 ### Persistence Rules (CRITICAL)
 
@@ -1446,13 +1451,15 @@ from the schema source of truth, never hand-draw them.
 departments.departments: hook → {'departments': 'department_id'}
     (child department's department_id fkey is updated)
 
-departments.users: hook+fkey → {'users': 'departments'}
-    (as hook: child user's departments fkey is updated)
-    (as fkey: updated when this department is linked as child via managers hook)
+departments.users: hook → {'users': 'departments'}
+    (child user's departments fkey is updated)
 
-departments.managers: hook → {'users': 'manager', 'departments': 'users'}
+departments.manager: fkey
+    (updated when this department is linked as child via managers hook)
+
+departments.managers: hook → {'users': 'manager', 'departments': 'manager'}
     (linking a user child: user's manager fkey is updated → user saved)
-    (linking a department child: department's users fkey is updated → department saved)
+    (linking a department child: department's manager fkey is updated → department saved)
 ```
 
 ### Test Fotos (Expected State Snapshots)

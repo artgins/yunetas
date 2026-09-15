@@ -641,20 +641,21 @@ PRIVATE int do_test(void)
 
         const char *test = "tranger match";
         json_t *expected = json_pack(
-            "{s:s, s:s, s:s, s:{}, s:[], s:{}, s:{s:i, s:i, s:i, s:i, s:i, s:i, s:i, s:i}}",
+            "{s:s, s:s, s:s, s:{}, s:[], s:[], s:{}, s:{s:i, s:i, s:i, s:i, s:i, s:i, s:i, s:i}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "departments^direction^departments",
             "departments",
             "users",
+            "manager",
             "managers",
            "__md_tranger__",
-                "g_rowid", 5,
-                "i_rowid", 5,
+                "g_rowid", 2,
+                "i_rowid", 2,
                 "t", 99999,
                 "tm", 0,
-                "offset", 539,
-                "size", 143,
+                "offset", 123,
+                "size", 156,
                 "user_flag", 0,
                 "system_flag", 4097
         );

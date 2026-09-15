@@ -101,6 +101,47 @@ static char schema_bad_flag[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  `children` is both the hook of the tree and an fkey: refused.
+ */
+static char schema_hook_fkey[]= "\
+{                                                                   \n\
+    'id': 'treedb_schema_parse',                                    \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'notes',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'parent': {                                         \n\
+                    'header': 'Parent',                             \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'children': {                                       \n\
+                    'header': 'Children',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['hook', 'fkey'],                       \n\
+                    'hook': {                                       \n\
+                        'notes': 'parent'                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 /***************************************************************
  *              Helpers
  ***************************************************************/
@@ -147,6 +188,24 @@ PRIVATE int test_parse(void)
     ret = parse_schema(jn_schema);
     if(ret >= 0) {
         printf("%sERROR%s --> parse_schema() of an unknown flag: %d, expected < 0\n",
+            On_Red BWhite, Color_Off, ret);
+        result += -1;
+    }
+    JSON_DECREF(jn_schema)
+    result += test_json(NULL);
+
+    set_expected_results(
+        "a column that is both hook and fkey is refused",
+        json_pack("[{s:s}]", "msg", "A column cannot be both 'hook' and 'fkey'"),
+        NULL, NULL, 1
+    );
+    jn_schema = load_schema(schema_hook_fkey);
+    if(!jn_schema) {
+        return -1;
+    }
+    ret = parse_schema(jn_schema);
+    if(ret >= 0) {
+        printf("%sERROR%s --> parse_schema() of a hook+fkey column: %d, expected < 0\n",
             On_Red BWhite, Color_Off, ret);
         result += -1;
     }
@@ -219,6 +278,43 @@ PRIVATE int test_open(void)
     );
     if(!node) {
         printf("%sERROR%s --> cannot create a node in the flag-less topic\n",
+            On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  `create-topic` is a live command: the refusal must stop the topic,
+     *  not only log it.
+     */
+    set_expected_results(
+        "create-topic refuses a hook+fkey column",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "A column cannot be both 'hook' and 'fkey'",
+            "msg", "Topic refused: a column is both 'hook' and 'fkey'"
+        ),
+        NULL, NULL, 1
+    );
+    json_t *topic = treedb_create_topic(
+        tranger,
+        TREEDB_NAME,
+        "bad_notes",
+        1,
+        "",
+        0,
+        json_pack("{s:{s:s, s:s, s:[s,s]}, s:{s:s, s:s, s:[s,s], s:{s:s}}}",
+            "id",
+                "header", "Id", "type", "string", "flag", "persistent", "required",
+            "children",
+                "header", "Children", "type", "array", "flag", "hook", "fkey",
+                "hook", "bad_notes", "id"
+        ),
+        0,
+        FALSE,
+        FALSE
+    );
+    if(topic) {
+        printf("%sERROR%s --> treedb_create_topic() accepted a hook+fkey column\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }

@@ -59,13 +59,14 @@ PUBLIC int test_departments(
             "id", "direction",
             "name", "Dirección"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "direction",
             "name", "Dirección",
             "department_id", "",
             "departments",
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -144,13 +145,14 @@ PUBLIC int test_departments(
             "id", "administration",
             "name", "Administración"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "",
             "departments",
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -193,13 +195,14 @@ PUBLIC int test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Get administration, good";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "",
             "departments",
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -268,7 +271,7 @@ PUBLIC int test_departments(
     if(!without_ok_tests) {
         const char *test = "link direction->administration, good";
         expected = json_pack(
-            "{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+            "{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "direction",
             "name", "Dirección",
             "department_id", "",
@@ -280,6 +283,7 @@ PUBLIC int test_departments(
                     "departments",
                     "managers",
                     "users",
+                    "manager",
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
@@ -291,6 +295,7 @@ PUBLIC int test_departments(
                         "pure_node", TRUE,
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -382,13 +387,14 @@ PUBLIC int test_departments(
             "name", "Gestión"
         );
         expected = json_pack(
-            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "operation",
             "name", "Gestión",
             "department_id", "",
             "departments",
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -431,7 +437,7 @@ PUBLIC int test_departments(
     if(!without_ok_tests) {
         const char *test = "link administration->operation, good";
         expected = json_pack(
-            "{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}",
+            "{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "departments^direction^departments",
@@ -443,6 +449,7 @@ PUBLIC int test_departments(
                     "departments",
                     "managers",
                     "users",
+                    "manager",
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
@@ -454,6 +461,7 @@ PUBLIC int test_departments(
                         "pure_node", TRUE,
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -512,13 +520,14 @@ PUBLIC int test_departments(
             "name", "Desarrollo"
         );
         expected = json_pack(
-            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "development",
             "name", "Desarrollo",
             "department_id", "",
             "departments",
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
@@ -561,9 +570,9 @@ PUBLIC int test_departments(
     if(!without_ok_tests) {
         const char *test = "link administration->development, good";
         expected = json_pack("{s:s, s:s, s:s, s:"
-                "{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}, "
-                "s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}},"
-                " s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
+                "{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}, "
+                "s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}},"
+                " s:{}, s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "departments^direction^departments",
@@ -575,6 +584,7 @@ PUBLIC int test_departments(
                     "departments",
                     "managers",
                     "users",
+                    "manager",
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
@@ -591,6 +601,7 @@ PUBLIC int test_departments(
                     "departments",
                     "managers",
                     "users",
+                    "manager",
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
@@ -602,6 +613,7 @@ PUBLIC int test_departments(
                         "pure_node", TRUE,
             "managers",
             "users",
+            "manager",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",

@@ -643,7 +643,7 @@ PRIVATE int test_managers_hook_link(
 
     /*
      *  Link alice as manager of administration
-     *  managers hook: {'users': 'manager', 'departments': 'users'}
+     *  managers hook: {'users': 'manager'}
      *  Linking a user → user's 'manager' fkey is updated
      */
     treedb_link_nodes(tranger, "managers", dept_admin, user_alice);

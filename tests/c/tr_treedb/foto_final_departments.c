@@ -11,9 +11,6 @@ char foto_final_departments[]= "\
         '__graphs__': { \n\
             'id': {} \n\
         }, \n\
-        '__assets__': { \n\
-            'id': {} \n\
-        }, \n\
         'users': { \n\
             'id': {} \n\
         }, \n\
@@ -35,16 +32,17 @@ char foto_final_departments[]= "\
                                     'department_id': 'departments^administration^departments', \n\
                                     'departments': {}, \n\
                                     'users': [], \n\
+                                    'manager': [], \n\
                                     'managers': {}, \n\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
                                         'g_rowid': 2, \n\
                                         'i_rowid': 2, \n\
-                                        't': 99999, \n\
+                                        't': 1789473689, \n\
                                         'tm': 0, \n\
-                                        'pure_node': true, \n\
-                                        'tag': 0 \n\
+                                        'tag': 0, \n\
+                                        'pure_node': true \n\
                                     } \n\
                                 }, \n\
                                 'development': { \n\
@@ -53,44 +51,47 @@ char foto_final_departments[]= "\
                                     'department_id': 'departments^administration^departments', \n\
                                     'departments': {}, \n\
                                     'users': [], \n\
+                                    'manager': [], \n\
                                     'managers': {}, \n\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
                                         'g_rowid': 2, \n\
                                         'i_rowid': 2, \n\
-                                        't': 99999, \n\
+                                        't': 1789473689, \n\
                                         'tm': 0, \n\
-                                        'pure_node': true, \n\
-                                        'tag': 0 \n\
+                                        'tag': 0, \n\
+                                        'pure_node': true \n\
                                     } \n\
                                 } \n\
                             }, \n\
                             'users': [], \n\
+                            'manager': [], \n\
                             'managers': {}, \n\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'g_rowid': 2, \n\
                                 'i_rowid': 2, \n\
-                                't': 99999, \n\
+                                't': 1789473689, \n\
                                 'tm': 0, \n\
-                                'pure_node': true, \n\
-                                'tag': 0 \n\
+                                'tag': 0, \n\
+                                'pure_node': true \n\
                             } \n\
                         } \n\
                     }, \n\
                     'users': [], \n\
+                    'manager': [], \n\
                     'managers': {}, \n\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'g_rowid': 1, \n\
                         'i_rowid': 1, \n\
-                        't': 99999, \n\
+                        't': 1789473689, \n\
                         'tm': 0, \n\
-                        'pure_node': true, \n\
-                        'tag': 0 \n\
+                        'tag': 0, \n\
+                        'pure_node': true \n\
                     } \n\
                 }, \n\
                 'administration': { \n\
@@ -104,16 +105,17 @@ char foto_final_departments[]= "\
                             'department_id': 'departments^administration^departments', \n\
                             'departments': {}, \n\
                             'users': [], \n\
+                            'manager': [], \n\
                             'managers': {}, \n\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'g_rowid': 2, \n\
                                 'i_rowid': 2, \n\
-                                't': 99999, \n\
+                                't': 1789473689, \n\
                                 'tm': 0, \n\
-                                'pure_node': true, \n\
-                                'tag': 0 \n\
+                                'tag': 0, \n\
+                                'pure_node': true \n\
                             } \n\
                         }, \n\
                         'development': { \n\
@@ -122,30 +124,32 @@ char foto_final_departments[]= "\
                             'department_id': 'departments^administration^departments', \n\
                             'departments': {}, \n\
                             'users': [], \n\
+                            'manager': [], \n\
                             'managers': {}, \n\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'g_rowid': 2, \n\
                                 'i_rowid': 2, \n\
-                                't': 99999, \n\
+                                't': 1789473689, \n\
                                 'tm': 0, \n\
-                                'pure_node': true, \n\
-                                'tag': 0 \n\
+                                'tag': 0, \n\
+                                'pure_node': true \n\
                             } \n\
                         } \n\
                     }, \n\
                     'users': [], \n\
+                    'manager': [], \n\
                     'managers': {}, \n\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'g_rowid': 2, \n\
                         'i_rowid': 2, \n\
-                        't': 99999, \n\
+                        't': 1789473689, \n\
                         'tm': 0, \n\
-                        'pure_node': true, \n\
-                        'tag': 0 \n\
+                        'tag': 0, \n\
+                        'pure_node': true \n\
                     } \n\
                 }, \n\
                 'operation': { \n\
@@ -154,16 +158,17 @@ char foto_final_departments[]= "\
                     'department_id': 'departments^administration^departments', \n\
                     'departments': {}, \n\
                     'users': [], \n\
+                    'manager': [], \n\
                     'managers': {}, \n\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'g_rowid': 2, \n\
                         'i_rowid': 2, \n\
-                        't': 99999, \n\
+                        't': 1789473689, \n\
                         'tm': 0, \n\
-                        'pure_node': true, \n\
-                        'tag': 0 \n\
+                        'tag': 0, \n\
+                        'pure_node': true \n\
                     } \n\
                 }, \n\
                 'development': { \n\
@@ -172,16 +177,17 @@ char foto_final_departments[]= "\
                     'department_id': 'departments^administration^departments', \n\
                     'departments': {}, \n\
                     'users': [], \n\
+                    'manager': [], \n\
                     'managers': {}, \n\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'g_rowid': 2, \n\
                         'i_rowid': 2, \n\
-                        't': 99999, \n\
+                        't': 1789473689, \n\
                         'tm': 0, \n\
-                        'pure_node': true, \n\
-                        'tag': 0 \n\
+                        'tag': 0, \n\
+                        'pure_node': true \n\
                     } \n\
                 } \n\
             } \n\
@@ -190,6 +196,9 @@ char foto_final_departments[]= "\
             'id': {} \n\
         }, \n\
         'roles': { \n\
+            'id': {} \n\
+        }, \n\
+        '__assets__': { \n\
             'id': {} \n\
         } \n\
     } \n\
