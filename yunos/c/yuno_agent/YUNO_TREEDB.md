@@ -617,7 +617,7 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `persistent` | Written through to timeranger2 on save.                                 |
 | `required`   | Cannot be null at creation.                                             |
 | `notnull`    | Cannot be null ever.                                                    |
-| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. |
+| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. A link that would hang a node from its own descendant through the SAME hook is refused (a tree is a tree); a cycle through two different hooks is accepted. |
 | `fkey`       | Child → parent reference. Persisted. Encoded as `topic^parent_id^hook_name`. A node that is also a parent carries its hook in ANOTHER column. |
 | `uuid`       | On the `id` column: a create that sends no `id` gets a random UUID.     |
 | `rowid`      | On the `id` column: a create that sends no `id` gets one past every id the topic ever handed out. Never reused. |

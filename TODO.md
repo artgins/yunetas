@@ -198,12 +198,6 @@ Line numbers are those of `main` on 2026-09-15.
 
 **Found while fixing (2026-09-15)**
 
-- **A link CYCLE is not refused.** `_link_nodes()` refuses only a self-link. A
-  hook holds the child NODE, so a department in the `managers` hook of its own
-  descendant makes the in-memory tree cyclic: `debug_json()` of the tranger
-  recursed 87k frames and crashed. Not checked yet: whether a cycle leaks at
-  `treedb_close_db()`, and what the other recursive walkers do (compare, dump,
-  `jtree`).
 - **`test_c_node_link_events` fails now and then** -- twice on 2026-09-15, both
   inside runs of several suites, never alone (15/15 twice). Its message was
   not kept. Next time it fails, keep `build/Testing/Temporary/LastTest.log`

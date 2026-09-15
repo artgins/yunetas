@@ -97,6 +97,11 @@ PRIVATE int unlink_child_from_parent_ref(
     json_t *node,       // NOT owned, pure node: the child
     const char *ref
 );
+PRIVATE void clear_treedb_hooks(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+);
 
 PRIVATE json_t * treedb_get_activated_snap_tag(
     hgobj gobj,
@@ -1326,6 +1331,8 @@ PUBLIC int treedb_close_db(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     int ret = 0;
 
+    clear_treedb_hooks(gobj, tranger, treedb_name);
+
     /*------------------------------*
      *  Close treedb topics
      *------------------------------*/
@@ -1351,6 +1358,83 @@ PUBLIC int treedb_close_db(
         JSON_DECREF(topic_cols_desc);
     }
     return ret;
+}
+
+/***************************************************************************
+ *  Empty every hook of every node of the treedb, before it is freed.
+ *
+ *  A hook holds the child NODE, so a cycle of links -- a node that hangs,
+ *  through any chain of hooks, from its own descendant -- is a cycle of
+ *  json references, and no json_decref() takes it to zero: its nodes stayed
+ *  allocated after every close. With the hooks emptied first, every node
+ *  goes. Nodes live in the `id` index and in the pkey2 indexes, one level
+ *  deeper: both are walked.
+ ***************************************************************************/
+PRIVATE void clear_node_hooks(json_t *node, json_t *hooks)
+{
+    int idx; json_t *jn_hook;
+    json_array_foreach(hooks, idx, jn_hook) {
+        json_t *hook_data = json_object_get(node, json_string_value(jn_hook));
+        if(json_is_object(hook_data)) {
+            json_object_clear(hook_data);
+        } else if(json_is_array(hook_data)) {
+            json_array_clear(hook_data);
+        }
+    }
+}
+
+PRIVATE void clear_treedb_hooks(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
+)
+{
+    json_t *topics = treedb_topics(tranger, treedb_name, 0);
+    int idx; json_t *jn_topic;
+    json_array_foreach(topics, idx, jn_topic) {
+        const char *topic_name = json_string_value(jn_topic);
+
+        /*  Only a topic OPEN here has nodes in memory. Asked through
+         *  tranger2_topic(), a closed one is OPENED -- at close time, and
+         *  a master's open starts a /disks watcher nobody frees.  */
+        if(!json_object_get(json_object_get(tranger, "topics"), topic_name)) {
+            continue;
+        }
+
+        json_t *hooks = json_array();
+        json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+        const char *col_name; json_t *col;
+        json_object_foreach(cols, col_name, col) {
+            if(kw_has_word(gobj, kw_get_dict_value(gobj, col, "flag", 0, 0), "hook", 0)) {
+                json_array_append_new(hooks, json_string(col_name));
+            }
+        }
+        JSON_DECREF(cols)
+
+        char path[NAME_MAX*2];
+        snprintf(path, sizeof(path), "treedbs`%s`%s", treedb_name, topic_name);
+        json_t *topic_data = json_array_size(hooks)?
+            kw_get_dict(gobj, tranger, path, 0, 0) : NULL;
+
+        const char *index_name; json_t *index;
+        json_object_foreach(topic_data, index_name, index) {
+            const char *id; json_t *entry;
+            json_object_foreach(index, id, entry) {
+                if(json_object_get(entry, "__md_treedb__")) {
+                    clear_node_hooks(entry, hooks);
+                    continue;
+                }
+                const char *pkey2_value; json_t *instance;
+                json_object_foreach(entry, pkey2_value, instance) {
+                    if(json_object_get(instance, "__md_treedb__")) {
+                        clear_node_hooks(instance, hooks);
+                    }
+                }
+            }
+        }
+        JSON_DECREF(hooks)
+    }
+    JSON_DECREF(topics)
 }
 
 /***************************************************************************
@@ -7013,6 +7097,85 @@ PRIVATE int search_and_remove_wrong_up_ref(
 }
 
 /***************************************************************************
+ *  Would hanging `child_node` from `parent_node` through `hook_name` close
+ *  a cycle IN THAT HOOK -- is the child already above the parent?
+ *
+ *  Only a hook that links its own topic can close one, and then the chain
+ *  above a node is the refs of `up_field`, the fkey the hook fills in a
+ *  node of that topic. Walked with a set of visited ids, so a store that
+ *  already holds a cycle cannot loop the walk.
+ ***************************************************************************/
+PRIVATE BOOL link_would_close_cycle(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *hook_name,
+    json_t *hook_desc,      // NOT owned
+    json_t *parent_node,    // NOT owned
+    json_t *child_node      // NOT owned
+)
+{
+    const char *parent_topic = kw_get_str(gobj, parent_node, "__md_treedb__`topic_name", "", 0);
+    const char *child_topic = kw_get_str(gobj, child_node, "__md_treedb__`topic_name", "", 0);
+    if(strcmp(parent_topic, child_topic) != 0) {
+        return FALSE;
+    }
+    const char *up_field = kw_get_str(gobj, hook_desc, parent_topic, 0, 0);
+    if(empty_string(up_field)) {
+        return FALSE;
+    }
+    const char *child_id = kw_get_str(gobj, child_node, "id", "", 0);
+
+    BOOL closes = FALSE;
+    json_t *visited = json_object();
+    json_t *pending = json_array();
+    json_array_append_new(pending, json_string(kw_get_str(gobj, parent_node, "id", "", 0)));
+
+    while(json_array_size(pending) > 0) {
+        char id[NAME_MAX];
+        snprintf(id, sizeof(id), "%s", json_string_value(json_array_get(pending, 0)));
+        json_array_remove(pending, 0);
+        if(json_object_get(visited, id)) {
+            continue;
+        }
+        json_object_set_new(visited, id, json_true());
+        if(strcmp(id, child_id) == 0) {
+            closes = TRUE;
+            break;
+        }
+
+        json_t *node = treedb_get_node(tranger, treedb_name, parent_topic, id);
+        json_t *field_data = node? kw_get_dict_value(gobj, node, up_field, 0, 0) : NULL;
+        if(!field_data) {
+            continue;
+        }
+        json_t *refs = get_fkey_refs(field_data);
+        int idx; json_t *jn_ref;
+        json_array_foreach(refs, idx, jn_ref) {
+            char ptopic[NAME_MAX];
+            char pid[NAME_MAX];
+            char phook[NAME_MAX];
+            if(!decode_parent_ref(
+                json_string_value(jn_ref),
+                ptopic, sizeof(ptopic),
+                pid, sizeof(pid),
+                phook, sizeof(phook)
+            )) {
+                continue;
+            }
+            if(strcmp(ptopic, parent_topic) == 0 && strcmp(phook, hook_name) == 0) {
+                json_array_append_new(pending, json_string(pid));
+            }
+        }
+        JSON_DECREF(refs)
+    }
+
+    JSON_DECREF(visited)
+    JSON_DECREF(pending)
+    return closes;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int _link_nodes(
@@ -7257,6 +7420,31 @@ PRIVATE int _link_nodes(
             "parent_topic_name",    "%s", parent_topic_name,
             "child_topic_name",     "%s", child_topic_name,
             "child_field",          "%s", child_field,
+            NULL
+        );
+        return -1;
+    }
+
+    /*--------------------------------------------------*
+     *  A tree is a tree: a link that would hang a node
+     *  from its own descendant through this same hook is
+     *  refused. A hook holds the child NODE, so such a
+     *  cycle sent every recursive walk of the hook
+     *  (children recursive, jtree) into endless recursion.
+     *  Checked before anything moves, the old parent too.
+     *--------------------------------------------------*/
+    if(link_would_close_cycle(
+        gobj, tranger, treedb_name, hook_name, hook_desc, parent_node, child_node
+    )) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_TREEDB,
+            "msg",                  "%s", "Cannot link, the link would close a cycle in the hook",
+            "parent_topic_name",    "%s", parent_topic_name,
+            "parent_id",            "%s", parent_id,
+            "hook_name",            "%s", hook_name,
+            "child_topic_name",     "%s", child_topic_name,
+            "child_id",             "%s", child_id,
             NULL
         );
         return -1;
@@ -10017,6 +10205,41 @@ PRIVATE json_t *_list_children(
 /***************************************************************************
  *  Return a list of children of the hook in the tree
  ***************************************************************************/
+/*
+ *  "topic^id": the key a node has in the path of a recursive walk.
+ */
+PRIVATE const char *node_walk_key(hgobj gobj, json_t *node, char *bf, size_t bflen)
+{
+    snprintf(bf, bflen, "%s^%s",
+        kw_get_str(gobj, node, "__md_treedb__`topic_name", "", 0),
+        kw_get_str(gobj, node, "id", "", 0)
+    );
+    return bf;
+}
+
+/*
+ *  Is `child` already above, in the path of this walk? A node reached twice
+ *  from DIFFERENT branches (an array fkey hangs a node from two parents) is
+ *  not a cycle, which is why the path is kept and not a set of visited nodes.
+ */
+PRIVATE BOOL walk_meets_cycle(hgobj gobj, json_t *path, json_t *child, const char *hook)
+{
+    char key[NAME_MAX*2];
+    node_walk_key(gobj, child, key, sizeof(key));
+    if(json_object_get(path, key)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Cycle in the hook, node not followed again",
+            "hook",         "%s", hook,
+            "node",         "%s", key,
+            NULL
+        );
+        return TRUE;
+    }
+    return FALSE;
+}
+
 PRIVATE json_t *add_tree_children(
     hgobj gobj,
     json_t *tranger,
@@ -10024,7 +10247,8 @@ PRIVATE json_t *add_tree_children(
     const char *hook,
     json_t *node,       // not owned
     BOOL recursive,
-    json_t *jn_filter   // not owned
+    json_t *jn_filter,  // not owned
+    json_t *path        // not owned: the nodes above this one
 )
 {
     json_t *child_list = _list_children(gobj, tranger, hook, node);
@@ -10040,8 +10264,12 @@ PRIVATE json_t *add_tree_children(
             json_incref(jn_filter) // owned
         )){
             json_array_append(list, child);
-            if(recursive) {
-                add_tree_children(gobj, tranger, list, hook, child, recursive, jn_filter);
+            if(recursive && !walk_meets_cycle(gobj, path, child, hook)) {
+                char key[NAME_MAX*2];
+                node_walk_key(gobj, child, key, sizeof(key));
+                json_object_set_new(path, key, json_true());
+                add_tree_children(gobj, tranger, list, hook, child, recursive, jn_filter, path);
+                json_object_del(path, key);
             }
         }
     }
@@ -10095,7 +10323,11 @@ PUBLIC json_t *treedb_node_children(
 
     BOOL recursive = kw_get_bool(gobj, jn_options, "recursive", 0, KW_WILD_NUMBER);
     json_t *list = json_array();
-    add_tree_children(gobj, tranger, list, hook, node, recursive, jn_filter);
+    char key[NAME_MAX*2];
+    json_t *path = json_object();
+    json_object_set_new(path, node_walk_key(gobj, node, key, sizeof(key)), json_true());
+    add_tree_children(gobj, tranger, list, hook, node, recursive, jn_filter, path);
+    JSON_DECREF(path)
 
     JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)
@@ -10168,7 +10400,8 @@ PRIVATE json_t *add_jtree_children(
     json_t *node,     // not owned
     json_t *parent,     // not owned
     json_t *jn_filter,  // not owned
-    json_t *jn_options  // not owned
+    json_t *jn_options, // not owned
+    json_t *path        // not owned: the nodes above this one
 )
 {
     json_t *child_list = _list_children(gobj, tranger, hook, node);
@@ -10192,18 +10425,25 @@ PRIVATE json_t *add_jtree_children(
         json_t *list = kw_get_list(gobj, parent, rename_hook?rename_hook:hook, 0, KW_REQUIRED);
         json_array_append_new(list, _child);
 
-        // recursive
-        add_jtree_children(
-            gobj,
-            tranger,
-            tree,
-            hook,
-            rename_hook,
-            child,
-            _child,
-            jn_filter,
-            jn_options
-        );
+        // recursive, unless the child is already above: then it stays a leaf
+        if(!walk_meets_cycle(gobj, path, child, hook)) {
+            char key[NAME_MAX*2];
+            node_walk_key(gobj, child, key, sizeof(key));
+            json_object_set_new(path, key, json_true());
+            add_jtree_children(
+                gobj,
+                tranger,
+                tree,
+                hook,
+                rename_hook,
+                child,
+                _child,
+                jn_filter,
+                jn_options,
+                path
+            );
+            json_object_del(path, key);
+        }
     }
     json_decref(child_list);
 
@@ -10264,7 +10504,11 @@ PUBLIC json_t *treedb_node_jtree(
     json_t *tree = root;
 
     // recursive
-    add_jtree_children(gobj, tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
+    char key[NAME_MAX*2];
+    json_t *path = json_object();
+    json_object_set_new(path, node_walk_key(gobj, node, key, sizeof(key)), json_true());
+    add_jtree_children(gobj, tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options, path);
+    JSON_DECREF(path)
 
     JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)

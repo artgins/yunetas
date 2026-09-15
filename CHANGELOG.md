@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### treedb: a cycle in one hook is refused, and every cycle is freed at close
+
+A hook holds the child NODE, so a cycle of links is a cycle of json
+references. It was accepted, it survived a reload, and **it leaked at every
+`treedb_close_db()`**: measured at 15 676 bytes for two nodes, and nothing
+without the cycle. A cycle in ONE hook (`a` under `b` and `b` under `a` through
+`departments`) also sent `children recursive=1` and `jtree` into endless
+recursion. Neither walk had a visited set or a depth limit, so a client that
+could link and read could overflow the yuno's stack.
+
+- `_link_nodes()` refuses a link that would hang a node from its own
+  descendant **through the same hook** (*"Cannot link, the link would close a
+  cycle in the hook"*), before anything moves. A tree is a tree. Only a hook
+  that links its own topic can close one. A cycle through TWO hooks (a
+  department managing one it contains) is data, and is still accepted.
+- `treedb_close_db()` empties every hook of every node, in the `id` index and
+  in the pkey2 indexes, before it frees them. So a cycle no longer leaks,
+  whether it came through two hooks or from a store written before this check.
+- `children recursive=1` and `jtree` keep the PATH they walk and do not follow
+  a node that is already above (*"Cycle in the hook, node not followed
+  again"*). They keep the path and not a set of visited nodes, so a node that
+  hangs from two parents through an array fkey still shows under both.
+
+Test: `tr_treedb_relink`.
+
 ### treedb views: the form writes back only what goes back; a JSON drill keeps its path (gobj-ui 7.23.168, gui_treedb 0.17.34)
 
 `kernel/js/gobj-ui` -> 7.23.168, and the same range in the consumers

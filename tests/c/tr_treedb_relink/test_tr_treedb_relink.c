@@ -16,6 +16,13 @@
  *      4. a forced delete of an old parent leaves the child alone
  *      5. after a reload the child hangs from its last parent
  *
+ *  And the cycles a link can close (a hook holds the child NODE):
+ *
+ *      6. a link that would close a cycle in ONE hook is refused
+ *      7. a cycle through two hooks is data, and is accepted
+ *      8. on a cycle already stored, `jtree` and `children recursive` end,
+ *         and the close frees every node (the end-of-test memory check)
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -75,6 +82,21 @@ static char schema_relink[]= "\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'departments': 'department_id'              \n\
+                    }                                               \n\
+                },                                                  \n\
+                'manager': {                                        \n\
+                    'header': 'Manager',                            \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'managers': {                                       \n\
+                    'header': 'Managers',                           \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'departments': 'manager'                    \n\
                     }                                               \n\
                 }                                                   \n\
             }                                                       \n\
@@ -229,6 +251,100 @@ PRIVATE int test_relink(json_t *tranger)
     treedb_close_db(tranger, TREEDB_NAME);
     result += open_treedb(tranger);
     result += expect_hangs_from(tranger, "ch", "p3");
+    result += test_json(NULL);
+
+    /*
+     *  x <- y <- z through `departments`. Hanging x from z, or from y, would
+     *  close a cycle in that hook: refused, and nothing moves.
+     */
+    set_expected_results(
+        "a link that closes a cycle in one hook is refused",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Cannot link, the link would close a cycle in the hook",
+            "msg", "Cannot link, the link would close a cycle in the hook"
+        ),
+        NULL, NULL, 1
+    );
+    result += create_dept(tranger, "x");
+    result += create_dept(tranger, "y");
+    result += create_dept(tranger, "z");
+    result += link_dept(tranger, "x", "y");
+    result += link_dept(tranger, "y", "z");
+    if(treedb_link_nodes(tranger, HOOK_NAME, get_dept(tranger, "z"), get_dept(tranger, "x")) >= 0) {
+        printf("%sERROR%s --> a 3-node cycle was accepted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(treedb_link_nodes(tranger, HOOK_NAME, get_dept(tranger, "y"), get_dept(tranger, "x")) >= 0) {
+        printf("%sERROR%s --> a 2-node cycle was accepted\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    if(strcmp(kw_get_str(0, get_dept(tranger, "x"), FKEY_NAME, "", 0), "") != 0) {
+        printf("%sERROR%s --> a refused link moved x\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += expect_hangs_from(tranger, "z", "y");
+    result += test_json(NULL);
+
+    /*
+     *  Through TWO hooks a cycle is data, and accepted: z manages x. The
+     *  memory check at the end is what says the close frees it.
+     */
+    set_expected_results("a cycle through two hooks is accepted", NULL, NULL, NULL, 1);
+    if(treedb_link_nodes(tranger, "managers", get_dept(tranger, "z"), get_dept(tranger, "x")) < 0) {
+        printf("%sERROR%s --> a cycle through two hooks was refused\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A store that ALREADY holds a cycle in one hook: x's record says it
+     *  hangs from z, written as a raw record, the way an old store has it.
+     *  The reload rebuilds the cycle; the recursive walks must end.
+     */
+    set_expected_results(
+        "the recursive walks end on a stored cycle",
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "Cycle in the hook, node not followed again",
+            "msg", "Cycle in the hook, node not followed again"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        md2_record_ex_t md = {0};
+        json_t *jn_record = json_pack("{s:s, s:s, s:s, s:{}, s:[s], s:{}}",
+            "id", "x",
+            "name", "x",
+            "department_id", "departments^z^departments",
+            "departments",
+            "manager", "departments^z^managers",
+            "managers"
+        );
+        if(tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md, jn_record) < 0) {
+            printf("%sERROR%s --> cannot write the raw record\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+    }
+    treedb_close_db(tranger, TREEDB_NAME);
+    result += open_treedb(tranger);
+    if(!hook_holds(tranger, "z", "x")) {
+        printf("%sERROR%s --> the stored cycle was not rebuilt\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    json_t *jtree = treedb_node_jtree(tranger, HOOK_NAME, "", get_dept(tranger, "x"), 0, 0);
+    if(!jtree) {
+        printf("%sERROR%s --> jtree over a cycle answered nothing\n", On_Red BWhite, Color_Off);
+        result += -1;
+    }
+    JSON_DECREF(jtree)
+    json_t *children = treedb_node_children(
+        tranger, HOOK_NAME, get_dept(tranger, "x"), 0, json_pack("{s:b}", "recursive", 1)
+    );
+    if(json_array_size(children) != 3) {
+        printf("%sERROR%s --> recursive children over a cycle: %d, expected 3 (y, z, x)\n",
+            On_Red BWhite, Color_Off, (int)json_array_size(children));
+        result += -1;
+    }
+    JSON_DECREF(children)
     result += test_json(NULL);
 
     return result;
