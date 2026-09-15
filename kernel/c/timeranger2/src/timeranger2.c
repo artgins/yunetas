@@ -5800,21 +5800,31 @@ PRIVATE int find_keys_in_disk(
 
         int is_dir = 0;
 
+        /*
+         *  No d_type (XFS with ftype=0, NFS, FUSE, overlay): ask the inode.
+         *  The entry lives in keys/, so that is the directory to join, not
+         *  the topic's: stat'ing <topic>/<key> found nothing, and the topic
+         *  opened with an empty cache over files that were all there.
+         */
         #ifdef DT_DIR
         if(entry->d_type == DT_DIR) {
             is_dir = 1;
         } else if(entry->d_type == DT_UNKNOWN) {
             struct stat st;
             char path[PATH_MAX];
-            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            build_path(path, sizeof(path), full_path, entry->d_name, NULL);
             if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
                 is_dir = 1;
             }
         }
         #else
-        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-        if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-            is_dir = 1;
+        {
+            struct stat st;
+            char path[PATH_MAX];
+            build_path(path, sizeof(path), full_path, entry->d_name, NULL);
+            if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+                is_dir = 1;
+            }
         }
         #endif
 

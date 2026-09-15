@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### timeranger2: a topic opens whole on a filesystem without `d_type`
+
+On XFS with `ftype=0`, NFS, FUSE or overlay, `readdir()` gives no `d_type`,
+and `find_keys_in_disk()` asks the inode with `stat()`. It joined the entry to
+the topic's directory instead of its `keys/`. `<topic>/<key>` does not exist,
+so no key counted, and the topic opened with an **empty cache** over files that
+were all there: reads answered 0 rows, and the first append started a cell
+`{rows:1}` over a file that already held N, so the wrong record was served from
+then on. Dead code on ext4 and xfs with `ftype=1`, which is why nothing saw it.
+It now joins `keys/` (with `build_path()`). The `#else` branches of this
+function and of the file lister in `helpers.c` used variables they never
+declared, which compiled only because Linux defines `DT_DIR`. Test:
+`tests/c/tr_dt_unknown`, which links with `-Wl,--wrap=readdir` to hide
+`d_type` from a fully static binary.
+
 ### C_TREEDB acts only on the treedbs it opened; C_TRANGER's `delete-topic` asks for `force` again
 
 `close-treedb`, `create-topic` and `delete-topic` found their target with a

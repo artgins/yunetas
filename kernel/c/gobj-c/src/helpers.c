@@ -3285,9 +3285,14 @@ PUBLIC int find_files_with_suffix_array(
             }
         }
         #else
-        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-            is_file = 1;
+        {
+            struct stat st;
+            char path[PATH_MAX];
+
+            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+                is_file = 1;
+            }
         }
         #endif
 

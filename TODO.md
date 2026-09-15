@@ -232,14 +232,6 @@ Line numbers are those of `main` on 2026-09-15.
 
 **High**
 
-- **A6: `find_keys_in_disk()` stats the wrong path when the filesystem gives
-  no `d_type`** (`timeranger2.c:5806`, the `DT_UNKNOWN` branch). It builds
-  `<topic>/<key>` from `directory` instead of `<topic>/keys/<key>` from
-  `full_path`. Dead code on ext4/xfs with `ftype=1`. On XFS `ftype=0`, NFS,
-  FUSE or overlay it is the only branch: the topic opens with an EMPTY cache
-  over intact files, reads return 0 rows, and the first append creates a cell
-  `{rows:1}` for a file that holds N, so the wrong record is served. The
-  `#else` branch uses `path` and `st` undeclared. Use `build_path()`.
 - **A8: gobj-ui: the form's Save sends every field, read-only ones included,
   with `autolink`** (`c_yui_treedb_topic_with_form.js`, `ac_form_save_record`
   → `publish_treedb_write`). `transform__form_record_2_treedb_record()`, which
@@ -323,7 +315,7 @@ Line numbers are those of `main` on 2026-09-15.
   `users.scopes`, which exist nowhere; `kernel/js/gobj-ui/README.md` still
   describes the pre-7.18.0 asset model.
 
-**Tests nobody has** (in order of damage): `DT_UNKNOWN`; the follower's cache
+**Tests nobody has** (in order of damage): the follower's cache
 after `delete_key` with REAL inotify; `__t__` out of order; changing a pkey2
 value; two hooks on one fkey; `delete_instance` with links; the snapshot clone
 followed by updates. C_NODE commands with no ctest: `node`, `instances`,
