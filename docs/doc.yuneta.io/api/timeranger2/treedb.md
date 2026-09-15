@@ -279,6 +279,26 @@ Returns `0` on success, or a negative error code if the schema is invalid.
 
 This function does not modify the input `schema` and does not take ownership of it.
 
+A column flagged both `hook` and `fkey` is refused (*"A column cannot be both
+'hook' and 'fkey'"*). A node that is both child and parent carries two
+columns, the hook and the fkey:
+
+```C
+'manager': {
+    'header': 'Manager',
+    'type': 'array',
+    'flag': ['fkey']
+},
+'managers': {
+    'header': 'Managers',
+    'type': 'object',
+    'flag': ['hook'],
+    'hook': {
+        'departments': 'manager'
+    }
+}
+```
+
 ---
 
 (parse_schema_cols)=
@@ -617,6 +637,9 @@ individual records (rather than whole topics) non-deletable.
 There is no parameter for the main topic. That mark comes only from the
 schema that [`treedb_open_db()`](<#treedb_open_db>) reads.
 
+A topic with a column flagged both `hook` and `fkey` is refused, and the
+function returns `NULL`. See [`parse_schema()`](<#parse_schema>).
+
 ---
 
 (treedb_delete_instance)=
@@ -949,6 +972,23 @@ Returns `0` on success, or a negative error code if the operation fails.
 **Notes**
 
 The function does not take ownership of `parent_node` or `child_node`. Make sure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
+
+A link into a **single-valued** fkey (a `string` column) replaces the old one:
+the child is first unlinked from the parent its string names, which emits
+`EV_TREEDB_NODE_UNLINKED` for it. [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>)
+only clears a string reference that names the parent being unlinked.
+
+A link that would hang a node from its own descendant through the **same**
+hook is refused (*"Cannot link, the link would close a cycle in the hook"*),
+and nothing moves. A cycle through two different hooks is data, and is
+accepted. For example, with the `departments.departments` hook, linking
+`direction` as a child of `administration` fails when `administration` is
+already a child of `direction`:
+
+```C
+treedb_link_nodes(tranger, "departments", direction, administration);   // 0
+treedb_link_nodes(tranger, "departments", administration, direction);   // -1
+```
 
 ---
 
