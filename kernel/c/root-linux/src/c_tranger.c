@@ -897,7 +897,8 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    BOOL force = kw_get_bool(gobj, kw, "force", 0, 0);
+    /*  KW_WILD_NUMBER: `force=1` arrives as an integer from the command line  */
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
     json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
@@ -910,7 +911,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    uint64_t topic_size = tranger2_topic_size(topic, NULL);
+    uint64_t topic_size = tranger2_topic_size(priv->tranger, topic_name);
     if(topic_size != 0) {
         if(!force) {
             return msg_iev_build_response(

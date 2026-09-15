@@ -2041,6 +2041,54 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_main_topic_desc(gobj);
     result += check_schema_order(gobj, jn_schema);
 
+    /*-----------------------------------------------*
+     *  Test 1b: close-treedb, create-topic and
+     *  delete-topic act only on a treedb THIS
+     *  C_TREEDB opened. The __system__ treedb is its
+     *  own child too, but its handles live in priv:
+     *  closing it left them dangling. Even with force.
+     *-----------------------------------------------*/
+    {
+        struct {
+            const char *command;
+            json_t *kw;
+        } foreign[] = {
+            {"close-treedb", json_pack("{s:s, s:b}", "treedb_name", SYSTEM_TREEDB, "force", 1)},
+            {"close-treedb", json_pack("{s:s, s:b}", "treedb_name", "tranger_" TREEDB_NAME, "force", 1)},
+            {"create-topic", json_pack("{s:s, s:s, s:{s:{s:s, s:s, s:[s]}}}",
+                "treedb_name", SYSTEM_TREEDB, "topic_name", "intruder",
+                "cols", "id", "header", "Id", "type", "string", "flag", "persistent")},
+            {"delete-topic", json_pack("{s:s, s:s}", "treedb_name", SYSTEM_TREEDB, "topic_name", "cols")},
+        };
+        for(size_t i = 0; i < sizeof(foreign)/sizeof(foreign[0]); i++) {
+            const char *target = kw_get_str(gobj, foreign[i].kw, "treedb_name", "", 0);
+            char target_[NAME_MAX];
+            snprintf(target_, sizeof(target_), "%s", target);
+            json_t *jn_r = gobj_command(priv->gobj_treedbs, foreign[i].command, foreign[i].kw, gobj);
+            if(kw_get_int(gobj, jn_r, "result", -1, KW_REQUIRED) >= 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST FAIL: a command acted on a treedb this service did not open",
+                    "command",      "%s", foreign[i].command,
+                    "treedb_name",  "%s", target_,
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(jn_r)
+        }
+        if(!gobj_find_service(SYSTEM_TREEDB, FALSE) || !gobj_find_service("tranger_" TREEDB_NAME, FALSE)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST FAIL: a refused close-treedb destroyed the service",
+                NULL
+            );
+            result += -1;
+        }
+    }
+
     json_t *cols_before = client_topic_cols(gobj, "users");
 
     /*-----------------------------------------------*

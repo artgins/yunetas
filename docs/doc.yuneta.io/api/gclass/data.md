@@ -24,7 +24,7 @@ on time-series topics.
 | `topics` | List all topics: their names, or with `expanded=1` a desc each (`{topic_name, system_flag, pkey, tkey, topic_version}`). `system_flag` is what tells whether the topic's `t`/`tm` are seconds or **milliseconds** (`sf_t_ms` / `sf_tm_ms`). |
 | `create-topic` | Create a new topic. |
 | `open-topic` | Open an existing topic. |
-| `delete-topic` | Delete a topic. |
+| `delete-topic` | Delete a topic. **Irrecoverable.** A topic that still holds records needs `force=1`, and the refusal says so: `command-yuno id=<id> service=<tranger> command=delete-topic topic_name=frames force=1`. Before 7.20.x (Unreleased) the guard never fired and a topic with records was deleted on the first call. |
 | `delete-key` | Delete a whole key (primary key) of a topic and every record it holds. **Irrecoverable and master-only**; the delete propagates to the in-process subscribers and to the `rt_by_disk` followers. A key that still holds records needs `force=1` — the refusal names the record count. A key that is not there is an error, not a silent success. |
 | `open-list` / `close-list` | Open or close a record list (one-shot snapshot with `return_data=1`, else a live list collecting realtime appends). A **keyless** list accepts `rkey` (PCRE2 regex over the keys), and it governs both the disk load **and** the realtime feed. |
 | `get-list-data` | Retrieve an open list's data. |
@@ -80,9 +80,9 @@ of timeranger with JSON schema support.
 
 | Command | Description |
 |---------|-------------|
-| `open-treedb` / `close-treedb` | Open or close a treedb instance. `open-treedb impose_c_schema=1`, passed by the yuno's code, imposes the schema from C whatever the attribute says. |
-| `delete-treedb` | Delete a treedb and its data. |
-| `create-topic` / `delete-topic` | Manage topics within a treedb. |
+| `open-treedb` / `close-treedb` | Open or close a treedb instance. `open-treedb impose_c_schema=1`, passed by the yuno's code, imposes the schema from C whatever the attribute says. `close-treedb` acts only on a treedb that THIS service opened, never on its own `__system__` treedb, whatever `force` says: `command-yuno id=<id> service=treedbs command=close-treedb treedb_name=<name> force=1`. |
+| `delete-treedb` | Delete a treedb's projection in `__system__` (`force=1` required). It never touches the treedb's own data. It is broken today (see `TODO.md`). |
+| `create-topic` / `delete-topic` | Manage topics within a treedb that THIS service opened (not `__system__`): `command-yuno id=<id> service=treedbs command=delete-topic treedb_name=<name> topic_name=<topic>`. |
 | `diff-schema` | What the `__system__` projection of a treedb says that its schema from C does not. |
 | `set-impose-c-schema` | Show (no `set`) or change (`set=1` / `set=0`) `impose_c_schema`. Needs the permission `impose-c-schema`. Acts the next time the yuno opens its treedbs. Its answer lists in `forced_by_code` the treedbs whose code imposes, which the value does not reach. |
 

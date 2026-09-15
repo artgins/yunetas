@@ -80,6 +80,10 @@ PRIVATE int delete_client_treedb_schema(
     hgobj gobj,
     const char *treedb_name
 );
+PRIVATE BOOL is_treedb_opened_here(
+    hgobj gobj,
+    hgobj gobj_node
+);
 PRIVATE json_t *diff_treedb_schema(
     hgobj gobj,
     const char *treedb_name,
@@ -830,6 +834,19 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
+    if(!is_treedb_opened_here(gobj, gobj_client_node)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: '%s' is not a treedb opened by this service",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     hgobj gobj_client_tranger = gobj_bottom_gobj(gobj_client_node);
 
@@ -951,6 +968,19 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
+    if(!is_treedb_opened_here(gobj, gobj_client_node)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: '%s' is not a treedb opened by this service",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_t *tranger = gobj_read_pointer_attr(gobj_client_node, "tranger");
 
@@ -1005,6 +1035,19 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             gobj,
             -1,
             json_sprintf("Treedb_name not found: '%s'", treedb_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!is_treedb_opened_here(gobj, gobj_client_node)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: '%s' is not a treedb opened by this service",
+                gobj_yuno_role_plus_name(), treedb_name
+            ),
             0,
             0,
             kw  // owned
@@ -2368,6 +2411,32 @@ PRIVATE json_t *get_treedb_schema(
     JSON_DECREF(topics)
 
     return treedb;
+}
+
+/***************************************************************************
+ *  Is `gobj_node` a treedb that THIS service opened with open-treedb?
+ *
+ *  close-treedb, create-topic and delete-topic take a name from the wire
+ *  and act on the service it names. Found by name alone it could be any
+ *  service of the yuno: this service's own __system__ treedb, whose
+ *  handles live in priv (closing it left priv pointing at freed memory),
+ *  a C_TRANGER, anybody's C_NODE. What open-treedb opens is a C_NODE whose
+ *  parent is this service, and nothing else is ours to close or change.
+ ***************************************************************************/
+PRIVATE BOOL is_treedb_opened_here(
+    hgobj gobj,
+    hgobj gobj_node
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_node || gobj_node == priv->gobj_node_system) {
+        return FALSE;
+    }
+    if(!gobj_typeof_gclass(gobj_node, C_NODE)) {
+        return FALSE;
+    }
+    return (gobj_parent(gobj_node) == gobj)? TRUE : FALSE;
 }
 
 /***************************************************************************

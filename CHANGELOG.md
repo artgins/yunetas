@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### C_TREEDB acts only on the treedbs it opened; C_TRANGER's `delete-topic` asks for `force` again
+
+`close-treedb`, `create-topic` and `delete-topic` found their target with a
+global `gobj_find_service(treedb_name)` and acted on whatever it returned.
+`close-treedb treedb_name=treedb_system_schema` (with the yuno paused, or
+`force=1`) stopped and destroyed C_TREEDB's own `__system__` treedb, whose
+handles live in its private data. The next `open-treedb`, `diff-schema` or
+`mt_stop` then used freed memory. Any other service name was destroyed the same
+way, and `create-topic` / `delete-topic` read the `tranger` attr of whatever
+they found. Now all three refuse a target that is not a `C_NODE` opened by
+this `C_TREEDB` (its parent), and they refuse the `__system__` treedb: *"'<name>'
+is not a treedb opened by this service"*. Every caller in the tree closes on the
+service it opened with, so none is affected.
+
+**`C_TRANGER`'s `delete-topic` deleted a topic WITH records without `force`.**
+It counted the records with `tranger2_topic_size(topic, NULL)`, which passes
+the topic where the tranger goes and no topic name. That lookup failed (*"Cannot
+open topic"*), the count came back 0, and the guard *"topic with records, you
+must force to delete"* never fired, so any topic was deleted on the first call.
+It also read `force` without `KW_WILD_NUMBER`, and the command line delivers
+`force=1` as an integer (*"path MUST BE a json boolean"*). The second bug was
+hidden by the first. Both are fixed: a topic with records is refused without
+`force`, and `force=1` from the command line is honoured. `delete-key`, two
+functions below, always did both right.
+
+Tests: `c_treedb_system_schema` (the refusals, with `force`) and `c_tranger`
+(`delete-topic` refused without `force`, done with an integer `force`).
+
 ### treedb: a column is `hook` or `fkey`, never both (BREAKING for such schemas)
 
 A column flagged `['hook', 'fkey']` was accepted, and its fkey side was never

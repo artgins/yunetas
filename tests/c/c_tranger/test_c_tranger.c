@@ -33,6 +33,7 @@
 #define DATABASE    "tr_c_tranger_cmd"
 #define TOPIC_NAME  "topic_cmd"
 #define TOPIC_NAME2 "topic_cmd2"    // closed under its open handles (UAF regression)
+#define TOPIC_NAME3 "topic_cmd3"    // deleted by command with force=1 as an integer
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -958,6 +959,63 @@ PRIVATE int do_test(void)
             "force", 1
         ), yuno);
     check_int("delete-key twice result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    /*-------------------------------------------------*
+     *      delete-topic: `force=1` arrives as an INTEGER.
+     *
+     *  The command line turns `force=1` into the json integer 1, and
+     *  kw_get_bool() without KW_WILD_NUMBER refused it ("path MUST BE a json
+     *  boolean") and read FALSE: a topic with records could never be deleted
+     *  by command. delete-key, above, always read it right.
+     *-------------------------------------------------*/
+    if(!tranger2_create_topic(
+            tranger,
+            TOPIC_NAME3,
+            "id",   // pkey
+            "tm",   // tkey
+            NULL,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}",
+                "id", "",
+                "tm", (json_int_t)0,
+                "content", ""
+            ),
+            0
+        )) {
+        printf("%s: FAIL (create topic3)\n", APP);
+        return -1;
+    }
+    {
+        md2_record_ex_t md = {0};
+        json_t *jn_record = json_pack("{s:s, s:I, s:s}",
+            "id", KEY_A,
+            "tm", (json_int_t)BASE_T,
+            "content", "payload"
+        );
+        if(tranger2_append_record(tranger, TOPIC_NAME3, BASE_T, 0, &md, jn_record) < 0) {
+            printf("%s: FAIL (append topic3)\n", APP);
+            return -1;
+        }
+    }
+
+    r = gobj_command(yuno, "delete-topic",
+        json_pack("{s:s}", "topic_name", TOPIC_NAME3), yuno);
+    check_int("delete-topic no-force result", kw_get_int(0, r, "result", -999, 0), -1);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "delete-topic",
+        json_pack("{s:s, s:i}",
+            "topic_name", TOPIC_NAME3,
+            "force", 1
+        ), yuno);
+    check_int("delete-topic force=1 (integer) result", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+
+    r = gobj_command(yuno, "topics", json_pack("{}"), yuno);
+    data = kw_get_list(0, r, "data", 0, 0);
+    check_bool("delete-topic topic3 is gone",
+        json_str_in_list(0, data, TOPIC_NAME3, FALSE), FALSE);
     JSON_DECREF(r)
 
     /*-------------------------------------------------*
