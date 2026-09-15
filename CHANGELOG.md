@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### C_NODE: every command that reads or writes the treedb asks for a permission
+
+From the 2026-09-15 review. C_NODE checks a permission inside each command
+handler, with or without the global `enable_command_authz` gate. Only `nodes`
+(`read`) and the node writes did. Every other read answered anyone the
+routing gate let in, and so did four **writes**. It matters only in a yuno
+with an authz checker (`C_AUTHZ`), which is the case of the agent, the
+controlcenter, the logcenter, mqtt_broker and every gate and database of the
+projects.
+
+- **`read`**: `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`,
+  `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`,
+  `treedbs`, `treedb-info`, `topics`, `desc`, `descs`. Someone who can list
+  (`nodes`) already had it.
+- **`update`**: `link-nodes` and `unlink-nodes` (a link writes the child's
+  fkey), `activate-snap`, `deactivate-snap`. Link and unlink asked for nothing.
+- **`create`**: `shoot-snap` (a new row of `__snaps__`).
+- **`create` AND `update`**: `import-db`, which asked for nothing.
+- **`update-node` with `create=1`** (the upsert the SPAs create with) now
+  asks for `create` too, but only when the node does not exist yet. Before,
+  it created under `update` alone. An `update`-only user still saves existing
+  nodes through it.
+
+`help`, `authzs`, `system-schema` (the compiled meta-schema) and `trace` (a
+framework switch, which belongs to the global gate) ask for nothing, as
+before. A refusal answers `-403 No permission to '<permission>' in service
+'<treedb>'`, as `nodes` always did.
+Test: `c_node_authz` (new). It uses a checker that grants by user name.
+Against the previous library it fails for every command listed above.
+
 ### timeranger2: an append to an earlier file goes to that file's place
 
 From the 2026-09-15 review (M-T2). A key's cache has one cell per md2 file,

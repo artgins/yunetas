@@ -133,6 +133,31 @@ tree nodes with linking, snapshots, and import/export.
 | `set-link-events` | Show (no `set`) or change (`set=1` / `set=0`) which events a link and an unlink publish, on the open treedb and at once: `1` publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED` with the relationship (`hook_name`, `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`), `0` the parent's `EV_TREEDB_NODE_UPDATED` (what the v1 SPAs read). Either/or for every subscriber of the treedb. Needs the permission `update`. Not persistent: the next start takes the configured `with_link_events` again. Example: `ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1'`. |
 | `print-tranger` | Dump the tranger the treedb lives on as bounded JSON (`kw_collapse()`-truncated: unexpanded containers answer as `[[size]]`, and `lists_limit` and `dicts_limit` bound the expansion). Pass `path=` (backtick-delimited, `kw_find_path` style, arrays by numeric index) to lazily drill into one subtree — this is what feeds the gui_treedb "Raw JSON" viewer. |
 
+### Permissions
+
+Every command that reads or writes the treedb asks for a permission, inside
+the command, with or without the global `enable_command_authz` gate. It
+matters only in a yuno with an authz checker (`C_AUTHZ`).
+
+| Permission | Commands |
+|---|---|
+| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs` |
+| `create` | `create-node`, `import-assets`, `shoot-snap` |
+| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events`, `activate-snap`, `deactivate-snap` |
+| `delete` | `delete-node`, `gc-assets` |
+| `create` and `update` | `import-db` |
+
+`update-node` with `options.create=1` also asks for `create` when the node
+does not exist yet. A refusal answers `-403`, and nothing is written.
+
+Example: a user whose only role on `treedb_devices` has `"permission": "read"`
+gets `nodes` and `node`, and is refused `link-nodes`:
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=treedb_devices command=link-nodes parent_ref=places^p1^devices child_ref=devices^d1'
+# -403 No permission to 'update' in service 'treedb_devices'
+```
+
 (treedb-file-columns)=
 ### File columns: `__assets__`
 

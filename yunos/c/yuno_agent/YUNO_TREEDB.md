@@ -795,6 +795,33 @@ A refused write returns NULL (`-1` for links), and `cmd_create_node` /
 `mt_update_node` dropped the return of `treedb_update_node` and answered the
 collapsed view of the unchanged node — a refused update read as a success.
 
+**Who may run each command.** `C_NODE` asks a permission inside every command
+that reads or writes the treedb, with or without the global
+`enable_command_authz` gate. The permission is the name of a role's
+`permission` (or `*`), on the treedb's service. It matters only in a yuno
+with an authz checker (`C_AUTHZ`). Without one, every permission is granted.
+
+| Permission | Commands |
+|---|---|
+| `read` | `nodes`, `node`, `instances`, `pkey2s`, `parents`, `children`, `jtree`, `hooks`, `links`, `snaps`, `snap-content`, `print-tranger`, `export-db`, `treedbs`, `treedb-info`, `topics`, `desc`, `descs` |
+| `create` | `create-node`, `import-assets`, `shoot-snap` |
+| `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events`, `activate-snap`, `deactivate-snap` |
+| `delete` | `delete-node`, `gc-assets` |
+| `create` and `update` | `import-db` |
+| none | `help`, `authzs`, `system-schema`, `trace` (the last one belongs to the global gate) |
+
+`update-node` with `options.create=1` is the upsert the SPAs create with. It
+asks for `update`, plus `create` when the node does not exist yet. A refusal
+answers `-403 No permission to '<permission>' in service '<treedb>'`, and
+nothing is written. Until 2026-09-15 only `nodes` and the node writes asked;
+`node`, `link-nodes`, `import-db` and the snaps answered anyone.
+
+A read-only role for one treedb, in that yuno's `treedb_authzs`:
+
+```bash
+ycommand -c 'command-yuno id=<yuno> service=treedb_authzs command=create-node topic_name=roles record={"id":"devices_viewer","description":"Reads the devices treedb","realm_id":"*","service":"treedb_devices","permission":"read"}'
+```
+
 ### 3.7 The link/unlink-saves-child rule
 
 CLAUDE.md hard rule, reproduced verbatim from [`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.20.0/kernel/c/timeranger2/src/tr_treedb.c):

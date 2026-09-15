@@ -2198,6 +2198,33 @@ PRIVATE json_t *build_readonly_response(hgobj gobj, json_t *kw)
     );
 }
 
+/***************************************************************************
+ *  The response of a command the user has no `permission` for, or NULL when
+ *  they have it (kw untouched). One permission per command, and every command
+ *  that reads or writes the treedb asks for one: only `nodes` and the four
+ *  node writes used to, so `node`, `link-nodes`, `import-db`, the snaps...
+ *  answered anyone the gate let in.
+ ***************************************************************************/
+PRIVATE json_t *refuse_without_authz(
+    hgobj gobj,
+    const char *permission,
+    json_t *kw,     // owned only when refused
+    hgobj src
+)
+{
+    if(gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return NULL;
+    }
+    return msg_iev_build_response(
+        gobj,
+        -403,
+        json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
 
             /***************************
              *      Commands
@@ -2673,6 +2700,33 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    /*
+     *  With `create` an update is an UPSERT (the SPAs create this way), so a
+     *  node that does not exist yet also asks for `create`: it used to be
+     *  created under `update` alone. A node that exists does not.
+     */
+    if(kw_get_bool(gobj, _jn_options, "create", 0, KW_WILD_NUMBER)) {
+        /*
+         *  The same lookup the update makes, and a silent one: an unknown
+         *  topic is refused by the update itself, with its own error.
+         */
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        BOOL is_new = treedb_is_treedbs_topic(priv->tranger, priv->treedb_name, topic_name) &&
+            !fetch_node(gobj, topic_name, jn_content);
+        if(is_new && !gobj_user_has_authz(gobj, "create", kw_incref(kw), src)) {
+            json_decref(jn_content);
+            GBUFFER_DECREF(gbuf_files)
+            return msg_iev_build_response(
+                gobj,
+                -403,
+                json_sprintf("No permission to '%s' in service '%s'", "create", gobj_name(gobj)),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
     hand_files_to_record(gobj, kw, jn_content, gbuf_files);
 
     json_t *node = gobj_update_node(
@@ -2805,6 +2859,14 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *----------------------------------------*/
     if(!treedb_is_master(gobj)) {
         return build_readonly_response(gobj, kw);
+    }
+
+    /*
+     *  A link writes the child's fkey: an update
+     */
+    json_t *refused = refuse_without_authz(gobj, "update", kw, src);
+    if(refused) {
+        return refused;
     }
 
     const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
@@ -2952,6 +3014,14 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return build_readonly_response(gobj, kw);
     }
 
+    /*
+     *  An unlink clears the child's fkey: an update
+     */
+    json_t *refused = refuse_without_authz(gobj, "update", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
     const char *child_ref = kw_get_str(gobj, kw, "child_ref", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
@@ -3090,6 +3160,11 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     json_incref(kw);
     json_t *treedbs = gobj_treedbs(gobj, kw, src);
 
@@ -3116,6 +3191,11 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_treedb_info(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
@@ -3175,6 +3255,11 @@ PRIVATE json_t *cmd_treedb_info(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
@@ -3203,6 +3288,11 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3305,6 +3395,11 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(strcmp(cmd, "desc")==0) {
         if(empty_string(topic_name)) {
@@ -3444,6 +3539,11 @@ PRIVATE json_t *cmd_set_link_events(hgobj gobj, const char *cmd, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3465,6 +3565,11 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3487,6 +3592,11 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
     const char *link = kw_get_str(gobj, kw, "link", "", 0);
@@ -3537,6 +3647,11 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
     const char *hook = kw_get_str(gobj, kw, "hook", "", 0);
@@ -3713,6 +3828,11 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3763,6 +3883,11 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3815,6 +3940,11 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
@@ -3901,6 +4031,11 @@ PRIVATE int snap_count_cb(
 
 PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
@@ -4087,6 +4222,11 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_data = gobj_list_snaps(
@@ -4109,6 +4249,14 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    /*
+     *  A snap is a new row of __snaps__
+     */
+    json_t *refused = refuse_without_authz(gobj, "create", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *name = kw_get_str(gobj, kw, "name", 0, 0);
@@ -4156,6 +4304,11 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "update", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     const char *name = kw_get_str(gobj, kw, "name", 0, 0);
     if(empty_string(name)) {
         return msg_iev_build_response(gobj,
@@ -4192,6 +4345,11 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "update", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     int ret = gobj_activate_snap(
         gobj,
         "__clear__",
@@ -4220,6 +4378,11 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     BOOL expanded = kw_get_bool(gobj, kw, "expanded", 0, KW_WILD_NUMBER);
@@ -4281,6 +4444,11 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    json_t *refused = refuse_without_authz(gobj, "read", kw, src);
+    if(refused) {
+        return refused;
+    }
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *filename = kw_get_str(gobj, kw, "filename", "", 0);
@@ -4370,6 +4538,17 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *----------------------------------------*/
     if(!treedb_is_master(gobj)) {
         return build_readonly_response(gobj, kw);
+    }
+
+    /*
+     *  An import creates nodes and overwrites existing ones
+     */
+    json_t *refused = refuse_without_authz(gobj, "create", kw, src);
+    if(!refused) {
+        refused = refuse_without_authz(gobj, "update", kw, src);
+    }
+    if(refused) {
+        return refused;
     }
 
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);

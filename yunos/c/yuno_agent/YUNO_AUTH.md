@@ -694,10 +694,12 @@ Points found so far (verified this session unless noted):
    **What the node authz list governs today, with the gate off, is not only
    `open-console`.** A command that calls `gobj_user_has_authz()` ITSELF is
    checked regardless of the gate, and `C_NODE` — every treedb — does exactly
-   that: `read` in `cmd_list_nodes` / `cmd_get_node`, `create`, `update` and
-   `delete` in their commands. So the treedb surface of every yuno is already
-   fail-closed per user, while the agent's own control plane is wide open —
-   the inverse of what an operator expects. Verified 2026-08-12 by
+   that, in EVERY command that reads or writes the treedb (since 2026-09-15:
+   before, only `nodes` asked `read`, and `node`, `link-nodes`, `import-db`
+   and the snaps asked nothing). The table is in
+   [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.6. So the treedb surface of every
+   yuno is already fail-closed per user, while the agent's own control plane
+   is wide open — the inverse of what an operator expects. Verified 2026-08-12 by
    `claudia@artgins.com` (point 3): every topic of `treedb_system_schema`
    answered `-403 No permission to 'read'` until they were given a role in
    THAT yuno's `C_AUTHZ`. The matrix must cover the per-yuno treedb
