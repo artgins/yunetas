@@ -130,6 +130,13 @@ PRIVATE json_t *apply_child_list_options(
  *  must not be something a client can spell.
  */
 PRIVATE int delete_node(json_t *tranger, json_t *node, json_t *jn_options, BOOL snaps_walked);
+PRIVATE int append_node_record(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    json_t *node,   // NOT owned, pure node
+    uint16_t tag
+);
 PRIVATE json_t *assets_held_by_snaps(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE const char *asset_linked_by_other_treedb(hgobj gobj, json_t *tranger, const char *treedb_name, const char *id);
 PRIVATE json_t *create_assets_topic(hgobj gobj, json_t *tranger, const char *treedb_name);
@@ -5874,6 +5881,83 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 }
 
 /***************************************************************************
+ *  Append the node as a new record tagged `tag`, and move its metadata to
+ *  that record: after it the node in memory is what a reload would give.
+ *  Shared by treedb_save_node() and the snapshot clone of
+ *  treedb_shoot_snap(), which must NOT publish an update per node.
+ ***************************************************************************/
+PRIVATE int append_node_record(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    json_t *node,   // NOT owned, pure node
+    uint16_t tag
+)
+{
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
+    if(!record) {
+        // Error already logged
+        return -1;
+    }
+
+    md2_record_ex_t md_record;
+    int ret = tranger2_append_record(
+        tranger,
+        topic_name,
+        0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
+        tag, // user_flag,
+        &md_record, // md_record,
+        json_incref(record) // owned
+    );
+    if(ret < 0) {
+        // Error already logged
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    /*--------------------------------------------*
+     *  Build metadata
+     *  HACK only numeric fields! strings cannot
+     *--------------------------------------------*/
+    json_int_t g_rowid = json_integer_value(
+        json_object_get(
+            json_object_get(record, "__md_tranger__"),
+            "g_rowid"
+        )
+    );
+    JSON_DECREF(record)
+
+    json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
+    json_object_set_new(__md_treedb__, "g_rowid", json_integer(g_rowid));
+    json_object_set_new(__md_treedb__, "i_rowid", json_integer((json_int_t)md_record.rowid));
+    json_object_set_new(__md_treedb__, "t", json_integer((json_int_t)md_record.__t__));
+    json_object_set_new(__md_treedb__, "tm", json_integer((json_int_t)md_record.__tm__));
+    json_object_set_new(__md_treedb__, "tag", json_integer((json_int_t)tag));
+
+    /*------------------------------------------------------------------*
+     *  Immutability is inherited across records: the new record was
+     *  appended with the topic-default system_flag (no immutable bit),
+     *  so re-stamp it in place when the node is marked immutable.
+     *------------------------------------------------------------------*/
+    if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
+        const char *imm_id = kw_get_str(gobj, node, "id", "", 0);
+        if(tranger2_set_system_flag(
+            tranger,
+            topic_name,
+            imm_id,
+            (uint64_t)md_record.__t__,
+            (uint64_t)md_record.rowid,
+            sf_immutable_record,
+            TRUE
+        )<0) {
+            // Error already logged; record is saved but left unprotected.
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *  Direct saving to tranger.
     Tag __tag__ (user_flag) is inherited.
  ***************************************************************************/
@@ -5904,70 +5988,14 @@ PUBLIC int treedb_save_node(
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    /*---------------------------------------*
-     *  Create the tranger record to save
-     *---------------------------------------*/
-    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
-    if(!record) {
-        // Error already logged
-        return -1;
-    }
-
     /*-------------------------------------*
      *  Write to tranger (save, updating)
+     *  The snap tag (user_flag) is inherited.
      *-------------------------------------*/
-    uint32_t tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
-
-    md2_record_ex_t md_record;
-    int ret = tranger2_append_record(
-        tranger,
-        topic_name,
-        0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-        tag, // user_flag,
-        &md_record, // md_record,
-        json_incref(record) // owned
-    );
-    if(ret < 0) {
+    uint16_t tag = (uint16_t)kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
+    if(append_node_record(gobj, tranger, topic_name, node, tag)<0) {
         // Error already logged
-        JSON_DECREF(record)
         return -1;
-    }
-
-    /*--------------------------------------------*
-     *  Build metadata
-     *  HACK only numeric fields! strings cannot
-     *--------------------------------------------*/
-    json_int_t g_rowid = json_integer_value(
-        json_object_get(
-            json_object_get(record, "__md_tranger__"),
-            "g_rowid"
-        )
-    );
-    json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
-    json_object_set_new(__md_treedb__, "g_rowid", json_integer(g_rowid));
-    json_object_set_new(__md_treedb__, "i_rowid", json_integer((json_int_t)md_record.rowid));
-    json_object_set_new(__md_treedb__, "t", json_integer((json_int_t)md_record.__t__));
-    json_object_set_new(__md_treedb__, "tm", json_integer((json_int_t)md_record.__tm__));
-
-    /*------------------------------------------------------------------*
-     *  Immutability is inherited across updates: the new record was
-     *  appended with the topic-default system_flag (no immutable bit),
-     *  so re-stamp it in place when the node is marked immutable. Mirrors
-     *  the snap-tag inheritance (user_flag passed to the append above).
-     *------------------------------------------------------------------*/
-    if(kw_get_bool(gobj, node, "__md_treedb__`immutable", 0, 0)) {
-        const char *imm_id = kw_get_str(gobj, node, "id", "", 0);
-        if(tranger2_set_system_flag(
-            tranger,
-            topic_name,
-            imm_id,
-            (uint64_t)md_record.__t__,
-            (uint64_t)md_record.rowid,
-            sf_immutable_record,
-            TRUE
-        )<0) {
-            // Error already logged; record is saved but left unprotected.
-        }
     }
 
     /*------------------------------------------------------------------*
@@ -6045,8 +6073,6 @@ PUBLIC int treedb_save_node(
     if(treedb_trace) {
         gobj_trace_json(gobj, node, "treedb_save_node: Ok");
     }
-
-    JSON_DECREF(record)
 
     return 0;
 }
@@ -13361,11 +13387,12 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
          *    the new snap would overwrite the older snap's tag and
          *    activate-snap(older) would lose those records.
          *
-         *  The in-memory node's metadata is intentionally NOT
-         *  updated when we clone: the live primary on disk is the
-         *  original record (lower rowid, original tag), and the
-         *  in-memory state must keep pointing at it so subsequent
-         *  treedb_save_node() appends use the right base rowid.
+         *  Either way the node's metadata ends on the record a
+         *  reload would pick: the clone is the newest record, so
+         *  it IS the primary after a reload. Left on the original,
+         *  the next saves inherited the PREVIOUS snap's tag -- that
+         *  snap followed the updates and the new one stayed frozen
+         *  in the clone, until the next restart swapped them.
          *------------------------------------------------------*/
         json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
         if(!indexx) {
@@ -13390,24 +13417,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                  *  The cloned record carries the new snap's tag; the
                  *  original record keeps its previous snap tag.
                  *------------------------------------------------------*/
-                json_t *tranger_record = convert_node2tranger(
-                    gobj, tranger, topic_name, node
-                );
-                if(!tranger_record) {
-                    // Error already logged
-                    ret += -1;
-                    continue;
-                }
-                md2_record_ex_t md_clone = {0};
-                int append_ret = tranger2_append_record(
-                    tranger,
-                    topic_name,
-                    0,              // __t__: 0 → tranger sets now
-                    (uint16_t)user_flag,
-                    &md_clone,
-                    tranger_record  // owned
-                );
-                if(append_ret < 0) {
+                if(append_node_record(gobj, tranger, topic_name, node, (uint16_t)user_flag)<0) {
                     ret += -1;
                     gobj_log_critical(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -13420,9 +13430,6 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
                         NULL
                     );
                 }
-                /* Do NOT touch __md_treedb__: the in-memory node
-                   still points at the original record, which keeps
-                   its previous tag on disk. */
             } else if(tranger2_write_user_flag(
                     tranger, topic_name, key, __t__, i_rowid, (uint16_t)user_flag) < 0) {
                 ret += -1;

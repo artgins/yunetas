@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### treedb: an update cannot change a pkey2 value; the snapshot clone moves the node's metadata
+
+Two findings of the 2026-09-15 treedb review. Both were reproduced against the
+installed library before the fix, and each now has a test.
+
+- **`treedb_update_node()` refuses a kw that changes a pkey2 value**
+  (*"An update cannot change a pkey2 value, create the instance"*). Nothing is
+  touched or saved. A pkey2 value names an INSTANCE. On disk the new value
+  became a second instance beside the old one. In memory both slots went on
+  holding the live node, so it was listed twice with the new content. Worse,
+  `treedb_delete_instance()` of the OLD value read the value from that node and
+  tombstoned the rows of the NEW one: after a reload the node was back on its
+  old content, and the update was lost. C_NODE's lookup already refuses a
+  different value, but it skips an EMPTY one, and `required` only asks for the
+  key. So `update-node id=X version=""` reached the primary from the wire. A
+  kw that carries the same value (as C_NODE sends it) is an ordinary update. A
+  new instance is a `treedb_create_node()`.
+  Test: `tr_treedb_update_instance`.
+- **After `treedb_shoot_snap()` clones a record, the node in memory is on the
+  clone.** A record already tagged by an earlier snap gets a clone with the new
+  tag. The clone is the newest record, so a reload makes it the primary, but
+  memory stayed on the original with the OLD tag. The next saves inherited
+  that tag: the previous snap followed the updates while the new one stayed
+  frozen, and a restart swapped them. The clone also went to disk without the
+  immutable bit, so an immutable node lost its protection at the next reload.
+  The clone and `treedb_save_node()` now share one append, which moves the
+  metadata and stamps the immutable bit again. The clone still publishes no
+  `EV_TREEDB_NODE_UPDATED`.
+  Test: `tr_treedb_snap_clone` (new). `tr_treedb_files` had the old behaviour
+  written into it: its gc case expected the EARLIER snap to follow the move
+  and the later one to keep the asset. It now expects the earlier snap to
+  keep what the node held when it was shot, so deleting that snap frees the
+  asset.
+
 ### treedb: a cycle in one hook is refused, and every cycle is freed at close
 
 A hook holds the child NODE, so a cycle of links is a cycle of json

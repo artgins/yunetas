@@ -1611,6 +1611,8 @@ Because the tag rides on the existing record, the snap captures *exactly* the pr
 
 When the next shoot finds a primary record that *already* carries a tag from an earlier snap (that is, `__md_treedb__.tag != 0 && != snap_id`), the function appends a **clone** of that record via `tranger2_append_record()` with the new snap's id, rather than overwriting the prior tag in place. The cloned record sits at a higher `rowid` and carries only the new snap's tag. The original record keeps its earlier tag intact. This makes multiple snaps over an unchanged set of primaries co-exist: `activate-snap` of either snap can find its own tagged records on reload. Untagged primaries still take the cheaper in-place path — no clone cost when the record is snapped for the first time.
 
+The clone is the newest record of its key, so a reload makes it the primary. The node in memory moves to the clone at once (`g_rowid`, `i_rowid`, `t`, `tm` and `tag` in `__md_treedb__`), and an immutable node keeps its immutable bit on the clone. A save inherits the node's tag, so after the clone the updates are saved with the NEW snap's tag, and the earlier snap stays on its own record. Until the fix of 2026-09-15 memory stayed on the original record: the earlier snap followed the updates until the next restart. The clone does not publish `EV_TREEDB_NODE_UPDATED`.
+
 **Notes**
 
 Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](<#treedb_activate_snap>). Like all snap operations, the visibility change is materialised on the next `treedb_open_db()`, not in memory at call time — see [`treedb_activate_snap()`](<#treedb_activate_snap>) for the reload semantics.
