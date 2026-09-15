@@ -2012,8 +2012,11 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
          *      Enum
          *----------------------------*/
         CASES("enum")
+            if(!value) {
+                break;  // absent and not required (checked above): nothing to check
+            }
             json_t *desc_enum = kw_get_list(gobj, desc, "enum", 0, 0);
-            switch(json_typeof(value)) { // json_typeof NO CONTROLADO
+            switch(json_typeof(value)) { // json_typeof PROTECTED
             case JSON_ARRAY:
                 {
                     int idx; json_t *v;

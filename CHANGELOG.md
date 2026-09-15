@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### treedb: a column that declares no `flag` no longer crashes the yuno
+
+Every user column is validated against the `cols` topic of
+`treedb_system_schema`, where `flag` is an `enum` that is not `required`. A
+column without `flag` reached `check_desc_field()` with its value NULL, skipped
+the `required` test, and the `enum` branch switched on `json_typeof(NULL)`:
+SIGSEGV. It was reachable from `C_TREEDB`'s `create-topic` (which passes the
+`cols` it receives), from `open-treedb` with a schema, and from any C schema
+literal. An absent value that is not required now has nothing to check, as the
+branch for the basic json types already said; an unknown flag is still refused.
+Test: `tests/c/tr_treedb_schema_parse`.
+
 ### `tranger2_str2system_flag()` maps each name to its own bit
 
 `idx_in_list()` counts from 0 and the function applied a count from 1, so
