@@ -613,10 +613,20 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
     const char **names = split2(system_flag, "|, ", &list_size);
 
     for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(sf_names, *(names +i), TRUE);
-        if(idx > 0) {
-            bitmask |= 1 << (idx-1);
+        const char *name = *(names +i);
+        int idx = idx_in_list(sf_names, name, TRUE);
+        if(idx < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Unknown system_flag name, ignored",
+                "system_flag",  "%s", system_flag,
+                "name",         "%s", name,
+                NULL
+            );
+            continue;
         }
+        bitmask |= 1 << idx;    // sf_names[idx] is bit (1 << idx)
     }
 
     split_free2(names);

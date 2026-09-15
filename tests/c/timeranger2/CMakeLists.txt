@@ -64,6 +64,7 @@ set(SRCS
     test_delete_key_propagation
     test_rt_disk_multi_feed
     test_pkey_path_traversal
+    test_str2system_flag
     test_testing
 )
 

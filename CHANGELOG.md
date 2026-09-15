@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### `tranger2_str2system_flag()` maps each name to its own bit
+
+`idx_in_list()` counts from 0 and the function applied a count from 1, so
+every name landed on the bit of the one before it: `sf_string_key` gave 0,
+`sf_rowid_key` gave `sf_string_key`, `sf_int_key` gave `sf_rowid_key`, and
+`sf_t_ms` / `sf_tm_ms` gave bits nobody reads. It went unseen because every
+caller in the tree passes `"sf_string_key"` and `tranger2_create_topic()` falls
+back to a string key when the topic has a pkey. The one real path was
+`C_TRANGER`'s `create-topic system_flag=sf_int_key`, which created a
+**rowid-key** topic, and a `sf_t_ms` that was silently dropped.
+
+Only NEW topics are affected: an existing topic reads its `system_flag` from
+its own `topic_desc.json`. A topic created by hand with that command keeps the
+flag it was created with. An unknown name is now logged (*"Unknown system_flag
+name, ignored"*) instead of being dropped in silence. Test:
+`tests/c/timeranger2/test_str2system_flag`.
+
 ### `audit-sshd.sh` runs clean over stdin
 
 `ssh node 'sudo bash -s' < tools/sshd/audit-sshd.sh` audits a node without
