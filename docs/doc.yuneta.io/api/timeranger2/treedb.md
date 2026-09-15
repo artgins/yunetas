@@ -549,7 +549,7 @@ This function creates a 'pure node' without loading hook links. The primary key 
 | Flag on `id` | The id the topic hands out |
 |---|---|
 | `uuid` | A random UUID. |
-| `rowid` | The topic size plus one. |
+| `rowid` | One past every id the topic ever handed out. An id is never reused, not even after its node is deleted: a snap's id rides the records it tagged. The counter lives in the topic's `topic_var.json` (`last_rowid_id`). |
 | `qualified` | The id of the parent, a dot, and the name of the record. The name is the first secondary key of the topic (`pkey2s`). The parent is the one named in the fkey of the `kw`. |
 
 A column carries at most one of the three. With none of them, a `kw` with no

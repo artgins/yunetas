@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### treedb: a `rowid` id is never handed out twice
+
+A topic whose `id` column carries `rowid` hands out the id when the create
+sends none. It was `tranger2_topic_size() + 1`, and that function sums the
+RECORDS of every key: deleting a node lowered the total, so the next id landed
+on one that already existed, and every update raised it, so the ids skipped.
+
+- `__snaps__` is such a topic. Shoot two snaps, delete the row of the first
+  (the documented way to release the assets a snap holds) and shoot again: the
+  new snap asked for the id of the second, the create was refused as *"Node
+  already exists"*, and `treedb_shoot_snap()` logged a critical. `C_TREEDB`
+  runs its tranger with `exit_on_error` `2`, so **the yuno exited**.
+- In a topic with `pkey2s` an existing id with a DIFFERENT secondary key is not
+  refused: it adds an instance. The agent's `yunos` is such a topic, and
+  `create-yuno` sends no id, so a yuno created after a `delete-yuno` could
+  become an instance of an unrelated yuno. The agent's `configurations` and
+  `public_services`, and the controlcenter's `services`, are `rowid` topics too.
+
+The id is now one past every id the topic ever handed out, kept as
+`last_rowid_id` in the topic's `topic_var.json` and raised past any numeric id
+already in the index, which also seeds it in an existing store: nothing to
+migrate. An id is never reused, because a snap's id rides the records it
+tagged: a new snap with a deleted snap's id would inherit them. Ids no longer
+skip on updates, so new ids in an existing store continue from the highest one
+present. Test: `tests/c/tr_treedb_rowid`.
+
 ### treedb: a column that declares no `flag` no longer crashes the yuno
 
 Every user column is validated against the `cols` topic of

@@ -5093,6 +5093,53 @@ PRIVATE BOOL inherit_links(
 }
 
 /***************************************************************************
+ *  The id a `rowid` topic hands out: one past every id it ever handed out.
+ *
+ *  Never reused: a snap's id rides the records it tagged as user_flag, and
+ *  a deleted snap leaves them tagged, so a new snap with its id would
+ *  inherit them. The count of records (tranger2_topic_size) cannot be the
+ *  source: a delete lowers it onto an existing id, and in a topic with
+ *  pkey2s an existing id with another secondary key is not refused, it
+ *  becomes an instance of that node.
+ *
+ *  The counter lives in topic_var.json as `last_rowid_id`. The scan of the
+ *  index raises it past any numeric id written explicitly, and seeds it in
+ *  a store written before the counter existed.
+ *
+ *  Return the id, 0 on error.
+ ***************************************************************************/
+PRIVATE json_int_t get_next_rowid_id(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name,
+    const char *topic_name
+)
+{
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    json_int_t last = kw_get_int(gobj, topic, "last_rowid_id", 0, 0);
+
+    json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
+    const char *id; json_t *node;
+    json_object_foreach(indexx, id, node) {
+        char *end = NULL;
+        long long n = strtoll(id, &end, 10);
+        if(end && *end == 0 && n > last) {
+            last = (json_int_t)n;
+        }
+    }
+
+    last++;
+    if(tranger2_write_topic_var(
+        tranger,
+        topic_name,
+        json_pack("{s:I}", "last_rowid_id", last)
+    )<0) {
+        return 0;   // Error already logged
+    }
+    return last;
+}
+
+/***************************************************************************
  *  Compose the id of a node whose pkey carries the `qualified` flag: the
  *  id of its parent, a dot, and its own name.
  *
@@ -5243,7 +5290,11 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
         } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
-            json_int_t rowid = (json_int_t)tranger2_topic_size(tranger, topic_name) + 1;
+            json_int_t rowid = get_next_rowid_id(gobj, tranger, treedb_name, topic_name);
+            if(rowid <= 0) {
+                JSON_DECREF(kw)
+                return 0;   // Error already logged
+            }
             json_object_set_new(kw, "id", json_sprintf("%"JSON_INTEGER_FORMAT, rowid));
             id = kw_get_str(gobj, kw, "id", 0, 0);
         } else if(kw_has_word(gobj, id_col_flag, "qualified", 0)) {
@@ -12814,7 +12865,8 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     }
 
     uint32_t user_flag = kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
-    // user_flag is the snap's id (g_rowid in __snaps__) and rides the
+    // user_flag is the snap's id (handed out by the `rowid` flag of
+    // __snaps__, never reused) and rides the
     // appended record's md2 user_flag field, which is uint16_t — so cap
     // at 0xFFFE (treedb_open_db treats snap_tag=0 as "no snap active").
     if(user_flag==0 || user_flag >= 0xFFFF) {
