@@ -206,11 +206,139 @@ Two candidates were ruled out by measurement, not by reading: the file-static
 nothing outside `msg2db_open_db()` ever read it) and the test's own handling of
 the tranger config. Neither changed the count.
 
+**The open/close "leak" is probably the test, not msg2db** (review of
+2026-09-15, gdb on `test_pkey2_empty`): the 16 blocks are two clusters of the
+inotify watcher on the master's `/disks` directory
+(`fs_create_watcher_event()` ← `monitor_disks_directory_by_master()`).
+`tranger2_stop()` cancels it asynchronously, and the test never runs the loop
+after the shutdown, so the cancellation is never drained. Compare
+`tests/c/timeranger2/test_rt_disk_multi_feed.c`, which drains it. Drain the loop
+in the test first, and measure again before touching msg2db.
+
 It went unnoticed because **msg2db has never had a test**. `tests/c/tr_msg`
 covers `tr_msg.c`, which is a different module. The first test written for it
 found this in its first run.
 
-Finish the leak, then register `tests/c/tr_msg2db` in `tests/c/CMakeLists.txt`.
+Drain the loop in the test, re-measure, then register `tests/c/tr_msg2db` in
+`tests/c/CMakeLists.txt`.
+
+## TreeDB / timeranger2: open findings of the 2026-09-15 review
+
+A read-only review of timeranger2, tr_treedb, their gclasses, gobj-ui's treedb
+views and the docs. Every finding marked "high" was checked by hand in the
+code. What shipped is in `CHANGELOG.md` (`str2system_flag`, flag-less column,
+`rowid`, re-link of a string fkey, hook+fkey refused). This is what is open.
+Line numbers are those of `main` on 2026-09-15.
+
+**High**
+
+- **A6: `find_keys_in_disk()` stats the wrong path when the filesystem gives
+  no `d_type`** (`timeranger2.c:5806`, the `DT_UNKNOWN` branch). It builds
+  `<topic>/<key>` from `directory` instead of `<topic>/keys/<key>` from
+  `full_path`. Dead code on ext4/xfs with `ftype=1`. On XFS `ftype=0`, NFS,
+  FUSE or overlay it is the only branch: the topic opens with an EMPTY cache
+  over intact files, reads return 0 rows, and the first append creates a cell
+  `{rows:1}` for a file that holds N, so the wrong record is served. The
+  `#else` branch uses `path` and `st` undeclared. Use `build_path()`.
+- **A8: gobj-ui: the form's Save sends every field, read-only ones included,
+  with `autolink`** (`c_yui_treedb_topic_with_form.js`, `ac_form_save_record`
+  → `publish_treedb_write`). `transform__form_record_2_treedb_record()`, which
+  drops the non-writable columns, is only called by Copy. The backend does not
+  check `writable` on an update. A non-writable `time` column is drawn as
+  `datetime-local` (no seconds), so every Save of any other field moves it back
+  up to 59 s. Fix: run the kw through that transform in `publish_treedb_write`.
+- **A9: the answer of `print-tranger path=` carries no `path`.** `c_ievent_cli.js`
+  EXTRACTS `__md_command__` and makes it the `kw` of the stack frame, and
+  `path` travels at the top level (`gui_treedb/src/c_tranger_view.js:1515`,
+  read back at `:3507`), so a drill of the JSON viewer replaces the whole
+  document. The same shape in gobj-ui (`c_yui_treedb_topics.js:1809/1881`,
+  `c_yui_treedb_graph.js:1332/2008`), so in gui_agent's Raw JSON too. Fix:
+  `__md_command__: {path}`, as `get-page` / `list-keys` do.
+- **A10: gobj-ui `ac_edition_mode` dereferences buttons that
+  `with_copy_button=false` / `with_paste_button=false` never built**
+  (`c_yui_treedb_topic_with_form.js:3776-3817` against `create_table_toolbar`).
+  Latent: no consumer sets them to false today.
+- **A11: docs that make a reader do the wrong thing.**
+  `docs/doc.yuneta.io/api/timeranger2/treedb.md` says `treedb_delete_node()`
+  takes `node` OWNED (it is BORROWED since 7.18.2, `tr_treedb.h`).
+  `YUNO_TREEDB.md` §3.3 lists the flags `pkey`, `pkey2`,
+  `tkey`, which exist in no vocabulary (the `__system__` enum refuses them), and
+  lists `enum`, `wild`, `email`, `url`, `password` and `time` as types.
+
+**Found while fixing (2026-09-15)**
+
+- **A link CYCLE is not refused.** `_link_nodes()` refuses only a self-link. A
+  hook holds the child NODE, so a department in the `managers` hook of its own
+  descendant makes the in-memory tree cyclic: `debug_json()` of the tranger
+  recursed 87k frames and crashed. Not checked yet: whether a cycle leaks at
+  `treedb_close_db()`, and what the other recursive walkers do (compare, dump,
+  `jtree`).
+- **`test_c_node_link_events` failed once** in a run of the treedb suites, then
+  passed 15 times in a row. Possibly timing-dependent.
+
+**Medium**
+
+- **timeranger2**: the propagation of `delete_key` to a follower is wrong both
+  ways (`key_deleted` fires twice with prior traffic, zero times without it,
+  and the follower's cache keeps the dead key). `test_delete_key_propagation`
+  asserts exactly one and passes because it never arms inotify: it puts
+  `yev_loop` in `jn_tranger`, which `tranger2_startup()` ignores. The cache
+  matches only the LAST cell (`get_last_cache_cell()`,
+  `update_new_record_from_mem()`): an append whose `__t__` belongs to an
+  earlier file adds a duplicate cell and serves the wrong record.
+  `fs_watcher.c` `yev_callback()` (`:306`): closing an rt_disk feed from inside
+  its own callback frees `fs_event` while the loop still iterates it (nothing
+  in the tree does it today; nothing forbids it).
+- **tr_treedb**: `treedb_save_node()` (`:5779`) adds the pkey2 slot of the new
+  value and never removes the old one, so after changing a pkey2 value the node
+  is listed twice and still answers to the old value. The check "Only can be one
+  fkey" of `parse_hooks()` (`:2365`) is dead (`kw_has_word` on a dict), so two
+  hooks on one fkey keep the LAST in silence and the loader drops the links of
+  the first. `treedb_delete_instance()` (`:6644`) drops the instance from the
+  pkey2 index without unlinking it. The snapshot clone of
+  `treedb_shoot_snap()` (`:12945`) leaves the OLD tag in memory, so snap N-1
+  goes on "following" updates while snap N stays frozen in the clone.
+- **C_NODE / C_TREEDB**: `links` / `hooks` with no topic answer
+  `{"": [last]}` (`mt_topic_links`/`mt_topic_hooks`, `c_node.c:740/800`, the
+  loop indexes by `topic_name` instead of `topic_name_`). `cmd_link_nodes` /
+  `cmd_unlink_nodes` (`:2801/:2943`) lose the parent node they own when the
+  child does not exist, and the message says "Parent not found". Authz is
+  uneven: `read` is checked only on `nodes`, and `node`, `instances`,
+  `parents`, `children`, `jtree`, `snap-content`, `print-tranger` and
+  `export-db` have no guard; `import-db` has none at all (`:4440`, `// TODO`);
+  `update-node` with `options.create=1` creates under the `update` permission.
+  `mt_delete_node` (`:1115`) answers 0 when the topic does not exist.
+  `mt_treedbs` (`c_treedb.c:469`) returns a `msg_iev_build_response` envelope
+  where its callers expect a list.
+- **gobj-ui (treedb views)**: the pencil of the Op column opens the form by a
+  direct call, not through the FSM; the confirm dialogs (delete, unsaved
+  changes) act from the promise's `.then` (the schema editor does it right,
+  `confirm_then` → `EV_CONFIRMED`); `EV_SELECT_ROWS` / `EV_UNSELECT_ROWS` are
+  output events of the child that the host `C_YUI_TREEDB_TOPICS` does not
+  declare, and `ac_unselect_rows` reads the wrong attr; since `hook_size`
+  (7.23.163) the table's search matches the COUNT of a hook (`row_matches`,
+  no test with `{size}`); `setTimeout(close_form_dialog, 0)` as a deferral; the
+  five toolbar buttons of the table and its search have no `title` /
+  `aria-label`; the form dialog's title is composed at render and handed over
+  as an i18n KEY; `C_G6_NODES_TREE` puts G6/DOM event objects in kws and runs
+  deletes/links from DOM callbacks; its first `graph.render().then()` has no
+  destruction guard and no `.catch`.
+- **Docs**: `YUNO_TREEDB.md` puts `schema_version` on a topic (it is the
+  treedb's), shows `sf_zip_record` / `sf_cipher_record` as working (they are
+  `// TODO`), and its `initial_load` example uses `org_nodes` and
+  `users.scopes`, which exist nowhere; `kernel/js/gobj-ui/README.md` still
+  describes the pre-7.18.0 asset model; `data.md` shows `exit_on_error` as a
+  bool (it is an integer, default `"2"`); timeranger2's `README.md` links a
+  `TREEDB.md` that does not exist.
+
+**Tests nobody has** (in order of damage): `DT_UNKNOWN`; the follower's cache
+after `delete_key` with REAL inotify; `__t__` out of order; changing a pkey2
+value; two hooks on one fkey; `delete_instance` with links; the snapshot clone
+followed by updates. C_NODE commands with no ctest: `node`, `instances`,
+`pkey2s`, `jtree`, `parents`, `children`, `hooks`, `links`, `treedb-info`, the
+snap commands, `import-db` / `export-db`, `print-tranger`, and the refusals on a
+replica. In gobj-ui, no gclass of the treedb views has a test: the save kw as
+it leaves `publish_treedb_write` would have caught A8.
 
 ## ESP32: `gobj_post_event()` is not in the port
 
@@ -289,6 +417,14 @@ already fine). What the audit left open:
   `C_TIMER` child at all) and `c_treedb_view.js` (the deferred rebind, which
   destroys gobjs and swaps DOM). Both should be a `C_TIMER` pure child +
   `EV_TIMEOUT` / a dedicated event, so the deferral shows up in the trace.
+  The 2026-09-15 review found three more in `c_app.js` (`:611`, `:1402`,
+  `:1417`), next to a `gobj_post_event(EV_NORMALIZE_ROUTE)` that already does
+  that job: a deferral inside the yuno is `gobj_post_event()`, not a timer.
+- **Row actions of `c_treedb_connections.js` (`:802-841`) are `<span
+  class="icon">`** with no `role=button` and no `tabindex`: unreachable from the
+  keyboard.
+- **gui_treedb never asks `treedb-info`**, so a replica is mounted with its
+  write buttons, and it is the backend that refuses each write.
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE/C_TRANGER
   commands). Highest operator value, in order: **snapshots** (`snaps`,
   `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap` — tag a
