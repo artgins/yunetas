@@ -287,7 +287,27 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->rxMsgs == 5) {
         uint64_t time_measure_end = time_in_milliseconds_monotonic();
         uint64_t tm = time_measure_end - priv->time_measure_start;
-        if(!(tm >= 5000 && tm < 5010)) {
+        /*
+         *  Five ticks of a 1 s periodic timer.
+         *
+         *  The upper bound used to be 5010 -- ten milliseconds over five
+         *  seconds, two parts in a thousand. The io_uring timer is that
+         *  precise; the scheduler that runs this callback afterwards is
+         *  not, so on a loaded box the window measured the machine and
+         *  not the timer. It failed once in four full-suite runs on a
+         *  busy one, passed alone in 5 s every time, and the red line
+         *  landed in the middle of a release audit saying nothing about
+         *  the change under test.
+         *
+         *  500 ms of slack, the same the sibling c_timer test allows
+         *  (there plus the yuno's periodic, which drives ITS timer and
+         *  not this one: C_TIMER0 owns an io_uring timer per instance).
+         *  A drift worth finding is a drift of tenths of a second.
+         *
+         *  The lower bound stays at 5000 and earns its place: a periodic
+         *  timer firing EARLY is a real defect, and no load can cause it.
+         */
+        if(!(tm >= 5000 && tm <= 5500)) {
             gobj_log_error(gobj, 0,
                 "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "bad time",

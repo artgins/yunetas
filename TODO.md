@@ -305,34 +305,6 @@ agent. The test is one line and reads the process, not the file:
 readlink /proc/$(pgrep -x yuneta_agent22 | head -1)/exe | grep -q ' (deleted)$'
 ```
 
-## Tests: `test_c_timer0` asserts a 10 ms window on a 5 s measurement
-
-`c_test_timer0.c` fails the run when five ticks of a 1 s periodic timer do not
-land between 5000 and 5009 ms of wall clock:
-
-```c
-if(!(tm >= 5000 && tm < 5010)) {   // -> gobj_log_error("bad time")
-```
-
-The error is not in the `set_expected_results` list, so the test fails. Its
-sibling `c_test_timer.c` measures the same thing and allows
-`5000 .. 5500 + yuno_periodic`, which is where the asymmetry looks like an
-oversight rather than a precision requirement: io_uring timers are precise, the
-OS scheduler under load is not.
-
-Measured on 2026-08-05: 20/20 passes on an idle machine, and one failure in
-four full-suite runs on a busy one. A slow box (the yunovatios-central Rocky VM
-is kept deliberately slow) would fail it routinely.
-
-Seen again on 2026-08-10, and this is the cost of leaving it: it failed in a
-`yunetas test` whose ctest phase overlapped the tail of a build, and the red
-line landed in the middle of a release audit. It passed alone in 5 s and passed
-in the next full run, 121/121 — so the only thing it measured was the machine's
-load, and the only thing it produced was doubt about an unrelated change.
-
-Raise the upper bound. Keep the lower one at 5000 — a periodic timer firing
-EARLY is a real defect and that half of the assert earns its place.
-
 ## gui_treedb: leftovers from the 2026-07-13 audit
 
 The four gclasses whose runtime lived outside the automaton are done
